@@ -1,0 +1,5 @@
+# Caddy tự xin chứng chỉ HTTPS miễn phí cho tên miền trong DOMAIN.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy api:8000
+}
