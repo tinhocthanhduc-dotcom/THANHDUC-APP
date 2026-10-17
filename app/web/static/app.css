@@ -170,3 +170,20 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .acceptance-report { padding: 12px; }
   .report-photos { grid-template-columns: 1fr; }
 }
+
+.dispatch-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dispatch-tiles a { display: grid; gap: 8px; text-decoration: none; color: var(--text); text-align: center; padding: 12px 6px; overflow-wrap: anywhere; }
+.dispatch-tiles strong { font-size: 1.6rem; }
+.dispatch-tiles a.on { border-color: var(--accent); }
+.dispatch-dates { margin-bottom: 12px; }
+.dispatch-table { border-collapse: collapse; width: 100%; margin-top: 16px; background: var(--surface); font-size: .9rem; }
+.dispatch-table caption { text-align: left; font-weight: 700; font-size: 1.1rem; padding: 8px 0; }
+.dispatch-table th, .dispatch-table td { padding: 10px 8px; border: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .dispatch-table, .dispatch-table tbody, .dispatch-table tr, .dispatch-table caption { display: block; }
+  .dispatch-table thead { display: none; }
+  .dispatch-table tr { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .dispatch-table td, .dispatch-table tbody th { display: flex; justify-content: space-between; gap: 12px; border: 0; padding: 10px; }
+  .dispatch-table td + td { border-top: 1px solid var(--line); }
+  .dispatch-table [data-label]::before { content: attr(data-label); color: var(--muted); }
+}

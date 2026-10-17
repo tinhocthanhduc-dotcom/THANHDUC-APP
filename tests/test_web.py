@@ -1332,3 +1332,241 @@ def test_d5_cannot_hide_attachment_from_other_ticket(client, db, service_people,
     assert response.status_code == 404
     db.refresh(a)
     assert not a.hidden
+
+
+# D7 — dữ liệu lịch sử cố định để kiểm tra thống kê, ranh giới ngày VN và hạn cũ.
+def d7_clock(value):
+    from datetime import datetime
+    return datetime.fromisoformat(value)
+
+
+def d7_ticket(db, people, number, events, *, created='2026-10-10T08:00:00+07:00', due=None, status=None):
+    from app.models import AuditLog, ServiceStep, ServiceTicket
+    worker = people['technician'].id
+    ticket = ServiceTicket(number=number, customer_code='KTD-000001', kind='SUA_TAI_CHO', priority='THUONG',
+                           symptom='Kiểm tra máy', status=status or events[-1][1], assignee_id=worker,
+                           created_at=d7_clock(created), created_by=people['sales'].id,
+                           due_at=d7_clock(due) if due else None)
+    db.add(ticket)
+    db.flush()
+    previous = None
+    for action, state, at, next_due, assignee in events:
+        actor = people['dispatcher'].id if action in ('create', 'assign', 'reassign') else assignee
+        before = previous
+        after = {'status': state, 'assignee_id': assignee, 'due_at': next_due}
+        db.add(ServiceStep(ticket_id=ticket.id, action=action, from_status=before['status'] if before else None,
+                           to_status=state, assignee_id=assignee, actor_id=actor, at=d7_clock(at), note='Bước cố định'))
+        db.add(AuditLog(entity='service_ticket', entity_id=str(ticket.id), action='service_ticket.' + action,
+                        user_id=actor, at=d7_clock(at), before=before, after=after))
+        previous = after
+    if previous:
+        ticket.assignee_id = previous['assignee_id']
+    db.commit()
+    return ticket
+
+
+def d7_events(worker, *, late=False, finish='HOAN_THANH', completed='2026-10-10T11:00:00+07:00'):
+    return [
+        ('create', 'MOI', '2026-10-10T08:00:00+07:00', '2026-10-10T10:00:00+07:00', None),
+        ('assign', 'DA_GIAO', '2026-10-10T09:00:00+07:00', '2026-10-10T09:15:00+07:00', worker),
+        ('transition', 'DA_NHAN', '2026-10-10T09:30:00+07:00' if late else '2026-10-10T09:10:00+07:00', '2026-10-10T18:00:00+07:00', worker),
+        ('transition', 'DA_HEN', '2026-10-10T09:40:00+07:00', '2026-10-10T10:00:00+07:00', worker),
+        ('transition', 'DANG_LAM', '2026-10-10T10:00:00+07:00', '2026-10-10T18:00:00+07:00', worker),
+        ('transition', finish, completed, None, worker),
+    ]
+
+
+@pytest.fixture
+def d7_history(db, service_people):
+    worker = service_people['technician'].id
+    first = d7_ticket(db, service_people, 'DV-26-00001', d7_events(worker), created='2026-10-09T23:30:00+07:00')
+    second = d7_ticket(db, service_people, 'DV-26-00002', d7_events(worker, late=True, completed='2026-10-10T13:00:00+07:00'))
+    failed = d7_ticket(db, service_people, 'DV-26-00003', d7_events(worker, finish='KHONG_LAM_DUOC'))
+    # Đóng đúng 00:00 ngày sau (17:00 UTC ngày trước) phải nằm ngoài khoảng chỉ ngày 10.
+    outside = d7_ticket(db, service_people, 'DV-26-00004', d7_events(worker, completed='2026-10-11T00:00:00+07:00'),
+                        created='2026-10-11T00:00:00+07:00')
+    return first, second, failed, outside
+
+
+def d7_csv(client, query='from=2026-10-10&to=2026-10-10'):
+    import csv
+    import io
+    response = client.get('/dieu-phoi/bao-cao.csv?' + query)
+    assert response.status_code == 200, response.text
+    return list(csv.reader(io.StringIO(response.content.decode('utf-8-sig'))))
+
+
+def test_d7_overdue_excludes_closed_and_orders_oldest(client, db, service_people, monkeypatch):
+    from app import service_tickets as svc
+    from app.web import dispatch
+    now = d7_clock('2026-10-10T12:00:00+07:00')
+    monkeypatch.setattr(dispatch, '_now', lambda: now)
+    monkeypatch.setattr(svc, '_now', lambda: now)
+    later = d7_ticket(db, service_people, 'DV-26-00001', [], due='2026-10-10T11:00:00+07:00', status='DANG_LAM')
+    older = d7_ticket(db, service_people, 'DV-26-00002', [], due='2026-10-10T08:45:00+07:00', status='DA_HEN')
+    closed = d7_ticket(db, service_people, 'DV-26-00003', [], due='2026-10-09T08:00:00+07:00', status='HOAN_THANH')
+    waiting = d7_ticket(db, service_people, 'DV-26-00004', [], status='CHO_LINH_KIEN')
+    service_login(client, service_people['dispatcher'])
+    response = client.get('/dieu-phoi')
+    assert response.status_code == 200, response.text
+    assert response.text.index(older.number) < response.text.index(later.number)
+    assert closed.number not in response.text and waiting.number not in response.text
+    assert 'trễ 3 giờ 15 phút' in response.text and 'trễ 1 giờ 0 phút' in response.text
+    assert '<strong>3</strong><span>Đơn đang mở' in response.text
+    assert '<strong>2</strong><span>Đơn quá hạn' in response.text
+    assert '<strong>1</strong><span>Chờ linh kiện' in response.text
+    assert waiting.number in client.get('/dieu-phoi?view=parts').text
+    assert waiting.number in client.get('/dieu-phoi?view=open').text
+    assert closed.number not in client.get('/dieu-phoi?view=open').text
+
+
+def test_d7_dashboard_not_truncated_by_search_limit(client, db, service_people, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), 'search_limit', 1)
+    for i in range(7):
+        d7_ticket(db, service_people, f'DV-26-{i+1:05}', [], due='2026-01-01T00:00:00+07:00', status='DA_NHAN')
+    service_login(client, service_people['dispatcher'])
+    response = client.get('/dieu-phoi')
+    assert '<strong>7</strong><span>Đơn quá hạn' in response.text
+    assert response.text.count('class="code">DV-26-') == 7
+
+
+def test_d7_report_counts_average_and_historical_lateness(client, db, service_people, d7_history):
+    service_login(client, service_people['dispatcher'])
+    response = client.get('/dieu-phoi/bao-cao?from=2026-10-10&to=2026-10-10')
+    assert response.status_code == 200, response.text
+    assert '180.0 phút' in response.text and '33.3%' in response.text
+    rows = d7_csv(client)
+    assert rows[1] == ['Dv.Technician', '2', '1', '180.0', '33.3', '0']
+    daily_index = rows.index(['Ngày', 'Đơn nhận', 'Đơn hoàn thành'])
+    assert rows[daily_index + 1] == ['2026-10-10', '2', '2']
+    # Phiếu hoàn thành không còn due_at; vẫn phát hiện hạn nhận cũ bị vượt ở lịch sử.
+    assert all(t.due_at is None for t in d7_history)
+
+
+@pytest.mark.parametrize('role', ['technician', 'sales', 'warehouse'])
+def test_d7_forbidden_roles(client, service_people, role):
+    service_login(client, service_people[role])
+    for path in ['/dieu-phoi', '/dieu-phoi/bao-cao', '/dieu-phoi/bao-cao.csv']:
+        assert client.get(path).status_code == 403
+    assert 'href="/dieu-phoi"' not in client.get('/dich-vu').text
+
+
+def test_d7_csv_headers_and_vietnam_date_defaults(client, service_people, d7_history, monkeypatch):
+    from app.web import dispatch
+    monkeypatch.setattr(dispatch, '_now', lambda: d7_clock('2026-10-10T18:00:00+00:00'))  # VN đã ngày 11.
+    service_login(client, service_people['director'])
+    response = client.get('/dieu-phoi/bao-cao')
+    assert 'name="from" value="2026-10-05"' in response.text
+    assert 'name="to" value="2026-10-11"' in response.text
+    rows = d7_csv(client)
+    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ']
+    assert ['Ngày', 'Đơn nhận', 'Đơn hoàn thành'] in rows
+    response = client.get('/dieu-phoi/bao-cao.csv?from=2026-10-10&to=2026-10-10')
+    assert response.content.startswith(b'\xef\xbb\xbf')
+    assert response.headers['content-type'].startswith('text/csv')
+    assert 'attachment;' in response.headers['content-disposition']
+
+
+def test_d7_reassignment_uses_latest_assignment_for_completing_technician(client, db, service_people):
+    a, b = service_people['technician'].id, service_people['other'].id
+    events = d7_events(a)
+    events = events[:3] + [
+        ('reassign', 'DA_GIAO', '2026-10-10T10:30:00+07:00', '2026-10-10T10:45:00+07:00', b),
+        ('transition', 'DA_NHAN', '2026-10-10T10:40:00+07:00', '2026-10-10T18:00:00+07:00', b),
+        ('transition', 'DA_HEN', '2026-10-10T10:41:00+07:00', '2026-10-10T11:00:00+07:00', b),
+        ('transition', 'DANG_LAM', '2026-10-10T11:00:00+07:00', '2026-10-10T18:00:00+07:00', b),
+        ('transition', 'HOAN_THANH', '2026-10-10T11:30:00+07:00', None, b),
+    ]
+    d7_ticket(db, service_people, 'DV-26-00001', events)
+    service_login(client, service_people['dispatcher'])
+    assert d7_csv(client)[1] == ['Dv.Tho.B', '1', '0', '60.0', '0.0', '0']
+
+
+def test_d7_missing_audit_not_assumed_on_time_and_bad_dates(client, db, service_people):
+    from app.models import ServiceStep, ServiceTicket
+    t = ServiceTicket(number='DV-26-00001', customer_code='KTD-000001', kind='SUA_TAI_CHO', symptom='Máy hỏng',
+                      status='HOAN_THANH', assignee_id=service_people['technician'].id, created_by=service_people['sales'].id)
+    db.add(t); db.flush()
+    db.add(ServiceStep(ticket_id=t.id, action='transition', from_status='DANG_LAM', to_status='HOAN_THANH',
+                       actor_id=t.assignee_id, assignee_id=t.assignee_id, at=d7_clock('2026-10-10T12:00:00+07:00')))
+    db.commit()
+    service_login(client, service_people['dispatcher'])
+    assert d7_csv(client)[1] == ['Dv.Technician', '1', '0', '', '', '1']
+    response = client.get('/dieu-phoi/bao-cao?from=2026-10-11&to=2026-10-10')
+    assert response.status_code == 400 and 'Khoảng ngày chưa hợp lệ' in response.text
+    assert 'value="2026-10-11"' in response.text
+    assert client.get('/dieu-phoi/bao-cao.csv?from=sai&to=2026-10-10').status_code == 400
+
+
+def test_d7_read_only_transactions_and_csv_formula_escape(client, db, engine, service_people, d7_history):
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+    from app.main import app
+    from app.db import get_session
+    service_people['technician'].full_name = '=HYPERLINK("example")'
+    db.commit()
+    service_login(client, service_people['dispatcher'])
+    def read_only_session():
+        with Session(engine) as s:
+            s.execute(text('SET TRANSACTION READ ONLY'))
+            yield s
+    app.dependency_overrides[get_session] = read_only_session
+    try:
+        assert client.get('/dieu-phoi').status_code == 200
+        assert client.get('/dieu-phoi/bao-cao?from=2026-10-10&to=2026-10-10').status_code == 200
+        assert d7_csv(client)[1][0].startswith("'=HYPERLINK")
+    finally:
+        app.dependency_overrides.pop(get_session)
+
+
+def test_d7_lateness_matches_real_core_audit_transactions(client, db, service_people, d5_ticket):
+    from datetime import UTC, datetime, timedelta
+    from app import attachments, service_tickets as svc
+    tech = service_people['technician']
+    # Hạn hiện tại bị vượt; lần chuyển thật ghi snapshot hạn cũ và bước trong cùng transaction.
+    d5_ticket.due_at = datetime.now(UTC) - timedelta(hours=2)
+    db.commit()
+    attachments.add(db, tech, 'service_ticket', str(d5_ticket.id), 'SAU', 'sau.png', d5_image())
+    svc.transition(db, tech, d5_ticket.id, 'HOAN_THANH', d5_ticket.version, 'Đã sửa máy')
+    service_login(client, service_people['dispatcher'])
+    rows = d7_csv(client, '')
+    assert rows[1][1:3] == ['1', '0']
+    assert rows[1][4:] == ['100.0', '0']
+
+
+def test_d7_reschedule_uses_original_appointment_deadline(client, db, service_people):
+    worker = service_people['technician'].id
+    events = d7_events(worker)[:4] + [
+        ('reschedule', 'DA_HEN', '2026-10-10T10:30:00+07:00', '2026-10-10T12:00:00+07:00', worker),
+        ('transition', 'DANG_LAM', '2026-10-10T11:00:00+07:00', '2026-10-10T18:00:00+07:00', worker),
+        ('transition', 'HOAN_THANH', '2026-10-10T12:00:00+07:00', None, worker),
+    ]
+    t = d7_ticket(db, service_people, 'DV-26-00001', events)
+    t.appointment_at = d7_clock('2026-10-10T12:00:00+07:00')
+    db.commit()
+    service_login(client, service_people['dispatcher'])
+    # Dời hẹn lúc 10:30 đã trễ hạn hẹn cũ 10:00, dù lịch hẹn cuối được dời sang 12:00.
+    assert d7_csv(client)[1][4:] == ['100.0', '0']
+
+
+@pytest.mark.parametrize('final_status', ['HOAN_THANH', 'DA_DONG', 'DANG_LAM', 'DA_HUY'])
+def test_d7_reopened_ticket_not_counted_twice_or_after_cancellation(client, db, service_people, final_status):
+    worker = service_people['technician'].id
+    events = d7_events(worker) + [
+        ('reopen', 'DANG_LAM', '2026-10-10T11:30:00+07:00', '2026-10-10T18:00:00+07:00', worker),
+        ('transition', 'HOAN_THANH', '2026-10-10T13:00:00+07:00', None, worker),
+    ]
+    if final_status != 'HOAN_THANH':
+        action = {'DA_DONG': 'close', 'DANG_LAM': 'reopen', 'DA_HUY': 'cancel'}[final_status]
+        events.append((action, final_status, '2026-10-10T14:00:00+07:00', None, worker))
+    d7_ticket(db, service_people, 'DV-26-00001', events)
+    service_login(client, service_people['dispatcher'])
+    rows = d7_csv(client)
+    daily_index = rows.index(['Ngày', 'Đơn nhận', 'Đơn hoàn thành'])
+    if final_status in ('HOAN_THANH', 'DA_DONG'):
+        assert rows[1] == ['Dv.Technician', '1', '0', '240.0', '0.0', '0']
+        assert rows[daily_index + 1] == ['2026-10-10', '1', '1']
+    else:
+        assert rows[1] == []
+        assert rows[daily_index + 1] == ['2026-10-10', '1', '0']

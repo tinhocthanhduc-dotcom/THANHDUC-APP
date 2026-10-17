@@ -1,0 +1,27 @@
+{% extends "base.jinja" %}
+{% block title %}Báo cáo dịch vụ{% endblock %}
+{% block main %}
+<div class="bar"><h1>Báo cáo dịch vụ</h1><a href="/dieu-phoi">← Điều phối</a></div>
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+<form action="/dieu-phoi/bao-cao" class="card form dispatch-dates">
+  <label>Từ ngày<input type="date" name="from" value="{{ start }}" required></label>
+  <label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label>
+  <button>Xem báo cáo</button>
+</form>
+<p class="hint">Khoảng ngày tính từ 00:00 ngày đầu đến hết ngày cuối theo giờ Việt Nam.</p>
+{% if not error %}
+<a class="btn" href="/dieu-phoi/bao-cao.csv?from={{ start }}&amp;to={{ end }}">Tải CSV (cả hai bảng)</a>
+<table class="dispatch-table" id="report-technicians"><caption>Theo thợ</caption>
+<thead><tr><th scope="col">Thợ</th><th scope="col">Đơn hoàn thành</th><th scope="col">Không làm được</th><th scope="col">Thời gian trung bình</th><th scope="col">Tỷ lệ trễ</th><th scope="col">Chưa xác định trễ</th></tr></thead>
+<tbody>{% for row in technicians %}<tr>
+  <th scope="row" data-label="Thợ">{{ row.name }}</th><td data-label="Đơn hoàn thành">{{ row.completed }}</td>
+  <td data-label="Không làm được">{{ row.failed }}</td><td data-label="Thời gian trung bình">{{ '%.1f phút'|format(row.avg_minutes) if row.avg_minutes is not none else 'Chưa đủ dữ liệu' }}</td>
+  <td data-label="Tỷ lệ trễ">{{ '%.1f%%'|format(row.late_rate) if row.late_rate is not none else 'Chưa đủ dữ liệu' }}</td>
+  <td data-label="Chưa xác định trễ">{{ row.unknown }}</td>
+</tr>{% else %}<tr><td colspan="6">Không có phiếu hoàn thành hoặc không làm được trong khoảng ngày này.</td></tr>{% endfor %}</tbody></table>
+<p class="hint">Mỗi phiếu chỉ tính lần hoàn thành cuối, cho thợ ở bước đó trong kỳ; bỏ phiếu đã hủy hoặc đang mở lại, vẫn tính phiếu đã đóng hồ sơ. Thời gian trung bình: từ lần giao gần nhất cho thợ đó đến Hoàn thành, kể cả thời gian chờ; chỉ lấy phiếu có đủ mốc giờ. Tỷ lệ trễ: số phiếu có ít nhất một bước vượt hạn cũ / số phiếu xác định được hạn trong toàn bộ lịch sử. Phiếu thiếu nhật ký hạn được đếm riêng, không coi là đúng hạn.</p>
+<table class="dispatch-table" id="report-days"><caption>Theo ngày</caption>
+<thead><tr><th scope="col">Ngày</th><th scope="col">Đơn nhận</th><th scope="col">Đơn hoàn thành</th></tr></thead>
+<tbody>{% for row in daily %}<tr><th scope="row" data-label="Ngày">{{ row.day }}</th><td data-label="Đơn nhận">{{ row.received }}</td><td data-label="Đơn hoàn thành">{{ row.completed }}</td></tr>{% endfor %}</tbody></table>
+{% endif %}
+{% endblock %}
