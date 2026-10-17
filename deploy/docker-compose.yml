@@ -24,6 +24,8 @@ services:
       TD_DATABASE_URL: postgresql+psycopg://thanhduc:${DB_PASSWORD}@db:5432/thanhduc
       TD_SECRET_KEY: ${SECRET_KEY:?Đặt SECRET_KEY trong deploy/.env}
       TD_COOKIE_SECURE: "true"
+    volumes:
+      - files:/app/data/files
     depends_on:
       db:
         condition: service_healthy
@@ -45,3 +47,4 @@ services:
 volumes:
   pgdata:
   caddydata:
+  files:
