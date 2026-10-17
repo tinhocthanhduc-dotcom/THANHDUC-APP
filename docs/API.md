@@ -105,8 +105,8 @@ Mỗi dòng gồm `product_code`, `qty`, `unit_cost`, `serial`, `note`. API tự
 - `KK`: `qty` có thể bằng 0, `unit_cost` tùy chọn (null hoặc số nguyên không âm), dùng cho kiểm kê đầu kỳ.
 - Các loại khác cần `qty > 0`. Số lượng tối đa 14 chữ số, trong đó tối đa 3 chữ số thập phân; trả JSON dạng chuỗi để giữ chính xác.
 - Phiếu phải có ít nhất một dòng. Kho và mã hàng phải tồn tại, đang dùng/đang bán.
-- Khi sửa đổi loại phiếu hoặc năm của `doc_date`, số được cấp lại theo loại/năm mới trong cùng transaction; số đã cấp trước đó vẫn nằm trong audit. Sửa cùng loại/năm giữ số cũ.
+- PATCH giữ nguyên số phiếu. Đổi `kind` hoặc năm của `doc_date` trả `NUMBER_LOCKED` (409); cần hủy nháp và lập phiếu mới. Đổi ngày trong cùng năm vẫn được.
 - Không có API xóa, ghi sổ hoặc đảo sổ ở K3. Hủy nháp giữ nguyên dòng và số phiếu.
 
-Lỗi nghiệp vụ: `BAD_TRANSFER`, `BAD_WAREHOUSE`, `BAD_SUPPLIER`, `BAD_CUSTOMER`, `BAD_PRODUCT` (danh sách `details.invalid_codes`), `BAD_QTY`, `BAD_UNIT_COST`, `VERSION_CONFLICT`, `DOC_POSTED`, `DOC_VOID`.
+Lỗi nghiệp vụ: `BAD_TRANSFER`, `BAD_WAREHOUSE`, `BAD_SUPPLIER`, `BAD_CUSTOMER`, `BAD_PRODUCT` (danh sách `details.invalid_codes`), `BAD_QTY`, `BAD_UNIT_COST`, `VERSION_CONFLICT`, `NUMBER_LOCKED`, `DOC_POSTED`, `DOC_VOID`.
 Các đầu vào sai kiểu, thiếu trường bắt buộc hoặc ngoài giới hạn trả 422. Phiếu đã ghi sổ hoặc hủy không được sửa/hủy nháp.

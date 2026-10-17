@@ -130,10 +130,11 @@ def update(session: Session, user: User, doc_id: int, body: StockDocPatch) -> St
         data["lines"] = [{key: getattr(line, key) for key in ("product_code", "qty", "unit_cost", "serial", "note")} for line in doc.lines]
         data.update(body.model_dump(exclude_unset=True, exclude={"version"}))
         candidate = StockDocIn(**data)
-        _validate(session, candidate)
-        # Khi đổi loại hoặc năm, cấp lại số theo loại/năm mới trong cùng transaction.
         if doc.kind != candidate.kind or doc.doc_date.year != candidate.doc_date.year:
-            doc.number = next_number(session, candidate.kind, candidate.doc_date)
+            raise BusinessError(
+                "NUMBER_LOCKED", "Đổi loại phiếu hoặc sang năm khác thì hủy nháp và lập phiếu mới.", status=409
+            )
+        _validate(session, candidate)
         for field in HEADER_FIELDS:
             setattr(doc, field, getattr(candidate, field))
         doc.version += 1

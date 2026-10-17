@@ -8,7 +8,7 @@ from . import audit
 from .config import get_settings
 from .customers import like_pattern
 from .errors import BusinessError
-from .models import Supplier, Warehouse
+from .models import Supplier
 from .schemas import SupplierOut, WarehouseOut
 from .security import has_role
 from .text import fold, phones, tax_code

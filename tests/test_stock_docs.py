@@ -254,7 +254,7 @@ def test_invalid_patch_keeps_header_lines_number_and_audit(client, login, catalo
     h = login('kho', 'warehouse')
     doc = create(client, h)
     url = '/stock-docs/' + str(doc['id'])
-    data = {'version': 1, 'note': 'Không được lưu', 'doc_date': '2027-01-01',
+    data = {'version': 1, 'note': 'Không được lưu', 'doc_date': '2026-12-31',
             'lines': [{'product_code': 'TD-9999', 'qty': 1, 'unit_cost': 0}]}
     assert client.patch(url, json=data, headers=h).status_code == 400
     assert client.get(url, headers=h).json() == doc
@@ -262,17 +262,24 @@ def test_invalid_patch_keeps_header_lines_number_and_audit(client, login, catalo
     assert db.get(DocCounter, ('PN', 2027)) is None
 
 
-def test_header_changes_revalidate_lines_and_renumber(client, login, catalog):
+def test_header_changes_lock_number_but_allow_same_year_date(client, login, catalog, db):
     h = login('kho', 'warehouse')
-    doc = create(client, h, draft('KK'))
+    doc = create(client, h)
+    assert doc['number'] == 'PN-26-00001'
     url = '/stock-docs/' + str(doc['id'])
-    r = client.patch(url, json={'version': 1, 'kind': 'PN', 'supplier_code': 'NCC-0001'}, headers=h)
-    assert r.status_code == 400 and r.json()['error'] == 'BAD_UNIT_COST'
-    r = client.patch(url, json={'version': 1, 'kind': 'PN', 'supplier_code': 'NCC-0001', 'lines': draft()['lines']}, headers=h)
+    for changes in ({'kind': 'KK'}, {'doc_date': '2027-01-01'}):
+        r = client.patch(url, json={'version': 1, 'note': 'Không lưu', **changes}, headers=h)
+        assert r.status_code == 409 and r.json()['error'] == 'NUMBER_LOCKED'
+        assert r.json()['message'] == 'Đổi loại phiếu hoặc sang năm khác thì hủy nháp và lập phiếu mới.'
+        assert client.get(url, headers=h).json() == doc
+    assert db.get(DocCounter, ('PN', 2027)) is None
+    assert db.get(DocCounter, ('KK', 2026)) is None
+    assert len(list(db.scalars(select(AuditLog).where(AuditLog.entity == 'stock_doc')))) == 1
+    r = client.patch(url, json={'version': 1, 'doc_date': '2026-12-31'}, headers=h)
     assert r.status_code == 200, r.text
-    assert r.json()['number'] == 'PN-26-00001'
-    r = client.patch(url, json={'version': 2, 'doc_date': '2027-01-01'}, headers=h)
-    assert r.status_code == 200 and r.json()['number'] == 'PN-27-00001'
+    assert r.json()['doc_date'] == '2026-12-31'
+    assert r.json()['number'] == 'PN-26-00001' and r.json()['version'] == 2
+    assert db.get(DocCounter, ('PN', 2026)).last == 1
 
 
 def test_concurrent_updates_only_one_succeeds(client, login, catalog, engine, monkeypatch):
@@ -323,7 +330,7 @@ def test_failed_line_replacement_rolls_back_everything(client, login, catalog, d
         raise RuntimeError('audit failed after flushing new header and lines')
     monkeypatch.setattr(svc.audit, 'record', fail)
     with pytest.raises(RuntimeError):
-        client.patch(url, json={'version': 1, 'note': 'Không lưu', 'doc_date': '2027-01-01',
+        client.patch(url, json={'version': 1, 'note': 'Không lưu', 'doc_date': '2026-12-31',
                                'lines': [{'product_code': 'TD-0002', 'qty': 3, 'unit_cost': 999}]}, headers=h)
     monkeypatch.setattr(svc.audit, 'record', original)
     assert client.get(url, headers=h).json() == doc
