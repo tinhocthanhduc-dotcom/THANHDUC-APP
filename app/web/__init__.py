@@ -464,3 +464,7 @@ router.include_router(services_router)
 from .dispatch import router as dispatch_router
 
 router.include_router(dispatch_router)
+
+from .quotes import router as quotes_router
+
+router.include_router(quotes_router)

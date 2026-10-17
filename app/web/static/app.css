@@ -193,3 +193,33 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .dispatch-table td + td { border-top: 1px solid var(--line); }
   .dispatch-table [data-label]::before { content: attr(data-label); color: var(--muted); }
 }
+
+.quote-filters { margin-bottom: 16px; }
+.quote-line { display: grid; gap: 8px; min-width: 0; margin: 12px 0; overflow-wrap: anywhere; }
+.quote-heading h1 { min-width: 0; overflow-wrap: anywhere; }
+.quote-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.quote-actions form { flex: 1; }
+.quote-actions button { width: 100%; min-height: 44px; }
+.quote-list a { overflow-wrap: anywhere; }
+.quote-expired { color: var(--bad); background: var(--bad-bg); }
+.quote-print-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .85rem; }
+.quote-print-table th, .quote-print-table td { border: 1px solid #777; padding: 6px 4px; vertical-align: top; overflow-wrap: anywhere; }
+.quote-print-table th:nth-child(1) { width: 6%; }
+.quote-print-table th:nth-child(2) { width: 30%; }
+.quote-print-table th:nth-child(3), .quote-print-table th:nth-child(4), .quote-print-table th:nth-child(6) { width: 9%; }
+.quote-print-table th:nth-child(5) { width: 17%; }
+.quote-print-table th:nth-child(7) { width: 20%; }
+@media screen and (max-width:600px) {
+  .quote-print-table, .quote-print-table tbody, .quote-print-table tr { display: block; }
+  .quote-print-table thead { display: none; }
+  .quote-print-table tr { margin: 12px 0; border: 1px solid #777; }
+  .quote-print-table td { display: flex; justify-content: space-between; gap: 12px; border: 0; }
+  .quote-print-table td::before { content: attr(data-label); font-weight: 600; }
+}
+@media print {
+  .quote-print { font-size: 10pt; }
+  .quote-print header p { margin: 5px 0; }
+  .quote-print table { break-inside: auto; }
+  .quote-print tr { break-inside: avoid; }
+  .quote-print thead { display: table-header-group; }
+}

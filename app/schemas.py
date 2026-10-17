@@ -517,3 +517,80 @@ class EquipmentOut(EquipmentFields):
     created_by: int
     created_at: datetime
     updated_at: datetime
+
+
+class QuoteLineIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    product_code: str | None = Field(default=None, max_length=16)
+    description: str = Field(default='', max_length=1000)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    unit: str = Field(default='', max_length=32)
+    unit_price: int | None = Field(default=None, strict=True, ge=0, le=9_223_372_036_854_775_807)
+    vat_rate: int = Field(default=0, strict=True)
+
+    @field_validator('vat_rate')
+    @classmethod
+    def allowed_vat(cls, value):
+        from .models import VAT_RATES
+        if value not in VAT_RATES:
+            raise ValueError('VAT phải là 0, 5, 8 hoặc 10%.')
+        return value
+
+    @field_validator('product_code', mode='before')
+    @classmethod
+    def blank_product(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+
+class QuoteIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    customer_code: str = Field(min_length=1, max_length=16)
+    contact_name: str = Field(default='', max_length=200)
+    valid_until: date | None = None
+    note: str = Field(default='', max_length=4000)
+    lines: list[QuoteLineIn] = Field(default_factory=list, max_length=200)
+
+
+class QuoteVersion(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    version: int = Field(strict=True, ge=1)
+
+
+class QuoteUpdate(QuoteVersion):
+    customer_code: str | None = Field(default=None, min_length=1, max_length=16)
+    contact_name: str | None = Field(default=None, max_length=200)
+    valid_until: date | None = None
+    note: str | None = Field(default=None, max_length=4000)
+    lines: list[QuoteLineIn] = Field(max_length=200)
+
+
+class QuoteCancel(QuoteVersion):
+    reason: str = Field(default='', max_length=2000)
+
+
+class QuoteLineOut(QuoteLineIn):
+    model_config = ConfigDict(from_attributes=True)
+    line_no: int
+    unit_price: int
+    amount: int
+    vat_amount: int
+
+
+class QuoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    customer_code: str
+    contact_name: str
+    valid_until: date
+    status: str
+    note: str
+    cancel_reason: str
+    replaced_by_id: int | None
+    subtotal: int
+    vat_total: int
+    total: int
+    created_by: int
+    created_at: datetime
+    version: int
+    lines: list[QuoteLineOut]
