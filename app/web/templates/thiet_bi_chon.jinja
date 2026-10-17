@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" data-device-pick="{{ row.code }}" data-field="{{ field }}" data-label="{{ row.name }}">{{ row.code }} · {{ row.name }}</button>{% else %}<p class="hint">Không có kết quả phù hợp.</p>{% endfor %}

@@ -1,0 +1,137 @@
+"""Địa điểm trong trang khách và danh mục thiết bị D1."""
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
+from pydantic import ValidationError
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from . import _customer_dict, _customer_form, checked_form, render, web_user
+from .. import customer_sites, customers, equipment, products
+from ..db import get_session
+from ..errors import BusinessError
+from ..models import Customer, CustomerSite, Equipment, Product, User
+from ..schemas import CustomerSiteIn, CustomerSitePatch, EquipmentIn, EquipmentPatch
+from ..security import has_role
+
+router = APIRouter(include_in_schema=False)
+
+
+def _error(exc):
+    if isinstance(exc, BusinessError):
+        return exc.message
+    fields = {'name': 'Tên địa điểm', 'product_code': 'Mã hàng', 'customer_code': 'Mã khách', 'site_id': 'Địa điểm',
+              'serial': 'Số sê-ri', 'warranty_until': 'Ngày hết bảo hành', 'version': 'Phiên bản', 'condition': 'Tình trạng'}
+    return fields.get(str(exc.errors()[0]['loc'][-1]), 'Dữ liệu') + ' chưa hợp lệ, hãy kiểm tra lại.'
+
+
+def _site_data(form):
+    return {**{key: str(form.get(key, '')) for key in ('name', 'address', 'contact_name', 'contact_phone', 'note')},
+            'active': form.get('active') == '1'}
+
+
+def _save_site(request, session, form, customer_code, site_id=None):
+    customer_sites.check_writer(request.state.user)
+    customer = customers.load(session, customer_code, resolve_merged=False)
+    shown = {**_site_data(form), 'version': form.get('version', '')}
+    if site_id is not None and customer_sites.load(session, site_id).customer_code != customer.code:
+        raise BusinessError('BAD_SITE', 'Địa điểm không thuộc khách hàng này.', status=404)
+    try:
+        if site_id is None:
+            customer_sites.create(session, request.state.user, customer.code, CustomerSiteIn(**_site_data(form)))
+        else:
+            customer_sites.update(session, request.state.user, site_id, CustomerSitePatch(**shown))
+    except (BusinessError, ValidationError) as exc:
+        return _customer_form(request, request.state.user, _customer_dict(customer), session=session,
+                              error=None, ask_confirm=None, site_error=_error(exc), site_shown=shown,
+                              site_target=site_id, status=getattr(exc, 'status', 400))
+    return RedirectResponse(f'/khach-hang/{quote(customer.code, safe="")}?da_luu=1#dia-diem', status_code=303)
+
+
+@router.post('/khach-hang/{customer_code}/dia-diem/moi')
+def site_create(request: Request, customer_code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    return _save_site(request, session, form, customer_code)
+
+
+@router.post('/khach-hang/{customer_code}/dia-diem/{site_id}')
+def site_update(request: Request, customer_code: str, site_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    return _save_site(request, session, form, customer_code, site_id)
+
+
+@router.get('/thiet-bi')
+def listing(request: Request, q: str = '', phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    rows = equipment.search(session, q[:200])
+    return render(request, 'thiet_bi_dong.jinja' if phan else 'thiet_bi_ds.jinja', rows=rows, q=q,
+                  product_names={code: name for code, name in session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows])))},
+                  customer_names={code: name for code, name in session.execute(select(Customer.code, Customer.name).where(Customer.code.in_([r.customer_code for r in rows if r.customer_code])))},
+                  can_device_write=has_role(user, *customer_sites.WRITERS))
+
+
+@router.get('/thiet-bi/tim-hang')
+def pick_product(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return render(request, 'thiet_bi_chon.jinja', rows=products.search(session, q[:200], active_only=False, limit=20), field='product_code')
+
+
+@router.get('/thiet-bi/tim-khach')
+def pick_customer(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return render(request, 'thiet_bi_chon.jinja', rows=customers.search(session, q[:200]), field='customer_code')
+
+
+@router.get('/thiet-bi/dia-diem')
+def pick_site(request: Request, customer_code: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return render(request, 'thiet_bi_dia_diem.jinja', sites=customer_sites.search(session, customer_code, active_only=True), selected_site=None)
+
+
+def _form(request, session, data, is_new=False, error=None, status=200, saved=False):
+    sites = []
+    selected = int(str(data.get('site_id'))) if str(data.get('site_id', '')).isdigit() else None
+    if data.get('customer_code'):
+        sites = list(session.scalars(select(CustomerSite).where(CustomerSite.customer_code == data['customer_code'],
+                                  or_(CustomerSite.active.is_(True), CustomerSite.id == selected)).order_by(CustomerSite.id)))
+    product = session.get(Product, data.get('product_code')) if data.get('product_code') else None
+    customer = session.get(Customer, data.get('customer_code')) if data.get('customer_code') else None
+    return render(request, 'thiet_bi_form.jinja', d=data, sites=sites, selected_site=data.get('site_id'),
+                  product_name=product.name if product else '', customer_name=customer.name if customer else '',
+                  is_new=is_new, error=error, saved=saved, status=status,
+                  can_device_write=has_role(request.state.user, *customer_sites.WRITERS))
+
+
+@router.get('/thiet-bi/moi')
+def new(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _form(request, session, dict(serial='', product_code='', customer_code=None, site_id=None, warranty_until=None,
+                                      condition='MOI', note='', active=True, version=0), is_new=True)
+
+
+def _equipment_data(form):
+    return dict(product_code=str(form.get('product_code', '')), customer_code=form.get('customer_code') or None,
+                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None,
+                condition=str(form.get('condition', 'MOI')), note=str(form.get('note', '')), active=form.get('active') == '1')
+
+
+@router.post('/thiet-bi/moi')
+def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    customer_sites.check_writer(request.state.user)
+    data = dict(serial=str(form.get('serial', '')), **_equipment_data(form))
+    try:
+        row = equipment.create(session, request.state.user, EquipmentIn(**data))
+    except (BusinessError, ValidationError) as exc:
+        return _form(request, session, {**data, 'version': 0}, is_new=True, error=_error(exc), status=getattr(exc, 'status', 400))
+    return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_luu=1', status_code=303)
+
+
+@router.get('/thiet-bi/{serial:path}')
+def view(request: Request, serial: str, da_luu: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _form(request, session, equipment.snapshot(equipment.load(session, serial)), saved=bool(da_luu))
+
+
+@router.post('/thiet-bi/{serial:path}')
+def update(request: Request, serial: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    customer_sites.check_writer(request.state.user)
+    data = _equipment_data(form)
+    shown = {**equipment.snapshot(equipment.load(session, serial)), **data, 'version': form.get('version', '')}
+    try:
+        row = equipment.update(session, request.state.user, serial, EquipmentPatch(**data, version=form.get('version')))
+    except (BusinessError, ValidationError) as exc:
+        return _form(request, session, shown, error=_error(exc), status=getattr(exc, 'status', 400))
+    return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_luu=1', status_code=303)

@@ -1,14 +1,14 @@
 """D4: tệp đính kèm
 
-Revision ID: 0008
-Revises: 0007
+Revision ID: 0009
+Revises: 0008
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = '0008'
-down_revision = '0007'
+revision = '0009'
+down_revision = '0008'
 branch_labels = None
 depends_on = None
 

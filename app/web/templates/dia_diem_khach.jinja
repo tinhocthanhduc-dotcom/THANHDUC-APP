@@ -1,0 +1,20 @@
+<section id="dia-diem" class="form device-sites">
+<h2>Địa điểm</h2>
+{% if site_error %}<p class="alert bad" role="alert">{{ site_error }}</p>{% endif %}
+{% for s in sites %}
+{% set d = site_shown if site_shown and site_target == s.id else s %}
+<form method="post" action="/khach-hang/{{ c.code }}/dia-diem/{{ s.id }}" class="card form">
+<h3>{{ s.name }}{% if not s.active %} · Ngừng dùng{% endif %}</h3>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+{% include 'dia_diem_fields.jinja' %}
+{% if can_site_write %}<button class="primary">Lưu địa điểm</button>{% endif %}
+</form>
+{% else %}<p class="hint">Chưa có địa điểm.</p>{% endfor %}
+{% if can_site_write %}
+<h3>Thêm địa điểm</h3>
+<form method="post" action="/khach-hang/{{ c.code }}/dia-diem/moi" class="card form">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{% set d = site_shown if site_shown and site_target is none else {'name':'', 'address':'', 'contact_name':'', 'contact_phone':'', 'note':'', 'active':true} %}
+{% include 'dia_diem_fields.jinja' %}<button class="primary">Thêm địa điểm</button>
+</form>{% endif %}
+</section>

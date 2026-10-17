@@ -1,0 +1,8 @@
+<fieldset {% if not can_site_write %}disabled{% endif %}>
+<label>Tên địa điểm<input name="name" value="{{ d.name }}" required maxlength="200"></label>
+<label>Địa chỉ<input name="address" value="{{ d.address }}" maxlength="2000"></label>
+<label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
+<label>Số điện thoại liên hệ<input name="contact_phone" value="{{ d.contact_phone }}" inputmode="tel" maxlength="32"></label>
+<label>Ghi chú<textarea name="note" maxlength="2000">{{ d.note }}</textarea></label>
+<label class="check"><input type="checkbox" name="active" value="1" {% if d.active %}checked{% endif %}> Đang dùng</label>
+</fieldset>

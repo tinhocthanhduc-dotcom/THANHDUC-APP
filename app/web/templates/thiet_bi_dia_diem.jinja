@@ -1,0 +1,4 @@
+<fieldset><legend>Địa điểm của khách</legend><div class="seg stock-seg">
+<label><input type="radio" name="site_id" value="" {% if not selected_site %}checked{% endif %}><span>Chưa gán</span></label>
+{% for s in sites %}<label><input type="radio" name="site_id" value="{{ s.id }}" {% if selected_site | string == s.id | string %}checked{% endif %}><span>{{ s.name }}{% if not s.active %} · Ngừng dùng{% endif %}</span></label>{% endfor %}
+</div></fieldset>
