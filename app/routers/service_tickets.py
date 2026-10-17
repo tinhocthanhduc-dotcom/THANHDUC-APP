@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from .. import service_charges
 from .. import service_tickets as svc
 from ..db import get_session
 from ..models import User
 from ..schemas import (
     ServiceAssign,
+    ServiceCharges,
     ServiceReason,
     ServiceStatus,
     ServiceTicketDetail,
@@ -28,6 +32,16 @@ def search(
     session: Session = Depends(get_session),
 ):
     return svc.search(session, user, status, assignee_id, overdue, q)
+
+
+@router.get("/receivables", response_model=list[ServiceTicketOut])
+def receivables(
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    return service_charges.receivables(session, user, from_date, to_date)
 
 
 @router.get("/{ticket_id}", response_model=ServiceTicketDetail)
@@ -58,3 +72,9 @@ def transfer_request(ticket_id: int, body: ServiceReason, user: User = Depends(c
 @router.post("/{ticket_id}/transfer-reject", response_model=ServiceTicketOut)
 def transfer_reject(ticket_id: int, body: ServiceReason, user: User = Depends(current_user), session: Session = Depends(get_session)):
     return svc.reject_transfer(session, user, ticket_id, body.reason, body.version)
+
+
+@router.post("/{ticket_id}/charges", response_model=ServiceTicketDetail)
+def charges(ticket_id: int, body: ServiceCharges, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    service_charges.set_charges(session, user, ticket_id, body)
+    return svc.load(session, user, ticket_id)

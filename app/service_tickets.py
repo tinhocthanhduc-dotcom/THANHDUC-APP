@@ -7,14 +7,14 @@ import re
 from datetime import UTC, datetime
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from . import audit, service_sla
 from .config import get_settings
 from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, ServiceStep, ServiceTicket, User
+from .models import Customer, CustomerSite, Equipment, ServiceStep, ServiceTicket, User
 from .schemas import ServiceTicketIn, ServiceTicketOut
 from .security import has_role
 from .stock_docs import _transaction
@@ -25,7 +25,7 @@ DISPATCHERS = ("dispatcher",)
 TECHNICIAN = "technician"
 
 OPEN = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN")
-CLOSED = ("HOAN_THANH", "KHONG_LAM_DUOC", "DA_HUY")
+CLOSED = ("HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
 # Trạng thái đích hợp lệ từ mỗi trạng thái, ngoài giao thợ (assign) và hủy (DA_HUY, chỉ điều phối).
 FLOW = {
     "DA_GIAO": {"DA_NHAN"},
@@ -33,7 +33,10 @@ FLOW = {
     "DA_HEN": {"DA_HEN", "DANG_LAM", "KHONG_LAM_DUOC"},  # DA_HEN -> DA_HEN là dời lịch hẹn
     "DANG_LAM": {"HOAN_THANH", "CHO_LINH_KIEN", "KHONG_LAM_DUOC"},
     "CHO_LINH_KIEN": {"DANG_LAM", "KHONG_LAM_DUOC"},
+    "HOAN_THANH": {"DANG_LAM", "DA_DONG"},  # chỉ điều phối: mở lại nghiệm thu (có lý do) hoặc đóng hồ sơ
 }
+# Phiếu đã hoàn thành chỉ điều phối được mở lại, hủy hoặc đóng; hủy lúc đó trả vật tư về kho.
+CANCELLABLE = OPEN + ("HOAN_THANH",)
 NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY")
 ASSIGNABLE = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN")
 
@@ -69,7 +72,7 @@ def _get(session: Session, user: User, ticket_id: int, lock: bool = False) -> Se
 
 def load(session: Session, user: User, ticket_id: int) -> ServiceTicket:
     t = _get(session, user, ticket_id)
-    session.refresh(t, ["steps"])
+    session.refresh(t, ["steps", "lines"])
     return t
 
 
@@ -90,6 +93,19 @@ def _serial(value: str | None) -> str | None:
     return s or None
 
 
+def _check_site_and_serial(session: Session, customer_code: str, site_id: int | None, serial: str | None):
+    if site_id is not None:
+        site = session.get(CustomerSite, site_id)
+        if site is None or not site.active or site.customer_code != customer_code:
+            raise BusinessError("BAD_SITE", "Địa điểm không thuộc khách này hoặc đã ngừng dùng.", {"site_id": site_id})
+    if serial is not None:
+        eq = session.get(Equipment, serial)
+        if eq is None or not eq.active:
+            raise BusinessError("BAD_SERIAL", "Máy chưa có trong danh mục thiết bị, hãy thêm ở trang Thiết bị trước.", {"serial": serial})
+        if eq.customer_code is not None and eq.customer_code != customer_code:
+            raise BusinessError("BAD_SERIAL", "Máy này đang ghi cho khách khác.", {"serial": serial, "customer_code": eq.customer_code})
+
+
 def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket:
     _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
     with _transaction(session):
@@ -97,10 +113,12 @@ def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket
         if customer is None or customer.status != "DANG_DUNG":
             details = {"merged_into": customer.merged_into} if customer is not None and customer.merged_into else {}
             raise BusinessError("BAD_CUSTOMER", "Khách hàng không tồn tại hoặc đã ngừng/gộp.", details)
+        serial = _serial(body.serial)
+        _check_site_and_serial(session, customer.code, body.site_id, serial)
         now = _now()
         t = ServiceTicket(
             number=next_number(session, "DV", now.astimezone(service_sla.TZ).date()),
-            customer_code=customer.code, site_id=body.site_id, serial=_serial(body.serial),
+            customer_code=customer.code, site_id=body.site_id, serial=serial,
             kind=body.kind, priority=body.priority, symptom=body.symptom, status="MOI",
             due_at=service_sla.due_at("MOI", body.priority, now, None), created_by=user.id,
         )
@@ -146,10 +164,10 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
         if to_status == "DA_HUY":
             if not is_dispatcher:
                 raise BusinessError("FORBIDDEN", "Chỉ điều phối hoặc giám đốc được hủy phiếu.", status=403)
-            if t.status not in OPEN:
+            if t.status not in CANCELLABLE:
                 raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không hủy được.", {"status": t.status}, status=409)
         else:
-            if not is_dispatcher and t.assignee_id != user.id:
+            if not is_dispatcher and (t.assignee_id != user.id or t.status == "HOAN_THANH"):
                 raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được cập nhật phiếu này.", status=403)
             if to_status not in FLOW.get(t.status, ()):
                 raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
@@ -159,7 +177,8 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
 
             if not has_visible(session, "service_ticket", t.id, "SAU"):
                 raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
-        if to_status in NEEDS_REASON and len(note) < 3:
+        reopening = t.status == "HOAN_THANH" and to_status in ("DANG_LAM", "DA_HUY")
+        if (to_status in NEEDS_REASON or reopening) and len(note) < 3:
             raise BusinessError("REASON_REQUIRED", "Phải ghi lý do.")
         if to_status == "DA_HEN":
             if appointment_at is None:
@@ -168,14 +187,21 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
         elif appointment_at is not None:
             raise BusinessError("BAD_APPOINTMENT", "Chỉ gửi giờ hẹn khi chốt lịch hẹn.")
         before, from_status = snapshot(t), t.status
+        from . import service_charges  # service_charges cũng dùng module này
+
+        if to_status == "HOAN_THANH":
+            service_charges.complete(session, user, t)
+        elif reopening:
+            service_charges.release(session, user, t, note)
         t.status = to_status
         if to_status in NEEDS_REASON:
             t.status_reason = note
         if to_status in CLOSED:
             t.transfer_request = ""
         t.due_at = service_sla.due_at(to_status, t.priority, _now(), t.appointment_at)
-        action = "cancel" if to_status == "DA_HUY" else "reschedule" if from_status == to_status else "transition"
-        _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON else "")
+        action = ("cancel" if to_status == "DA_HUY" else "reschedule" if from_status == to_status
+                  else "reopen" if reopening else "close" if to_status == "DA_DONG" else "transition")
+        _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
     return t
 
 

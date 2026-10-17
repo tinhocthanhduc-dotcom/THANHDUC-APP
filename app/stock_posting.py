@@ -151,50 +151,61 @@ def _post_moves(session: Session, doc: StockDoc, balances) -> None:
 def post(session: Session, user: User, doc_id: int, version: int | None) -> StockDoc:
     check_writer(user)
     with _transaction(session):
-        doc = _load_for_update(session, doc_id)
-        if doc.status != "NHAP":
-            raise BusinessError("DOC_NOT_DRAFT", "Chỉ ghi sổ được phiếu nháp.", {"status": doc.status}, status=409)
-        _check_version(doc, version)
-        if not doc.lines:
-            raise BusinessError("EMPTY_DOC", "Phiếu chưa có dòng hàng.")
-        if doc.kind == "KK":
-            codes = [line.product_code for line in doc.lines]
-            dup = sorted({c for c in codes if codes.count(c) > 1})
-            if dup:
-                raise BusinessError("DUPLICATE_LINE", "Phiếu kiểm kê có mã hàng lặp lại.", {"products": dup})
-        before = snapshot(doc)
-        keys = {(doc.warehouse_code, line.product_code) for line in doc.lines}
-        if doc.kind == "CK":
-            keys |= {(doc.to_warehouse_code, line.product_code) for line in doc.lines}
-        _post_moves(session, doc, _lock_balances(session, keys))
-        doc.status = "DA_GHI"
-        doc.posted_by = user.id
-        doc.posted_at = datetime.now(UTC)
-        session.flush()
-        audit.record(session, user, "stock_doc.post", "stock_doc", str(doc.id), before, snapshot(doc))
+        doc = post_in_tx(session, user, doc_id, version)
+    return doc
+
+
+def post_in_tx(session: Session, user: User, doc_id: int, version: int | None) -> StockDoc:
+    """Ghi sổ trong transaction của nơi gọi (phiếu sinh tự động từ chứng từ khác), không kiểm vai trò."""
+    doc = _load_for_update(session, doc_id)
+    if doc.status != "NHAP":
+        raise BusinessError("DOC_NOT_DRAFT", "Chỉ ghi sổ được phiếu nháp.", {"status": doc.status}, status=409)
+    _check_version(doc, version)
+    if not doc.lines:
+        raise BusinessError("EMPTY_DOC", "Phiếu chưa có dòng hàng.")
+    if doc.kind == "KK":
+        codes = [line.product_code for line in doc.lines]
+        dup = sorted({c for c in codes if codes.count(c) > 1})
+        if dup:
+            raise BusinessError("DUPLICATE_LINE", "Phiếu kiểm kê có mã hàng lặp lại.", {"products": dup})
+    before = snapshot(doc)
+    keys = {(doc.warehouse_code, line.product_code) for line in doc.lines}
+    if doc.kind == "CK":
+        keys |= {(doc.to_warehouse_code, line.product_code) for line in doc.lines}
+    _post_moves(session, doc, _lock_balances(session, keys))
+    doc.status = "DA_GHI"
+    doc.posted_by = user.id
+    doc.posted_at = datetime.now(UTC)
+    session.flush()
+    audit.record(session, user, "stock_doc.post", "stock_doc", str(doc.id), before, snapshot(doc))
     return doc
 
 
 def void(session: Session, user: User, doc_id: int, reason: str, version: int | None) -> StockDoc:
     """Hủy phiếu đã ghi sổ: ghi dòng đảo ngược đúng số lượng và giá trị đã ghi, theo thứ tự ngược."""
     check_writer(user)
+    with _transaction(session):
+        doc = void_in_tx(session, user, doc_id, reason, version)
+    return doc
+
+
+def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: int | None) -> StockDoc:
     reason = (reason or "").strip()
     if len(reason) < 3:
         raise BusinessError("REASON_REQUIRED", "Hủy phiếu đã ghi sổ phải ghi lý do.")
-    with _transaction(session):
-        doc = _load_for_update(session, doc_id)
-        if doc.status != "DA_GHI":
-            raise BusinessError("DOC_NOT_POSTED", "Chỉ hủy theo cách này với phiếu đã ghi sổ.", {"status": doc.status}, status=409)
-        _check_version(doc, version)
-        before = snapshot(doc)
-        rows = list(session.scalars(select(StockLedger).where(StockLedger.doc_id == doc.id).order_by(StockLedger.id.desc())))
-        balances = _lock_balances(session, {(r.warehouse_code, r.product_code) for r in rows})
-        for r in rows:
-            qty = r.qty_out - r.qty_in
-            _apply(session, doc, balances[(r.warehouse_code, r.product_code)],
-                   Move(r.warehouse_code, r.product_code, r.line_no, qty, -r.amount, r.unit_cost), True)
-        doc.status = "DA_HUY"
-        doc.void_reason = reason
-        session.flush()
-        audit.record(session, user, "stock_doc.void", "stock_doc", str(doc.id), before, snapshot(doc), reason)
+    doc = _load_for_update(session, doc_id)
+    if doc.status != "DA_GHI":
+        raise BusinessError("DOC_NOT_POSTED", "Chỉ hủy theo cách này với phiếu đã ghi sổ.", {"status": doc.status}, status=409)
+    _check_version(doc, version)
+    before = snapshot(doc)
+    rows = list(session.scalars(select(StockLedger).where(StockLedger.doc_id == doc.id).order_by(StockLedger.id.desc())))
+    balances = _lock_balances(session, {(r.warehouse_code, r.product_code) for r in rows})
+    for r in rows:
+        qty = r.qty_out - r.qty_in
+        _apply(session, doc, balances[(r.warehouse_code, r.product_code)],
+               Move(r.warehouse_code, r.product_code, r.line_no, qty, -r.amount, r.unit_cost), True)
+    doc.status = "DA_HUY"
+    doc.void_reason = reason
+    session.flush()
+    audit.record(session, user, "stock_doc.void", "stock_doc", str(doc.id), before, snapshot(doc), reason)
     return doc

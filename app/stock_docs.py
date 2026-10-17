@@ -112,11 +112,17 @@ def _record(session, user, doc, action, before, reason=""):
 def create(session: Session, user: User, body: StockDocIn) -> StockDoc:
     check_writer(user)
     with _transaction(session):
-        _validate(session, body)
-        doc = StockDoc(**body.model_dump(exclude={"lines"}), created_by=user.id,
-                       number=next_number(session, body.kind, body.doc_date), lines=_lines(body))
-        session.add(doc)
-        _record(session, user, doc, "create", None)
+        doc = insert(session, user, body)
+    return doc
+
+
+def insert(session: Session, user: User, body: StockDocIn) -> StockDoc:
+    """Lập phiếu trong transaction của nơi gọi, không kiểm vai trò (nơi gọi đã kiểm). Dùng cho phiếu sinh tự động."""
+    _validate(session, body)
+    doc = StockDoc(**body.model_dump(exclude={"lines"}), created_by=user.id,
+                   number=next_number(session, body.kind, body.doc_date), lines=_lines(body))
+    session.add(doc)
+    _record(session, user, doc, "create", None)
     return doc
 
 

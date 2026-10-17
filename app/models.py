@@ -300,7 +300,8 @@ class StockMinLevel(Base):
 
 SERVICE_KINDS = ("SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY")
 SERVICE_PRIORITIES = ("KHAN", "GAP", "THUONG")
-SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "KHONG_LAM_DUOC", "DA_HUY")
+SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
+VAT_RATES = (0, 5, 8, 10)
 
 
 def _in(column: str, values) -> str:
@@ -317,14 +318,16 @@ class ServiceTicket(Base):
         CheckConstraint(_in("status", SERVICE_STATUSES), name="ck_service_tickets_status"),
         CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
         Index("ix_service_tickets_open", "status", "due_at"),
+        CheckConstraint("billing in ('THU_TIEN','MIEN_PHI')", name="ck_service_tickets_billing"),
+        CheckConstraint("billing <> 'MIEN_PHI' or free_reason <> ''", name="ck_service_tickets_free_reason"),
+        CheckConstraint("(priced_at is null) = (total is null)", name="ck_service_tickets_priced"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     number: Mapped[str] = mapped_column(String(32), unique=True)
     customer_code: Mapped[str] = mapped_column(ForeignKey("customers.code"), index=True)
-    # Địa điểm và máy của D1; khóa ngoại thêm khi bảng D1 có trên main.
-    site_id: Mapped[int | None] = mapped_column(BigInteger)
-    serial: Mapped[str | None] = mapped_column(String(64))
+    site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
+    serial: Mapped[str | None] = mapped_column(ForeignKey("equipment.serial"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
     priority: Mapped[str] = mapped_column(String(8), default="THUONG")
     symptom: Mapped[str] = mapped_column(Text)
@@ -335,11 +338,22 @@ class ServiceTicket(Base):
     status_reason: Mapped[str] = mapped_column(Text, default="")
     # Thợ xin chuyển việc: lý do chờ điều phối duyệt (giao thợ khác) hoặc từ chối.
     transfer_request: Mapped[str] = mapped_column(Text, default="")
+    # Tiền (D6): THU_TIEN hoặc MIEN_PHI kèm lý do. Tổng chỉ ghi khi hoàn thành (khóa giá), null là chưa khóa.
+    billing: Mapped[str | None] = mapped_column(String(8))
+    free_reason: Mapped[str] = mapped_column(Text, default="")
+    subtotal: Mapped[int | None] = mapped_column(BigInteger)
+    vat_total: Mapped[int | None] = mapped_column(BigInteger)
+    total: Mapped[int | None] = mapped_column(BigInteger)
+    receivable: Mapped[int | None] = mapped_column(BigInteger)
+    priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     steps: Mapped[list["ServiceStep"]] = relationship(order_by="ServiceStep.id", viewonly=True)
+    lines: Mapped[list["ServiceLine"]] = relationship(
+        back_populates="ticket", cascade="all, delete-orphan", order_by="ServiceLine.line_no"
+    )
 
     __mapper_args__ = {"version_id_col": version}
 
@@ -433,3 +447,34 @@ class Equipment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     __mapper_args__ = {"version_id_col": version}
+
+
+class ServiceLine(Base):
+    """Dòng tiền của phiếu dịch vụ (D6): phí công (PHI) hoặc vật tư theo mã TD (VAT_TU) xuất từ một kho."""
+
+    __tablename__ = "service_lines"
+    __table_args__ = (
+        UniqueConstraint("ticket_id", "line_no", name="uq_service_lines_no"),
+        CheckConstraint("kind in ('PHI','VAT_TU')", name="ck_service_lines_kind"),
+        CheckConstraint("(kind = 'VAT_TU') = (product_code is not null and warehouse_code is not null)", name="ck_service_lines_part"),
+        CheckConstraint("qty > 0", name="ck_service_lines_qty"),
+        CheckConstraint("unit_price >= 0 and amount >= 0 and vat_amount >= 0", name="ck_service_lines_money"),
+        CheckConstraint(_in("vat_rate", VAT_RATES).replace("'", ""), name="ck_service_lines_vat"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("service_tickets.id"), index=True)
+    line_no: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(8))
+    product_code: Mapped[str | None] = mapped_column(ForeignKey("products.code"))
+    warehouse_code: Mapped[str | None] = mapped_column(ForeignKey("warehouses.code"))
+    description: Mapped[str] = mapped_column(Text, default="")
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[int] = mapped_column(BigInteger)
+    vat_rate: Mapped[int] = mapped_column(Integer, default=0)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    # Phiếu xuất kho đã ghi sổ cho dòng vật tư; null khi chưa hoàn thành hoặc đã mở lại.
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey("stock_docs.id"))
+
+    ticket: Mapped["ServiceTicket"] = relationship(back_populates="lines")

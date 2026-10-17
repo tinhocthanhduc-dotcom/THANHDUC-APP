@@ -131,6 +131,20 @@ Hạn `due_at` tính lại mỗi lần chuyển theo bảng trong `app/service_s
 
 Lỗi: `FORBIDDEN`, `NOT_FOUND`, `BAD_CUSTOMER`, `BAD_ASSIGNEE`, `SAME_ASSIGNEE`, `BAD_STATUS`, `BAD_TRANSITION` (kèm `details.allowed`), `REASON_REQUIRED`, `APPOINTMENT_REQUIRED`, `BAD_APPOINTMENT`, `TRANSFER_PENDING`, `NO_TRANSFER`, `VERSION_CONFLICT`.
 
+## Tiền và vật tư dịch vụ (D6)
+
+| Phương thức | Đường dẫn | Ghi chú |
+|---|---|---|
+| POST | `/service-tickets/{id}/charges` | `billing` (`THU_TIEN` hoặc `MIEN_PHI` kèm `free_reason`), `lines`, `version`. Thay toàn bộ dòng; chỉ khi phiếu còn mở; thợ được giao hoặc điều phối |
+| GET | `/service-tickets/receivables` | Danh sách cần thu (`from`, `to` theo ngày hoàn thành). Điều phối, kế toán, giám đốc |
+
+Mỗi dòng: `kind` `PHI` (bắt buộc `description`, không có mã hàng, kho) hoặc `VAT_TU` (bắt buộc `product_code` đang bán và `warehouse_code` đang dùng), `qty` > 0, `unit_price` nguyên đồng, `vat_rate` 0, 5, 8 hoặc 10.
+`amount` = làm tròn(`qty` × `unit_price`), `vat_amount` = làm tròn(`amount` × `vat_rate` / 100), làm tròn nửa lên.
+
+- Sang `HOAN_THANH`: bắt buộc đã chọn `billing` (`BILLING_REQUIRED`); `THU_TIEN` mà tổng bằng 0 trả `EMPTY_CHARGES`. Lõi ghi `subtotal`, `vat_total`, `total`, `receivable` (0 nếu miễn phí), `priced_at`, rồi tự lập và ghi sổ một phiếu `PX` cho mỗi kho có vật tư, gắn khách và số DV. Thiếu tồn trả `NEGATIVE_STOCK` và phiếu giữ nguyên `DANG_LAM`.
+- Sau khi hoàn thành, sửa tiền trả `PRICE_LOCKED`. Điều phối có thể: mở lại (`DANG_LAM`, bắt buộc lý do), hủy (`DA_HUY`, lý do), cả hai đều hủy các phiếu `PX` (sổ kho ghi đảo) và mở khóa giá; hoặc đóng hồ sơ (`DA_DONG`), sau đó không đổi được nữa.
+- Nhận đơn kiểm `site_id` thuộc đúng khách và đang dùng (`BAD_SITE`), `serial` có trong danh mục thiết bị và không ghi cho khách khác (`BAD_SERIAL`).
+
 ## Tệp đính kèm (D4) và ảnh nghiệm thu (D5)
 
 Các thao tác tệp gọi `app.attachments.add`, `list_for`, `open_file`, `hide`; lõi kiểm quyền xem/ghi theo phiếu. Ảnh JPEG/PNG/WEBP được xử lý và lưu JPEG, PDF giữ nguyên. Không xóa tệp, chỉ ẩn kèm lý do. Giới hạn tải lấy từ `TD_MAX_UPLOAD_MB` (mặc định 15 MB).
