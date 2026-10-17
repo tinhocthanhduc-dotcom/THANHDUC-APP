@@ -243,8 +243,9 @@ def test_empty_lines_null_fields_and_forbidden_endpoints(client, login, catalog)
     for field in ('status', 'number', 'created_by', 'posted_by', 'posted_at', 'void_reason'):
         assert client.patch(url, json={'version': 1, field: 'x'}, headers=h).status_code == 422
     assert client.delete(url, headers=h).status_code == 405
-    assert client.post(url + '/post', headers=h).status_code == 404
-    assert client.post(url + '/void', headers=h).status_code == 404
+    # /post và /void thuộc K4 (tests/test_stock_posting.py); thiếu body thì bị từ chối.
+    assert client.post(url + '/post', headers=h).status_code == 422
+    assert client.post(url + '/void', headers=h).status_code == 422
     assert client.get('/stock-docs/999999', headers=h).status_code == 404
     assert client.get('/stock-docs').status_code == 401
 
