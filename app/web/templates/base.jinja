@@ -15,6 +15,8 @@
     <a href="/hang-hoa" {% if request.url.path.startswith('/hang-hoa') %}class="on"{% endif %}>Hàng hóa</a>
     <a href="/kho" {% if request.url.path.startswith('/kho') %}class="on"{% endif %}>Kho</a>
     <a href="/nha-cung-cap" {% if request.url.path.startswith('/nha-cung-cap') %}class="on"{% endif %}>Nhà cung cấp</a>
+    <a href="/phieu-kho" {% if request.url.path.startswith('/phieu-kho') %}class="on"{% endif %}>Phiếu kho</a>
+    <a href="/ton-kho" {% if request.url.path.startswith('/ton-kho') or request.url.path.startswith('/the-kho') %}class="on"{% endif %}>Tồn kho</a>
   </nav>
   <form method="post" action="/dang-xuat" class="who">
     <span>{{ user.full_name }}</span>
@@ -25,22 +27,39 @@
 {% endif %}
 <main>{% block main %}{% endblock %}</main>
 <script>
-// Tìm ngay khi gõ: tải lại phần danh sách, không tải lại cả trang.
-document.querySelectorAll('[data-live]').forEach(function (input) {
-  var timer, target = document.querySelector(input.dataset.live), form = input.form;
+// Tìm sống dùng chung cho danh sách và ô tìm/chọn hàng.
+window.bindLive = function(input) {
+  if (input.dataset.liveBound) return;
+  input.dataset.liveBound = '1';
+  var timer, sequence = 0, form = input.form;
+  var scope = input.closest('[data-stock-line]') || document;
+  var target = scope.querySelector(input.dataset.live);
   function load() {
-    var params = new URLSearchParams(new FormData(form)); params.set('phan', '1');
-    fetch(form.action + '?' + params, {credentials: 'same-origin'}).then(function (r) { return r.text(); }).then(function (html) {
-      target.innerHTML = html;
-      params.delete('phan'); history.replaceState(null, '', form.action + '?' + params);
-    });
+    var current = ++sequence;
+    var params = input.dataset.source ? new URLSearchParams({q: input.value}) : new URLSearchParams(new FormData(form));
+    params.set('phan', '1');
+    fetch((input.dataset.source || form.action) + '?' + params, {credentials: 'same-origin'})
+      .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
+      .then(function(html) {
+        if (current !== sequence) return;
+        target.innerHTML = html;
+        if (!input.dataset.source) { params.delete('phan'); history.replaceState(null, '', form.action + '?' + params); }
+      }).catch(function() { target.textContent = 'Không tải được kết quả, hãy thử lại.'; });
   }
-  input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(load, 250); });
-  form.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.addEventListener('change', load); });
-});
-// Ô tiền: hiện dấu chấm hàng nghìn khi gõ (50.000).
+  input.addEventListener('input', function() { sequence++; clearTimeout(timer); timer = setTimeout(load, 250); });
+  if (!input.dataset.source) form.querySelectorAll('input[type=checkbox],input[type=radio]').forEach(function(cb) { cb.addEventListener('change', load); });
+  input.addEventListener('stock-picked', function() { sequence++; clearTimeout(timer); });
+};
+document.querySelectorAll('[data-live]').forEach(window.bindLive);
+// Ô tiền: dấu chấm hàng nghìn, kể cả các dòng mới thêm.
 function fmtMoney(el) { var d = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, ''); el.value = d.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
-document.querySelectorAll('[data-money]').forEach(function (el) { fmtMoney(el); el.addEventListener('input', function () { fmtMoney(el); }); });
+window.bindMoney = function(el) {
+  if (el.dataset.moneyBound) return;
+  el.dataset.moneyBound = '1';
+  // Giữ nguyên dữ liệu lỗi lúc tải trang; chỉ định dạng khi người dùng nhập lại.
+  el.addEventListener('input', function() { fmtMoney(el); });
+};
+document.querySelectorAll('[data-money]').forEach(window.bindMoney);
 // Thêm dòng người liên hệ.
 document.querySelectorAll('[data-add-row]').forEach(function (btn) {
   btn.addEventListener('click', function () {

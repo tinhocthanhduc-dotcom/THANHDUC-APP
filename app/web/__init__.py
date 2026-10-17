@@ -435,3 +435,8 @@ def _register_catalog(path, model, in_schema, patch_schema):
 
 _register_catalog("/kho", Warehouse, WarehouseIn, WarehousePatch)
 _register_catalog("/nha-cung-cap", Supplier, SupplierIn, SupplierPatch)
+
+# Nạp sau các helper dùng chung để màn hình Kho dùng cùng CSRF và render.
+from .stock import router as stock_router
+
+router.include_router(stock_router)

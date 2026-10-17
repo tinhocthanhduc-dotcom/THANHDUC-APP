@@ -1,0 +1,14 @@
+<div class="stock-line card" data-stock-line>
+<label>Hàng (gõ tên không dấu hoặc mã để chọn)
+<input name="product_code" value="{{ line.product_code }}" required autocomplete="off" data-live=".product-options" data-source="/phieu-kho/tim-hang" aria-label="Tìm và chọn mã hàng">
+</label>
+<span class="product-name hint">{{ product_names.get(line.product_code, "") }}</span><div class="product-options" aria-live="polite"></div>
+<div class="row2">
+<label>Số lượng<input name="qty" value="{{ line.qty }}" inputmode="decimal" required></label>
+<label data-cost {% if d.kind in ['PX', 'CK'] %}hidden{% endif %}>Đơn giá (đồng)
+<input name="unit_cost" value="{% if line.unit_cost is number %}{{ line.unit_cost | money }}{% else %}{{ line.unit_cost or '' }}{% endif %}" inputmode="numeric" data-money {% if d.kind in ['PX', 'CK'] %}disabled{% endif %}>
+</label></div>
+<label>Số sê-ri<input name="serial" value="{{ line.serial or '' }}" maxlength="200"></label>
+<label>Ghi chú dòng<input name="line_note" value="{{ line.note }}" maxlength="2000"></label>
+{% if can_write and d.status == 'NHAP' %}<button type="button" data-remove-line>Xóa dòng</button>{% endif %}
+</div>

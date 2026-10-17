@@ -87,3 +87,26 @@ label.check input { width: auto; }
   .top nav a { padding: 8px; }
   .search { flex-wrap: wrap; }
 }
+
+/* Kho: nút chọn và dòng hàng co theo màn hình, không dùng bảng cuộn ngang. */
+.top nav { flex-wrap: wrap; min-width: 0; }
+.stock-seg { flex-wrap: wrap; }
+.stock-seg label { flex: 0 1 auto; min-width: 56px; max-width: 100%; }
+.stock-seg span { min-height: 44px; overflow-wrap: anywhere; }
+.stock-line, .stock-balance, .stock-ledger-row { min-width: 0; overflow-wrap: anywhere; }
+.stock-line { display: grid; gap: 8px; }
+.stock-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.stock-actions button { flex: 1; min-height: 48px; }
+.stock-cancel, .stock-list { margin-top: 16px; }
+.product-options { display: grid; gap: 4px; }
+.product-options button { text-align: left; min-height: 44px; overflow-wrap: anywhere; }
+.stock-balance { display: grid; gap: 4px; text-decoration: none; color: var(--text); }
+dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin: 8px 0; }
+dt { color: var(--muted); }
+dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
+@media (max-width: 600px) {
+  .top nav { flex-basis: 100%; }
+  .card { padding: 12px; }
+  main input, main select, main textarea { min-width: 0; max-width: 100%; }
+}
