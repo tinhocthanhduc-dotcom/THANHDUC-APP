@@ -390,3 +390,22 @@ class ServiceTicketOut(BaseModel):
 
 class ServiceTicketDetail(ServiceTicketOut):
     steps: list[ServiceStepOut]
+
+
+class AttachmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    entity: str
+    entity_id: str
+    tag: str
+    filename: str
+    content_type: str
+    size: int
+    width: int | None
+    height: int | None
+    hidden: bool
+    hidden_reason: str
+    created_by: int
+    created_at: datetime
+    version: int

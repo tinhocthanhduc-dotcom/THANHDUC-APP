@@ -113,4 +113,6 @@ $DC exec -T db dropdb -U thanhduc thanhduc
 $DC exec -T db createdb -U thanhduc thanhduc
 $DC exec -T db pg_restore -U thanhduc -d thanhduc --no-owner < /var/backups/thanhduc/daily/<file>.dump
 $DC start api
+# Tệp đính kèm cùng ngày:
+$DC exec -T api sh -c 'rm -rf /app/data/files/* && tar -xzf - -C /app/data' < /var/backups/thanhduc/daily/thanhduc-files-<ngày>.tar.gz
 ```

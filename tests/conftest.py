@@ -1,5 +1,6 @@
 """Test chạy trên PostgreSQL thật. Đặt TD_TEST_DATABASE_URL tới một database rỗng dành riêng cho test."""
 import os
+import tempfile
 
 import pytest
 from alembic import command
@@ -10,6 +11,7 @@ from sqlalchemy import create_engine, text
 TEST_URL = os.environ.get("TD_TEST_DATABASE_URL", "postgresql+psycopg://postgres@localhost:5432/thanhduc_test")
 os.environ["TD_DATABASE_URL"] = TEST_URL
 os.environ["TD_SECRET_KEY"] = "test-secret-key-at-least-32-bytes-long"
+os.environ["TD_FILES_DIR"] = tempfile.mkdtemp(prefix="td-files-")
 
 from app.config import get_settings  # noqa: E402
 from app.db import get_session, reset_engine  # noqa: E402
@@ -17,7 +19,7 @@ from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
-TABLES = "service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
+TABLES = "attachments, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
 PASSWORD = "matkhau-test-123"
 
 
