@@ -1019,6 +1019,11 @@ def test_d3_technician_flow_and_photo_required(client, db, service_people, tmp_p
     image = io.BytesIO()
     Image.new('RGB', (8, 8), 'white').save(image, format='PNG')
     attachments.add(db, tech, 'service_ticket', str(ticket.id), 'SAU', 'sau.png', image.getvalue())
+    # D6: phải chọn cách thu trước khi hoàn thành (màn hình tiền làm ở bước sau).
+    from app import service_charges
+    from app.schemas import ServiceCharges
+    service_charges.set_charges(db, tech, ticket.id, ServiceCharges(billing='MIEN_PHI', free_reason='Bảo hành', lines=[]))
+    db.refresh(ticket)
     response = service_action(client, ticket, csrf, to_status='HOAN_THANH', note='Đã sửa xong máy')
     assert response.status_code == 200, response.text
     db.refresh(ticket)
