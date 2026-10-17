@@ -1,0 +1,10 @@
+{% extends "base.jinja" %}
+{% block title %}{{ label }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>{{ label }}</h1>
+{% if can_write %}<a class="btn primary" href="{{ path }}/moi">+ Thêm {{ label | lower }}</a>{% endif %}</div>
+{% if supplier %}<form action="{{ path }}" class="search" role="search">
+<input name="q" value="{{ q }}" placeholder="Tìm tên, mã NCC, MST, số điện thoại (không dấu cũng được)" data-live="#rows" autofocus>
+</form>{% endif %}
+<div id="rows">{% include "danh_muc_dong.jinja" %}</div>
+{% endblock %}

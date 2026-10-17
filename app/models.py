@@ -1,16 +1,20 @@
 """Lược đồ dữ liệu chung. Mọi thay đổi cấu trúc phải đi kèm một file trong migrations/versions."""
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -147,3 +151,88 @@ class DocCounter(Base):
     prefix: Mapped[str] = mapped_column(String(4), primary_key=True)
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
     last: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Warehouse(Base):
+    __tablename__ = "warehouses"
+
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    name: Mapped[str] = mapped_column(String(300))
+    address: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    __table_args__ = (
+        Index("uq_suppliers_tax", "tax_code", unique=True, postgresql_where="tax_code <> ''"),
+        Index("ix_suppliers_search", "search_text", postgresql_using="gin", postgresql_ops={"search_text": "gin_trgm_ops"}),
+    )
+
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    name: Mapped[str] = mapped_column(String(300))
+    tax_code: Mapped[str] = mapped_column(String(13), default="")
+    phones: Mapped[list[str]] = mapped_column(ARRAY(String(11)), default=list)
+    address: Mapped[str] = mapped_column(Text, default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    search_text: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class StockDoc(Base):
+    """Phiếu kho; K3 chỉ lập, sửa và hủy nháp, chưa ghi sổ."""
+
+    __tablename__ = "stock_docs"
+    __table_args__ = (
+        CheckConstraint("kind in ('PN','PX','CK','KK')", name="ck_stock_docs_kind"),
+        CheckConstraint("status in ('NHAP','DA_GHI','DA_HUY')", name="ck_stock_docs_status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    kind: Mapped[str] = mapped_column(String(2))
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey("warehouses.code"))
+    to_warehouse_code: Mapped[str | None] = mapped_column(ForeignKey("warehouses.code"))
+    doc_date: Mapped[date] = mapped_column(Date)
+    supplier_code: Mapped[str | None] = mapped_column(ForeignKey("suppliers.code"))
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey("customers.code"))
+    reason: Mapped[str] = mapped_column(Text, default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(8), default="NHAP")
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    posted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    void_reason: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    lines: Mapped[list["StockDocLine"]] = relationship(
+        back_populates="doc", cascade="all, delete-orphan", order_by="StockDocLine.line_no"
+    )
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class StockDocLine(Base):
+    __tablename__ = "stock_doc_lines"
+    __table_args__ = (
+        UniqueConstraint("doc_id", "line_no", name="uq_stock_doc_lines_no"),
+        CheckConstraint("qty >= 0", name="ck_stock_doc_lines_qty"),
+        CheckConstraint("unit_cost >= 0", name="ck_stock_doc_lines_cost"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("stock_docs.id"))
+    line_no: Mapped[int] = mapped_column(Integer)
+    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"))
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_cost: Mapped[int | None] = mapped_column(BigInteger)
+    serial: Mapped[str | None] = mapped_column(String(200))
+    note: Mapped[str] = mapped_column(Text, default="")
+    doc: Mapped[StockDoc] = relationship(back_populates="lines")

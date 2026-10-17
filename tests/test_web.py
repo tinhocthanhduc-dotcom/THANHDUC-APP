@@ -180,3 +180,36 @@ def test_hang_hoa_sua_va_ngung_ban(client, web_login, db):
 def test_api_van_tra_json(client):
     r = client.get("/customers")
     assert r.status_code == 401 and r.json()["error"] == "UNAUTHENTICATED"
+
+
+@pytest.mark.parametrize('path,data,code', [('/kho', {'code': 'K58', 'name': 'Kho 58'}, 'K58'), ('/nha-cung-cap', {'name': 'Minh Phát', 'tax_code': '0301234567', 'phones': '0901 234 567'}, 'NCC-0001')])
+def test_catalog_web_create_update_search_and_conflict(client, web_login, path, data, code):
+    csrf = web_login('thu.kho', 'warehouse')
+    assert client.get(path + '/moi').status_code == 200
+    assert client.post(path + '/moi', data={**data, 'csrf': 'bad'}).status_code == 403
+    r = client.post(path + '/moi', data={**data, 'csrf': csrf, 'active': '1'}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == path + '/' + code + '?da_luu=1'
+    assert 'Đã lưu.' in client.get(r.headers['location']).text
+    assert code in client.get(path + '?q=minh%20phat&phan=1').text
+    assert '<html' not in client.get(path + '?phan=1').text
+    form = {**data, 'csrf': csrf, 'version': '1', 'name': 'Tên mới'}
+    assert client.post(path + '/' + code, data=form, follow_redirects=False).status_code == 303
+    r = client.post(path + '/' + code, data=form)
+    assert r.status_code == 409 and 'Người khác vừa sửa' in r.text
+    assert 'name="version" value="1"' in r.text
+    assert 'Ngừng sử dụng' in client.get(path).text
+    csrf = web_login('ban.hang', 'sales')
+    assert '<fieldset disabled>' in client.get(path + '/' + code).text
+    assert client.get(path + '/moi').status_code == 403
+    assert client.post(path + '/' + code, data={**form, 'csrf': csrf}).status_code == 403
+    assert client.post(path + '/moi', data={**data, 'csrf': csrf}).status_code == 403
+
+
+def test_supplier_web_errors_preserve_form(client, web_login):
+    csrf = web_login('thu.kho', 'warehouse')
+    data = {'csrf': csrf, 'name': 'Minh Phát', 'tax_code': '0301234567', 'active': '1'}
+    client.post('/nha-cung-cap/moi', data=data)
+    r = client.post('/nha-cung-cap/moi', data=data)
+    assert r.status_code == 409 and 'MST đã thuộc' in r.text and 'value="Minh Phát"' in r.text
+    r = client.post('/nha-cung-cap/moi', data={**data, 'name': ''})
+    assert r.status_code == 400 and 'Tên không được để trống' in r.text
