@@ -1,0 +1,13 @@
+{% extends "base.jinja" %}
+{% block title %}Hàng hóa{% endblock %}
+{% block main %}
+<div class="bar">
+  <h1>Hàng hóa</h1>
+  {% if can_write %}<a class="btn primary" href="/hang-hoa/moi">+ Thêm mã hàng</a>{% endif %}
+</div>
+<form action="/hang-hoa" class="search" role="search">
+  <input name="q" value="{{ q }}" placeholder="Tìm theo mã TD, tên, nhóm hàng" data-live="#rows" autofocus>
+  <label class="check"><input type="checkbox" name="tat_ca" value="1" {% if tat_ca %}checked{% endif %}> Cả mã ngừng bán</label>
+</form>
+<div id="rows">{% include "hang_dong.jinja" %}</div>
+{% endblock %}

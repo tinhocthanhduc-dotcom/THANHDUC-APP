@@ -12,6 +12,8 @@ Kế hoạch tổng thể: tài liệu "Kế hoạch chuyển sang Python + Post
 | `app/` | Mã nguồn API (FastAPI) |
 | `app/models.py` | Cấu trúc bảng |
 | `app/customers.py` | Quy tắc khách hàng: mã KTD, chống trùng MST/SĐT, tìm không dấu |
+| `app/products.py` | Quy tắc danh mục hàng mã TD |
+| `app/web/` | Giao diện web cho nhân viên (mẫu trang `.jinja`, `static/app.css`) |
 | `migrations/` | Lịch sử thay đổi cấu trúc database (Alembic) |
 | `scripts/` | Tạo tài khoản, nhập mẫu dữ liệu test, xóa dữ liệu test, sao lưu, khôi phục thử |
 | `deploy/` | Docker Compose, Caddy (HTTPS), mẫu file cấu hình |
@@ -21,6 +23,18 @@ Kế hoạch tổng thể: tài liệu "Kế hoạch chuyển sang Python + Post
 
 Thư mục này nằm tạm trong repo SALE_THANHDUC cho tới khi có repo riêng THANHDUC-CORE.
 Không đặt file `.js`, `.gs`, `.html`, `.json` trong `core/`: lệnh đẩy Apps Script của repo SALE đọc cả thư mục con.
+
+## Giao diện web
+
+Mở tên miền của máy chủ trên máy tính hoặc điện thoại, đăng nhập bằng tài khoản do admin tạo.
+
+| Trang | Việc |
+| --- | --- |
+| `/khach-hang` | Tìm khách khi đang gõ, thêm và sửa khách, người liên hệ, công nợ (kế toán, giám đốc) |
+| `/hang-hoa` | Tìm mã hàng, Kho thêm và sửa mã TD, giá bán, ngừng bán |
+
+Trang web gọi cùng tầng nghiệp vụ với API nên mọi quy tắc chống trùng, phân quyền, nhật ký đều giống nhau.
+Đăng nhập giữ bằng cookie HttpOnly; mọi form có mã chống giả mạo (csrf).
 
 ## Quy tắc dữ liệu
 

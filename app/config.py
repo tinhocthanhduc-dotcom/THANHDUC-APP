@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me"
     token_minutes: int = 12 * 60
     search_limit: int = 20
+    # Bật trên máy chủ thật (HTTPS) để trình duyệt chỉ gửi cookie đăng nhập qua kết nối mã hóa.
+    cookie_secure: bool = False
 
 
 @lru_cache

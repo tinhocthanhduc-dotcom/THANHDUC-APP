@@ -1,0 +1,12 @@
+{% extends "base.jinja" %}
+{% block title %}Khách hàng{% endblock %}
+{% block main %}
+<div class="bar">
+  <h1>Khách hàng</h1>
+  {% if can_write %}<a class="btn primary" href="/khach-hang/moi">+ Thêm khách</a>{% endif %}
+</div>
+<form action="/khach-hang" class="search" role="search">
+  <input name="q" value="{{ q }}" placeholder="Tìm theo tên, mã KTD, số điện thoại, MST (gõ không dấu cũng được)" data-live="#rows" autofocus>
+</form>
+<div id="rows">{% include "khach_dong.jinja" %}</div>
+{% endblock %}

@@ -1,0 +1,354 @@
+"""Giao diện web cho nhân viên: đăng nhập, khách hàng, hàng hóa. Mọi quy tắc nằm ở tầng nghiệp vụ, trang web chỉ gọi vào."""
+import hashlib
+import hmac
+from pathlib import Path
+from urllib.parse import quote, urlencode
+
+import jwt
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from .. import customers as customer_svc
+from .. import products as product_svc
+from ..config import get_settings
+from ..db import get_session
+from ..errors import BusinessError
+from ..models import User
+from ..routers.customers import WRITERS as CUSTOMER_WRITERS
+from ..schemas import Confirmation, CustomerCreate, CustomerIn, CustomerPatch, ProductIn, ProductPatch
+from ..security import has_role, issue_token, verify_password
+
+HERE = Path(__file__).parent
+COOKIE = "td_session"
+router = APIRouter(include_in_schema=False)
+static = StaticFiles(directory=HERE / "static")
+templates = Jinja2Templates(directory=HERE / "templates")
+
+KIND_LABELS = {"CA_NHAN": "Cá nhân", "CONG_TY": "Công ty"}
+STATUS_LABELS = {"DANG_DUNG": "Đang dùng", "NGUNG": "Ngừng", "DA_GOP": "Đã gộp"}
+WARNING_LABELS = {"SIMILAR_NAME": "Có khách khác cùng tên", "PHONE_SHARED_CONFIRMED": "Dùng chung số điện thoại với"}
+
+
+def money(value: int | None) -> str:
+    return f"{int(value or 0):,}".replace(",", ".")
+
+
+templates.env.filters["money"] = money
+templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
+
+
+class LoginRequired(Exception):
+    def __init__(self, next_url: str):
+        self.next_url = next_url
+
+
+async def login_required_handler(request: Request, exc: LoginRequired) -> Response:
+    return RedirectResponse("/dang-nhap?" + urlencode({"next": exc.next_url}), status_code=303)
+
+
+async def web_error_page(request: Request, exc: BusinessError) -> Response:
+    return templates.TemplateResponse(
+        request, "loi.jinja", {"user": getattr(request.state, "user", None), "error": exc}, status_code=exc.status
+    )
+
+
+def csrf_token(session_token: str) -> str:
+    return hmac.new(get_settings().secret_key.encode(), b"csrf:" + session_token.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def web_user(request: Request, session: Session = Depends(get_session)) -> User:
+    """Người đang đăng nhập theo cookie. Chưa đăng nhập thì chuyển về trang đăng nhập."""
+    request.state.web = True
+    token = request.cookies.get(COOKIE, "")
+    target = request.url.path + ("?" + request.url.query if request.url.query else "")
+    try:
+        user_id = int(jwt.decode(token, get_settings().secret_key, algorithms=["HS256"])["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        raise LoginRequired(target)
+    user = session.get(User, user_id)
+    if not user or not user.active:
+        raise LoginRequired(target)
+    request.state.user = user
+    request.state.csrf = csrf_token(token)
+    return user
+
+
+async def checked_form(request: Request, user: User = Depends(web_user)):
+    """Đọc form gửi lên và chặn form giả mạo từ trang khác (kiểm mã csrf)."""
+    form = await request.form()
+    if not hmac.compare_digest(str(form.get("csrf", "")), request.state.csrf):
+        raise BusinessError("BAD_CSRF", "Trang đã cũ, hãy tải lại rồi thử lại.", status=403)
+    return form
+
+
+def render(request: Request, name: str, **ctx) -> HTMLResponse:
+    status = ctx.pop("status", 200)
+    ctx.setdefault("user", getattr(request.state, "user", None))
+    ctx.setdefault("csrf", getattr(request.state, "csrf", ""))
+    return templates.TemplateResponse(request, name, ctx, status_code=status)
+
+
+def _digits(value) -> int:
+    s = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return int(s) if s else 0
+
+
+def _safe_next(value: str | None) -> str:
+    v = value or ""
+    return v if v.startswith("/") and not v.startswith("//") and "\\" not in v else "/khach-hang"
+
+
+def _error_text(exc: ValidationError) -> str:
+    fields = {"name": "Tên", "email": "Email", "address": "Địa chỉ", "code": "Mã hàng", "unit": "Đơn vị tính", "phones": "Số điện thoại", "reason": "Lý do dùng chung số"}
+    for err in exc.errors():
+        loc = [str(x) for x in err["loc"]]
+        label = next((fields[x] for x in reversed(loc) if x in fields), "Dữ liệu")
+        if loc and loc[-1] == "code" and err["type"] == "string_pattern_mismatch":
+            return "Mã hàng phải có dạng TD-0001."
+        if err["type"] in ("string_too_short", "missing"):
+            return f"{label} không được để trống."
+        if err["type"] == "string_too_long":
+            return f"{label} quá dài."
+    return "Dữ liệu chưa hợp lệ, hãy kiểm tra lại."
+
+
+# ---------- Đăng nhập ----------
+
+
+@router.get("/")
+def home():
+    return RedirectResponse("/khach-hang", status_code=303)
+
+
+@router.get("/dang-nhap")
+def login_page(request: Request, next: str = "/khach-hang"):
+    return render(request, "dang_nhap.jinja", next=_safe_next(next), username="", error=None)
+
+
+@router.post("/dang-nhap")
+async def login_submit(request: Request, session: Session = Depends(get_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip().lower()
+    next_url = _safe_next(str(form.get("next", "")))
+    user = session.scalars(select(User).where(User.username == username)).first()
+    if not user or not user.active or not verify_password(str(form.get("password", "")), user.password_hash):
+        return render(request, "dang_nhap.jinja", next=next_url, username=username, error="Sai tên đăng nhập hoặc mật khẩu.", status=401)
+    s = get_settings()
+    response = RedirectResponse(next_url, status_code=303)
+    response.set_cookie(
+        COOKIE, issue_token(user), max_age=s.token_minutes * 60, httponly=True, samesite="lax", secure=s.cookie_secure
+    )
+    return response
+
+
+@router.post("/dang-xuat")
+def logout(_=Depends(checked_form)):
+    response = RedirectResponse("/dang-nhap", status_code=303)
+    response.delete_cookie(COOKIE)
+    return response
+
+
+# ---------- Khách hàng ----------
+
+
+def _customer_form(request: Request, user: User, c: dict, **ctx) -> HTMLResponse:
+    return render(
+        request,
+        "khach_form.jinja",
+        c=c,
+        can_write=has_role(user, *CUSTOMER_WRITERS),
+        can_credit=has_role(user, *customer_svc.CREDIT_ROLES),
+        **ctx,
+    )
+
+
+def _blank_customer() -> dict:
+    return {
+        "code": "", "kind": "CA_NHAN", "name": "", "tax_code": "", "phones": [], "email": "", "address": "", "note": "",
+        "contacts": [], "allow_debt": False, "credit_limit": 0, "status": "DANG_DUNG", "old_codes": [], "is_test": False, "version": 0,
+    }
+
+
+def _customer_dict(c) -> dict:
+    # Ô "Số điện thoại" chỉ chứa số của khách; số của người liên hệ nằm ở từng người liên hệ.
+    return {**customer_svc.to_out(c).model_dump(), "phones": [p.phone for p in c.phones if not p.is_contact]}
+
+
+def _customer_from_form(form) -> dict:
+    contacts = []
+    for name, ph, note in zip(form.getlist("contact_name"), form.getlist("contact_phones"), form.getlist("contact_note")):
+        if str(name).strip() or str(ph).strip():
+            contacts.append({"name": str(name).strip(), "phones": [str(ph)], "note": str(note).strip()})
+    return {
+        "kind": str(form.get("kind", "CA_NHAN")),
+        "name": str(form.get("name", "")),
+        "tax_code": str(form.get("tax_code", "")),
+        "phones": [str(form.get("phones", ""))] if str(form.get("phones", "")).strip() else [],
+        "email": str(form.get("email", "")),
+        "address": str(form.get("address", "")),
+        "note": str(form.get("note", "")),
+        "contacts": contacts,
+        "allow_debt": form.get("allow_debt") == "1",
+        "credit_limit": _digits(form.get("credit_limit")),
+        "status": str(form.get("status", "DANG_DUNG")),
+    }
+
+
+def _confirmation(form) -> Confirmation | None:
+    if form.get("confirm_separate") != "1":
+        return None
+    return Confirmation(mode="CREATE_SEPARATE", reason=str(form.get("confirm_reason", "")).strip())
+
+
+def _saved_url(code: str, warnings) -> str:
+    query = {"da_luu": "1"}
+    if warnings:
+        query["cb"] = ",".join(f"{w.code}:{w.customer}" for w in warnings)
+    return f"/khach-hang/{quote(code)}?" + urlencode(query)
+
+
+@router.get("/khach-hang")
+def customer_list(
+    request: Request, q: str = "", phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)
+):
+    rows = [customer_svc.to_out(c) for c in customer_svc.search(session, q[:200])]
+    name = "khach_dong.jinja" if phan else "khach_ds.jinja"
+    return render(request, name, rows=rows, q=q, can_write=has_role(user, *CUSTOMER_WRITERS))
+
+
+@router.get("/khach-hang/moi")
+def customer_new(request: Request, user: User = Depends(web_user)):
+    if not has_role(user, *CUSTOMER_WRITERS):
+        raise BusinessError("FORBIDDEN", "Tài khoản không có quyền tạo khách.", status=403)
+    return _customer_form(request, user, _blank_customer(), error=None, ask_confirm=None)
+
+
+@router.post("/khach-hang/moi")
+def customer_create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    if not has_role(user, *CUSTOMER_WRITERS):
+        raise BusinessError("FORBIDDEN", "Tài khoản không có quyền tạo khách.", status=403)
+    data = _customer_from_form(form)
+    shown = {**_blank_customer(), **data}
+    if not has_role(user, *customer_svc.CREDIT_ROLES):
+        data.pop("allow_debt"), data.pop("credit_limit")
+    data.pop("status")
+    try:
+        body = CustomerCreate(customer=CustomerIn(**data), confirmation=_confirmation(form))
+        c, warnings = customer_svc.create(session, user, body)
+    except ValidationError as exc:
+        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400)
+    except BusinessError as exc:
+        ask = exc.details if exc.code == "PHONE_IN_USE" else None
+        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status)
+    return RedirectResponse(_saved_url(c.code, warnings), status_code=303)
+
+
+@router.get("/khach-hang/{code}")
+def customer_view(
+    request: Request, code: str, da_luu: int = 0, cb: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)
+):
+    c = customer_svc.load(session, code)
+    if c.code != code:
+        return RedirectResponse(f"/khach-hang/{quote(c.code)}", status_code=303)
+    warnings = [w.split(":", 1) for w in cb.split(",") if ":" in w and w.split(":", 1)[0] in WARNING_LABELS]
+    return _customer_form(request, user, _customer_dict(c), error=None, ask_confirm=None, saved=bool(da_luu), warnings=warnings)
+
+
+@router.post("/khach-hang/{code}")
+def customer_update(request: Request, code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    if not has_role(user, *CUSTOMER_WRITERS):
+        raise BusinessError("FORBIDDEN", "Tài khoản không có quyền sửa khách.", status=403)
+    data = _customer_from_form(form)
+    # Giữ nguyên version người dùng đang thấy: nếu bị người khác sửa trước, lưu lại vẫn bị chặn cho tới khi tải lại trang.
+    shown = {**_customer_dict(customer_svc.load(session, code, resolve_merged=False)), **data, "version": _digits(form.get("version"))}
+    # Người không có quyền công nợ không gửi các trường đó, để không bị chặn khi chỉ sửa tên hay số điện thoại.
+    if not has_role(user, *customer_svc.CREDIT_ROLES):
+        data.pop("allow_debt"), data.pop("credit_limit"), data.pop("status")
+    try:
+        body = CustomerPatch(version=_digits(form.get("version")), confirmation=_confirmation(form), **data)
+        c, warnings = customer_svc.update(session, user, code, body)
+    except ValidationError as exc:
+        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400)
+    except BusinessError as exc:
+        ask = exc.details if exc.code == "PHONE_IN_USE" else None
+        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status)
+    return RedirectResponse(_saved_url(c.code, warnings), status_code=303)
+
+
+# ---------- Hàng hóa ----------
+
+
+def _product_form(request: Request, user: User, session: Session, p: dict, **ctx) -> HTMLResponse:
+    return render(
+        request, "hang_form.jinja", p=p, groups=product_svc.groups(session), can_write=has_role(user, *product_svc.WRITERS), **ctx
+    )
+
+
+def _product_from_form(form) -> dict:
+    return {
+        "name": str(form.get("name", "")),
+        "group_name": str(form.get("group_name", "")),
+        "unit": str(form.get("unit", "")).strip() or "cái",
+        "sale_price": _digits(form.get("sale_price")),
+    }
+
+
+@router.get("/hang-hoa")
+def product_list(
+    request: Request, q: str = "", tat_ca: int = 0, phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)
+):
+    rows = product_svc.search(session, q[:200], active_only=not tat_ca)
+    name = "hang_dong.jinja" if phan else "hang_ds.jinja"
+    return render(request, name, rows=rows, q=q, tat_ca=tat_ca, can_write=has_role(user, *product_svc.WRITERS))
+
+
+@router.get("/hang-hoa/moi")
+def product_new(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    if not has_role(user, *product_svc.WRITERS):
+        raise BusinessError("FORBIDDEN", "Chỉ Kho được tạo mã hàng.", status=403)
+    p = {"code": product_svc.suggest_code(session), "name": "", "group_name": "", "unit": "cái", "sale_price": 0, "active": True, "version": 0}
+    return _product_form(request, user, session, p, is_new=True, error=None)
+
+
+@router.post("/hang-hoa/moi")
+def product_create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    if not has_role(user, *product_svc.WRITERS):
+        raise BusinessError("FORBIDDEN", "Chỉ Kho được tạo mã hàng.", status=403)
+    data = {"code": str(form.get("code", "")).strip().upper(), **_product_from_form(form)}
+    try:
+        p = product_svc.create(session, user, ProductIn(**data))
+    except ValidationError as exc:
+        return _product_form(request, user, session, {**data, "active": True, "version": 0}, is_new=True, error=_error_text(exc), status=400)
+    except BusinessError as exc:
+        return _product_form(request, user, session, {**data, "active": True, "version": 0}, is_new=True, error=exc.message, status=exc.status)
+    return RedirectResponse(f"/hang-hoa/{quote(p.code)}?da_luu=1", status_code=303)
+
+
+@router.get("/hang-hoa/{code}")
+def product_view(request: Request, code: str, da_luu: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    p = product_svc.load(session, code)
+    return _product_form(request, user, session, product_svc.snapshot(p), is_new=False, error=None, saved=bool(da_luu))
+
+
+@router.post("/hang-hoa/{code}")
+def product_update(request: Request, code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    if not has_role(user, *product_svc.WRITERS):
+        raise BusinessError("FORBIDDEN", "Chỉ Kho được sửa mã hàng.", status=403)
+    data = {**_product_from_form(form), "active": form.get("active") == "1"}
+    shown = {**product_svc.snapshot(product_svc.load(session, code)), **data, "version": _digits(form.get("version"))}
+    try:
+        p = product_svc.update(session, user, code, ProductPatch(version=_digits(form.get("version")), **data))
+    except ValidationError as exc:
+        return _product_form(request, user, session, shown, is_new=False, error=_error_text(exc), status=400)
+    except BusinessError as exc:
+        return _product_form(request, user, session, shown, is_new=False, error=exc.message, status=exc.status)
+    return RedirectResponse(f"/hang-hoa/{quote(p.code)}?da_luu=1", status_code=303)

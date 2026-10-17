@@ -1,0 +1,12 @@
+{% extends "base.jinja" %}
+{% block title %}Đăng nhập{% endblock %}
+{% block main %}
+<form method="post" action="/dang-nhap" class="card login">
+  <h1>Đăng nhập</h1>
+  {% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <label>Tên đăng nhập<input name="username" value="{{ username }}" autocomplete="username" autocapitalize="none" required autofocus></label>
+  <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label>
+  <button class="primary">Đăng nhập</button>
+</form>
+{% endblock %}

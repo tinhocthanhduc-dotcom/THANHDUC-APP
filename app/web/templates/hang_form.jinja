@@ -1,0 +1,31 @@
+{% extends "base.jinja" %}
+{% block title %}{{ p.name or "Mã hàng mới" }}{% endblock %}
+{% block main %}
+<div class="bar">
+  <h1>{% if is_new %}Thêm mã hàng{% else %}{{ p.code }} · {{ p.name }}{% endif %}</h1>
+  <a href="/hang-hoa">← Danh sách</a>
+</div>
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
+<form method="post" class="card form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="version" value="{{ p.version }}">
+  <fieldset {% if not can_write %}disabled{% endif %}>
+  {% if is_new %}
+  <label>Mã hàng<input name="code" value="{{ p.code }}" required pattern="[Tt][Dd]-[0-9]{4,}" autocapitalize="characters"></label>
+  <p class="hint">Mã gợi ý là số kế tiếp. Kho kiểm lại trước khi lưu, mã đã lưu không đổi được.</p>
+  {% endif %}
+  <label>Tên hàng<input name="name" value="{{ p.name }}" required maxlength="300"></label>
+  <div class="row2">
+    <label>Nhóm hàng<input name="group_name" value="{{ p.group_name }}" list="groups" placeholder="Chọn hoặc gõ nhóm mới"></label>
+    <label>Đơn vị tính<input name="unit" value="{{ p.unit }}" required maxlength="32"></label>
+  </div>
+  <datalist id="groups">{% for g in groups %}<option value="{{ g }}">{% endfor %}</datalist>
+  <label>Giá bán (đồng)<input name="sale_price" value="{{ p.sale_price | money }}" inputmode="numeric" data-money></label>
+  {% if not is_new %}
+  <label class="check"><input type="checkbox" name="active" value="1" {% if p.active %}checked{% endif %}> Đang bán</label>
+  {% endif %}
+  </fieldset>
+  {% if can_write %}<button class="primary">Lưu</button>{% else %}<p class="hint">Chỉ Kho được sửa danh mục hàng.</p>{% endif %}
+</form>
+{% endblock %}

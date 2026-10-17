@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Thành Đức{% endblock %} · Thành Đức</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+{% if user %}
+<header class="top">
+  <a class="brand" href="/">Thành Đức</a>
+  <nav>
+    <a href="/khach-hang" {% if request.url.path.startswith('/khach-hang') %}class="on"{% endif %}>Khách hàng</a>
+    <a href="/hang-hoa" {% if request.url.path.startswith('/hang-hoa') %}class="on"{% endif %}>Hàng hóa</a>
+  </nav>
+  <form method="post" action="/dang-xuat" class="who">
+    <span>{{ user.full_name }}</span>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="link">Đăng xuất</button>
+  </form>
+</header>
+{% endif %}
+<main>{% block main %}{% endblock %}</main>
+<script>
+// Tìm ngay khi gõ: tải lại phần danh sách, không tải lại cả trang.
+document.querySelectorAll('[data-live]').forEach(function (input) {
+  var timer, target = document.querySelector(input.dataset.live), form = input.form;
+  function load() {
+    var params = new URLSearchParams(new FormData(form)); params.set('phan', '1');
+    fetch(form.action + '?' + params, {credentials: 'same-origin'}).then(function (r) { return r.text(); }).then(function (html) {
+      target.innerHTML = html;
+      params.delete('phan'); history.replaceState(null, '', form.action + '?' + params);
+    });
+  }
+  input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(load, 250); });
+  form.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.addEventListener('change', load); });
+});
+// Ô tiền: hiện dấu chấm hàng nghìn khi gõ (50.000).
+function fmtMoney(el) { var d = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, ''); el.value = d.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+document.querySelectorAll('[data-money]').forEach(function (el) { fmtMoney(el); el.addEventListener('input', function () { fmtMoney(el); }); });
+// Thêm dòng người liên hệ.
+document.querySelectorAll('[data-add-row]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var tpl = document.querySelector(btn.dataset.addRow), row = tpl.content.firstElementChild.cloneNode(true);
+    btn.parentNode.insertBefore(row, btn);
+    row.querySelector('input').focus();
+  });
+});
+</script>
+</body>
+</html>

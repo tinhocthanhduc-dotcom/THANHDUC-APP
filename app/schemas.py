@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ContactIn(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     name: str = Field(min_length=1, max_length=200)
     phones: list[str] = Field(default_factory=list, max_length=10)
     note: str = Field(default="", max_length=1000)
@@ -17,7 +19,7 @@ class Confirmation(BaseModel):
 
 
 class CustomerIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     kind: Literal["CA_NHAN", "CONG_TY"] = "CA_NHAN"
     name: str = Field(min_length=1, max_length=300)
@@ -33,14 +35,14 @@ class CustomerIn(BaseModel):
 
 
 class CustomerCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     customer: CustomerIn
     confirmation: Confirmation | None = None
 
 
 class CustomerPatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     version: int
     kind: Literal["CA_NHAN", "CONG_TY"] | None = None
@@ -95,7 +97,7 @@ class CustomerResult(BaseModel):
 
 
 class ProductIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     code: str = Field(pattern=r"^TD-\d{4,}$")
     name: str = Field(min_length=1, max_length=300)
@@ -106,7 +108,7 @@ class ProductIn(BaseModel):
 
 
 class ProductPatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     version: int
     name: str | None = Field(default=None, min_length=1, max_length=300)
@@ -130,7 +132,7 @@ class ProductOut(BaseModel):
 
 
 class UserIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     username: str = Field(pattern=r"^[a-z0-9._-]{3,64}$")
     full_name: str = Field(min_length=1, max_length=200)

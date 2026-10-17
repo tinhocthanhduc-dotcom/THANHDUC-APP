@@ -1,0 +1,18 @@
+{% if rows %}
+<ul class="list">
+  {% for p in rows %}
+  <li><a href="/hang-hoa/{{ p.code }}">
+    <span class="code">{{ p.code }}</span>
+    <strong>{{ p.name }}</strong>
+    <span class="meta">
+      {% if p.group_name %}{{ p.group_name }} · {% endif %}{{ p.unit }} · {{ p.sale_price | money }} đ
+      {% if not p.active %}<span class="tag">Ngừng bán</span>{% endif %}
+      {% if p.is_test %}<span class="tag">Dữ liệu thử</span>{% endif %}
+    </span>
+  </a></li>
+  {% endfor %}
+</ul>
+{% if rows | length >= 50 %}<p class="hint">Chỉ hiện 50 mã đầu. Gõ thêm để tìm đúng mã.</p>{% endif %}
+{% else %}
+<p class="empty">{% if q %}Không có mã hàng nào khớp "{{ q }}".{% else %}Chưa có mã hàng nào.{% endif %}</p>
+{% endif %}

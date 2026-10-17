@@ -1,0 +1,88 @@
+{% extends "base.jinja" %}
+{% set ro = not can_write or c.status == "DA_GOP" %}
+{% block title %}{{ c.name or "Khách mới" }}{% endblock %}
+{% block main %}
+<div class="bar">
+  <h1>{% if c.code %}{{ c.code }} · {{ c.name }}{% else %}Thêm khách{% endif %}</h1>
+  <a href="/khach-hang">← Danh sách</a>
+</div>
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% for code, other in warnings or [] %}
+<p class="alert warn">{{ WARNING_LABELS[code] }} <a href="/khach-hang/{{ other }}">{{ other }}</a>. Kiểm tra xem có phải cùng một khách không.</p>
+{% endfor %}
+{% if error %}
+<p class="alert bad">{{ error }}
+  {% if error_detail and error_detail.existing %}Khách đó là <a href="/khach-hang/{{ error_detail.existing }}" target="_blank">{{ error_detail.existing }} · {{ error_detail.name }}</a>.{% endif %}
+</p>
+{% endif %}
+<form method="post" class="card form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="version" value="{{ c.version }}">
+  <fieldset {% if ro %}disabled{% endif %}>
+  <div class="field">
+    <span class="label">Loại khách</span>
+    <div class="seg">
+      {% for k, label in KIND_LABELS.items() %}
+      <label><input type="radio" name="kind" value="{{ k }}" data-kind {% if c.kind == k %}checked{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+  <label>Tên khách<input name="name" value="{{ c.name }}" required maxlength="300"></label>
+  <div class="row2">
+    <label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Nhiều số cách nhau bằng dấu phẩy"></label>
+    <label>MST<input name="tax_code" value="{{ c.tax_code }}" inputmode="numeric" placeholder="Công ty cần MST hoặc SĐT"></label>
+  </div>
+  <label>Địa chỉ<input name="address" value="{{ c.address }}"></label>
+  <label>Email<input name="email" type="email" value="{{ c.email }}"></label>
+  <label>Ghi chú<textarea name="note" rows="2">{{ c.note }}</textarea></label>
+
+  <div class="field contacts">
+    <span class="label">Người liên hệ</span>
+    {% for x in c.contacts %}
+    <div class="contact">
+      <input name="contact_name" value="{{ x.name }}" placeholder="Tên">
+      <input name="contact_phones" value="{{ x.phones | join(', ') }}" placeholder="SĐT" inputmode="tel">
+      <input name="contact_note" value="{{ x.note }}" placeholder="Chức vụ, ghi chú">
+    </div>
+    {% endfor %}
+    {% if not ro %}<button type="button" class="link" data-add-row="#contact-row">+ Thêm người liên hệ</button>{% endif %}
+  </div>
+
+  {% if can_credit %}
+  <div class="field credit">
+    <span class="label">Công nợ (kế toán, giám đốc)</span>
+    <label class="check"><input type="checkbox" name="allow_debt" value="1" {% if c.allow_debt %}checked{% endif %}> Cho nợ</label>
+    <label>Hạn mức nợ (đồng)<input name="credit_limit" value="{{ c.credit_limit | money }}" inputmode="numeric" data-money></label>
+    {% if c.code %}
+    <label>Trạng thái
+      <select name="status">
+        <option value="DANG_DUNG" {% if c.status == "DANG_DUNG" %}selected{% endif %}>Đang dùng</option>
+        <option value="NGUNG" {% if c.status == "NGUNG" %}selected{% endif %}>Ngừng</option>
+      </select>
+    </label>
+    {% endif %}
+  </div>
+  {% elif c.code and (c.allow_debt or c.credit_limit) %}
+  <p class="hint">Cho nợ, hạn mức {{ c.credit_limit | money }} đ. Chỉ kế toán hoặc giám đốc sửa được.</p>
+  {% endif %}
+
+  {% if ask_confirm %}
+  <div class="confirm">
+    <p>Số này đang thuộc <a href="/khach-hang/{{ ask_confirm.existing }}" target="_blank">{{ ask_confirm.existing }} · {{ ask_confirm.name }}</a>. Nếu đúng là hai khách khác nhau dùng chung số (ví dụ hai công ty cùng người liên hệ), xác nhận và ghi lý do.</p>
+    <label class="check"><input type="checkbox" name="confirm_separate" value="1" required> Vẫn lưu riêng</label>
+    <label>Lý do<input name="confirm_reason" required minlength="3"></label>
+  </div>
+  {% endif %}
+  </fieldset>
+  {% if c.old_codes %}<p class="hint">Mã cũ: {{ c.old_codes | join(", ") }}</p>{% endif %}
+  {% if c.status == "DA_GOP" %}<p class="hint">Khách này đã gộp, không sửa được.</p>{% endif %}
+  {% if not ro %}<button class="primary">Lưu</button>{% endif %}
+</form>
+<template id="contact-row">
+  <div class="contact">
+    <input name="contact_name" placeholder="Tên">
+    <input name="contact_phones" placeholder="SĐT" inputmode="tel">
+    <input name="contact_note" placeholder="Chức vụ, ghi chú">
+  </div>
+</template>
+{% endblock %}
