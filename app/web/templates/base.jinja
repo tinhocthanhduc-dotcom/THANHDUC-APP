@@ -16,8 +16,9 @@
     <a href="/kho" {% if request.url.path.startswith('/kho') %}class="on"{% endif %}>Kho</a>
     <a href="/nha-cung-cap" {% if request.url.path.startswith('/nha-cung-cap') %}class="on"{% endif %}>Nhà cung cấp</a>
     <a href="/phieu-kho" {% if request.url.path.startswith('/phieu-kho') %}class="on"{% endif %}>Phiếu kho</a>
-    <a href="/ton-kho" {% if request.url.path.startswith('/ton-kho') or request.url.path.startswith('/the-kho') %}class="on"{% endif %}>Tồn kho</a>
+    <a href="/ton-kho" {% if (request.url.path.startswith('/ton-kho') and request.query_params.get('canh-bao') != '1') or request.url.path.startswith('/the-kho') %}class="on"{% endif %}>Tồn kho</a>
     <a href="/ton-dau-ky" {% if request.url.path.startswith('/ton-dau-ky') %}class="on"{% endif %}>Tồn đầu kỳ</a>
+    <a href="/ton-kho?canh-bao=1" {% if request.url.path == '/ton-kho' and request.query_params.get('canh-bao') == '1' %}class="on"{% endif %}>Sắp hết</a>
   </nav>
   <form method="post" action="/dang-xuat" class="who">
     <span>{{ user.full_name }}</span>

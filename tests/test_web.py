@@ -498,3 +498,166 @@ def test_opening_web_nonempty_warehouse_message(client, web_login, stock_catalog
     assert r.status_code == 200
     r = opening_upload(client, csrf)
     assert r.status_code == 409 and 'Kho đã có phát sinh nhập xuất, không nhập tồn đầu kỳ được nữa.' in r.text
+
+
+def set_min_level(client, csrf, code='TD-0001', qty='5', version='0', warehouse='K58'):
+    return client.post(f'/the-kho/{warehouse}/{code}', data={'csrf': csrf, 'min_qty': qty, 'version': version}, follow_redirects=False)
+
+
+def test_k7_low_stock_shortage(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    stock_create_web(client, csrf, action='post', qty=['3'])
+    assert set_min_level(client, csrf).status_code == 303
+    page = client.get('/ton-kho?canh-bao=1').text
+    assert 'TD-0001' in page and 'Mực in' in page
+    assert '<dt>Số thiếu</dt><dd>2.000</dd>' in page
+    assert '<dt>Mức tối thiểu</dt><dd>5.000</dd>' in page
+
+
+def test_k7_stock_above_minimum_not_alerted(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    stock_create_web(client, csrf, action='post', qty=['10'])
+    assert set_min_level(client, csrf).status_code == 303
+    assert 'TD-0001' not in client.get('/ton-kho?canh-bao=1').text
+    assert 'TD-0001' in client.get('/ton-kho').text
+
+
+def test_k7_never_received_zero_stock_first(client, web_login, stock_catalog, db):
+    from app.models import StockBalance
+    csrf = web_login('thu.kho', 'warehouse')
+    stock_create_web(client, csrf, action='post', qty=['3'])
+    assert set_min_level(client, csrf).status_code == 303
+    assert set_min_level(client, csrf, code='TD-0002', qty='2').status_code == 303
+    page = client.get('/ton-kho?canh-bao=1').text
+    assert page.index('TD-0002') < page.index('TD-0001')
+    assert '<dt>Số thiếu</dt><dd>2.000</dd>' in page
+    assert db.get(StockBalance, ('K58', 'TD-0002')) is None
+    # Đọc cảnh báo không tạo dòng tồn giả cho mã chưa nhập.
+    assert 'TD-0002' not in client.get('/ton-kho').text
+
+
+def test_k7_zero_disables_alert_without_delete(client, web_login, stock_catalog, db):
+    from app.models import StockMinLevel
+    csrf = web_login('thu.kho', 'warehouse')
+    assert set_min_level(client, csrf).status_code == 303
+    assert set_min_level(client, csrf, qty='0', version='1').status_code == 303
+    assert 'TD-0001' not in client.get('/ton-kho?canh-bao=1').text
+    row = db.get(StockMinLevel, ('K58', 'TD-0001'))
+    assert row.min_qty == 0 and row.version == 2
+
+
+def test_k7_old_version_preserves_entered_qty(client, web_login, stock_catalog, db):
+    from app.models import StockMinLevel
+    csrf = web_login('thu.kho', 'warehouse')
+    assert set_min_level(client, csrf).status_code == 303
+    assert set_min_level(client, csrf, qty='6', version='1').status_code == 303
+    r = set_min_level(client, csrf, qty='7,5', version='1')
+    assert r.status_code == 409 and 'Người khác vừa sửa mức tồn tối thiểu' in r.text
+    assert 'name="min_qty" value="7,5"' in r.text and 'name="version" value="1"' in r.text
+    row = db.get(StockMinLevel, ('K58', 'TD-0001'))
+    assert row.min_qty == 6 and row.version == 2
+
+
+def test_k7_sales_and_csrf(client, web_login, stock_catalog, db):
+    from app.models import StockMinLevel
+    csrf = web_login('ban.hang', 'sales')
+    for path in ['/ton-kho?canh-bao=1', '/the-kho/K58/TD-0001']:
+        r = client.get(path)
+        assert r.status_code == 200 and '>Lưu<' not in r.text
+    assert set_min_level(client, csrf).status_code == 403
+    csrf = web_login('thu.kho', 'warehouse')
+    assert client.post('/the-kho/K58/TD-0001', data={'min_qty': '5', 'version': '0'}).status_code == 403
+    assert db.query(StockMinLevel).count() == 0
+
+
+def test_k7_audit_create_and_update(client, web_login, stock_catalog, db):
+    from app.models import AuditLog, StockMinLevel
+    csrf = web_login('giam.doc', 'director')
+    assert set_min_level(client, csrf).status_code == 303
+    logs = db.query(AuditLog).filter_by(entity='stock_min_level').order_by(AuditLog.id).all()
+    assert len(logs) == 1 and logs[0].action == 'stock_min_level.create'
+    assert logs[0].before is None and logs[0].after['min_qty'] == '5'
+    assert logs[0].entity_id == 'K58/TD-0001'
+    assert set_min_level(client, csrf, qty='6', version='1').status_code == 303
+    logs = db.query(AuditLog).filter_by(entity='stock_min_level').order_by(AuditLog.id).all()
+    assert len(logs) == 2 and logs[1].action == 'stock_min_level.update'
+    assert logs[1].before['min_qty'] == '5.000' and logs[1].after['min_qty'] == '6'
+    row = db.get(StockMinLevel, ('K58', 'TD-0001'))
+    assert row.updated_by == logs[1].user_id and row.updated_at is not None
+
+
+@pytest.mark.parametrize('qty', ['-1', '1.2345', 'NaN', 'Infinity', '999999999999', ''])
+def test_k7_bad_minimum_preserves_input(client, web_login, stock_catalog, qty):
+    csrf = web_login('thu.kho', 'warehouse')
+    r = set_min_level(client, csrf, qty=qty)
+    assert r.status_code == 400 and 'Mức tồn tối thiểu chưa hợp lệ' in r.text
+    assert f'name="min_qty" value="{qty}"' in r.text
+
+
+def test_k7_filter_warehouse_search_and_threshold_equality(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    stock_create_web(client, csrf, action='post', qty=['5'])
+    assert set_min_level(client, csrf).status_code == 303
+    assert set_min_level(client, csrf, warehouse='K145', code='TD-0002', qty='2').status_code == 303
+    page = client.get('/ton-kho?canh-bao=1&kho=K58&q=muc+in&phan=1').text
+    assert 'TD-0001' in page and 'TD-0002' not in page
+    assert '<dt>Số thiếu</dt><dd>0.000</dd>' in page and '<html' not in page
+    page = client.get('/ton-kho?canh-bao=1&kho=K145').text
+    assert 'TD-0002' in page and 'TD-0001' not in page
+
+
+def test_k7_initial_version_conflict_and_missing_version(client, web_login, stock_catalog, db):
+    from app.models import AuditLog
+    csrf = web_login('thu.kho', 'warehouse')
+    assert set_min_level(client, csrf, version='1').status_code == 409
+    assert set_min_level(client, csrf).status_code == 303
+    assert set_min_level(client, csrf, qty='9', version='0').status_code == 409
+    assert client.post('/the-kho/K58/TD-0001', data={'csrf': csrf, 'min_qty': '5'}).status_code == 400
+    assert db.query(AuditLog).filter_by(entity='stock_min_level').count() == 1
+
+
+@pytest.mark.parametrize('creating', [True, False])
+def test_k7_concurrent_writes_have_one_winner(client, web_login, stock_catalog, engine, db, monkeypatch, creating):
+    import threading
+    from sqlalchemy.orm import Session
+    from app import stock_min_levels as svc
+    from app.errors import BusinessError
+    from app.models import AuditLog, StockMinLevel, User
+    from app.schemas import StockMinLevelIn
+    csrf = web_login('thu.kho', 'warehouse')
+    if not creating:
+        assert set_min_level(client, csrf).status_code == 303
+    user_id = db.query(User).filter_by(username='thu.kho').one().id
+    barrier = threading.Barrier(2)
+    if creating:
+        original = Session.get
+        def get(session, model, *args, **kw):
+            row = original(session, model, *args, **kw)
+            if model is StockMinLevel and row is None:
+                barrier.wait(timeout=10)
+            return row
+        monkeypatch.setattr(Session, 'get', get)
+    else:
+        original = svc.snapshot
+        def snapshot(level):
+            if level.version == 1:
+                barrier.wait(timeout=10)
+            return original(level)
+        monkeypatch.setattr(svc, 'snapshot', snapshot)
+    results = []
+    def write(value):
+        with Session(engine, expire_on_commit=False) as session:
+            user = session.get(User, user_id)
+            try:
+                svc.set_level(session, user, 'K58', 'TD-0001', StockMinLevelIn(min_qty=value, version=0 if creating else 1))
+                results.append('OK')
+            except BusinessError as exc:
+                results.append(exc.code)
+    threads = [threading.Thread(target=write, args=(value,)) for value in (6, 7)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+    assert sorted(results) == ['OK', 'VERSION_CONFLICT']
+    assert db.query(StockMinLevel).count() == 1
+    assert db.query(AuditLog).filter_by(entity='stock_min_level').count() == (1 if creating else 2)

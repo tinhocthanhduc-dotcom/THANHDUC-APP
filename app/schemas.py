@@ -303,3 +303,11 @@ class StockDocOut(BaseModel):
     void_reason: str
     version: int
     lines: list[StockDocLineOut]
+
+
+class StockMinLevelIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    min_qty: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
+    # 0 là phiên bản của mức chưa được đặt; bản ghi đầu tiên sẽ có version=1.
+    version: int = Field(ge=0)

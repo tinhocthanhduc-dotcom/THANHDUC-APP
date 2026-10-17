@@ -1,22 +1,23 @@
 """Màn hình kho: gọi nghiệp vụ hiện có; tồn và thẻ kho chỉ đọc."""
 from datetime import date
 from decimal import Decimal
+from urllib.parse import quote
 import re
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
-from .. import products, stock_docs, stock_posting
+from .. import products, stock_docs, stock_posting, stock_min_levels
 from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
 from ..inventory_catalogs import check_writer
-from ..models import Product, StockBalance, StockDoc, StockLedger, Supplier, User, Warehouse
-from ..schemas import StockDocCancel, StockDocIn, StockDocPatch
+from ..models import Product, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, User, Warehouse
+from ..schemas import StockDocCancel, StockDocIn, StockDocPatch, StockMinLevelIn
 from ..security import has_role
 from ..text import fold
 
@@ -29,7 +30,7 @@ def _error(exc):
     if isinstance(exc, ValidationError):
         field = str(exc.errors()[0]['loc'][-1])
         labels = {'qty': 'Số lượng', 'unit_cost': 'Đơn giá', 'product_code': 'Mã hàng',
-                  'doc_date': 'Ngày phiếu', 'lines': 'Dòng hàng', 'reason': 'Lý do', 'version': 'Phiên bản'}
+                  'doc_date': 'Ngày phiếu', 'lines': 'Dòng hàng', 'reason': 'Lý do', 'version': 'Phiên bản', 'min_qty': 'Mức tồn tối thiểu'}
         return labels.get(field, 'Dữ liệu') + ' chưa hợp lệ, hãy kiểm tra lại.'
     if exc.code == 'NEGATIVE_STOCK':
         d = exc.details
@@ -189,20 +190,37 @@ def void(request: Request, doc_id: int, form=Depends(checked_form), session: Ses
 
 
 @router.get('/ton-kho')
-def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    stmt = select(StockBalance, Product.name).join(Product, Product.code == StockBalance.product_code)
+def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
+             canh_bao: bool = Query(default=False, alias='canh-bao'),
+             user: User = Depends(web_user), session: Session = Depends(get_session)):
+    if canh_bao:
+        qty = func.coalesce(StockBalance.qty, 0)
+        stmt = select(StockMinLevel.warehouse_code, StockMinLevel.product_code, Product.name,
+                      qty.label('qty'), func.coalesce(StockBalance.value, 0).label('value'),
+                      func.coalesce(StockBalance.avg_cost, 0).label('avg_cost'), StockMinLevel.min_qty,
+                      (StockMinLevel.min_qty - qty).label('shortage')).select_from(StockMinLevel).outerjoin(
+            StockBalance, and_(StockBalance.warehouse_code == StockMinLevel.warehouse_code,
+                               StockBalance.product_code == StockMinLevel.product_code)
+        ).join(Product, Product.code == StockMinLevel.product_code).where(
+            StockMinLevel.min_qty > 0, qty <= StockMinLevel.min_qty
+        ).order_by((qty > 0), StockMinLevel.warehouse_code, StockMinLevel.product_code)
+        warehouse_column = StockMinLevel.warehouse_code
+    else:
+        stmt = select(StockBalance.warehouse_code, StockBalance.product_code, StockBalance.qty,
+                      StockBalance.value, StockBalance.avg_cost, Product.name).join(
+            Product, Product.code == StockBalance.product_code
+        ).order_by(StockBalance.warehouse_code, StockBalance.product_code)
+        warehouse_column = StockBalance.warehouse_code
     if kho:
-        stmt = stmt.where(StockBalance.warehouse_code == kho)
+        stmt = stmt.where(warehouse_column == kho)
     if fold(q):
-        # search_text dùng cùng quy tắc bỏ dấu với danh mục hàng.
         stmt = stmt.where(or_(Product.search_text.like(like_pattern(fold(q))), Product.code.ilike(like_pattern(q))))
-    rows = list(session.execute(stmt.order_by(StockBalance.warehouse_code, StockBalance.product_code)))
-    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', rows=rows, q=q, kho=kho,
+    rows = list(session.execute(stmt).mappings())
+    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', rows=rows, q=q, kho=kho, canh_bao=canh_bao,
                   warehouses=list(session.scalars(select(Warehouse).order_by(Warehouse.code))))
 
 
-@router.get('/the-kho/{kho}/{ma}')
-def ledger(request: Request, kho: str, ma: str, user: User = Depends(web_user), session: Session = Depends(get_session)):
+def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False):
     product = products.load(session, ma)
     warehouse = session.get(Warehouse, kho)
     if warehouse is None:
@@ -210,4 +228,27 @@ def ledger(request: Request, kho: str, ma: str, user: User = Depends(web_user), 
     rows = list(session.execute(select(StockLedger, StockDoc.number).join(StockDoc, StockDoc.id == StockLedger.doc_id)
                                 .where(StockLedger.warehouse_code == kho, StockLedger.product_code == product.code)
                                 .order_by(StockLedger.id)))
-    return render(request, 'the_kho.jinja', rows=rows, product=product, warehouse=warehouse)
+    level = session.get(StockMinLevel, (kho, product.code))
+    return render(request, 'the_kho.jinja', rows=rows, product=product, warehouse=warehouse,
+                  min_qty=min_qty if min_qty is not None else str(level.min_qty if level else 0),
+                  level_version=version if version is not None else (level.version if level else 0),
+                  can_write=has_role(request.state.user, 'warehouse'), error=error, status=status, saved=saved)
+
+
+@router.get('/the-kho/{kho}/{ma}')
+def ledger(request: Request, kho: str, ma: str, da_luu: int = 0,
+           user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _card(request, session, kho, ma, saved=bool(da_luu))
+
+
+@router.post('/the-kho/{kho}/{ma}')
+def set_minimum(request: Request, kho: str, ma: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    check_writer(request.state.user)
+    raw_qty, version = str(form.get('min_qty', '')), form.get('version', '')
+    try:
+        body = StockMinLevelIn(min_qty=raw_qty.replace(',', '.'), version=version)
+        stock_min_levels.set_level(session, request.state.user, kho, ma, body)
+    except (BusinessError, ValidationError) as exc:
+        return _card(request, session, kho, ma, min_qty=raw_qty, version=version,
+                     error=_error(exc), status=getattr(exc, 'status', 400))
+    return RedirectResponse(f'/the-kho/{quote(kho, safe="")}/{quote(ma, safe="")}?da_luu=1', status_code=303)
