@@ -1,0 +1,26 @@
+{% extends "base.jinja" %}
+{% block title %}Tồn đầu kỳ{% endblock %}
+{% block main %}
+<div class="bar"><h1>Tồn đầu kỳ</h1><a href="/ton-kho">← Tồn kho</a></div>
+<p>Nhập file kiểm kê để tạo phiếu KK nháp. Kiểm tra rồi bấm Ghi sổ từng phiếu.</p>
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+{% if errors %}<div class="opening-errors"><table class="opening-table">
+<caption>Các dòng cần sửa trong file</caption>
+<thead><tr><th scope="col">Dòng</th><th scope="col">Mã hàng</th><th scope="col">Lỗi</th></tr></thead>
+<tbody>{% for e in errors %}<tr><td>{{ e.row }}</td><td>{{ e.code }}</td><td>{{ e.message }}</td></tr>{% endfor %}</tbody>
+</table></div>{% endif %}
+{% if existing %}<div class="card"><p>Phiếu đầu kỳ đã có:</p><ul>{% for d in existing %}<li><a href="/phieu-kho/{{ d.id }}">{{ d.number }}</a></li>{% endfor %}</ul></div>{% endif %}
+<form method="post" enctype="multipart/form-data" class="card form" action="/ton-dau-ky">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<fieldset {% if not can_write %}disabled{% endif %}>
+<fieldset><legend>Kho</legend><div class="seg stock-seg">
+{% for w in warehouses %}<label><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if warehouse == w.code %}checked{% endif %} {% if not w.active and warehouse != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
+</div></fieldset>
+<label>Ngày phiếu<input type="date" name="doc_date" value="{{ doc_date }}" required></label>
+<label>File CSV (tối đa 2 MB)<input type="file" name="file" accept=".csv,text/csv" required aria-describedby="csv-help"></label>
+<p id="csv-help" class="hint">UTF-8, có thể có BOM; dấu phân cách phẩy hoặc chấm phẩy. Ba cột: MA_HANG, SO_LUONG, DON_GIA. Số lượng có tối đa 3 số lẻ; đơn giá nguyên đồng. Khi sửa lỗi, hãy chọn lại file.</p>
+</fieldset>
+{% if can_write %}<button class="primary">Tạo phiếu KK nháp</button>{% else %}<p class="hint">Chỉ Kho hoặc giám đốc được nhập tồn đầu kỳ.</p>{% endif %}
+</form>
+<p><a href="/ton-dau-ky/mau.csv">Tải file CSV mẫu</a></p>
+{% endblock %}

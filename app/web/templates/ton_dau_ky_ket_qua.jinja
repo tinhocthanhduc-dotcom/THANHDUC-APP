@@ -1,0 +1,8 @@
+{% extends "base.jinja" %}
+{% block title %}Kết quả nhập tồn đầu kỳ{% endblock %}
+{% block main %}
+<div class="bar"><h1>Phiếu kiểm kê đầu kỳ</h1><a href="/ton-dau-ky">← Tồn đầu kỳ</a></div>
+{% if docs %}<p class="alert ok">Đã tạo {{ docs | length }} phiếu KK nháp. Kiểm tra rồi bấm Ghi sổ từng phiếu.</p>
+<ul class="list">{% for d in docs %}<li><a href="/phieu-kho/{{ d.id }}"><strong>{{ d.number }}</strong><span>{{ d.warehouse_code }} · {{ d.doc_date }}</span></a></li>{% endfor %}</ul>
+{% else %}<p class="empty">Không có phiếu đầu kỳ trong kết quả này.</p>{% endif %}
+{% endblock %}
