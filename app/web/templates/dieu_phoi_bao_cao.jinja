@@ -19,7 +19,7 @@
   <td data-label="Tỷ lệ trễ">{{ '%.1f%%'|format(row.late_rate) if row.late_rate is not none else 'Chưa đủ dữ liệu' }}</td>
   <td data-label="Chưa xác định trễ">{{ row.unknown }}</td>
 </tr>{% else %}<tr><td colspan="6">Không có phiếu hoàn thành hoặc không làm được trong khoảng ngày này.</td></tr>{% endfor %}</tbody></table>
-<p class="hint">Phiếu được tính cho thợ ở bước đóng trong kỳ. Thời gian trung bình: từ lần giao gần nhất cho thợ đó đến Hoàn thành, kể cả thời gian chờ; chỉ lấy phiếu có đủ mốc giờ. Tỷ lệ trễ: số phiếu có ít nhất một bước vượt hạn cũ / số phiếu xác định được hạn trong toàn bộ lịch sử. Phiếu thiếu nhật ký hạn được đếm riêng, không coi là đúng hạn.</p>
+<p class="hint">Mỗi phiếu chỉ tính lần hoàn thành cuối, cho thợ ở bước đó trong kỳ; bỏ phiếu đã hủy hoặc đang mở lại, vẫn tính phiếu đã đóng hồ sơ. Thời gian trung bình: từ lần giao gần nhất cho thợ đó đến Hoàn thành, kể cả thời gian chờ; chỉ lấy phiếu có đủ mốc giờ. Tỷ lệ trễ: số phiếu có ít nhất một bước vượt hạn cũ / số phiếu xác định được hạn trong toàn bộ lịch sử. Phiếu thiếu nhật ký hạn được đếm riêng, không coi là đúng hạn.</p>
 <table class="dispatch-table" id="report-days"><caption>Theo ngày</caption>
 <thead><tr><th scope="col">Ngày</th><th scope="col">Đơn nhận</th><th scope="col">Đơn hoàn thành</th></tr></thead>
 <tbody>{% for row in daily %}<tr><th scope="row" data-label="Ngày">{{ row.day }}</th><td data-label="Đơn nhận">{{ row.received }}</td><td data-label="Đơn hoàn thành">{{ row.completed }}</td></tr>{% endfor %}</tbody></table>

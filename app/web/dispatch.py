@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import service_tickets as svc
@@ -112,9 +112,16 @@ def _history_lateness(session, ticket_ids, history):
 
 
 def _report(session, start, end, since, until):
-    endings = list(session.scalars(select(ServiceStep).where(
+    # D6 cho mở lại nghiệm thu: chỉ tính lần hoàn thành cuối của phiếu hiện vẫn hoàn thành/đóng.
+    # Không nhân đôi một phiếu khi hoàn thành lại, không tính phiếu đã hủy hoặc đang mở lại.
+    final_steps = select(func.max(ServiceStep.id)).where(
         ServiceStep.to_status.in_(("HOAN_THANH", "KHONG_LAM_DUOC")),
-        ServiceStep.action == "transition", ServiceStep.at >= since, ServiceStep.at < until,
+        ServiceStep.action == "transition",
+    ).group_by(ServiceStep.ticket_id)
+    endings = list(session.scalars(select(ServiceStep).join(ServiceTicket, ServiceTicket.id == ServiceStep.ticket_id).where(
+        ServiceStep.id.in_(final_steps), ServiceStep.at >= since, ServiceStep.at < until,
+        or_(and_(ServiceStep.to_status == "HOAN_THANH", ServiceTicket.status.in_(("HOAN_THANH", "DA_DONG"))),
+            and_(ServiceStep.to_status == "KHONG_LAM_DUOC", ServiceTicket.status == "KHONG_LAM_DUOC")),
     ).order_by(ServiceStep.id)))
     ticket_ids = {step.ticket_id for step in endings}
     history = defaultdict(list)

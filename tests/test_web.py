@@ -1548,3 +1548,25 @@ def test_d7_reschedule_uses_original_appointment_deadline(client, db, service_pe
     service_login(client, service_people['dispatcher'])
     # Dời hẹn lúc 10:30 đã trễ hạn hẹn cũ 10:00, dù lịch hẹn cuối được dời sang 12:00.
     assert d7_csv(client)[1][4:] == ['100.0', '0']
+
+
+@pytest.mark.parametrize('final_status', ['HOAN_THANH', 'DA_DONG', 'DANG_LAM', 'DA_HUY'])
+def test_d7_reopened_ticket_not_counted_twice_or_after_cancellation(client, db, service_people, final_status):
+    worker = service_people['technician'].id
+    events = d7_events(worker) + [
+        ('reopen', 'DANG_LAM', '2026-10-10T11:30:00+07:00', '2026-10-10T18:00:00+07:00', worker),
+        ('transition', 'HOAN_THANH', '2026-10-10T13:00:00+07:00', None, worker),
+    ]
+    if final_status != 'HOAN_THANH':
+        action = {'DA_DONG': 'close', 'DANG_LAM': 'reopen', 'DA_HUY': 'cancel'}[final_status]
+        events.append((action, final_status, '2026-10-10T14:00:00+07:00', None, worker))
+    d7_ticket(db, service_people, 'DV-26-00001', events)
+    service_login(client, service_people['dispatcher'])
+    rows = d7_csv(client)
+    daily_index = rows.index(['Ngày', 'Đơn nhận', 'Đơn hoàn thành'])
+    if final_status in ('HOAN_THANH', 'DA_DONG'):
+        assert rows[1] == ['Dv.Technician', '1', '0', '240.0', '0.0', '0']
+        assert rows[daily_index + 1] == ['2026-10-10', '1', '1']
+    else:
+        assert rows[1] == []
+        assert rows[daily_index + 1] == ['2026-10-10', '1', '0']

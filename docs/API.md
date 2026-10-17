@@ -165,7 +165,7 @@ Lỗi tệp: `BAD_ENTITY`, `BAD_TAG`, `EMPTY_FILE`, `FILE_TOO_LARGE`, `BAD_FILE_
 
 Chỉ `dispatcher`/`director` được GET `/dieu-phoi`, `/dieu-phoi/bao-cao` và `/dieu-phoi/bao-cao.csv`; vai trò khác trả 403. Các trang và CSV chỉ đọc. Dashboard có `view=open|overdue|parts`; quá hạn là phiếu còn mở với `due_at < now`, xếp hạn cũ nhất trước.
 
-Báo cáo nhận `from`, `to` dạng `YYYY-MM-DD`, tính trọn ngày theo giờ Việt Nam; mặc định hôm nay và 6 ngày trước. Phiếu hoàn thành/không làm được được tính theo thời điểm bước đóng trong kỳ và thợ tại bước đó. Thời gian xử lý trung bình chỉ dùng phiếu hoàn thành có đủ mốc: lần giao gần nhất cho thợ hoàn thành đến bước hoàn thành (kể cả thời gian chờ).
+Báo cáo nhận `from`, `to` dạng `YYYY-MM-DD`, tính trọn ngày theo giờ Việt Nam; mặc định hôm nay và 6 ngày trước. Phiếu hoàn thành/không làm được được tính theo bước kết thúc cuối cùng trong kỳ và thợ tại bước đó. Khi mở lại rồi hoàn thành lại (D6), chỉ tính lần hoàn thành cuối, không đếm trùng; bỏ phiếu đã hủy hoặc đang mở lại, vẫn tính phiếu hoàn thành đã đóng hồ sơ (`DA_DONG`). Thời gian xử lý trung bình chỉ dùng phiếu hoàn thành có đủ mốc: lần giao gần nhất cho thợ hoàn thành đến bước hoàn thành (kể cả thời gian chờ).
 
 Tỷ lệ trễ dùng thêm **đọc** `audit_log`, theo phạm vi được cho phép cho D7: ghép từng bước với snapshot cùng transaction, hành động, người thực hiện và trạng thái để so thời điểm bước với `before.due_at`. Một phiếu đóng trong kỳ có ít nhất một bước vượt hạn cũ được tính trễ một lần. Mẫu số là số phiếu đóng xác định được trễ/đúng hạn; phiếu thiếu dữ liệu hạn và chưa xác nhận được trễ được đếm ở “Chưa xác định trễ”, không coi là đúng hạn. Không tái tính hạn lịch sử theo cấu hình SLA hiện tại.
 
