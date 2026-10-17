@@ -214,3 +214,56 @@ Luồng: `NHAP → DA_GUI → CHAP_NHAN / TU_CHOI`; `NHAP / DA_GUI → DA_HUY`. 
 | BAD_PRICE / BAD_VAT / BAD_FORM | 400 | Dữ liệu form chưa hợp lệ, giữ dữ liệu đã nhập |
 
 Màn hình: `/bao-gia`, `/bao-gia/moi`, `/bao-gia/{id}`, `/bao-gia/{id}/in`. Bản in A4 có tổng bằng chữ tiếng Việt. Thông tin công ty lấy cấu hình `TD_COMPANY_NAME`, `TD_COMPANY_ADDRESS`, `TD_COMPANY_TAX_CODE`, `TD_COMPANY_PHONE`, `TD_COMPANY_HOTLINE`; mặc định là thông tin Thành Đức đã cung cấp.
+
+## Đơn bán (B2)
+
+B2 gồm lõi và API, chưa có màn hình (B3). Bearer authentication như các API khác.
+
+| Vai trò | Xem | Lập, sửa, chốt, hủy | Giao |
+| --- | --- | --- | --- |
+| sales, director | Có | Có | Có |
+| warehouse | Có | Không | Có |
+| finance | Có | Không | Không |
+| Vai trò khác | Không | Không | Không |
+
+### API và dữ liệu
+
+- `POST /sales-orders` → 201: `customer_code`, `contact_name`, `delivery_address` (bỏ qua thì lấy địa chỉ khách), `note`, `lines` (nháp có thể rỗng). Cấp số DB theo ngày Việt Nam trong transaction lưu đơn.
+- `POST /sales-orders/from-quote/{quote_id}` → 201: `version` **của báo giá**, `warehouses` tùy chọn là ánh xạ số dòng báo giá sang kho, ví dụ `{ "version": 3, "warehouses": { "1": "K58", "3": "K145" } }`. Chỉ từ `CHAP_NHAN`; sao chép giá, VAT, số lượng, mô tả, đơn vị, liên hệ và ghi chú, không lấy lại giá bán hiện tại. Có thể ghi đè `contact_name`, `delivery_address`, `note` trong body. Dòng có mã thành `HANG`, dòng tự do thành `KHAC`. Chỉ ánh xạ kho cho dòng HANG; nháp có thể chưa chọn kho. Không sửa báo giá gốc.
+- `PUT /sales-orders/{id}/lines`: `version` **của đơn**, `lines` thay toàn bộ; tùy chọn `contact_name`, `delivery_address`, `note`. Khách và liên kết báo giá cố định từ khi lập đơn. Chỉ sửa khi `NHAP`.
+- `POST /sales-orders/{id}/confirm`: `{ "version": 1 }`. `NHAP → DA_CHOT`, bắt buộc ít nhất một dòng và kho cho tất cả dòng HANG. Khóa giá, ghi `receivable = total`, người/thời điểm chốt.
+- `POST /sales-orders/{id}/deliver`: `{ "version": 2 }`. `DA_CHOT → DA_GIAO`, mỗi kho một phiếu PX, lý do `Giao đơn DB-…`, ghi chú từng dòng `DB-… dòng n`. Gọi `stock_docs.insert` + `stock_posting.post_in_tx` trong cùng transaction, gắn `stock_doc_id` vào dòng HANG. Dòng KHAC không xuất kho. Đơn chỉ có KHAC vẫn giao được mà không lập PX.
+- `POST /sales-orders/{id}/cancel`: `{ "version": 3, "reason": "Khách trả hàng" }`. Cho phép từ `NHAP`, `DA_CHOT`, `DA_GIAO` sang `DA_HUY`. Nếu đã giao, gọi `stock_posting.void_in_tx` cho từng PX; không xóa phiếu, dòng hoặc liên kết PX. Giữ tổng tiền, thời điểm chốt/giao để tra cứu; số phải thu bằng 0 nếu đã chốt, còn null nếu chưa từng chốt. Mỗi PX được hủy một lần dù nhiều dòng cùng tham chiếu.
+- `GET /sales-orders?q=&status=&customer_code=&from=2026-10-01&to=2026-10-31`: tìm số DB/tên khách không dấu, lọc trạng thái/khách và ngày tạo (giờ Việt Nam, bao gồm hai đầu).
+- `GET /sales-orders/{id}`: đầu đơn cùng `lines`, tổng tiền chính thức, version, liên kết PX, thông tin chốt/giao.
+
+Mỗi dòng nhận `kind` (`HANG`/`KHAC`), `product_code`, `warehouse_code`, `description`, `qty` (Numeric 14,3, > 0), `unit`, `unit_price` (nguyên đồng >= 0), `vat_rate` thuộc `VAT_RATES` (0/5/8/10). Dòng HANG bắt buộc mã đang bán; nếu đã chọn kho thì kho phải đang dùng. Theo điều chỉnh đã xác nhận cho B2, **nháp được thiếu kho, chỉ bắt buộc kho khi chốt**; ràng buộc DB cho phép `warehouse_code` null ở HANG. Dòng KHAC bắt buộc cả mã và kho null, có mô tả và đơn giá. Dòng HANG bỏ giá/mô tả/đơn vị lấy từ hàng như B1.
+
+Dùng lại phần tính tiền B1 (`quotes._lines`, `_totals`, sử dụng `_round` và `_money_limit`): làm tròn HALF_UP tiền dòng trước, rồi VAT từng dòng; tổng cộng các dòng. Giá bán thay đổi không đổi giá đã lưu hoặc giá chép từ báo giá. Không nhận `amount`, `vat_amount`, `stock_doc_id`, trạng thái hay tổng do bên gọi gửi.
+
+Tất cả thao tác ghi audit trước/sau và kiểm version của đối tượng nguồn khi đã tồn tại. Khóa đơn/báo giá khi ghi; partial unique index chỉ cho một đơn chưa `DA_HUY` trên mỗi `quote_id`. Hủy đơn giải phóng báo giá để tạo đơn mới. Giao, hủy, số phiếu và audit nguyên tử: bất kỳ lỗi nào rollback toàn bộ, kể cả PX và sổ kho của kho trước đó. Không ghi trực tiếp các bảng kho.
+
+### Mã lỗi
+
+| Mã | HTTP | Nội dung |
+| --- | --- | --- |
+| FORBIDDEN | 403 | Vai trò không có quyền thao tác |
+| NOT_FOUND | 404 | Không tìm thấy đơn hoặc báo giá nguồn |
+| VERSION_REQUIRED | 400 | Thiếu/sai version khi gọi lõi; API schema trả 422 nếu thiếu/sai kiểu |
+| VERSION_CONFLICT | 409 | Version cũ; `details.current` là phiên bản hiện tại |
+| BAD_STATUS | 409 | Sai bước trạng thái hoặc báo giá chưa CHAP_NHAN; bộ lọc trạng thái sai trả 400 |
+| QUOTE_USED | 409 | Báo giá đã có đơn chưa hủy |
+| PRICE_LOCKED | 409 | Chỉ sửa dòng khi NHAP |
+| EMPTY_LINES | 400 | Chốt đơn rỗng |
+| WAREHOUSE_REQUIRED | 400 | Chốt dòng HANG chưa chọn kho; `details.line_no` |
+| REASON_REQUIRED | 400 | Hủy thiếu lý do |
+| BAD_LINE | 400 | HANG thiếu mã, KHAC có mã/kho, hoặc ánh xạ kho không thuộc dòng HANG nguồn |
+| BAD_CUSTOMER | 400 | Khách không tồn tại hoặc ngừng/gộp |
+| BAD_PRODUCT | 400 | Hàng không tồn tại/ngừng bán; `details.invalid_codes` |
+| BAD_WAREHOUSE | 400 | Kho đã chọn không tồn tại/ngừng dùng; `details.codes` |
+| PRICE_REQUIRED / DESCRIPTION_REQUIRED | 400 | Dòng KHAC thiếu giá/mô tả |
+| AMOUNT_TOO_LARGE | 400 | Tiền vượt giới hạn BigInteger |
+| BAD_DATE_RANGE | 400 | Ngày bắt đầu sau ngày kết thúc |
+| NEGATIVE_STOCK | 409 | Thiếu tồn, giữ nguyên DA_CHOT; `details.warehouse`, `product`, `available`, `requested` |
+
+Lỗi từ lõi kho (ví dụ `DOC_NOT_POSTED`, `VOID_COST_CONFLICT`) được giữ nguyên mã/message/details và rollback toàn bộ đơn. Phản hồi lỗi theo chuẩn `{ "error": "CODE", "message": "Câu tiếng Việt", "details": {} }`.
