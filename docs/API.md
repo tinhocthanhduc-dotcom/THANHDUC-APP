@@ -160,3 +160,11 @@ Các thao tác tệp gọi `app.attachments.add`, `list_for`, `open_file`, `hide
 | GET | `/dich-vu/{id}/bien-ban` | Trang HTML A4, dùng In của trình duyệt để in hoặc lưu PDF; chỉ hiện ảnh `SAU` chưa ẩn |
 
 Lỗi tệp: `BAD_ENTITY`, `BAD_TAG`, `EMPTY_FILE`, `FILE_TOO_LARGE`, `BAD_FILE_TYPE`, `NOT_FOUND`, `FORBIDDEN`, `FILE_MISSING`, `REASON_REQUIRED`, `ALREADY_HIDDEN`, `VERSION_CONFLICT`. Hoàn thành phiếu dịch vụ thiếu tệp `SAU` còn hiện trả `PHOTO_REQUIRED`; trang dịch vụ hiển thị “Cần chụp ảnh sau sửa trước khi hoàn thành”.
+
+## Giao diện tiền và vật tư dịch vụ (D6)
+
+- Trang phiếu có phần tiền gọi `app.service_charges.set_charges`; form gửi `version` và CSRF, thay toàn bộ dòng. Giá nhập có dấu chấm hàng nghìn được đọc thành số nguyên đồng. Không gửi tổng từ JavaScript vào nghiệp vụ; các số đã lưu lấy từ kết quả lõi. VAT/làm tròn trên trình duyệt chỉ là tạm tính.
+- Phí và vật tư thêm/xóa ngay trên form. Vật tư tìm sống không dấu, chọn đúng mã, điền giá bán mặc định; kho và VAT là nút chạm. Khi tiền đang thay đổi chưa lưu, nút Hoàn thành nhắc lưu trước để không mất dữ liệu nhập.
+- Sau hoàn thành, form tiền chỉ đọc; hiện PX do lõi sinh. Mở lại (bắt buộc lý do) và Đóng hồ sơ gọi luồng `service_tickets.transition` hiện có; không ghi kho trực tiếp.
+- `/dich-vu/can-thu` và `/dich-vu/can-thu.csv` gọi `service_charges.receivables`, chỉ cho điều phối/kế toán/giám đốc. Lọc `from`, `to` theo ngày hoàn thành giờ Việt Nam; để trống là toàn bộ. CSV UTF-8 BOM có số DV, khách, ngày hoàn thành và số phải thu, dòng tổng cộng; tên khách có ký tự công thức được thoát.
+- Lỗi tiền và tồn hiện bằng tiếng Việt, giữ dữ liệu form; thiếu tồn nêu mã, kho, tồn hiện có và số cần. File lõi, models và migrations giữ nguyên.

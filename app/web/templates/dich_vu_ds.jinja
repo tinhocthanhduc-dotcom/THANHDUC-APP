@@ -1,7 +1,7 @@
 {% extends "base.jinja" %}
 {% block title %}{{ heading }}{% endblock %}
 {% block main %}
-<div class="bar"><h1>{{ heading }}</h1>{% if can_create %}<a class="btn primary" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}</div>
+<div class="bar">{% if can_receivables %}<a class="btn" href="/dich-vu/can-thu">Cần thu</a>{% endif %}<h1>{{ heading }}</h1>{% if can_create %}<a class="btn primary" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}</div>
 <form action="/dich-vu" class="form service-filters" role="search">
   <label>Tìm phiếu<input name="q" value="{{ q }}" placeholder="Số DV, serial, tên khách" data-live="#rows"></label>
   <fieldset><legend>Trạng thái</legend><div class="seg stock-seg">

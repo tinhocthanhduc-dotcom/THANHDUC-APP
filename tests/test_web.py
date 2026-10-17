@@ -1332,3 +1332,219 @@ def test_d5_cannot_hide_attachment_from_other_ticket(client, db, service_people,
     assert response.status_code == 404
     db.refresh(a)
     assert not a.hidden
+
+
+# D6 UI — ghi tiền qua service_charges, ghi/xuất/trả tồn qua lõi hiện có.
+@pytest.fixture
+def charge_work(db, service_people):
+    from datetime import UTC, datetime
+    from app import attachments, service_tickets as svc
+    t = new_service(db, service_people)
+    tech = service_people['technician']
+    svc.assign(db, service_people['dispatcher'], t.id, tech.id, t.version)
+    svc.transition(db, tech, t.id, 'DA_NHAN', t.version)
+    svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=datetime.now(UTC))
+    svc.transition(db, tech, t.id, 'DANG_LAM', t.version)
+    attachments.add(db, tech, 'service_ticket', str(t.id), 'SAU', 'sau.png', d5_image())
+    return t
+
+
+@pytest.fixture
+def charge_stock(db, service_people):
+    from datetime import date
+    from app import stock_docs, stock_posting
+    from app.models import Supplier, Warehouse
+    from app.schemas import StockDocIn
+    db.add_all([Supplier(code='NCC-0001', name='Nhà cung cấp'), Warehouse(code='K58', name='Kho 58'), Warehouse(code='K145', name='Kho 145')])
+    db.get(Product, 'TD-0001').sale_price = 120000
+    db.commit()
+    doc = stock_docs.create(db, service_people['warehouse'], StockDocIn(kind='PN', warehouse_code='K58',
+               supplier_code='NCC-0001', doc_date=date(2026, 10, 17), lines=[{'product_code':'TD-0001','qty':'5','unit_cost':50000}]))
+    stock_posting.post(db, service_people['warehouse'], doc.id, doc.version)
+
+
+def charge_form(csrf, ticket, *, material=False, **kw):
+    return {'csrf':csrf, 'version':str(ticket.version), 'billing':'THU_TIEN', 'free_reason':'',
+            'line_kind':['VAT_TU' if material else 'PHI'], 'line_description':['Vật tư thay thế' if material else 'Công sửa máy'],
+            'line_product':['TD-0001' if material else ''], 'warehouse_0':'K58' if material else '',
+            'line_qty':['1'], 'line_price':['120.000'], 'vat_0':'10', **kw}
+
+
+def save_charge(client, ticket, data):
+    return client.post(f'/dich-vu/{ticket.id}/tien/luu', data=data)
+
+
+def test_d6_ui_money_and_vat_are_computed_by_core(client, db, service_people, charge_work, charge_stock):
+    csrf = service_login(client, service_people['technician'])
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, line_qty=['1.5']))
+    assert response.status_code == 200, response.text
+    db.refresh(charge_work)
+    assert charge_work.lines[0].unit_price == 120000
+    assert charge_work.lines[0].amount == 180000 and charge_work.lines[0].vat_amount == 18000
+    assert charge_work.total is None  # Tổng chỉ được chốt lúc hoàn thành.
+    assert '198.000 đồng' in response.text and 'value="120.000"' in response.text
+    assert 'data-live=".charge-options"' in client.get(f'/dich-vu/{charge_work.id}').text or 'charge-template-VAT_TU' in response.text
+    picked = client.get('/dich-vu/tim-vat-tu?q=may in').text
+    assert 'TD-0001' in picked and 'data-price="120000"' in picked
+    assert 'type="number"' not in response.text
+
+
+def test_d6_ui_billing_and_empty_charges_errors_keep_data(client, db, service_people, charge_work):
+    csrf = service_login(client, service_people['technician'])
+    response = service_action(client, charge_work, csrf, to_status='HOAN_THANH', note='Giữ ghi chú nghiệm thu')
+    assert response.status_code == 400 and 'Chọn Có thu tiền hoặc Miễn phí' in response.text
+    assert 'Giữ ghi chú nghiệm thu</textarea>' in response.text
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, billing=''))
+    assert response.status_code == 400 and 'value="120.000"' in response.text
+    assert 'value="Công sửa máy"' in response.text
+    save_charge(client, charge_work, {'csrf':csrf,'version':charge_work.version,'billing':'THU_TIEN'})
+    db.refresh(charge_work)
+    response = service_action(client, charge_work, csrf, to_status='HOAN_THANH', note='Chưa nhập dòng phí')
+    assert response.status_code == 400 and 'chưa có dòng phí hoặc vật tư nào có giá' in response.text
+    db.refresh(charge_work)
+    assert charge_work.status == 'DANG_LAM'
+
+
+def test_d6_ui_material_shortage_keeps_stock_and_working_ticket(client, db, service_people, charge_work, charge_stock):
+    from app.models import StockBalance, StockDoc
+    csrf = service_login(client, service_people['technician'])
+    assert save_charge(client, charge_work, charge_form(csrf, charge_work, material=True, line_qty=['6'])).status_code == 200
+    db.refresh(charge_work)
+    response = service_action(client, charge_work, csrf, to_status='HOAN_THANH', note='Giữ ghi chú vật tư thiếu')
+    assert response.status_code == 409 and 'Không đủ tồn cho TD-0001' in response.text
+    assert 'tồn hiện có 5.000' in response.text and 'số cần 6.000' in response.text
+    assert 'Giữ ghi chú vật tư thiếu</textarea>' in response.text
+    assert 'value="6"' in response.text or 'value="6.000"' in response.text
+    assert 'value="120.000"' in response.text
+    db.expire_all()
+    assert charge_work.status == 'DANG_LAM' and charge_work.total is None
+    assert db.get(StockBalance, ('K58','TD-0001')).qty == 5
+    assert db.query(StockDoc).filter_by(kind='PX').count() == 0
+
+
+def test_d6_ui_complete_shows_generated_px_and_reopen_returns_stock(client, db, service_people, charge_work, charge_stock):
+    from app.models import StockBalance, StockDoc
+    csrf = service_login(client, service_people['technician'])
+    save_charge(client, charge_work, charge_form(csrf, charge_work, material=True, line_qty=['2']))
+    db.refresh(charge_work)
+    response = service_action(client, charge_work, csrf, to_status='HOAN_THANH', note='Đã thay vật tư')
+    assert response.status_code == 200, response.text
+    db.expire_all()
+    doc = db.query(StockDoc).filter_by(kind='PX').one()
+    assert doc.status == 'DA_GHI' and f'href="/phieu-kho/{doc.id}"' in response.text and doc.number in response.text
+    assert db.get(StockBalance, ('K58','TD-0001')).qty == 3
+    assert charge_work.total == 264000 and charge_work.receivable == 264000
+    assert '>Lưu tiền</button>' not in response.text
+    assert '<fieldset disabled>' in response.text
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, material=True, line_price=['999.000']))
+    assert response.status_code == 409 and 'data-error-code="PRICE_LOCKED"' in response.text
+    assert 'value="999.000"' in response.text
+    csrf = service_login(client, service_people['dispatcher'])
+    page = client.get(f'/dich-vu/{charge_work.id}').text
+    assert '>Mở lại</button>' in page and '>Đóng hồ sơ</button>' in page
+    response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='')
+    assert response.status_code == 400 and 'Phải ghi lý do' in response.text
+    response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='Khách yêu cầu kiểm tra thêm')
+    assert response.status_code == 200, response.text
+    db.expire_all()
+    assert charge_work.status == 'DANG_LAM' and charge_work.total is None
+    assert db.get(StockBalance, ('K58','TD-0001')).qty == 5
+    assert doc.status == 'DA_HUY' and '>Lưu tiền</button>' in response.text
+
+
+def test_d6_ui_receivables_roles_dates_total_and_csv(client, db, make_user, service_people, charge_work):
+    from app import service_tickets as svc
+    csrf = service_login(client, service_people['technician'])
+    save_charge(client, charge_work, charge_form(csrf, charge_work))
+    db.refresh(charge_work)
+    service_action(client, charge_work, csrf, to_status='HOAN_THANH', note='Xong việc có thu')
+    db.refresh(charge_work)
+    # Phiếu miễn phí thứ hai hoàn thành cùng ngày, vẫn không có trong cần thu.
+    free = new_service(db, service_people)
+    svc.assign(db, service_people['dispatcher'], free.id, service_people['technician'].id, free.version)
+    svc.transition(db, service_people['technician'], free.id, 'DA_NHAN', free.version)
+    save_charge(client, free, charge_form(csrf, free, billing='MIEN_PHI', free_reason='Bảo hành miễn phí'))
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+    from app import attachments
+    db.refresh(free)
+    svc.transition(db, service_people['technician'], free.id, 'DA_HEN', free.version, appointment_at=datetime.now(UTC))
+    svc.transition(db, service_people['technician'], free.id, 'DANG_LAM', free.version)
+    attachments.add(db, service_people['technician'], 'service_ticket', str(free.id), 'SAU', 'sau.png', d5_image())
+    svc.transition(db, service_people['technician'], free.id, 'HOAN_THANH', free.version)
+    finance = make_user('dv.ke.toan', 'finance')
+    service_login(client, finance)
+    response = client.get('/dich-vu/can-thu')
+    assert response.status_code == 200, response.text
+    assert charge_work.number in response.text and free.number not in response.text
+    assert 'Tổng cộng: 132.000 đồng' in response.text
+    date = charge_work.priced_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat()
+    assert charge_work.number in client.get(f'/dich-vu/can-thu?from={date}&to={date}').text
+    assert charge_work.number not in client.get('/dich-vu/can-thu?from=2000-01-01&to=2000-01-02').text
+    import csv, io
+    download = client.get('/dich-vu/can-thu.csv')
+    rows = list(csv.reader(io.StringIO(download.content.decode('utf-8-sig'))))
+    assert rows[0] == ['Số phiếu','Khách hàng','Ngày hoàn thành','Số phải thu']
+    assert rows[1][0] == charge_work.number and rows[-1] == ['Tổng cộng','','','132000']
+    for role in ['technician','sales']:
+        service_login(client, service_people[role])
+        assert client.get('/dich-vu/can-thu').status_code == 403
+        assert client.get('/dich-vu/can-thu.csv').status_code == 403
+    service_login(client, service_people['director'])
+    assert client.get('/dich-vu/can-thu').status_code == 200
+
+
+def test_d6_ui_csrf_and_permissions(client, db, service_people, charge_work):
+    csrf = service_login(client, service_people['technician'])
+    assert save_charge(client, charge_work, charge_form('', charge_work)).status_code == 403
+    assert not charge_work.lines
+    csrf = service_login(client, service_people['other'])
+    assert save_charge(client, charge_work, charge_form(csrf, charge_work)).status_code == 404
+    csrf = service_login(client, service_people['sales'])
+    assert '>Lưu tiền</button>' not in client.get(f'/dich-vu/{charge_work.id}').text
+    assert save_charge(client, charge_work, charge_form(csrf, charge_work)).status_code == 403
+
+
+def test_d6_ui_stale_version_and_invalid_money_keep_rows(client, db, service_people, charge_work):
+    csrf = service_login(client, service_people['technician'])
+    old = charge_work.version
+    save_charge(client, charge_work, charge_form(csrf, charge_work))
+    db.refresh(charge_work)
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, version=old, line_price=['321.000'], line_description=['Đang nhập dở']))
+    assert response.status_code == 409 and 'VERSION_CONFLICT' in response.text
+    assert 'value="321.000"' in response.text and 'value="Đang nhập dở"' in response.text
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, line_qty=['0']))
+    assert response.status_code == 400 and 'Số lượng chưa hợp lệ' in response.text and 'value="0"' in response.text
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, line_price=['120.00']))
+    assert response.status_code == 400 and 'Đơn giá dòng 1 chưa hợp lệ' in response.text and 'value="120.00"' in response.text
+    response = save_charge(client, charge_work, charge_form(csrf, charge_work, billing='MIEN_PHI', free_reason='x'))
+    assert response.status_code == 400 and 'Miễn phí phải ghi lý do' in response.text and 'x</textarea>' in response.text
+    assert client.get('/dich-vu/can-thu?from=sai').status_code == 403  # Thợ bị chặn trước khi lọc ngày.
+
+
+def test_d6_ui_dispatcher_closes_completed_ticket(client, db, service_people, charge_work):
+    csrf = service_login(client, service_people['technician'])
+    save_charge(client, charge_work, charge_form(csrf, charge_work))
+    db.refresh(charge_work)
+    service_action(client, charge_work, csrf, to_status='HOAN_THANH')
+    db.refresh(charge_work)
+    assert service_action(client, charge_work, csrf, to_status='DA_DONG').status_code == 403
+    csrf = service_login(client, service_people['dispatcher'])
+    response = service_action(client, charge_work, csrf, to_status='DA_DONG')
+    assert response.status_code == 200, response.text
+    db.refresh(charge_work)
+    assert charge_work.status == 'DA_DONG' and '>Lưu tiền</button>' not in response.text
+    assert '/transition' not in response.text
+
+
+def test_d6_ui_mixed_lines_keep_per_row_vat_and_warehouse(client, db, service_people, charge_work, charge_stock):
+    csrf = service_login(client, service_people['technician'])
+    data = charge_form(csrf, charge_work, line_kind=['PHI','VAT_TU'], line_description=['Công sửa','Mực thử'],
+                       line_product=['','TD-0001'], line_qty=['1.5','0.001'], line_price=['333','500'],
+                       vat_0='10', vat_1='0', warehouse_0='', warehouse_1='K58')
+    response = save_charge(client, charge_work, data)
+    assert response.status_code == 200, response.text
+    db.refresh(charge_work)
+    assert [(line.amount,line.vat_amount) for line in charge_work.lines] == [(500,50),(1,0)]
+    assert charge_work.lines[0].warehouse_code is None and charge_work.lines[1].warehouse_code == 'K58'
+    assert '551 đồng' in response.text

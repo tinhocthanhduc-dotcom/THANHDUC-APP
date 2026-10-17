@@ -1,0 +1,1 @@
+{% for p in rows %}<button type="button" data-charge-pick="{{ p.code }}" data-name="{{ p.name }}" data-price="{{ p.sale_price }}">{{ p.code }} · {{ p.name }} · {{ p.sale_price|money }} đồng</button>{% else %}<p class="hint">Không có mã hàng đang bán phù hợp.</p>{% endfor %}

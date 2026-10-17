@@ -453,6 +453,10 @@ from .devices import router as device_router
 
 router.include_router(device_router)
 
+from .charges import router as charges_router
+
+router.include_router(charges_router)
+
 from .services import router as services_router
 
 router.include_router(services_router)
