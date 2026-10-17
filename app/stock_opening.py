@@ -54,10 +54,12 @@ def parse(rows) -> tuple[list[dict], list[dict]]:
 
 def create_opening(session: Session, user: User, warehouse_code: str, doc_date: date, rows) -> list[StockDoc]:
     lines, errors = parse(rows)
-    known = set(session.scalars(select(Product.code).where(Product.code.in_([x["product_code"] for x in lines]))))
-    unknown = sorted({x["product_code"] for x in lines} - known)
-    if unknown:
-        errors += [{"error": "UNKNOWN_PRODUCT", "code": c} for c in unknown]
+    # Kiểm cả mã ngừng bán ở đây: file nhiều phần thì phần đầu đã lưu trước khi phần sau bị từ chối.
+    known = dict(session.execute(
+        select(Product.code, Product.active).where(Product.code.in_([x["product_code"] for x in lines]))).all())
+    codes = {x["product_code"] for x in lines}
+    errors += [{"error": "UNKNOWN_PRODUCT", "code": c} for c in sorted(codes - known.keys())]
+    errors += [{"error": "INACTIVE_PRODUCT", "code": c} for c in sorted(c for c in codes & known.keys() if not known[c])]
     if errors:
         raise BusinessError("BAD_OPENING_FILE", "File tồn đầu kỳ có dòng lỗi, chưa tạo phiếu nào.", {"errors": errors})
     if not lines:

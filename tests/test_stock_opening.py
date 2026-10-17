@@ -64,6 +64,17 @@ def test_file_loi_bao_du_va_khong_tao_phieu(db, setup):
     assert db.scalar(select(StockDoc.id)) is None
 
 
+def test_ma_ngung_ban_o_phan_sau_khong_tao_phieu_nao(db, setup, monkeypatch):
+    db.add(Product(code="TD-0003", name="Mực cũ", active=False))
+    db.commit()
+    monkeypatch.setattr(stock_opening, "MAX_LINES", 2)  # 3 dòng thành 2 phần, mã ngừng bán ở phần 2
+    rows = ROWS[:2] + [{"MA_HANG": "TD-0003", "SO_LUONG": "1", "DON_GIA": "1"}]
+    with pytest.raises(BusinessError) as e:
+        stock_opening.create_opening(db, setup, "K58", D, rows)
+    assert e.value.details["errors"] == [{"error": "INACTIVE_PRODUCT", "code": "TD-0003"}]
+    assert db.scalar(select(StockDoc.id)) is None
+
+
 def test_chay_lai_khong_nhan_doi(db, setup):
     [doc] = stock_opening.create_opening(db, setup, "K58", D, ROWS)
     with pytest.raises(BusinessError) as e:

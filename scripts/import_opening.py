@@ -24,6 +24,7 @@ ERRORS = {
     "BAD_QTY": "số lượng sai",
     "BAD_UNIT_COST": "đơn giá sai hoặc trống",
     "UNKNOWN_PRODUCT": "mã hàng chưa có trong danh mục",
+    "INACTIVE_PRODUCT": "mã hàng đã ngừng bán",
 }
 
 
