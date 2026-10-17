@@ -1,0 +1,32 @@
+{% extends "base.jinja" %}
+{% block title %}{{ d.serial or 'Thiết bị mới' }}{% endblock %}
+{% block main %}
+<div class="bar device-header"><h1>{{ d.serial if not is_new else 'Thêm thiết bị' }}</h1><a href="/thiet-bi">← Thiết bị</a></div>
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+<form method="post" class="card form" data-device-form action="{% if is_new %}/thiet-bi/moi{% else %}/thiet-bi/{{ d.serial | urlquote }}{% endif %}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<fieldset {% if not can_device_write %}disabled{% endif %}>
+<label>Serial{% if is_new %}<input name="serial" value="{{ d.serial }}" required maxlength="128" autocapitalize="characters">{% else %}<input value="{{ d.serial }}" readonly>{% endif %}</label>
+{% if is_new %}<p class="hint">Serial lưu chữ hoa và bỏ mọi khoảng trắng. Serial đã lưu không đổi.</p>{% endif %}
+<div data-picker>
+<label>Hàng (tìm và chọn)<input name="product_code" value="{{ d.product_code }}" required autocomplete="off" data-live=".device-options" data-source="/thiet-bi/tim-hang"></label>
+<span class="hint" data-picked-label>{{ product_name }}</span><div class="device-options" aria-live="polite"></div>
+</div>
+<div data-picker>
+<label>Khách hàng (có thể để trống)<input name="customer_code" value="{{ d.customer_code or '' }}" autocomplete="off" data-live=".device-options" data-source="/thiet-bi/tim-khach"></label>
+<span class="hint" data-picked-label>{{ customer_name }}</span><div class="device-options" aria-live="polite"></div>
+</div>
+<div data-customer-sites aria-live="polite">{% include 'thiet_bi_dia_diem.jinja' %}</div>
+<label>Hết bảo hành<input type="date" name="warranty_until" value="{{ d.warranty_until or '' }}"></label>
+<fieldset><legend>Tình trạng</legend><div class="seg stock-seg">
+<label><input type="radio" name="condition" value="MOI" {% if d.condition == 'MOI' %}checked{% endif %}><span>Mới</span></label>
+<label><input type="radio" name="condition" value="CU" {% if d.condition == 'CU' %}checked{% endif %}><span>Cũ</span></label>
+</div></fieldset>
+<label>Ghi chú<textarea name="note" maxlength="2000">{{ d.note }}</textarea></label>
+<label class="check"><input type="checkbox" name="active" value="1" {% if d.active %}checked{% endif %}> Đang dùng</label>
+</fieldset>
+{% if can_device_write %}<button class="primary">Lưu thiết bị</button>{% endif %}
+</form>
+<script src="/static/devices.js" defer></script>
+{% endblock %}
