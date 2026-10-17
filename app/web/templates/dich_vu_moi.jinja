@@ -1,0 +1,26 @@
+{% extends "base.jinja" %}
+{% block title %}Nhận đơn dịch vụ{% endblock %}
+{% block main %}
+<div class="bar"><h1>Nhận đơn dịch vụ</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<form method="post" action="/dich-vu/moi" class="card form" data-service-form>
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<fieldset {% if not can_create %}disabled{% endif %}>
+<div class="service-picker" data-picker>
+  <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>
+  <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
+  <a href="/khach-hang/moi" class="btn">+ Tạo mới khách hàng</a>
+</div>
+<div data-service-choices aria-live="polite">{% include 'dich_vu_chon_may.jinja' %}</div>
+<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
+{% for value, label in service_kinds.items() %}<label><input type="radio" name="kind" value="{{ value }}" {% if d.kind == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
+</div></fieldset>
+<fieldset><legend>Mức ưu tiên</legend><div class="seg stock-seg">
+{% for value, label in service_priorities.items() %}<label><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
+</div></fieldset>
+<label>Mô tả lỗi<textarea name="symptom" required minlength="3" maxlength="4000">{{ d.symptom }}</textarea></label>
+</fieldset>
+{% if can_create %}<button class="primary">Nhận đơn</button>{% endif %}
+</form>
+<script src="/static/services.js" defer></script>
+{% endblock %}

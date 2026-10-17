@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" data-service-customer="{{ row.code }}" data-label="{{ row.name }}">{{ row.code }} · {{ row.name }}</button>{% else %}<p class="hint">Không có khách phù hợp. Bạn có thể tạo khách mới.</p>{% endfor %}
