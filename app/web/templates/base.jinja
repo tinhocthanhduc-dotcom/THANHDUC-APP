@@ -19,6 +19,7 @@
     <a href="/ton-kho" {% if (request.url.path.startswith('/ton-kho') and request.query_params.get('canh-bao') != '1') or request.url.path.startswith('/the-kho') %}class="on"{% endif %}>Tồn kho</a>
     <a href="/ton-dau-ky" {% if request.url.path.startswith('/ton-dau-ky') %}class="on"{% endif %}>Tồn đầu kỳ</a>
     <a href="/ton-kho?canh-bao=1" {% if request.url.path == '/ton-kho' and request.query_params.get('canh-bao') == '1' %}class="on"{% endif %}>Sắp hết</a>
+    <a href="/dich-vu" {% if request.url.path.startswith('/dich-vu') %}class="on"{% endif %}>Dịch vụ</a>
     <a href="/thiet-bi" {% if request.url.path.startswith('/thiet-bi') %}class="on"{% endif %}>Thiết bị</a>
   </nav>
   <form method="post" action="/dang-xuat" class="who">

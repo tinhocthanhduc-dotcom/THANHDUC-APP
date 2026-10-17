@@ -894,3 +894,276 @@ def test_d1_concurrent_duplicate_serial(client, web_login, d1_catalog, db, engin
     assert sorted(results) == ['DUPLICATE_SERIAL', 'DUPLICATE_SERIAL', 'OK']
     assert db.query(Equipment).count() == 1
     assert db.query(AuditLog).filter_by(action='equipment.create').count() == 1
+
+
+# D3 — màn hình chỉ gọi lõi phiếu dịch vụ, dùng cookie và CSRF như các trang khác.
+@pytest.fixture
+def service_people(db, make_user):
+    from app.models import CustomerSite, Equipment
+    db.add_all([
+        Customer(code="KTD-000001", name="Minh Phát", search_text="minh phat"),
+        Customer(code="KTD-000002", name="Khách khác", search_text="khach khac"),
+        Product(code="TD-0001", name="Máy in", search_text="may in"),
+    ])
+    db.commit()
+    people = {role: make_user('dv.' + role, role) for role in ('sales', 'dispatcher', 'technician', 'warehouse', 'director')}
+    people['other'] = make_user('dv.tho.b', 'technician')
+    site = CustomerSite(customer_code='KTD-000001', name='Văn phòng', created_by=people['dispatcher'].id)
+    other_site = CustomerSite(customer_code='KTD-000002', name='Địa điểm khách khác', created_by=people['dispatcher'].id)
+    db.add_all([site, other_site])
+    db.flush()
+    db.add_all([
+        Equipment(serial='AB123', product_code='TD-0001', customer_code='KTD-000001', site_id=site.id,
+                  search_text='ab123 may in minh phat', created_by=people['dispatcher'].id),
+        Equipment(serial='OTHER456', product_code='TD-0001', customer_code='KTD-000002',
+                  search_text='other456', created_by=people['dispatcher'].id),
+    ])
+    db.commit()
+    return people
+
+
+def service_login(client, user):
+    client.cookies.clear()
+    response = client.post('/dang-nhap', data={'username': user.username, 'password': PASSWORD, 'next': '/dich-vu'})
+    assert response.status_code == 200, response.text
+    return csrf_of(response.text)
+
+
+def service_form(csrf, **kw):
+    return {'csrf': csrf, 'customer_code': 'KTD-000001', 'site_id': '', 'serial': '',
+            'kind': 'SUA_TAI_CHO', 'priority': 'THUONG', 'symptom': 'Máy in bị kẹt giấy', **kw}
+
+
+def new_service(db, people):
+    from app import service_tickets
+    from app.schemas import ServiceTicketIn
+    return service_tickets.create(db, people['sales'], ServiceTicketIn(**{k: v for k, v in service_form('x').items()
+                                                                       if k not in ('csrf', 'site_id', 'serial')}))
+
+
+def service_action(client, ticket, csrf, action='transition', **kw):
+    return client.post(f'/dich-vu/{ticket.id}/{action}', data={'csrf': csrf, 'version': str(ticket.version), **kw})
+
+
+def test_d3_sales_create_and_customer_choices(client, db, service_people, monkeypatch):
+    from datetime import UTC, datetime
+    from app import service_tickets as svc
+    from app.models import ServiceTicket
+    monkeypatch.setattr(svc, '_now', lambda: datetime(2026, 10, 17, 6, tzinfo=UTC))
+    csrf = service_login(client, service_people['sales'])
+    page = client.get('/dich-vu/moi').text
+    assert 'data-live=".service-options"' in page and 'href="/khach-hang/moi"' in page
+    assert '<select' not in page
+    choices = client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
+    assert 'Văn phòng' in choices and 'AB123' in choices
+    assert 'OTHER456' not in choices and 'Địa điểm khách khác' not in choices
+    assert 'Minh Phát' in client.get('/dich-vu/tim-khach?q=minh phat').text
+    response = client.post('/dich-vu/moi', data=service_form(csrf, serial='AB123'))
+    assert response.status_code == 200, response.text
+    ticket = db.query(ServiceTicket).one()
+    assert re.fullmatch(r'DV-26-\d{5}', ticket.number) and ticket.status == 'MOI'
+    assert ticket.number in response.text and '<h2>Mới' in response.text
+    assert 'Giao thợ</button>' not in response.text
+    assert ticket.number in client.get('/dich-vu?q=minh phat&phan=1').text
+    assert ticket.number in client.get('/dich-vu?q=ab123&phan=1').text
+    assert '<html' not in client.get('/dich-vu?phan=1').text
+
+
+def test_d3_dispatcher_assignment_open_counts(client, db, service_people):
+    from app import service_tickets as svc
+    existing = new_service(db, service_people)
+    svc.assign(db, service_people['dispatcher'], existing.id, service_people['technician'].id, existing.version)
+    ticket = new_service(db, service_people)
+    csrf = service_login(client, service_people['dispatcher'])
+    page = client.get(f'/dich-vu/{ticket.id}').text
+    assert 'Dv.Technician · 1 việc đang mở' in page
+    assert 'Dv.Tho.B · 0 việc đang mở' in page
+    response = service_action(client, ticket, csrf, 'assign', assignee_id=service_people['other'].id, note='Giao anh B')
+    assert response.status_code == 200, response.text
+    db.refresh(ticket)
+    assert ticket.status == 'DA_GIAO' and ticket.assignee_id == service_people['other'].id
+    assert 'Giao anh B' in response.text and 'Lịch sử bước' in response.text
+
+
+def test_d3_technician_flow_and_photo_required(client, db, service_people, tmp_path, monkeypatch):
+    import io
+    from PIL import Image
+    from app import attachments, service_tickets as svc
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), 'files_dir', str(tmp_path))
+    tech = service_people['technician']
+    ticket = new_service(db, service_people)
+    svc.assign(db, service_people['dispatcher'], ticket.id, tech.id, ticket.version)
+    csrf = service_login(client, tech)
+    for target, extra in [
+        ('DA_NHAN', {}),
+        ('DA_HEN', {'appointment_at': '2026-10-20T09:30', 'note': 'Khách hẹn buổi sáng'}),
+        ('DANG_LAM', {}),
+        ('CHO_LINH_KIEN', {'note': 'Chờ linh kiện thay thế'}),
+        ('DANG_LAM', {}),
+    ]:
+        response = service_action(client, ticket, csrf, to_status=target, **extra)
+        assert response.status_code == 200, response.text
+        db.refresh(ticket)
+        assert ticket.status == target
+        if target == 'DA_HEN':
+            assert ticket.appointment_at.isoformat() == '2026-10-20T02:30:00+00:00'
+            assert '20/10/2026 09:30' in response.text
+        if target == 'CHO_LINH_KIEN':
+            assert '>Làm tiếp</button>' in response.text
+    response = service_action(client, ticket, csrf, to_status='HOAN_THANH', note='Đã sửa xong máy')
+    assert response.status_code == 400 and 'Cần chụp ảnh sau sửa trước khi hoàn thành' in response.text
+    assert 'Đã sửa xong máy</textarea>' in response.text
+    db.refresh(ticket)
+    assert ticket.status == 'DANG_LAM'
+    image = io.BytesIO()
+    Image.new('RGB', (8, 8), 'white').save(image, format='PNG')
+    attachments.add(db, tech, 'service_ticket', str(ticket.id), 'SAU', 'sau.png', image.getvalue())
+    response = service_action(client, ticket, csrf, to_status='HOAN_THANH', note='Đã sửa xong máy')
+    assert response.status_code == 200, response.text
+    db.refresh(ticket)
+    assert ticket.status == 'HOAN_THANH' and ticket.due_at is None
+    assert 'Chờ linh kiện thay thế' in response.text and 'Khách hẹn buổi sáng' in response.text
+    assert '/transition' not in response.text and '/assign' not in response.text
+
+
+def test_d3_technician_cannot_see_other_tickets(client, db, service_people):
+    from app import service_tickets as svc
+    ticket = new_service(db, service_people)
+    svc.assign(db, service_people['dispatcher'], ticket.id, service_people['technician'].id, ticket.version)
+    csrf = service_login(client, service_people['other'])
+    assert client.get(f'/dich-vu/{ticket.id}').status_code == 404
+    page = client.get('/dich-vu').text
+    assert '<h1>Việc của tôi</h1>' in page and ticket.number not in page
+    assert ticket.number not in client.get('/dich-vu?q=minh phat&phan=1').text
+    assert service_action(client, ticket, csrf, to_status='DA_NHAN').status_code == 404
+
+
+def test_d3_reason_required_and_invalid_appointment_keep_form(client, db, service_people):
+    from app import service_tickets as svc
+    ticket = new_service(db, service_people)
+    svc.assign(db, service_people['dispatcher'], ticket.id, service_people['technician'].id, ticket.version)
+    svc.transition(db, service_people['technician'], ticket.id, 'DA_NHAN', ticket.version)
+    csrf = service_login(client, service_people['technician'])
+    response = service_action(client, ticket, csrf, to_status='KHONG_LAM_DUOC', note='x')
+    assert response.status_code == 400 and 'Phải ghi lý do' in response.text
+    assert 'x</textarea>' in response.text and f'name="version" value="{ticket.version}"' in response.text
+    response = service_action(client, ticket, csrf, to_status='DA_HEN', appointment_at='sai-ngay', note='Xin giữ ghi chú')
+    assert response.status_code == 400 and 'Ngày giờ hẹn chưa hợp lệ' in response.text
+    assert 'value="sai-ngay"' in response.text and 'Xin giữ ghi chú</textarea>' in response.text
+    response = service_action(client, ticket, csrf, to_status='DA_HEN', appointment_at='', note='Giữ lời hẹn')
+    assert response.status_code == 400 and 'Phải chọn giờ hẹn khách' in response.text
+    assert 'Giữ lời hẹn</textarea>' in response.text
+    db.refresh(ticket)
+    assert ticket.status == 'DA_NHAN'
+
+
+def test_d3_old_version_keeps_form(client, db, service_people):
+    from app import service_tickets as svc
+    ticket = new_service(db, service_people)
+    old = ticket.version
+    svc.assign(db, service_people['dispatcher'], ticket.id, service_people['technician'].id, old)
+    csrf = service_login(client, service_people['dispatcher'])
+    response = service_action(client, ticket, csrf, 'assign', version=str(old),
+                              assignee_id=service_people['other'].id, note='Ghi chú chưa được lưu')
+    assert response.status_code == 409 and 'Người khác vừa cập nhật phiếu' in response.text
+    assert 'Ghi chú chưa được lưu</textarea>' in response.text
+    assert f'name="version" value="{old}"' in response.text
+    assert re.search(r'name="assignee_id" value="' + str(service_people['other'].id) + '" checked', response.text)
+    db.refresh(ticket)
+    assert ticket.assignee_id == service_people['technician'].id
+
+
+def test_d3_overdue_and_other_filters(client, db, service_people):
+    from datetime import UTC, datetime, timedelta
+    from app import service_tickets as svc
+    old = new_service(db, service_people)
+    timely = new_service(db, service_people)
+    closed = new_service(db, service_people)
+    svc.transition(db, service_people['dispatcher'], closed.id, 'DA_HUY', closed.version, 'Khách báo hủy')
+    svc.assign(db, service_people['dispatcher'], timely.id, service_people['technician'].id, timely.version)
+    old.due_at = datetime.now(UTC) - timedelta(hours=1)
+    closed.due_at = old.due_at
+    db.commit()
+    service_login(client, service_people['dispatcher'])
+    page = client.get('/dich-vu?overdue=1&phan=1').text
+    assert old.number in page and 'service-overdue' in page
+    assert timely.number not in page and closed.number not in page
+    assert timely.number in client.get('/dich-vu?status=DA_GIAO&phan=1').text
+    assert old.number not in client.get('/dich-vu?status=DA_GIAO&phan=1').text
+    page = client.get(f'/dich-vu?assignee_id={service_people["technician"].id}&phan=1').text
+    assert timely.number in page and old.number not in page
+
+
+def test_d3_csrf_and_forbidden_posts(client, db, service_people):
+    from app import service_tickets as svc
+    ticket = new_service(db, service_people)
+    csrf = service_login(client, service_people['warehouse'])
+    assert client.post('/dich-vu/moi', data=service_form(csrf)).status_code == 403
+    assert service_action(client, ticket, csrf, 'assign', assignee_id=service_people['technician'].id).status_code == 403
+    assert service_action(client, ticket, csrf, to_status='DA_HUY', note='Không được phép').status_code == 403
+    csrf = service_login(client, service_people['sales'])
+    page = client.get(f'/dich-vu/{ticket.id}').text
+    assert '/assign' not in page and '/transition' not in page and '/transfer-request' not in page
+    assert service_action(client, ticket, csrf, 'assign', assignee_id=service_people['technician'].id).status_code == 403
+    assert client.post('/dich-vu/moi', data=service_form('')).status_code == 403
+    assert service_action(client, ticket, '', 'assign', assignee_id=service_people['technician'].id).status_code == 403
+    assert service_action(client, ticket, '', to_status='DA_HUY', note='Khách hủy phiếu').status_code == 403
+    # Giao thật để thợ thấy phiếu, rồi kiểm quyền hủy vẫn do lõi quyết định.
+    svc.assign(db, service_people['dispatcher'], ticket.id, service_people['technician'].id, ticket.version)
+    csrf = service_login(client, service_people['technician'])
+    assert service_action(client, ticket, csrf, to_status='DA_HUY', note='Thợ xin hủy').status_code == 403
+    assert client.post('/dich-vu/moi', data=service_form(csrf)).status_code == 403
+
+
+def test_d3_transfer_request_reject_and_cancel(client, db, service_people):
+    from app import service_tickets as svc
+    ticket = new_service(db, service_people)
+    svc.assign(db, service_people['dispatcher'], ticket.id, service_people['technician'].id, ticket.version)
+    csrf = service_login(client, service_people['technician'])
+    response = service_action(client, ticket, csrf, 'transfer-request', reason='Đang ở xa khách')
+    assert response.status_code == 200 and 'Đang ở xa khách' in response.text
+    db.refresh(ticket)
+    assert ticket.transfer_request == 'Đang ở xa khách'
+    csrf = service_login(client, service_people['dispatcher'])
+    assert '>Từ chối chuyển</button>' in client.get(f'/dich-vu/{ticket.id}').text
+    response = service_action(client, ticket, csrf, 'transfer-reject', reason='Chưa có người thay')
+    assert response.status_code == 200 and 'Chưa có người thay' in response.text
+    db.refresh(ticket)
+    assert not ticket.transfer_request
+    response = service_action(client, ticket, csrf, to_status='DA_HUY', note='')
+    assert response.status_code == 400 and 'Phải ghi lý do' in response.text
+    response = service_action(client, ticket, csrf, to_status='DA_HUY', note='Khách hẹn việc khác')
+    assert response.status_code == 200, response.text
+    db.refresh(ticket)
+    assert ticket.status == 'DA_HUY' and ticket.status_reason == 'Khách hẹn việc khác'
+
+
+def test_d3_create_errors_keep_form_and_version_is_required(client, db, service_people):
+    csrf = service_login(client, service_people['sales'])
+    data = service_form(csrf, customer_code='KTD-999999', symptom='Giữ nguyên mô tả lỗi', kind='BAO_HANH', priority='KHAN')
+    response = client.post('/dich-vu/moi', data=data)
+    assert response.status_code == 400 and 'không tồn tại' in response.text
+    assert 'Giữ nguyên mô tả lỗi</textarea>' in response.text and 'value="KTD-999999"' in response.text
+    assert 'value="BAO_HANH" checked' in response.text and 'value="KHAN" checked' in response.text
+    response = client.post('/dich-vu/moi', data={**data, 'customer_code': 'KTD-000001', 'symptom': 'x'})
+    assert response.status_code == 400 and 'Mô tả lỗi chưa hợp lệ' in response.text
+    ticket = new_service(db, service_people)
+    csrf = service_login(client, service_people['dispatcher'])
+    response = service_action(client, ticket, csrf, 'assign', version='', assignee_id=service_people['technician'].id, note='Vẫn còn ghi chú')
+    assert response.status_code == 400 and 'Thiếu phiên bản phiếu' in response.text
+    assert 'Vẫn còn ghi chú</textarea>' in response.text and 'name="version" value=""' in response.text
+
+
+def test_d3_closed_after_loading_keeps_attempted_form(client, db, service_people):
+    from app import service_tickets as svc
+    ticket = new_service(db, service_people)
+    old_version = ticket.version
+    svc.transition(db, service_people['dispatcher'], ticket.id, 'DA_HUY', old_version, 'Khách đã hủy việc')
+    csrf = service_login(client, service_people['dispatcher'])
+    response = service_action(client, ticket, csrf, 'assign', version=old_version,
+                              assignee_id=service_people['technician'].id, note='Ghi chú đang soạn')
+    assert response.status_code == 409 and 'Người khác vừa cập nhật phiếu' in response.text
+    assert 'Ghi chú đang soạn</textarea>' in response.text
+    assert 'Dữ liệu vừa gửi chưa được lưu' in response.text
+    assert '/assign' not in response.text

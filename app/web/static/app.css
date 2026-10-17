@@ -128,3 +128,16 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 [data-picker] { min-width: 0; }
 
 .device-header h1 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* Dịch vụ: các nhóm nút tự xuống dòng ở màn hình 360px. */
+.service-filters { margin-bottom: 16px; }
+.service-action { margin-top: 16px; }
+.service-action h2, .service-summary h2 { font-size: 1.1rem; margin: 0 0 8px; }
+.service-summary, .service-action, .service-list li { min-width: 0; overflow-wrap: anywhere; }
+.service-overdue { background: var(--bad-bg); color: var(--bad); }
+.service-overdue a, .service-overdue .meta, .service-overdue .code { color: var(--bad); }
+.service-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.service-history { padding-left: 22px; }
+.service-history li { padding: 8px 0; }
+.service-action button, .service-filters button, .service-filters .seg span { min-height: 44px; }
+.service-picker { display: grid; gap: 6px; min-width: 0; }
+.service-picker a.btn { text-align: center; min-height: 44px; }
