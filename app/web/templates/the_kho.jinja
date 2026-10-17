@@ -1,6 +1,14 @@
 {% extends "base.jinja" %}
 {% block title %}Thẻ kho {{ product.code }}{% endblock %}
 {% block main %}<div class="bar"><h1>Thẻ kho {{ warehouse.code }} · {{ product.code }} · {{ product.name }}</h1><a href="/ton-kho?kho={{ warehouse.code }}">← Tồn kho</a></div>
+{% if saved %}<p class="alert ok">Đã lưu mức tồn tối thiểu.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/the-kho/{{ warehouse.code }}/{{ product.code }}" class="card form">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ level_version }}">
+<label>Mức tồn tối thiểu<input name="min_qty" value="{{ min_qty }}" inputmode="decimal" required {% if not can_write %}readonly{% endif %}></label>
+<p class="hint">Đặt 0 để không cảnh báo.</p>
+{% if can_write %}<button class="primary">Lưu</button>{% endif %}
+</form>
 <div class="form">{% for r, number in rows %}<article class="card stock-ledger-row">
 <a href="/phieu-kho/{{ r.doc_id }}">{{ number }}</a>{% if r.is_reversal %}<span class="tag">Dòng hủy</span>{% endif %}<p class="meta">{{ r.at }}</p>
 <dl><dt>Nhập</dt><dd>{{ r.qty_in }}</dd><dt>Xuất</dt><dd>{{ r.qty_out }}</dd><dt>Giá trị (đ)</dt><dd>{{ r.amount | money }}</dd><dt>Tồn sau dòng</dt><dd>{{ r.balance_qty }}</dd><dt>Giá trị tồn (đ)</dt><dd>{{ r.balance_value | money }}</dd></dl>

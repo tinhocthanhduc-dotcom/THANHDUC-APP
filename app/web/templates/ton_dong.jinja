@@ -1,4 +1,4 @@
-<div class="form stock-list">{% for b, name in rows %}<a class="card stock-balance" href="/the-kho/{{ b.warehouse_code }}/{{ b.product_code }}">
-<strong>{{ b.product_code }} · {{ name }}</strong><span>Kho {{ b.warehouse_code }}</span>
-<dl><dt>Số lượng</dt><dd>{{ b.qty }}</dd><dt>Giá trị (đ)</dt><dd>{{ b.value | money }}</dd><dt>Giá vốn bình quân (đ)</dt><dd>{{ b.avg_cost | money }}</dd></dl>
+<div class="form stock-list">{% for b in rows %}<a class="card stock-balance" href="/the-kho/{{ b.warehouse_code }}/{{ b.product_code }}">
+<strong>{{ b.product_code }} · {{ b.name }}</strong><span>Kho {{ b.warehouse_code }}</span>
+<dl><dt>Số lượng</dt><dd>{{ b.qty }}</dd><dt>Giá trị (đ)</dt><dd>{{ b.value | money }}</dd><dt>Giá vốn bình quân (đ)</dt><dd>{{ b.avg_cost | money }}</dd>{% if canh_bao %}<dt>Mức tối thiểu</dt><dd>{{ b.min_qty }}</dd><dt>Số thiếu</dt><dd>{{ b.shortage }}</dd>{% endif %}</dl>
 </a>{% else %}<p class="empty">Không có tồn kho phù hợp.</p>{% endfor %}</div>

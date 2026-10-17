@@ -280,3 +280,19 @@ class StockLedger(Base):
     balance_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
     balance_value: Mapped[int] = mapped_column(BigInteger)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StockMinLevel(Base):
+    """Mức cảnh báo theo kho/mã hàng; min_qty=0 tắt cảnh báo, không xóa."""
+
+    __tablename__ = "stock_min_levels"
+    __table_args__ = (CheckConstraint("min_qty >= 0", name="ck_stock_min_levels_qty"),)
+
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey("warehouses.code"), primary_key=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"), primary_key=True)
+    min_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal(0))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    __mapper_args__ = {"version_id_col": version}
