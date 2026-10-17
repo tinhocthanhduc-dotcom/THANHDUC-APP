@@ -403,6 +403,8 @@ class Attachment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1)
 
+    __mapper_args__ = {"version_id_col": version}
+
 
 class CustomerSite(Base):
     __tablename__ = "customer_sites"
