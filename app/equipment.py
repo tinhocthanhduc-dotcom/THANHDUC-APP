@@ -1,0 +1,99 @@
+"""Thiết bị theo serial, địa điểm phải thuộc đúng khách hàng đang gán."""
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
+
+from . import audit
+from .customer_sites import check_writer
+from .customers import like_pattern
+from .errors import BusinessError
+from .models import Customer, CustomerSite, Equipment, Product
+from .schemas import EquipmentOut
+from .text import fold
+
+
+def normalize_serial(value: str) -> str:
+    return ''.join(value.split()).upper()
+
+
+def snapshot(row):
+    return EquipmentOut.model_validate(row).model_dump(mode='json')
+
+
+def load(session: Session, serial: str) -> Equipment:
+    row = session.get(Equipment, normalize_serial(serial))
+    if row is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy thiết bị.', status=404)
+    return row
+
+
+def search(session: Session, q='', active_only=False):
+    stmt = select(Equipment).join(Product, Product.code == Equipment.product_code).outerjoin(Customer, Customer.code == Equipment.customer_code)
+    if active_only:
+        stmt = stmt.where(Equipment.active.is_(True))
+    if fold(q):
+        pattern = like_pattern(fold(q))
+        stmt = stmt.where(or_(Equipment.search_text.like(pattern), Equipment.serial.ilike(like_pattern(normalize_serial(q))),
+                             Product.search_text.like(pattern), Customer.search_text.like(pattern)))
+    return list(session.scalars(stmt.order_by(Equipment.serial).limit(50)))
+
+
+def _validate_and_search_text(session, data, serial):
+    product = session.get(Product, data['product_code'])
+    if product is None:
+        raise BusinessError('BAD_PRODUCT', 'Mã hàng không có trong danh mục.')
+    customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
+    if data['customer_code'] and customer is None:
+        raise BusinessError('BAD_CUSTOMER', 'Mã khách không tồn tại.')
+    if data['site_id'] is not None:
+        site = session.get(CustomerSite, data['site_id'])
+        if site is None or not customer or site.customer_code != customer.code:
+            raise BusinessError('BAD_SITE', 'Địa điểm phải thuộc đúng khách hàng đã chọn.')
+    return fold(' '.join([serial, product.name, customer.name if customer else '']))
+
+
+def _save(session, user, row, before):
+    try:
+        session.flush()
+        audit.record(session, user, 'equipment.' + ('create' if before is None else 'update'),
+                     'equipment', row.serial, before, snapshot(row))
+        session.commit()
+    except StaleDataError:
+        session.rollback()
+        raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa thiết bị, hãy tải lại.', status=409)
+    except IntegrityError as exc:
+        session.rollback()
+        if getattr(getattr(exc.orig, 'diag', None), 'constraint_name', None) == 'equipment_pkey':
+            raise BusinessError('DUPLICATE_SERIAL', 'Số sê-ri đã có trong danh mục thiết bị.', status=409)
+        raise
+    except Exception:
+        session.rollback()
+        raise
+    return row
+
+
+def create(session: Session, user, body):
+    check_writer(user)
+    data = body.model_dump()
+    data['serial'] = normalize_serial(data['serial'])
+    data['search_text'] = _validate_and_search_text(session, data, data['serial'])
+    row = Equipment(**data, created_by=user.id)
+    session.add(row)
+    return _save(session, user, row, None)
+
+
+def update(session: Session, user, serial, body):
+    check_writer(user)
+    row = load(session, serial)
+    if row.version != body.version:
+        raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa thiết bị, hãy tải lại.', status=409)
+    before = snapshot(row)
+    data = {field: getattr(row, field) for field in ('product_code', 'customer_code', 'site_id', 'warranty_until', 'condition', 'note', 'active')}
+    data.update(body.model_dump(exclude_unset=True, exclude={'version'}))
+    search_text = _validate_and_search_text(session, data, row.serial)
+    for field, value in data.items():
+        setattr(row, field, value)
+    row.search_text = search_text
+    row.version += 1
+    return _save(session, user, row, before)

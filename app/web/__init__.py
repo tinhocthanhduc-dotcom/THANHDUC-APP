@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import customers as customer_svc
+from .. import customer_sites as site_svc
 from .. import products as product_svc
 from .. import inventory_catalogs as catalog_svc
 from ..config import get_settings
@@ -41,6 +42,7 @@ def money(value: int | None) -> str:
 
 
 templates.env.filters["money"] = money
+templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
@@ -158,11 +160,13 @@ def logout(_=Depends(checked_form)):
 # ---------- Khách hàng ----------
 
 
-def _customer_form(request: Request, user: User, c: dict, **ctx) -> HTMLResponse:
+def _customer_form(request: Request, user: User, c: dict, session=None, **ctx) -> HTMLResponse:
     return render(
         request,
         "khach_form.jinja",
         c=c,
+        sites=site_svc.search(session, c["code"]) if session is not None and c.get("code") else [],
+        can_site_write=has_role(user, *site_svc.WRITERS),
         can_write=has_role(user, *CUSTOMER_WRITERS),
         can_credit=has_role(user, *customer_svc.CREDIT_ROLES),
         **ctx,
@@ -259,7 +263,7 @@ def customer_view(
     if c.code != code:
         return RedirectResponse(f"/khach-hang/{quote(c.code)}", status_code=303)
     warnings = [w.split(":", 1) for w in cb.split(",") if ":" in w and w.split(":", 1)[0] in WARNING_LABELS]
-    return _customer_form(request, user, _customer_dict(c), error=None, ask_confirm=None, saved=bool(da_luu), warnings=warnings)
+    return _customer_form(request, user, _customer_dict(c), session=session, error=None, ask_confirm=None, saved=bool(da_luu), warnings=warnings)
 
 
 @router.post("/khach-hang/{code}")
@@ -277,10 +281,10 @@ def customer_update(request: Request, code: str, form=Depends(checked_form), ses
         body = CustomerPatch(version=_digits(form.get("version")), confirmation=_confirmation(form), **data)
         c, warnings = customer_svc.update(session, user, code, body)
     except ValidationError as exc:
-        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400)
+        return _customer_form(request, user, shown, session=session, error=_error_text(exc), ask_confirm=None, form=form, status=400)
     except BusinessError as exc:
         ask = exc.details if exc.code == "PHONE_IN_USE" else None
-        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status)
+        return _customer_form(request, user, shown, session=session, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status)
     return RedirectResponse(_saved_url(c.code, warnings), status_code=303)
 
 
@@ -444,3 +448,7 @@ router.include_router(stock_router)
 from .opening import router as opening_router
 
 router.include_router(opening_router)
+
+from .devices import router as device_router
+
+router.include_router(device_router)
