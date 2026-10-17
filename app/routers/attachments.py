@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from .. import attachments as svc
@@ -9,6 +10,7 @@ from ..errors import BusinessError
 from ..models import User
 from ..schemas import AttachmentOut, ServiceReason
 from ..security import current_user
+from ..web import COOKIE, web_user
 
 router = APIRouter(prefix="/attachments", tags=["Tệp đính kèm"])
 
@@ -29,10 +31,21 @@ async def add(entity: str = Form(), entity_id: str = Form(), tag: str = Form("KH
     return svc.add(session, user, entity, entity_id, tag, file.filename or "", data)
 
 
+def file_user(request: Request, token=Depends(OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)),
+              session: Session = Depends(get_session)):
+    # Ảnh nhúng / biên bản dùng cookie; API tiếp tục nhận Bearer và trả 401 nếu thiếu cả hai.
+    if token is not None:
+        return current_user(token, session)
+    if request.cookies.get(COOKIE):
+        return web_user(request, session)
+    return current_user(None, session)
+
+
 @router.get("/{attachment_id}/file")
-def download(attachment_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+def download(attachment_id: int, user: User = Depends(file_user), session: Session = Depends(get_session)):
     path, a = svc.open_file(session, user, attachment_id)
-    return FileResponse(path, media_type=a.content_type, filename=a.filename, content_disposition_type="inline")
+    return FileResponse(path, media_type=a.content_type, filename=a.filename, content_disposition_type="inline",
+                        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.post("/{attachment_id}/hide", response_model=AttachmentOut)

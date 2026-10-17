@@ -144,3 +144,19 @@ Mỗi dòng: `kind` `PHI` (bắt buộc `description`, không có mã hàng, kho
 - Sang `HOAN_THANH`: bắt buộc đã chọn `billing` (`BILLING_REQUIRED`); `THU_TIEN` mà tổng bằng 0 trả `EMPTY_CHARGES`. Lõi ghi `subtotal`, `vat_total`, `total`, `receivable` (0 nếu miễn phí), `priced_at`, rồi tự lập và ghi sổ một phiếu `PX` cho mỗi kho có vật tư, gắn khách và số DV. Thiếu tồn trả `NEGATIVE_STOCK` và phiếu giữ nguyên `DANG_LAM`.
 - Sau khi hoàn thành, sửa tiền trả `PRICE_LOCKED`. Điều phối có thể: mở lại (`DANG_LAM`, bắt buộc lý do), hủy (`DA_HUY`, lý do), cả hai đều hủy các phiếu `PX` (sổ kho ghi đảo) và mở khóa giá; hoặc đóng hồ sơ (`DA_DONG`), sau đó không đổi được nữa.
 - Nhận đơn kiểm `site_id` thuộc đúng khách và đang dùng (`BAD_SITE`), `serial` có trong danh mục thiết bị và không ghi cho khách khác (`BAD_SERIAL`).
+
+## Tệp đính kèm (D4) và ảnh nghiệm thu (D5)
+
+Các thao tác tệp gọi `app.attachments.add`, `list_for`, `open_file`, `hide`; lõi kiểm quyền xem/ghi theo phiếu. Ảnh JPEG/PNG/WEBP được xử lý và lưu JPEG, PDF giữ nguyên. Không xóa tệp, chỉ ẩn kèm lý do. Giới hạn tải lấy từ `TD_MAX_UPLOAD_MB` (mặc định 15 MB).
+
+| Phương thức | Đường dẫn | Ghi chú |
+|---|---|---|
+| GET | `/attachments?entity=service_ticket&entity_id={id}` | API Bearer; mặc định bỏ tệp đã ẩn |
+| POST | `/attachments` | API Bearer, multipart: `entity`, `entity_id`, `tag`, `file` |
+| GET | `/attachments/{id}/file` | Đọc inline; nhận Bearer hoặc cookie web. Vẫn kiểm quyền phiếu và trạng thái ẩn ở lõi. Không cache |
+| POST | `/attachments/{id}/hide` | API Bearer, `reason`, `version`; quyền ẩn theo lõi D4 |
+| POST | `/dich-vu/{id}/anh/tai` | Form web có CSRF, multipart `tag` (`TRUOC`, `SAU`, `KHAC`), `file`; hai tag ảnh chỉ nhận ảnh |
+| POST | `/dich-vu/{id}/anh/{attachment_id}/an` | Form web có CSRF, `version`, `reason` bắt buộc; D5 chỉ cho điều phối/giám đốc, tệp phải thuộc đúng phiếu |
+| GET | `/dich-vu/{id}/bien-ban` | Trang HTML A4, dùng In của trình duyệt để in hoặc lưu PDF; chỉ hiện ảnh `SAU` chưa ẩn |
+
+Lỗi tệp: `BAD_ENTITY`, `BAD_TAG`, `EMPTY_FILE`, `FILE_TOO_LARGE`, `BAD_FILE_TYPE`, `NOT_FOUND`, `FORBIDDEN`, `FILE_MISSING`, `REASON_REQUIRED`, `ALREADY_HIDDEN`, `VERSION_CONFLICT`. Hoàn thành phiếu dịch vụ thiếu tệp `SAU` còn hiện trả `PHOTO_REQUIRED`; trang dịch vụ hiển thị “Cần chụp ảnh sau sửa trước khi hoàn thành”.

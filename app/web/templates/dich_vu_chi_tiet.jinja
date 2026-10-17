@@ -49,6 +49,8 @@
 {% if can_reject_transfer %}
 <form method="post" action="/dich-vu/{{ t.id }}/transfer-reject" class="card form service-action"><h2>Từ chối chuyển</h2>{{ version('transfer-reject') }}<label>Lý do / ghi chú<textarea name="reason" maxlength="2000">{{ form.get('reason', '') if failed_action == 'transfer-reject' else '' }}</textarea></label><button>Từ chối chuyển</button></form>
 {% endif %}
+{% include "dich_vu_anh.jinja" %}
+<a class="btn service-action" href="/dich-vu/{{ t.id }}/bien-ban">In biên bản</a>
 <section class="card service-action"><h2>Lịch sử bước</h2><ol class="service-history">
 {% for step in t.steps %}<li><strong>{{ step_labels.get(step.action, step.action) }}</strong> · {{ service_statuses.get(step.to_status, step.to_status) }}<br><span class="meta">{{ step.at|service_time }} · {{ users.get(step.actor_id, 'Nhân viên') }}{% if step.assignee_id %} · Giao: {{ users.get(step.assignee_id, 'Nhân viên') }}{% endif %}</span>{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}
 </ol></section>

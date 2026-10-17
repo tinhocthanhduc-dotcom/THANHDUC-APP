@@ -1172,3 +1172,163 @@ def test_d3_closed_after_loading_keeps_attempted_form(client, db, service_people
     assert 'Ghi chú đang soạn</textarea>' in response.text
     assert 'Dữ liệu vừa gửi chưa được lưu' in response.text
     assert '/assign' not in response.text
+
+
+@pytest.fixture
+def d5_ticket(db, service_people):
+    from datetime import UTC, datetime
+    from app import service_tickets as svc
+    from app.models import CustomerSite
+    from app.schemas import ServiceTicketIn
+    site = db.query(CustomerSite).filter_by(customer_code='KTD-000001').one()
+    t = svc.create(db, service_people['sales'], ServiceTicketIn(customer_code='KTD-000001', site_id=site.id,
+                   serial='AB123', kind='SUA_TAI_CHO', symptom='Máy in kẹt giấy'))
+    tech = service_people['technician']
+    svc.assign(db, service_people['dispatcher'], t.id, tech.id, t.version)
+    svc.transition(db, tech, t.id, 'DA_NHAN', t.version)
+    svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=datetime(2026, 10, 20, 2, 30, tzinfo=UTC))
+    t = svc.transition(db, tech, t.id, 'DANG_LAM', t.version, 'Đang kiểm tra máy')
+    # D6: chọn cách thu trước để các test hoàn thành chỉ còn kiểm ảnh.
+    from app import service_charges
+    from app.schemas import ServiceCharges
+    return service_charges.set_charges(db, tech, t.id, ServiceCharges(billing='MIEN_PHI', free_reason='Bảo hành', lines=[]))
+
+
+def d5_image():
+    import io
+    from PIL import Image
+    image = io.BytesIO()
+    Image.new('RGB', (12, 16), 'green').save(image, format='PNG')
+    return image.getvalue()
+
+
+def d5_upload(client, ticket, csrf, tag='SAU', filename='sau.png', data=None):
+    return client.post(f'/dich-vu/{ticket.id}/anh/tai', data={'csrf': csrf, 'tag': tag},
+                       files={'file': (filename, d5_image() if data is None else data, 'image/png')})
+
+
+def test_d5_upload_after_photo_then_complete(client, db, service_people, d5_ticket):
+    from app.models import Attachment
+    csrf = service_login(client, service_people['technician'])
+    response = service_action(client, d5_ticket, csrf, to_status='HOAN_THANH', note='Đã thay bánh kéo giấy')
+    assert response.status_code == 400 and 'Cần chụp ảnh sau sửa' in response.text
+    response = d5_upload(client, d5_ticket, csrf)
+    assert response.status_code == 200, response.text
+    a = db.query(Attachment).one()
+    assert a.tag == 'SAU' and a.entity_id == str(d5_ticket.id)
+    assert f'src="/attachments/{a.id}/file"' in response.text
+    assert response.text.count('capture="environment"') == 2
+    assert 'Ảnh trước' in response.text and 'Ảnh sau sửa' in response.text
+    assert 'Ẩn ảnh / tệp</summary>' not in response.text
+    file_response = client.get(f'/attachments/{a.id}/file')
+    assert file_response.status_code == 200 and file_response.headers['content-type'] == 'image/jpeg'
+    assert file_response.headers['cache-control'] == 'private, no-store'
+    response = service_action(client, d5_ticket, csrf, to_status='HOAN_THANH', note='Đã thay bánh kéo giấy')
+    assert response.status_code == 200, response.text
+    db.refresh(d5_ticket)
+    assert d5_ticket.status == 'HOAN_THANH'
+
+
+def test_d5_other_technician_cannot_upload_or_print(client, db, service_people, d5_ticket):
+    from app.models import Attachment
+    csrf = service_login(client, service_people['technician'])
+    d5_upload(client, d5_ticket, csrf)
+    a = db.query(Attachment).one()
+    csrf = service_login(client, service_people['other'])
+    assert d5_upload(client, d5_ticket, csrf).status_code == 404
+    assert client.get(f'/dich-vu/{d5_ticket.id}/bien-ban').status_code == 404
+    assert client.get(f'/attachments/{a.id}/file').status_code == 404
+    assert db.query(Attachment).count() == 1
+
+
+def test_d5_hide_requires_dispatcher_and_reason(client, db, service_people, d5_ticket):
+    from app.models import Attachment, AuditLog
+    csrf = service_login(client, service_people['technician'])
+    d5_upload(client, d5_ticket, csrf)
+    a = db.query(Attachment).one()
+    path = f'/dich-vu/{d5_ticket.id}/anh/{a.id}/an'
+    # Người chụp ảnh cũng không có nút ẩn ở D5, và POST bị chặn.
+    assert client.post(path, data={'csrf': csrf, 'version': a.version, 'reason': 'Ảnh chụp sai'}).status_code == 403
+    csrf = service_login(client, service_people['dispatcher'])
+    response = client.post(path, data={'csrf': csrf, 'version': a.version + 1, 'reason': 'Giữ lý do đang nhập'})
+    assert response.status_code == 409 and 'Giữ lý do đang nhập</textarea>' in response.text
+    response = client.post(path, data={'csrf': csrf, 'version': a.version, 'reason': ''})
+    assert response.status_code == 400 and 'Ẩn tệp phải ghi lý do' in response.text
+    response = client.post(path, data={'csrf': csrf, 'version': a.version, 'reason': 'x'})
+    assert response.status_code == 400 and 'x</textarea>' in response.text
+    response = client.post(path, data={'csrf': csrf, 'version': a.version, 'reason': 'Ảnh tải nhầm máy'})
+    assert response.status_code == 200, response.text
+    assert f'/attachments/{a.id}/file' not in response.text
+    assert f'/attachments/{a.id}/file' not in client.get(f'/dich-vu/{d5_ticket.id}/bien-ban').text
+    assert client.get(f'/attachments/{a.id}/file').status_code == 404
+    db.refresh(a)
+    assert a.hidden and a.hidden_reason == 'Ảnh tải nhầm máy'
+    assert db.query(Attachment).count() == 1
+    assert db.query(AuditLog).filter_by(action='attachment.hide').count() == 1
+    # Giám đốc cũng không thấy ảnh đã ẩn trong gallery / bản in mặc định.
+    service_login(client, service_people['director'])
+    assert f'/attachments/{a.id}/file' not in client.get(f'/dich-vu/{d5_ticket.id}').text
+
+
+def test_d5_report_contains_ticket_serial_and_visible_after_photos(client, db, service_people, d5_ticket):
+    from app.models import Attachment
+    csrf = service_login(client, service_people['technician'])
+    d5_upload(client, d5_ticket, csrf, tag='TRUOC', filename='truoc.png')
+    before = db.query(Attachment).one()
+    d5_upload(client, d5_ticket, csrf)
+    after = db.query(Attachment).filter_by(tag='SAU').one()
+    service_action(client, d5_ticket, csrf, to_status='HOAN_THANH', note='Đã thay bánh kéo giấy và chạy thử')
+    report = client.get(f'/dich-vu/{d5_ticket.id}/bien-ban')
+    assert report.status_code == 200, report.text
+    for value in [d5_ticket.number, 'AB123', 'Máy in', 'Minh Phát', 'Văn phòng', 'Máy in kẹt giấy',
+                  'Đã thay bánh kéo giấy và chạy thử', 'Dv.Technician', 'Đại diện khách hàng', 'Ngày giờ hoàn thành']:
+        assert value in report.text
+    assert f'src="/attachments/{after.id}/file"' in report.text
+    assert f'/attachments/{before.id}/file' not in report.text
+    assert 'window.print()' in report.text and 'Phiếu chưa hoàn thành' not in report.text
+    assert 'size: A4' in client.get('/static/app.css').text
+
+
+def test_d5_csrf_upload_and_hide(client, db, service_people, d5_ticket):
+    from app.models import Attachment
+    csrf = service_login(client, service_people['dispatcher'])
+    assert d5_upload(client, d5_ticket, '').status_code == 403
+    assert db.query(Attachment).count() == 0
+    d5_upload(client, d5_ticket, csrf)
+    a = db.query(Attachment).one()
+    response = client.post(f'/dich-vu/{d5_ticket.id}/anh/{a.id}/an', data={'version': a.version, 'reason': 'Ảnh sai máy'})
+    assert response.status_code == 403
+    db.refresh(a)
+    assert not a.hidden
+
+
+def test_d5_other_files_validation_and_cookie_auth_scope(client, db, service_people, d5_ticket):
+    from app.models import Attachment
+    csrf = service_login(client, service_people['dispatcher'])
+    response = d5_upload(client, d5_ticket, csrf, filename='anh.pdf', data=b'%PDF-1.7\nexample')
+    assert response.status_code == 400 and 'phải là ảnh' in response.text
+    assert d5_upload(client, d5_ticket, csrf, data=b'bad data').status_code == 400
+    assert d5_upload(client, d5_ticket, csrf, data=b'').status_code == 400
+    assert d5_upload(client, d5_ticket, csrf, tag='SAI').status_code == 400
+    assert db.query(Attachment).count() == 0
+    response = d5_upload(client, d5_ticket, csrf, tag='KHAC', filename='bien-ban.pdf', data=b'%PDF-1.7\nexample')
+    assert response.status_code == 200, response.text
+    a = db.query(Attachment).one()
+    assert client.get(f'/attachments/{a.id}/file').headers['content-type'] == 'application/pdf'
+    # Cookie chỉ bổ sung cho GET đọc file, không cho phép ghi trực tiếp qua API thiếu CSRF.
+    assert client.post('/attachments', data={'entity': 'service_ticket', 'entity_id': str(d5_ticket.id), 'tag': 'SAU'},
+                       files={'file': ('sau.png', d5_image(), 'image/png')}).status_code == 401
+    client.cookies.clear()
+    assert client.get(f'/attachments/{a.id}/file').status_code == 401
+
+
+def test_d5_cannot_hide_attachment_from_other_ticket(client, db, service_people, d5_ticket):
+    from app.models import Attachment
+    other = new_service(db, service_people)
+    csrf = service_login(client, service_people['dispatcher'])
+    d5_upload(client, other, csrf)
+    a = db.query(Attachment).one()
+    response = client.post(f'/dich-vu/{d5_ticket.id}/anh/{a.id}/an', data={'csrf': csrf, 'version': a.version, 'reason': 'Không đúng phiếu'})
+    assert response.status_code == 404
+    db.refresh(a)
+    assert not a.hidden
