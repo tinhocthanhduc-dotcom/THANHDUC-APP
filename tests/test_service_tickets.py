@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app import service_sla
+from app import attachments, service_sla
 from app import service_tickets as svc
 from app.errors import BusinessError
 from app.models import AuditLog, Customer, ServiceStep, ServiceTicket
@@ -83,6 +83,8 @@ def test_luong_chinh_cua_tho(db, people):
     t = svc.transition(db, t1, t.id, "CHO_LINH_KIEN", None, "Chờ drum")
     assert t.due_at is None
     t = svc.transition(db, t1, t.id, "DANG_LAM", None)
+    assert _code(svc.transition, db, t1, t.id, "HOAN_THANH", None) == "PHOTO_REQUIRED"
+    attachments.add(db, t1, "service_ticket", str(t.id), "SAU", "sau.pdf", b"%PDF-1.4 test")
     t = svc.transition(db, t1, t.id, "HOAN_THANH", None)
     assert t.status == "HOAN_THANH" and t.due_at is None
     steps = svc.load(db, people["dp"], t.id).steps

@@ -360,6 +360,38 @@ class ServiceStep(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Attachment(Base):
+    """Tệp đính kèm (D4) gắn vào một chứng từ bất kỳ. File nằm trên máy chủ, bảng chỉ giữ đường dẫn. Không xóa, chỉ ẩn."""
+
+    __tablename__ = "attachments"
+    __table_args__ = (
+        CheckConstraint("size > 0", name="ck_attachments_size"),
+        CheckConstraint("hidden = (hidden_reason <> '')", name="ck_attachments_hidden"),
+        Index("ix_attachments_entity", "entity", "entity_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    entity: Mapped[str] = mapped_column(String(32))
+    entity_id: Mapped[str] = mapped_column(String(64))
+    tag: Mapped[str] = mapped_column(String(16), default="KHAC")
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64))
+    path: Mapped[str] = mapped_column(String(255))
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    hidden_reason: Mapped[str] = mapped_column(Text, default="")
+    hidden_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
 class CustomerSite(Base):
     __tablename__ = "customer_sites"
 

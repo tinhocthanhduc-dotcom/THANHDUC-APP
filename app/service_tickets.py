@@ -154,6 +154,11 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
             if to_status not in FLOW.get(t.status, ()):
                 raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
                                     {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
+        if to_status == "HOAN_THANH":
+            from .attachments import has_visible  # attachments cũng dùng module này
+
+            if not has_visible(session, "service_ticket", t.id, "SAU"):
+                raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
         if to_status in NEEDS_REASON and len(note) < 3:
             raise BusinessError("REASON_REQUIRED", "Phải ghi lý do.")
         if to_status == "DA_HEN":

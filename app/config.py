@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     search_limit: int = 20
     # Bật trên máy chủ thật (HTTPS) để trình duyệt chỉ gửi cookie đăng nhập qua kết nối mã hóa.
     cookie_secure: bool = False
+    # Thư mục lưu tệp đính kèm (ảnh nghiệm thu, biên bản). Sao lưu cùng database.
+    files_dir: str = "data/files"
+    max_upload_mb: int = 15
 
 
 @lru_cache
