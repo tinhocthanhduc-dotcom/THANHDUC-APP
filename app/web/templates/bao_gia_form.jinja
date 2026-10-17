@@ -6,6 +6,7 @@
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if q %}<p>Trạng thái: <strong>{{ statuses[q.status] }}</strong></p>{% endif %}
+{% if q and q.status=='CHAP_NHAN' %}{% if linked_order %}<p><a class="btn" href="/don-ban/{{ linked_order.id }}">Đơn bán: {{ linked_order.number }}</a></p>{% elif can_write %}<p><a class="btn primary" href="/don-ban/tu-bao-gia/{{ q.id }}">Tạo đơn bán</a></p>{% endif %}{% endif %}
 {% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
 {% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
 {% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}

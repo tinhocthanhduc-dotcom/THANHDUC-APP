@@ -1890,3 +1890,259 @@ def test_b1_web_roles_and_csrf(client, web_login, db, b1_catalog):
     csrf = web_login('b1.tech', 'technician')
     assert client.get('/bao-gia').status_code == 403
     assert client.post('/bao-gia/moi',data=b1_form(csrf)).status_code == 403
+
+
+@pytest.fixture
+def b3_catalog(db, b1_catalog, make_user):
+    from datetime import date
+    from app import stock_docs, stock_posting
+    from app.models import Supplier, Warehouse
+    from app.schemas import StockDocIn
+    db.get(Customer,'KTD-000001').address='58 Mã Lò'
+    db.add_all([Warehouse(code='K58',name='Kho 58'),Warehouse(code='K145',name='Kho 145'),
+                Supplier(code='NCC-0001',name='Nhà cung cấp')])
+    db.commit()
+    user=make_user('b3.seed','warehouse')
+    doc=stock_docs.create(db,user,StockDocIn(kind='PN',warehouse_code='K58',doc_date=date(2026,10,17),supplier_code='NCC-0001',
+              lines=[dict(product_code='TD-0001',qty=5,unit_cost=80000)]))
+    stock_posting.post(db,user,doc.id,doc.version)
+
+
+def b3_form(csrf, **changes):
+    data=dict(csrf=csrf,customer_code='KTD-000001',contact_name='Chị Lan',delivery_address='',note='Giao buổi sáng',
+              product_code=['TD-0001',''],description=['Máy in','Công lắp đặt'],qty=['2','1.5'],unit=['cái','lần'],
+              unit_price=['120.000','333'],kind_0='HANG',kind_1='KHAC',warehouse_0='K58',warehouse_1='',vat_0='10',vat_1='10')
+    data.update(changes)
+    return data
+
+
+def b3_create(client,db,csrf,**changes):
+    from app.models import SalesOrder
+    r=client.post('/don-ban/moi',data=b3_form(csrf,**changes),follow_redirects=False)
+    assert r.status_code==303,r.text
+    db.expire_all()
+    return db.query(SalesOrder).order_by(SalesOrder.id.desc()).first()
+
+
+def b3_action(client,db,csrf,order,action,**data):
+    db.expire_all()
+    return client.post(f'/don-ban/{order.id}/{action}',data=dict(csrf=csrf,version=order.version,**data))
+
+
+def b3_quote(db):
+    from app import quotes
+    from app.models import User
+    from app.schemas import QuoteIn
+    user=db.query(User).filter_by(username='b3.sales').one()
+    q=quotes.create(db,user,QuoteIn(customer_code='KTD-000001',contact_name='Chị Lan',note='Theo báo giá',lines=[
+        dict(product_code='TD-0001',qty=2,unit_price=120000,vat_rate=10),
+        dict(description='Công',qty='1.5',unit_price=333,unit='lần',vat_rate=10)]))
+    quotes.send(db,user,q.id,q.version)
+    quotes.accept(db,user,q.id,q.version)
+    return q
+
+
+def test_b3_sales_creates_confirms_delivers_two_lines(client,db,web_login,b3_catalog):
+    from decimal import Decimal
+    from app.models import StockBalance,StockDoc,StockLedger
+    csrf=web_login('b3.sales','sales')
+    assert client.get('/don-ban/moi').status_code==200
+    order=b3_create(client,db,csrf)
+    assert order.total==264550 and order.lines[0].unit_price==120000 and order.delivery_address=='58 Mã Lò'
+    assert 'Đơn bán' in client.get('/don-ban').text
+    assert b3_action(client,db,csrf,order,'confirm').status_code==200
+    response=b3_action(client,db,csrf,order,'deliver')
+    assert response.status_code==200 and 'Đã giao' in response.text
+    db.expire_all()
+    px=db.query(StockDoc).filter_by(kind='PX').one()
+    assert order.status=='DA_GIAO' and px.status=='DA_GHI'
+    assert px.number in response.text and f'href="/phieu-kho/{px.id}"' in response.text
+    assert db.get(StockBalance,('K58','TD-0001')).qty==Decimal(3)
+    assert db.query(StockLedger).filter_by(doc_id=px.id).count()==1
+    assert order.number in client.get('/don-ban?q=minh phat&status=DA_GIAO&phan=1').text
+    assert order.number not in client.get('/don-ban?from=2000-01-01&to=2000-01-02&phan=1').text
+    assert order.number not in client.get('/don-ban?status=NHAP&phan=1').text
+
+
+def test_b3_create_from_accepted_quote_and_link(client,db,web_login,b3_catalog):
+    from app.models import SalesOrder
+    csrf=web_login('b3.sales','sales')
+    q=b3_quote(db)
+    page=client.get(f'/bao-gia/{q.id}')
+    assert f'href="/don-ban/tu-bao-gia/{q.id}"' in page.text and 'Tạo đơn bán' in page.text
+    page=client.get(f'/don-ban/tu-bao-gia/{q.id}')
+    assert page.status_code==200 and '58 Mã Lò' in page.text and 'warehouse_1' in page.text
+    form=dict(csrf=csrf,version=q.version,warehouse_1='K58',contact_name='Anh Sơn',delivery_address='145 Mã Lò',note='Chọn kho giao')
+    r=client.post(f'/don-ban/tu-bao-gia/{q.id}',data=form,follow_redirects=False)
+    assert r.status_code==303
+    db.expire_all()
+    order=db.query(SalesOrder).one()
+    assert order.quote_id==q.id and order.total==q.total and order.delivery_address=='145 Mã Lò'
+    assert order.lines[0].warehouse_code=='K58' and order.lines[1].kind=='KHAC'
+    page=client.get(f'/bao-gia/{q.id}')
+    assert f'href="/don-ban/{order.id}"' in page.text and order.number in page.text and 'Tạo đơn bán' not in page.text
+    repeated=client.post(f'/don-ban/tu-bao-gia/{q.id}',data=form)
+    assert repeated.status_code==409 and 'QUOTE_USED' in repeated.text and order.number in repeated.text
+    assert 'Chọn kho giao' in repeated.text
+    b3_action(client,db,csrf,order,'cancel',reason='Thay cách giao')
+    assert 'Tạo đơn bán' in client.get(f'/bao-gia/{q.id}').text
+    # Thiếu các trường tùy chọn trong POST vẫn dùng mặc định nguồn/địa chỉ khách.
+    r=client.post(f'/don-ban/tu-bao-gia/{q.id}',data=dict(csrf=csrf,version=q.version,warehouse_1='K58'))
+    assert r.status_code==200
+    db.expire_all()
+    latest=db.query(SalesOrder).order_by(SalesOrder.id.desc()).first()
+    assert latest.contact_name=='Chị Lan' and latest.delivery_address=='58 Mã Lò'
+
+
+def test_b3_shortage_shows_product_warehouse_and_preserves_order(client,db,web_login,b3_catalog):
+    from decimal import Decimal
+    from app.models import StockBalance,StockDoc
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf,qty=['6','1.5'])
+    b3_action(client,db,csrf,order,'confirm')
+    response=b3_action(client,db,csrf,order,'deliver')
+    assert response.status_code==409 and 'NEGATIVE_STOCK' in response.text
+    assert 'Không đủ tồn' in response.text and 'Mã hàng TD-0001, kho K58: tồn 5, cần 6' in response.text
+    db.expire_all()
+    assert order.status=='DA_CHOT' and order.lines[0].qty==Decimal(6)
+    assert db.get(StockBalance,('K58','TD-0001')).qty==Decimal(5)
+    assert db.query(StockDoc).filter_by(kind='PX').count()==0
+    assert '120.000' in response.text and 'Giao buổi sáng' in response.text
+
+
+def test_b3_cancel_delivered_requires_reason_and_returns_stock(client,db,web_login,b3_catalog):
+    from decimal import Decimal
+    from app.models import StockBalance,StockDoc
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    b3_action(client,db,csrf,order,'confirm')
+    page=b3_action(client,db,csrf,order,'deliver')
+    assert 'data-order-cancel' in page.text and 'Hủy sẽ trả hàng về kho' in page.text
+    response=b3_action(client,db,csrf,order,'cancel')
+    assert response.status_code==400 and 'REASON_REQUIRED' in response.text
+    db.expire_all()
+    assert order.status=='DA_GIAO'
+    response=b3_action(client,db,csrf,order,'cancel',reason='Khách trả hàng')
+    assert response.status_code==200 and 'Đã hủy' in response.text and 'Khách trả hàng' in response.text
+    db.expire_all()
+    assert order.status=='DA_HUY' and order.receivable==0
+    assert db.get(StockBalance,('K58','TD-0001')).qty==Decimal(5)
+    assert db.query(StockDoc).filter_by(kind='PX').one().status=='DA_HUY'
+
+
+def test_b3_warehouse_can_deliver_without_edit_and_technician_forbidden(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    b3_action(client,db,csrf,order,'confirm')
+    csrf=web_login('b3.warehouse','warehouse')
+    page=client.get(f'/don-ban/{order.id}')
+    assert page.status_code==200 and '>Giao hàng</button>' in page.text
+    assert '>Lưu đơn</button>' not in page.text and '>Chốt đơn</button>' not in page.text and '>Hủy đơn</button>' not in page.text
+    assert client.post('/don-ban/moi',data=b3_form(csrf)).status_code==403
+    assert client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=order.version)).status_code==403
+    assert b3_action(client,db,csrf,order,'confirm').status_code==403
+    assert b3_action(client,db,csrf,order,'cancel',reason='Không có quyền').status_code==403
+    assert b3_action(client,db,csrf,order,'deliver').status_code==200
+    csrf=web_login('b3.technician','technician')
+    for path in ('/don-ban',f'/don-ban/{order.id}',f'/don-ban/{order.id}/in-giao','/don-ban/tim-hang?q=may in','/don-ban/tu-bao-gia/1'):
+        assert client.get(path).status_code==403
+    assert b3_action(client,db,csrf,order,'deliver').status_code==403
+    assert client.post('/don-ban/moi',data=b3_form(csrf)).status_code==403
+
+
+def test_b3_all_posts_require_csrf(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    q=b3_quote(db)
+    posts=[('/don-ban/moi',b3_form('')), (f'/don-ban/{order.id}',b3_form('',version=order.version)),
+           (f'/don-ban/{order.id}/confirm',dict(version=order.version)),
+           (f'/don-ban/{order.id}/deliver',dict(version=order.version)),
+           (f'/don-ban/{order.id}/cancel',dict(version=order.version,reason='Khách hủy')),
+           (f'/don-ban/tu-bao-gia/{q.id}',dict(version=q.version,warehouse_1='K58'))]
+    for path,data in posts:
+        r=client.post(path,data=data)
+        assert r.status_code==403 and 'Trang đã cũ' in r.text
+    db.expire_all()
+    assert order.status=='NHAP'
+
+
+def test_b3_print_delivery_money_words_company_and_signatures(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    b3_action(client,db,csrf,order,'confirm')
+    page=b3_action(client,db,csrf,order,'deliver')
+    assert f'/don-ban/{order.id}/in-giao' in page.text
+    r=client.get(f'/don-ban/{order.id}/in-giao')
+    assert r.status_code==200
+    for expected in (order.number,'PHIẾU GIAO HÀNG','Hai trăm sáu mươi bốn nghìn năm trăm năm mươi đồng',
+                     'Người giao','Người nhận','58 Mã Lò','0313015734','0888 304 668','1,5'):
+        assert expected in r.text
+
+
+def test_b3_money_inputs_use_text_and_touch_choices(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    page=client.get(f'/don-ban/{order.id}')
+    inputs=re.findall(r'<input\b[^>]*name="unit_price"[^>]*>',page.text)
+    assert len(inputs)>=2
+    assert all('data-money' in tag and 'type="number"' not in tag and 'inputmode="numeric"' in tag for tag in inputs)
+    assert 'value="120.000"' in page.text and 'data-live=".order-options"' in page.text
+    assert 'data-order-kind' in page.text and 'data-order-warehouse' in page.text and 'data-order-vat' in page.text
+    assert '<select' not in page.text
+    assert 'Máy in' in client.get('/don-ban/tim-hang?q=may in').text
+    assert 'data-address="58 Mã Lò"' in client.get('/don-ban/tim-khach?q=minh phat').text
+
+
+def test_b3_stale_version_keeps_form_data(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    version=order.version
+    assert client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=version)).status_code==200
+    r=client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=version,qty=['7,5','1.5'],unit_price=['999.000','333'],
+        delivery_address='Địa chỉ vừa nhập',note='Giữ dòng của tôi',warehouse_0='K145'))
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
+    assert 'value="999.000"' in r.text and 'value="7,5"' in r.text and 'Giữ dòng của tôi' in r.text
+    assert 'Địa chỉ vừa nhập' in r.text
+    db.expire_all()
+    assert order.lines[0].unit_price==120000 and order.lines[0].warehouse_code=='K58'
+    assert b3_action(client,db,csrf,order,'confirm').status_code==200
+    assert client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=order.version)).status_code==409
+
+
+def test_b3_draft_missing_warehouse_and_invalid_input_preserved(client,db,web_login,b3_catalog):
+    from app.models import SalesOrder
+    csrf=web_login('b3.sales','sales')
+    invalid=client.post('/don-ban/moi',data=b3_form(csrf,qty=['0','1.5'],delivery_address='Giao tại đây'))
+    assert invalid.status_code==400 and 'Số lượng' in invalid.text and 'Giao tại đây' in invalid.text and 'value="0"' in invalid.text
+    assert db.query(SalesOrder).count()==0
+    order=b3_create(client,db,csrf,warehouse_0='')
+    r=b3_action(client,db,csrf,order,'confirm')
+    assert r.status_code==400 and 'WAREHOUSE_REQUIRED' in r.text and 'chọn kho xuất' in r.text
+    assert client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=order.version,delivery_address='Giao tại đây')).status_code==200
+    assert b3_action(client,db,csrf,order,'confirm').status_code==200
+
+
+def test_b3_from_quote_stale_preserves_fields(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    q=b3_quote(db)
+    r=client.post(f'/don-ban/tu-bao-gia/{q.id}',data=dict(csrf=csrf,version=1,warehouse_1='K145',contact_name='Chị Hương',
+            delivery_address='Giao ở địa điểm mới',note='Giữ yêu cầu'))
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
+    assert 'Chị Hương' in r.text and 'Giao ở địa điểm mới' in r.text and 'Giữ yêu cầu' in r.text
+    assert re.search(r'name="warehouse_1" value="K145" checked',r.text)
+    assert 'name="version" value="1"' in r.text
+
+
+def test_b3_finance_read_only_and_date_errors(client,db,web_login,b3_catalog):
+    csrf=web_login('b3.sales','sales')
+    order=b3_create(client,db,csrf)
+    csrf=web_login('b3.finance','finance')
+    for path in ('/don-ban',f'/don-ban/{order.id}',f'/don-ban/{order.id}/in-giao'):
+        page=client.get(path)
+        assert page.status_code==200 and '>Lưu đơn</button>' not in page.text and '>Chốt đơn</button>' not in page.text
+    assert client.get('/don-ban/moi').status_code==403
+    assert client.post('/don-ban/moi',data=b3_form(csrf)).status_code==403
+    assert b3_action(client,db,csrf,order,'deliver').status_code==403
+    r=client.get('/don-ban?from=2026-10-18&to=2026-10-17')
+    assert r.status_code==400 and 'Ngày bắt đầu' in r.text and 'value="2026-10-18"' in r.text
+    assert client.get('/don-ban?from=sai&phan=1').status_code==400

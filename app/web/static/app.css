@@ -223,3 +223,7 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .quote-print tr { break-inside: avoid; }
   .quote-print thead { display: table-header-group; }
 }
+
+[data-order-goods][hidden] { display: none; }
+[data-order-goods] { min-width: 0; }
+[data-order-form] textarea { overflow-wrap: anywhere; }

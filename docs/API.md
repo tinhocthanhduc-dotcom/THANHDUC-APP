@@ -267,3 +267,11 @@ Tất cả thao tác ghi audit trước/sau và kiểm version của đối tư�
 | NEGATIVE_STOCK | 409 | Thiếu tồn, giữ nguyên DA_CHOT; `details.warehouse`, `product`, `available`, `requested` |
 
 Lỗi từ lõi kho (ví dụ `DOC_NOT_POSTED`, `VOID_COST_CONFLICT`) được giữ nguyên mã/message/details và rollback toàn bộ đơn. Phản hồi lỗi theo chuẩn `{ "error": "CODE", "message": "Câu tiếng Việt", "details": {} }`.
+
+## Màn hình đơn bán (B3)
+
+`/don-ban` dùng `sales_orders.search` để lọc trạng thái, số/tên khách không dấu và khoảng ngày tạo (giờ Việt Nam). `/don-ban/moi`, `/don-ban/{id}` gọi create/update_lines; Chốt/Giao/Hủy gọi confirm/deliver/cancel. Mọi POST có CSRF và version. Tiền chỉ bỏ dấu chấm khi nhập, tổng chính thức do lõi trả; ô tiền không dùng type=number. Lỗi thiếu tồn hiện mã hàng, kho, tồn và số cần. Nháp được thiếu kho; chốt phải đủ kho. Nếu còn thay đổi chưa lưu, trình duyệt nhắc Lưu trước khi Chốt. Hủy đơn đã giao yêu cầu lý do và hỏi xác nhận trả hàng về kho.
+
+Khách cố định sau khi tạo theo hợp đồng B2; có thể sửa liên hệ, địa chỉ giao, ghi chú và toàn bộ dòng khi nháp. Ô tìm/chọn khách tự điền địa chỉ, vẫn cho sửa. Chọn hàng tự điền mã/giá bán; loại dòng, kho và VAT dùng nút chạm.
+
+Trên báo giá CHAP_NHAN, nút Tạo đơn bán mở `/don-ban/tu-bao-gia/{quote_id}` để chọn kho, địa chỉ và liên hệ, rồi gọi create_from_quote. Báo giá đã có đơn chưa hủy hiện link đơn thay nút; sau hủy có thể lập lại. `/don-ban/{id}/in-giao` in A4 bằng trình duyệt, dùng thông tin công ty và money_words của B1. Trang có trạng thái đơn, địa chỉ giao, số lượng/đơn vị, tổng và chữ ký Người giao/Người nhận. Không thêm màn hình ghi kho hoặc thay đổi lõi B1/B2/K/D.

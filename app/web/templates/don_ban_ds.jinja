@@ -1,0 +1,11 @@
+{% extends 'base.jinja' %}
+{% block title %}Đơn bán{% endblock %}
+{% block main %}
+<div class="bar"><h1>Đơn bán</h1>{% if can_write %}<a class="btn primary" href="/don-ban/moi">+ Tạo đơn bán</a>{% endif %}</div>
+<form action="/don-ban" class="form quote-filters" role="search" data-order-filter>
+<label>Tìm đơn<input name="q" value="{{ q }}" placeholder="Số DB hoặc tên khách không dấu" data-live="#order-rows"></label>
+<fieldset><legend>Trạng thái</legend><div class="seg stock-seg"><label><input type="radio" name="status" value="" {% if not selected_status %}checked{% endif %}><span>Tất cả</span></label>{% for value,label in statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
+<div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ from_date }}"></label><label>Đến ngày<input type="date" name="to" value="{{ to_date }}"></label></div><button>Lọc</button>
+</form><div id="order-rows">{% include 'don_ban_dong.jinja' %}</div>
+<script src="/static/orders.js" defer></script>
+{% endblock %}
