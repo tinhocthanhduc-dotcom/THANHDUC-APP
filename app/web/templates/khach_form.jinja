@@ -85,4 +85,5 @@
     <input name="contact_note" placeholder="Chức vụ, ghi chú">
   </div>
 </template>
+{% if c.code %}{% include "dia_diem_khach.jinja" %}{% endif %}
 {% endblock %}

@@ -358,3 +358,46 @@ class ServiceStep(Base):
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     note: Mapped[str] = mapped_column(Text, default="")
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CustomerSite(Base):
+    __tablename__ = "customer_sites"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey("customers.code"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    address: Mapped[str] = mapped_column(Text, default="")
+    contact_name: Mapped[str] = mapped_column(String(200), default="")
+    contact_phone: Mapped[str] = mapped_column(String(32), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class Equipment(Base):
+    __tablename__ = "equipment"
+    __table_args__ = (
+        CheckConstraint("condition in ('MOI','CU')", name="ck_equipment_condition"),
+        Index("ix_equipment_search", "search_text", postgresql_using="gin", postgresql_ops={"search_text": "gin_trgm_ops"}),
+    )
+
+    serial: Mapped[str] = mapped_column(String(64), primary_key=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"))
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey("customers.code"), index=True)
+    site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
+    warranty_until: Mapped[date | None] = mapped_column(Date)
+    condition: Mapped[str] = mapped_column(String(3), default="MOI")
+    note: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    search_text: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __mapper_args__ = {"version_id_col": version}

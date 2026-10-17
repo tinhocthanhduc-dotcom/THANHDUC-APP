@@ -1,0 +1,7 @@
+{% extends "base.jinja" %}
+{% block title %}Thiết bị{% endblock %}
+{% block main %}
+<div class="bar"><h1>Thiết bị</h1>{% if can_device_write %}<a class="btn primary" href="/thiet-bi/moi">+ Thêm thiết bị</a>{% endif %}</div>
+<form action="/thiet-bi" class="search"><input name="q" value="{{ q }}" placeholder="Serial, tên hàng, tên khách (không dấu cũng được)" data-live="#device-results" aria-label="Tìm thiết bị"><button>Tìm</button></form>
+<div id="device-results">{% include 'thiet_bi_dong.jinja' %}</div>
+{% endblock %}

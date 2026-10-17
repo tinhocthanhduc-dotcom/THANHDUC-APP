@@ -119,3 +119,12 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .opening-table th, .opening-table td { text-align: left; vertical-align: top; padding: 8px; border: 1px solid var(--line); overflow-wrap: anywhere; }
 .opening-table th:first-child { width: 20%; }
 .opening-table th:nth-child(2) { width: 30%; }
+
+.device-sites { margin-top: 20px; }
+.device-sites h2, .device-sites h3 { margin: 4px 0; overflow-wrap: anywhere; }
+.device-options { display: grid; gap: 4px; }
+.device-options button { text-align: left; min-height: 44px; overflow-wrap: anywhere; }
+.device-list a, [data-device-form] { overflow-wrap: anywhere; }
+[data-picker] { min-width: 0; }
+
+.device-header h1 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }

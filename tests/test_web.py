@@ -661,3 +661,236 @@ def test_k7_concurrent_writes_have_one_winner(client, web_login, stock_catalog, 
     assert sorted(results) == ['OK', 'VERSION_CONFLICT']
     assert db.query(StockMinLevel).count() == 1
     assert db.query(AuditLog).filter_by(entity='stock_min_level').count() == (1 if creating else 2)
+
+
+@pytest.fixture
+def d1_catalog(db):
+    db.add_all([Customer(code='KTD-000001', name='Minh Phát', search_text='ktd-000001 minh phat'),
+                Customer(code='KTD-000002', name='Hoàng Anh', search_text='ktd-000002 hoang anh'),
+                Product(code='TD-0001', name='Máy in', search_text='td-0001 may in'),
+                Product(code='TD-0002', name='Máy photo', search_text='td-0002 may photo')])
+    db.commit()
+
+
+def site_form(csrf, **kw):
+    return dict(csrf=csrf, name='Chi nhánh 58', address='58 Lê Lợi', contact_name='Chị Lan',
+                contact_phone='0901234567', note='Ghi chú địa điểm', active='1', **kw)
+
+
+def device_form(csrf, **kw):
+    data = dict(csrf=csrf, serial='ab 123', product_code='TD-0001', customer_code='KTD-000001', site_id='',
+                warranty_until='2027-12-31', condition='MOI', note='Thiết bị quầy 1', active='1')
+    data.update(kw)
+    return data
+
+
+def test_d1_two_sites_on_customer_page(client, web_login, d1_catalog, db):
+    from app.models import CustomerSite
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    for name in ('Chi nhánh 58', 'Chi nhánh 145'):
+        data = site_form(csrf); data['name'] = name
+        r = client.post('/khach-hang/KTD-000001/dia-diem/moi', data=data, follow_redirects=False)
+        assert r.status_code == 303, r.text
+    page = client.get('/khach-hang/KTD-000001').text
+    assert '<h2>Địa điểm</h2>' in page and '<h3>Chi nhánh 58' in page and '<h3>Chi nhánh 145' in page
+    assert 'Chi nhánh 58' not in client.get('/khach-hang/KTD-000002').text
+    assert db.query(CustomerSite).count() == 2
+
+
+def test_d1_serial_normalized_and_duplicate_keeps_form(client, web_login, d1_catalog, db):
+    from app.models import Equipment
+    csrf = web_login('ky.thuat', 'technician')
+    r = client.post('/thiet-bi/moi', data=device_form(csrf), follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'].startswith('/thiet-bi/AB123')
+    row = db.get(Equipment, 'AB123')
+    assert row.serial == 'AB123' and row.active
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, serial='AB123', note='Giữ dữ liệu trùng'))
+    assert r.status_code == 409 and 'Số sê-ri đã có' in r.text
+    assert 'value="AB123"' in r.text and 'Giữ dữ liệu trùng' in r.text and 'value="2027-12-31"' in r.text
+    assert db.query(Equipment).count() == 1
+
+
+def test_d1_wrong_customer_site_rejected(client, web_login, d1_catalog, db):
+    from app.models import CustomerSite, Equipment
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    client.post('/khach-hang/KTD-000002/dia-diem/moi', data=site_form(csrf))
+    site = db.query(CustomerSite).one()
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, site_id=site.id))
+    assert r.status_code == 400 and 'Địa điểm phải thuộc đúng khách hàng' in r.text
+    assert db.query(Equipment).count() == 0
+    client.post('/thiet-bi/moi', data=device_form(csrf, customer_code='KTD-000002', site_id=site.id))
+    r = client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, customer_code='KTD-000001', site_id=site.id))
+    assert r.status_code == 400
+    db.expire_all()
+    assert db.get(Equipment, 'AB123').customer_code == 'KTD-000002'
+
+
+def test_d1_find_without_accents_and_compact_serial(client, web_login, d1_catalog):
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    client.post('/thiet-bi/moi', data=device_form(csrf))
+    for q in ('may in', 'minh phat', 'ab 123'):
+        page = client.get('/thiet-bi', params={'q': q, 'phan': 1})
+        assert page.status_code == 200 and 'AB123' in page.text and 'Máy in' in page.text
+        assert '<html' not in page.text
+    assert 'AB123' not in client.get('/thiet-bi?q=100%25&phan=1').text
+
+
+def test_d1_stale_version_keeps_equipment_and_site_input(client, web_login, d1_catalog, db):
+    from app.models import CustomerSite, Equipment
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    client.post('/thiet-bi/moi', data=device_form(csrf))
+    assert client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, note='Đã lưu mới')).status_code == 200
+    r = client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, warranty_until='2030-01-02', note='Không được lưu'))
+    assert r.status_code == 409 and 'Người khác vừa sửa thiết bị' in r.text
+    assert 'value="2030-01-02"' in r.text and 'Không được lưu' in r.text and 'name="version" value="1"' in r.text
+    db.expire_all()
+    assert db.get(Equipment, 'AB123').note == 'Đã lưu mới'
+    client.post('/khach-hang/KTD-000001/dia-diem/moi', data=site_form(csrf))
+    site = db.query(CustomerSite).one()
+    url = f'/khach-hang/KTD-000001/dia-diem/{site.id}'
+    data = site_form(csrf); data.update(version=1, contact_phone='0902222222')
+    assert client.post(url, data=data).status_code == 200
+    data.update(contact_phone='0903333333')
+    r = client.post(url, data=data)
+    assert r.status_code == 409 and 'Người khác vừa sửa địa điểm' in r.text and 'value="0903333333"' in r.text
+    assert f'action="{url}"' in r.text
+
+
+def test_d1_sales_read_only_and_csrf(client, web_login, d1_catalog, db):
+    from app.models import CustomerSite, Equipment
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    client.post('/khach-hang/KTD-000001/dia-diem/moi', data=site_form(csrf))
+    site = db.query(CustomerSite).one()
+    client.post('/thiet-bi/moi', data=device_form(csrf))
+    csrf = web_login('ban.hang', 'sales')
+    for path in ['/thiet-bi', '/thiet-bi/moi', '/thiet-bi/AB123', '/khach-hang/KTD-000001']:
+        page = client.get(path)
+        assert page.status_code == 200
+        assert '>Lưu thiết bị<' not in page.text and '>Lưu địa điểm<' not in page.text and '>Thêm địa điểm<' not in page.text
+    for path, data in [('/thiet-bi/moi', device_form(csrf)), ('/thiet-bi/AB123', device_form(csrf, version=1)),
+                       ('/khach-hang/KTD-000001/dia-diem/moi', site_form(csrf)),
+                       (f'/khach-hang/KTD-000001/dia-diem/{site.id}', {**site_form(csrf), 'version': 1})]:
+        assert client.post(path, data=data).status_code == 403
+    csrf = web_login('ky.thuat', 'technician')
+    for path, data in [('/thiet-bi/moi', device_form(csrf)), ('/thiet-bi/AB123', device_form(csrf, version=1)),
+                       ('/khach-hang/KTD-000001/dia-diem/moi', site_form(csrf)),
+                       (f'/khach-hang/KTD-000001/dia-diem/{site.id}', {**site_form(csrf), 'version': 1})]:
+        data.pop('csrf')
+        assert client.post(path, data=data).status_code == 403
+    assert db.query(Equipment).count() == 1
+
+
+def test_d1_audit_and_soft_deactivation(client, web_login, d1_catalog, db):
+    from app.models import AuditLog, CustomerSite, Equipment
+    csrf = web_login('giam.doc', 'director')
+    client.post('/khach-hang/KTD-000001/dia-diem/moi', data=site_form(csrf))
+    site = db.query(CustomerSite).one()
+    data = site_form(csrf); data.pop('active'); data.update(version=1)
+    r = client.post(f'/khach-hang/KTD-000001/dia-diem/{site.id}', data=data)
+    assert r.status_code == 200
+    client.post('/thiet-bi/moi', data=device_form(csrf))
+    data = device_form(csrf, version=1); data.pop('active')
+    assert client.post('/thiet-bi/AB123', data=data).status_code == 200
+    db.expire_all()
+    assert db.query(CustomerSite).count() == 1 and not db.get(CustomerSite, site.id).active
+    assert db.query(Equipment).count() == 1 and not db.get(Equipment, 'AB123').active
+    logs = db.query(AuditLog).filter(AuditLog.entity.in_(['customer_site', 'equipment'])).order_by(AuditLog.id).all()
+    assert [x.action for x in logs] == ['customer_site.create', 'customer_site.update', 'equipment.create', 'equipment.update']
+    assert logs[0].before is None and logs[1].before['active'] and not logs[1].after['active']
+    assert logs[2].before is None and logs[3].before['active'] and not logs[3].after['active']
+    assert 'Ngừng dùng' in client.get('/thiet-bi').text
+    assert client.delete('/thiet-bi/AB123').status_code == 405
+
+
+def test_d1_picker_sites_scoped_and_optional_ownership(client, web_login, d1_catalog, db):
+    from app.models import CustomerSite, Equipment
+    csrf = web_login('ky.thuat', 'technician')
+    client.post('/khach-hang/KTD-000001/dia-diem/moi', data=site_form(csrf))
+    data = site_form(csrf); data['name'] = 'Khách thứ hai'
+    client.post('/khach-hang/KTD-000002/dia-diem/moi', data=data)
+    r = client.get('/thiet-bi/dia-diem?customer_code=KTD-000001')
+    assert 'Chi nhánh 58' in r.text and 'Khách thứ hai' not in r.text
+    assert 'Máy in' in client.get('/thiet-bi/tim-hang?q=may+in').text
+    assert 'Minh Phát' in client.get('/thiet-bi/tim-khach?q=minh+phat').text
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, serial=' ab\t12\u00a03 ', customer_code='', warranty_until=''))
+    assert r.status_code == 200, r.text
+    row = db.get(Equipment, 'AB123')
+    assert row.customer_code is None and row.site_id is None and row.warranty_until is None
+    site = db.query(CustomerSite).filter_by(customer_code='KTD-000002').one()
+    assert client.post('/khach-hang/KTD-000001/dia-diem/' + str(site.id), data={**site_form(csrf), 'version': 1}).status_code == 404
+
+
+def test_d1_invalid_fields_keep_form(client, web_login, d1_catalog):
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    for kw in ({'serial': '   '}, {'site_id': 'not-an-id'}, {'condition': 'X'}, {'warranty_until': 'bad'}):
+        r = client.post('/thiet-bi/moi', data=device_form(csrf, **kw))
+        assert r.status_code == 400
+    r = client.post('/khach-hang/KTD-000001/dia-diem/moi', data={**site_form(csrf), 'name': ''})
+    assert r.status_code == 400 and 'Tên địa điểm chưa hợp lệ' in r.text
+
+
+@pytest.mark.parametrize('entity', ['site', 'equipment'])
+def test_d1_concurrent_update_one_winner(client, web_login, d1_catalog, db, engine, monkeypatch, entity):
+    import threading
+    from sqlalchemy.orm import Session
+    from app import customer_sites, equipment
+    from app.errors import BusinessError
+    from app.models import CustomerSite, User, AuditLog
+    from app.schemas import CustomerSitePatch, EquipmentPatch
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    client.post('/khach-hang/KTD-000001/dia-diem/moi', data=site_form(csrf))
+    site_id = db.query(CustomerSite).one().id
+    client.post('/thiet-bi/moi', data=device_form(csrf))
+    user_id = db.query(User).filter_by(username='dieu.phoi').one().id
+    svc = customer_sites if entity == 'site' else equipment
+    original = svc.snapshot
+    barrier = threading.Barrier(2)
+    def snapshot(row):
+        if row.version == 1:
+            barrier.wait(timeout=10)
+        return original(row)
+    monkeypatch.setattr(svc, 'snapshot', snapshot)
+    results = []
+    def write(note):
+        with Session(engine, expire_on_commit=False) as session:
+            user = session.get(User, user_id)
+            try:
+                if entity == 'site':
+                    svc.update(session, user, site_id, CustomerSitePatch(version=1, note=note))
+                else:
+                    svc.update(session, user, 'AB123', EquipmentPatch(version=1, note=note))
+                results.append('OK')
+            except BusinessError as exc:
+                results.append(exc.code)
+    threads = [threading.Thread(target=write, args=(note,)) for note in ('A', 'B')]
+    for t in threads: t.start()
+    for t in threads: t.join(timeout=15)
+    assert sorted(results) == ['OK', 'VERSION_CONFLICT']
+    action = 'customer_site.update' if entity == 'site' else 'equipment.update'
+    assert db.query(AuditLog).filter_by(action=action).count() == 1
+
+
+def test_d1_concurrent_duplicate_serial(client, web_login, d1_catalog, db, engine):
+    import threading
+    from sqlalchemy.orm import Session
+    from app import equipment
+    from app.errors import BusinessError
+    from app.models import AuditLog, Equipment, User
+    from app.schemas import EquipmentIn
+    web_login('dieu.phoi', 'dispatcher')
+    user_id = db.query(User).filter_by(username='dieu.phoi').one().id
+    results = []
+    def create(serial):
+        with Session(engine, expire_on_commit=False) as session:
+            user = session.get(User, user_id)
+            try:
+                equipment.create(session, user, EquipmentIn(serial=serial, product_code='TD-0001'))
+                results.append('OK')
+            except BusinessError as exc:
+                results.append(exc.code)
+    threads = [threading.Thread(target=create, args=(serial,)) for serial in ('ab 123', 'AB123', ' ab123 ')]
+    for t in threads: t.start()
+    for t in threads: t.join(timeout=15)
+    assert sorted(results) == ['DUPLICATE_SERIAL', 'DUPLICATE_SERIAL', 'OK']
+    assert db.query(Equipment).count() == 1
+    assert db.query(AuditLog).filter_by(action='equipment.create').count() == 1
