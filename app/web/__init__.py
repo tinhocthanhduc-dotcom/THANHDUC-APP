@@ -452,3 +452,7 @@ router.include_router(opening_router)
 from .devices import router as device_router
 
 router.include_router(device_router)
+
+from .services import router as services_router
+
+router.include_router(services_router)

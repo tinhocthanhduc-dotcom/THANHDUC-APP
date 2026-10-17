@@ -1,0 +1,19 @@
+{% extends "base.jinja" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>{{ heading }}</h1>{% if can_create %}<a class="btn primary" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}</div>
+<form action="/dich-vu" class="form service-filters" role="search">
+  <label>Tìm phiếu<input name="q" value="{{ q }}" placeholder="Số DV, serial, tên khách" data-live="#rows"></label>
+  <fieldset><legend>Trạng thái</legend><div class="seg stock-seg">
+    <label><input type="radio" name="status" value="" {% if not selected_status %}checked{% endif %}><span>Tất cả</span></label>
+    {% for value, label in service_statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status == value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+  </div></fieldset>
+  {% if not own_only %}<fieldset><legend>Thợ</legend><div class="seg stock-seg">
+    <label><input type="radio" name="assignee_id" value="" {% if not selected_assignee %}checked{% endif %}><span>Tất cả</span></label>
+    {% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if selected_assignee == tech.id %}checked{% endif %}><span>{{ tech.full_name }}</span></label>{% endfor %}
+  </div></fieldset>{% endif %}
+  <label class="check"><input type="checkbox" name="overdue" value="1" {% if overdue %}checked{% endif %}>Quá hạn</label>
+  <button>Lọc</button>
+</form>
+<div id="rows">{% include "dich_vu_dong.jinja" %}</div>
+{% endblock %}
