@@ -1019,6 +1019,11 @@ def test_d3_technician_flow_and_photo_required(client, db, service_people, tmp_p
     image = io.BytesIO()
     Image.new('RGB', (8, 8), 'white').save(image, format='PNG')
     attachments.add(db, tech, 'service_ticket', str(ticket.id), 'SAU', 'sau.png', image.getvalue())
+    # D6: phải chọn cách thu trước khi hoàn thành (màn hình tiền làm ở bước sau).
+    from app import service_charges
+    from app.schemas import ServiceCharges
+    service_charges.set_charges(db, tech, ticket.id, ServiceCharges(billing='MIEN_PHI', free_reason='Bảo hành', lines=[]))
+    db.refresh(ticket)
     response = service_action(client, ticket, csrf, to_status='HOAN_THANH', note='Đã sửa xong máy')
     assert response.status_code == 200, response.text
     db.refresh(ticket)
@@ -1182,7 +1187,11 @@ def d5_ticket(db, service_people):
     svc.assign(db, service_people['dispatcher'], t.id, tech.id, t.version)
     svc.transition(db, tech, t.id, 'DA_NHAN', t.version)
     svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=datetime(2026, 10, 20, 2, 30, tzinfo=UTC))
-    return svc.transition(db, tech, t.id, 'DANG_LAM', t.version, 'Đang kiểm tra máy')
+    t = svc.transition(db, tech, t.id, 'DANG_LAM', t.version, 'Đang kiểm tra máy')
+    # D6: chọn cách thu trước để các test hoàn thành chỉ còn kiểm ảnh.
+    from app import service_charges
+    from app.schemas import ServiceCharges
+    return service_charges.set_charges(db, tech, t.id, ServiceCharges(billing='MIEN_PHI', free_reason='Bảo hành', lines=[]))
 
 
 def d5_image():

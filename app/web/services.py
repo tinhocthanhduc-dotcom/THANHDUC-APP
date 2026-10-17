@@ -25,17 +25,18 @@ TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 STATUSES = {
     "MOI": "Mới", "DA_GIAO": "Đã giao", "DA_NHAN": "Đã nhận", "DA_HEN": "Đã hẹn",
     "DANG_LAM": "Đang làm", "CHO_LINH_KIEN": "Chờ linh kiện", "HOAN_THANH": "Hoàn thành",
-    "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Đã hủy",
+    "DA_DONG": "Đã đóng", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Đã hủy",
 }
 KINDS = {"SUA_TAI_CHO": "Sửa tại chỗ", "MANG_VE": "Mang về", "BAO_HANH": "Bảo hành", "MUC_DINH_KY": "Mực định kỳ"}
 PRIORITIES = {"KHAN": "Khẩn", "GAP": "Gấp", "THUONG": "Thường"}
 TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Bắt đầu", "CHO_LINH_KIEN": "Chờ linh kiện",
-    "HOAN_THANH": "Hoàn thành", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
+    "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng phiếu", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy",
-         "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển"}
+         "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
+         "reopen": "Mở lại", "close": "Đóng phiếu"}
 
 
 def local_time(value):
@@ -107,13 +108,15 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
 def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None):
     t = svc.load(session, user, ticket_id)
     dispatcher = has_role(user, *svc.DISPATCHERS)
-    own = "technician" in user.roles and t.assignee_id == user.id
+    own = "technician" in user.roles and t.assignee_id == user.id and t.status != "HOAN_THANH"
     targets = sorted(svc.FLOW.get(t.status, ()), key=lambda s: list(STATUSES).index(s)) if dispatcher or own else []
-    if dispatcher and t.status in svc.OPEN:
+    if dispatcher and t.status in svc.CANCELLABLE:
         targets.append("DA_HUY")
     labels = dict(TRANSITIONS)
     if t.status == "CHO_LINH_KIEN":
         labels["DANG_LAM"] = "Làm tiếp"
+    if t.status == "HOAN_THANH":
+        labels["DANG_LAM"] = "Mở lại"
     if t.status == "DA_HEN":
         labels["DA_HEN"] = "Dời hẹn"
     visible_actions = {"transition:" + target for target in targets}

@@ -4,11 +4,19 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app import attachments, service_sla
+from app import attachments, service_charges, service_sla
 from app import service_tickets as svc
 from app.errors import BusinessError
-from app.models import AuditLog, Customer, ServiceStep, ServiceTicket
-from app.schemas import ServiceTicketIn
+from app.models import (
+    AuditLog,
+    Customer,
+    CustomerSite,
+    Equipment,
+    Product,
+    ServiceStep,
+    ServiceTicket,
+)
+from app.schemas import ServiceCharges, ServiceTicketIn
 
 
 @pytest.fixture
@@ -16,10 +24,19 @@ def people(db, make_user):
     db.add_all([
         Customer(code="KTD-000001", name="Công ty Minh Phát", search_text="cong ty minh phat"),
         Customer(code="KTD-000002", name="Khách đã gộp", status="NGUNG"),
+        Product(code="TD-0001", name="Máy in HP"),
+    ])
+    db.commit()
+    dp = make_user("dieu.phoi", "dispatcher")
+    db.add_all([
+        CustomerSite(customer_code="KTD-000001", name="Văn phòng Q3", created_by=dp.id),
+        CustomerSite(customer_code="KTD-000001", name="Kho cũ", active=False, created_by=dp.id),
+        Equipment(serial="AB123", product_code="TD-0001", customer_code="KTD-000001", created_by=dp.id),
+        Equipment(serial="XY999", product_code="TD-0001", customer_code="KTD-000002", created_by=dp.id),
     ])
     db.commit()
     return {
-        "dp": make_user("dieu.phoi", "dispatcher"),
+        "dp": dp,
         "kd": make_user("kinh.doanh", "sales"),
         "t1": make_user("tho.an", "technician"),
         "t2": make_user("tho.binh", "technician"),
@@ -47,6 +64,16 @@ def test_nhan_don_cap_so_va_han_giao(db, people):
     assert _new(db, people).number.endswith("-00002")
     assert [s.action for s in svc.load(db, people["dp"], t.id).steps] == ["create"]
     assert db.scalar(select(AuditLog.action).where(AuditLog.entity == "service_ticket")) == "service_ticket.create"
+
+
+def test_dia_diem_va_may_phai_dung_khach(db, people):
+    site = db.scalar(select(CustomerSite.id).where(CustomerSite.name == "Văn phòng Q3"))
+    old = db.scalar(select(CustomerSite.id).where(CustomerSite.name == "Kho cũ"))
+    assert _new(db, people, site_id=site, serial="ab123").site_id == site
+    assert _code(_new, db, people, site_id=old) == "BAD_SITE"
+    assert _code(_new, db, people, site_id=999999) == "BAD_SITE"
+    assert _code(_new, db, people, serial="XY999") == "BAD_SERIAL"
+    assert _code(_new, db, people, serial="CHUA-CO") == "BAD_SERIAL"
 
 
 def test_nhan_don_kiem_quyen_va_khach(db, people):
@@ -85,6 +112,8 @@ def test_luong_chinh_cua_tho(db, people):
     t = svc.transition(db, t1, t.id, "DANG_LAM", None)
     assert _code(svc.transition, db, t1, t.id, "HOAN_THANH", None) == "PHOTO_REQUIRED"
     attachments.add(db, t1, "service_ticket", str(t.id), "SAU", "sau.pdf", b"%PDF-1.4 test")
+    assert _code(svc.transition, db, t1, t.id, "HOAN_THANH", None) == "BILLING_REQUIRED"
+    service_charges.set_charges(db, t1, t.id, ServiceCharges(billing="MIEN_PHI", free_reason="Bảo hành"))
     t = svc.transition(db, t1, t.id, "HOAN_THANH", None)
     assert t.status == "HOAN_THANH" and t.due_at is None
     steps = svc.load(db, people["dp"], t.id).steps
@@ -95,7 +124,10 @@ def test_luong_chinh_cua_tho(db, people):
         ("transition", "DANG_LAM", "HOAN_THANH"),
     ]
     assert all(s.actor_id == t1.id for s in steps[2:])
+    assert _code(svc.transition, db, t1, t.id, "DA_DONG", None) == "FORBIDDEN"
+    t = svc.transition(db, people["dp"], t.id, "DA_DONG", None, "Đã đối soát")
     assert _code(svc.transition, db, people["dp"], t.id, "DA_HUY", None, "Khách hủy") == "BAD_STATUS"
+    assert _code(svc.transition, db, people["dp"], t.id, "DANG_LAM", None, "Mở lại") == "BAD_TRANSITION"
 
 
 def test_tho_chi_thay_va_sua_phieu_cua_minh(db, people):
