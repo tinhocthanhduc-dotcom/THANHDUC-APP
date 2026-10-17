@@ -52,6 +52,8 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
             lines.append(ServiceLine(line_no=i, kind=x.kind, product_code=x.product_code, warehouse_code=x.warehouse_code,
                                      description=x.description, qty=x.qty, unit_price=x.unit_price, vat_rate=x.vat_rate,
                                      amount=amount, vat_amount=_round(Decimal(amount) * x.vat_rate / 100)))
+        t.lines.clear()
+        session.flush()  # xóa dòng cũ trước để số dòng mới không trùng
         t.lines = lines
         t.billing = body.billing
         t.free_reason = free_reason if body.billing == "MIEN_PHI" else ""

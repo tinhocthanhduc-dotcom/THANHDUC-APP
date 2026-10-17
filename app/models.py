@@ -326,9 +326,8 @@ class ServiceTicket(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     number: Mapped[str] = mapped_column(String(32), unique=True)
     customer_code: Mapped[str] = mapped_column(ForeignKey("customers.code"), index=True)
-    # Địa điểm và máy của D1; khóa ngoại thêm khi bảng D1 có trên main.
-    site_id: Mapped[int | None] = mapped_column(BigInteger)
-    serial: Mapped[str | None] = mapped_column(String(64))
+    site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
+    serial: Mapped[str | None] = mapped_column(ForeignKey("equipment.serial"), index=True)
     kind: Mapped[str] = mapped_column(String(16))
     priority: Mapped[str] = mapped_column(String(8), default="THUONG")
     symptom: Mapped[str] = mapped_column(Text)
