@@ -1,0 +1,20 @@
+{% set material = line.kind == 'VAT_TU' %}
+<fieldset class="card charge-line" data-charge-line data-kind="{{ line.kind }}">
+<input type="hidden" name="line_kind" value="{{ line.kind }}">
+<div class="bar"><strong>{{ 'Vật tư' if material else 'Dòng phí' }}</strong>{% if can_charge and charge_editable %}<button type="button" data-charge-remove>Xóa dòng</button>{% endif %}</div>
+{% if material %}
+<div data-picker><label>Hàng (tìm và chọn)<input name="line_product" value="{{ line.product_code or '' }}" required autocomplete="off" data-live=".charge-options" data-source="/dich-vu/tim-vat-tu"></label>
+<span class="hint" data-charge-name>{{ charge_names.get(line.product_code, '') }}</span><div class="charge-options product-options" aria-live="polite"></div></div>
+<fieldset><legend>Kho xuất</legend><div class="seg stock-seg">
+{% for warehouse in charge_warehouses %}<label><input type="radio" name="warehouse_{{ index }}" value="{{ warehouse.code }}" data-charge-warehouse {% if line.warehouse_code == warehouse.code %}checked{% endif %} required><span>{{ warehouse.code }} · {{ warehouse.name }}{% if not warehouse.active %} (Ngừng dùng){% endif %}</span></label>{% endfor %}
+</div></fieldset>
+{% else %}<input type="hidden" name="line_product" value=""><input type="hidden" name="warehouse_{{ index }}" value="" data-charge-warehouse>{% endif %}
+<label>{{ 'Mô tả / ghi chú' if material else 'Mô tả phí' }}<input name="line_description" value="{{ line.description or '' }}" maxlength="500" {% if not material %}required{% endif %}></label>
+<div class="row2"><label>Số lượng<input name="line_qty" value="{{ line.qty }}" inputmode="decimal" required></label>
+<label>Đơn giá (đồng)<input name="line_price" value="{{ line.unit_price }}" inputmode="numeric" data-money required></label></div>
+<fieldset><legend>VAT</legend><div class="seg stock-seg">
+{% for rate in [0,5,8,10] %}<label><input type="radio" name="vat_{{ index }}" value="{{ rate }}" data-charge-vat {% if line.vat_rate|string == rate|string %}checked{% endif %} required><span>{{ rate }}%</span></label>{% endfor %}
+</div></fieldset>
+<p class="hint">Tạm tính: <output data-charge-row-total>—</output> đồng (gồm VAT).</p>
+{% if line.amount is defined %}<p class="hint">Lõi đã lưu: {{ line.amount|money }} + VAT {{ line.vat_amount|money }} đồng.</p>{% endif %}
+</fieldset>

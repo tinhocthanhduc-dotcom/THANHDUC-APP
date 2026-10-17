@@ -171,6 +171,12 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .report-photos { grid-template-columns: 1fr; }
 }
 
+.charge-line { display: grid; gap: 8px; min-width: 0; margin: 12px 0; overflow-wrap: anywhere; }
+.charge-line .bar { margin-bottom: 0; }
+.charge-preview, .charge-saved { margin: 12px 0; padding: 12px; background: var(--bg); border-radius: 8px; }
+.charge-receivables a { overflow-wrap: anywhere; }
+[data-charge-form] button { min-height: 44px; }
+
 .dispatch-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .dispatch-tiles a { display: grid; gap: 8px; text-decoration: none; color: var(--text); text-align: center; padding: 12px 6px; overflow-wrap: anywhere; }
 .dispatch-tiles strong { font-size: 1.6rem; }

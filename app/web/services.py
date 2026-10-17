@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments
+from .. import attachments, service_charges
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -31,12 +31,12 @@ KINDS = {"SUA_TAI_CHO": "Sửa tại chỗ", "MANG_VE": "Mang về", "BAO_HANH":
 PRIORITIES = {"KHAN": "Khẩn", "GAP": "Gấp", "THUONG": "Thường"}
 TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Bắt đầu", "CHO_LINH_KIEN": "Chờ linh kiện",
-    "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng phiếu", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
+    "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
-         "reopen": "Mở lại", "close": "Đóng phiếu"}
+         "reopen": "Mở lại", "close": "Đóng hồ sơ"}
 
 
 def local_time(value):
@@ -88,6 +88,9 @@ def _message(exc):
     if isinstance(exc, ValidationError):
         return _validation_message(exc), "BAD_FORM", 400
     message = "Cần chụp ảnh sau sửa trước khi hoàn thành" if exc.code == "PHOTO_REQUIRED" else exc.message
+    if exc.code == "NEGATIVE_STOCK":
+        d = exc.details
+        message = f"Không đủ tồn cho {d.get('product', '')} tại kho {d.get('warehouse', '')}: tồn hiện có {d.get('available', '')}, số cần {d.get('requested', '')}."
     return message, exc.code, exc.status
 
 
@@ -102,10 +105,11 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   q=q, selected_status=status, selected_assignee=selected, overdue=overdue,
                   technicians=[] if _own_only(user) else _technicians(session), own_only=_own_only(user),
                   heading="Việc của tôi" if _own_only(user) else "Dịch vụ",
-                  can_create=has_role(user, *svc.CREATORS), customers=customers, users=_users(session), is_overdue=_is_overdue)
+                  can_create=has_role(user, *svc.CREATORS), can_receivables=has_role(user, *service_charges.VIEWERS), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None):
+    from .charges import detail_context
     t = svc.load(session, user, ticket_id)
     dispatcher = has_role(user, *svc.DISPATCHERS)
     own = "technician" in user.roles and t.assignee_id == user.id and t.status != "HOAN_THANH"
@@ -144,7 +148,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   appointment_value=t.appointment_at.astimezone(TZ).strftime("%Y-%m-%dT%H:%M") if t.appointment_at else "",
                   form=form or {}, failed_action=failed_action, error=error, error_code=error_code,
                   retained_fields=retained_fields if error and failed_action not in visible_actions else [],
-                  saved=request.query_params.get("da_luu") == "1" and not error, status=status)
+                  saved=request.query_params.get("da_luu") == "1" and not error, status=status,
+                  **detail_context(session, user, t, charge_shown))
 
 
 # Đường dẫn /moi và các ô tìm/chọn được đăng ký trước /{ticket_id} ở cuối module.
