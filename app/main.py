@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from . import web
 from .db import get_session
 from .errors import BusinessError, business_error_handler
-from .routers import attachments, auth, customers, products, quotes, service_tickets, stock_docs, suppliers, warehouses
+from .routers import attachments, auth, customers, products, quotes, sales_orders, service_tickets, stock_docs, suppliers, warehouses
 
 app = FastAPI(title="Thành Đức Core", version="0.2.0")
 app.include_router(auth.router)
@@ -17,6 +17,7 @@ app.include_router(stock_docs.router)
 app.include_router(service_tickets.router)
 app.include_router(attachments.router)
 app.include_router(quotes.router)
+app.include_router(sales_orders.router)
 app.include_router(web.router)
 app.mount("/static", web.static, name="static")
 app.add_exception_handler(web.LoginRequired, web.login_required_handler)

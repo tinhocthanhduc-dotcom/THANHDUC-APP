@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -594,3 +594,79 @@ class QuoteOut(BaseModel):
     created_at: datetime
     version: int
     lines: list[QuoteLineOut]
+
+
+class SalesOrderLineIn(QuoteLineIn):
+    kind: Literal['HANG', 'KHAC']
+    warehouse_code: str | None = Field(default=None, max_length=16)
+
+    @field_validator('warehouse_code', mode='before')
+    @classmethod
+    def blank_warehouse(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+
+class SalesOrderIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    customer_code: str = Field(min_length=1, max_length=16)
+    contact_name: str = Field(default='', max_length=200)
+    delivery_address: str | None = Field(default=None, max_length=2000)
+    note: str = Field(default='', max_length=4000)
+    lines: list[SalesOrderLineIn] = Field(default_factory=list, max_length=200)
+
+
+class SalesOrderVersion(QuoteVersion):
+    pass
+
+
+class SalesOrderCancel(SalesOrderVersion):
+    reason: str = Field(default='', max_length=2000)
+
+
+class SalesOrderFromQuote(QuoteVersion):
+    """version là phiên bản báo giá; warehouses ánh xạ line_no sang kho xuất."""
+    warehouses: dict[Annotated[int, Field(ge=1)], Annotated[str, Field(max_length=16)]] = Field(default_factory=dict, max_length=200)
+    contact_name: str | None = Field(default=None, max_length=200)
+    delivery_address: str | None = Field(default=None, max_length=2000)
+    note: str | None = Field(default=None, max_length=4000)
+
+
+class SalesOrderUpdate(SalesOrderVersion):
+    contact_name: str | None = Field(default=None, max_length=200)
+    delivery_address: str | None = Field(default=None, max_length=2000)
+    note: str | None = Field(default=None, max_length=4000)
+    lines: list[SalesOrderLineIn] = Field(max_length=200)
+
+
+class SalesOrderLineOut(SalesOrderLineIn):
+    model_config = ConfigDict(from_attributes=True)
+    line_no: int
+    unit_price: int
+    amount: int
+    vat_amount: int
+    stock_doc_id: int | None
+
+
+class SalesOrderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    customer_code: str
+    quote_id: int | None
+    contact_name: str
+    delivery_address: str
+    note: str
+    status: str
+    cancel_reason: str
+    subtotal: int
+    vat_total: int
+    total: int
+    receivable: int | None
+    confirmed_at: datetime | None
+    confirmed_by: int | None
+    delivered_at: datetime | None
+    delivered_by: int | None
+    created_by: int
+    created_at: datetime
+    version: int
+    lines: list[SalesOrderLineOut]

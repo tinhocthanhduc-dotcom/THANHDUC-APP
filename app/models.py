@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -531,3 +532,73 @@ class QuoteLine(Base):
     vat_amount: Mapped[int] = mapped_column(BigInteger)
 
     quote: Mapped['Quote'] = relationship(back_populates='lines')
+
+
+SALES_ORDER_STATUSES = ('NHAP', 'DA_CHOT', 'DA_GIAO', 'DA_HUY')
+
+
+class SalesOrder(Base):
+    __tablename__ = 'sales_orders'
+    __table_args__ = (
+        CheckConstraint(_in('status', SALES_ORDER_STATUSES), name='ck_sales_orders_status'),
+        CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_sales_orders_money'),
+        CheckConstraint('receivable is null or receivable >= 0', name='ck_sales_orders_receivable'),
+        Index('uq_sales_orders_active_quote', 'quote_id', unique=True,
+              postgresql_where=text("quote_id is not null and status <> 'DA_HUY'")),
+        Index('ix_sales_orders_status_created', 'status', 'created_at'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'), index=True)
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey('quotes.id'))
+    contact_name: Mapped[str] = mapped_column(String(200), default='')
+    delivery_address: Mapped[str] = mapped_column(Text, default='')
+    note: Mapped[str] = mapped_column(Text, default='')
+    status: Mapped[str] = mapped_column(String(16), default='NHAP')
+    cancel_reason: Mapped[str] = mapped_column(Text, default='')
+    subtotal: Mapped[int] = mapped_column(BigInteger, default=0)
+    vat_total: Mapped[int] = mapped_column(BigInteger, default=0)
+    total: Mapped[int] = mapped_column(BigInteger, default=0)
+    receivable: Mapped[int | None] = mapped_column(BigInteger)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivered_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    lines: Mapped[list['SalesOrderLine']] = relationship(back_populates='order', cascade='all, delete-orphan',
+                                                        order_by='SalesOrderLine.line_no')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class SalesOrderLine(Base):
+    __tablename__ = 'sales_order_lines'
+    __table_args__ = (
+        CheckConstraint("kind in ('HANG','KHAC')", name='ck_sales_order_lines_kind'),
+        CheckConstraint("(kind = 'HANG' and product_code is not null) or "
+                        "(kind = 'KHAC' and product_code is null and warehouse_code is null)",
+                        name='ck_sales_order_lines_product_warehouse'),
+        CheckConstraint('qty > 0', name='ck_sales_order_lines_qty'),
+        CheckConstraint('unit_price >= 0 and amount >= 0 and vat_amount >= 0', name='ck_sales_order_lines_money'),
+        CheckConstraint(_in('vat_rate', VAT_RATES).replace("'", ''), name='ck_sales_order_lines_vat'),
+        CheckConstraint("kind = 'HANG' or stock_doc_id is null", name='ck_sales_order_lines_stock_doc'),
+    )
+
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'), primary_key=True)
+    line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8))
+    product_code: Mapped[str | None] = mapped_column(ForeignKey('products.code'))
+    warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
+    description: Mapped[str] = mapped_column(Text)
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit: Mapped[str] = mapped_column(String(32))
+    unit_price: Mapped[int] = mapped_column(BigInteger)
+    vat_rate: Mapped[int] = mapped_column(Integer, default=0)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'))
+
+    order: Mapped['SalesOrder'] = relationship(back_populates='lines')
