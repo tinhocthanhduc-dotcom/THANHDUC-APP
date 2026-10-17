@@ -460,3 +460,7 @@ router.include_router(charges_router)
 from .services import router as services_router
 
 router.include_router(services_router)
+
+from .dispatch import router as dispatch_router
+
+router.include_router(dispatch_router)
