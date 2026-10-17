@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
 class ContactIn(BaseModel):
@@ -311,3 +311,82 @@ class StockMinLevelIn(BaseModel):
     min_qty: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
     # 0 là phiên bản của mức chưa được đặt; bản ghi đầu tiên sẽ có version=1.
     version: int = Field(ge=0)
+
+
+ServiceKind = Literal["SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY"]
+ServicePriority = Literal["KHAN", "GAP", "THUONG"]
+ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "KHONG_LAM_DUOC", "DA_HUY"]
+
+
+class ServiceTicketIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    customer_code: str = Field(min_length=1, max_length=16)
+    site_id: int | None = Field(default=None, ge=1)
+    serial: str | None = Field(default=None, max_length=64)
+    kind: ServiceKind
+    priority: ServicePriority = "THUONG"
+    symptom: str = Field(min_length=3, max_length=4000)
+
+
+class ServiceAssign(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    assignee_id: int = Field(ge=1)
+    version: int | None = Field(default=None, ge=1)
+    note: str = Field(default="", max_length=2000)
+
+
+class ServiceTransition(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    to_status: ServiceStatus
+    version: int | None = Field(default=None, ge=1)
+    note: str = Field(default="", max_length=2000)
+    appointment_at: AwareDatetime | None = None
+
+
+class ServiceReason(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    reason: str = Field(default="", max_length=2000)
+    version: int | None = Field(default=None, ge=1)
+
+
+class ServiceStepOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    from_status: str | None
+    to_status: str
+    actor_id: int
+    assignee_id: int | None
+    note: str
+    at: datetime
+
+
+class ServiceTicketOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    number: str
+    customer_code: str
+    site_id: int | None
+    serial: str | None
+    kind: ServiceKind
+    priority: ServicePriority
+    symptom: str
+    status: ServiceStatus
+    assignee_id: int | None
+    appointment_at: datetime | None
+    due_at: datetime | None
+    status_reason: str
+    transfer_request: str
+    created_by: int
+    created_at: datetime
+    version: int
+
+
+class ServiceTicketDetail(ServiceTicketOut):
+    steps: list[ServiceStepOut]

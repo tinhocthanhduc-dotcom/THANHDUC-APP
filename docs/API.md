@@ -110,3 +110,23 @@ Mỗi dòng gồm `product_code`, `qty`, `unit_cost`, `serial`, `note`. API tự
 
 Lỗi nghiệp vụ: `BAD_TRANSFER`, `BAD_WAREHOUSE`, `BAD_SUPPLIER`, `BAD_CUSTOMER`, `BAD_PRODUCT` (danh sách `details.invalid_codes`), `BAD_QTY`, `BAD_UNIT_COST`, `VERSION_CONFLICT`, `NUMBER_LOCKED`, `DOC_POSTED`, `DOC_VOID`.
 Các đầu vào sai kiểu, thiếu trường bắt buộc hoặc ngoài giới hạn trả 422. Phiếu đã ghi sổ hoặc hủy không được sửa/hủy nháp.
+
+## Phiếu dịch vụ (D2)
+
+Màn hình Dịch vụ chỉ gọi các hàm trong `app/service_tickets.py` (hoặc các đường dẫn dưới đây). Quyền kiểm ở lõi.
+
+| Phương thức | Đường dẫn | Ghi chú |
+|---|---|---|
+| GET | `/service-tickets` | Lọc `status`, `assignee_id`, `overdue=true` (quá hạn lâu nhất lên đầu), `q` (số phiếu, serial, tên khách không dấu). Thợ chỉ nhận phiếu của mình |
+| GET | `/service-tickets/{id}` | Kèm `steps` (lịch sử). Thợ xem phiếu người khác trả 404 |
+| POST | `/service-tickets` | `customer_code`, `kind`, `symptom`, tùy chọn `priority`, `site_id`, `serial`. Điều phối, kinh doanh, lễ tân, giám đốc |
+| POST | `/service-tickets/{id}/assign` | `assignee_id` (phải có vai trò `technician`), `version`, `note`. Chỉ điều phối; giao lại cũng là cách duyệt xin chuyển việc |
+| POST | `/service-tickets/{id}/transition` | `to_status`, `version`, `note`, `appointment_at` (bắt buộc khi sang `DA_HEN`, phải có múi giờ) |
+| POST | `/service-tickets/{id}/transfer-request` | Thợ đang được giao xin chuyển việc, `reason` bắt buộc |
+| POST | `/service-tickets/{id}/transfer-reject` | Điều phối từ chối xin chuyển việc |
+
+Luồng: `MOI` → (giao) `DA_GIAO` → `DA_NHAN` → `DA_HEN` (dời hẹn: `DA_HEN` → `DA_HEN`) → `DANG_LAM` → `HOAN_THANH`.
+`DANG_LAM` ↔ `CHO_LINH_KIEN`. `KHONG_LAM_DUOC` từ `DA_NHAN`, `DA_HEN`, `DANG_LAM`, `CHO_LINH_KIEN`, bắt buộc lý do. `DA_HUY` chỉ điều phối, từ mọi trạng thái đang mở, bắt buộc lý do.
+Hạn `due_at` tính lại mỗi lần chuyển theo bảng trong `app/service_sla.py`.
+
+Lỗi: `FORBIDDEN`, `NOT_FOUND`, `BAD_CUSTOMER`, `BAD_ASSIGNEE`, `SAME_ASSIGNEE`, `BAD_STATUS`, `BAD_TRANSITION` (kèm `details.allowed`), `REASON_REQUIRED`, `APPOINTMENT_REQUIRED`, `BAD_APPOINTMENT`, `TRANSFER_PENDING`, `NO_TRANSFER`, `VERSION_CONFLICT`.

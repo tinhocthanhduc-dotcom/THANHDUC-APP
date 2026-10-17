@@ -296,3 +296,65 @@ class StockMinLevel(Base):
     updated_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
     __mapper_args__ = {"version_id_col": version}
+
+
+SERVICE_KINDS = ("SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY")
+SERVICE_PRIORITIES = ("KHAN", "GAP", "THUONG")
+SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "KHONG_LAM_DUOC", "DA_HUY")
+
+
+def _in(column: str, values) -> str:
+    return f"{column} in (" + ",".join(f"'{v}'" for v in values) + ")"
+
+
+class ServiceTicket(Base):
+    """Phiếu dịch vụ (D2): một việc sửa chữa, bảo hành hoặc giao mực, số DV-26-00001."""
+
+    __tablename__ = "service_tickets"
+    __table_args__ = (
+        CheckConstraint(_in("kind", SERVICE_KINDS), name="ck_service_tickets_kind"),
+        CheckConstraint(_in("priority", SERVICE_PRIORITIES), name="ck_service_tickets_priority"),
+        CheckConstraint(_in("status", SERVICE_STATUSES), name="ck_service_tickets_status"),
+        CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
+        Index("ix_service_tickets_open", "status", "due_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey("customers.code"), index=True)
+    # Địa điểm và máy của D1; khóa ngoại thêm khi bảng D1 có trên main.
+    site_id: Mapped[int | None] = mapped_column(BigInteger)
+    serial: Mapped[str | None] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16))
+    priority: Mapped[str] = mapped_column(String(8), default="THUONG")
+    symptom: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="MOI")
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status_reason: Mapped[str] = mapped_column(Text, default="")
+    # Thợ xin chuyển việc: lý do chờ điều phối duyệt (giao thợ khác) hoặc từ chối.
+    transfer_request: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    steps: Mapped[list["ServiceStep"]] = relationship(order_by="ServiceStep.id", viewonly=True)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class ServiceStep(Base):
+    """Lịch sử phiếu dịch vụ: mỗi lần tạo, giao, chuyển trạng thái một dòng. Chỉ thêm."""
+
+    __tablename__ = "service_steps"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("service_tickets.id"), index=True)
+    action: Mapped[str] = mapped_column(String(32))
+    from_status: Mapped[str | None] = mapped_column(String(16))
+    to_status: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    note: Mapped[str] = mapped_column(Text, default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
