@@ -1,0 +1,21 @@
+{% extends "base.jinja" %}
+{% block title %}Biên bản {{ t.number }}{% endblock %}
+{% block main %}
+<div class="bar report-tools"><a href="/dich-vu/{{ t.id }}">← Phiếu dịch vụ</a><button type="button" onclick="window.print()">In biên bản</button></div>
+<article class="acceptance-report">
+<header><p>THÀNH ĐỨC</p><h1>BIÊN BẢN NGHIỆM THU DỊCH VỤ</h1><p>Số phiếu: <strong>{{ t.number }}</strong></p></header>
+{% if t.status != 'HOAN_THANH' %}<p class="alert warn">Phiếu chưa hoàn thành — bản xem trước.</p>{% endif %}
+<dl>
+  <dt>Khách hàng</dt><dd>{{ customer.name }} ({{ t.customer_code }})</dd>
+  <dt>Địa điểm</dt><dd>{{ site.name if site else 'Không chọn' }}{% if site and site.address %} — {{ site.address }}{% endif %}</dd>
+  <dt>Máy</dt><dd>{{ product.name if product else 'Không có trong danh mục' }}</dd>
+  <dt>Serial</dt><dd>{{ t.serial or 'Không chọn' }}</dd>
+  <dt>Kỹ thuật viên</dt><dd>{{ technician.full_name if technician else 'Chưa giao' }}</dd>
+  <dt>Ngày giờ hoàn thành</dt><dd>{{ completed_at|service_time }}{% if completed_at %} (giờ Việt Nam){% endif %}</dd>
+</dl>
+<section><h2>Mô tả lỗi</h2><p class="service-text">{{ t.symptom }}</p></section>
+<section><h2>Việc đã làm</h2><p class="service-text">{{ work_note or 'Chưa có ghi chú ở bước cuối.' }}</p></section>
+<section><h2>Ảnh sau sửa</h2><div class="report-photos">{% for photo in photos %}<figure><img src="/attachments/{{ photo.id }}/file" alt="Ảnh sau sửa — {{ photo.filename }}"><figcaption>{{ photo.filename }}</figcaption></figure>{% else %}<p>Chưa có ảnh sau sửa.</p>{% endfor %}</div></section>
+<div class="report-signatures"><section><h2>Đại diện khách hàng</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Kỹ thuật viên</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
+</article>
+{% endblock %}

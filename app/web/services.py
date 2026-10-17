@@ -7,7 +7,10 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile
 
+from .. import attachments
+from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
 from ..db import get_session
@@ -101,7 +104,7 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None):
     t = svc.load(session, user, ticket_id)
     dispatcher = has_role(user, *svc.DISPATCHERS)
     own = "technician" in user.roles and t.assignee_id == user.id
@@ -126,6 +129,9 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     from ..models import CustomerSite
     site = session.get(CustomerSite, t.site_id) if t.site_id else None
     return render(request, "dich_vu_chi_tiet.jinja", t=t, customer=session.get(Customer, t.customer_code), site=site,
+                  files=attachments.list_for(session, user, "service_ticket", str(t.id)),
+                  can_upload=has_role(user, *svc.CREATORS) or own,
+                  can_hide=dispatcher, photo_form=photo_form or {},
                   users=_users(session), technicians=_technicians(session) if dispatcher else [],
                   counts=svc.open_counts(session) if dispatcher else {},
                   can_assign=dispatcher and t.status in svc.ASSIGNABLE,
@@ -226,3 +232,62 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
         error, code, status = _message(exc)
         return _detail(request, session, user, ticket_id, form, failed_action, error, code, status)
     return RedirectResponse(f"/dich-vu/{ticket_id}?da_luu=1", status_code=303)
+
+
+@router.post("/dich-vu/{ticket_id}/anh/tai")
+async def photo_upload(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    svc.load(session, user, ticket_id)
+    tag = str(form.get("tag", ""))
+    try:
+        if tag not in ("TRUOC", "SAU", "KHAC"):
+            raise BusinessError("BAD_TAG", "Hãy chọn ảnh trước, ảnh sau sửa hoặc tệp khác.")
+        upload = form.get("file")
+        if not isinstance(upload, UploadFile) or not upload.filename:
+            raise BusinessError("EMPTY_FILE", "Hãy chọn ảnh hoặc tệp cần tải.")
+        limit = get_settings().max_upload_mb * 1024 * 1024
+        data = await upload.read(limit + 1)
+        if len(data) > limit:
+            raise BusinessError("FILE_TOO_LARGE", "Tệp quá lớn.", {"max_mb": get_settings().max_upload_mb})
+        if tag in ("TRUOC", "SAU") and data.startswith(b"%PDF-"):
+            raise BusinessError("BAD_FILE_TYPE", "Ảnh trước và ảnh sau sửa phải là ảnh JPEG, PNG hoặc WEBP.")
+        attachments.add(session, user, "service_ticket", str(ticket_id), tag, upload.filename, data)
+    except BusinessError as exc:
+        return _detail(request, session, user, ticket_id, error=exc.message, error_code=exc.code,
+                       status=exc.status, photo_form={"tag": tag})
+    return RedirectResponse(f"/dich-vu/{ticket_id}?da_luu=1#anh", status_code=303)
+
+
+@router.post("/dich-vu/{ticket_id}/anh/{attachment_id}/an")
+def photo_hide(request: Request, ticket_id: int, attachment_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    svc.load(session, user, ticket_id)
+    # D5 giới hạn quyền ẩn tại màn hình này hơn API D4 (API còn cho người tải tự ẩn).
+    if not has_role(user, "dispatcher"):
+        raise BusinessError("FORBIDDEN", "Chỉ điều phối hoặc giám đốc được ẩn ảnh.", status=403)
+    files = attachments.list_for(session, user, "service_ticket", str(ticket_id))
+    if attachment_id not in {a.id for a in files}:
+        raise BusinessError("NOT_FOUND", "Không tìm thấy tệp của phiếu này.", status=404)
+    try:
+        attachments.hide(session, user, attachment_id, str(form.get("reason", "")), _version(form))
+    except BusinessError as exc:
+        return _detail(request, session, user, ticket_id, error=exc.message, error_code=exc.code, status=exc.status,
+                       photo_form={"attachment_id": attachment_id, "reason": str(form.get("reason", "")),
+                                   "version": form.get("version", "")})
+    return RedirectResponse(f"/dich-vu/{ticket_id}?da_luu=1#anh", status_code=303)
+
+
+@router.get("/dich-vu/{ticket_id}/bien-ban")
+def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from ..models import CustomerSite, Equipment, Product
+    t = svc.load(session, user, ticket_id)
+    machine = session.get(Equipment, t.serial) if t.serial else None
+    product = session.get(Product, machine.product_code) if machine else None
+    completion = next((step for step in reversed(t.steps) if step.to_status == "HOAN_THANH"), None)
+    last = t.steps[-1] if t.steps else None
+    photos = [a for a in attachments.list_for(session, user, "service_ticket", str(t.id))
+              if a.tag == "SAU" and a.content_type.startswith("image/")]
+    return render(request, "dich_vu_bien_ban.jinja", t=t, customer=session.get(Customer, t.customer_code),
+                  site=session.get(CustomerSite, t.site_id) if t.site_id else None, product=product,
+                  technician=session.get(User, t.assignee_id) if t.assignee_id else None,
+                  work_note=last.note if last else "", completed_at=completion.at if completion else None, photos=photos)
