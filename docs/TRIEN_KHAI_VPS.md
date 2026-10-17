@@ -38,11 +38,11 @@ Mở cửa sổ mới, thử `ssh tuan@<IP>` được rồi mới đóng cửa s
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker tuan   # đăng xuất, đăng nhập lại
 sudo mkdir -p /opt/thanhduc && sudo chown tuan /opt/thanhduc
-git clone https://github.com/tinhocthanhduc-dotcom/SALE_THANHDUC.git /opt/thanhduc
+git clone https://github.com/tinhocthanhduc-dotcom/THANHDUC-APP.git /opt/thanhduc/core
 cd /opt/thanhduc/core
 ```
 
-(Khi có repo riêng THANHDUC-CORE thì clone repo đó vào `/opt/thanhduc/core`.)
+Repo THANHDUC-APP để chế độ riêng tư, nên máy chủ cần quyền đọc repo (deploy key chỉ đọc) trước khi clone.
 
 ## 5. Tạo file cấu hình bí mật
 

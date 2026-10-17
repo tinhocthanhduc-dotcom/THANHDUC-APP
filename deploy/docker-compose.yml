@@ -1,4 +1,4 @@
-# Chạy trên VPS: cd core && docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Chạy trên VPS, trong thư mục repo: docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 services:
   db:
     image: postgres:16

@@ -1,6 +1,6 @@
-# Thành Đức Core
+# Thành Đức App
 
-Lõi Python + PostgreSQL dùng chung cho Sales, Kho, Finance, CARE và Điều phối.
+Hệ thống quản lý mới của Thành Đức viết bằng Python + PostgreSQL: Kho, Dịch vụ, Bán hàng, Mua hàng, Tài chính trên một database.
 Giai đoạn 0: đăng nhập, phân quyền, nhật ký thao tác, Danh bạ khách KTD, danh mục hàng mã TD, sao lưu.
 
 Kế hoạch tổng thể: tài liệu "Kế hoạch chuyển sang Python + PostgreSQL + AI cho Thành Đức".
@@ -21,8 +21,8 @@ Kế hoạch tổng thể: tài liệu "Kế hoạch chuyển sang Python + Post
 | `docs/API.md` | Cách app Apps Script gọi API |
 | `tests/` | Test chạy trên PostgreSQL thật |
 
-Thư mục này nằm tạm trong repo SALE_THANHDUC cho tới khi có repo riêng THANHDUC-CORE.
-Không đặt file `.js`, `.gs`, `.html`, `.json` trong `core/`: lệnh đẩy Apps Script của repo SALE đọc cả thư mục con.
+Code chuyển từ thư mục `core/` của repo SALE_THANHDUC sang đây ngày 17/10/2026, giữ nguyên lịch sử.
+Các bước làm phân hệ Kho và ai làm bước nào: `/mnt/project-files/thiet-ke/kho-cac-buoc.md` trong project.
 
 ## Giao diện web
 
