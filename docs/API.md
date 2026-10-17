@@ -178,3 +178,39 @@ Báo cáo nhận `from`, `to` dạng `YYYY-MM-DD`, tính trọn ngày theo giờ
 Tỷ lệ trễ dùng thêm **đọc** `audit_log`, theo phạm vi được cho phép cho D7: ghép từng bước với snapshot cùng transaction, hành động, người thực hiện và trạng thái để so thời điểm bước với `before.due_at`. Một phiếu đóng trong kỳ có ít nhất một bước vượt hạn cũ được tính trễ một lần. Mẫu số là số phiếu đóng xác định được trễ/đúng hạn; phiếu thiếu dữ liệu hạn và chưa xác nhận được trễ được đếm ở “Chưa xác định trễ”, không coi là đúng hạn. Không tái tính hạn lịch sử theo cấu hình SLA hiện tại.
 
 CSV UTF-8 BOM gồm bảng theo thợ, dòng trống rồi bảng theo ngày, cùng số liệu với trang. Thời gian trung bình xuất theo phút; tỷ lệ theo %. Tên thợ có ký tự công thức được thoát khi xuất CSV. Không có endpoint ghi trong D7.
+
+## Báo giá (B1)
+
+Quyền: `sales`, `director` tạo và thao tác; `finance` chỉ xem; vai trò khác trả `FORBIDDEN` (403). API dùng Bearer, màn hình dùng cookie và CSRF như các trang hiện có.
+
+- `GET /quotes?q=&status=`: tìm số BG hoặc tên khách không dấu, lọc trạng thái.
+- `GET /quotes/{id}`: đầu báo giá và `lines`.
+- `POST /quotes`: `customer_code`, `contact_name`, `valid_until` (mặc định ngày VN + 7), `note`, `lines` (có thể rỗng khi nháp).
+- `PATCH /quotes/{id}`: `version`, `lines` thay toàn bộ; tùy chọn sửa khách, liên hệ, hạn và ghi chú khi còn nháp.
+- `POST /quotes/{id}/send`, `/accept`, `/reject`, `/revise`: body `{ "version": 1 }`.
+- `POST /quotes/{id}/cancel`: body `{ "version": 1, "reason": "Khách đổi nhu cầu" }`.
+
+Mỗi dòng: `product_code` tùy chọn, `description`, `qty` (> 0, tối đa 3 số lẻ), `unit`, `unit_price` (số nguyên đồng >= 0), `vat_rate` thuộc `VAT_RATES` (0/5/8/10). Có mã hàng và bỏ giá thì lấy giá bán hiện tại; bỏ mô tả/đơn vị thì lấy từ hàng. Dòng tự do bắt buộc mô tả và giá. Khách/hàng phải đang dùng khi tạo, sửa hoặc gửi.
+
+Tiền tính tại lõi: `amount = ROUND_HALF_UP(qty × unit_price)`, rồi `vat_amount = ROUND_HALF_UP(amount × vat_rate / 100)`. `subtotal`, `vat_total`, `total` là tổng các dòng; không nhận tổng do trình duyệt gửi. Mỗi thao tác kiểm version và ghi audit trước/sau. Tạo cấp số BG trong cùng transaction; lỗi không mất số. `revise` chỉ áp dụng bản đã gửi, tạo nháp mới chép nguyên dòng/giá, hạn mới +7 ngày; bản cũ hủy với lý do `Thay bằng BG-…`, liên kết `replaced_by_id`. Hai bản và hai audit được lưu nguyên tử.
+
+Luồng: `NHAP → DA_GUI → CHAP_NHAN / TU_CHOI`; `NHAP / DA_GUI → DA_HUY`. Hết hạn chỉ hiện nhãn trên bản còn `DA_GUI`, không tự đổi trạng thái.
+
+| Mã lỗi | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| FORBIDDEN | 403 | Không có quyền xem/ghi |
+| NOT_FOUND | 404 | Không tìm thấy báo giá |
+| VERSION_REQUIRED | 400 | Thiếu phiên bản hợp lệ ở lõi/web (API schema trả 422 nếu thiếu/sai kiểu) |
+| VERSION_CONFLICT | 409 | Người khác vừa sửa, cần tải lại |
+| BAD_STATUS | 409 | Sai bước chuyển trạng thái (lọc trạng thái sai trả 400) |
+| PRICE_LOCKED | 409 | Chỉ sửa dòng khi còn nháp |
+| REASON_REQUIRED | 400 | Phải nhập lý do hủy |
+| EMPTY_LINES | 400 | Không gửi được báo giá rỗng |
+| BAD_CUSTOMER | 400 | Khách không tồn tại hoặc ngừng/gộp |
+| BAD_PRODUCT | 400 | Mã hàng sai/ngừng bán; `details.invalid_codes` liệt kê mã |
+| PRICE_REQUIRED | 400 | Dòng tự do thiếu đơn giá |
+| DESCRIPTION_REQUIRED | 400 | Dòng tự do thiếu mô tả |
+| AMOUNT_TOO_LARGE | 400 | Số tiền vượt BigInteger |
+| BAD_PRICE / BAD_VAT / BAD_FORM | 400 | Dữ liệu form chưa hợp lệ, giữ dữ liệu đã nhập |
+
+Màn hình: `/bao-gia`, `/bao-gia/moi`, `/bao-gia/{id}`, `/bao-gia/{id}/in`. Bản in A4 có tổng bằng chữ tiếng Việt. Thông tin công ty lấy cấu hình `TD_COMPANY_NAME`, `TD_COMPANY_ADDRESS`, `TD_COMPANY_TAX_CODE`, `TD_COMPANY_PHONE`, `TD_COMPANY_HOTLINE`; mặc định là thông tin Thành Đức đã cung cấp.

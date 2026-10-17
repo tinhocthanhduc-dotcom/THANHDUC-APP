@@ -1,0 +1,34 @@
+{% extends "base.jinja" %}
+{% macro token(action='') %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ action_form.get('version',q.version) if failed_action == action else q.version }}">{% endmacro %}
+{% block title %}{{ q.number if q else 'Tạo báo giá' }}{% endblock %}
+{% block main %}
+<div class="bar quote-heading"><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><a href="/bao-gia">← Báo giá</a>{% if q %}<a class="btn" href="/bao-gia/{{ q.id }}/in">In báo giá</a>{% endif %}</div>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if q %}<p>Trạng thái: <strong>{{ statuses[q.status] }}</strong></p>{% endif %}
+{% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
+{% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
+{% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
+<form method="post" class="card form" action="{{ '/bao-gia/' ~ q.id if q else '/bao-gia/moi' }}" data-quote-form data-quote-unsaved="{{ '1' if unsaved else '0' }}" data-quote-editable="{{ '1' if can_write and editable else '0' }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<fieldset {% if not can_write or not editable %}disabled{% endif %}>
+<div data-picker><label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".quote-customer-options" data-source="/bao-gia/tim-khach"></label><span class="hint" data-quote-customer-name>{{ customer_name }}</span><div class="quote-customer-options product-options" aria-live="polite"></div></div>
+<div class="row2"><label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label><label>Hiệu lực đến hết ngày<input type="date" name="valid_until" value="{{ d.valid_until }}" required></label></div>
+<label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
+<div data-quote-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'bao_gia_dong_form.jinja' %}{% endfor %}</div>
+{% if can_write and editable %}<button type="button" data-quote-add>+ Thêm dòng hàng / dịch vụ</button>{% endif %}
+</fieldset>
+<p class="alert warn" data-quote-warning hidden></p>
+{% if can_write and editable %}<button class="primary">Lưu báo giá</button><p class="hint">Lưu các thay đổi trước khi bấm Gửi. Số tiền được tính khi lưu.</p>{% endif %}
+</form>
+{% if q %}<section class="card service-action"><h2>Số tiền đã lưu</h2><dl><dt>Tiền hàng</dt><dd>{{ q.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ q.vat_total|money }} đồng</dd><dt>Tổng cộng</dt><dd>{{ q.total|money }} đồng</dd></dl></section>{% endif %}
+{% if q and can_write %}
+<div class="quote-actions">
+{% if q.status == 'NHAP' %}<form method="post" action="/bao-gia/{{ q.id }}/send" data-quote-send>{{ token('send') }}<button class="primary">Gửi</button></form>{% endif %}
+{% if q.status == 'DA_GUI' %}{% for action,label in [('accept','Khách đồng ý'),('reject','Khách từ chối'),('revise','Tạo bản sửa')] %}<form method="post" action="/bao-gia/{{ q.id }}/{{ action }}">{{ token(action) }}<button>{{ label }}</button></form>{% endfor %}{% endif %}
+</div>
+{% if q.status in ['NHAP','DA_GUI'] %}<form method="post" action="/bao-gia/{{ q.id }}/cancel" class="card form service-action">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action == 'cancel' else '' }}</textarea></label><button>Hủy báo giá</button></form>{% endif %}
+{% endif %}
+<template id="quote-line-template">{% set line=dict(product_code='',description='',qty='1',unit='',unit_price=None,vat_rate=0) %}{% set index='new' %}{% include 'bao_gia_dong_form.jinja' %}</template>
+<script src="/static/quotes.js" defer></script>
+{% endblock %}

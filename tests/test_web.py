@@ -1786,3 +1786,107 @@ def test_d7_reopened_ticket_not_counted_twice_or_after_cancellation(client, db, 
     else:
         assert rows[1] == []
         assert rows[daily_index + 1] == ['2026-10-10', '1', '0']
+
+
+@pytest.fixture
+def b1_catalog(db, monkeypatch):
+    from datetime import date
+    from app import quotes
+    monkeypatch.setattr(quotes, '_today', lambda: date(2026, 10, 17))
+    db.add_all([
+        Customer(code='KTD-000001', name='Minh Phát', search_text='minh phat'),
+        Product(code='TD-0001', name='Máy in', unit='cái', sale_price=120000, search_text='td-0001 may in'),
+    ])
+    db.commit()
+
+
+def b1_form(csrf, **changes):
+    data = dict(csrf=csrf, customer_code='KTD-000001', contact_name='Chị Lan',
+                valid_until='2026-10-24', note='Giao tận nơi', product_code='',
+                description='Công lắp đặt', qty='1.5', unit='lần', unit_price='333', vat_0='10')
+    data.update(changes)
+    return data
+
+
+def test_b1_web_create_send_print(client, web_login, db, b1_catalog):
+    from app.models import Quote
+    csrf = web_login('b1.sales', 'sales')
+    assert client.get('/bao-gia/moi').status_code == 200
+    r = client.post('/bao-gia/moi', data=b1_form(csrf, product_code='TD-0001', description='', qty='2', unit_price='120.000'), follow_redirects=False)
+    assert r.status_code == 303
+    q = db.query(Quote).one()
+    assert q.number == 'BG-26-00001' and q.total == 264000
+    assert q.lines[0].unit_price == 120000
+    page = client.get(f'/bao-gia/{q.id}')
+    assert '264.000' in page.text and 'Lưu báo giá' in page.text
+    r = client.post(f'/bao-gia/{q.id}/send', data=dict(csrf=csrf,version=q.version))
+    assert r.status_code == 200 and 'Đã gửi' in r.text and 'Lưu báo giá' not in r.text
+    printed = client.get(f'/bao-gia/{q.id}/in')
+    assert printed.status_code == 200
+    for expected in ('BG-26-00001', 'Hai trăm sáu mươi bốn nghìn đồng', '0313015734', '0888 304 668', 'Đường Mã Lò', 'Máy in'):
+        assert expected in printed.text
+    assert 'BG-26-00001' in client.get('/bao-gia?q=minh phat&phan=1').text
+    assert 'Minh Phát' in client.get('/bao-gia/tim-khach?q=minh phat').text
+    assert 'Máy in' in client.get('/bao-gia/tim-hang?q=may in').text
+
+
+def test_b1_web_stale_and_validation_preserve_input(client, web_login, db, b1_catalog):
+    from app.models import Quote
+    csrf = web_login('b1.sales', 'sales')
+    r = client.post('/bao-gia/moi', data=b1_form(csrf, qty='-1', note='Giữ ghi chú'))
+    assert r.status_code == 400 and 'Giữ ghi chú' in r.text and 'value="-1"' in r.text
+    assert db.query(Quote).count() == 0
+    client.post('/bao-gia/moi', data=b1_form(csrf))
+    q = db.query(Quote).one()
+    version = q.version
+    assert client.post(f'/bao-gia/{q.id}', data=b1_form(csrf, version=version, unit_price='120.000')).status_code == 200
+    r = client.post(f'/bao-gia/{q.id}', data=b1_form(csrf, version=version, unit_price='999.000', qty='7.5', note='Giữ nguyên'))
+    assert r.status_code == 409 and 'VERSION_CONFLICT' in r.text
+    assert '999.000' in r.text and 'value="7.5"' in r.text and 'Giữ nguyên' in r.text
+    db.expire_all()
+    assert db.get(Quote,q.id).lines[0].unit_price == 120000
+
+
+def test_b1_web_revision_cancel_empty_and_expired(client, web_login, db, b1_catalog):
+    from app.models import Quote
+    csrf = web_login('b1.sales', 'sales')
+    client.post('/bao-gia/moi', data=b1_form(csrf, valid_until='2026-10-01'))
+    q = db.query(Quote).one()
+    r = client.post(f'/bao-gia/{q.id}/cancel', data=dict(csrf=csrf,version=q.version,reason=' '))
+    assert r.status_code == 400 and 'REASON_REQUIRED' in r.text
+    client.post(f'/bao-gia/{q.id}/send', data=dict(csrf=csrf,version=q.version))
+    assert 'Hết hạn' in client.get('/bao-gia').text
+    db.expire_all()
+    client.post(f'/bao-gia/{q.id}/revise', data=dict(csrf=csrf,version=q.version))
+    db.expire_all()
+    old = db.get(Quote,q.id)
+    assert old.status == 'DA_HUY' and old.replaced_by_id
+    assert f'/bao-gia/{old.replaced_by_id}' in client.get(f'/bao-gia/{old.id}').text
+    new = db.get(Quote,old.replaced_by_id)
+    r = client.post(f'/bao-gia/{new.id}/cancel', data=dict(csrf=csrf,version=new.version,reason='Khách đổi kế hoạch'))
+    assert r.status_code == 200 and 'Khách đổi kế hoạch' in r.text
+    r = client.post('/bao-gia/moi', data=dict(csrf=csrf,customer_code='KTD-000001',valid_until='2026-10-24'))
+    assert r.status_code == 200
+    empty = db.query(Quote).order_by(Quote.id.desc()).first()
+    r = client.post(f'/bao-gia/{empty.id}/send', data=dict(csrf=csrf,version=empty.version))
+    assert r.status_code == 400 and 'EMPTY_LINES' in r.text
+
+
+def test_b1_web_roles_and_csrf(client, web_login, db, b1_catalog):
+    from app.models import Quote
+    csrf = web_login('b1.sales', 'sales')
+    client.post('/bao-gia/moi', data=b1_form(csrf))
+    q = db.query(Quote).one()
+    assert client.post('/bao-gia/moi',data=b1_form('')).status_code == 403
+    assert client.post(f'/bao-gia/{q.id}/send',data=dict(version=q.version)).status_code == 403
+    csrf = web_login('b1.finance', 'finance')
+    for path in ('/bao-gia', f'/bao-gia/{q.id}', f'/bao-gia/{q.id}/in'):
+        r = client.get(path)
+        assert r.status_code == 200 and 'Lưu báo giá' not in r.text
+        assert f'action="/bao-gia/{q.id}/send"' not in r.text
+    assert client.get('/bao-gia/moi').status_code == 403
+    assert client.post('/bao-gia/moi',data=b1_form(csrf)).status_code == 403
+    assert client.post(f'/bao-gia/{q.id}/send',data=dict(csrf=csrf,version=q.version)).status_code == 403
+    csrf = web_login('b1.tech', 'technician')
+    assert client.get('/bao-gia').status_code == 403
+    assert client.post('/bao-gia/moi',data=b1_form(csrf)).status_code == 403

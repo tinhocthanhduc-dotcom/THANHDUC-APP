@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     # Thư mục lưu tệp đính kèm (ảnh nghiệm thu, biên bản). Sao lưu cùng database.
     files_dir: str = "data/files"
     max_upload_mb: int = 15
+    company_name: str = 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ TIN HỌC THÀNH ĐỨC'
+    company_address: str = 'Số 58 Đường Mã Lò, Phường Bình Trị Đông, Thành phố Hồ Chí Minh'
+    company_phone: str = '028 6266 1869'
+    company_hotline: str = '0888 304 668'
+    company_tax_code: str = '0313015734'
 
 
 @lru_cache
