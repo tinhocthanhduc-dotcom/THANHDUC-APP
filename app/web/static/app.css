@@ -110,3 +110,12 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .card { padding: 12px; }
   main input, main select, main textarea { min-width: 0; max-width: 100%; }
 }
+
+
+/* Bảng lỗi CSV vừa màn hình điện thoại, kể cả mã hoặc lời lỗi dài. */
+.opening-errors { margin-bottom: 16px; }
+.opening-table { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--surface); }
+.opening-table caption { text-align: left; font-weight: 600; padding: 8px 0; }
+.opening-table th, .opening-table td { text-align: left; vertical-align: top; padding: 8px; border: 1px solid var(--line); overflow-wrap: anywhere; }
+.opening-table th:first-child { width: 20%; }
+.opening-table th:nth-child(2) { width: 30%; }

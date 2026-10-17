@@ -440,3 +440,7 @@ _register_catalog("/nha-cung-cap", Supplier, SupplierIn, SupplierPatch)
 from .stock import router as stock_router
 
 router.include_router(stock_router)
+
+from .opening import router as opening_router
+
+router.include_router(opening_router)

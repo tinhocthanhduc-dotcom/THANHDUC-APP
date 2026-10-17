@@ -357,3 +357,144 @@ def test_k6_validation_and_stale_version_keep_input(client, web_login, stock_cat
     assert client.post(url, data=stock_form(csrf, version=1)).status_code == 200
     r = client.post(url, data=stock_form(csrf, version=1, note='Chưa được lưu'))
     assert r.status_code == 409 and 'Chưa được lưu' in r.text and 'name="version" value="1"' in r.text
+
+
+OPENING_CSV = b'MA_HANG,SO_LUONG,DON_GIA\nTD-0001,12,120000\nTD-0002,2,50000\n'
+
+
+def opening_upload(client, csrf, payload=OPENING_CSV, **kw):
+    fields = {'csrf': csrf, 'warehouse_code': 'K58', 'doc_date': '2026-12-31', **kw}
+    return client.post('/ton-dau-ky', data=fields, files={'file': ('opening.csv', payload, 'text/csv')}, follow_redirects=False)
+
+
+def test_opening_web_two_rows_create_draft_without_changing_stock(client, web_login, stock_catalog, db):
+    from app.models import StockBalance, StockDoc, StockLedger
+    csrf = web_login('thu.kho', 'warehouse')
+    r = opening_upload(client, csrf)
+    assert r.status_code == 303, r.text
+    page = client.get(r.headers['location'])
+    doc = db.query(StockDoc).one()
+    assert doc.kind == 'KK' and doc.status == 'NHAP' and len(doc.lines) == 2
+    assert [x.unit_cost for x in doc.lines] == [120000, 50000]
+    assert doc.number in page.text and f'href="/phieu-kho/{doc.id}"' in page.text
+    assert 'Kiểm tra rồi bấm Ghi sổ từng phiếu' in page.text
+    assert db.query(StockBalance).count() == 0 and db.query(StockLedger).count() == 0
+
+
+def test_opening_web_errors_all_shown_and_choices_retained(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    payload = b'MA_HANG,SO_LUONG,DON_GIA\nTD-9999,1,100\nTD-0001,,120000\n'
+    r = opening_upload(client, csrf, payload, warehouse_code='K145', doc_date='2026-10-17')
+    assert r.status_code == 400
+    assert 'Mã không có trong danh mục' in r.text and 'Số lượng sai' in r.text
+    assert '<td>2</td><td>TD-9999</td>' in r.text and '<td>3</td><td>TD-0001</td>' in r.text
+    assert 'value="K145" checked' in r.text and 'value="2026-10-17"' in r.text
+    assert db.query(StockDoc).count() == 0
+
+
+def test_opening_web_duplicate_import_links_existing_docs(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    assert opening_upload(client, csrf).status_code == 303
+    r = opening_upload(client, csrf)
+    doc = db.query(StockDoc).one()
+    assert r.status_code == 409 and 'Kho này đã có phiếu kiểm kê đầu kỳ.' in r.text
+    assert f'href="/phieu-kho/{doc.id}"' in r.text and doc.number in r.text
+    assert db.query(StockDoc).count() == 1
+
+
+def test_opening_web_bom_and_semicolon(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    from decimal import Decimal
+    csrf = web_login('thu.kho', 'warehouse')
+    payload = 'MA_HANG;SO_LUONG;DON_GIA\r\nTD-0001;2,5;120.000\r\n'.encode('utf-8-sig')
+    r = opening_upload(client, csrf, payload)
+    assert r.status_code == 303, r.text
+    doc = db.query(StockDoc).one()
+    assert doc.lines[0].qty == Decimal('2.500') and doc.lines[0].unit_cost == 120000
+
+
+def test_opening_web_sales_read_only_and_csrf_enforced(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    csrf = web_login('ban.hang', 'sales')
+    r = client.get('/ton-dau-ky')
+    assert r.status_code == 200 and '>Tạo phiếu KK nháp<' not in r.text and '<fieldset disabled>' in r.text
+    assert opening_upload(client, csrf).status_code == 403
+    csrf = web_login('thu.kho', 'warehouse')
+    assert client.post('/ton-dau-ky', data={'warehouse_code': 'K58', 'doc_date': '2026-12-31'},
+                       files={'file': ('opening.csv', OPENING_CSV, 'text/csv')}).status_code == 403
+    assert db.query(StockDoc).count() == 0
+
+
+def test_opening_web_sample_csv(client, web_login):
+    import csv
+    from io import StringIO
+    web_login('ban.hang', 'sales')
+    r = client.get('/ton-dau-ky/mau.csv')
+    assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv')
+    assert 'attachment' in r.headers['content-disposition']
+    rows = list(csv.reader(StringIO(r.content.decode('utf-8-sig'))))
+    assert rows[0] == ['MA_HANG', 'SO_LUONG', 'DON_GIA'] and len(rows) == 2 and len(rows[1]) == 3
+
+
+@pytest.mark.parametrize('payload,message,status', [
+    (b'x' * (2 * 1024 * 1024 + 1), 'không được lớn hơn 2 MB', 413),
+    (b'\xff\xfe', 'UTF-8', 400),
+    (b'wrong,columns\n1,2\n', 'MA_HANG', 400),
+    (b'MA_HANG,SO_LUONG,DON_GIA\n', 'File không có dòng hàng nào.', 400),
+    (b'MA_HANG,SO_LUONG,DON_GIA\nTD-0001,1,100,extra\n', 'thừa cột', 400),
+])
+def test_opening_web_file_validation(client, web_login, stock_catalog, db, payload, message, status):
+    from app.models import StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    r = opening_upload(client, csrf, payload)
+    assert r.status_code == status and message in r.text
+    assert db.query(StockDoc).count() == 0
+
+
+def test_opening_web_missing_file_date_and_warehouse(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    r = client.post('/ton-dau-ky', data={'csrf': csrf, 'warehouse_code': 'K58', 'doc_date': '2026-12-31'})
+    assert r.status_code == 400 and 'Hãy chọn file CSV' in r.text
+    r = opening_upload(client, csrf, doc_date='bad-date')
+    assert r.status_code == 400 and 'Ngày phiếu chưa hợp lệ' in r.text
+    r = opening_upload(client, csrf, warehouse_code='K404')
+    assert r.status_code == 400 and 'Kho không tồn tại.' in r.text
+    r = client.get('/ton-dau-ky')
+    assert 'value="2026-12-31"' in r.text
+
+
+def test_opening_web_all_error_labels(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    db.add(Product(code='TD-0003', name='Ngừng bán', active=False))
+    db.commit()
+    csrf = web_login('thu.kho', 'warehouse')
+    payload = b'MA_HANG,SO_LUONG,DON_GIA\nTD-0001,1,100\nTD-0001,1,100\n,1,100\nTD-0002,1,bad\nTD-0003,1,100\n'
+    r = opening_upload(client, csrf, payload)
+    assert r.status_code == 400
+    assert 'Mã trùng (dòng đầu: 2)' in r.text and 'Thiếu mã hàng' in r.text
+    assert 'Đơn giá sai' in r.text and 'Mã đã ngừng bán' in r.text
+    assert db.query(StockDoc).count() == 0
+
+
+def test_opening_web_result_lists_multiple_drafts(client, web_login, stock_catalog, monkeypatch):
+    from app import stock_opening
+    monkeypatch.setattr(stock_opening, 'MAX_LINES', 1)
+    csrf = web_login('giam.doc', 'director')
+    r = opening_upload(client, csrf)
+    assert r.status_code == 303
+    page = client.get(r.headers['location'])
+    assert 'KK-26-00001' in page.text and 'KK-26-00002' in page.text
+    assert 'Đã tạo 2 phiếu KK nháp' in page.text
+
+
+def test_opening_web_nonempty_warehouse_message(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf, action='post')
+    doc = db.get(StockDoc, doc_id)
+    r = client.post(f'/phieu-kho/{doc_id}/void', data={'csrf': csrf, 'version': doc.version, 'reason': 'Hủy thử'})
+    assert r.status_code == 200
+    r = opening_upload(client, csrf)
+    assert r.status_code == 409 and 'Kho đã có phát sinh nhập xuất, không nhập tồn đầu kỳ được nữa.' in r.text
