@@ -147,3 +147,35 @@ class DocCounter(Base):
     prefix: Mapped[str] = mapped_column(String(4), primary_key=True)
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
     last: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Warehouse(Base):
+    __tablename__ = "warehouses"
+
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    name: Mapped[str] = mapped_column(String(300))
+    address: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    __table_args__ = (
+        Index("uq_suppliers_tax", "tax_code", unique=True, postgresql_where="tax_code <> ''"),
+        Index("ix_suppliers_search", "search_text", postgresql_using="gin", postgresql_ops={"search_text": "gin_trgm_ops"}),
+    )
+
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    name: Mapped[str] = mapped_column(String(300))
+    tax_code: Mapped[str] = mapped_column(String(13), default="")
+    phones: Mapped[list[str]] = mapped_column(ARRAY(String(11)), default=list)
+    address: Mapped[str] = mapped_column(Text, default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    search_text: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {"version_id_col": version}

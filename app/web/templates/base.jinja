@@ -13,6 +13,8 @@
   <nav>
     <a href="/khach-hang" {% if request.url.path.startswith('/khach-hang') %}class="on"{% endif %}>Khách hàng</a>
     <a href="/hang-hoa" {% if request.url.path.startswith('/hang-hoa') %}class="on"{% endif %}>Hàng hóa</a>
+    <a href="/kho" {% if request.url.path.startswith('/kho') %}class="on"{% endif %}>Kho</a>
+    <a href="/nha-cung-cap" {% if request.url.path.startswith('/nha-cung-cap') %}class="on"{% endif %}>Nhà cung cấp</a>
   </nav>
   <form method="post" action="/dang-xuat" class="who">
     <span>{{ user.full_name }}</span>

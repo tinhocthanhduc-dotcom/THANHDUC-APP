@@ -1,0 +1,23 @@
+{% extends "base.jinja" %}
+{% block title %}{{ c.name or label }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>{% if is_new %}Thêm {{ label | lower }}{% else %}{{ c.code }} · {{ c.name }}{% endif %}</h1><a href="{{ path }}">← Danh sách</a></div>
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
+<form method="post" class="card form">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="version" value="{{ c.version }}">
+<fieldset {% if not can_write %}disabled{% endif %}>
+{% if is_new and not supplier %}<label>Mã kho<input name="code" value="{{ c.code }}" required pattern="[Kk][0-9]+" maxlength="16" placeholder="K58"></label>{% endif %}
+<label>Tên<input name="name" value="{{ c.name }}" required maxlength="300"></label>
+{% if supplier %}
+<label>Mã số thuế<input name="tax_code" value="{{ c.tax_code }}"></label>
+<label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Ngăn cách bằng dấu phẩy"></label>
+{% endif %}
+<label>Địa chỉ<input name="address" value="{{ c.address }}" maxlength="2000"></label>
+{% if supplier %}<label>Ghi chú<textarea name="note" maxlength="2000">{{ c.note }}</textarea></label>{% endif %}
+<label class="check"><input type="checkbox" name="active" value="1" {% if c.active %}checked{% endif %}> Đang sử dụng</label>
+</fieldset>
+{% if can_write %}<button class="primary">Lưu</button>{% else %}<p class="hint">Chỉ Kho hoặc giám đốc được sửa danh mục này.</p>{% endif %}
+</form>
+{% endblock %}

@@ -17,7 +17,7 @@ from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
-TABLES = "audit_log, customer_phones, customer_contacts, customers, products, users, doc_counters"
+TABLES = "audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
 PASSWORD = "matkhau-test-123"
 
 
@@ -43,6 +43,7 @@ def clean(engine):
         conn.execute(text(f"truncate {TABLES} restart identity cascade"))
         conn.execute(text("alter table audit_log enable trigger audit_log_readonly"))
         conn.execute(text("alter sequence ktd_seq restart with 1"))
+        conn.execute(text("alter sequence ncc_seq restart with 1"))
     yield
 
 

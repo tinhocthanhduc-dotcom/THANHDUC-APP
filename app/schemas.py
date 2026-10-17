@@ -153,3 +153,55 @@ class UserOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class WarehouseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    code: str = Field(min_length=1, max_length=16, pattern=r"^K[0-9]+$")
+    name: str = Field(min_length=1, max_length=300)
+    address: str = Field(default="", max_length=2000)
+    active: bool = True
+
+
+class WarehousePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    version: int = Field(ge=1)
+    name: str = Field(default="", min_length=1, max_length=300)
+    address: str = Field(default="", max_length=2000)
+    active: bool = True
+
+
+class WarehouseOut(WarehouseIn):
+    model_config = ConfigDict(from_attributes=True)
+    version: int
+
+
+class SupplierIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=300)
+    tax_code: str = ""
+    phones: list[str] = Field(default_factory=list, max_length=10)
+    address: str = Field(default="", max_length=2000)
+    note: str = Field(default="", max_length=2000)
+    active: bool = True
+
+
+class SupplierPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    version: int = Field(ge=1)
+    name: str = Field(default="", min_length=1, max_length=300)
+    tax_code: str = ""
+    phones: list[str] = Field(default_factory=list, max_length=10)
+    address: str = Field(default="", max_length=2000)
+    note: str = Field(default="", max_length=2000)
+    active: bool = True
+
+
+class SupplierOut(SupplierIn):
+    model_config = ConfigDict(from_attributes=True)
+    code: str
+    version: int

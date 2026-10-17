@@ -1,0 +1,8 @@
+{% if rows %}<ul class="list">
+{% for c in rows %}<li><a href="{{ path }}/{{ c.code }}">
+<span class="code">{{ c.code }}</span><strong>{{ c.name }}</strong>
+<span class="meta">{{ c.address }}{% if supplier %} · {{ c.phones | join(", ") }}{% if c.tax_code %} · MST {{ c.tax_code }}{% endif %}{% endif %}
+{% if not c.active %}<span class="tag">Ngừng sử dụng</span>{% endif %}</span>
+</a></li>{% endfor %}</ul>
+{% if supplier and rows | length >= 20 %}<p class="hint">Gõ thêm để tìm đúng nhà cung cấp.</p>{% endif %}
+{% else %}<p class="empty">Chưa có kết quả{% if q %} khớp "{{ q }}"{% endif %}.</p>{% endif %}
