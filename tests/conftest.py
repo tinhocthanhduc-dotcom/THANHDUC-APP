@@ -17,7 +17,7 @@ from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
-TABLES = "audit_log, customer_phones, customer_contacts, customers, products, users"
+TABLES = "audit_log, customer_phones, customer_contacts, customers, products, users, doc_counters"
 PASSWORD = "matkhau-test-123"
 
 

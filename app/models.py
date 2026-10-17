@@ -136,3 +136,14 @@ class AuditLog(Base):
     before: Mapped[dict | None] = mapped_column(JSONB)
     after: Mapped[dict | None] = mapped_column(JSONB)
     reason: Mapped[str] = mapped_column(Text, default="")
+
+
+class DocCounter(Base):
+    """Bộ đếm số chứng từ theo loại và năm: PN-26-00001. Chỉ app/doc_numbers.py ghi vào bảng này."""
+
+    __tablename__ = "doc_counters"
+    __table_args__ = (CheckConstraint("last >= 0", name="ck_doc_counters_last"),)
+
+    prefix: Mapped[str] = mapped_column(String(4), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last: Mapped[int] = mapped_column(Integer, default=0)
