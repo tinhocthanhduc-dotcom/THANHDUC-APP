@@ -1,0 +1,42 @@
+{% extends "base.jinja" %}
+{% block title %}{{ d.number or 'Lập phiếu kho' }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>{{ d.number or 'Lập phiếu kho' }} · {{ states[d.status] }}</h1><a href="/phieu-kho">← Phiếu kho</a></div>
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+{% if d.status == 'DA_HUY' %}<p class="alert warn">Lý do hủy: {{ d.void_reason }}</p>{% endif %}
+<form method="post" action="{% if d.id %}/phieu-kho/{{ d.id }}{% else %}/phieu-kho/moi{% endif %}" class="form" data-stock-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+{% if d.id %}<input type="hidden" name="kind" value="{{ d.kind }}">{% endif %}
+<fieldset {% if not can_write or d.status != 'NHAP' %}disabled{% endif %}>
+<fieldset class="card"><legend>Loại phiếu</legend><div class="seg stock-seg">
+{% for code, label in kinds.items() %}<label><input type="radio" name="{% if d.id %}locked_kind{% else %}kind{% endif %}" value="{{ code }}" {% if d.kind == code %}checked{% endif %} {% if d.id %}disabled{% endif %}><span>{{ label }}</span></label>{% endfor %}
+</div></fieldset>
+<div class="card form">
+<label>Ngày phiếu<input type="date" name="doc_date" value="{{ d.doc_date }}" required></label>
+<fieldset><legend>Kho nguồn</legend><div class="seg stock-seg">
+{% for w in warehouses %}<label><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if d.warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.warehouse_code != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
+</div></fieldset>
+<fieldset data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend><div class="seg stock-seg">
+{% for w in warehouses %}<label><input type="radio" name="to_warehouse_code" value="{{ w.code }}" {% if d.to_warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.to_warehouse_code != w.code %}disabled{% endif %}><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
+</div></fieldset>
+<label data-kind-only="PN" {% if d.kind != 'PN' %}hidden{% endif %}>Nhà cung cấp<select name="supplier_code" {% if d.kind != 'PN' %}disabled{% endif %}><option value="">Chọn nhà cung cấp</option>{% for s in suppliers %}<option value="{{ s.code }}" {% if d.supplier_code == s.code %}selected{% endif %}>{{ s.code }} · {{ s.name }}</option>{% endfor %}</select></label>
+<label data-kind-only="PX" {% if d.kind != 'PX' %}hidden{% endif %}>Mã khách hàng (nếu có)<input name="customer_code" value="{{ d.customer_code or '' }}" {% if d.kind != 'PX' %}disabled{% endif %}></label>
+<label>Lý do<input name="reason" value="{{ d.reason }}" maxlength="2000"></label>
+<label>Ghi chú<textarea name="note" maxlength="2000">{{ d.note }}</textarea></label>
+</div>
+<div class="form" data-stock-lines>{% for line in d.lines %}{% include 'phieu_dong.jinja' %}{% endfor %}</div>
+{% if can_write and d.status == 'NHAP' %}<button type="button" data-add-stock-line>+ Thêm dòng hàng</button>{% endif %}
+</fieldset>
+{% if can_write and d.status == 'NHAP' %}<div class="stock-actions"><button class="primary" name="action" value="save">Lưu nháp</button>
+<button class="primary" name="action" value="post" {% if d.id %}formaction="/phieu-kho/{{ d.id }}/post"{% endif %}>Ghi sổ</button></div>{% endif %}
+</form>
+{% if can_write and d.id and d.status in ['NHAP', 'DA_GHI'] %}
+<form method="post" class="card form stock-cancel" action="/phieu-kho/{{ d.id }}/{% if d.status == 'NHAP' %}cancel{% else %}void{% endif %}" {% if d.status == 'DA_GHI' %}data-confirm-void{% endif %}>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<label>Lý do hủy<input name="reason" value="{{ action_reason }}" required {% if d.status == 'DA_GHI' %}minlength="3"{% endif %} maxlength="2000"></label>
+<button>{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</button>
+</form>{% endif %}
+<template id="stock-line-template">{% set line = {'product_code':'', 'qty':'1', 'unit_cost':'', 'serial':'', 'note':''} %}{% include 'phieu_dong.jinja' %}</template>
+<script src="/static/stock.js" defer></script>
+{% endblock %}

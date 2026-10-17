@@ -1,0 +1,1 @@
+{% for p in rows %}<button type="button" data-pick-product="{{ p.code }}" data-product-name="{{ p.name }}">{{ p.code }} · {{ p.name }}</button>{% else %}<p class="hint">Không có mã hàng phù hợp.</p>{% endfor %}

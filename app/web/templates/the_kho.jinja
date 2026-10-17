@@ -1,0 +1,7 @@
+{% extends "base.jinja" %}
+{% block title %}Thẻ kho {{ product.code }}{% endblock %}
+{% block main %}<div class="bar"><h1>Thẻ kho {{ warehouse.code }} · {{ product.code }} · {{ product.name }}</h1><a href="/ton-kho?kho={{ warehouse.code }}">← Tồn kho</a></div>
+<div class="form">{% for r, number in rows %}<article class="card stock-ledger-row">
+<a href="/phieu-kho/{{ r.doc_id }}">{{ number }}</a>{% if r.is_reversal %}<span class="tag">Dòng hủy</span>{% endif %}<p class="meta">{{ r.at }}</p>
+<dl><dt>Nhập</dt><dd>{{ r.qty_in }}</dd><dt>Xuất</dt><dd>{{ r.qty_out }}</dd><dt>Giá trị (đ)</dt><dd>{{ r.amount | money }}</dd><dt>Tồn sau dòng</dt><dd>{{ r.balance_qty }}</dd><dt>Giá trị tồn (đ)</dt><dd>{{ r.balance_value | money }}</dd></dl>
+</article>{% else %}<p class="empty">Chưa có dòng sổ.</p>{% endfor %}</div>{% endblock %}

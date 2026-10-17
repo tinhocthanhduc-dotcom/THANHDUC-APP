@@ -213,3 +213,147 @@ def test_supplier_web_errors_preserve_form(client, web_login):
     assert r.status_code == 409 and 'MST đã thuộc' in r.text and 'value="Minh Phát"' in r.text
     r = client.post('/nha-cung-cap/moi', data={**data, 'name': ''})
     assert r.status_code == 400 and 'Tên không được để trống' in r.text
+
+
+@pytest.fixture
+def stock_catalog(db):
+    from app.models import Supplier, Warehouse
+    db.add_all([Warehouse(code='K58', name='Kho 58'), Warehouse(code='K145', name='Kho 145'),
+                Supplier(code='NCC-0001', name='Minh Phát'),
+                Product(code='TD-0001', name='Mực in', search_text='td-0001 muc in'),
+                Product(code='TD-0002', name='Drum', search_text='td-0002 drum')])
+    db.commit()
+
+
+def stock_form(csrf, **kw):
+    data = dict(csrf=csrf, kind='PN', warehouse_code='K58', doc_date='2026-10-17', supplier_code='NCC-0001',
+                reason='Nhập mua hàng', note='Giữ ghi chú', product_code=['TD-0001'], qty=['2'],
+                unit_cost=['120.000'], serial=['SN-01'], line_note=['Dòng đầu'])
+    data.update(kw)
+    return data
+
+
+def stock_create_web(client, csrf, **kw):
+    r = client.post('/phieu-kho/moi', data=stock_form(csrf, **kw), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    return int(re.search(r'/phieu-kho/(\d+)', r.headers['location']).group(1))
+
+
+def test_k6_receipt_form_parses_money(client, web_login, stock_catalog, db):
+    from app.models import StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf)
+    doc = db.get(StockDoc, doc_id)
+    assert doc.lines[0].unit_cost == 120000
+    assert doc.lines[0].qty == 2 and doc.status == 'NHAP'
+    page = client.get(f'/phieu-kho/{doc_id}')
+    assert 'value="120.000"' in page.text and 'Mực in' in page.text
+
+
+def test_k6_post_saves_draft_then_updates_balance_and_card(client, web_login, stock_catalog, db):
+    from app.models import StockBalance, StockDoc, StockLedger
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf)
+    r = client.post(f'/phieu-kho/{doc_id}/post', data=stock_form(csrf, version='1', qty=['3']), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    db.expire_all()
+    assert db.get(StockDoc, doc_id).lines[0].qty == 3
+    bal = db.get(StockBalance, ('K58', 'TD-0001'))
+    assert bal.qty == 3 and bal.value == 360000
+    page = client.get('/ton-kho').text
+    assert '3.000' in page and '360.000' in page and '120.000' in page
+    page = client.get('/the-kho/K58/TD-0001').text
+    assert page.count('class="card stock-ledger-row"') == 1
+    assert f'href="/phieu-kho/{doc_id}"' in page
+    assert db.query(StockLedger).count() == 1
+
+
+def test_k6_negative_stock_preserves_form_and_balance(client, web_login, stock_catalog, db):
+    from app.models import StockBalance, StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    stock_create_web(client, csrf, action='post')
+    doc_id = stock_create_web(client, csrf, kind='PX', supplier_code='', unit_cost=[''], qty=['5'])
+    r = client.post(f'/phieu-kho/{doc_id}/post', data=stock_form(csrf, version='1', kind='PX', supplier_code='',
+                    unit_cost=[''], qty=['5'], note='Giao gấp cho khách'), follow_redirects=False)
+    assert r.status_code == 409
+    assert 'Không đủ tồn cho TD-0001' in r.text and 'tồn hiện có 2.000' in r.text and 'số cần 5.000' in r.text
+    assert 'value="5"' in r.text and 'Giao gấp cho khách' in r.text and 'value="SN-01"' in r.text
+    assert 'name="version" value="2"' in r.text
+    db.expire_all()
+    bal = db.get(StockBalance, ('K58', 'TD-0001'))
+    assert bal.qty == 2 and bal.value == 240000
+    assert db.get(StockDoc, doc_id).status == 'NHAP'
+
+
+def test_k6_void_needs_reason_then_reverses_balance(client, web_login, stock_catalog, db):
+    from app.models import StockBalance, StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf, action='post')
+    doc = db.get(StockDoc, doc_id)
+    r = client.post(f'/phieu-kho/{doc_id}/void', data={'csrf': csrf, 'version': doc.version, 'reason': ''})
+    assert r.status_code == 400 and 'phải ghi lý do' in r.text
+    assert 'data-confirm-void' in r.text
+    assert db.get(StockBalance, ('K58', 'TD-0001')).qty == 2
+    r = client.post(f'/phieu-kho/{doc_id}/void', data={'csrf': csrf, 'version': doc.version, 'reason': 'Nhập sai'}, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    db.expire_all()
+    bal = db.get(StockBalance, ('K58', 'TD-0001'))
+    assert bal.qty == 0 and bal.value == 0
+    assert db.get(StockDoc, doc_id).status == 'DA_HUY'
+
+
+def test_k6_balance_search_without_accents(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    stock_create_web(client, csrf, action='post')
+    page = client.get('/ton-kho?q=muc+in').text
+    assert 'Mực in' in page and 'TD-0001' in page
+    assert 'Mực in' in client.get('/ton-kho?q=TD-0001&phan=1').text
+    assert 'Mực in' not in client.get('/ton-kho?q=Drum&phan=1').text
+
+
+def test_k6_sales_read_only(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf)
+    csrf = web_login('ban.hang', 'sales')
+    for path in ['/phieu-kho', '/phieu-kho/moi', f'/phieu-kho/{doc_id}', '/ton-kho', '/the-kho/K58/TD-0001']:
+        r = client.get(path)
+        assert r.status_code == 200, r.text
+        assert '>Ghi sổ<' not in r.text and '>Lưu nháp<' not in r.text and '>Hủy nháp<' not in r.text
+    assert client.post('/phieu-kho/moi', data=stock_form(csrf)).status_code == 403
+    for path in [f'/phieu-kho/{doc_id}', f'/phieu-kho/{doc_id}/post', f'/phieu-kho/{doc_id}/cancel', f'/phieu-kho/{doc_id}/void']:
+        assert client.post(path, data=stock_form(csrf, version=1)).status_code == 403
+
+
+@pytest.mark.parametrize('action', ['', '/post', '/cancel', '/void'])
+def test_k6_csrf_required(client, web_login, stock_catalog, action):
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf)
+    data = stock_form(csrf, version=1)
+    data.pop('csrf')
+    assert client.post(f'/phieu-kho/{doc_id}' + action, data=data).status_code == 403
+    assert client.post('/phieu-kho/moi', data=data).status_code == 403
+
+
+def test_k6_picker_filters_and_draft_cancel(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    rows = client.get('/phieu-kho/tim-hang?q=muc+in').text
+    assert 'data-pick-product="TD-0001"' in rows and 'Mực in' in rows and 'TD-0002' not in rows
+    doc_id = stock_create_web(client, csrf)
+    page = client.get('/phieu-kho?loai=PX&kho=K58&trang_thai=NHAP&tu=2026-01-01&den=2026-12-31').text
+    assert f'href="/phieu-kho/{doc_id}"' not in page
+    page = client.get('/phieu-kho?loai=PN&kho=K58&trang_thai=NHAP&tu=2026-01-01&den=2026-12-31').text
+    assert f'href="/phieu-kho/{doc_id}"' in page
+    assert client.post(f'/phieu-kho/{doc_id}/cancel', data={'csrf': csrf, 'version': 1, 'reason': ''}).status_code == 400
+    r = client.post(f'/phieu-kho/{doc_id}/cancel', data={'csrf': csrf, 'version': 1, 'reason': 'Sai phiếu'})
+    assert 'Đã hủy' in r.text and 'Sai phiếu' in r.text
+
+
+def test_k6_validation_and_stale_version_keep_input(client, web_login, stock_catalog):
+    csrf = web_login('thu.kho', 'warehouse')
+    r = client.post('/phieu-kho/moi', data=stock_form(csrf, unit_cost=['-120.000']))
+    assert r.status_code == 400 and 'value="-120.000"' in r.text
+    doc_id = stock_create_web(client, csrf)
+    url = f'/phieu-kho/{doc_id}'
+    assert client.post(url, data=stock_form(csrf, version=1)).status_code == 200
+    r = client.post(url, data=stock_form(csrf, version=1, note='Chưa được lưu'))
+    assert r.status_code == 409 and 'Chưa được lưu' in r.text and 'name="version" value="1"' in r.text

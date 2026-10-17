@@ -1,0 +1,8 @@
+{% extends "base.jinja" %}
+{% block title %}Tồn kho{% endblock %}
+{% block main %}<h1>Tồn kho</h1>
+<form action="/ton-kho" class="form card">
+<fieldset><legend>Kho</legend><div class="seg stock-seg"><label><input type="radio" name="kho" value="" {% if not kho %}checked{% endif %}><span>Tất cả</span></label>
+{% for w in warehouses %}<label><input type="radio" name="kho" value="{{ w.code }}" {% if kho == w.code %}checked{% endif %}><span>{{ w.code }}</span></label>{% endfor %}</div></fieldset>
+<label>Tìm mã hoặc tên hàng<input name="q" value="{{ q }}" data-live="#stock-results" placeholder="Ví dụ: muc in"></label><button>Xem tồn</button>
+</form><div id="stock-results">{% include 'ton_dong.jinja' %}</div>{% endblock %}
