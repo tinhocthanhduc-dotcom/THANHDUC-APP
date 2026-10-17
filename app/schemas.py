@@ -268,6 +268,12 @@ class StockDocCancel(BaseModel):
     version: int | None = Field(default=None, ge=1)
 
 
+class StockDocPost(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int | None = Field(default=None, ge=1)
+
+
 class StockDocLineOut(StockDocLineIn):
     model_config = ConfigDict(from_attributes=True)
 

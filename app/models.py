@@ -236,3 +236,47 @@ class StockDocLine(Base):
     serial: Mapped[str | None] = mapped_column(String(200))
     note: Mapped[str] = mapped_column(Text, default="")
     doc: Mapped[StockDoc] = relationship(back_populates="lines")
+
+
+class StockBalance(Base):
+    """Tồn hiện tại theo kho và mã hàng. Chỉ app/stock_posting.py ghi vào bảng này."""
+
+    __tablename__ = "stock_balances"
+    __table_args__ = (
+        CheckConstraint("qty >= 0", name="ck_stock_balances_qty"),
+        CheckConstraint("value >= 0", name="ck_stock_balances_value"),
+        CheckConstraint("qty > 0 or value = 0", name="ck_stock_balances_empty"),
+    )
+
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey("warehouses.code"), primary_key=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"), primary_key=True)
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal(0))
+    value: Mapped[int] = mapped_column(BigInteger, default=0)
+    # Giá vốn bình quân; khi tồn về 0 vẫn giữ giá lần cuối để kiểm kê tăng tồn có giá tham chiếu.
+    avg_cost: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class StockLedger(Base):
+    """Sổ kho: mỗi dòng là một lần tồn thay đổi do phiếu. Chỉ thêm, database chặn sửa và xóa."""
+
+    __tablename__ = "stock_ledger"
+    __table_args__ = (
+        CheckConstraint("qty_in >= 0 and qty_out >= 0 and (qty_in > 0) <> (qty_out > 0)", name="ck_stock_ledger_qty"),
+        Index("ix_stock_ledger_card", "warehouse_code", "product_code", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey("warehouses.code"))
+    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"))
+    doc_id: Mapped[int] = mapped_column(ForeignKey("stock_docs.id"), index=True)
+    line_no: Mapped[int] = mapped_column(Integer)
+    # True với các dòng đảo ngược khi hủy phiếu đã ghi sổ.
+    is_reversal: Mapped[bool] = mapped_column(Boolean, default=False)
+    qty_in: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal(0))
+    qty_out: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal(0))
+    unit_cost: Mapped[int] = mapped_column(BigInteger)
+    # Giá trị nhập (dương) hoặc xuất (âm), đơn vị đồng.
+    amount: Mapped[int] = mapped_column(BigInteger)
+    balance_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    balance_value: Mapped[int] = mapped_column(BigInteger)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
