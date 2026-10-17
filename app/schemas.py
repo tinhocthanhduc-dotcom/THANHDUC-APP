@@ -315,7 +315,7 @@ class StockMinLevelIn(BaseModel):
 
 ServiceKind = Literal["SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY"]
 ServicePriority = Literal["KHAN", "GAP", "THUONG"]
-ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "KHONG_LAM_DUOC", "DA_HUY"]
+ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY"]
 
 
 class ServiceTicketIn(BaseModel):
@@ -383,13 +383,52 @@ class ServiceTicketOut(BaseModel):
     due_at: datetime | None
     status_reason: str
     transfer_request: str
+    billing: Literal["THU_TIEN", "MIEN_PHI"] | None
+    free_reason: str
+    subtotal: int | None
+    vat_total: int | None
+    total: int | None
+    receivable: int | None
+    priced_at: datetime | None
     created_by: int
     created_at: datetime
     version: int
 
 
+class ServiceLineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    kind: Literal["PHI", "VAT_TU"]
+    product_code: str | None = Field(default=None, max_length=16)
+    warehouse_code: str | None = Field(default=None, max_length=16)
+    description: str = Field(default="", max_length=500)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    unit_price: int = Field(strict=True, ge=0, le=10_000_000_000)
+    vat_rate: Literal[0, 5, 8, 10] = 0
+
+
+class ServiceLineOut(ServiceLineIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    line_no: int
+    amount: int
+    vat_amount: int
+    stock_doc_id: int | None
+
+
+class ServiceCharges(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    billing: Literal["THU_TIEN", "MIEN_PHI"]
+    free_reason: str = Field(default="", max_length=2000)
+    lines: list[ServiceLineIn] = Field(default_factory=list, max_length=200)
+    version: int | None = Field(default=None, ge=1)
+
+
 class ServiceTicketDetail(ServiceTicketOut):
     steps: list[ServiceStepOut]
+    lines: list[ServiceLineOut]
 
 
 class AttachmentOut(BaseModel):
