@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ContactIn(BaseModel):
@@ -448,3 +448,72 @@ class AttachmentOut(BaseModel):
     created_by: int
     created_at: datetime
     version: int
+
+
+class CustomerSiteIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=200)
+    address: str = Field(default="", max_length=2000)
+    contact_name: str = Field(default="", max_length=200)
+    contact_phone: str = Field(default="", max_length=32)
+    note: str = Field(default="", max_length=2000)
+    active: bool = True
+
+
+class CustomerSitePatch(CustomerSiteIn):
+    version: int = Field(ge=1)
+    name: str = Field(default="", min_length=1, max_length=200)
+
+
+class CustomerSiteOut(CustomerSiteIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    customer_code: str
+    version: int
+    created_by: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class EquipmentFields(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    product_code: str = Field(min_length=1, max_length=16)
+    customer_code: str | None = Field(default=None, min_length=1, max_length=16)
+    site_id: int | None = Field(default=None, ge=1)
+    warranty_until: date | None = None
+    condition: Literal["MOI", "CU"] = "MOI"
+    note: str = Field(default="", max_length=2000)
+    active: bool = True
+
+
+    @field_validator('customer_code', 'site_id', 'warranty_until', mode='before')
+    @classmethod
+    def blank_optional(cls, value):
+        return None if value == '' else value
+
+
+class EquipmentIn(EquipmentFields):
+    serial: str = Field(min_length=1, max_length=64)
+
+    @field_validator('serial', mode='before')
+    @classmethod
+    def normalize_serial(cls, value):
+        return ''.join(value.split()).upper() if isinstance(value, str) else value
+
+
+class EquipmentPatch(EquipmentFields):
+    version: int = Field(ge=1)
+    product_code: str = Field(default="", min_length=1, max_length=16)
+
+
+class EquipmentOut(EquipmentFields):
+    model_config = ConfigDict(from_attributes=True)
+
+    serial: str
+    version: int
+    created_by: int
+    created_at: datetime
+    updated_at: datetime
