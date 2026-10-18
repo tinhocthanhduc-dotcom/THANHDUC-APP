@@ -489,3 +489,7 @@ router.include_router(finance_router)
 from .cash import router as cash_router
 
 router.include_router(cash_router)
+
+from .closings import router as closings_router
+
+router.include_router(closings_router)

@@ -1,0 +1,8 @@
+{% extends 'base.jinja' %}
+{% block title %}Điều chỉnh phiếu{% endblock %}
+{% block main %}
+<div class="bar"><h1>Yêu cầu điều chỉnh chờ duyệt</h1><a href="/thu-chi">Thu chi</a><a href="/chot-so">Chốt sổ</a></div>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã xử lý yêu cầu.</p>{% endif %}
+<div class="closing-grid">{% for r in rows %}<section class="card" id="yc-{{ r.id }}"><h2><a href="/thu-chi/{{ r.doc_id }}">{{ old[r.doc_id].number }}</a></h2><dl><dt>Số cũ</dt><dd>{{ old[r.doc_id].amount|money }} đồng</dd><dt>Số mới</dt><dd>{{ r.new_amount|money }} đồng</dd><dt>Quỹ mới</dt><dd>{{ r.new_fund_code }}</dd><dt>Danh mục mới</dt><dd>{{ r.new_category_code }}</dd></dl><p>Lý do: {{ r.reason }}</p><p>{{ r.new_description }}</p>
+{% if director %}<form method="post" action="/dieu-chinh/{{ r.id }}/approve" onsubmit="return confirm('Duyệt điều chỉnh: ghi đảo phiếu cũ và lập phiếu mới?');"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ r.version }}"><button class="primary">Duyệt</button></form><form method="post" action="/dieu-chinh/{{ r.id }}/reject" class="form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ r.version }}"><label>Lý do từ chối<textarea name="reason" maxlength="2000" required>{{ reason if failed_id==r.id else '' }}</textarea></label><button>Từ chối</button></form>{% else %}<p class="hint">Chỉ giám đốc được duyệt hoặc từ chối.</p>{% endif %}</section>{% else %}<p>Không có yêu cầu chờ duyệt.</p>{% endfor %}</div>
+{% endblock %}

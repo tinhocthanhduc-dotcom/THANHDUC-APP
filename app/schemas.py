@@ -809,3 +809,13 @@ class ServiceReceivableOut(ServiceTicketOut):
     paid: int
     pending: int
     remaining: int
+
+
+class CashCorrectionIn(BaseModel):
+    model_config = ConfigDict(extra='forbid',str_strip_whitespace=True)
+    version: int = Field(strict=True,ge=1)
+    reason: str = Field(min_length=1,max_length=2000)
+    new_amount: int = Field(strict=True,gt=0,le=9_223_372_036_854_775_807)
+    new_fund_code: str | None = Field(default=None,min_length=1,max_length=32)
+    new_category_code: str | None = Field(default=None,min_length=1,max_length=32)
+    new_description: str | None = Field(default=None,max_length=4000)

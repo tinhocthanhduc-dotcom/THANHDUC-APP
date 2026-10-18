@@ -750,3 +750,41 @@ class FundLedger(Base):
     balance_after: Mapped[int] = mapped_column(BigInteger)
     is_reversal: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DayClosing(Base):
+    __tablename__ = 'day_closings'
+    __table_args__ = (CheckConstraint("status in ('DA_CHOT','DA_MO')",name='ck_day_closings_status'),)
+    day: Mapped[date] = mapped_column(Date,primary_key=True)
+    status: Mapped[str] = mapped_column(String(8))
+    closed_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    unlocked_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    unlocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unlock_reason: Mapped[str] = mapped_column(Text,default='')
+    version: Mapped[int] = mapped_column(Integer,default=1,nullable=False)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class CashCorrection(Base):
+    __tablename__ = 'cash_corrections'
+    __table_args__ = (
+        CheckConstraint("status in ('CHO_DUYET','DA_DUYET','TU_CHOI')",name='ck_cash_corrections_status'),
+        CheckConstraint('new_amount > 0',name='ck_cash_corrections_amount'),
+        Index('uq_cash_corrections_pending','doc_id',unique=True,postgresql_where=text("status='CHO_DUYET'")),
+    )
+    id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey('cash_docs.id'))
+    reason: Mapped[str] = mapped_column(Text)
+    new_amount: Mapped[int] = mapped_column(BigInteger)
+    new_fund_code: Mapped[str] = mapped_column(ForeignKey('funds.code'))
+    new_category_code: Mapped[str] = mapped_column(ForeignKey('cash_categories.code'))
+    new_description: Mapped[str] = mapped_column(Text,default='')
+    status: Mapped[str] = mapped_column(String(12),default='CHO_DUYET')
+    requested_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decide_reason: Mapped[str] = mapped_column(Text,default='')
+    new_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
+    version: Mapped[int] = mapped_column(Integer,default=1,nullable=False)
+    __mapper_args__ = {'version_id_col': version}

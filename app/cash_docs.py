@@ -8,7 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
 
-from . import audit
+from . import audit, day_closings
 from .doc_numbers import next_number
 from .errors import BusinessError
 from .finance_catalogs import check_reader, check_writer, check_version
@@ -148,6 +148,8 @@ def _record(session,user,doc,action,before,reason=''):
 
 def insert(session,user,body: CashDocIn):
     """Trong transaction nơi gọi, không commit; caller kiểm quyền cho phiếu tự động. Đầu kỳ luôn cần director."""
+    _opening(user,body.is_opening)
+    day_closings.check_open(session,body.doc_date)
     _validate(session,user,body)
     doc = CashDoc(**body.model_dump(),created_by=user.id,number=next_number(session,body.kind,body.doc_date))
     session.add(doc)
@@ -168,6 +170,7 @@ def update(session,user,doc_id,body: CashDocPatch):
         doc = _load(session,doc_id,True)
         _opening(user,doc.is_opening)
         check_version(doc,body.version)
+        day_closings.check_days(session,[doc.doc_date,body.doc_date or doc.doc_date])
         _draft(doc)
         before = snapshot(doc)
         data = {k:getattr(doc,k) for k in (*HEADER_FIELDS,'source_type','source_id')}
@@ -193,6 +196,7 @@ def cancel(session,user,doc_id,body):
         check_source(doc)
         _opening(user,doc.is_opening)
         check_version(doc,body.version)
+        day_closings.check_open(session,doc.doc_date)
         _draft(doc)
         reason = (body.reason or '').strip()
         if not reason:

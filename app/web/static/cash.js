@@ -1,6 +1,4 @@
-(function() {
-  var form=document.querySelector('[data-cash-form]');
-  if (!form) return;
+document.querySelectorAll('[data-cash-form],[data-correction-form]').forEach(function(form) {
   var opening=form.querySelector('[data-cash-opening]'), category=form.querySelector('[data-cash-category]');
   function toggle() {
     if (!opening || !category) return;
@@ -22,4 +20,4 @@
     }
     input.focus();
   });
-})();
+});

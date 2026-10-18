@@ -399,3 +399,31 @@ Web dịch vụ hoàn thành/đóng có thu tiền dùng chung `bao_thu_trong_do
 | OVER_PAYMENT | 409 | Đã thu + chờ + mới vượt phải thu; details available/paid/pending/remaining |
 | HAS_RECEIPTS | 409 | Tài chính phải từ chối hoặc hủy báo thu trước khi mở lại/hủy DV |
 | VERSION_CONFLICT / SELF_CONFIRM / REASON_REQUIRED / FORBIDDEN | 409 / 403 / 400 / 403 | Giữ quy tắc B4 cho cả DB/DV |
+
+## Chốt sổ và điều chỉnh phiếu (T4)
+
+Migration `0017` nối `0016`, thêm day_closings (khóa chính day, DA_CHOT/DA_MO) và cash_corrections (CHO_DUYET/DA_DUYET/TU_CHOI, unique một yêu cầu chờ theo doc_id). Hai bảng có version_id_col, FK người/quỹ/danh mục/phiếu; không seed ngày hoặc yêu cầu.
+
+`day_closings.close(session,user,day,version)`: finance/director, chỉ ngày <= hôm nay VN. Ngày chưa có bản ghi dùng version **0**, các lần sau dùng version hiện tại. Còn NHAP cùng doc_date báo DRAFTS_OPEN kèm details.numbers. DA_MO được chốt lại. `unlock(session,user,day,reason,version)` chỉ director, lý do bắt buộc, không tự khóa lại. Mỗi lần chốt/mở tăng version, ghi audit trước/sau.
+
+`check_open(session,day)` giữ advisory transaction lock theo namespace cố định + ngày, đọc trạng thái mới nhất; DA_CHOT báo DAY_CLOSED với details.day. Ngày chưa chốt không tự tạo dòng. Cash docs insert/create, update (cả ngày cũ/mới), cancel nháp; cash posting post_in_tx (ngày gốc), void_in_tx (ngày gốc + ngày hủy) đều gọi kiểm tra. Các ngày được khóa theo thứ tự tăng. Chốt/mở khóa dùng cùng advisory lock, vì vậy không lọt tạo/ghi/hủy khi chốt đồng thời. Xác nhận BT tự bị chặn và rollback qua cash_docs.insert/post_in_tx. Ngày hủy được lấy một lần để kiểm và ghi đảo cùng ngày, kể cả lúc qua nửa đêm.
+
+`cash_posting.void` kiểm cash_docs.check_source trong lõi, không chỉ web: PT SALES_RECEIPT báo SOURCE_LOCKED. void_in_tx vẫn cho luồng BT gọi, nhưng chịu khóa ngày bình thường.
+
+`cash_corrections.request(session,user,doc_id,CashCorrectionIn)` finance/director, version của phiếu gốc. Chỉ PT/PC DA_GHI, không đầu kỳ, không có source_type; nguồn tự động báo SOURCE_LOCKED. Lý do bắt buộc, new_amount nguyên dương; quỹ/danh mục mới mặc định từ phiếu gốc nếu không gửi, phải đang dùng/đúng chiều. Có yêu cầu CHO_DUYET báo CORRECTION_PENDING.
+
+`approve(session,user,id,version)` chỉ director, version của yêu cầu. Khóa yêu cầu/phiếu, kiểm ngày hôm nay mở; khóa hợp quỹ cũ/mới theo mã tăng trước khi đảo. Trong cùng transaction: void_in_tx gốc với lý do “Điều chỉnh: …”, insert/post phiếu dương mới cùng loại ngày hôm nay, mô tả “Điều chỉnh cho PT-/PC-…”, gắn new_doc_id và audit. Chỉ luồng này truyền capability nội bộ để bỏ qua check ngày **gốc**; ngày hôm nay vẫn bắt buộc mở, ngày gốc vẫn DA_CHOT, không tạm mở khóa. Capability không nhận từ HTTP và cần director. Quỹ âm hoặc lỗi sau ghi mới rollback cả đảo, phiếu mới, bộ đếm, số dư, trạng thái yêu cầu và audit. `reject(session,user,id,reason,version)` chỉ director, lý do bắt buộc. Không có phiếu âm hoặc sửa/xóa dòng sổ.
+
+Web `/chot-so`: 30 ngày gần nhất, tổng PT/PC thuần theo ngày sổ (đảo giảm loại gốc, không gồm CQ/đầu kỳ), nháp và trạng thái; finance chốt, director thêm mở khóa với lý do/xác nhận. `/thu-chi/{id}` có nhãn Đã chốt sổ và ẩn Hủy; PT/PC đủ điều kiện có form yêu cầu điều chỉnh, giữ dữ liệu lỗi; sau duyệt phiếu cũ có link phiếu mới. `/dieu-chinh` liệt kê yêu cầu chờ, số cũ/mới, director Duyệt/Từ chối. Mọi POST có CSRF/version, giao diện 360px.
+
+| Mã | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| DAY_CLOSED | 409 | Ngày đã chốt, details.day |
+| DRAFTS_OPEN | 409 | Còn phiếu nháp, details.numbers |
+| FUTURE_DAY | 400 | Không chốt ngày mai hoặc xa hơn |
+| CORRECTION_PENDING | 409 | Phiếu đang có một yêu cầu chờ duyệt |
+| SOURCE_LOCKED | 409 | Không hủy PT nguồn BT trực tiếp trong lõi; không điều chỉnh phiếu nguồn tự động |
+| REASON_REQUIRED | 400 | Mở khóa/yêu cầu/từ chối thiếu lý do |
+| BAD_STATUS | 409 | Ngày đã mở hoặc yêu cầu/phiếu không còn đủ điều kiện |
+| VERSION_REQUIRED / VERSION_CONFLICT | 400 / 409 | Thiếu hoặc cũ version, kể cả version 0 của ngày chưa có dòng |
+| NEGATIVE_CASH / FORBIDDEN / BAD_CSRF | 409 / 403 / 403 | Giữ kiểm số dư, quyền và CSRF |

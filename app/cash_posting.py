@@ -4,11 +4,15 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from . import cash_docs as docs
+from . import cash_docs as docs, day_closings
 from .errors import BusinessError
 from .finance_catalogs import check_reader, check_writer, check_version
 from .models import FundBalance, FundLedger
 from .schemas import CashDocIn
+from .security import has_role
+
+# Capability nội bộ: chỉ luồng duyệt điều chỉnh truyền, không nhận từ HTTP.
+_CORRECTION_PERMIT = object()
 
 
 def balance(session,user,fund_code):
@@ -25,7 +29,7 @@ def _lock_balances(session,codes):
                                .execution_options(populate_existing=True)) for code in ordered}
 
 
-def _apply(session,doc,balances,moves,reversal=False):
+def _apply(session,doc,balances,moves,reversal=False,entry_date=None):
     # Kiểm tất cả trước khi thêm sổ, không có nửa phiếu chuyển quỹ.
     for code,amount in moves:
         current = balances[code].balance
@@ -37,7 +41,7 @@ def _apply(session,doc,balances,moves,reversal=False):
     for code,amount in moves:
         bal = balances[code]
         bal.balance += amount
-        session.add(FundLedger(fund_code=code,entry_date=docs.today() if reversal else doc.doc_date,
+        session.add(FundLedger(fund_code=code,entry_date=(entry_date or docs.today()) if reversal else doc.doc_date,
                                doc_id=doc.id,amount=amount,balance_after=bal.balance,is_reversal=reversal))
 
 
@@ -53,6 +57,7 @@ def post_in_tx(session,user,doc_id,version):
     doc = docs._load(session,doc_id,True)
     docs._opening(user,doc.is_opening)
     check_version(doc,version)
+    day_closings.check_open(session,doc.doc_date)
     docs._draft(doc)
     docs._validate(session,user,CashDocIn(**{k:getattr(doc,k) for k in (*docs.HEADER_FIELDS,'source_type','source_id')}))
     before = docs.snapshot(doc)
@@ -68,15 +73,21 @@ def post_in_tx(session,user,doc_id,version):
 def void(session,user,doc_id,reason,version):
     check_writer(user)
     with docs._transaction(session):
+        doc = docs._load(session,doc_id,True)
+        docs.check_source(doc)
         doc = void_in_tx(session,user,doc_id,reason,version)
     return doc
 
 
-def void_in_tx(session,user,doc_id,reason,version):
+def void_in_tx(session,user,doc_id,reason,version,*,_correction_permit=None):
     """Đảo đúng tiền đã ghi, ngày hủy theo VN; không commit hay kiểm vai trò ngoài đầu kỳ."""
     doc = docs._load(session,doc_id,True)
     docs._opening(user,doc.is_opening)
     check_version(doc,version)
+    if _correction_permit is not None and (_correction_permit is not _CORRECTION_PERMIT or not has_role(user,'director')):
+        raise BusinessError('FORBIDDEN','Chỉ duyệt điều chỉnh được bỏ qua ngày gốc đã chốt.',status=403)
+    reversal_day=docs.today()
+    day_closings.check_days(session,[reversal_day] if _correction_permit is _CORRECTION_PERMIT else [doc.doc_date,reversal_day])
     if doc.status!='DA_GHI':
         raise BusinessError('DOC_NOT_POSTED','Chỉ hủy ghi đảo với phiếu đã ghi sổ.',status=409)
     reason = (reason or '').strip()
@@ -86,7 +97,7 @@ def void_in_tx(session,user,doc_id,reason,version):
     rows = session.scalars(select(FundLedger).where(FundLedger.doc_id==doc.id,FundLedger.is_reversal.is_(False))
                            .order_by(FundLedger.id.desc())).all()
     moves = [(r.fund_code,-r.amount) for r in rows]
-    _apply(session,doc,_lock_balances(session,{code for code,_ in moves}),moves,True)
+    _apply(session,doc,_lock_balances(session,{code for code,_ in moves}),moves,True,reversal_day)
     doc.status,doc.void_reason = 'DA_HUY',reason
     docs._record(session,user,doc,'void',before,reason)
     return doc
