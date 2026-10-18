@@ -323,3 +323,27 @@ Trang đơn đã chốt/giao có mục Thu tiền, số dư và lịch sử BT; 
 - `app.sales_reports` chỉ SELECT và tổng hợp SQL `GROUP BY`/SUM/COUNT, không load từng đơn để cộng và không tự flush dữ liệu đang chờ của caller. Không thay đổi lõi hoặc schema.
 
 CSV: `GET /bao-cao/ban-hang/{table}.csv`, với table `ngay`, `nhan-vien`, `khach-hang`, `tuoi-no`, `don-no` (cần `nhom`), `bao-gia`; dùng cùng bộ lọc và quyền. UTF-8 có BOM, tiền nguyên đồng, bảo vệ ô văn bản khỏi công thức Excel. Khoảng ngày sai trả `BAD_DATE_RANGE` (400); nhóm sai trả `BAD_BUCKET` (400).
+
+## Tài chính (T1)
+
+Quỹ và danh mục thu chi: `app.finance_catalogs.create(session,user,model,body)`, `update(session,user,model,code,body)`, `search(session,user,model,q,active=...,kind=...,direction=...)`, `load(session,user,model,code)`, với model `Fund`/`CashCategory` và schema `FundIn`/`FundPatch`, `CashCategoryIn`/`CashCategoryPatch`. Finance/director được xem và sửa; vai trò khác 403. Mã bỏ mọi khoảng trắng, chuyển chữ hoa; không đổi mã khi sửa. Tìm không dấu theo mã/tên, ngân hàng/tài khoản/ghi chú. Không xóa, chỉ `active=false`.
+
+`app.finance_mappings.set_mapping(session,user,key,fund_code=None,category_code=None,version=...)`: chỉ director sửa, finance xem. Bốn dòng cố định được migration tạo với mã đích rỗng, version 1; không tạo sẵn quỹ/danh mục. `THU_TIEN_MAT` chỉ quỹ TIEN_MAT đang dùng; `THU_CHUYEN_KHOAN` chỉ quỹ NGAN_HANG đang dùng; `DANH_MUC_BAN_HANG`/`DANH_MUC_DICH_VU` chỉ danh mục THU đang dùng. Chỉ truyền đúng trường đích của key; để mã đích `None` để bỏ ghép. `require(session,key)` dùng nội bộ các bước sau, đọc mã mới nhất đã ghép hoặc báo MAPPING_REQUIRED, không yêu cầu user.
+
+Sửa kiểm version sau khi khóa bản ghi; tạo/sửa/bỏ ghép và audit trước/sau cùng transaction. Thao tác ghép khóa quỹ/danh mục trước, rồi khóa dòng ghép; sửa quỹ/danh mục khóa cùng bản ghi trước khi kiểm đang được ghép. Không ngừng dùng đích đang ghép hoặc đổi loại/chiều khiến ghép sai. Các lỗi rollback toàn bộ.
+
+| Mã | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| DUPLICATE_CODE | 409 | Mã đã có sau khi chuẩn hóa |
+| BAD_CODE | 400 | Mã không hợp lệ, tối đa 32 ký tự chữ không dấu/số/gạch ngang/gạch dưới |
+| ACCOUNT_REQUIRED | 400 | Quỹ ngân hàng thiếu số tài khoản |
+| BAD_MAPPING | 400 / 409 | Sai key, sai trường đích, mã không tồn tại/ngừng dùng/sai loại hoặc chiều; 409 khi đổi danh mục làm hỏng ghép hiện tại |
+| MAPPING_REQUIRED | 409 | Chưa ghép cấu hình cần dùng; details.key cho biết khóa |
+| IN_USE | 409 | Không ngừng dùng quỹ/danh mục đang được ghép |
+| VERSION_CONFLICT | 409 | Phiên bản đã cũ, giữ dữ liệu form vừa nhập |
+| VERSION_REQUIRED / BAD_FORM | 400 | Thiếu version hoặc dữ liệu chưa hợp lệ |
+| BAD_KIND / BAD_DIRECTION | 400 | Loại quỹ hoặc chiều thu chi chưa hợp lệ |
+| FORBIDDEN / BAD_CSRF | 403 | Sai vai trò hoặc thiếu/sai CSRF |
+| NOT_FOUND | 404 | Không tìm thấy quỹ/danh mục |
+
+Web: `/quy`, `/danh-muc-thu-chi` dùng khuôn danh mục có sẵn, thêm ở `/moi`, sửa ở `/{code}`; POST có CSRF/version. `/ghep-tai-chinh` có bốn ô tìm và chọn qua `data-live`, kết quả chỉ có đích hợp lệ, không tự chọn gợi ý; nhãn đỏ “Chưa ghép” cho dòng rỗng. Finance không có nút lưu bảng ghép; director có. Lỗi giữ dữ liệu đã nhập. Menu Tài chính chỉ finance/director. Không có endpoint xóa; không sửa stock_*, service_*, sales_* hoặc quotes.py.

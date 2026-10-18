@@ -717,3 +717,43 @@ class SalesReceivableOut(BaseModel):
     order: SalesOrderOut
     balance: SalesReceiptBalance
     days: int
+
+
+class FundIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    code: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=300)
+    kind: Literal['TIEN_MAT', 'NGAN_HANG']
+    bank_name: str = Field(default='', max_length=300)
+    account_no: str = Field(default='', max_length=100)
+    note: str = Field(default='', max_length=2000)
+    active: bool = True
+
+
+class FundPatch(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(strict=True, ge=1)
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    kind: Literal['TIEN_MAT', 'NGAN_HANG'] | None = None
+    bank_name: str | None = Field(default=None, max_length=300)
+    account_no: str | None = Field(default=None, max_length=100)
+    note: str | None = Field(default=None, max_length=2000)
+    active: bool | None = None
+
+
+class CashCategoryIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    code: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=300)
+    direction: Literal['THU', 'CHI']
+    note: str = Field(default='', max_length=2000)
+    active: bool = True
+
+
+class CashCategoryPatch(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(strict=True, ge=1)
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    direction: Literal['THU', 'CHI'] | None = None
+    note: str | None = Field(default=None, max_length=2000)
+    active: bool | None = None

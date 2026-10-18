@@ -634,3 +634,49 @@ class SalesReceipt(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     __mapper_args__ = {'version_id_col': version}
+
+
+class Fund(Base):
+    __tablename__ = 'funds'
+    __table_args__ = (
+        CheckConstraint("kind in ('TIEN_MAT','NGAN_HANG')", name='ck_funds_kind'),
+        CheckConstraint("kind <> 'NGAN_HANG' or length(trim(account_no)) > 0", name='ck_funds_account'),
+    )
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(300))
+    kind: Mapped[str] = mapped_column(String(16))
+    bank_name: Mapped[str] = mapped_column(String(300), default='')
+    account_no: Mapped[str] = mapped_column(String(100), default='')
+    note: Mapped[str] = mapped_column(Text, default='')
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    search_text: Mapped[str] = mapped_column(Text, default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class CashCategory(Base):
+    __tablename__ = 'cash_categories'
+    __table_args__ = (CheckConstraint("direction in ('THU','CHI')", name='ck_cash_categories_direction'),)
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(300))
+    direction: Mapped[str] = mapped_column(String(3))
+    note: Mapped[str] = mapped_column(Text, default='')
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    search_text: Mapped[str] = mapped_column(Text, default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class FinanceMapping(Base):
+    __tablename__ = 'finance_mappings'
+    __table_args__ = (
+        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU')", name='ck_finance_mappings_key'),
+        CheckConstraint("(key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN') and category_code is null) or "
+                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU') and fund_code is null)", name='ck_finance_mappings_target'),
+    )
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    fund_code: Mapped[str | None] = mapped_column(ForeignKey('funds.code'))
+    category_code: Mapped[str | None] = mapped_column(ForeignKey('cash_categories.code'))
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    __mapper_args__ = {'version_id_col': version}

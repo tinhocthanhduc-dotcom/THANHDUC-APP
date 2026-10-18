@@ -2405,3 +2405,103 @@ def test_b5_web_all_sections_and_csv_use_read_only_transaction(client,db,engine,
             assert client.get(f'/bao-cao/ban-hang/{table}.csv?nhom=8_30').status_code==200
     finally:
         app.dependency_overrides.pop(get_session)
+
+
+# T1: danh mục và bảng ghép tài chính dùng cùng CSRF/khuôn danh mục.
+from test_finance_catalogs import finance_people
+
+
+def t1_fund_form(csrf,**changes):
+    return dict(csrf=csrf,code='qu y-tm',name='Tiền mặt',kind='TIEN_MAT',bank_name='',account_no='',
+                note='Quỹ văn phòng',active='1',**changes)
+
+
+def test_t1_web_catalog_create_live_search_duplicate_and_bank_error(client,db,finance_people):
+    from app.models import Fund
+    csrf=service_login(client,finance_people['finance'])
+    r=client.post('/quy/moi',data=t1_fund_form(csrf))
+    assert r.status_code==200 and 'QUY-TM · Tiền mặt' in r.text
+    assert 'type="radio" name="kind"' in r.text and '<select' not in r.text
+    assert db.get(Fund,'QUY-TM').name=='Tiền mặt'
+    r=client.get('/quy?q=tien+mat&phan=1')
+    assert 'QUY-TM' in r.text and '<html' not in r.text
+    r=client.post('/quy/moi',data=t1_fund_form(csrf))
+    assert r.status_code==409 and 'data-error-code="DUPLICATE_CODE"' in r.text
+    assert 'value="qu y-tm"' in r.text and 'Quỹ văn phòng' in r.text
+    data=t1_fund_form(csrf);data.update(code='TK-ACB',kind='NGAN_HANG',bank_name='Á Châu')
+    r=client.post('/quy/moi',data=data)
+    assert r.status_code==400 and 'Quỹ ngân hàng phải có số tài khoản' in r.text
+    assert 'value="TK-ACB"' in r.text and 'value="Á Châu"' in r.text
+    assert db.query(Fund).count()==1
+
+
+def test_t1_web_category_update_in_use_and_version_preserve_form(client,db,finance_people):
+    from app import finance_mappings
+    from app.models import Fund,CashCategory
+    f,d=finance_people['finance'],finance_people['director']
+    csrf=service_login(client,f)
+    data=dict(csrf=csrf,code='thu - bh',name='Thu bán hàng',direction='THU',note='',active='1')
+    r=client.post('/danh-muc-thu-chi/moi',data=data)
+    assert r.status_code==200 and 'THU-BH' in r.text and 'name="direction"' in r.text
+    assert 'THU-BH' in client.get('/danh-muc-thu-chi?q=thu+ban&phan=1').text
+    finance_mappings.set_mapping(db,d,'DANH_MUC_BAN_HANG',category_code='THU-BH',version=1)
+    changed={**data,'version':'1','name':'Tên vẫn giữ'};changed.pop('active')
+    r=client.post('/danh-muc-thu-chi/THU-BH',data=changed)
+    assert r.status_code==409 and 'data-error-code="IN_USE"' in r.text and 'value="Tên vẫn giữ"' in r.text
+    assert db.get(CashCategory,'THU-BH').active
+    client.post('/quy/moi',data=t1_fund_form(csrf))
+    update=t1_fund_form(csrf);update.update(version='1',name='Tên mới')
+    assert client.post('/quy/QUY-TM',data=update).status_code==200
+    update.update(name='Tên nhập chưa lưu',account_no='999')
+    r=client.post('/quy/QUY-TM',data=update)
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
+    assert 'value="Tên nhập chưa lưu"' in r.text and 'value="999"' in r.text
+    db.expire_all();assert db.get(Fund,'QUY-TM').name=='Tên mới'
+
+
+def test_t1_web_mapping_blank_options_only_valid_and_director_save(client,db,finance_people):
+    from app import finance_mappings
+    from test_finance_catalogs import fund,category
+    f,d=finance_people['finance'],finance_people['director']
+    fund(db,f);fund(db,f,'TK-ACB','NGAN_HANG',account_no='123');fund(db,f,'TM-NGUNG',active=False)
+    category(db,f);category(db,f,'CHI','CHI')
+    csrf=service_login(client,d)
+    r=client.get('/ghep-tai-chinh')
+    assert r.status_code==200 and r.text.count('Chưa ghép')==4
+    assert r.text.count('name="target_code" value=""')==4 and 'QUY-TM' not in r.text
+    choices=client.get('/ghep-tai-chinh/tim/THU_TIEN_MAT?q=tien+mat').text
+    assert 'QUY-TM' in choices and 'TK-ACB' not in choices and 'TM-NGUNG' not in choices
+    choices=client.get('/ghep-tai-chinh/tim/THU_CHUYEN_KHOAN').text
+    assert 'TK-ACB' in choices and 'QUY-TM' not in choices
+    choices=client.get('/ghep-tai-chinh/tim/DANH_MUC_BAN_HANG').text
+    assert 'THU-BH' in choices and 'data-finance-pick="CHI"' not in choices
+    r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='TK-ACB'))
+    assert r.status_code==400 and 'BAD_MAPPING' in r.text and 'value="TK-ACB"' in r.text
+    r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='QUY-TM'))
+    assert r.status_code==200 and r.text.count('Chưa ghép')==3
+    assert finance_mappings.require(db,'THU_TIEN_MAT')=='QUY-TM'
+    r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code=''))
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
+    assert '<input name="target_code" value=""' in r.text
+    assert finance_mappings.require(db,'THU_TIEN_MAT')=='QUY-TM'
+
+
+def test_t1_web_permissions_and_csrf(client,db,finance_people):
+    from app.models import Fund,AuditLog
+    f,d,s=(finance_people[k] for k in ('finance','director','sales'))
+    csrf=service_login(client,f)
+    r=client.get('/ghep-tai-chinh')
+    assert r.status_code==200 and '<button class="primary">Lưu</button>' not in r.text
+    assert client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='')).status_code==403
+    data=t1_fund_form(csrf);data.pop('csrf')
+    assert client.post('/quy/moi',data=data).status_code==403
+    assert client.post('/danh-muc-thu-chi/moi',data=dict(code='A',name='A',direction='THU')).status_code==403
+    csrf=service_login(client,d)
+    assert client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(version=1,target_code='')).status_code==403
+    csrf=service_login(client,s)
+    for path in ('/quy','/quy/moi','/danh-muc-thu-chi','/ghep-tai-chinh','/ghep-tai-chinh/tim/THU_TIEN_MAT'):
+        assert client.get(path).status_code==403
+    assert client.post('/quy/moi',data=t1_fund_form(csrf)).status_code==403
+    assert client.post('/danh-muc-thu-chi/moi',data=dict(csrf=csrf,code='A',name='A',direction='THU')).status_code==403
+    assert '>Tài chính</a>' not in client.get('/khach-hang').text
+    assert db.query(Fund).count()==0 and db.query(AuditLog).count()==0

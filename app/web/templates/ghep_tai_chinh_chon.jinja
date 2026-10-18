@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" data-finance-pick="{{ row.code }}"><span class="code">{{ row.code }}</span> {{ row.name }}</button>{% else %}<p class="hint">Không có quỹ hoặc danh mục hợp lệ. Hãy tạo danh mục trước.</p>{% endfor %}
