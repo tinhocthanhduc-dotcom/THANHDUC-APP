@@ -142,7 +142,8 @@ def update(session,user,model,code,body):
         if keys and not data['active']:
             raise BusinessError('IN_USE','Quỹ hoặc danh mục đang được bảng ghép sử dụng. Hãy bỏ ghép trước.',status=409)
         invalid_kind = model is Fund and any(data['kind'] != ('TIEN_MAT' if key=='THU_TIEN_MAT' else 'NGAN_HANG') for key in keys)
-        if invalid_kind or (model is CashCategory and keys and data['direction']!='THU'):
+        from .finance_mappings import category_direction
+        if invalid_kind or (model is CashCategory and any(data['direction']!=category_direction(key) for key in keys)):
             raise BusinessError('BAD_MAPPING','Không thể đổi loại hoặc chiều khi đang được bảng ghép sử dụng.',status=409)
         for key,value in changes.items():
             setattr(row,key,value)

@@ -100,6 +100,8 @@ def _draft(doc):
 
 
 def check_source(doc):
+    if doc.source_type=='SUPPLIER_PAYMENT':
+        raise BusinessError('SOURCE_LOCKED','Phiếu chi này được tạo từ trả NCC. Phải hủy trả tiền tại trang công nợ NCC.',status=409)
     if doc.source_type=='SALES_RECEIPT':
         raise BusinessError('SOURCE_LOCKED','Phiếu thu này được tạo từ báo thu. Phải hủy báo thu để ghi đảo phiếu thu.',status=409)
 
