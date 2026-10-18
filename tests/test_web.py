@@ -2884,3 +2884,52 @@ def test_m1_form_errors_stale_preserve_inputs_csrf_permissions(client,db,purchas
         csrf=csrf_of(client.get('/khach-hang').text)
         assert client.post('/don-mua/moi',data=purchase_form(csrf)).status_code==403
         assert client.post(f'/don-mua/{row.id}/order',data={'csrf':csrf,'version':row.version}).status_code==403
+
+
+def test_m2_receive_form_partial_close_void_and_waiting_filter(client,db,purchase_people):
+    from app import purchase_receipts as receipts,purchase_orders as orders
+    from test_purchase_receipts import placed
+    from app.models import PurchaseReceipt,StockDoc,FundLedger
+    from sqlalchemy import select,func
+    p=purchase_people;row=placed(db,p,lines=[dict(product_code='TD-0001',warehouse_code='K58',qty=2,unit_cost=1001),
+        dict(product_code='TD-0002',warehouse_code='K145',qty=1,unit_cost=100000)])
+    service_login(client,p['warehouse']);page=client.get(f'/don-mua/{row.id}/nhan')
+    assert page.status_code==200 and 'Nhận và ghi sổ PN' in page.text and 'Đã nhận' in page.text and 'Còn lại' in page.text
+    assert f'name="qty_{row.lines[0].id}" value="2"' in page.text
+    csrf=csrf_of(page.text)
+    data={'csrf':csrf,'version':row.version,'receipt_date':'2026-10-18',f'qty_{row.lines[0].id}':'0,5',f'qty_{row.lines[1].id}':'0'}
+    missing=client.post(f'/don-mua/{row.id}/nhan',data={**data,'csrf':''});assert missing.status_code==403
+    r=client.post(f'/don-mua/{row.id}/nhan',data=data);assert r.status_code==200,r.text
+    db.expire_all();assert row.status=='NHAN_MOT_PHAN' and row.lines[0].received_qty==__import__('decimal').Decimal('0.5')
+    receipt=db.scalar(select(PurchaseReceipt));doc=db.get(StockDoc,receipt.stock_doc_id)
+    assert doc.status=='DA_GHI' and doc.number in r.text and 'Đóng đơn' in r.text
+    assert f'href="/phieu-kho/{doc.id}"' in r.text
+    waiting=client.get('/don-mua?status=CHO_NHAN');assert row.number in waiting.text and 'Chờ nhận' in waiting.text
+    assert client.post(f'/don-mua/{row.id}/close',data={'csrf':csrf,'version':row.version,'reason':'NCC không giao tiếp'}).status_code==200
+    db.expire_all();assert row.status=='DA_NHAN' and row.close_reason=='NCC không giao tiếp'
+    assert row.number not in client.get('/don-mua?status=CHO_NHAN').text
+    r=client.post(f'/don-mua/lan-nhan/{receipt.id}/huy',data={'csrf':csrf,'version':receipt.version,'reason':'Trả hàng'})
+    assert r.status_code==200
+    db.expire_all();assert row.status=='DA_DAT' and row.close_reason=='' and receipt.status=='DA_HUY'
+    assert db.scalar(select(func.count()).select_from(FundLedger))==0
+
+
+def test_m2_web_errors_preserve_quantities_version_and_permissions(client,db,purchase_people):
+    from app import purchase_receipts as receipts
+    from test_purchase_receipts import placed
+    p=purchase_people;row=placed(db,p)
+    service_login(client,p['warehouse']);csrf=csrf_of(client.get(f'/don-mua/{row.id}/nhan').text)
+    data={'csrf':csrf,'version':row.version,'receipt_date':'2026-10-17',f'qty_{row.lines[0].id}':'2,5'}
+    r=client.post(f'/don-mua/{row.id}/nhan',data=data)
+    assert r.status_code==409 and 'OVER_RECEIVE' in r.text and '2,5' in r.text and '2026-10-17' in r.text
+    r=client.post(f'/don-mua/{row.id}/nhan',data={**data,f'qty_{row.lines[0].id}':'0'})
+    assert r.status_code==400 and 'EMPTY_RECEIPT' in r.text
+    data['version']=row.version-1
+    r=client.post(f'/don-mua/{row.id}/nhan',data={**data,f'qty_{row.lines[0].id}':'0,5'})
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text and '0,5' in r.text
+    for role in ('sales','technician','finance'):
+        service_login(client,p[role]);csrf=csrf_of(client.get('/khach-hang').text)
+        assert client.get(f'/don-mua/{row.id}/nhan').status_code==403
+        assert client.post(f'/don-mua/{row.id}/nhan',data={**data,'csrf':csrf}).status_code==403
+        if role=='finance':
+            page=client.get(f'/don-mua/{row.id}');assert page.status_code==200 and '>Nhận hàng</a>' not in page.text

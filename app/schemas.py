@@ -875,6 +875,49 @@ class PurchaseOrderOut(PurchaseOrderIn):
     created_at: datetime
     ordered_by: int | None
     ordered_at: datetime | None
+    close_reason: str
     cancel_reason: str
     version: int
     lines: list[PurchaseOrderLineOut]
+
+
+class PurchaseReceiveLineIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    order_line_id: int = Field(strict=True, ge=1)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+
+
+class PurchaseReceiveIn(PurchaseOrderVersion):
+    receipt_date: date
+    lines: list[PurchaseReceiveLineIn] = Field(min_length=1, max_length=500)
+
+
+class PurchaseReceiptLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    order_line_id: int
+    qty: Decimal
+    unit_cost: int
+    vat_rate: int
+    amount: int
+    vat_amount: int
+
+
+class PurchaseReceiptOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    order_id: int
+    stock_doc_id: int
+    warehouse_code: str
+    receipt_date: date
+    amount: int
+    vat_amount: int
+    total: int
+    status: str
+    created_by: int
+    created_at: datetime
+    void_reason: str
+    voided_by: int | None
+    voided_at: datetime | None
+    version: int
+    lines: list[PurchaseReceiptLineOut]

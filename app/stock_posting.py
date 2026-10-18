@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import audit
 from .errors import BusinessError
 from .inventory_catalogs import check_writer
-from .models import StockBalance, StockDoc, StockLedger, User
+from .models import PurchaseReceipt, StockBalance, StockDoc, StockLedger, User
 from .stock_docs import _transaction, snapshot
 
 ZERO = Decimal(0)
@@ -120,12 +120,12 @@ def _apply(session: Session, doc: StockDoc, bal: StockBalance, move: Move, rever
     return amount
 
 
-def _post_moves(session: Session, doc: StockDoc, balances) -> None:
+def _post_moves(session: Session, doc: StockDoc, balances, pn_amounts=None) -> None:
     for line in doc.lines:
         src = balances[(doc.warehouse_code, line.product_code)]
         if doc.kind == "PN":
             _apply(session, doc, src, Move(doc.warehouse_code, line.product_code, line.line_no, line.qty,
-                                           _round(line.qty * line.unit_cost), line.unit_cost), False)
+                                           (pn_amounts[line.line_no] if pn_amounts is not None else _round(line.qty * line.unit_cost)), line.unit_cost), False)
         elif doc.kind == "PX":
             _apply(session, doc, src, Move(doc.warehouse_code, line.product_code, line.line_no, -line.qty), False)
         elif doc.kind == "CK":
@@ -155,7 +155,7 @@ def post(session: Session, user: User, doc_id: int, version: int | None) -> Stoc
     return doc
 
 
-def post_in_tx(session: Session, user: User, doc_id: int, version: int | None) -> StockDoc:
+def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None) -> StockDoc:
     """Ghi sổ trong transaction của nơi gọi (phiếu sinh tự động từ chứng từ khác), không kiểm vai trò."""
     doc = _load_for_update(session, doc_id)
     if doc.status != "NHAP":
@@ -168,11 +168,16 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None) -
         dup = sorted({c for c in codes if codes.count(c) > 1})
         if dup:
             raise BusinessError("DUPLICATE_LINE", "Phiếu kiểm kê có mã hàng lặp lại.", {"products": dup})
+    # M2 truyền tiền nhập đã bù làm tròn, không sửa đơn giá gốc hoặc ghi tồn ngoài lõi.
+    if pn_amounts is not None:
+        if (doc.kind != 'PN' or set(pn_amounts) != {line.line_no for line in doc.lines}
+                or any(not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 9_223_372_036_854_775_807 for v in pn_amounts.values())):
+            raise BusinessError('BAD_RECEIPT_AMOUNT', 'Giá trị nhập đã chốt không hợp lệ.')
     before = snapshot(doc)
     keys = {(doc.warehouse_code, line.product_code) for line in doc.lines}
     if doc.kind == "CK":
         keys |= {(doc.to_warehouse_code, line.product_code) for line in doc.lines}
-    _post_moves(session, doc, _lock_balances(session, keys))
+    _post_moves(session, doc, _lock_balances(session, keys), pn_amounts)
     doc.status = "DA_GHI"
     doc.posted_by = user.id
     doc.posted_at = datetime.now(UTC)
@@ -185,6 +190,9 @@ def void(session: Session, user: User, doc_id: int, reason: str, version: int | 
     """Hủy phiếu đã ghi sổ: ghi dòng đảo ngược đúng số lượng và giá trị đã ghi, theo thứ tự ngược."""
     check_writer(user)
     with _transaction(session):
+        _load_for_update(session, doc_id)
+        if session.scalar(select(PurchaseReceipt.id).where(PurchaseReceipt.stock_doc_id == doc_id, PurchaseReceipt.status == 'DA_GHI')) is not None:
+            raise BusinessError('SOURCE_LOCKED', 'Phiếu nhập từ đơn mua phải hủy lần nhận trên đơn mua.', status=409)
         doc = void_in_tx(session, user, doc_id, reason, version)
     return doc
 

@@ -71,12 +71,14 @@ def load(session, user, order_id):
 
 def search(session, user, q='', status=None, supplier_code=None):
     check_reader(user)
-    if status and status not in PURCHASE_ORDER_STATUSES:
+    if status and status not in (*PURCHASE_ORDER_STATUSES, 'CHO_NHAN'):
         raise BusinessError('BAD_STATUS', 'Trạng thái đơn mua không hợp lệ.')
     stmt = select(PurchaseOrder).options(selectinload(PurchaseOrder.lines))
     if q.strip():
         stmt = stmt.where(PurchaseOrder.number.ilike(like_pattern(q.strip())))
-    if status:
+    if status == 'CHO_NHAN':
+        stmt = stmt.where(PurchaseOrder.status.in_(('DA_DAT','NHAN_MOT_PHAN')))
+    elif status:
         stmt = stmt.where(PurchaseOrder.status == status)
     if supplier_code:
         stmt = stmt.where(PurchaseOrder.supplier_code == supplier_code)
