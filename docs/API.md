@@ -312,3 +312,14 @@ Lõi có `report`, `confirm`, `reject`, `void`, `list_pending`, `receivables`, `
 ### Web
 
 Trang đơn đã chốt/giao có mục Thu tiền, số dư và lịch sử BT; sales/director có form báo thu, tiền mặc định còn nợ trừ chờ, dấu chấm nghìn khi gõ, cách thu nút chạm. `/bao-thu` là hàng chờ kế toán, có Xác nhận/Từ chối, lọc cách thu/ngày; director có Hủy BT đã xác nhận trong trang đơn. `/don-ban/can-thu` hiển thị đơn còn nợ và số ngày, mất khỏi danh sách khi đã xác nhận đủ. Mọi POST web có CSRF/version; lỗi giữ form. Menu Báo thu chỉ finance/director. Không sửa `stock_*` hoặc `service_*`; `doc_numbers.py` chỉ thêm prefix BT.
+
+## Báo cáo bán hàng (B5)
+
+`GET /bao-cao/ban-hang?from=2026-10-01&to=2026-10-31` mặc định tháng hiện tại giờ Việt Nam; `period=today|month|last_month` chọn nhanh. Finance/director xem toàn bộ; sales chỉ thấy dữ liệu có `created_by` của mình; vai trò khác trả `FORBIDDEN` (403).
+
+- Doanh thu chỉ gồm đơn `DA_GIAO`, theo `delivered_at` giờ Việt Nam, bao gồm hai đầu khoảng ngày; hiển thị ngày có đơn giao. Tiền trước VAT/VAT/tổng là số nguyên đồng. Nhân viên là người lập đơn; khách hàng lấy top 20 theo tổng giảm dần.
+- Tuổi nợ là số dư **hiện tại của mọi đơn đã chốt/giao**, độc lập khoảng doanh thu: phải thu trừ BT `DA_XAC_NHAN`; BT chờ chưa trừ nợ. Chia 0–7, 8–30, 31–60, trên 60 ngày lịch VN từ ngày chốt. Thêm `nhom=0_7|8_30|31_60|over_60` để mở danh sách.
+- Chuyển đổi: báo giá lập trong khoảng, bỏ bản có `replaced_by_id`; mỗi báo giá chỉ đếm một lần khi có đơn chưa hủy. Sales chỉ tính báo giá và đơn liên kết do chính mình lập. Tỷ lệ làm tròn hai chữ số thập phân; không có báo giá thì 0%.
+- `app.sales_reports` chỉ SELECT và tổng hợp SQL `GROUP BY`/SUM/COUNT, không load từng đơn để cộng và không tự flush dữ liệu đang chờ của caller. Không thay đổi lõi hoặc schema.
+
+CSV: `GET /bao-cao/ban-hang/{table}.csv`, với table `ngay`, `nhan-vien`, `khach-hang`, `tuoi-no`, `don-no` (cần `nhom`), `bao-gia`; dùng cùng bộ lọc và quyền. UTF-8 có BOM, tiền nguyên đồng, bảo vệ ô văn bản khỏi công thức Excel. Khoảng ngày sai trả `BAD_DATE_RANGE` (400); nhóm sai trả `BAD_BUCKET` (400).

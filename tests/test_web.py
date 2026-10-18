@@ -2293,3 +2293,115 @@ def test_b4_web_invalid_money_dates_and_finance_read_only(client,db,make_user,b4
     r=client.get('/bao-thu?from=2026-10-19&to=2026-10-18')
     assert r.status_code==400 and 'Ngày bắt đầu' in r.text and 'value="2026-10-19"' in r.text
     assert client.get('/bao-thu?method=SAI').status_code==400
+
+
+from test_sales_reports import report_people
+
+
+@pytest.fixture
+def b5_data(db,report_people):
+    from datetime import datetime
+    from test_sales_reports import order,quote
+    p=report_people
+    a=order(db,p,1,subtotal=1000000,vat_total=100000,total=1100000,receivable=1100000)
+    b=order(db,p,2,created_by=p['b'].id,customer_code='KTD-000002',subtotal=2000000,vat_total=160000,
+            total=2160000,receivable=2160000,delivered_at=datetime.fromisoformat('2026-10-02T00:30:00+07:00'))
+    q=quote(db,p,1);a.quote_id=q.id;db.commit()
+    return p,a,b
+
+
+def test_b5_page_sections_presets_daily_totals_and_debt_details(client,db,b5_data):
+    p,a,b=b5_data
+    service_login(client,p['finance'])
+    page=client.get('/bao-cao/ban-hang')
+    assert page.status_code==200
+    for expected in ('Doanh thu theo ngày','Doanh thu theo nhân viên','Top 20 khách hàng','Tuổi nợ hiện tại',
+                     'Tỷ lệ báo giá thành đơn','3.260.000','Cộng','name="from" value="2026-10-01"',
+                     'name="to" value="2026-10-31"','Tháng trước','Hôm nay','Tháng này'):
+        assert expected in page.text
+    assert 'không giới hạn theo khoảng doanh thu' in page.text
+    detail=client.get('/bao-cao/ban-hang?from=2026-10-01&to=2026-10-31&nhom=8_30')
+    assert detail.status_code==200 and a.number in detail.text and b.number in detail.text
+    assert f'href="/don-ban/{a.id}#thu-tien"' in detail.text
+    assert 'Tải CSV danh sách' in detail.text
+    today=client.get('/bao-cao/ban-hang?period=today')
+    assert 'name="from" value="2026-10-18"' in today.text and 'name="to" value="2026-10-18"' in today.text
+    previous=client.get('/bao-cao/ban-hang?period=last_month')
+    assert 'name="from" value="2026-09-01"' in previous.text and 'name="to" value="2026-09-30"' in previous.text
+    assert '3.260.000' in previous.text  # Tuổi nợ vẫn hiện đầy đủ nợ cũ, không phụ thuộc kỳ doanh thu.
+
+
+def test_b5_sales_scope_in_page_every_csv_and_age_detail(client,db,b5_data):
+    p,a,b=b5_data
+    service_login(client,p['a'])
+    page=client.get('/bao-cao/ban-hang?nhom=8_30')
+    assert page.status_code==200 and a.number in page.text and b.number not in page.text
+    assert p['b'].full_name not in page.text and '2.160.000' not in page.text
+    for table in ('ngay','nhan-vien','khach-hang','tuoi-no','don-no','bao-gia'):
+        r=client.get(f'/bao-cao/ban-hang/{table}.csv?nhom=8_30')
+        assert r.status_code==200 and b.number not in r.text and p['b'].full_name not in r.text
+        assert '2160000' not in r.text
+    service_login(client,p['finance'])
+    page=client.get('/bao-cao/ban-hang?nhom=8_30')
+    assert a.number in page.text and b.number in page.text and p['b'].full_name in page.text
+
+
+def test_b5_csv_bom_headers_exact_money_and_formula_escape(client,db,b5_data):
+    import csv,io
+    p,a,b=b5_data
+    service_login(client,p['finance'])
+    headers={
+        'ngay':['Ngày','Số đơn','Trước VAT','VAT','Tổng'],
+        'nhan-vien':['Mã nhân viên','Nhân viên','Số đơn','Trước VAT','VAT','Tổng'],
+        'khach-hang':['Mã khách','Khách hàng','Số đơn','Trước VAT','VAT','Tổng'],
+        'tuoi-no':['Nhóm tuổi nợ','Số đơn','Còn nợ','Chờ xác nhận'],
+        'don-no':['Số đơn','Khách hàng','Nhân viên','Ngày chốt','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'],
+        'bao-gia':['Số báo giá','Có đơn chưa hủy','Tỷ lệ (%)'],
+    }
+    for table,expected in headers.items():
+        r=client.get(f'/bao-cao/ban-hang/{table}.csv?nhom=8_30')
+        assert r.status_code==200 and r.content.startswith(b'\xef\xbb\xbf')
+        rows=list(csv.reader(io.StringIO(r.content.decode('utf-8-sig'))))
+        assert rows[0]==expected
+        assert 'attachment;' in r.headers['content-disposition'] and r.headers['cache-control']=='private, no-store'
+        if table=='ngay':
+            assert rows[-1]==['Cộng','2','3000000','260000','3260000']
+    p['a'].full_name='=HYPERLINK("test")';db.get(Customer,'KTD-000001').name='@SUM(1)';db.commit()
+    r=client.get('/bao-cao/ban-hang/nhan-vien.csv')
+    assert "'=HYPERLINK" in r.text
+    assert "'@SUM(1)" in client.get('/bao-cao/ban-hang/khach-hang.csv').text
+
+
+def test_b5_errors_and_technician_forbidden(client,db,b5_data,make_user):
+    p,a,b=b5_data
+    service_login(client,p['finance'])
+    r=client.get('/bao-cao/ban-hang?from=2026-10-31&to=2026-10-01')
+    assert r.status_code==400 and 'Ngày bắt đầu' in r.text and 'value="2026-10-31"' in r.text
+    assert client.get('/bao-cao/ban-hang?from=sai').status_code==400
+    assert client.get('/bao-cao/ban-hang?nhom=sai').status_code==400
+    assert client.get('/bao-cao/ban-hang/don-no.csv?nhom=sai').status_code==400
+    assert client.get('/bao-cao/ban-hang/sai.csv').status_code==404
+    service_login(client,make_user('report.tech.web','technician'))
+    for path in ('/bao-cao/ban-hang','/bao-cao/ban-hang?nhom=8_30','/bao-cao/ban-hang/ngay.csv','/bao-cao/ban-hang/don-no.csv?nhom=8_30'):
+        assert client.get(path).status_code==403
+    assert '>Báo cáo bán hàng</a>' not in client.get('/khach-hang').text
+
+
+def test_b5_web_all_sections_and_csv_use_read_only_transaction(client,db,engine,b5_data):
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+    from app.db import get_session
+    from app.main import app
+    p,a,b=b5_data
+    service_login(client,p['finance'])
+    def read_only():
+        with Session(engine) as session:
+            session.execute(text('SET TRANSACTION READ ONLY'))
+            yield session
+    app.dependency_overrides[get_session]=read_only
+    try:
+        assert client.get('/bao-cao/ban-hang?nhom=8_30').status_code==200
+        for table in ('ngay','nhan-vien','khach-hang','tuoi-no','don-no','bao-gia'):
+            assert client.get(f'/bao-cao/ban-hang/{table}.csv?nhom=8_30').status_code==200
+    finally:
+        app.dependency_overrides.pop(get_session)
