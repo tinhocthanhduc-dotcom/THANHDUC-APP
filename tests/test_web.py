@@ -2697,3 +2697,54 @@ def test_t3_web_ticket_overpay_version_csrf_reopen_and_void_origin(client,db,t3_
     assert response.status_code==200 and f'/dich-vu/{t.id}' in str(response.url)
     assert 'data-balance="remaining">500.000 đồng' in response.text
     assert t.number in client.get('/dich-vu/can-thu').text
+
+
+from test_day_closings import cash_people as closing_people
+
+
+def test_t4_web_close_unlock_badges_and_permissions(client,db,closing_people):
+    from app import day_closings as days
+    from test_cash import posted,DAY
+    p=closing_people;doc=posted(db,p['finance'])
+    csrf=service_login(client,p['finance'])
+    r=client.get('/chot-so')
+    assert r.status_code==200 and r.text.count('id="ngay-')==30
+    r=client.post(f'/chot-so/{DAY}/close',data=dict(csrf=csrf,version=0))
+    assert r.status_code==200 and 'Đã chốt sổ' in r.text
+    page=client.get(f'/thu-chi/{doc.id}')
+    assert 'data-day-closed' in page.text and 'cash-cancel' not in page.text and 'data-correction-form' in page.text
+    assert '<button>Mở khóa</button>' not in client.get('/chot-so').text
+    assert client.post(f'/chot-so/{DAY}/unlock',data=dict(csrf=csrf,version=1,reason='Mở')).status_code==403
+    assert client.post(f'/chot-so/{DAY}/close',data=dict(version=1)).status_code==403
+    csrf=service_login(client,p['director'])
+    response=client.post(f'/chot-so/{DAY}/unlock',data=dict(csrf=csrf,version=1,reason=''))
+    assert response.status_code==400 and 'REASON_REQUIRED' in response.text
+    assert client.post(f'/chot-so/{DAY}/unlock',data=dict(csrf=csrf,version=1,reason='Mở kiểm tra')).status_code==200
+    assert not days.is_closed(db,DAY)
+    csrf=service_login(client,p['sales'])
+    assert client.get('/chot-so').status_code==403 and client.get('/dieu-chinh').status_code==403
+
+
+def test_t4_web_request_approve_reject_versions_and_csrf(client,db,closing_people):
+    from app import day_closings as days,cash_posting
+    from app.models import CashCorrection,CashDoc
+    from test_cash import posted,DAY
+    p=closing_people;doc=posted(db,p['finance']);days.close(db,p['finance'],DAY,0)
+    csrf=service_login(client,p['finance'])
+    data=dict(csrf=csrf,version=doc.version,reason='Sai tiền',new_amount='900.000',new_fund_code='QUY-TM',new_category_code='THU-BH',new_description='Thu đúng')
+    assert client.post(f'/thu-chi/{doc.id}/dieu-chinh',data={**data,'csrf':''}).status_code==403
+    response=client.post(f'/thu-chi/{doc.id}/dieu-chinh',data={**data,'version':1,'new_amount':'850.000'})
+    assert response.status_code==409 and 'VERSION_CONFLICT' in response.text and 'value="850.000"' in response.text
+    assert client.post(f'/thu-chi/{doc.id}/dieu-chinh',data=data).status_code==200
+    req=db.query(CashCorrection).one()
+    page=client.get('/dieu-chinh')
+    assert '1.000.000 đồng' in page.text and '900.000 đồng' in page.text and '<button class="primary">Duyệt</button>' not in page.text
+    assert client.post(f'/dieu-chinh/{req.id}/approve',data=dict(csrf=csrf,version=1)).status_code==403
+    csrf=service_login(client,p['director'])
+    assert client.post(f'/dieu-chinh/{req.id}/reject',data=dict(csrf=csrf,version=1,reason='')).status_code==400
+    assert client.post(f'/dieu-chinh/{req.id}/approve',data=dict(version=1)).status_code==403
+    assert client.post(f'/dieu-chinh/{req.id}/approve',data=dict(csrf=csrf,version=2)).status_code==409
+    assert client.post(f'/dieu-chinh/{req.id}/approve',data=dict(csrf=csrf,version=1)).status_code==200
+    db.expire_all()
+    assert db.get(CashDoc,req.new_doc_id).amount==900000 and doc.status=='DA_HUY'
+    assert cash_posting.balance(db,p['finance'],'QUY-TM')==900000

@@ -193,3 +193,12 @@ def test_void_failure_after_reversal_rolls_back_everything(db,t3_people,configur
     db.expire_all();assert r.status=='DA_XAC_NHAN' and db.get(CashDoc,r.cash_doc_id).status=='DA_GHI'
     assert db.query(FundLedger).count()==1 and db.query(AuditLog).count()==count
     assert cash_posting.balance(db,p['finance'],'QUY-TM')==600000
+
+
+def test_direct_cash_void_source_is_locked_in_core(db,t3_people,configured_finance):
+    p=t3_people;r=report(db,p,order(db,p));svc.confirm(db,p['finance'],r.id,r.version)
+    pt=db.get(CashDoc,r.cash_doc_id)
+    fails('SOURCE_LOCKED',cash_posting.void,db,p['director'],pt.id,'Hủy trực tiếp',pt.version)
+    assert cash_posting.balance(db,p['finance'],'QUY-TM')==600000
+    svc.void(db,p['director'],r.id,'Hủy từ báo thu',r.version)
+    assert cash_posting.balance(db,p['finance'],'QUY-TM')==0

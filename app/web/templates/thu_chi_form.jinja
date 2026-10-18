@@ -3,8 +3,10 @@
 {% block main %}
 <div class="bar"><h1>{{ d.number or kinds[d.kind] }}</h1><a href="/thu-chi">← Thu chi</a>{% if doc %}<a class="btn" href="/thu-chi/{{ doc.id }}/in">In phiếu</a>{% endif %}</div>
 {% if not doc %}<div class="seg cash-kind">{% for value,label in kinds.items() %}<a class="btn {{ 'primary' if d.kind==value else '' }}" href="/thu-chi/moi?loai={{ value }}">{{ value }} · {{ label }}</a>{% endfor %}</div>{% else %}<p>{{ kinds[d.kind] }} · <strong>{{ states[doc.status] }}</strong>{% if d.is_opening %} · Số dư đầu kỳ{% endif %}</p>{% endif %}
+{% if closed %}<p class="alert warn" data-day-closed>Đã chốt sổ</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if replacement %}<p><a class="btn" href="/thu-chi/{{ replacement.id }}">Phiếu điều chỉnh mới: {{ replacement.number }}</a></p>{% endif %}
 {% if d.void_reason %}<p class="alert warn">Lý do hủy: {{ d.void_reason }}</p>{% endif %}
 <form method="post" action="{{ '/thu-chi/' ~ d.id if doc else '/thu-chi/moi' }}" class="card form" data-cash-form>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}"><input type="hidden" name="kind" value="{{ d.kind }}">
@@ -23,6 +25,7 @@
 {% if editable and can_write %}<button class="primary" name="action" value="save">Lưu</button><button name="action" value="post">Ghi sổ</button><p class="hint">Ghi sổ sẽ lưu nháp trước, rồi kiểm số dư để ghi sổ.</p>{% elif not can_write %}<p class="hint">Chỉ giám đốc được thao tác phiếu số dư đầu kỳ.</p>{% endif %}
 </form>
 {% if d.source_type=='SALES_RECEIPT' %}<p class="alert warn">Phiếu thu này được tạo từ báo thu. Phải hủy báo thu để ghi đảo phiếu thu.</p>{% endif %}
-{% if doc and doc.status!='DA_HUY' and can_write and d.source_type!='SALES_RECEIPT' %}<form method="post" action="/thu-chi/{{ doc.id }}/cancel" class="card form cash-cancel" onsubmit="return confirm('Hủy phiếu này? Phiếu đã ghi sẽ tạo dòng đảo và kiểm tra số dư quỹ.');"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}"><label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ reason }}</textarea></label><button>Hủy {{ 'nháp' if doc.status=='NHAP' else 'phiếu đã ghi' }}</button></form>{% endif %}
+{% if doc and doc.status!='DA_HUY' and not closed and can_write and d.source_type!='SALES_RECEIPT' %}<form method="post" action="/thu-chi/{{ doc.id }}/cancel" class="card form cash-cancel" onsubmit="return confirm('Hủy phiếu này? Phiếu đã ghi sẽ tạo dòng đảo và kiểm tra số dư quỹ.');"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}"><label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ reason }}</textarea></label><button>Hủy {{ 'nháp' if doc.status=='NHAP' else 'phiếu đã ghi' }}</button></form>{% endif %}
+{% if can_correct %}{% include 'dieu_chinh_form.jinja' %}{% endif %}
 <script src="/static/cash.js" defer></script>
 {% endblock %}

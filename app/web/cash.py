@@ -9,12 +9,12 @@ from pydantic import ValidationError
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from .. import cash_docs as docs, cash_posting as posting
+from .. import cash_docs as docs, cash_posting as posting, day_closings
 from ..config import get_settings
 from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import CashCategory, Customer, Fund, Supplier, User
+from ..models import CashCategory, CashCorrection, CashDoc, Customer, Fund, Supplier, User
 from ..money_words import money_words
 from ..schemas import CashDocIn, CashDocPatch, CashDocCancel
 from ..security import has_role
@@ -71,13 +71,21 @@ def _body(data):
     return CashDocIn(**{**data,'amount':int(digits)})
 
 
-def _form(request,session,data,doc=None,error=None,code='',status=200,reason=''):
+def _form(request,session,data,doc=None,error=None,code='',status=200,reason='',correction_form=None):
     editable = doc is None or doc.status=='NHAP'
+    closed=bool(doc and day_closings.is_closed(session,doc.doc_date))
+    replacement=session.execute(select(CashDoc.id,CashDoc.number).join(CashCorrection,CashCorrection.new_doc_id==CashDoc.id).where(
+        CashCorrection.doc_id==doc.id,CashCorrection.status=='DA_DUYET')).first() if doc else None
+    proposal=correction_form if correction_form is not None else dict(version=doc.version if doc else 0,reason='',
+        new_amount=money(doc.amount) if doc else '',new_fund_code=data.get('fund_code',''),
+        new_category_code=data.get('category_code',''),new_description=data.get('description',''))
     return render(request,'thu_chi_form.jinja',d=data,doc=doc,kinds=docs.KINDS,states=docs.STATES,
                   funds=_funds(session,(data.get('fund_code'),data.get('to_fund_code'))),
                   director=has_role(request.state.user,'director'),editable=editable,
                   can_write=not data.get('is_opening') or has_role(request.state.user,'director'),
-                  error=error,error_code=code,status=status,reason=reason,
+                  error=error,error_code=code,status=status,reason=reason,closed=closed,correction=proposal,replacement=replacement,
+                  can_correct=bool(doc and doc.status=='DA_GHI' and doc.kind in ('PT','PC') and not doc.is_opening and not doc.source_type),
+                  pending_correction=session.scalar(select(CashCorrection.id).where(CashCorrection.doc_id==doc.id,CashCorrection.status=='CHO_DUYET')) if doc else None,
                   saved=request.query_params.get('da_luu')=='1' and not error)
 
 

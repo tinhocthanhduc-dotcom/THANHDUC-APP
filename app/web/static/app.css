@@ -270,3 +270,8 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .cash-signatures h2 { font-size: 1rem; }
 .fund-current { padding: 0 12px 12px; overflow-wrap: anywhere; }
 @media screen and (max-width:600px) { .cash-signatures { grid-template-columns: 1fr; } }
+
+.closing-grid { display: grid; gap: 16px; margin-top: 20px; grid-template-columns: repeat(auto-fit,minmax(min(100%,300px),1fr)); }
+.closing-grid .card { min-width: 0; overflow-wrap: anywhere; }
+.closing-grid form { margin-top: 12px; }
+.closing-grid button, [data-correction-form] button { min-height: 44px; }

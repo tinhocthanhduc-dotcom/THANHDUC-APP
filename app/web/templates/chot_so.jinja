@@ -1,0 +1,10 @@
+{% extends 'base.jinja' %}
+{% block title %}Chốt sổ ngày{% endblock %}
+{% block main %}
+<div class="bar"><h1>Chốt sổ ngày</h1><a href="/thu-chi">Thu chi</a><a href="/dieu-chinh">Điều chỉnh</a></div><p>30 ngày gần nhất, giờ Việt Nam. Tổng thu chi thuần theo ngày sổ, không gồm chuyển quỹ và số dư đầu kỳ.</p>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã cập nhật ngày.</p>{% endif %}
+<div class="closing-grid">{% for r in rows %}<section class="card" id="ngay-{{ r.day }}"><h2>{{ r.day.strftime('%d/%m/%Y') }}</h2><p><strong>{{ {'DA_CHOT':'Đã chốt sổ','DA_MO':'Đã mở khóa','CHUA_CHOT':'Chưa chốt'}[r.status] }}</strong></p><dl><dt>Tổng thu</dt><dd>{{ r.income|money }}</dd><dt>Tổng chi</dt><dd>{{ r.expense|money }}</dd><dt>Phiếu nháp</dt><dd>{{ r.drafts }}</dd></dl>
+{% if r.status!='DA_CHOT' %}<form method="post" action="/chot-so/{{ r.day }}/close"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ r.version }}"><button class="primary">Chốt ngày</button></form>
+{% elif director %}<form method="post" action="/chot-so/{{ r.day }}/unlock" class="form" onsubmit="return confirm('Mở khóa ngày này? Ngày sẽ không tự khóa lại.');"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ r.version }}"><label>Lý do mở khóa<textarea name="reason" required maxlength="2000">{{ reason if failed_day==r.day else '' }}</textarea></label><button>Mở khóa</button></form>{% endif %}
+</section>{% endfor %}</div>
+{% endblock %}
