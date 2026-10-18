@@ -427,3 +427,15 @@ Web `/chot-so`: 30 ngày gần nhất, tổng PT/PC thuần theo ngày sổ (đ�
 | BAD_STATUS | 409 | Ngày đã mở hoặc yêu cầu/phiếu không còn đủ điều kiện |
 | VERSION_REQUIRED / VERSION_CONFLICT | 400 / 409 | Thiếu hoặc cũ version, kể cả version 0 của ngày chưa có dòng |
 | NEGATIVE_CASH / FORBIDDEN / BAD_CSRF | 409 / 403 / 403 | Giữ kiểm số dư, quyền và CSRF |
+
+### Báo cáo tài chính (T5)
+
+Chỉ `finance`, `director`; vai trò khác trả `FORBIDDEN` (403). Tất cả hàm trong `app.finance_reports` chỉ SELECT, tổng hợp bằng SQL, không autoflush dữ liệu caller đang sửa.
+
+- `funds`, `fund_total`: số dư hiện tại, gồm cả quỹ ngừng dùng và quỹ chưa phát sinh (số dư 0).
+- `categories(session, user, direction, start=None, end=None)`, `category_totals`, `daily`: mặc định tháng hiện tại theo giờ Việt Nam. Lọc `fund_ledger.entry_date`, không lọc trạng thái phiếu (phiếu hủy vẫn giữ phát sinh gốc). Dòng đảo vào ngày hủy. Thu = tổng tiền có dấu của PT, chi = âm tổng tiền có dấu của PC; loại CQ và đầu kỳ. Số phiếu là số chứng từ khác nhau có phát sinh trong khoảng, mỗi phiếu tính một lần trong mỗi bảng kể cả có cả dòng gốc và đảo. Dòng tiền có đủ ngày; số dư cộng toàn bộ sổ từ trước khoảng cộng lũy kế mọi phát sinh, gồm đầu kỳ/CQ.
+- `customers`, `debt_totals`, `customer_docs(session, user, customer_code)`: công nợ hiện tại, không giới hạn theo khoảng thu chi. Chỉ cộng chứng từ còn nợ: đơn DA_CHOT/DA_GIAO, dịch vụ HOAN_THANH/DA_DONG. GROUP BY báo thu riêng theo từng nguồn trước khi UNION ALL, tránh nhân dòng giữa hai nguồn. Chỉ DA_XAC_NHAN trừ nợ; CHO_XAC_NHAN chỉ hiện riêng. Ngày chốt là `confirmed_at` của đơn hoặc `priced_at` của dịch vụ, chuyển giờ Việt Nam; số ngày tính tới hôm nay, tối thiểu 0.
+
+Web GET `/bao-cao/tai-chinh`: `period=today|month|last_month` hoặc `from=YYYY-MM-DD&to=YYYY-MM-DD`; `khach=...` mở danh sách chứng từ còn nợ, có link DB/DV. GET `/bao-cao/tai-chinh/{table}.csv` với `table=quy|thu|chi|dong-tien|cong-no|chung-tu`; CSV UTF-8 có BOM, tiền nguyên đồng, chuỗi người dùng được chống công thức Excel. Không có endpoint ghi hoặc migration.
+
+Lỗi: `BAD_DATE_RANGE` (400) khi ngày không hợp lệ/đảo khoảng; `BAD_DIRECTION` (400) khi gọi hàm danh mục với chiều ngoài THU/CHI; `NOT_FOUND` (404) với bảng CSV không tồn tại.

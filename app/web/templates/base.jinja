@@ -24,6 +24,7 @@
     {% if 'sales' in user.roles or 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/don-ban" {% if request.url.path.startswith('/don-ban') %}class="on"{% endif %}>Đơn bán</a>{% endif %}
     {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-thu" {% if request.url.path.startswith('/bao-thu') %}class="on"{% endif %}>Báo thu</a>{% endif %}
     {% if 'sales' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-cao/ban-hang" {% if request.url.path.startswith('/bao-cao/ban-hang') %}class="on"{% endif %}>Báo cáo bán hàng</a>{% endif %}
+    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-cao/tai-chinh" {% if request.url.path.startswith('/bao-cao/tai-chinh') %}class="on"{% endif %}>Báo cáo tài chính</a>{% endif %}
     {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/ghep-tai-chinh" {% if request.url.path.startswith(('/quy','/danh-muc-thu-chi','/ghep-tai-chinh')) %}class="on"{% endif %}>Tài chính</a>{% endif %}
     {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/thu-chi" {% if request.url.path.startswith('/thu-chi') or request.url.path.startswith('/so-quy') %}class="on"{% endif %}>Thu chi · Sổ quỹ</a>{% endif %}
     {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/chot-so" {% if request.url.path.startswith('/chot-so') %}class="on"{% endif %}>Chốt sổ</a><a href="/dieu-chinh" {% if request.url.path.startswith('/dieu-chinh') %}class="on"{% endif %}>Điều chỉnh</a>{% endif %}

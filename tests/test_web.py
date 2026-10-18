@@ -2748,3 +2748,76 @@ def test_t4_web_request_approve_reject_versions_and_csrf(client,db,closing_peopl
     db.expire_all()
     assert db.get(CashDoc,req.new_doc_id).amount==900000 and doc.status=='DA_HUY'
     assert cash_posting.balance(db,p['finance'],'QUY-TM')==900000
+
+
+from test_finance_reports import t5_money, t5_debts
+
+
+def test_t5_finance_page_totals_presets_and_csv(client, db, t5_money):
+    import csv
+    import io
+    p, a, b = t5_money
+    service_login(client, p['finance'])
+    page = client.get('/bao-cao/tai-chinh')
+    assert page.status_code == 200
+    for expected in ('Số dư quỹ hiện tại','Thu chi theo danh mục','Dòng tiền theo ngày','Công nợ khách tổng hợp',
+                     '1.500.000','300.000','6.200.000','Tháng trước','Hôm nay','Tháng này',
+                     'name="from" value="2026-10-01"','name="to" value="2026-10-31"'):
+        assert expected in page.text
+    assert 'Báo cáo tài chính' in client.get('/ghep-tai-chinh').text
+    today = client.get('/bao-cao/tai-chinh?period=today')
+    assert 'name="from" value="2026-10-18"' in today.text
+    previous = client.get('/bao-cao/tai-chinh?period=last_month')
+    assert 'name="from" value="2026-09-01"' in previous.text and 'name="to" value="2026-09-30"' in previous.text
+    headers = {
+        'quy':['Mã quỹ','Quỹ','Số dư hiện tại'],
+        'thu':['Mã danh mục','Danh mục','Số phiếu','Số tiền'],
+        'chi':['Mã danh mục','Danh mục','Số phiếu','Số tiền'],
+        'dong-tien':['Ngày','Thu','Chi','Chênh lệch','Số dư cuối ngày'],
+        'cong-no':['Mã khách','Khách hàng','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'],
+        'chung-tu':['Chứng từ','Ngày chốt','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ']}
+    for table, header in headers.items():
+        r = client.get(f'/bao-cao/tai-chinh/{table}.csv')
+        assert r.status_code == 200 and r.content.startswith(b'\xef\xbb\xbf')
+        assert next(csv.reader(io.StringIO(r.content.decode('utf-8-sig')))) == header
+        assert r.headers['cache-control']=='private, no-store'
+    csv_income = client.get('/bao-cao/tai-chinh/thu.csv').text
+    assert 'Cộng,,2,1500000' in csv_income and 'CQ' not in csv_income
+    # Nội dung người dùng trong CSV được chống công thức Excel.
+    from app.models import Fund
+    db.get(Fund,'QUY-TM').name='=SUM(1)';db.commit()
+    assert "'=SUM(1)" in client.get('/bao-cao/tai-chinh/quy.csv').text
+
+
+def test_t5_combined_debt_customer_drilldown(client, t5_debts):
+    p, o, t = t5_debts
+    service_login(client, p['director'])
+    page = client.get('/bao-cao/tai-chinh?from=2000-01-01&to=2000-01-01&khach=KTD-000001')
+    assert page.status_code == 200
+    for text in ('Minh Phát','1.000.000','400.000',o.number,t.number,'08/10/2026','09/10/2026'):
+        assert text in page.text
+    assert f'href="/don-ban/{o.id}#thu-tien"' in page.text
+    assert f'href="/dich-vu/{t.id}#thu-tien"' in page.text
+    csv = client.get('/bao-cao/tai-chinh/chung-tu.csv?khach=KTD-000001').text
+    assert f'{o.number},2026-10-08,10' in csv and f'{t.number},2026-10-09,9' in csv
+    csv = client.get('/bao-cao/tai-chinh/cong-no.csv').text
+    assert '1500000,500000,400000,1000000' in csv
+
+
+def test_t5_report_permissions_invalid_dates_and_no_writes(client, db, t5_money):
+    from app.models import AuditLog
+    p, a, b = t5_money
+    service_login(client, p['finance'])
+    before = db.query(AuditLog).count()
+    assert client.get('/bao-cao/tai-chinh?from=sai').status_code == 400
+    assert client.get('/bao-cao/tai-chinh?from=2026-10-31&to=2026-10-01').status_code == 400
+    assert client.get('/bao-cao/tai-chinh/thu.csv?from=sai').status_code == 400
+    assert client.get('/bao-cao/tai-chinh/sai.csv').status_code == 404
+    assert client.get('/bao-cao/tai-chinh?khach=KHONG-CO').status_code == 200
+    assert db.query(AuditLog).count()==before
+    service_login(client, p['sales'])
+    assert '>Báo cáo tài chính</a>' not in client.get('/khach-hang').text
+    for path in ('/bao-cao/tai-chinh','/bao-cao/tai-chinh?khach=KTD-000001',
+                 '/bao-cao/tai-chinh/quy.csv','/bao-cao/tai-chinh/thu.csv','/bao-cao/tai-chinh/chi.csv',
+                 '/bao-cao/tai-chinh/dong-tien.csv','/bao-cao/tai-chinh/cong-no.csv','/bao-cao/tai-chinh/chung-tu.csv'):
+        assert client.get(path).status_code==403

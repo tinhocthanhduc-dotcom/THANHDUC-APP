@@ -493,3 +493,7 @@ router.include_router(cash_router)
 from .closings import router as closings_router
 
 router.include_router(closings_router)
+
+from .finance_reports import router as finance_reports_router
+
+router.include_router(finance_reports_router)
