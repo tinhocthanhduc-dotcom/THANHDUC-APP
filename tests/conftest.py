@@ -87,3 +87,21 @@ def login(client, make_user):
         return {"Authorization": "Bearer " + r.json()["access_token"]}
 
     return _login
+
+
+@pytest.fixture
+def configured_finance(db,make_user):
+    """T3: chỉ fixture cần xác nhận BT mới ghép, không tự cấu hình ở production."""
+    from app import finance_catalogs,finance_mappings
+    from app.models import Fund,CashCategory
+    from app.schemas import FundIn,CashCategoryIn
+    director=make_user('mapping.setup','director')
+    for code,kind,account in [('QUY-TM','TIEN_MAT',''),('TK-ACB','NGAN_HANG','123456789')]:
+        finance_catalogs.create(db,director,Fund,FundIn(code=code,name=code,kind=kind,account_no=account))
+    for code in ('THU-BH','THU-DV'):
+        finance_catalogs.create(db,director,CashCategory,CashCategoryIn(code=code,name=code,direction='THU'))
+    for key,target in [('THU_TIEN_MAT','QUY-TM'),('THU_CHUYEN_KHOAN','TK-ACB'),
+                       ('DANH_MUC_BAN_HANG','THU-BH'),('DANH_MUC_DICH_VU','THU-DV')]:
+        finance_mappings.set_mapping(db,director,key,version=1,
+            **({'fund_code':target} if key.startswith('THU_') else {'category_code':target}))
+    return director

@@ -14,6 +14,9 @@ from app.security import issue_token
 from test_sales_orders import people
 
 
+pytestmark=pytest.mark.usefixtures('configured_finance')
+
+
 @pytest.fixture
 def order(db,people,monkeypatch):
     monkeypatch.setattr(svc,'_today',lambda:date(2026,10,18))

@@ -3,17 +3,17 @@
 Dòng phí và dòng vật tư sửa tự do khi phiếu còn mở. Khi phiếu sang HOAN_THANH, giá bị khóa (ghi tổng và số phải thu)
 và vật tư được xuất kho bằng phiếu PX tự lập và ghi sổ trong cùng transaction: đây là đường duy nhất Dịch vụ trừ kho.
 Mở lại hoặc hủy phiếu đã hoàn thành thì hủy các phiếu PX đó (sổ kho ghi đảo) và mở khóa giá.
-Báo thu, công nợ là việc của Tài chính; ở đây chỉ có "số phải thu".
+Báo thu do sales_receipts quản lý; danh sách cần thu nối tổng đã thu/chờ bằng SQL.
 """
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import audit, service_sla, service_tickets, stock_docs, stock_posting
 from .errors import BusinessError
-from .models import Product, ServiceLine, ServiceTicket, User, Warehouse
+from .models import Product, SalesReceipt, ServiceLine, ServiceTicket, User, Warehouse
 from .schemas import ServiceCharges, ServiceLineOut, StockDocIn, StockDocLineIn
 from .security import has_role
 from .stock_docs import _transaction
@@ -118,12 +118,24 @@ def release(session: Session, user: User, t: ServiceTicket, reason: str) -> None
 
 
 def receivables(session: Session, user: User, from_date: date | None = None, to_date: date | None = None) -> list[ServiceTicket]:
-    """Danh sách cần thu cho kế toán trong lúc chưa có phân hệ Tài chính."""
+    """T3: còn nợ thực tế; giữ interface list phiếu, thêm paid/pending/remaining chỉ đọc."""
     if not has_role(user, *VIEWERS):
         raise BusinessError("FORBIDDEN", "Chỉ điều phối, kế toán hoặc giám đốc xem danh sách cần thu.", status=403)
-    stmt = select(ServiceTicket).where(ServiceTicket.status.in_(("HOAN_THANH", "DA_DONG")), ServiceTicket.receivable > 0)
+    from .sales_receipts import _sums, _balance
+    paid,pending = _sums()
+    totals = select(SalesReceipt.ticket_id,paid.label('paid'),pending.label('pending')).where(
+        SalesReceipt.ticket_id.is_not(None)).group_by(SalesReceipt.ticket_id).subquery()
+    stmt = (select(ServiceTicket,func.coalesce(totals.c.paid,0),func.coalesce(totals.c.pending,0))
+            .outerjoin(totals,totals.c.ticket_id==ServiceTicket.id)
+            .where(ServiceTicket.status.in_(("HOAN_THANH", "DA_DONG")),ServiceTicket.receivable>func.coalesce(totals.c.paid,0)))
     if from_date is not None:
         stmt = stmt.where(ServiceTicket.priced_at >= datetime.combine(from_date, time.min, service_sla.TZ))
     if to_date is not None:
         stmt = stmt.where(ServiceTicket.priced_at < datetime.combine(to_date + timedelta(days=1), time.min, service_sla.TZ))
-    return list(session.scalars(stmt.order_by(ServiceTicket.priced_at, ServiceTicket.id)))
+    rows = []
+    for ticket,pay,wait in session.execute(stmt.order_by(ServiceTicket.priced_at,ServiceTicket.id)):
+        current = _balance(ticket.receivable,pay,wait)
+        # Thuộc tính không mapped, không thay số tiền đã chốt trong DB.
+        ticket.paid,ticket.pending,ticket.remaining = current['paid'],current['pending'],current['remaining']
+        rows.append(ticket)
+    return rows

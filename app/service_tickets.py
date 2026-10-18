@@ -14,7 +14,7 @@ from .config import get_settings
 from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, CustomerSite, Equipment, ServiceStep, ServiceTicket, User
+from .models import Customer, CustomerSite, Equipment, SalesReceipt, ServiceStep, ServiceTicket, User
 from .schemas import ServiceTicketIn, ServiceTicketOut
 from .security import has_role
 from .stock_docs import _transaction
@@ -62,7 +62,7 @@ def _require(user: User, roles, message: str):
 def _get(session: Session, user: User, ticket_id: int, lock: bool = False) -> ServiceTicket:
     stmt = select(ServiceTicket).where(ServiceTicket.id == ticket_id)
     if lock:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     t = session.scalars(stmt).first()
     # Thợ không thấy phiếu của người khác: trả như không tồn tại.
     if t is None or (_own_only(user) and t.assignee_id != user.id):
@@ -178,6 +178,9 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
             if not has_visible(session, "service_ticket", t.id, "SAU"):
                 raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
         reopening = t.status == "HOAN_THANH" and to_status in ("DANG_LAM", "DA_HUY")
+        if reopening and session.scalar(select(SalesReceipt.id).where(
+            SalesReceipt.ticket_id==t.id,SalesReceipt.status.in_(('CHO_XAC_NHAN','DA_XAC_NHAN'))).limit(1)) is not None:
+            raise BusinessError('HAS_RECEIPTS','Tài chính phải từ chối hoặc hủy báo thu trước.',status=409)
         if (to_status in NEEDS_REASON or reopening) and len(note) < 3:
             raise BusinessError("REASON_REQUIRED", "Phải ghi lý do.")
         if to_status == "DA_HEN":

@@ -15,6 +15,7 @@ from ..schemas import (
     ServiceTicketDetail,
     ServiceTicketIn,
     ServiceTicketOut,
+    ServiceReceivableOut,
     ServiceTransition,
 )
 from ..security import current_user
@@ -34,7 +35,7 @@ def search(
     return svc.search(session, user, status, assignee_id, overdue, q)
 
 
-@router.get("/receivables", response_model=list[ServiceTicketOut])
+@router.get("/receivables", response_model=list[ServiceReceivableOut])
 def receivables(
     from_date: date | None = Query(default=None, alias="from"),
     to_date: date | None = Query(default=None, alias="to"),

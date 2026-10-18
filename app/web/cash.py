@@ -184,6 +184,7 @@ def cancel(request: Request,doc_id: int,form=Depends(checked_form),session: Sess
     user=request.state.user;docs.check_writer(user)
     doc=docs.load(session,user,doc_id);reason=str(form.get('reason',''))
     try:
+        docs.check_source(doc)
         if not reason.strip():
             raise BusinessError('REASON_REQUIRED','Hủy phiếu phải nhập lý do.')
         if doc.status=='NHAP':

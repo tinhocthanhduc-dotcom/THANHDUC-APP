@@ -1484,8 +1484,8 @@ def test_d6_ui_receivables_roles_dates_total_and_csv(client, db, make_user, serv
     import csv, io
     download = client.get('/dich-vu/can-thu.csv')
     rows = list(csv.reader(io.StringIO(download.content.decode('utf-8-sig'))))
-    assert rows[0] == ['Số phiếu','Khách hàng','Ngày hoàn thành','Số phải thu']
-    assert rows[1][0] == charge_work.number and rows[-1] == ['Tổng cộng','','','132000']
+    assert rows[0] == ['Số phiếu','Khách hàng','Ngày hoàn thành','Số phải thu','Đã thu','Chờ xác nhận','Còn nợ']
+    assert rows[1][0] == charge_work.number and rows[-1] == ['Tổng cộng','','','','','','132000']
     for role in ['technician','sales']:
         service_login(client, service_people[role])
         assert client.get('/dich-vu/can-thu').status_code == 403
@@ -2149,7 +2149,7 @@ def test_b3_finance_read_only_and_date_errors(client,db,web_login,b3_catalog):
 
 
 @pytest.fixture
-def b4_order(client,db,web_login,b3_catalog):
+def b4_order(client,db,web_login,b3_catalog,configured_finance):
     csrf=web_login('b4.sales','sales')
     order=b3_create(client,db,csrf,qty=['2','1'],unit_price=['500.000','0'],vat_0='0',vat_1='0')
     assert b3_action(client,db,csrf,order,'confirm').status_code==200
@@ -2617,3 +2617,83 @@ def test_t2_web_version_permissions_csrf_and_audit(client,db,cash_people):
     assert client.post(f'/thu-chi/{doc.id}/post',data=dict(csrf=csrf,version=2)).status_code==403
     assert db.query(AuditLog).filter(AuditLog.entity=='cash_doc').count()==2
     assert db.query(FundLedger).count()==0
+
+
+from test_receipt_cash import t3_people
+
+
+def test_t3_web_service_collection_queue_source_pt_link_and_paid_disappears(client,db,t3_people,configured_finance):
+    from app import sales_receipts
+    from app.models import SalesReceipt,CashDoc
+    from test_receipt_cash import ticket,order,report
+    p=t3_people;t=ticket(db,p);o=order(db,p)
+    order_receipt=report(db,p,o)
+    csrf=service_login(client,p['dispatcher'])
+    page=client.get(f'/dich-vu/{t.id}')
+    assert page.status_code==200 and 'data-receipt-report' in page.text
+    assert 'data-balance="remaining">500.000 đồng' in page.text
+    r=client.post(f'/dich-vu/{t.id}/bao-thu',data=dict(csrf=csrf,version=t.version,method='TIEN_MAT',amount='500.000',received_at='2026-10-18',note='Thu công sửa'))
+    assert r.status_code==200 and 'data-balance="pending">500.000 đồng' in r.text
+    receipt=db.query(SalesReceipt).filter_by(ticket_id=t.id).one()
+    csrf=service_login(client,p['finance'])
+    queue=client.get('/bao-thu')
+    assert queue.status_code==200 and o.number in queue.text and t.number in queue.text and 'Nguồn:' in queue.text
+    assert f'href="/dich-vu/{t.id}#thu-tien"' in queue.text and f'href="/don-ban/{o.id}#thu-tien"' in queue.text
+    assert client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1)).status_code==200
+    db.expire_all();pt=db.get(CashDoc,receipt.cash_doc_id)
+    page=client.get(f'/dich-vu/{t.id}')
+    assert pt.number in page.text and f'href="/thu-chi/{pt.id}"' in page.text
+    assert 'data-balance="remaining">0 đồng' in page.text
+    assert t.number not in client.get('/dich-vu/can-thu').text
+    assert t.number not in client.get('/dich-vu/can-thu.csv').text
+    assert sales_receipts.balance(o)['pending']==600000
+
+
+def test_t3_web_mapping_error_and_source_locked(client,db,t3_people):
+    from app.models import CashDoc
+    from app import finance_catalogs,finance_mappings,sales_receipts
+    from app.models import Fund,CashCategory
+    from app.schemas import FundIn,CashCategoryIn
+    from test_receipt_cash import order,report
+    p=t3_people;o=order(db,p);r=report(db,p,o)
+    csrf=service_login(client,p['finance'])
+    response=client.post(f'/bao-thu/{r.id}/confirm',data=dict(csrf=csrf,version=1))
+    assert response.status_code==409 and 'MAPPING_REQUIRED' in response.text
+    assert 'Giám đốc cần ghép quỹ và danh mục ở trang Ghép tài chính' in response.text
+    assert 'href="/ghep-tai-chinh"' in response.text and db.query(CashDoc).count()==0
+    d=p['director']
+    finance_catalogs.create(db,d,Fund,FundIn(code='TM',name='Tiền mặt',kind='TIEN_MAT'))
+    finance_catalogs.create(db,d,CashCategory,CashCategoryIn(code='THU',name='Thu',direction='THU'))
+    finance_mappings.set_mapping(db,d,'THU_TIEN_MAT',fund_code='TM',version=1)
+    finance_mappings.set_mapping(db,d,'DANH_MUC_BAN_HANG',category_code='THU',version=1)
+    assert client.post(f'/bao-thu/{r.id}/confirm',data=dict(csrf=csrf,version=1)).status_code==200
+    db.expire_all();pt=db.get(CashDoc,r.cash_doc_id)
+    assert 'cash-cancel' not in client.get(f'/thu-chi/{pt.id}').text
+    response=client.post(f'/thu-chi/{pt.id}/cancel',data=dict(csrf=csrf,version=pt.version,reason='Hủy trực tiếp'))
+    assert response.status_code==409 and 'SOURCE_LOCKED' in response.text
+    db.expire_all();assert r.status=='DA_XAC_NHAN' and pt.status=='DA_GHI'
+
+
+def test_t3_web_ticket_overpay_version_csrf_reopen_and_void_origin(client,db,t3_people,configured_finance):
+    from app import sales_receipts,service_tickets
+    from app.models import SalesReceipt
+    from test_receipt_cash import ticket,report
+    p=t3_people;t=ticket(db,p);csrf=service_login(client,p['sales'])
+    data=dict(csrf=csrf,version=t.version,method='TIEN_MAT',amount='500.001',received_at='2026-10-18',note='Giữ dữ liệu')
+    response=client.post(f'/dich-vu/{t.id}/bao-thu',data=data)
+    assert response.status_code==409 and 'OVER_PAYMENT' in response.text
+    assert 'value="500.001"' in response.text and 'Giữ dữ liệu' in response.text
+    assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'csrf':''}).status_code==403
+    assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'amount':'500.000','version':1}).status_code==409
+    csrf=service_login(client,p['technician'])
+    assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'csrf':csrf}).status_code==403
+    r=report(db,p,t,500000)
+    sales_receipts.confirm(db,p['finance'],r.id,r.version)
+    csrf=service_login(client,p['dispatcher'])
+    response=client.post(f'/dich-vu/{t.id}/transition',data=dict(csrf=csrf,version=t.version,to_status='DANG_LAM',note='Khách cần sửa lại'))
+    assert response.status_code==409 and 'HAS_RECEIPTS' in response.text
+    csrf=service_login(client,p['director'])
+    response=client.post(f'/bao-thu/{r.id}/void',data=dict(csrf=csrf,version=r.version,origin='ticket',reason='Hoàn lại cho khách'))
+    assert response.status_code==200 and f'/dich-vu/{t.id}' in str(response.url)
+    assert 'data-balance="remaining">500.000 đồng' in response.text
+    assert t.number in client.get('/dich-vu/can-thu').text
