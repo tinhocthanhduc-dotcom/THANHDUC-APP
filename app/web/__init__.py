@@ -511,3 +511,7 @@ router.include_router(supplier_debts_router)
 from .purchase_returns import router as purchase_returns_router
 
 router.include_router(purchase_returns_router)
+
+from .purchase_reports import router as purchase_reports_router
+
+router.include_router(purchase_reports_router)
