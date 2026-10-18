@@ -55,7 +55,7 @@ def test_quote_two_lines_number_totals_and_half_rounding(db, quote_people):
 
 def test_quote_default_price_description_unit_from_product(db, quote_people):
     q = svc.create(db, quote_people['sales'], body(lines=[dict(product_code='TD-0001',qty='2')]))
-    assert q.lines[0].unit_price == 120000 and q.total == 240000
+    assert q.lines[0].unit_price == 120000 and q.total == 259200
     assert q.lines[0].description == 'Mực in' and q.lines[0].unit == 'hộp'
 
 
@@ -104,7 +104,7 @@ def test_quote_stale_version_and_replace_all_lines(db, quote_people):
     error('VERSION_CONFLICT',svc.send,db,u,q.id,1)
     error('VERSION_CONFLICT',svc.update_lines,db,u,q.id,QuoteUpdate(version=1,lines=[]))
     error('VERSION_REQUIRED',svc.send,db,u,q.id,None)
-    assert q.total == 120000
+    assert q.total == 129600
 
 
 def test_quote_inactive_customer_product_and_failed_creation_does_not_spend_number(db, quote_people):

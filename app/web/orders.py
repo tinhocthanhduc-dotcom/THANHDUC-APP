@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import customers, products, quotes, sales_orders as svc
 from ..config import get_settings
+from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, Product, SalesOrder, StockDoc, User, VAT_RATES, Warehouse
@@ -100,7 +101,7 @@ def _raw(form):
     for i in range(max((len(v) for v in fields.values()),default=0)):
         line={key:str(values[i]) if i<len(values) else '' for key,values in fields.items()}
         line.update(kind=str(form.get(f'kind_{i}','HANG')),warehouse_code=str(form.get(f'warehouse_{i}','')),
-                    vat_rate=str(form.get(f'vat_{i}','0')))
+                    vat_rate=str(form.get(f'vat_{i}',str(DEFAULT_VAT_RATE))))
         lines.append(line)
     return dict(customer_code=str(form.get('customer_code','')),contact_name=str(form.get('contact_name','')),
                 delivery_address=str(form.get('delivery_address','')),note=str(form.get('note','')),

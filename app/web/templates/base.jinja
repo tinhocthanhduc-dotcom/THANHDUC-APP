@@ -20,6 +20,7 @@
     <a href="/ton-dau-ky" {% if request.url.path.startswith('/ton-dau-ky') %}class="on"{% endif %}>Tồn đầu kỳ</a>
     <a href="/ton-kho?canh-bao=1" {% if request.url.path == '/ton-kho' and request.query_params.get('canh-bao') == '1' %}class="on"{% endif %}>Sắp hết</a>
     {% if 'dispatcher' in user.roles or 'director' in user.roles %}<a href="/dieu-phoi" {% if request.url.path.startswith('/dieu-phoi') %}class="on"{% endif %}>Điều phối</a>{% endif %}
+    {% if 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/don-mua" {% if request.url.path.startswith('/don-mua') %}class="on"{% endif %}>Đơn mua</a>{% endif %}
     {% if 'sales' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-gia" {% if request.url.path.startswith('/bao-gia') %}class="on"{% endif %}>Báo giá</a>{% endif %}
     {% if 'sales' in user.roles or 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/don-ban" {% if request.url.path.startswith('/don-ban') %}class="on"{% endif %}>Đơn bán</a>{% endif %}
     {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-thu" {% if request.url.path.startswith('/bao-thu') %}class="on"{% endif %}>Báo thu</a>{% endif %}

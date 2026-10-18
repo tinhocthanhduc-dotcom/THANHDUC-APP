@@ -13,6 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .. import products, service_charges, service_tickets
+from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, Product, StockDoc, User, Warehouse
@@ -51,7 +52,7 @@ def _raw(form):
             return str(fields[key][i]) if i < len(fields[key]) else ''
         lines.append(dict(kind=str(kind), description=at('line_description'), product_code=at('line_product') or None,
                           warehouse_code=str(form.get(f'warehouse_{i}', '')) or None, qty=at('line_qty'),
-                          unit_price=at('line_price'), vat_rate=str(form.get(f'vat_{i}', ''))))
+                          unit_price=at('line_price'), vat_rate=str(form.get(f'vat_{i}', str(DEFAULT_VAT_RATE)))))
     return dict(billing=str(form.get('billing', '')), free_reason=str(form.get('free_reason', '')),
                 version=str(form.get('version', '')), lines=lines)
 

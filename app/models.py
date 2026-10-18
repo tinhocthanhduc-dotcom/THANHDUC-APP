@@ -788,3 +788,55 @@ class CashCorrection(Base):
     new_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
     version: Mapped[int] = mapped_column(Integer,default=1,nullable=False)
     __mapper_args__ = {'version_id_col': version}
+
+
+PURCHASE_ORDER_STATUSES = ('NHAP', 'DA_DAT', 'NHAN_MOT_PHAN', 'DA_NHAN', 'DA_HUY')
+
+
+class PurchaseOrder(Base):
+    __tablename__ = 'purchase_orders'
+    __table_args__ = (
+        CheckConstraint(_in('status', PURCHASE_ORDER_STATUSES), name='ck_purchase_orders_status'),
+        CheckConstraint('subtotal >= 0 and vat_total >= 0 and total >= 0', name='ck_purchase_orders_money'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    supplier_code: Mapped[str] = mapped_column(ForeignKey('suppliers.code'))
+    order_date: Mapped[date] = mapped_column(Date)
+    expected_date: Mapped[date | None] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(16), default='NHAP')
+    note: Mapped[str] = mapped_column(Text, default='')
+    subtotal: Mapped[int] = mapped_column(BigInteger, default=0)
+    vat_total: Mapped[int] = mapped_column(BigInteger, default=0)
+    total: Mapped[int] = mapped_column(BigInteger, default=0)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ordered_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    ordered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str] = mapped_column(Text, default='')
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    lines: Mapped[list['PurchaseOrderLine']] = relationship(back_populates='order', cascade='all, delete-orphan', order_by='PurchaseOrderLine.line_no')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class PurchaseOrderLine(Base):
+    __tablename__ = 'purchase_order_lines'
+    __table_args__ = (
+        UniqueConstraint('order_id', 'line_no', name='uq_purchase_order_lines_number'),
+        CheckConstraint('qty > 0', name='ck_purchase_order_lines_qty'),
+        CheckConstraint('unit_cost >= 0 and amount >= 0 and vat_amount >= 0', name='ck_purchase_order_lines_money'),
+        CheckConstraint(_in('vat_rate', VAT_RATES).replace("'", ''), name='ck_purchase_order_lines_vat'),
+        CheckConstraint('received_qty >= 0 and received_qty <= qty', name='ck_purchase_order_lines_received'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('purchase_orders.id'), index=True)
+    line_no: Mapped[int] = mapped_column(Integer)
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_cost: Mapped[int] = mapped_column(BigInteger)
+    vat_rate: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    received_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=0, server_default=text('0'))
+    order: Mapped['PurchaseOrder'] = relationship(back_populates='lines')

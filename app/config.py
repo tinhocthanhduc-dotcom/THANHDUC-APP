@@ -4,6 +4,9 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_VAT_RATE = 8
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="TD_", extra="ignore")
 
