@@ -21,7 +21,7 @@ pytestmark=pytest.mark.usefixtures('configured_finance')
 def order(db,people,monkeypatch):
     monkeypatch.setattr(svc,'_today',lambda:date(2026,10,18))
     o=orders.create(db,people['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[
-        dict(kind='KHAC',description='Đơn một triệu',qty=1,unit_price=1000000)]))
+        dict(kind='KHAC',description='Đơn một triệu',qty=1,unit_price=1000000,vat_rate=0)]))
     orders.confirm(db,people['sales'],o.id,o.version)
     return o
 
@@ -234,7 +234,7 @@ def test_concurrent_confirmation_one_winner_and_one_audit(db,engine,people,order
 
 def test_receivables_oldest_first_and_pending_is_still_debt(db,people,order):
     older=orders.create(db,people['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[
-        dict(kind='KHAC',description='Đơn cũ',qty=1,unit_price=1000000)]))
+        dict(kind='KHAC',description='Đơn cũ',qty=1,unit_price=1000000,vat_rate=0)]))
     orders.confirm(db,people['sales'],older.id,older.version)
     order.confirmed_at=datetime(2026,10,10,16,tzinfo=UTC)
     older.confirmed_at=datetime(2026,10,1,16,tzinfo=UTC)

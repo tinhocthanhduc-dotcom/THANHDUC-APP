@@ -4,6 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .config import DEFAULT_VAT_RATE
+
 
 class ContactIn(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -404,7 +406,7 @@ class ServiceLineIn(BaseModel):
     description: str = Field(default="", max_length=500)
     qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
     unit_price: int = Field(strict=True, ge=0, le=10_000_000_000)
-    vat_rate: Literal[0, 5, 8, 10] = 0
+    vat_rate: Literal[0, 5, 8, 10] = DEFAULT_VAT_RATE
 
 
 class ServiceLineOut(ServiceLineIn):
@@ -526,7 +528,7 @@ class QuoteLineIn(BaseModel):
     qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
     unit: str = Field(default='', max_length=32)
     unit_price: int | None = Field(default=None, strict=True, ge=0, le=9_223_372_036_854_775_807)
-    vat_rate: int = Field(default=0, strict=True)
+    vat_rate: int = Field(default=DEFAULT_VAT_RATE, strict=True)
 
     @field_validator('vat_rate')
     @classmethod
@@ -819,3 +821,60 @@ class CashCorrectionIn(BaseModel):
     new_fund_code: str | None = Field(default=None,min_length=1,max_length=32)
     new_category_code: str | None = Field(default=None,min_length=1,max_length=32)
     new_description: str | None = Field(default=None,max_length=4000)
+
+
+class PurchaseOrderLineIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    product_code: str = Field(min_length=1, max_length=32)
+    warehouse_code: str = Field(min_length=1, max_length=16)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    unit_cost: int = Field(strict=True, ge=0, le=9_223_372_036_854_775_807)
+    vat_rate: Literal[0, 5, 8, 10] = DEFAULT_VAT_RATE
+
+
+class PurchaseOrderIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    supplier_code: str = Field(min_length=1, max_length=16)
+    order_date: date
+    expected_date: date | None = None
+    note: str = Field(default='', max_length=4000)
+    lines: list[PurchaseOrderLineIn] = Field(default_factory=list, max_length=500)
+
+
+class PurchaseOrderUpdate(PurchaseOrderIn):
+    version: int = Field(strict=True, ge=1)
+
+
+class PurchaseOrderVersion(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    version: int = Field(strict=True, ge=1)
+
+
+class PurchaseOrderCancel(PurchaseOrderVersion):
+    reason: str = Field(default='', max_length=2000)
+
+
+class PurchaseOrderLineOut(PurchaseOrderLineIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    line_no: int
+    amount: int
+    vat_amount: int
+    received_qty: Decimal
+
+
+class PurchaseOrderOut(PurchaseOrderIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    status: str
+    subtotal: int
+    vat_total: int
+    total: int
+    created_by: int
+    created_at: datetime
+    ordered_by: int | None
+    ordered_at: datetime | None
+    cancel_reason: str
+    version: int
+    lines: list[PurchaseOrderLineOut]

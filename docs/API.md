@@ -439,3 +439,16 @@ Chỉ `finance`, `director`; vai trò khác trả `FORBIDDEN` (403). Tất cả 
 Web GET `/bao-cao/tai-chinh`: `period=today|month|last_month` hoặc `from=YYYY-MM-DD&to=YYYY-MM-DD`; `khach=...` mở danh sách chứng từ còn nợ, có link DB/DV. GET `/bao-cao/tai-chinh/{table}.csv` với `table=quy|thu|chi|dong-tien|cong-no|chung-tu`; CSV UTF-8 có BOM, tiền nguyên đồng, chuỗi người dùng được chống công thức Excel. Không có endpoint ghi hoặc migration.
 
 Lỗi: `BAD_DATE_RANGE` (400) khi ngày không hợp lệ/đảo khoảng; `BAD_DIRECTION` (400) khi gọi hàm danh mục với chiều ngoài THU/CHI; `NOT_FOUND` (404) với bảng CSV không tồn tại.
+
+### Đơn mua (M1)
+
+API Bearer theo mẫu B2: GET/POST `/purchase-orders`; GET/PUT `/purchase-orders/{id}`; POST `/{id}/order`, `/{id}/cancel`; GET `/purchase-orders/suggest-cost/{product_code}` trả `unit_cost` hoặc null. Danh sách nhận `q` (số đơn), `status`, `supplier_code`. POST đặt/hủy và PUT sửa bắt buộc version; hủy thêm reason. Create/update nhận supplier_code, order_date, expected_date (nullable), note, lines; mỗi dòng có product_code, warehouse_code, qty (>0, tối đa 3 chữ số lẻ), unit_cost (nguyên đồng >=0), vat_rate (0/5/8/10, mặc định theo DEFAULT_VAT_RATE). Không nhận received_qty từ client.
+
+- Ghi: warehouse/director; xem: thêm finance. Sai quyền `FORBIDDEN` (403).
+- NHAP → DA_DAT qua `order`, ghi ordered_by/ordered_at; chỉ sửa NHAP, thay toàn bộ dòng và tính lại tiền HALF_UP từng dòng/VAT. Đơn không được rỗng. Sửa giữ số DM đã cấp, không cấp lại số.
+- Hủy NHAP hoặc DA_DAT khi chưa nhận hàng, bắt buộc lý do; không xóa đơn. Mọi thay đổi khóa dòng, kiểm version và ghi audit trước/sau cùng transaction cấp số.
+- Đơn giá gợi ý lấy đơn có lần đặt gần nhất, bỏ NHAP/DA_HUY, hòa thời gian dùng id và số dòng. M1 không ghi sổ kho/quỹ, received_qty chỉ để sẵn M2.
+
+Lỗi: `EMPTY_ORDER`, `BAD_SUPPLIER`, `BAD_PRODUCT`/`BAD_WAREHOUSE` (kèm invalid_codes), `REASON_REQUIRED`, `AMOUNT_TOO_LARGE` (400); `PRICE_LOCKED`, `BAD_STATUS`, `CANNOT_CANCEL`, `VERSION_CONFLICT` (409); `NOT_FOUND` (404). Dữ liệu schema sai trả 422 theo FastAPI. Web hiển thị câu tiếng Việt và giữ dữ liệu nhập, POST có CSRF; ô tiền cho phép dấu chấm nghìn. Trang `/don-mua`, `/don-mua/moi`, `/don-mua/{id}`, `/don-mua/{id}/in`.
+
+VAT công ty: `app.config.DEFAULT_VAT_RATE` là nguồn mặc định duy nhất (8%). Schema báo giá/đơn bán/dịch vụ/đơn mua và template dòng mới dùng giá trị này; gửi rõ 0 vẫn giữ 0, dòng đã lưu giữ VAT cũ. Không cập nhật dữ liệu cũ hoặc migration cho phần đổi mặc định VAT.

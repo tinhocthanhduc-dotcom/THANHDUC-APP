@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from .. import customers, products, quotes as svc
 from ..config import get_settings
+from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, Product, SalesOrder, User, VAT_RATES
@@ -75,7 +76,7 @@ def _raw(form):
     lines = []
     for i in range(max((len(values) for values in fields.values()),default=0)):
         row = {key: str(values[i]) if i < len(values) else '' for key, values in fields.items()}
-        row['vat_rate'] = str(form.get(f'vat_{i}', '0'))
+        row['vat_rate'] = str(form.get(f'vat_{i}', str(DEFAULT_VAT_RATE)))
         lines.append(row)
     return dict(customer_code=str(form.get('customer_code','')), contact_name=str(form.get('contact_name','')),
                 valid_until=str(form.get('valid_until','')), note=str(form.get('note','')),

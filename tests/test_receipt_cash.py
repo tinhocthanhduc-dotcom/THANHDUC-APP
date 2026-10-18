@@ -20,7 +20,7 @@ def t3_people(db,make_user):
 
 
 def order(db,p):
-    o=sales_orders.create(db,p['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[dict(kind='KHAC',description='Đơn bán',qty=1,unit_price=1000000)]))
+    o=sales_orders.create(db,p['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[dict(kind='KHAC',description='Đơn bán',qty=1,unit_price=1000000,vat_rate=0)]))
     return sales_orders.confirm(db,p['sales'],o.id,o.version)
 
 

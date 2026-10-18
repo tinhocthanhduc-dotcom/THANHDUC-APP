@@ -30,6 +30,6 @@
 </div>{% endif %}
 {% if o and can_write and o.status in ['NHAP','DA_CHOT','DA_GIAO'] %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="card form service-action" {% if o.status=='DA_GIAO' %}data-order-cancel{% endif %}>{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else '' }}</textarea></label>{% if o.status=='DA_GIAO' %}<p class="alert warn">Hủy sẽ trả hàng về kho</p>{% endif %}<button>Hủy đơn</button></form>{% endif %}
 {% if failed_action=='cancel' and o and o.status=='DA_HUY' %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
-<template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code='',description='',qty='1',unit='',unit_price=None,vat_rate=0) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
+<template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code='',description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
 <script src="/static/orders.js" defer></script>
 {% endblock %}

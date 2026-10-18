@@ -91,6 +91,8 @@ async def checked_form(request: Request, user: User = Depends(web_user)):
 
 
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
+    from ..config import DEFAULT_VAT_RATE
+    ctx.setdefault("default_vat_rate", DEFAULT_VAT_RATE)
     status = ctx.pop("status", 200)
     ctx.setdefault("user", getattr(request.state, "user", None))
     ctx.setdefault("csrf", getattr(request.state, "csrf", ""))
@@ -497,3 +499,7 @@ router.include_router(closings_router)
 from .finance_reports import router as finance_reports_router
 
 router.include_router(finance_reports_router)
+
+from .purchases import router as purchases_router
+
+router.include_router(purchases_router)

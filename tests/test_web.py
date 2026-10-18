@@ -2821,3 +2821,66 @@ def test_t5_report_permissions_invalid_dates_and_no_writes(client, db, t5_money)
                  '/bao-cao/tai-chinh/quy.csv','/bao-cao/tai-chinh/thu.csv','/bao-cao/tai-chinh/chi.csv',
                  '/bao-cao/tai-chinh/dong-tien.csv','/bao-cao/tai-chinh/cong-no.csv','/bao-cao/tai-chinh/chung-tu.csv'):
         assert client.get(path).status_code==403
+
+
+from test_purchase_orders import purchase_people
+
+
+def purchase_form(csrf, **changes):
+    data=dict(csrf=csrf,supplier_code='NCC-0001',order_date='2026-10-18',expected_date='2026-10-25',note='Mua hàng',
+        product_code='TD-0001',qty='1,5',unit_cost='120.000',warehouse_0='K58')
+    data.update(changes);return data
+
+
+def test_m1_web_create_update_order_cancel_print_and_pickers(client,db,purchase_people):
+    from app.models import PurchaseOrder,FundLedger,StockLedger
+    from sqlalchemy import select,func
+    p=purchase_people;service_login(client,p['warehouse'])
+    form=client.get('/don-mua/moi');assert form.status_code==200
+    csrf=csrf_of(form.text)
+    assert re.search(r'value="8"[^>]*checked',form.text)
+    assert 'type="number"' not in form.text
+    assert 'NCC-0001' in client.get('/don-mua/tim-ncc?q=minh phat').text
+    assert 'TD-0001' in client.get('/don-mua/tim-hang?q=may in').text
+    r=client.post('/don-mua/moi',data=purchase_form(csrf));assert r.status_code==200,r.text
+    o=db.scalar(select(PurchaseOrder));assert o.lines[0].unit_cost==120000 and o.lines[0].vat_rate==8 and o.total==194400
+    assert 'DM-26-00001' in r.text
+    r=client.post(f'/don-mua/{o.id}',data=purchase_form(csrf,version=o.version,qty='2',vat_0='0'))
+    assert r.status_code==200
+    db.expire_all();assert o.total==240000 and o.lines[0].vat_rate==0
+    assert client.post(f'/don-mua/{o.id}/order',data={'csrf':csrf,'version':o.version}).status_code==200
+    db.expire_all();assert o.status=='DA_DAT'
+    pick=client.get('/don-mua/tim-hang?q=may in');assert 'data-cost="120000"' in pick.text
+    page=client.get('/don-mua?status=DA_DAT&supplier_code=NCC-0001&q=DM-26')
+    assert page.status_code==200 and o.number in page.text
+    printed=client.get(f'/don-mua/{o.id}/in')
+    for text in (o.number,'ĐƠN ĐẶT HÀNG','0313015734','Minh Phát','Bằng chữ','Hai trăm bốn mươi nghìn đồng','Ký, ghi rõ họ tên'):
+        assert text in printed.text
+    assert client.post(f'/don-mua/{o.id}/cancel',data={'csrf':csrf,'version':o.version}).status_code==400
+    r=client.post(f'/don-mua/{o.id}/cancel',data={'csrf':csrf,'version':o.version,'reason':'Không mua'})
+    assert r.status_code==200
+    db.expire_all();assert o.status=='DA_HUY'
+    for model in (FundLedger,StockLedger):assert db.scalar(select(func.count()).select_from(model))==0
+
+
+def test_m1_form_errors_stale_preserve_inputs_csrf_permissions(client,db,purchase_people):
+    from app import purchase_orders as svc
+    from test_purchase_orders import body
+    p=purchase_people;service_login(client,p['warehouse']);csrf=csrf_of(client.get('/don-mua/moi').text)
+    assert client.post('/don-mua/moi',data=purchase_form('')).status_code==403
+    row=svc.create(db,p['warehouse'],body());old=row.version
+    from app.schemas import PurchaseOrderUpdate
+    svc.update(db,p['director'],row.id,PurchaseOrderUpdate(version=old,**body().model_dump()))
+    r=client.post(f'/don-mua/{row.id}',data=purchase_form(csrf,version=old,unit_cost='125.000',note='Giữ lời nhắn'))
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text and '125.000' in r.text and 'Giữ lời nhắn' in r.text
+    r=client.post('/don-mua/moi',data=purchase_form(csrf,product_code='TD-SAI',unit_cost='123.456'))
+    assert r.status_code==400 and 'BAD_PRODUCT' in r.text and 'TD-SAI' in r.text and '123.456' in r.text
+    for role in ('finance','sales','technician'):
+        service_login(client,p[role])
+        page=client.get(f'/don-mua/{row.id}')
+        if role=='finance':
+            assert page.status_code==200 and 'Lưu đơn mua</button>' not in page.text and '>Đặt hàng</button>' not in page.text
+        else:assert page.status_code==403
+        csrf=csrf_of(client.get('/khach-hang').text)
+        assert client.post('/don-mua/moi',data=purchase_form(csrf)).status_code==403
+        assert client.post(f'/don-mua/{row.id}/order',data={'csrf':csrf,'version':row.version}).status_code==403
