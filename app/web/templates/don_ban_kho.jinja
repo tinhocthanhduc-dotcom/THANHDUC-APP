@@ -1,0 +1,5 @@
+{% set warehouse_value=warehouse_value or '' %}
+<div class="seg stock-seg"><label><input type="radio" name="{{ warehouse_name }}" value="" {% if not warehouse_value %}checked{% endif %} data-order-warehouse><span>Chưa chọn</span></label>
+{% for wh in warehouses if wh.active or wh.code==warehouse_value %}<label><input type="radio" name="{{ warehouse_name }}" value="{{ wh.code }}" {% if warehouse_value==wh.code %}checked{% endif %} data-order-warehouse><span>{{ wh.code }} · {{ wh.name }}{% if not wh.active %} (ngừng dùng){% endif %}</span></label>{% endfor %}
+{% if warehouse_value and warehouse_value not in (warehouses|map(attribute='code')|list) %}<label><input type="radio" name="{{ warehouse_name }}" value="{{ warehouse_value }}" checked data-order-warehouse><span>{{ warehouse_value }} (kiểm tra lại)</span></label>{% endif %}
+</div>

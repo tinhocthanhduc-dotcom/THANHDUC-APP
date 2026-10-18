@@ -12,7 +12,7 @@ from .. import customers, products, quotes as svc
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, User, VAT_RATES
+from ..models import Customer, Product, SalesOrder, User, VAT_RATES
 from ..money_words import money_words
 from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
@@ -50,10 +50,12 @@ def _form(request, session, data=None, quote=None, error=None, code='', status=2
     codes = {line.get('product_code') for line in data['lines'] if line.get('product_code')}
     names = dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all())
     replacement = svc.load(session, request.state.user, quote.replaced_by_id) if quote and quote.replaced_by_id else None
+    linked_order = session.execute(select(SalesOrder.id, SalesOrder.number).where(SalesOrder.quote_id == quote.id,
+                                  SalesOrder.status != 'DA_HUY')).first() if quote else None
     return render(request, 'bao_gia_form.jinja', q=quote, d=data, customer_name=customer.name if customer else '',
                   product_names=names, statuses=STATUSES, vat_rates=VAT_RATES,
                   can_write=has_role(request.state.user,*svc.WRITERS), is_new=quote is None,
-                  editable=quote is None or quote.status == 'NHAP', replaced=replacement,
+                  linked_order=linked_order, editable=quote is None or quote.status == 'NHAP', replaced=replacement,
                   error=error, error_code=code, status=status, action_form=action_form or {}, failed_action=action,
                   saved=request.query_params.get('da_luu') == '1' and not error, unsaved=error is not None)
 
