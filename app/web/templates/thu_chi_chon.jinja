@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" data-cash-pick="{{ row.code }}" data-name="{{ row.name }}"><span class="code">{{ row.code }}</span> {{ row.name }}</button>{% else %}<p class="hint">Không có kết quả hợp lệ.</p>{% endfor %}

@@ -347,3 +347,31 @@ Sửa kiểm version sau khi khóa bản ghi; tạo/sửa/bỏ ghép và audit t
 | NOT_FOUND | 404 | Không tìm thấy quỹ/danh mục |
 
 Web: `/quy`, `/danh-muc-thu-chi` dùng khuôn danh mục có sẵn, thêm ở `/moi`, sửa ở `/{code}`; POST có CSRF/version. `/ghep-tai-chinh` có bốn ô tìm và chọn qua `data-live`, kết quả chỉ có đích hợp lệ, không tự chọn gợi ý; nhãn đỏ “Chưa ghép” cho dòng rỗng. Finance không có nút lưu bảng ghép; director có. Lỗi giữ dữ liệu đã nhập. Menu Tài chính chỉ finance/director. Không có endpoint xóa; không sửa stock_*, service_*, sales_* hoặc quotes.py.
+
+## Thu chi (T2)
+
+`app.cash_docs` cung cấp `create(session,user,CashDocIn)`, `update(session,user,id,CashDocPatch)`, `cancel(session,user,id,CashDocCancel)`, `search(session,user,kind=None,fund=None,status=None,from_date=None,to_date=None)`, `load(session,user,id)`. Chỉ finance/director; phiếu `is_opening` (PT hoặc PC) chỉ director được lập, sửa, ghi hoặc hủy. Không xóa phiếu. Sửa/hủy nháp chỉ NHAP; đổi kind hoặc năm doc_date bị NUMBER_LOCKED, phải hủy nháp và lập mới. Cấp PT/PC/CQ qua next_number trong transaction lưu phiếu. Quỹ phải đang dùng; PT thường cần danh mục THU, PC thường cần CHI; CQ và đầu kỳ không có danh mục. Khách/nhà cung cấp không được có đồng thời, mã nếu có phải đang dùng. `source_type`/`source_id` hoặc cùng rỗng hoặc cùng có; cặp nguồn chỉ có một phiếu chưa DA_HUY.
+
+`app.cash_posting.post(session,user,id,version)` và `void(session,user,id,reason,version)` là hai nơi ghi số dư/sổ. Khóa phiếu rồi kiểm version/trạng thái; khóa các dòng fund_balances theo mã quỹ tăng dần, tạo dòng còn thiếu bằng INSERT ON CONFLICT. PT tăng, PC giảm, CQ giảm nguồn/tăng đích cùng transaction. Kiểm mọi quỹ trước khi thêm sổ; không cho âm hoặc vượt BigInteger. Khi ghi, kiểm lại quỹ/danh mục còn dùng. Hủy DA_GHI phải có lý do, đảo chính xác dòng gốc vào ngày hủy giờ VN; quỹ/danh mục đã ngừng vẫn cho ghi đảo để sửa sai, nhưng không lập/ghi phiếu mới. Phiếu đầu kỳ luôn cần director.
+
+`insert(session,user,body)`, `post_in_tx(session,user,id,version)`, `void_in_tx(session,user,id,reason,version)` dùng trong transaction của nơi gọi, không commit và không kiểm quyền thông thường (caller phải kiểm); riêng quyền đầu kỳ luôn kiểm. Caller phải rollback toàn bộ khi lỗi. Mỗi thao tác thành công ghi audit_log trước/sau cùng transaction. `balance(session,user,fund_code)` và `balances(session,user,codes)` chỉ SELECT, không tự tạo số dư khi xem.
+
+Fund ledger chỉ INSERT: trigger chặn UPDATE/DELETE; mỗi phiếu có tối đa một dòng gốc và một dòng đảo cho từng quỹ. `entry_date` gốc là ngày phiếu, đảo là ngày hủy. `balance_after` là số dư thực tại thời điểm ghi. `statement(session,user,fund,start,end)` đọc trong một snapshot SQL, tính dư đầu từ tất cả dòng trước kỳ, dòng trong kỳ và dư cuối theo ngày kế toán bằng SUM OVER (đúng cả phiếu ghi lùi ngày); không bỏ dòng gốc của phiếu đã hủy vì đã có dòng đảo. Tổng thu/chi thuần tính PT/PC, dòng đảo giảm loại gốc; CQ và đầu kỳ hiện riêng, không lẫn thu chi/doanh thu. Không giới hạn một phiếu đầu kỳ, không tự đoán quỹ/danh mục hoặc tự tạo danh mục.
+
+Web `/thu-chi` lọc loại/quỹ (cả nguồn và đích CQ)/trạng thái/ngày; mặc định đầu tháng đến hôm nay giờ VN. `/thu-chi/moi?loai=PT|PC|CQ`, `/{id}` dùng nút quỹ và ô tìm/chọn danh mục, khách, nhà cung cấp không dấu; tiền nguyên đồng có dấu chấm nghìn. Ghi sổ lưu nháp trước rồi gọi post; nếu thiếu tiền, giữ phiếu NHAP vừa lưu và dữ liệu form, không ghi sổ/số dư. `/{id}/post`, `/{id}/cancel` là POST có CSRF/version, hủy phải có lý do và hỏi xác nhận. `/{id}/in` in A4 có tiền bằng chữ và chỗ ký. `/so-quy/{fund}?from=...&to=...` chỉ đọc; `/quy` hiện số dư hiện tại và link sổ quỹ.
+
+| Mã | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| NEGATIVE_CASH | 409 | Không đủ tiền; details gồm fund, available, requested (nguyên đồng), form hiện quỹ/số dư/số cần |
+| BAD_FUND / BAD_CATEGORY | 400 | Quỹ/danh mục không tồn tại, ngừng dùng hoặc sai chiều/không được có danh mục |
+| BAD_TRANSFER / BAD_OPENING | 400 | CQ thiếu/trùng quỹ đích, loại khác có đích hoặc dùng CQ làm đầu kỳ |
+| BAD_PARTNER / BAD_SOURCE | 400 | Hai đối tác đồng thời, đối tác sai/ngừng dùng hoặc thiếu một phần nguồn |
+| SOURCE_USED | 409 | Nguồn đã có phiếu chưa hủy |
+| BAD_AMOUNT / BAD_FORM | 400 | Tiền không phải số nguyên dương trong BigInteger hoặc dữ liệu chưa hợp lệ |
+| AMOUNT_TOO_LARGE | 409 | Số dư sau biến động vượt BigInteger |
+| NUMBER_LOCKED | 409 | Không đổi loại phiếu hoặc năm của số đã cấp |
+| DOC_POSTED / DOC_VOID / DOC_NOT_POSTED | 409 | Không sửa/hủy nháp phiếu đã ghi/đã hủy; không ghi đảo phiếu chưa ghi |
+| REASON_REQUIRED | 400 | Hủy thiếu lý do hoặc lý do quá dài |
+| VERSION_REQUIRED / VERSION_CONFLICT | 400 / 409 | Thiếu version hoặc version cũ |
+| BAD_KIND / BAD_STATUS / BAD_DATE_RANGE | 400 | Bộ lọc không hợp lệ |
+| FORBIDDEN / BAD_CSRF / NOT_FOUND | 403 / 403 / 404 | Sai vai trò, thiếu CSRF hoặc không tìm thấy phiếu |

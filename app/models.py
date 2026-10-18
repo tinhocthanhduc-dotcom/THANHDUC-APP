@@ -680,3 +680,69 @@ class FinanceMapping(Base):
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     __mapper_args__ = {'version_id_col': version}
+
+
+class CashDoc(Base):
+    __tablename__ = 'cash_docs'
+    __table_args__ = (
+        CheckConstraint("kind in ('PT','PC','CQ')", name='ck_cash_docs_kind'),
+        CheckConstraint("status in ('NHAP','DA_GHI','DA_HUY')", name='ck_cash_docs_status'),
+        CheckConstraint('amount > 0', name='ck_cash_docs_amount'),
+        CheckConstraint("(kind='CQ' and to_fund_code is not null and to_fund_code <> fund_code) or (kind<>'CQ' and to_fund_code is null)", name='ck_cash_docs_transfer'),
+        CheckConstraint("((kind='CQ' or is_opening) and category_code is null) or (kind in ('PT','PC') and not is_opening and category_code is not null)", name='ck_cash_docs_category'),
+        CheckConstraint("not is_opening or kind <> 'CQ'", name='ck_cash_docs_opening'),
+        CheckConstraint('customer_code is null or supplier_code is null', name='ck_cash_docs_partner'),
+        CheckConstraint("(source_type is null and source_id is null) or (source_type is not null and source_id is not null and length(trim(source_type))>0 and length(trim(source_id))>0)", name='ck_cash_docs_source'),
+        Index('uq_cash_docs_active_source','source_type','source_id',unique=True,
+              postgresql_where=text("source_type is not null and source_id is not null and status <> 'DA_HUY'")),
+        Index('ix_cash_docs_date','doc_date','id'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    kind: Mapped[str] = mapped_column(String(2))
+    doc_date: Mapped[date] = mapped_column(Date)
+    fund_code: Mapped[str] = mapped_column(ForeignKey('funds.code'))
+    to_fund_code: Mapped[str | None] = mapped_column(ForeignKey('funds.code'))
+    category_code: Mapped[str | None] = mapped_column(ForeignKey('cash_categories.code'))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey('customers.code'))
+    supplier_code: Mapped[str | None] = mapped_column(ForeignKey('suppliers.code'))
+    partner_name: Mapped[str] = mapped_column(String(300), default='')
+    description: Mapped[str] = mapped_column(Text, default='')
+    is_opening: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_type: Mapped[str | None] = mapped_column(String(64))
+    source_id: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(8), default='NHAP')
+    void_reason: Mapped[str] = mapped_column(Text, default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    posted_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class FundBalance(Base):
+    __tablename__ = 'fund_balances'
+    __table_args__ = (CheckConstraint('balance >= 0',name='ck_fund_balances_nonnegative'),)
+    fund_code: Mapped[str] = mapped_column(ForeignKey('funds.code'), primary_key=True)
+    balance: Mapped[int] = mapped_column(BigInteger, default=0)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class FundLedger(Base):
+    __tablename__ = 'fund_ledger'
+    __table_args__ = (
+        CheckConstraint('amount <> 0',name='ck_fund_ledger_amount'),
+        CheckConstraint('balance_after >= 0',name='ck_fund_ledger_balance'),
+        UniqueConstraint('doc_id','fund_code','is_reversal',name='uq_fund_ledger_move'),
+        Index('ix_fund_ledger_statement','fund_code','entry_date','id'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    fund_code: Mapped[str] = mapped_column(ForeignKey('funds.code'))
+    entry_date: Mapped[date] = mapped_column(Date)
+    doc_id: Mapped[int] = mapped_column(ForeignKey('cash_docs.id'))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    balance_after: Mapped[int] = mapped_column(BigInteger)
+    is_reversal: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

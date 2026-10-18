@@ -757,3 +757,47 @@ class CashCategoryPatch(BaseModel):
     direction: Literal['THU', 'CHI'] | None = None
     note: str | None = Field(default=None, max_length=2000)
     active: bool | None = None
+
+
+class CashDocIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    kind: Literal['PT','PC','CQ']
+    doc_date: date
+    fund_code: str = Field(min_length=1, max_length=32)
+    to_fund_code: str | None = Field(default=None, max_length=32)
+    category_code: str | None = Field(default=None, max_length=32)
+    amount: int = Field(strict=True, gt=0, le=9_223_372_036_854_775_807)
+    customer_code: str | None = Field(default=None, max_length=16)
+    supplier_code: str | None = Field(default=None, max_length=16)
+    partner_name: str = Field(default='', max_length=300)
+    description: str = Field(default='', max_length=4000)
+    is_opening: bool = False
+    source_type: str | None = Field(default=None, max_length=64)
+    source_id: str | None = Field(default=None, max_length=64)
+
+    @field_validator('to_fund_code','category_code','customer_code','supplier_code','source_type','source_id',mode='before')
+    @classmethod
+    def empty_to_none(cls,value):
+        return None if isinstance(value,str) and not value.strip() else value
+
+
+class CashDocPatch(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(strict=True, ge=1)
+    kind: Literal['PT','PC','CQ'] | None = None
+    doc_date: date | None = None
+    fund_code: str | None = Field(default=None,min_length=1,max_length=32)
+    to_fund_code: str | None = Field(default=None,max_length=32)
+    category_code: str | None = Field(default=None,max_length=32)
+    amount: int | None = Field(default=None,strict=True,gt=0,le=9_223_372_036_854_775_807)
+    customer_code: str | None = Field(default=None,max_length=16)
+    supplier_code: str | None = Field(default=None,max_length=16)
+    partner_name: str | None = Field(default=None,max_length=300)
+    description: str | None = Field(default=None,max_length=4000)
+    is_opening: bool | None = None
+
+
+class CashDocCancel(BaseModel):
+    model_config = ConfigDict(extra='forbid',str_strip_whitespace=True)
+    version: int = Field(strict=True,ge=1)
+    reason: str = Field(min_length=1,max_length=2000)

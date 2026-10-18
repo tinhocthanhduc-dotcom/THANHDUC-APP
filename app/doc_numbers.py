@@ -17,6 +17,7 @@ PREFIXES = {
     "DV": "Phiếu dịch vụ",
     "PT": "Phiếu thu",
     "PC": "Phiếu chi",
+    "CQ": "Chuyển quỹ",
 }
 
 
