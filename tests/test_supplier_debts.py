@@ -43,9 +43,9 @@ def pay(db,p,amount=600000,**changes):
 def test_balance_opening_receipts_payments_and_voided_receipt(db,m3_people):
     p=m3_people;o,r=received(db,p)
     svc.set_opening(db,p['director'],'NCC-0001',200000,DAY,'Nợ cũ',0)
-    assert svc.balance(db,p['finance'],'NCC-0001')==dict(opening=200000,received=1000000,paid=0,remaining=1200000)
+    assert svc.balance(db,p['finance'],'NCC-0001')==dict(opening=200000,received=1000000,returned=0,paid=0,remaining=1200000)
     payment=pay(db,p,600000,order_id=o.id)
-    assert svc.balance(db,p['finance'],'NCC-0001')==dict(opening=200000,received=1000000,paid=600000,remaining=600000)
+    assert svc.balance(db,p['finance'],'NCC-0001')==dict(opening=200000,received=1000000,returned=0,paid=600000,remaining=600000)
     assert svc.order_balance(db,p['finance'],o.id)['remaining']==400000
     purchase_receipts.void(db,p['warehouse'],r.id,'Trả lại hàng',r.version)
     assert svc.balance(db,p['finance'],'NCC-0001')['remaining']==-400000
@@ -191,7 +191,7 @@ def test_timeline_search_totals_no_receipt_payment_cross_multiplication(db,m3_pe
     pay(db,p,200000);pay(db,p,300000)
     svc.set_opening(db,p['director'],'NCC-0001',100000,DAY,'Nợ đầu kỳ',0)
     result=svc.balance(db,p['finance'],'NCC-0001')
-    assert result==dict(opening=100000,received=2000000,paid=500000,remaining=1600000)
+    assert result==dict(opening=100000,received=2000000,returned=0,paid=500000,remaining=1600000)
     assert svc.search(db,p['finance'],'minh phat')[0]['remaining']==1600000
     assert svc.totals(db,p['finance'],'minh phat')==result
     assert svc.search(db,p['finance'],'khong co')==[]

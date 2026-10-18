@@ -922,3 +922,52 @@ class SupplierOpeningDebt(Base):
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     version: Mapped[int] = mapped_column(Integer, default=1)
     __mapper_args__ = {'version_id_col': version}
+
+
+class PurchaseReturn(Base):
+    __tablename__ = 'purchase_returns'
+    __table_args__ = (
+        CheckConstraint("status in ('DA_GHI','DA_HUY')", name='ck_purchase_returns_status'),
+        CheckConstraint('amount >= 0 and vat_amount >= 0 and total >= 0', name='ck_purchase_returns_money'),
+        CheckConstraint("length(trim(reason)) > 0", name='ck_purchase_returns_reason'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    receipt_id: Mapped[int] = mapped_column(ForeignKey('purchase_receipts.id'), index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('purchase_orders.id'), index=True)
+    supplier_code: Mapped[str] = mapped_column(ForeignKey('suppliers.code'), index=True)
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    stock_doc_id: Mapped[int] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
+    return_date: Mapped[date] = mapped_column(Date)
+    reason: Mapped[str] = mapped_column(Text)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    total: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(8), default='DA_GHI')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    void_reason: Mapped[str] = mapped_column(Text, default='')
+    voided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    lines: Mapped[list['PurchaseReturnLine']] = relationship(back_populates='return_doc', cascade='all, delete-orphan', order_by='PurchaseReturnLine.id')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class PurchaseReturnLine(Base):
+    __tablename__ = 'purchase_return_lines'
+    __table_args__ = (
+        CheckConstraint('qty > 0', name='ck_purchase_return_lines_qty'),
+        CheckConstraint('unit_cost >= 0 and amount >= 0 and vat_amount >= 0', name='ck_purchase_return_lines_money'),
+        CheckConstraint(_in('vat_rate', VAT_RATES).replace("'", ''), name='ck_purchase_return_lines_vat'),
+        UniqueConstraint('return_id', 'receipt_line_id', name='uq_purchase_return_lines_receipt_line'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    return_id: Mapped[int] = mapped_column(ForeignKey('purchase_returns.id'), index=True)
+    receipt_line_id: Mapped[int] = mapped_column(ForeignKey('purchase_receipt_lines.id'), index=True)
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_cost: Mapped[int] = mapped_column(BigInteger)
+    vat_rate: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    return_doc: Mapped['PurchaseReturn'] = relationship(back_populates='lines')

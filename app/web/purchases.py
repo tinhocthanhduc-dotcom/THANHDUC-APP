@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import supplier_debts, inventory_catalogs, products, purchase_orders as svc, purchase_receipts as receipts, quotes
+from .. import purchase_returns, supplier_debts, inventory_catalogs, products, purchase_orders as svc, purchase_receipts as receipts, quotes
 from ..config import DEFAULT_VAT_RATE, get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -37,11 +37,19 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
     supplier = session.get(Supplier, data.get('supplier_code')) if data.get('supplier_code') else None
     codes = {line.get('product_code') for line in data['lines']}
     history=receipts.list_by_order(session,request.state.user,row.id) if row else []
+    returns=purchase_returns.list_by_order(session,request.state.user,row.id) if row else []
+    returned_qty={}
+    receipt_line_orders={l.id:l.order_line_id for r in history for l in r.lines}
+    for t in returns:
+        if t.status=='DA_GHI':
+            for l in t.lines:
+                ident=receipt_line_orders[l.receipt_line_id]
+                returned_qty[ident]=returned_qty.get(ident,0)+l.qty
     if receive_data is None and row:
         receive_data=dict(receipt_date=quotes._today().isoformat(),version=row.version,quantities={str(l.id):_quantity(l.qty-l.received_qty) for l in row.lines if l.received_qty<l.qty})
     return render(request, 'don_mua_form.jinja', o=row, d=data, statuses=STATUSES, vat_rates=VAT_RATES,
         supplier_debt=supplier_debts.order_balance(session,request.state.user,row.id) if row and has_role(request.state.user,'finance') else None,
-        history=history,stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_([r.stock_doc_id for r in history]))).all()),
+        returns=returns,returned_qty=returned_qty,history=history,stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_([r.stock_doc_id for r in history+returns]))).all()),
         receiving=receiving,receive_data=receive_data or {},quantity=_quantity,receipt_action=receipt_action,failed_receipt=failed_receipt,
         payable=receipts.payable_by_order(session,request.state.user,row.id) if row else 0,
         supplier_name=supplier.name if supplier else '',

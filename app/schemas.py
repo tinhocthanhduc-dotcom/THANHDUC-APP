@@ -959,3 +959,48 @@ class SupplierOpeningDebtOut(SupplierOpeningDebtIn):
     model_config = ConfigDict(from_attributes=True)
     supplier_code: str
     created_by: int
+
+
+class PurchaseReturnLineIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    receipt_line_id: int = Field(strict=True, ge=1)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+
+
+class PurchaseReturnIn(PurchaseOrderVersion):
+    return_date: date
+    reason: str = Field(default='', max_length=2000)
+    lines: list[PurchaseReturnLineIn] = Field(max_length=500)
+
+
+class PurchaseReturnLineOut(PurchaseReturnLineIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    unit_cost: int
+    vat_rate: int
+    amount: int
+    vat_amount: int
+
+
+class PurchaseReturnOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    receipt_id: int
+    order_id: int
+    supplier_code: str
+    warehouse_code: str
+    stock_doc_id: int
+    return_date: date
+    reason: str
+    amount: int
+    vat_amount: int
+    total: int
+    status: str
+    created_by: int
+    created_at: datetime
+    void_reason: str
+    voided_by: int | None
+    voided_at: datetime | None
+    version: int
+    lines: list[PurchaseReturnLineOut]
