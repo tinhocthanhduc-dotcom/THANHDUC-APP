@@ -480,3 +480,7 @@ router.include_router(orders_router)
 from .sales_reports import router as sales_reports_router
 
 router.include_router(sales_reports_router)
+
+from .finance import router as finance_router
+
+router.include_router(finance_router)

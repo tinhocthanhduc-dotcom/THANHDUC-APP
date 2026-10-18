@@ -1,10 +1,11 @@
 {% extends "base.jinja" %}
 {% block title %}{{ label }}{% endblock %}
 {% block main %}
+{% if finance_catalog %}<nav class="seg finance-nav"><a class="btn" href="/quy">Quỹ</a><a class="btn" href="/danh-muc-thu-chi">Danh mục thu chi</a><a class="btn" href="/ghep-tai-chinh">Bảng ghép</a></nav>{% endif %}
 <div class="bar"><h1>{{ label }}</h1>
 {% if can_write %}<a class="btn primary" href="{{ path }}/moi">+ Thêm {{ label | lower }}</a>{% endif %}</div>
-{% if supplier %}<form action="{{ path }}" class="search" role="search">
-<input name="q" value="{{ q }}" placeholder="Tìm tên, mã NCC, MST, số điện thoại (không dấu cũng được)" data-live="#rows" autofocus>
+{% if supplier or finance_catalog %}<form action="{{ path }}" class="search" role="search">
+<input name="q" value="{{ q }}" placeholder="{{ 'Tìm mã hoặc tên (không dấu cũng được)' if finance_catalog else 'Tìm tên, mã NCC, MST, số điện thoại (không dấu cũng được)' }}" data-live="#rows" autofocus>
 </form>{% endif %}
 <div id="rows">{% include "danh_muc_dong.jinja" %}</div>
 {% endblock %}

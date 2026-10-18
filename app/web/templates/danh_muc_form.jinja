@@ -1,13 +1,23 @@
 {% extends "base.jinja" %}
 {% block title %}{{ c.name or label }}{% endblock %}
 {% block main %}
+{% if finance_catalog %}<nav class="seg finance-nav"><a class="btn" href="/quy">Quỹ</a><a class="btn" href="/danh-muc-thu-chi">Danh mục thu chi</a><a class="btn" href="/ghep-tai-chinh">Bảng ghép</a></nav>{% endif %}
 <div class="bar"><h1>{% if is_new %}Thêm {{ label | lower }}{% else %}{{ c.code }} · {{ c.name }}{% endif %}</h1><a href="{{ path }}">← Danh sách</a></div>
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
-{% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 <form method="post" class="card form">
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="version" value="{{ c.version }}">
 <fieldset {% if not can_write %}disabled{% endif %}>
+{% if finance_catalog %}
+{% if is_new %}<label>Mã<input name="code" value="{{ c.code }}" required maxlength="64" autocapitalize="characters" placeholder="{{ 'QUY-TM' if fund else 'THU-BAN-HANG' }}"></label>{% endif %}
+<label>Tên<input name="name" value="{{ c.name }}" required maxlength="300"></label>
+<fieldset><legend>{{ 'Loại quỹ' if fund else 'Chiều thu chi' }}</legend><div class="seg">
+{% for value,label in (kinds if fund else directions).items() %}<label><input type="radio" name="{{ 'kind' if fund else 'direction' }}" value="{{ value }}" {% if (c.kind if fund else c.direction)==value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
+</div></fieldset>
+{% if fund %}<label>Ngân hàng<input name="bank_name" value="{{ c.bank_name }}" maxlength="300"></label><label>Số tài khoản (bắt buộc với quỹ ngân hàng)<input name="account_no" value="{{ c.account_no }}" maxlength="100"></label>{% endif %}
+<label>Ghi chú<textarea name="note" maxlength="2000">{{ c.note }}</textarea></label>
+{% else %}
 {% if is_new and not supplier %}<label>Mã kho<input name="code" value="{{ c.code }}" required pattern="[Kk][0-9]+" maxlength="16" placeholder="K58"></label>{% endif %}
 <label>Tên<input name="name" value="{{ c.name }}" required maxlength="300"></label>
 {% if supplier %}
@@ -16,6 +26,7 @@
 {% endif %}
 <label>Địa chỉ<input name="address" value="{{ c.address }}" maxlength="2000"></label>
 {% if supplier %}<label>Ghi chú<textarea name="note" maxlength="2000">{{ c.note }}</textarea></label>{% endif %}
+{% endif %}
 <label class="check"><input type="checkbox" name="active" value="1" {% if c.active %}checked{% endif %}> Đang sử dụng</label>
 </fieldset>
 {% if can_write %}<button class="primary">Lưu</button>{% else %}<p class="hint">Chỉ Kho hoặc giám đốc được sửa danh mục này.</p>{% endif %}
