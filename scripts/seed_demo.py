@@ -11,13 +11,40 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app import audit, cash_docs, cash_posting, customers, finance_catalogs, finance_mappings, inventory_catalogs
-from app import products, purchase_orders, purchase_receipts, quotes, sales_orders, sales_receipts, supplier_debts
+from app import (
+    audit,
+    cash_docs,
+    cash_posting,
+    customers,
+    finance_catalogs,
+    finance_mappings,
+    inventory_catalogs,
+    products,
+    purchase_orders,
+    purchase_receipts,
+    quotes,
+    sales_orders,
+    sales_receipts,
+    supplier_debts,
+)
 from app.db import get_session
 from app.models import CashCategory, FinanceMapping, Fund, Supplier, User, Warehouse
 from app.schemas import (
-    CashCategoryIn, CashDocIn, CustomerCreate, CustomerIn, FundIn, ProductIn, PurchaseOrderIn, PurchaseOrderLineIn,
-    QuoteIn, QuoteLineIn, SalesOrderIn, SalesOrderLineIn, SalesReceiptReport, SupplierIn, WarehouseIn,
+    CashCategoryIn,
+    CashDocIn,
+    CustomerCreate,
+    CustomerIn,
+    FundIn,
+    ProductIn,
+    PurchaseOrderIn,
+    PurchaseOrderLineIn,
+    QuoteIn,
+    QuoteLineIn,
+    SalesOrderIn,
+    SalesOrderLineIn,
+    SalesReceiptReport,
+    SupplierIn,
+    WarehouseIn,
 )
 from app.security import hash_password
 
