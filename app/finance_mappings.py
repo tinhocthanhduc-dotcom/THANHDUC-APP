@@ -1,4 +1,4 @@
-"""Bốn ghép tài chính cố định; các bước thu tiền sau dùng require()."""
+"""Các ghép tài chính cố định; các bước thu tiền sau dùng require()."""
 from sqlalchemy import select
 
 from . import audit, finance_catalogs as catalogs
@@ -11,7 +11,12 @@ KEYS = {
     'THU_CHUYEN_KHOAN':'Thu chuyển khoản',
     'DANH_MUC_BAN_HANG':'Danh mục bán hàng',
     'DANH_MUC_DICH_VU':'Danh mục dịch vụ',
+    'DANH_MUC_MUA_HANG':'Danh mục mua hàng (Chi)',
 }
+
+
+def category_direction(key):
+    return 'CHI' if key=='DANH_MUC_MUA_HANG' else 'THU'
 
 
 def check_writer(user):
@@ -37,7 +42,7 @@ def valid_options(session,user,key,q=''):
     _key(key)
     if key.startswith('THU_'):
         return catalogs.search(session,user,Fund,q,active=True,kind='TIEN_MAT' if key=='THU_TIEN_MAT' else 'NGAN_HANG')
-    return catalogs.search(session,user,CashCategory,q,active=True,direction='THU')
+    return catalogs.search(session,user,CashCategory,q,active=True,direction=category_direction(key))
 
 
 def set_mapping(session,user,key,fund_code=None,category_code=None,version=None):
@@ -56,8 +61,8 @@ def set_mapping(session,user,key,fund_code=None,category_code=None,version=None)
             model = Fund if is_fund else CashCategory
             target = session.scalar(select(model).where(model.code==code).with_for_update().execution_options(populate_existing=True))
             expected = 'TIEN_MAT' if key=='THU_TIEN_MAT' else 'NGAN_HANG'
-            if target is None or not target.active or (is_fund and target.kind!=expected) or (not is_fund and target.direction!='THU'):
-                raise BusinessError('BAD_MAPPING','Phải chọn quỹ đúng loại hoặc danh mục Thu đang sử dụng.')
+            if target is None or not target.active or (is_fund and target.kind!=expected) or (not is_fund and target.direction!=category_direction(key)):
+                raise BusinessError('BAD_MAPPING','Phải chọn quỹ đúng loại hoặc danh mục đúng chiều Thu/Chi đang sử dụng.')
         row = session.scalar(select(FinanceMapping).where(FinanceMapping.key==key).with_for_update().execution_options(populate_existing=True))
         if row is None:
             raise BusinessError('MAPPING_REQUIRED','Chưa có cấu hình ghép tài chính, hãy kiểm tra migration.',status=409)

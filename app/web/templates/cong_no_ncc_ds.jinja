@@ -1,0 +1,6 @@
+{% extends 'base.jinja' %}
+{% block title %}Công nợ NCC{% endblock %}
+{% block main %}<h1>Công nợ nhà cung cấp</h1><p>Chỉ hiện NCC có số dư khác 0, gồm cả khoản đã trả trước. Đơn vị: đồng.</p>
+<form action="/cong-no-ncc" class="card form"><label>Tìm NCC không dấu<input name="q" value="{{ q }}" data-live="#supplier-debt-results" data-source="/cong-no-ncc/ket-qua" autocomplete="off"></label><button>Tìm</button></form>
+<div id="supplier-debt-results">{% include 'cong_no_ncc_dong.jinja' %}</div>
+<section class="card form"><h2>Mở nhà cung cấp / nhập nợ đầu kỳ</h2><label>Tìm và chọn NCC<input data-live=".debt-options" data-source="/cong-no-ncc/tim" autocomplete="off" aria-label="Mở nhà cung cấp"></label><div class="debt-options product-options" aria-live="polite"></div></section>{% endblock %}

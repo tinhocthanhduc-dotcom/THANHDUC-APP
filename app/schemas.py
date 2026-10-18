@@ -921,3 +921,41 @@ class PurchaseReceiptOut(BaseModel):
     voided_at: datetime | None
     version: int
     lines: list[PurchaseReceiptLineOut]
+
+
+class SupplierPaymentIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    fund_code: str = Field(min_length=1, max_length=32)
+    amount: int = Field(strict=True, gt=0, le=9_223_372_036_854_775_807)
+    paid_at: date
+    order_id: int | None = Field(default=None, strict=True, ge=1)
+    note: str = Field(default='', max_length=4000)
+
+
+class SupplierOpeningDebtIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    amount: int = Field(strict=True, ge=0, le=9_223_372_036_854_775_807)
+    as_of: date
+    note: str = Field(default='', max_length=4000)
+    version: int = Field(strict=True, ge=0)
+
+
+class SupplierPaymentOut(SupplierPaymentIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    supplier_code: str
+    status: str
+    cash_doc_id: int
+    created_by: int
+    created_at: datetime
+    void_reason: str
+    voided_by: int | None
+    voided_at: datetime | None
+    version: int
+
+
+class SupplierOpeningDebtOut(SupplierOpeningDebtIn):
+    model_config = ConfigDict(from_attributes=True)
+    supplier_code: str
+    created_by: int

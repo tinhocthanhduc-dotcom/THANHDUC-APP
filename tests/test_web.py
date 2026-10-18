@@ -2467,8 +2467,8 @@ def test_t1_web_mapping_blank_options_only_valid_and_director_save(client,db,fin
     category(db,f);category(db,f,'CHI','CHI')
     csrf=service_login(client,d)
     r=client.get('/ghep-tai-chinh')
-    assert r.status_code==200 and r.text.count('Chưa ghép')==4
-    assert r.text.count('name="target_code" value=""')==4 and 'QUY-TM' not in r.text
+    assert r.status_code==200 and r.text.count('Chưa ghép')==5
+    assert r.text.count('name="target_code" value=""')==5 and 'QUY-TM' not in r.text
     choices=client.get('/ghep-tai-chinh/tim/THU_TIEN_MAT?q=tien+mat').text
     assert 'QUY-TM' in choices and 'TK-ACB' not in choices and 'TM-NGUNG' not in choices
     choices=client.get('/ghep-tai-chinh/tim/THU_CHUYEN_KHOAN').text
@@ -2478,7 +2478,7 @@ def test_t1_web_mapping_blank_options_only_valid_and_director_save(client,db,fin
     r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='TK-ACB'))
     assert r.status_code==400 and 'BAD_MAPPING' in r.text and 'value="TK-ACB"' in r.text
     r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='QUY-TM'))
-    assert r.status_code==200 and r.text.count('Chưa ghép')==3
+    assert r.status_code==200 and r.text.count('Chưa ghép')==4
     assert finance_mappings.require(db,'THU_TIEN_MAT')=='QUY-TM'
     r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code=''))
     assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
@@ -2933,3 +2933,56 @@ def test_m2_web_errors_preserve_quantities_version_and_permissions(client,db,pur
         assert client.post(f'/don-mua/{row.id}/nhan',data={**data,'csrf':csrf}).status_code==403
         if role=='finance':
             page=client.get(f'/don-mua/{row.id}');assert page.status_code==200 and '>Nhận hàng</a>' not in page.text
+
+
+from test_supplier_debts import m3_people
+
+
+def test_m3_web_pay_from_order_void_and_negative_advance(client,db,m3_people):
+    from app import purchase_receipts,supplier_debts
+    from app.models import SupplierPayment,CashDoc
+    from sqlalchemy import select
+    from test_supplier_debts import received
+    p=m3_people;order,receipt=received(db,p)
+    service_login(client,p['finance'])
+    page=client.get(f'/don-mua/{order.id}');assert page.status_code==200 and 'Công nợ đơn mua' in page.text
+    assert f'/cong-no-ncc/NCC-0001?don={order.id}#tra-tien' in page.text
+    page=client.get(f'/cong-no-ncc/NCC-0001?don={order.id}');csrf=csrf_of(page.text)
+    assert 'name="amount" value="1.000.000"' in page.text and 'data-supplier-opening' not in page.text
+    data=dict(csrf=csrf,fund_code='QUY-TM',amount='1.000.000',paid_at='2026-10-18',order_id=order.id,note='Trả đủ')
+    assert client.post('/cong-no-ncc/NCC-0001/tra',data={**data,'csrf':''}).status_code==403
+    r=client.post('/cong-no-ncc/NCC-0001/tra',data=data);assert r.status_code==200,r.text
+    payment=db.scalar(select(SupplierPayment));doc=db.get(CashDoc,payment.cash_doc_id)
+    assert payment.amount==1000000 and doc.status=='DA_GHI' and payment.number in r.text and doc.number in r.text
+    assert 'class="card form cash-cancel"' not in client.get(f'/thu-chi/{doc.id}').text
+    purchase_receipts.void(db,p['warehouse'],receipt.id,'Trả lại hàng',receipt.version)
+    page=client.get('/cong-no-ncc/NCC-0001');assert 'Đã trả trước 1.000.000' in page.text
+    assert 'Đã trả trước 1.000.000' in client.get('/cong-no-ncc').text
+    r=client.post(f'/cong-no-ncc/tra/{payment.id}/huy',data={'csrf':csrf,'version':payment.version,'reason':'Hủy trả'})
+    assert r.status_code==200
+    db.expire_all();assert payment.status=='DA_HUY' and supplier_debts.balance(db,p['finance'],'NCC-0001')['remaining']==0
+
+
+def test_m3_web_opening_versions_errors_preserved_and_permissions(client,db,m3_people):
+    from app import supplier_debts
+    from test_supplier_debts import DAY
+    p=m3_people;service_login(client,p['director'])
+    page=client.get('/cong-no-ncc/NCC-0001');csrf=csrf_of(page.text)
+    assert page.status_code==200 and 'data-supplier-opening' in page.text
+    data=dict(csrf=csrf,amount='900.000',as_of=str(DAY),note='Nợ cũ',version=0)
+    assert client.post('/cong-no-ncc/NCC-0001/dau-ky',data=data).status_code==200
+    r=client.post('/cong-no-ncc/NCC-0001/dau-ky',data={**data,'amount':'850.000','note':'Giữ số đã nhập'})
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text and '850.000' in r.text and 'Giữ số đã nhập' in r.text
+    pay=dict(csrf=csrf,fund_code='QUY-TM',amount='950.000',paid_at=str(DAY),note='Giữ tiền trả')
+    r=client.post('/cong-no-ncc/NCC-0001/tra',data=pay)
+    assert r.status_code==409 and 'OVER_PAYMENT' in r.text and '950.000' in r.text and 'Giữ tiền trả' in r.text
+    assert 'Minh Phát' in client.get('/cong-no-ncc/ket-qua?q=minh phat').text
+    assert 'NCC-0001' in client.get('/cong-no-ncc/tim?q=minh phat').text
+    service_login(client,p['finance']);csrf=csrf_of(client.get('/cong-no-ncc/NCC-0001').text)
+    assert client.post('/cong-no-ncc/NCC-0001/dau-ky',data={**data,'csrf':csrf}).status_code==403
+    for role in ('sales','warehouse','technician'):
+        service_login(client,p[role]);csrf=csrf_of(client.get('/khach-hang').text)
+        assert client.get('/cong-no-ncc').status_code==403
+        assert client.get('/cong-no-ncc/NCC-0001').status_code==403
+        assert client.post('/cong-no-ncc/NCC-0001/tra',data={**pay,'csrf':csrf}).status_code==403
+        if role=='warehouse':assert 'Công nợ đơn mua' not in client.get('/don-mua/1').text

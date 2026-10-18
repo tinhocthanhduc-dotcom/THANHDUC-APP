@@ -19,7 +19,7 @@ from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
-TABLES = "purchase_receipt_lines, purchase_receipts, purchase_order_lines, purchase_orders, cash_corrections, day_closings, fund_ledger, fund_balances, cash_docs, finance_mappings, cash_categories, funds, sales_receipts, sales_order_lines, sales_orders, quote_lines, quotes, attachments, equipment, customer_sites, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
+TABLES = "supplier_payments, supplier_opening_debts, purchase_receipt_lines, purchase_receipts, purchase_order_lines, purchase_orders, cash_corrections, day_closings, fund_ledger, fund_balances, cash_docs, finance_mappings, cash_categories, funds, sales_receipts, sales_order_lines, sales_orders, quote_lines, quotes, attachments, equipment, customer_sites, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
 PASSWORD = "matkhau-test-123"
 
 
@@ -46,10 +46,10 @@ def clean(engine):
         conn.execute(text("alter table audit_log enable trigger audit_log_readonly"))
         conn.execute(text("alter sequence ktd_seq restart with 1"))
         conn.execute(text("alter sequence ncc_seq restart with 1"))
-        # Bốn dòng cấu hình cố định do migration tạo, phục hồi sau mỗi lần truncate.
+        # Các dòng cấu hình cố định do migration tạo, phục hồi sau mỗi lần truncate.
         conn.execute(text("insert into finance_mappings (key, version) values "
                           "('THU_TIEN_MAT',1),('THU_CHUYEN_KHOAN',1),"
-                          "('DANH_MUC_BAN_HANG',1),('DANH_MUC_DICH_VU',1)"))
+                          "('DANH_MUC_BAN_HANG',1),('DANH_MUC_DICH_VU',1),('DANH_MUC_MUA_HANG',1)"))
     yield
 
 

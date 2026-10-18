@@ -503,3 +503,7 @@ router.include_router(finance_reports_router)
 from .purchases import router as purchases_router
 
 router.include_router(purchases_router)
+
+from .supplier_debts import router as supplier_debts_router
+
+router.include_router(supplier_debts_router)

@@ -1,0 +1,1 @@
+{% for r in rows %}<a class="btn" href="/cong-no-ncc/{{ r.code|urlquote }}">{{ r.code }} · {{ r.name }}</a>{% else %}<p>Không có nhà cung cấp phù hợp.</p>{% endfor %}

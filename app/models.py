@@ -674,9 +674,9 @@ class CashCategory(Base):
 class FinanceMapping(Base):
     __tablename__ = 'finance_mappings'
     __table_args__ = (
-        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU')", name='ck_finance_mappings_key'),
+        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG')", name='ck_finance_mappings_key'),
         CheckConstraint("(key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN') and category_code is null) or "
-                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU') and fund_code is null)", name='ck_finance_mappings_target'),
+                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG') and fund_code is null)", name='ck_finance_mappings_target'),
     )
     key: Mapped[str] = mapped_column(String(32), primary_key=True)
     fund_code: Mapped[str | None] = mapped_column(ForeignKey('funds.code'))
@@ -885,3 +885,40 @@ class PurchaseReceiptLine(Base):
     amount: Mapped[int] = mapped_column(BigInteger)
     vat_amount: Mapped[int] = mapped_column(BigInteger)
     receipt: Mapped['PurchaseReceipt'] = relationship(back_populates='lines')
+
+
+class SupplierPayment(Base):
+    __tablename__ = 'supplier_payments'
+    __table_args__ = (
+        CheckConstraint("status in ('DA_GHI','DA_HUY')", name='ck_supplier_payments_status'),
+        CheckConstraint('amount > 0', name='ck_supplier_payments_amount'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    supplier_code: Mapped[str] = mapped_column(ForeignKey('suppliers.code'), index=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey('purchase_orders.id'), index=True)
+    fund_code: Mapped[str] = mapped_column(ForeignKey('funds.code'))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    paid_at: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(Text, default='')
+    status: Mapped[str] = mapped_column(String(8), default='DA_GHI')
+    cash_doc_id: Mapped[int] = mapped_column(ForeignKey('cash_docs.id'), unique=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    void_reason: Mapped[str] = mapped_column(Text, default='')
+    voided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class SupplierOpeningDebt(Base):
+    __tablename__ = 'supplier_opening_debts'
+    __table_args__ = (CheckConstraint('amount >= 0', name='ck_supplier_opening_debts_amount'),)
+    supplier_code: Mapped[str] = mapped_column(ForeignKey('suppliers.code'), primary_key=True)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    as_of: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(Text, default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {'version_id_col': version}

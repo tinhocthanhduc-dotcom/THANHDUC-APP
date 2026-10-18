@@ -466,3 +466,20 @@ API Bearer: GET `/purchase-orders/{id}/receipts`; POST `/purchase-orders/{id}/re
 Web: GET/POST `/don-mua/{id}/nhan`, POST `/don-mua/{id}/close`, POST `/don-mua/lan-nhan/{id}/huy` đều dùng CSRF và phân quyền lõi. Form số lượng mặc định còn lại, 0 bỏ qua; API/lõi yêu cầu từng dòng gửi lên >0. Giữ ngày/số lượng khi lỗi. Trên chi tiết có tiến độ và lịch sử gồm PN có link, tiền, hủy có lý do/xác nhận.
 
 Lỗi: BAD_STATUS/OVER_RECEIVE/VERSION_CONFLICT/SOURCE_LOCKED/NEGATIVE_STOCK/VOID_COST_CONFLICT (409), BAD_ORDER_LINE/DUPLICATE_LINE/BAD_QTY/EMPTY_RECEIPT/REASON_REQUIRED/ROUNDING_CONFLICT/BAD_RECEIPT_AMOUNT (400), FORBIDDEN (403), NOT_FOUND (404). Dữ liệu schema API sai trả 422. NEGATIVE_STOCK kèm warehouse, product, available, requested.
+
+### Công nợ và trả nhà cung cấp (M3)
+
+Chỉ finance/director xem và trả/hủy tiền NCC; nợ đầu kỳ chỉ director. API Bearer: GET `/supplier-debts?q=...` trả rows/totals NCC có số dư khác 0; GET `/supplier-debts/{code}` trả balance/timeline/opening/payments (kèm version để sửa/hủy); POST `/supplier-debts/{code}/pay` nhận `{fund_code, amount, paid_at, order_id?, note?}`; PUT `/supplier-debts/{code}/opening` nhận `{amount, as_of, note, version}`; POST `/supplier-payments/{id}/void` nhận `{reason, version}`. Tạo TN mới có version=1; hủy dùng version TN; đặt nợ đầu kỳ dùng version dòng đầu kỳ (0 khi chưa có).
+
+`app.supplier_debts`:
+
+- `balance(session,user,supplier_code)` trả opening/received/paid/remaining: đầu kỳ + SUM nhận DA_GHI − SUM trả DA_GHI. Các tổng theo NCC được GROUP BY độc lập trước khi nối, không nhân dòng. Số âm là đã trả trước, vẫn hiển thị. `order_balance` chỉ nhận/trả gắn cùng đơn; trả chung NCC không tự phân bổ vào đơn. `search`/`totals` tìm không dấu, chỉ cộng các NCC có số dư khác 0 trong kết quả lọc.
+- `pay(session,user,supplier_code,fund_code,amount,paid_at,order_id=None,note='')`: khóa ngày kế toán (chỉ khóa, không kiểm chốt), rồi khóa suppliers FOR UPDATE trước khi tính nợ; cùng thứ tự ngày→NCC với phiếu quỹ thủ công. Không khóa ngược đơn mua (M2 khóa đơn→NCC). Kiểm cả giới hạn NCC và giới hạn đơn nếu có; đơn phải thuộc NCC. Ghép DANH_MUC_MUA_HANG chỉ chấp nhận danh mục CHI đang dùng; các key cũ vẫn THU. Đổi chiều/ngừng danh mục đang ghép vẫn bị chặn.
+- TN + PC + ghi sổ + audit trong một transaction, PC source_type SUPPLIER_PAYMENT/source_id=id TN, có supplier_code và mô tả TN/NCC/DM. Reserve BIGSERIAL id để liên kết trước khi ghi PC, cash_doc_id NOT NULL; số TN/PC dùng doc_numbers trong transaction nên lỗi không tiêu số chứng từ. Quỹ/ngày chốt được kiểm bởi cash_docs.insert/cash_posting.post_in_tx, không kiểm DAY_CLOSED lần hai ở M3. Không ghi trực tiếp fund_* hoặc stock_*.
+- `void(session,user,payment_id,reason,version)`: khóa ngày gốc/ngày hủy rồi NCC/TN, gọi cash_posting.void_in_tx PC, đánh DA_HUY và audit. cash_docs.check_source chặn hủy PC nguồn trả NCC trực tiếp (SOURCE_LOCKED), web cũng ẩn nút hủy PC.
+- `set_opening(session,user,supplier_code,amount,as_of,note,version)`: director, amount >=0, khóa NCC và kiểm version; audit số cũ/mới, không xóa. Sửa đầu kỳ có thể làm số dư ròng thay đổi, không ghi sổ quỹ.
+- `timeline`: nợ đầu kỳ, nhận gốc/hủy nhận, trả gốc/hủy trả, số dư chạy bằng SUM OVER. Ngày hủy chuyển giờ Việt Nam; có link DM/PN/TN/PC. Tổng cuối khớp balance kể cả sau hủy nhận đã trả tiền.
+
+Web `/cong-no-ncc` và `/{code}`; form quỹ là nút chạm, tiền định dạng nghìn, ngày mặc định hôm nay giờ VN. Link từ đơn truyền `?don=id`; số mặc định không vượt cả nợ đơn và nợ NCC. Người dùng có thể mở NCC chưa có nợ để director nhập đầu kỳ. Mọi POST dùng CSRF; lỗi giữ dữ liệu đã nhập. Trên đơn mua chỉ finance/director thấy công nợ và link Trả tiền.
+
+Lỗi: OVER_PAYMENT/VERSION_CONFLICT/MAPPING_REQUIRED/SOURCE_LOCKED/BAD_STATUS/DAY_CLOSED/NEGATIVE_CASH (409), BAD_ORDER/BAD_SUPPLIER/BAD_FUND/REASON_REQUIRED/BAD_AMOUNT (400), FORBIDDEN (403), NOT_FOUND (404). Schema API sai trả 422. Mọi thay đổi có audit và không xóa bản ghi.
