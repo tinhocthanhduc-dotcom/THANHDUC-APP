@@ -670,3 +670,50 @@ class SalesOrderOut(BaseModel):
     created_at: datetime
     version: int
     lines: list[SalesOrderLineOut]
+
+
+class SalesReceiptReport(QuoteVersion):
+    method: Literal['TIEN_MAT', 'CHUYEN_KHOAN']
+    amount: int = Field(strict=True, gt=0, le=9_223_372_036_854_775_807)
+    received_at: date | None = None
+    note: str = Field(default='', max_length=4000)
+
+
+class SalesReceiptDecision(QuoteVersion):
+    reason: str = Field(default='', max_length=2000)
+
+
+class SalesReceiptOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    order_id: int
+    method: str
+    amount: int
+    received_at: date
+    note: str
+    status: str
+    reason: str
+    reported_by: int
+    reported_at: datetime
+    decided_by: int | None
+    decided_at: datetime | None
+    version: int
+
+
+class SalesReceiptBalance(BaseModel):
+    receivable: int | None
+    paid: int
+    pending: int
+    remaining: int
+
+
+class SalesOrderReceipts(BaseModel):
+    balance: SalesReceiptBalance
+    receipts: list[SalesReceiptOut]
+
+
+class SalesReceivableOut(BaseModel):
+    order: SalesOrderOut
+    balance: SalesReceiptBalance
+    days: int

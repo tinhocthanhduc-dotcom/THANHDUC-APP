@@ -275,3 +275,40 @@ Lỗi từ lõi kho (ví dụ `DOC_NOT_POSTED`, `VOID_COST_CONFLICT`) được g
 Khách cố định sau khi tạo theo hợp đồng B2; có thể sửa liên hệ, địa chỉ giao, ghi chú và toàn bộ dòng khi nháp. Ô tìm/chọn khách tự điền địa chỉ, vẫn cho sửa. Chọn hàng tự điền mã/giá bán; loại dòng, kho và VAT dùng nút chạm.
 
 Trên báo giá CHAP_NHAN, nút Tạo đơn bán mở `/don-ban/tu-bao-gia/{quote_id}` để chọn kho, địa chỉ và liên hệ, rồi gọi create_from_quote. Báo giá đã có đơn chưa hủy hiện link đơn thay nút; sau hủy có thể lập lại. `/don-ban/{id}/in-giao` in A4 bằng trình duyệt, dùng thông tin công ty và money_words của B1. Trang có trạng thái đơn, địa chỉ giao, số lượng/đơn vị, tổng và chữ ký Người giao/Người nhận. Không thêm màn hình ghi kho hoặc thay đổi lõi B1/B2/K/D.
+
+## Báo thu (B4)
+
+Báo thu không phải chứng từ xuất/nhập kho và không làm giảm `sales_orders.receivable`. Phải thu là số gốc đã chốt; đã thu chỉ gồm BT `DA_XAC_NHAN`, chờ gồm `CHO_XAC_NHAN`, còn nợ = phải thu − đã thu. Từ chối/hủy giải phóng số tiền để báo lại. Không xóa hoặc tạo số tiền âm.
+
+### Quyền và API
+
+- Sales/director báo thu; finance/director xác nhận, từ chối; chỉ director hủy BT đã xác nhận. Finance kiêm sales vẫn không tự xác nhận phiếu do mình báo (`SELF_CONFIRM`), trừ director. Quy tắc này không cấm kế toán tự từ chối phiếu của mình.
+- Finance/director xem hàng chờ; sales/finance/director xem đơn cần thu. Vai trò xem đơn bán (kể cả warehouse) xem được số dư và lịch sử BT của đơn; warehouse không được báo/xử lý BT.
+- `POST /sales-orders/{id}/receipts`: `{ "version": 2, "method": "TIEN_MAT", "amount": 600000, "received_at": "2026-10-18", "note": "Đã nhận tiền" }` → 201. Version **của đơn**, method `TIEN_MAT`/`CHUYEN_KHOAN`, amount nguyên đồng > 0 trong BigInteger. Ngày thu mặc định ngày VN; số BT lấy theo năm của ngày thu, trong transaction lưu BT. Chỉ đơn `DA_CHOT`/`DA_GIAO`.
+- `GET /sales-orders/{id}/receipts`: `{ "balance": { "receivable": 1000000, "paid": 600000, "pending": 400000, "remaining": 400000 }, "receipts": [...] }`.
+- `GET /sales-receipts?method=&from=&to=`: BT chờ xác nhận, lọc cách thu/ngày thu (bao gồm hai đầu), xếp `reported_at`, id tăng dần.
+- `POST /sales-receipts/{id}/confirm`: `{ "version": 1 }`; `CHO_XAC_NHAN → DA_XAC_NHAN`.
+- `POST /sales-receipts/{id}/reject`: `{ "version": 1, "reason": "Chưa nhận được tiền" }`; `CHO_XAC_NHAN → TU_CHOI`.
+- `POST /sales-receipts/{id}/void`: `{ "version": 2, "reason": "Hoàn tiền cho khách" }`; `DA_XAC_NHAN → DA_HUY`. Version của ba thao tác này là **của BT**. Người/thời điểm xử lý ghi trong decided_by/decided_at; xác nhận cũ vẫn có trong audit nếu sau đó hủy.
+- `GET /sales-orders/receivables`: các dòng `{ "order": {...}, "balance": {...}, "days": 8 }`, còn nợ > 0, đã chốt/giao, xếp thời điểm chốt cũ nhất trước. Số ngày tính theo lịch VN từ lúc chốt; tiền chờ vẫn là nợ đến khi xác nhận.
+
+Lõi có `report`, `confirm`, `reject`, `void`, `list_pending`, `receivables`, `for_order`; `balance(order)` nhận đơn ORM đã load trong session và query tổng mới để tránh cache số dư. Tất cả thao tác ghi khóa **đơn trước, BT sau**; báo thu không tăng version đơn vì không đổi đầu đơn. Hai báo thu cùng version vẫn kiểm tổng sau khi chờ khóa nên không thu vượt. Tạo, xử lý, cấp số và audit trước/sau cùng transaction. `sales_orders.cancel` kiểm BT chờ/đã xác nhận sau khóa đơn, trước thao tác hủy kho; không thể lọt báo thu vào đơn đã hủy trong cuộc đua.
+
+### Lỗi
+
+| Mã | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| OVER_PAYMENT | 409 | Đã thu + chờ + số mới vượt phải thu; details gồm paid, pending, remaining, available |
+| BAD_STATUS | 409 | Đơn chưa chốt/đã hủy, hoặc sai bước xử lý BT |
+| SELF_CONFIRM | 403 | Người báo tự xác nhận, không phải giám đốc |
+| HAS_RECEIPTS | 409 | Tài chính phải từ chối hoặc hủy báo thu trước |
+| REASON_REQUIRED | 400 | Từ chối/hủy thiếu lý do |
+| VERSION_CONFLICT | 409 | Version đơn/BT cũ |
+| VERSION_REQUIRED | 400 | Thiếu version khi gọi lõi/web; API thiếu/sai kiểu trả 422 |
+| FORBIDDEN / NOT_FOUND | 403 / 404 | Không có quyền / không tìm thấy chứng từ |
+| BAD_METHOD / BAD_DATE_RANGE | 400 | Bộ lọc cách thu/khoảng ngày sai |
+| BAD_AMOUNT / BAD_FORM | 400 | Dữ liệu form chưa hợp lệ; giữ dữ liệu đã nhập |
+
+### Web
+
+Trang đơn đã chốt/giao có mục Thu tiền, số dư và lịch sử BT; sales/director có form báo thu, tiền mặc định còn nợ trừ chờ, dấu chấm nghìn khi gõ, cách thu nút chạm. `/bao-thu` là hàng chờ kế toán, có Xác nhận/Từ chối, lọc cách thu/ngày; director có Hủy BT đã xác nhận trong trang đơn. `/don-ban/can-thu` hiển thị đơn còn nợ và số ngày, mất khỏi danh sách khi đã xác nhận đủ. Mọi POST web có CSRF/version; lỗi giữ form. Menu Báo thu chỉ finance/director. Không sửa `stock_*` hoặc `service_*`; `doc_numbers.py` chỉ thêm prefix BT.

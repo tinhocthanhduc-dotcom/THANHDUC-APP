@@ -1,0 +1,15 @@
+<section class="service-action" id="thu-tien">
+<div class="bar"><h2>Thu tiền</h2>{% if can_report or can_decide %}<a href="/don-ban/can-thu">Đơn cần thu</a>{% endif %}{% if can_decide %}<a href="/bao-thu">Báo thu chờ xác nhận</a>{% endif %}</div>
+<dl class="card receipt-balance"><dt>Phải thu</dt><dd data-balance="receivable">{{ collection.balance.receivable|money }} đồng</dd><dt>Đã thu</dt><dd data-balance="paid">{{ collection.balance.paid|money }} đồng</dd><dt>Chờ xác nhận</dt><dd data-balance="pending">{{ collection.balance.pending|money }} đồng</dd><dt>Còn nợ</dt><dd data-balance="remaining">{{ collection.balance.remaining|money }} đồng</dd></dl>
+{% if can_report and o.status in ['DA_CHOT','DA_GIAO'] %}
+{% if available>0 or error_code in ['OVER_PAYMENT','BAD_AMOUNT','BAD_FORM','VERSION_CONFLICT'] %}
+<form method="post" action="/don-ban/{{ o.id }}/bao-thu" class="card form" data-receipt-report>
+<h3>Báo thu</h3><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ receipt_data.version }}">
+<fieldset><legend>Cách thu</legend><div class="seg stock-seg">{% for value,label in receipt_methods.items() %}<label><input type="radio" name="method" value="{{ value }}" {% if receipt_data.method==value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
+<label>Số tiền (đồng)<input name="amount" value="{{ receipt_data.amount }}" inputmode="numeric" data-money required></label>
+<label>Ngày thu<input type="date" name="received_at" value="{{ receipt_data.received_at }}" required></label>
+<label>Ghi chú<textarea name="note" maxlength="4000">{{ receipt_data.note }}</textarea></label><button class="primary">Báo thu</button>
+</form>{% else %}<p class="alert ok">Đã thu hoặc đã báo đủ số phải thu; chờ tài chính xác nhận các phiếu còn lại.</p>{% endif %}
+{% endif %}
+<div class="receipt-grid">{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% else %}<p>Chưa có báo thu.</p>{% endfor %}</div>
+</section>

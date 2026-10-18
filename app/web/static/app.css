@@ -227,3 +227,10 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 [data-order-goods][hidden] { display: none; }
 [data-order-goods] { min-width: 0; }
 [data-order-form] textarea { overflow-wrap: anywhere; }
+
+.receipt-grid { display: grid; gap: 12px; margin-top: 16px; }
+.receipt-card { min-width: 0; overflow-wrap: anywhere; }
+.receipt-card .form, .receipt-card form { margin-top: 12px; }
+.receipt-card button { min-height: 44px; }
+.receipt-balance { padding: 12px; }
+.receipt-balance dd { min-width: 0; overflow-wrap: anywhere; }

@@ -2146,3 +2146,150 @@ def test_b3_finance_read_only_and_date_errors(client,db,web_login,b3_catalog):
     r=client.get('/don-ban?from=2026-10-18&to=2026-10-17')
     assert r.status_code==400 and 'Ngày bắt đầu' in r.text and 'value="2026-10-18"' in r.text
     assert client.get('/don-ban?from=sai&phan=1').status_code==400
+
+
+@pytest.fixture
+def b4_order(client,db,web_login,b3_catalog):
+    csrf=web_login('b4.sales','sales')
+    order=b3_create(client,db,csrf,qty=['2','1'],unit_price=['500.000','0'],vat_0='0',vat_1='0')
+    assert b3_action(client,db,csrf,order,'confirm').status_code==200
+    db.expire_all()
+    assert order.receivable==1000000
+    return order,csrf
+
+
+def b4_report(client,db,order,csrf,amount='600.000',**changes):
+    db.expire_all()
+    data=dict(csrf=csrf,version=order.version,amount=amount,method='TIEN_MAT',received_at='2026-10-18',note='Đã nhận tiền')
+    data.update(changes)
+    return client.post(f'/don-ban/{order.id}/bao-thu',data=data)
+
+
+def test_b4_web_report_confirm_fully_paid_disappears(client,db,make_user,b4_order):
+    from app.models import SalesReceipt
+    order,csrf=b4_order
+    page=client.get(f'/don-ban/{order.id}')
+    assert 'name="amount" value="1.000.000"' in page.text
+    assert 'data-receipt-report' in page.text and 'type="number"' not in re.search(r'<input[^>]*name="amount"[^>]*>',page.text).group()
+    assert order.number in client.get('/don-ban/can-thu').text
+    r=b4_report(client,db,order,csrf)
+    assert r.status_code==200 and 'BT-26-00001' in r.text and 'name="amount" value="400.000"' in r.text
+    assert b4_report(client,db,order,csrf,'400.000',method='CHUYEN_KHOAN').status_code==200
+    r=b4_report(client,db,order,csrf,'1',note='Giữ báo thu thừa')
+    assert r.status_code==409 and 'OVER_PAYMENT' in r.text and 'Giữ báo thu thừa' in r.text
+    finance=make_user('b4.finance','finance')
+    csrf=service_login(client,finance)
+    page=client.get('/bao-thu')
+    assert page.status_code==200 and page.text.index('BT-26-00001')<page.text.index('BT-26-00002')
+    receipts=db.query(SalesReceipt).order_by(SalesReceipt.id).all()
+    for receipt in receipts:
+        r=client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=receipt.version,origin='queue'))
+        assert r.status_code==200
+    assert order.number not in client.get('/don-ban/can-thu').text
+    page=client.get(f'/don-ban/{order.id}')
+    assert 'data-balance="paid">1.000.000 đồng' in page.text
+    assert 'data-balance="pending">0 đồng' in page.text and 'data-balance="remaining">0 đồng' in page.text
+
+
+def test_b4_web_reject_reason_releases_capacity_and_filters(client,db,make_user,b4_order):
+    from app.models import SalesReceipt,User
+    order,csrf=b4_order
+    b4_report(client,db,order,csrf,'600.000',received_at='2026-10-17')
+    b4_report(client,db,order,csrf,'400.000',method='CHUYEN_KHOAN')
+    finance=make_user('b4.finance','finance')
+    csrf=service_login(client,finance)
+    receipts=db.query(SalesReceipt).order_by(SalesReceipt.id).all()
+    page=client.get('/bao-thu?method=CHUYEN_KHOAN&from=2026-10-18&to=2026-10-18')
+    assert receipts[0].number not in page.text and receipts[1].number in page.text
+    r=client.post(f'/bao-thu/{receipts[0].id}/reject',data=dict(csrf=csrf,version=1,origin='queue',reason=' '))
+    assert r.status_code==400 and 'REASON_REQUIRED' in r.text
+    r=client.post(f'/bao-thu/{receipts[0].id}/reject',data=dict(csrf=csrf,version=1,origin='queue',reason='Chưa nhận được tiền'))
+    assert r.status_code==200 and receipts[0].number not in r.text
+    csrf=service_login(client,db.query(User).filter_by(username='b4.sales').one())
+    page=client.get(f'/don-ban/{order.id}')
+    assert 'name="amount" value="600.000"' in page.text and 'Chưa nhận được tiền' in page.text
+    assert b4_report(client,db,order,csrf,'600.000').status_code==200
+    assert client.get('/bao-thu').status_code==403
+
+
+def test_b4_web_has_receipts_blocks_cancel_until_void_and_reject(client,db,make_user,b4_order):
+    from app.models import SalesReceipt,User,StockBalance
+    order,csrf=b4_order
+    assert b3_action(client,db,csrf,order,'deliver').status_code==200
+    b4_report(client,db,order,csrf,'600.000')
+    b4_report(client,db,order,csrf,'400.000')
+    blocked=b3_action(client,db,csrf,order,'cancel',reason='Khách hủy đơn')
+    assert blocked.status_code==409 and 'HAS_RECEIPTS' in blocked.text and 'Tài chính phải từ chối hoặc hủy báo thu trước' in blocked.text
+    db.expire_all()
+    assert db.get(StockBalance,('K58','TD-0001')).qty==3
+    receipts=db.query(SalesReceipt).order_by(SalesReceipt.id).all()
+    finance=make_user('b4.finance','finance');csrf=service_login(client,finance)
+    assert client.post(f'/bao-thu/{receipts[0].id}/confirm',data=dict(csrf=csrf,version=1)).status_code==200
+    assert client.post(f'/bao-thu/{receipts[1].id}/reject',data=dict(csrf=csrf,version=1,reason='Chưa nhận')).status_code==200
+    assert client.post(f'/bao-thu/{receipts[0].id}/void',data=dict(csrf=csrf,version=2,reason='Trả lại')).status_code==403
+    director=make_user('b4.director','director');csrf=service_login(client,director)
+    page=client.get(f'/don-ban/{order.id}')
+    assert 'Hủy báo thu' in page.text
+    r=client.post(f'/bao-thu/{receipts[0].id}/void',data=dict(csrf=csrf,version=2,reason='',origin='order'))
+    assert r.status_code==400 and 'REASON_REQUIRED' in r.text
+    r=client.post(f'/bao-thu/{receipts[0].id}/void',data=dict(csrf=csrf,version=2,reason='Trả lại khách',origin='order'))
+    assert r.status_code==200 and 'data-balance="remaining">1.000.000 đồng' in r.text
+    csrf=service_login(client,db.query(User).filter_by(username='b4.sales').one())
+    assert b3_action(client,db,csrf,order,'cancel',reason='Khách hủy đơn').status_code==200
+    db.expire_all()
+    assert order.status=='DA_HUY'
+    assert db.get(StockBalance,('K58','TD-0001')).qty==5
+
+
+def test_b4_web_self_confirmation_and_roles(client,db,make_user,b4_order):
+    from app.models import SalesReceipt
+    order,csrf=b4_order
+    dual=make_user('b4.dual','sales','finance');csrf=service_login(client,dual)
+    b4_report(client,db,order,csrf,'100.000')
+    receipt=db.query(SalesReceipt).one()
+    page=client.get('/bao-thu')
+    assert f'action="/bao-thu/{receipt.id}/confirm"' not in page.text
+    r=client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1))
+    assert r.status_code==403 and 'SELF_CONFIRM' in r.text
+    for role in ('warehouse','technician'):
+        csrf=service_login(client,make_user('b4.'+role,role))
+        assert client.get('/bao-thu').status_code==403
+        assert client.get('/don-ban/can-thu').status_code==403
+        assert b4_report(client,db,order,csrf,'1').status_code==403
+        assert client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1)).status_code==403
+    director=make_user('b4.director','director');csrf=service_login(client,director)
+    assert b4_report(client,db,order,csrf,'100.000').status_code==200
+    receipt=db.query(SalesReceipt).order_by(SalesReceipt.id.desc()).first()
+    assert client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1)).status_code==200
+
+
+def test_b4_web_csrf_and_versions_preserve_form(client,db,make_user,b4_order):
+    from app.models import SalesReceipt
+    order,csrf=b4_order
+    r=b4_report(client,db,order,csrf,'600.000',version=1,note='Giữ số đã nhập')
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text and 'Giữ số đã nhập' in r.text and 'value="600.000"' in r.text
+    assert db.query(SalesReceipt).count()==0
+    assert b4_report(client,db,order,'','600.000').status_code==403
+    b4_report(client,db,order,csrf,'600.000')
+    receipt=db.query(SalesReceipt).one()
+    csrf=service_login(client,make_user('b4.director','director'))
+    for action in ('confirm','reject','void'):
+        r=client.post(f'/bao-thu/{receipt.id}/{action}',data=dict(version=receipt.version,reason='Thiếu CSRF'))
+        assert r.status_code==403 and 'Trang đã cũ' in r.text
+    client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1))
+    stale=client.post(f'/bao-thu/{receipt.id}/reject',data=dict(csrf=csrf,version=1,reason='Giữ lý do vừa nhập',origin='queue'))
+    assert stale.status_code==409 and 'VERSION_CONFLICT' in stale.text and 'Giữ lý do vừa nhập' in stale.text
+
+
+def test_b4_web_invalid_money_dates_and_finance_read_only(client,db,make_user,b4_order):
+    order,csrf=b4_order
+    for amount in ('-1','1,5','1.00','0','999999999999999999999999'):
+        r=b4_report(client,db,order,csrf,amount,note='Kiểm tra số tiền')
+        assert r.status_code==400 and 'Kiểm tra số tiền' in r.text
+    csrf=service_login(client,make_user('b4.finance','finance'))
+    page=client.get(f'/don-ban/{order.id}')
+    assert 'data-receipt-report' not in page.text and '>Báo thu</a>' in page.text
+    assert b4_report(client,db,order,csrf,'1').status_code==403
+    r=client.get('/bao-thu?from=2026-10-19&to=2026-10-18')
+    assert r.status_code==400 and 'Ngày bắt đầu' in r.text and 'value="2026-10-19"' in r.text
+    assert client.get('/bao-thu?method=SAI').status_code==400
