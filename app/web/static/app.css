@@ -275,3 +275,11 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .closing-grid .card { min-width: 0; overflow-wrap: anywhere; }
 .closing-grid form { margin-top: 12px; }
 .closing-grid button, [data-correction-form] button { min-height: 44px; }
+
+/* M5: wide financial tables scroll inside the viewport, including at 360px. */
+.purchase-report-scroll{max-width:100%;min-width:0;overflow-x:auto;margin:1rem 0;border:1px solid var(--line);border-radius:12px;overscroll-behavior-x:contain}
+.purchase-report-table{width:100%;min-width:650px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.purchase-report-table th,.purchase-report-table td{padding:12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+.purchase-report-table th:first-child,.purchase-report-table td:first-child{text-align:left;white-space:normal;min-width:170px;max-width:260px;overflow-wrap:anywhere}
+.purchase-report-table tfoot{font-weight:700;background:var(--bg)}
+.purchase-loss{color:var(--bad);background:var(--bad-bg)}
