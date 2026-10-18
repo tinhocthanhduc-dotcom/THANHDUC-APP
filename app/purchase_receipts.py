@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from . import audit, purchase_orders as orders, quotes, stock_docs, stock_posting
 from .errors import BusinessError
-from .models import PurchaseReceipt, PurchaseReceiptLine
+from .models import PurchaseReceipt, PurchaseReceiptLine, PurchaseReturn
 from .schemas import PurchaseReceiveLineIn, PurchaseReceiptOut, StockDocIn, StockDocLineIn
 
 check_writer = orders.check_writer
@@ -137,6 +137,8 @@ def void(session, user, receipt_id, reason, version):
         orders._version(row,version)
         if row.status!='DA_GHI':
             raise BusinessError('BAD_STATUS','Lần nhận này đã hủy.',status=409)
+        if session.scalar(select(PurchaseReturn.id).where(PurchaseReturn.receipt_id==receipt_id, PurchaseReturn.status=='DA_GHI')) is not None:
+            raise BusinessError('HAS_RETURNS','Lần nhận còn phiếu trả hàng; hãy hủy phiếu trả trước.',status=409)
         reason=_reason(reason); before=snapshot(row); order_before=orders.snapshot(order)
         stock_posting.void_in_tx(session,user,row.stock_doc_id,f'Hủy nhận {order.number}: {reason}',None)
         by_id={line.id:line for line in order.lines}

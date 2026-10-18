@@ -2986,3 +2986,75 @@ def test_m3_web_opening_versions_errors_preserved_and_permissions(client,db,m3_p
         assert client.get('/cong-no-ncc/NCC-0001').status_code==403
         assert client.post('/cong-no-ncc/NCC-0001/tra',data={**pay,'csrf':csrf}).status_code==403
         if role=='warehouse':assert 'Công nợ đơn mua' not in client.get('/don-mua/1').text
+
+
+def test_m4_return_form_create_void_versions_csrf_and_progress(client,db,purchase_people):
+    from app import purchase_returns
+    from app.models import PurchaseReturn,StockDoc,FundLedger
+    from sqlalchemy import select
+    from test_purchase_receipts import placed,receive
+    p=purchase_people;order=placed(db,p);receipt=receive(db,p,order)[0]
+    service_login(client,p['warehouse'])
+    detail=client.get(f'/don-mua/{order.id}')
+    assert detail.status_code==200 and f'/don-mua/lan-nhan/{receipt.id}/tra' in detail.text and 'Đã trả hàng' in detail.text
+    url=f'/don-mua/lan-nhan/{receipt.id}/tra';page=client.get(url)
+    assert page.status_code==200 and 'Còn trả được' in page.text and f'name="qty_{receipt.lines[0].id}" inputmode="decimal" value="0"' in page.text
+    csrf=csrf_of(page.text);data=dict(csrf=csrf,version=order.version,return_date='2026-10-18',reason='Hàng lỗi')
+    data[f'qty_{receipt.lines[0].id}']='0,5'
+    assert client.post(url,data={**data,'csrf':''}).status_code==403
+    result=client.post(url,data=data);assert result.status_code==200,result.text
+    db.expire_all();row=db.scalar(select(PurchaseReturn));doc=db.get(StockDoc,row.stock_doc_id)
+    assert row.number in result.text and doc.number in result.text and f'/phieu-kho/{doc.id}' in result.text
+    assert order.lines[0].received_qty==__import__('decimal').Decimal('1.5') and 'Hủy trả hàng' in result.text
+    result=client.post(url,data={**data,'reason':'Giữ form','return_date':'2026-10-17'})
+    assert result.status_code==409 and 'VERSION_CONFLICT' in result.text and '0,5' in result.text and 'Giữ form' in result.text and '2026-10-17' in result.text
+    data['version']=order.version;data[f'qty_{receipt.lines[0].id}']='2,5'
+    result=client.post(url,data=data)
+    assert result.status_code==409 and 'OVER_RETURN' in result.text and '2,5' in result.text
+    data[f'qty_{receipt.lines[0].id}']='0'
+    assert 'EMPTY_RETURN' in client.post(url,data=data).text
+    cancel=f'/don-mua/tra-hang/{row.id}/huy'
+    assert client.post(cancel,data={'csrf':'','version':row.version,'reason':'Hủy trả'}).status_code==403
+    result=client.post(cancel,data={'csrf':csrf,'version':row.version,'reason':''})
+    assert result.status_code==400 and 'REASON_REQUIRED' in result.text
+    result=client.post(cancel,data={'csrf':csrf,'version':row.version,'reason':'Nhận lại'})
+    assert result.status_code==200
+    db.expire_all();assert row.status=='DA_HUY' and doc.status=='DA_HUY' and db.query(FundLedger).count()==0
+
+
+def test_m4_return_permissions_and_negative_stock_message_preserves_form(client,db,purchase_people):
+    from app import stock_docs,stock_posting
+    from app.schemas import StockDocIn
+    from test_purchase_receipts import placed,receive
+    p=purchase_people;order=placed(db,p);receipt=receive(db,p,order)[0]
+    doc=stock_docs.create(db,p['warehouse'],StockDocIn(kind='PX',warehouse_code='K58',doc_date='2026-10-18',lines=[dict(product_code='TD-0001',qty='1.5')]))
+    stock_posting.post(db,p['warehouse'],doc.id,doc.version)
+    url=f'/don-mua/lan-nhan/{receipt.id}/tra';service_login(client,p['warehouse']);csrf=csrf_of(client.get(url).text)
+    data=dict(csrf=csrf,version=order.version,return_date='2026-10-18',reason='Máy lỗi',**{f'qty_{receipt.lines[0].id}':'1'})
+    r=client.post(url,data=data)
+    assert r.status_code==409 and 'NEGATIVE_STOCK' in r.text and 'TD-0001' in r.text and 'K58' in r.text and 'Máy lỗi' in r.text
+    for role in ('sales','technician','finance'):
+        service_login(client,p[role]);csrf=csrf_of(client.get('/khach-hang').text)
+        assert client.get(url).status_code==403
+        assert client.post(url,data={**data,'csrf':csrf}).status_code==403
+        assert client.post('/don-mua/tra-hang/999/huy',data={'csrf':csrf,'version':1,'reason':'Hủy'}).status_code==403
+        if role=='finance':
+            r=client.get(f'/don-mua/{order.id}')
+            assert r.status_code==200 and '>Trả hàng</a>' not in r.text
+
+
+def test_m4_web_return_shows_advance_and_timeline_links(client,db,m3_people):
+    from app import purchase_returns,supplier_debts
+    from app.models import StockDoc,FundLedger
+    from test_supplier_debts import received,pay
+    p=m3_people;order,receipt=received(db,p);pay(db,p,1000000,order_id=order.id)
+    n=db.query(FundLedger).count()
+    row=purchase_returns.create(db,p['warehouse'],receipt.id,order.version,'2026-10-18','Hàng lỗi',
+        [dict(receipt_line_id=receipt.lines[0].id,qty='0.4')])
+    service_login(client,p['finance'])
+    page=client.get('/cong-no-ncc');assert page.status_code==200 and 'Trả hàng' in page.text and 'Đã trả trước 400.000' in page.text
+    page=client.get(f'/cong-no-ncc/NCC-0001?don={order.id}')
+    assert page.status_code==200 and row.number in page.text and 'Trả hàng NCC' in page.text and 'Đã trả trước 400.000' in page.text
+    assert db.get(StockDoc,row.stock_doc_id).number in page.text and f'/phieu-kho/{row.stock_doc_id}' in page.text
+    order_page=client.get(f'/don-mua/{order.id}');assert order_page.status_code==200 and 'Trả hàng' in order_page.text and '400.000' in order_page.text
+    assert db.query(FundLedger).count()==n

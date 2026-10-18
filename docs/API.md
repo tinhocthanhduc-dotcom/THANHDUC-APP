@@ -483,3 +483,19 @@ Chỉ finance/director xem và trả/hủy tiền NCC; nợ đầu kỳ chỉ di
 Web `/cong-no-ncc` và `/{code}`; form quỹ là nút chạm, tiền định dạng nghìn, ngày mặc định hôm nay giờ VN. Link từ đơn truyền `?don=id`; số mặc định không vượt cả nợ đơn và nợ NCC. Người dùng có thể mở NCC chưa có nợ để director nhập đầu kỳ. Mọi POST dùng CSRF; lỗi giữ dữ liệu đã nhập. Trên đơn mua chỉ finance/director thấy công nợ và link Trả tiền.
 
 Lỗi: OVER_PAYMENT/VERSION_CONFLICT/MAPPING_REQUIRED/SOURCE_LOCKED/BAD_STATUS/DAY_CLOSED/NEGATIVE_CASH (409), BAD_ORDER/BAD_SUPPLIER/BAD_FUND/REASON_REQUIRED/BAD_AMOUNT (400), FORBIDDEN (403), NOT_FOUND (404). Schema API sai trả 422. Mọi thay đổi có audit và không xóa bản ghi.
+
+### Trả hàng nhà cung cấp (M4)
+
+Quyền ghi warehouse/director, xem thêm finance. API Bearer: POST `/purchase-receipts/{receipt_id}/returns` nhận `{version, return_date, reason, lines:[{receipt_line_id, qty}]}` (version **đơn mua**); GET `/purchase-orders/{order_id}/returns`; POST `/purchase-returns/{id}/void` nhận `{version, reason}` (version **phiếu trả**). Kết quả có số TH, stock_doc_id PX, tiền hàng/VAT/tổng, trạng thái, version và các dòng.
+
+`app.purchase_returns.create(session,user,receipt_id,version,return_date,reason,lines)` khóa đơn mua rồi lần nhận như M2. Chỉ trả từ lần nhận DA_GHI; dòng phải thuộc lần nhận, không lặp, qty dương tối đa 3 chữ số lẻ và không vượt qty nhận trừ SUM qty trả DA_GHI. Lý do bắt buộc. Một TH liên kết một PX cùng kho, NCC và ngày trả; stock_docs.insert + stock_posting.post_in_tx trong cùng transaction. PX **xuất giá vốn bình quân do lõi kho tính**, không lấy giá mua làm giá vốn xuất. Tiền giảm nợ tính riêng bằng giá mua/VAT của dòng nhận, ROUND_HALF_UP; trả hết phần còn lại lấy tổng dòng nhận trừ các phiếu trả DA_GHI trước để bù làm tròn. Chia quá nhỏ làm tiền đã làm tròn vượt tổng dòng báo ROUNDING_CONFLICT, cần hủy/gộp lại phiếu trả. Lỗi rollback cả số TH/PX, tồn, phiếu trả và audit.
+
+`void(session,user,return_id,reason,version)` cũng khóa đơn → lần nhận → phiếu trả rồi gọi stock_posting.void_in_tx PX; đánh DA_HUY, lưu lý do/người/giờ hủy. Tạo/hủy trả tăng version đơn nhưng **không đổi received_qty hoặc trạng thái đơn mua**. Mỗi thao tác ghi audit trước/sau cho phiếu trả và đơn. Không ghi trực tiếp stock_*/fund_*, không phát sinh thu chi.
+
+`stock_posting.void` chặn PX trả NCC đang hiệu lực bằng SOURCE_LOCKED, phải hủy phiếu trả ở đơn mua. `purchase_receipts.void` báo HAS_RETURNS nếu lần nhận còn phiếu trả DA_GHI; hủy các phiếu trả trước.
+
+Công nợ `supplier_debts.balance`, `order_balance`, `search`, `totals` có thêm `returned`: đầu kỳ + nhận DA_GHI − trả hàng DA_GHI − trả tiền DA_GHI (order_balance không có đầu kỳ). OVER_PAYMENT kiểm cả nợ NCC và nợ đơn sau khi trừ trả hàng. Nợ âm là đã trả trước. Timeline thêm TH/PX giảm nợ ngày trả và hủy TH tăng lại nợ ngày hủy (giờ VN), số dư chạy khớp balance; các tổng GROUP BY độc lập để không nhân dòng.
+
+Web GET/POST `/don-mua/lan-nhan/{receipt_id}/tra`: số lượng mặc định 0 để bỏ qua dòng, giữ ngày/lý do/số lượng/version khi lỗi. POST `/don-mua/tra-hang/{id}/huy`: lý do và xác nhận. Mọi web POST kiểm CSRF và quyền; finance chỉ xem lịch sử, không có nút thao tác. Chi tiết đơn hiện đã nhận và đã trả riêng, lịch sử TH liên kết PX. Công nợ NCC thêm cột Trả hàng và các sự kiện TH/PX.
+
+Lỗi: OVER_RETURN/BAD_STATUS/VERSION_CONFLICT/SOURCE_LOCKED/HAS_RETURNS/NEGATIVE_STOCK (409), BAD_RECEIPT_LINE/DUPLICATE_LINE/BAD_RETURN/BAD_QTY/EMPTY_RETURN/REASON_REQUIRED/ROUNDING_CONFLICT (400), FORBIDDEN (403), NOT_FOUND (404). Schema API sai trả 422. NEGATIVE_STOCK có warehouse/product/available/requested, web hiển thị mã hàng, kho, tồn và số cần.

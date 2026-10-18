@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import audit
 from .errors import BusinessError
 from .inventory_catalogs import check_writer
-from .models import PurchaseReceipt, StockBalance, StockDoc, StockLedger, User
+from .models import PurchaseReturn, PurchaseReceipt, StockBalance, StockDoc, StockLedger, User
 from .stock_docs import _transaction, snapshot
 
 ZERO = Decimal(0)
@@ -193,6 +193,8 @@ def void(session: Session, user: User, doc_id: int, reason: str, version: int | 
         _load_for_update(session, doc_id)
         if session.scalar(select(PurchaseReceipt.id).where(PurchaseReceipt.stock_doc_id == doc_id, PurchaseReceipt.status == 'DA_GHI')) is not None:
             raise BusinessError('SOURCE_LOCKED', 'Phiếu nhập từ đơn mua phải hủy lần nhận trên đơn mua.', status=409)
+        if session.scalar(select(PurchaseReturn.id).where(PurchaseReturn.stock_doc_id == doc_id, PurchaseReturn.status == 'DA_GHI')) is not None:
+            raise BusinessError('SOURCE_LOCKED', 'Phiếu xuất trả NCC phải hủy phiếu trả hàng trên đơn mua.', status=409)
         doc = void_in_tx(session, user, doc_id, reason, version)
     return doc
 

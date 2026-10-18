@@ -18,7 +18,7 @@ from . import checked_form, money, render, web_user
 from .cash import _error
 
 router=APIRouter()
-LABELS={'opening':'Nợ đầu kỳ','receive':'Nhận hàng','void_receive':'Hủy nhận hàng','payment':'Trả NCC','void_payment':'Hủy trả NCC'}
+LABELS={'return':'Trả hàng NCC','void_return':'Hủy trả hàng NCC','opening':'Nợ đầu kỳ','receive':'Nhận hàng','void_receive':'Hủy nhận hàng','payment':'Trả NCC','void_payment':'Hủy trả NCC'}
 
 
 def debt_user(user:User=Depends(web_user)):

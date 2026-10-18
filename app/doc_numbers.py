@@ -14,6 +14,7 @@ PREFIXES = {
     "BG": "Báo giá",
     "DB": "Đơn bán",
     "DM": "Đơn mua",
+    "TH": "Trả hàng NCC",
     "TN": "Trả nhà cung cấp",
     "BT": "Báo thu",
     "DV": "Phiếu dịch vụ",
