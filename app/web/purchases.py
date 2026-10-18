@@ -1,5 +1,6 @@
 """M1: web gọi cùng lõi đơn mua với API, POST dùng checked_form."""
 import re
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -7,11 +8,11 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import inventory_catalogs, products, purchase_orders as svc, quotes
+from .. import inventory_catalogs, products, purchase_orders as svc, purchase_receipts as receipts, quotes
 from ..config import DEFAULT_VAT_RATE, get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Product, Supplier, User, Warehouse, VAT_RATES
+from ..models import Product, StockDoc, Supplier, User, Warehouse, VAT_RATES
 from ..money_words import money_words
 from ..schemas import PurchaseOrderIn, PurchaseOrderUpdate
 from ..security import has_role
@@ -27,7 +28,7 @@ def purchase_user(user: User = Depends(web_user)):
     return user
 
 
-def _form(request, session, row=None, data=None, error=None, code='', status=200, reason=''):
+def _form(request, session, row=None, data=None, error=None, code='', status=200, reason='', receiving=False, receive_data=None, receipt_action='', failed_receipt=None):
     if data is None:
         data = svc.snapshot(row) if row else dict(supplier_code='', order_date=quotes._today().isoformat(),
                             expected_date='', note='', version=0, lines=[])
@@ -35,7 +36,13 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
             line['unit_cost'] = money(line['unit_cost'])
     supplier = session.get(Supplier, data.get('supplier_code')) if data.get('supplier_code') else None
     codes = {line.get('product_code') for line in data['lines']}
+    history=receipts.list_by_order(session,request.state.user,row.id) if row else []
+    if receive_data is None and row:
+        receive_data=dict(receipt_date=quotes._today().isoformat(),version=row.version,quantities={str(l.id):_quantity(l.qty-l.received_qty) for l in row.lines if l.received_qty<l.qty})
     return render(request, 'don_mua_form.jinja', o=row, d=data, statuses=STATUSES, vat_rates=VAT_RATES,
+        history=history,stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_([r.stock_doc_id for r in history]))).all()),
+        receiving=receiving,receive_data=receive_data or {},quantity=_quantity,receipt_action=receipt_action,failed_receipt=failed_receipt,
+        payable=receipts.payable_by_order(session,request.state.user,row.id) if row else 0,
         supplier_name=supplier.name if supplier else '',
         product_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(codes))).all()),
         warehouses=list(session.scalars(select(Warehouse).order_by(Warehouse.code))),
@@ -76,7 +83,12 @@ def _body(data):
 
 
 def _error(exc):
-    if isinstance(exc, BusinessError):return exc.message,exc.code,exc.status
+    if isinstance(exc, BusinessError):
+        message=exc.message
+        if exc.code=='NEGATIVE_STOCK':
+            d=exc.details
+            message+=f" Mã {d.get('product','')}, kho {d.get('warehouse','')}: tồn {d.get('available','0')}, cần {d.get('requested','0')}."
+        return message,exc.code,exc.status
     loc=exc.errors()[0]['loc']; field=loc[-1]
     labels={'qty':'Số lượng','unit_cost':'Đơn giá','vat_rate':'VAT','warehouse_code':'Kho nhận','product_code':'Mã hàng',
             'supplier_code':'Nhà cung cấp','order_date':'Ngày đơn','expected_date':'Ngày dự kiến','version':'Phiên bản'}
@@ -137,10 +149,12 @@ def action(request: Request, order_id: int, action: str, form=Depends(checked_fo
     user=request.state.user;svc.check_writer(user)
     try:
         if action=='order':svc.order(session,user,order_id,_version(form))
+        elif action=='close':receipts.close(session,user,order_id,str(form.get('reason','')),_version(form))
         elif action=='cancel':svc.cancel(session,user,order_id,str(form.get('reason','')),_version(form))
+        elif action=='nhan':return _receive(request,session,user,order_id,form)
         else:raise BusinessError('NOT_FOUND','Không có thao tác này.',status=404)
     except BusinessError as exc:
-        return _form(request,session,row=svc.load(session,user,order_id),error=exc.message,code=exc.code,status=exc.status,reason=str(form.get('reason','')))
+        return _form(request,session,row=svc.load(session,user,order_id),error=exc.message,code=exc.code,status=exc.status,reason=str(form.get('reason','')),receipt_action=action)
     return RedirectResponse(f'/don-mua/{order_id}?da_luu=1',status_code=303)
 
 
@@ -151,3 +165,52 @@ def print_order(request: Request, order_id: int, user: User=Depends(purchase_use
     return render(request,'don_mua_in.jinja',o=row,supplier=session.get(Supplier,row.supplier_code),company=get_settings(),
         products={p.code:p for p in session.scalars(select(Product).where(Product.code.in_(codes)))},
         words=money_words(row.total),quantity=_quantity,statuses=STATUSES)
+
+
+@router.get('/don-mua/{order_id}/nhan')
+def receive_form(request: Request, order_id:int, user:User=Depends(purchase_user), session:Session=Depends(get_session)):
+    svc.check_writer(user)
+    row=svc.load(session,user,order_id)
+    if row.status not in ('DA_DAT','NHAN_MOT_PHAN'):
+        raise BusinessError('BAD_STATUS','Chỉ nhận hàng cho đơn Đã đặt hoặc Nhận một phần.',status=409)
+    return _form(request,session,row=row,receiving=True)
+
+
+def _receive(request,session,user,order_id,form):
+    from ..schemas import PurchaseReceiveIn
+    raw=dict(receipt_date=str(form.get('receipt_date','')),version=str(form.get('version','')),
+             quantities={str(key)[4:]:str(value) for key,value in form.items() if str(key).startswith('qty_')})
+    try:
+        lines=[]
+        for ident,value in raw['quantities'].items():
+            try:
+                qty=Decimal(value.replace(',','.'))
+                if not qty.is_finite() or qty<0:raise InvalidOperation
+                line_id=int(ident)
+            except (ValueError,InvalidOperation):
+                raise BusinessError('BAD_QTY','Số lượng nhận phải là số không âm, tối đa 3 chữ số lẻ; nhập 0 để bỏ qua.')
+            if qty:lines.append(dict(order_line_id=line_id,qty=qty))
+        if not lines:raise BusinessError('EMPTY_RECEIPT','Chọn ít nhất một dòng có số lượng nhận lớn hơn 0.')
+        body=PurchaseReceiveIn(version=_version(form),receipt_date=raw['receipt_date'],lines=lines)
+        receipts.receive(session,user,order_id,body.version,body.receipt_date,body.lines)
+    except (BusinessError,ValidationError) as exc:
+        message,code,status=_error(exc)
+        return _form(request,session,row=svc.load(session,user,order_id),error=message,code=code,status=status,
+                     receiving=True,receive_data=raw)
+    return RedirectResponse(f'/don-mua/{order_id}?da_luu=1#lan-nhan',status_code=303)
+
+
+@router.post('/don-mua/lan-nhan/{receipt_id}/huy')
+def void_receipt(request:Request,receipt_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
+    from ..models import PurchaseReceipt
+    user=request.state.user;svc.check_writer(user)
+    row=session.get(PurchaseReceipt,receipt_id)
+    if row is None:raise BusinessError('NOT_FOUND','Không tìm thấy lần nhận.',status=404)
+    order_id=row.order_id
+    reason=str(form.get('reason',''))
+    try:receipts.void(session,user,receipt_id,reason,_version(form))
+    except BusinessError as exc:
+        message,code,status=_error(exc)
+        return _form(request,session,row=svc.load(session,user,order_id),error=message,code=code,status=status,
+                     reason=reason,receipt_action='void',failed_receipt=receipt_id)
+    return RedirectResponse(f'/don-mua/{order_id}?da_luu=1#lan-nhan',status_code=303)
