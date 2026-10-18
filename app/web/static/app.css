@@ -234,3 +234,21 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .receipt-card button { min-height: 44px; }
 .receipt-balance { padding: 12px; }
 .receipt-balance dd { min-width: 0; overflow-wrap: anywhere; }
+
+.sales-report-section { margin-top: 28px; min-width: 0; }
+.sales-report-presets { margin-bottom: 12px; }
+.sales-report-presets a { min-height: 44px; }
+.sales-report-table { width: 100%; border-collapse: collapse; background: var(--surface); font-size: .9rem; }
+.sales-report-table th, .sales-report-table td { padding: 10px 8px; border: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
+.sales-report-table tfoot { font-weight: 700; }
+.sales-aging-cards { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.sales-aging-cards a { display: grid; gap: 8px; color: var(--text); text-decoration: none; min-width: 0; overflow-wrap: anywhere; }
+.sales-aging-cards a.on { border-color: var(--accent); }
+@media (max-width:600px) {
+  .sales-aging-cards { grid-template-columns: 1fr; }
+  .sales-report-table, .sales-report-table tbody, .sales-report-table tfoot, .sales-report-table tr { display: block; }
+  .sales-report-table thead { display: none; }
+  .sales-report-table tr { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .sales-report-table td, .sales-report-table th { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; border: 0; padding: 10px; min-width: 0; }
+  .sales-report-table [data-label]::before { content: attr(data-label); color: var(--muted); }
+}

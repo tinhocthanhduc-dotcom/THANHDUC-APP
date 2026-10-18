@@ -23,6 +23,7 @@
     {% if 'sales' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-gia" {% if request.url.path.startswith('/bao-gia') %}class="on"{% endif %}>Báo giá</a>{% endif %}
     {% if 'sales' in user.roles or 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/don-ban" {% if request.url.path.startswith('/don-ban') %}class="on"{% endif %}>Đơn bán</a>{% endif %}
     {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-thu" {% if request.url.path.startswith('/bao-thu') %}class="on"{% endif %}>Báo thu</a>{% endif %}
+    {% if 'sales' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-cao/ban-hang" {% if request.url.path.startswith('/bao-cao/ban-hang') %}class="on"{% endif %}>Báo cáo bán hàng</a>{% endif %}
     <a href="/dich-vu" {% if request.url.path.startswith('/dich-vu') %}class="on"{% endif %}>Dịch vụ</a>
     <a href="/thiet-bi" {% if request.url.path.startswith('/thiet-bi') %}class="on"{% endif %}>Thiết bị</a>
   </nav>

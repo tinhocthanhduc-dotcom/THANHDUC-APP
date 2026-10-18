@@ -476,3 +476,7 @@ router.include_router(receipts_router)
 from .orders import router as orders_router
 
 router.include_router(orders_router)
+
+from .sales_reports import router as sales_reports_router
+
+router.include_router(sales_reports_router)
