@@ -13,7 +13,7 @@ from .config import get_settings
 from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, SalesOrder, SalesOrderLine, SALES_ORDER_STATUSES, Warehouse
+from .models import Customer, SalesOrder, SalesOrderLine, SalesReceipt, SALES_ORDER_STATUSES, Warehouse
 from .schemas import (QuoteLineIn, SalesOrderFromQuote, SalesOrderIn, SalesOrderLineIn,
                       SalesOrderOut, SalesOrderUpdate, StockDocIn, StockDocLineIn)
 from .security import has_role
@@ -263,6 +263,9 @@ def cancel(session: Session, user, order_id, reason, version):
         reason = (reason or '').strip()
         if not reason:
             raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do hủy đơn bán.')
+        if session.scalar(select(SalesReceipt.id).where(SalesReceipt.order_id == order.id,
+                          SalesReceipt.status.in_(('CHO_XAC_NHAN', 'DA_XAC_NHAN'))).limit(1)) is not None:
+            raise BusinessError('HAS_RECEIPTS', 'Tài chính phải từ chối hoặc hủy báo thu trước', status=409)
         before = snapshot(order)
         if order.status == 'DA_GIAO':
             for doc_id in sorted({line.stock_doc_id for line in order.lines if line.stock_doc_id is not None}):

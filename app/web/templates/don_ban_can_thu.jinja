@@ -1,0 +1,6 @@
+{% extends 'base.jinja' %}
+{% block title %}Đơn cần thu{% endblock %}
+{% block main %}
+<div class="bar"><h1>Đơn cần thu</h1><a href="/don-ban">← Đơn bán</a></div><p>Đơn còn nợ, chốt lâu nhất trước. Tiền chờ xác nhận chưa tính là đã thu.</p>
+<div class="receipt-grid">{% for row in rows %}<article class="card receipt-card"><div class="bar"><a class="code" href="/don-ban/{{ row.order.id }}#thu-tien">{{ row.order.number }}</a><span>{{ row.days }} ngày từ lúc chốt</span></div><h2>{{ names.get(row.order.customer_code,row.order.customer_code) }}</h2><dl class="receipt-balance"><dt>Phải thu</dt><dd>{{ row.balance.receivable|money }} đồng</dd><dt>Đã thu</dt><dd>{{ row.balance.paid|money }} đồng</dd><dt>Chờ xác nhận</dt><dd>{{ row.balance.pending|money }} đồng</dd><dt>Còn nợ</dt><dd><strong>{{ row.balance.remaining|money }} đồng</strong></dd></dl></article>{% else %}<p class="empty">Không có đơn còn nợ.</p>{% endfor %}</div>
+{% endblock %}

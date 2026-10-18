@@ -602,3 +602,35 @@ class SalesOrderLine(Base):
     stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'))
 
     order: Mapped['SalesOrder'] = relationship(back_populates='lines')
+
+
+SALES_RECEIPT_STATUSES = ('CHO_XAC_NHAN', 'DA_XAC_NHAN', 'TU_CHOI', 'DA_HUY')
+SALES_RECEIPT_METHODS = ('TIEN_MAT', 'CHUYEN_KHOAN')
+
+
+class SalesReceipt(Base):
+    __tablename__ = 'sales_receipts'
+    __table_args__ = (
+        CheckConstraint(_in('method', SALES_RECEIPT_METHODS), name='ck_sales_receipts_method'),
+        CheckConstraint(_in('status', SALES_RECEIPT_STATUSES), name='ck_sales_receipts_status'),
+        CheckConstraint('amount > 0', name='ck_sales_receipts_amount'),
+        Index('ix_sales_receipts_order_status', 'order_id', 'status'),
+        Index('ix_sales_receipts_status_reported', 'status', 'reported_at'),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
+    method: Mapped[str] = mapped_column(String(16))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    received_at: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(Text, default='')
+    status: Mapped[str] = mapped_column(String(16), default='CHO_XAC_NHAN')
+    reason: Mapped[str] = mapped_column(Text, default='')
+    reported_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {'version_id_col': version}

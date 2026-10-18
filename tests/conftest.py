@@ -19,7 +19,7 @@ from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
-TABLES = "sales_order_lines, sales_orders, quote_lines, quotes, attachments, equipment, customer_sites, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
+TABLES = "sales_receipts, sales_order_lines, sales_orders, quote_lines, quotes, attachments, equipment, customer_sites, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, products, suppliers, warehouses, users, doc_counters"
 PASSWORD = "matkhau-test-123"
 
 

@@ -20,6 +20,7 @@ from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrd
 from ..security import has_role
 from . import checked_form, money, render, web_user
 from .quotes import _quantity
+from .receipts import order_context
 
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp','DA_CHOT':'Đã chốt','DA_GIAO':'Đã giao','DA_HUY':'Đã hủy'}
@@ -72,7 +73,7 @@ def _active_order(session, quote_id):
                            SalesOrder.status!='DA_HUY')).first()
 
 
-def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action=''):
+def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action=''):
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
             customer_code='',contact_name='',delivery_address='',note='',version=0,lines=[])
@@ -82,6 +83,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     codes={l.get('product_code') for l in data['lines'] if l.get('product_code')}
     ids={l.stock_doc_id for l in order.lines if l.stock_doc_id} if order else set()
     source=quotes.load(session,request.state.user,order.quote_id) if order and order.quote_id and has_role(request.state.user,'sales','finance') else None
+    receipt_ctx=order_context(session,request.state.user,order,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action)
     return render(request,'don_ban_form.jinja',o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
                   customer_name=customer.name if customer else '',source=source,
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
@@ -89,7 +91,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   warehouses=_warehouses(session),can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse'),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
-                  saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error))
+                  saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error),**receipt_ctx)
 
 
 def _raw(form):
@@ -137,7 +139,7 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({r.customer_code for r in rows}))).all())
     return render(request,'don_ban_dong.jinja' if phan else 'don_ban_ds.jinja',rows=rows,names=names,q=q,
                   selected_status=status,statuses=STATUSES,from_date=from_date,to_date=to_date,
-                  can_write=has_role(user,'sales'),error=error,error_code=code,status=http_status)
+                  can_write=has_role(user,'sales'),can_receivables=has_role(user,'sales','finance'),error=error,error_code=code,status=http_status)
 
 
 @router.get('/don-ban/tim-khach')

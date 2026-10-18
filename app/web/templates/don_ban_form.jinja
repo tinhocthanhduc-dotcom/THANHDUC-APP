@@ -22,6 +22,7 @@
 {% if can_write and editable %}<button class="primary">Lưu đơn</button><p class="hint">Lưu các thay đổi trước khi Chốt đơn. Nháp có thể thiếu kho; khi chốt phải chọn đủ kho.</p>{% endif %}
 </form>
 {% if o %}<section class="card service-action"><h2>Số tiền đã lưu</h2><dl><dt>Tiền hàng</dt><dd>{{ o.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ o.vat_total|money }} đồng</dd><dt>Tổng cộng</dt><dd>{{ o.total|money }} đồng</dd><dt>Phải thu</dt><dd>{{ (o.receivable|money) ~ ' đồng' if o.receivable is not none else 'Chưa chốt' }}</dd></dl></section>{% endif %}
+{% if collection %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
 {% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
 {% if o %}<div class="quote-actions">
 {% if can_write and o.status=='NHAP' %}<form method="post" action="/don-ban/{{ o.id }}/confirm" data-order-confirm>{{ token('confirm') }}<button class="primary">Chốt đơn</button></form>{% endif %}

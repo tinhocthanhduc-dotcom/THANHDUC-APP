@@ -13,6 +13,7 @@ PREFIXES = {
     "KK": "Phiếu kiểm kê",
     "BG": "Báo giá",
     "DB": "Đơn bán",
+    "BT": "Báo thu",
     "DV": "Phiếu dịch vụ",
     "PT": "Phiếu thu",
     "PC": "Phiếu chi",
