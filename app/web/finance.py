@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from .. import finance_catalogs as catalogs, finance_mappings as mappings
+from .. import cash_posting
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Fund, CashCategory, User
@@ -43,8 +44,10 @@ def _register(path,model,in_schema,patch_schema):
                       fund=fund,label=label,path=path,can_write=True,kinds=KINDS,directions=DIRECTIONS,**ctx)
 
     def listing(request: Request,q: str='',phan: int=0,user: User=Depends(finance_user),session: Session=Depends(get_session)):
+        rows = catalogs.search(session,user,model,q[:200])
         return render(request,'danh_muc_dong.jinja' if phan else 'danh_muc_ds.jinja',
-                      rows=catalogs.search(session,user,model,q[:200]),q=q,path=path,label=label,
+                      rows=rows,q=q,path=path,label=label,
+                      balances=cash_posting.balances(session,user,[r.code for r in rows]) if fund else {},
                       finance_catalog=True,fund=fund,kinds=KINDS,directions=DIRECTIONS,can_write=True)
 
     def new(request: Request,user: User=Depends(finance_user)):

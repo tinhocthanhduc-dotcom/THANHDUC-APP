@@ -1,0 +1,10 @@
+{% extends 'base.jinja' %}
+{% block title %}{{ kinds[d.kind] }} {{ d.number }}{% endblock %}
+{% block main %}
+<div class="bar report-tools"><a href="/thu-chi/{{ d.id }}">← Phiếu</a><button onclick="window.print()">In / Lưu PDF</button></div>
+<article class="acceptance-report cash-print"><header><h2>{{ company.company_name }}</h2><p>{{ company.company_address }}</p><p>MST: {{ company.company_tax_code }} · Tel: {{ company.company_phone }} · Hotline: {{ company.company_hotline }}</p><h1>{{ kinds[d.kind]|upper }}</h1><p>Số: <strong>{{ d.number }}</strong> · Ngày {{ d.doc_date.strftime('%d/%m/%Y') }}</p></header>
+<p>Trạng thái: {{ states[d.status] }}{% if d.is_opening %} · Số dư đầu kỳ{% endif %}</p>
+<dl><dt>Quỹ</dt><dd>{{ d.fund_code }} · {{ fund.name }}</dd>{% if d.to_fund_code %}<dt>Quỹ đích</dt><dd>{{ d.to_fund_code }}</dd>{% endif %}<dt>{{ 'Người nộp' if d.kind=='PT' else 'Người nhận' }}</dt><dd>{{ d.partner_name or (partner.name if partner else '—') }}</dd><dt>Nội dung</dt><dd class="service-text">{{ d.description }}</dd><dt>Số tiền</dt><dd><strong>{{ d.amount|money }} đồng</strong></dd></dl><p><strong>Bằng chữ:</strong> {{ words }}.</p>
+<div class="cash-signatures"><section><h2>Người lập</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Thủ quỹ</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>{{ 'Người nộp' if d.kind=='PT' else 'Người nhận' }}</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
+</article>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'base.jinja' %}
+{% block title %}Thu chi{% endblock %}
+{% block main %}
+<div class="bar"><h1>Thu chi</h1><a class="btn primary" href="/thu-chi/moi">+ Lập phiếu</a><a href="/quy">Quỹ và sổ quỹ</a></div>
+{% if error %}<p class="alert bad" data-error-code="{{ error.code }}">{{ error.message }}</p>{% endif %}
+<form class="card form" action="/thu-chi">
+<fieldset><legend>Loại phiếu</legend><div class="seg cash-funds">{% for value,label in [('', 'Tất cả'),('PT','PT · Thu'),('PC','PC · Chi'),('CQ','CQ · Chuyển')] %}<label><input type="radio" name="loai" value="{{ value }}" {% if filters.loai==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
+<fieldset><legend>Quỹ</legend><div class="seg cash-funds"><label><input type="radio" name="quy" value="" {% if not filters.quy %}checked{% endif %}><span>Tất cả</span></label>{% for f in funds %}<label><input type="radio" name="quy" value="{{ f.code }}" {% if filters.quy==f.code %}checked{% endif %}><span>{{ f.code }}</span></label>{% endfor %}</div></fieldset>
+<fieldset><legend>Trạng thái</legend><div class="seg cash-funds"><label><input type="radio" name="trang_thai" value="" {% if not filters.trang_thai %}checked{% endif %}><span>Tất cả</span></label>{% for value,label in states.items() %}<label><input type="radio" name="trang_thai" value="{{ value }}" {% if filters.trang_thai==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
+<div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ filters['from'] }}"></label><label>Đến ngày<input type="date" name="to" value="{{ filters.to }}"></label></div><button>Lọc</button>
+</form>
+<ul class="list">{% for d in rows %}<li><a href="/thu-chi/{{ d.id }}"><span class="code">{{ d.number }}</span><strong>{{ d.amount|money }} đồng</strong><span class="meta">{{ d.doc_date.strftime('%d/%m/%Y') }} · {{ d.fund_code }}{% if d.to_fund_code %} → {{ d.to_fund_code }}{% endif %} · {{ states[d.status] }}{% if d.is_opening %} · Đầu kỳ{% endif %}</span></a></li>{% else %}<li>Chưa có phiếu trong khoảng này.</li>{% endfor %}</ul>
+{% endblock %}

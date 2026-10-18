@@ -259,3 +259,14 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .finance-mappings input { min-width: 0; width: 100%; }
 .finance-mappings button, .finance-nav .btn { min-height: 44px; }
 .finance-unmapped { color: #a61b1b; background: #fff0f0; font-weight: 700; }
+
+.finance-nav, .cash-kind, .cash-funds { flex-wrap: wrap; }
+.cash-kind .btn { flex: 1 1 80px; min-height: 44px; }
+.cash-funds label { flex: 1 1 120px; min-width: 0; }
+.cash-funds span { overflow-wrap: anywhere; min-height: 44px; }
+.cash-cancel { margin-top: 24px; }
+.cash-signatures { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-top: 48px; text-align: center; }
+.cash-signatures section { min-height: 160px; }
+.cash-signatures h2 { font-size: 1rem; }
+.fund-current { padding: 0 12px 12px; overflow-wrap: anywhere; }
+@media screen and (max-width:600px) { .cash-signatures { grid-template-columns: 1fr; } }

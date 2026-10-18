@@ -2505,3 +2505,115 @@ def test_t1_web_permissions_and_csrf(client,db,finance_people):
     assert client.post('/danh-muc-thu-chi/moi',data=dict(csrf=csrf,code='A',name='A',direction='THU')).status_code==403
     assert '>Tài chính</a>' not in client.get('/khach-hang').text
     assert db.query(Fund).count()==0 and db.query(AuditLog).count()==0
+
+
+# T2: phiếu thu chi, ghi sổ, in và sổ quỹ.
+from test_cash import cash_people
+
+
+def t2_form(csrf,**changes):
+    return {'csrf':csrf,'kind':'PT','doc_date':'2026-10-10','fund_code':'QUY-TM','category_code':'THU-BH',
+            'amount':'1.000.000','partner_name':'Nguyễn Văn An','description':'Thu tiền thử nghiệm','action':'save',**changes}
+
+
+def test_t2_web_opening_director_and_money_post_print_statement(client,db,cash_people):
+    from app.models import CashDoc,FundLedger
+    from app import cash_posting
+    p=cash_people
+    csrf=service_login(client,p['director'])
+    r=client.post('/thu-chi/moi',data=t2_form(csrf,is_opening='1',category_code='',amount='5.000.000',doc_date='2026-10-01',action='post'))
+    assert r.status_code==200 and 'PT-26-00001' in r.text
+    csrf=service_login(client,p['finance'])
+    r=client.post('/thu-chi/moi',data=t2_form(csrf,is_opening='1',category_code='',amount='5.000.000'))
+    assert r.status_code==403
+    r=client.post('/thu-chi/moi',data=t2_form(csrf))
+    assert r.status_code==200 and 'type="number"' not in r.text
+    doc=db.query(CashDoc).filter(CashDoc.is_opening.is_(False)).one()
+    assert doc.amount==1000000 and doc.status=='NHAP'
+    r=client.post(f'/thu-chi/{doc.id}/post',data=t2_form(csrf,version=doc.version,amount='1.200.000'))
+    assert r.status_code==200 and 'Đã ghi' in r.text
+    db.expire_all();assert doc.amount==1200000 and doc.status=='DA_GHI'
+    r=client.get(f'/thu-chi/{doc.id}/in')
+    assert r.status_code==200 and 'Một triệu hai trăm nghìn đồng' in r.text
+    assert all(x in r.text for x in ('Người lập','Thủ quỹ','Người nộp',doc.number))
+    r=client.post('/thu-chi/moi',data=t2_form(csrf,kind='PC',category_code='CHI-KHAC',amount='2.000.000',action='post'))
+    assert r.status_code==200
+    assert cash_posting.balance(db,p['finance'],'QUY-TM')==4200000
+    book=client.get('/so-quy/QUY-TM?from=2026-10-10&to=2026-10-10')
+    assert book.status_code==200
+    assert 'data-cash-balance="opening">5.000.000 đồng' in book.text
+    assert 'data-cash-balance="closing">4.200.000 đồng' in book.text
+    assert doc.number in book.text
+    funds=client.get('/quy')
+    assert '4.200.000 đồng' in funds.text and 'href="/so-quy/QUY-TM"' in funds.text
+    assert db.query(FundLedger).count()==3
+
+
+def test_t2_web_negative_cash_preserves_form_and_cancel_reason(client,db,cash_people):
+    from app.models import CashDoc,FundLedger
+    from app import cash_posting
+    from test_cash import opening,posted
+    p=cash_people;opening(db,p)
+    csrf=service_login(client,p['finance'])
+    r=client.post('/thu-chi/moi',data=t2_form(csrf,kind='PC',category_code='CHI-KHAC',amount='10.000.000',action='post',description='Nội dung cần giữ'))
+    assert r.status_code==409 and 'NEGATIVE_CASH' in r.text
+    assert 'hiện có 5.000.000 đồng' in r.text and 'số cần 10.000.000 đồng' in r.text
+    assert 'value="10.000.000"' in r.text and 'Nội dung cần giữ' in r.text
+    assert db.query(FundLedger).count()==1 and cash_posting.balance(db,p['finance'],'QUY-TM')==5000000
+    doc=db.query(CashDoc).filter(CashDoc.kind=='PC').one();assert doc.status=='NHAP'
+    r=client.post(f'/thu-chi/{doc.id}/cancel',data=dict(csrf=csrf,version=doc.version,reason=''))
+    assert r.status_code==400 and 'REASON_REQUIRED' in r.text
+    assert client.post(f'/thu-chi/{doc.id}/cancel',data=dict(csrf=csrf,version=doc.version,reason='Hủy nháp')).status_code==200
+    income=posted(db,p['finance'])
+    r=client.post(f'/thu-chi/{income.id}/cancel',data=dict(csrf=csrf,version=income.version,reason=''))
+    assert r.status_code==400 and 'REASON_REQUIRED' in r.text
+    r=client.post(f'/thu-chi/{income.id}/cancel',data=dict(csrf=csrf,version=income.version,reason='Thu nhầm'))
+    assert r.status_code==200 and 'Đã hủy' in r.text
+    assert cash_posting.balance(db,p['finance'],'QUY-TM')==5000000
+    r=client.get('/so-quy/QUY-TM?from=2026-10-18&to=2026-10-18')
+    assert 'Đảo' in r.text and 'data-cash-balance="opening">6.000.000 đồng' in r.text
+    assert 'data-cash-balance="closing">5.000.000 đồng' in r.text
+
+
+def test_t2_web_transfer_filters_and_live_pickers(client,db,cash_people):
+    from app.models import Customer,Supplier,CashDoc
+    from test_cash import opening
+    p=cash_people;opening(db,p)
+    db.add(Customer(code='KTD-000001',name='Minh Phát',search_text='minh phat'))
+    db.add(Supplier(code='NCC-0001',name='Mực in Việt',search_text='muc in viet'));db.commit()
+    csrf=service_login(client,p['finance'])
+    assert 'THU-BH' in client.get('/thu-chi/tim/danh-muc-PT?q=thu+ban').text
+    assert 'CHI-KHAC' not in client.get('/thu-chi/tim/danh-muc-PT').text
+    assert 'CHI-KHAC' in client.get('/thu-chi/tim/danh-muc-PC').text
+    assert 'KTD-000001' in client.get('/thu-chi/tim/khach?q=minh+phat').text
+    assert 'NCC-0001' in client.get('/thu-chi/tim/nha-cung-cap?q=muc+in').text
+    page=client.get('/thu-chi/moi?loai=CQ')
+    assert page.status_code==200 and 'name="to_fund_code"' in page.text
+    assert 'name="category_code"' not in page.text and '<select' not in page.text
+    r=client.post('/thu-chi/moi',data=t2_form(csrf,kind='CQ',category_code='',to_fund_code='TK-ACB',action='post'))
+    assert r.status_code==200 and 'CQ-26-00001' in r.text
+    doc=db.query(CashDoc).filter(CashDoc.kind=='CQ').one()
+    page=client.get('/thu-chi?loai=CQ&quy=TK-ACB&trang_thai=DA_GHI&from=2026-10-01&to=2026-10-31')
+    assert page.status_code==200 and doc.number in page.text and 'PT-26-00001' not in page.text
+    assert client.get('/thu-chi?from=2026-11-01&to=2026-10-01').status_code==400
+
+
+def test_t2_web_version_permissions_csrf_and_audit(client,db,cash_people):
+    from app.models import AuditLog,CashDoc,FundLedger
+    from test_cash import make_doc
+    p=cash_people;doc=make_doc(db,p['finance']);csrf=service_login(client,p['finance'])
+    r=client.post(f'/thu-chi/{doc.id}',data=t2_form(csrf,version=1,amount='1.200.000'))
+    assert r.status_code==200
+    r=client.post(f'/thu-chi/{doc.id}',data=t2_form(csrf,version=1,amount='999.999',description='Giữ xung đột'))
+    assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
+    assert 'value="999.999"' in r.text and 'Giữ xung đột' in r.text
+    assert client.post(f'/thu-chi/{doc.id}/post',data=dict(csrf=csrf,version=1)).status_code==409
+    for path in ['/thu-chi/moi',f'/thu-chi/{doc.id}',f'/thu-chi/{doc.id}/post',f'/thu-chi/{doc.id}/cancel']:
+        assert client.post(path,data=t2_form('',version=2)).status_code==403
+    csrf=service_login(client,p['sales'])
+    for path in ['/thu-chi','/thu-chi/moi',f'/thu-chi/{doc.id}',f'/thu-chi/{doc.id}/in','/so-quy/QUY-TM','/thu-chi/tim/danh-muc-PT']:
+        assert client.get(path).status_code==403
+    assert client.post('/thu-chi/moi',data=t2_form(csrf)).status_code==403
+    assert client.post(f'/thu-chi/{doc.id}/post',data=dict(csrf=csrf,version=2)).status_code==403
+    assert db.query(AuditLog).filter(AuditLog.entity=='cash_doc').count()==2
+    assert db.query(FundLedger).count()==0
