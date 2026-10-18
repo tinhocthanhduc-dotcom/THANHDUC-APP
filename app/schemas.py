@@ -687,7 +687,9 @@ class SalesReceiptOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     number: str
-    order_id: int
+    order_id: int | None
+    ticket_id: int | None
+    cash_doc_id: int | None
     method: str
     amount: int
     received_at: date
@@ -801,3 +803,9 @@ class CashDocCancel(BaseModel):
     model_config = ConfigDict(extra='forbid',str_strip_whitespace=True)
     version: int = Field(strict=True,ge=1)
     reason: str = Field(min_length=1,max_length=2000)
+
+
+class ServiceReceivableOut(ServiceTicketOut):
+    paid: int
+    pending: int
+    remaining: int

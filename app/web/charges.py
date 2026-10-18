@@ -122,7 +122,7 @@ def _dates(request):
 def _receivables(session, user, start, end):
     rows = service_charges.receivables(session, user, start, end)
     names = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in rows}))).all())
-    return rows, names, sum(t.receivable for t in rows)
+    return rows, names, sum(t.remaining for t in rows)
 
 
 @router.get('/dich-vu/can-thu')
@@ -143,12 +143,12 @@ def receivables_csv(request: Request, user: User = Depends(_viewer), session: Se
     rows, names, total = _receivables(session, user, start, end)
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Số phiếu', 'Khách hàng', 'Ngày hoàn thành', 'Số phải thu'])
+    writer.writerow(['Số phiếu', 'Khách hàng', 'Ngày hoàn thành', 'Số phải thu', 'Đã thu', 'Chờ xác nhận', 'Còn nợ'])
     for ticket in rows:
         name = names.get(ticket.customer_code, ticket.customer_code)
         if name.lstrip().startswith(('=', '+', '-', '@')):
             name = "'" + name
-        writer.writerow([ticket.number, name, ticket.priced_at.astimezone(TZ).strftime('%d/%m/%Y %H:%M'), ticket.receivable])
-    writer.writerow(['Tổng cộng', '', '', total])
+        writer.writerow([ticket.number, name, ticket.priced_at.astimezone(TZ).strftime('%d/%m/%Y %H:%M'), ticket.receivable, ticket.paid, ticket.pending, ticket.remaining])
+    writer.writerow(['Tổng cộng', '', '', '', '', '', total])
     return Response('\ufeff' + output.getvalue(), media_type='text/csv; charset=utf-8',
                     headers={'Content-Disposition': 'attachment; filename="dich-vu-can-thu.csv"', 'Cache-Control': 'private, no-store'})

@@ -12,7 +12,7 @@ from app.schemas import SalesReceiptReport
 
 
 @pytest.fixture
-def report_people(db,make_user,monkeypatch):
+def report_people(db,make_user,monkeypatch,configured_finance):
     monkeypatch.setattr(svc,'_today',lambda:date(2026,10,18))
     db.add_all([Customer(code='KTD-000001',name='Minh Phát'),Customer(code='KTD-000002',name='Thành Công')])
     db.commit()

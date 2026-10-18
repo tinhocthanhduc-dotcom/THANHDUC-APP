@@ -457,6 +457,11 @@ from .charges import router as charges_router
 
 router.include_router(charges_router)
 
+# Báo thu dịch vụ phải đứng trước route tổng quát /dich-vu/{id}/{action}.
+from .receipts import router as receipts_router
+
+router.include_router(receipts_router)
+
 from .services import router as services_router
 
 router.include_router(services_router)
@@ -468,10 +473,6 @@ router.include_router(dispatch_router)
 from .quotes import router as quotes_router
 
 router.include_router(quotes_router)
-
-from .receipts import router as receipts_router
-
-router.include_router(receipts_router)
 
 from .orders import router as orders_router
 

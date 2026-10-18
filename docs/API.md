@@ -375,3 +375,27 @@ Web `/thu-chi` lọc loại/quỹ (cả nguồn và đích CQ)/trạng thái/ng�
 | VERSION_REQUIRED / VERSION_CONFLICT | 400 / 409 | Thiếu version hoặc version cũ |
 | BAD_KIND / BAD_STATUS / BAD_DATE_RANGE | 400 | Bộ lọc không hợp lệ |
 | FORBIDDEN / BAD_CSRF / NOT_FOUND | 403 / 403 / 404 | Sai vai trò, thiếu CSRF hoặc không tìm thấy phiếu |
+
+## Nối báo thu và sổ quỹ (T3)
+
+SalesReceipt có đúng một nguồn: `order_id` hoặc `ticket_id` (check constraint DB), thêm `cash_doc_id` nullable. Migration `0016` nối `0015`, giữ nguyên BT cũ, không tự tạo PT hồi tố. BT xác nhận trước T3 chưa có PT vẫn có thể hủy theo hành vi cũ; chỉ PT đã gắn mới ghi đảo. Downgrade khôi phục order_id NOT NULL, vì vậy cần không còn BT dịch vụ khi hạ schema; migration không xóa dữ liệu tài chính để ép hạ phiên bản.
+
+`confirm` khóa đơn/phiếu nguồn rồi BT; trong cùng transaction dùng `finance_mappings.require` lấy THU_TIEN_MAT/THU_CHUYEN_KHOAN và DANH_MUC_BAN_HANG/DANH_MUC_DICH_VU, gọi `cash_docs.insert` và `cash_posting.post_in_tx`. PT dùng ngày thu received_at, customer_code nguồn, đúng số tiền BT, nội dung “Thu BT-… cho DB-…/DV-…”, source_type `SALES_RECEIPT`, source_id là id BT. Gắn cash_doc_id và xác nhận BT cùng commit, kể cả audit. Thiếu ghép/lỗi ghi sổ rollback cả PT, sổ, số dư, bộ đếm và BT.
+
+`void` chỉ director, lý do/version bắt buộc, dùng `cash_posting.void_in_tx` cho PT đã gắn rồi hủy BT trong cùng transaction. Thiếu quỹ hoặc lỗi sau ghi đảo cũng rollback toàn bộ; BT vẫn DA_XAC_NHAN, công nợ chưa đổi. PT nguồn SALES_RECEIPT không được hủy trực tiếp qua `/thu-chi`: SOURCE_LOCKED; giao diện bỏ nút hủy và hướng dẫn hủy BT. Không sửa cash_posting.py hoặc stock_*.
+
+`report_for_ticket(session,user,ticket_id,SalesReceiptReport)` chỉ dispatcher/sales/director, phiếu HOAN_THANH/DA_DONG có receivable > 0, không miễn phí. Khóa ticket rồi kiểm version và tổng đã thu + chờ + số mới không vượt phải thu. `balance(order_or_ticket)` dùng chung, BT dịch vụ không lẫn công nợ đơn trùng id. Xác nhận/từ chối finance/director, tự xác nhận bị SELF_CONFIRM trừ director; void chỉ director. Mở lại hoặc hủy HOAN_THANH trong service_tickets.transition kiểm HAS_RECEIPTS sau khóa ticket, trước thay đổi vật tư/giá/trạng thái; chỉ khi đã từ chối/void hết mới được tiếp tục.
+
+API thêm `POST /service-tickets/{id}/receipts` (cùng body BT đơn, version của ticket, trả 201) và `GET /service-tickets/{id}/receipts` (balance/receipts). Các response SalesReceiptOut có order_id/ticket_id/cash_doc_id nullable. `service_charges.receivables` vẫn trả list ServiceTicket, bổ sung thuộc tính chỉ đọc paid/pending/remaining từ SQL GROUP BY; chỉ còn nợ > 0, tiền chờ chưa trừ. API `/service-tickets/receivables`, web/CSV `/dich-vu/can-thu` bổ sung Đã thu, Chờ xác nhận, Còn nợ; tổng là nợ còn lại.
+
+Web dịch vụ hoàn thành/đóng có thu tiền dùng chung `bao_thu_trong_don` với đơn bán. Hàng chờ `/bao-thu` có Nguồn DB/DV; BT đã xác nhận hiện số PT, finance/director có link `/thu-chi/{id}`, vai trò khác chỉ thấy số để giữ quyền T2. Lỗi giữ dữ liệu; mọi POST có CSRF/version. Fixture test chủ động ghép khi cần; production không tự ghép.
+
+| Mã | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| MAPPING_REQUIRED | 409 | “Giám đốc cần ghép quỹ và danh mục ở trang Ghép tài chính”; có link tới /ghep-tai-chinh |
+| NEGATIVE_CASH | 409 | Không đủ tiền đảo PT; details quỹ/số dư/số cần, BT/PT không đổi |
+| SOURCE_LOCKED | 409 | Phải hủy BT để ghi đảo PT nguồn báo thu |
+| BAD_STATUS | 409 | DV chưa hoàn thành/đã đóng có thu, miễn phí hoặc sai trạng thái BT |
+| OVER_PAYMENT | 409 | Đã thu + chờ + mới vượt phải thu; details available/paid/pending/remaining |
+| HAS_RECEIPTS | 409 | Tài chính phải từ chối hoặc hủy báo thu trước khi mở lại/hủy DV |
+| VERSION_CONFLICT / SELF_CONFIRM / REASON_REQUIRED / FORBIDDEN | 409 / 403 / 400 / 403 | Giữ quy tắc B4 cho cả DB/DV |

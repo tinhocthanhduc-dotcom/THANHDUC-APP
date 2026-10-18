@@ -99,6 +99,11 @@ def _draft(doc):
         raise BusinessError('DOC_VOID','Phiếu đã hủy, không được sửa hoặc hủy lại.',status=409)
 
 
+def check_source(doc):
+    if doc.source_type=='SALES_RECEIPT':
+        raise BusinessError('SOURCE_LOCKED','Phiếu thu này được tạo từ báo thu. Phải hủy báo thu để ghi đảo phiếu thu.',status=409)
+
+
 def _validate(session,user,body):
     _opening(user,body.is_opening)
     if body.kind=='CQ':
@@ -185,6 +190,7 @@ def cancel(session,user,doc_id,body):
     check_writer(user)
     with _transaction(session):
         doc = _load(session,doc_id,True)
+        check_source(doc)
         _opening(user,doc.is_opening)
         check_version(doc,body.version)
         _draft(doc)

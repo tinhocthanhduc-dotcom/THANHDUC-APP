@@ -614,13 +614,17 @@ class SalesReceipt(Base):
         CheckConstraint(_in('method', SALES_RECEIPT_METHODS), name='ck_sales_receipts_method'),
         CheckConstraint(_in('status', SALES_RECEIPT_STATUSES), name='ck_sales_receipts_status'),
         CheckConstraint('amount > 0', name='ck_sales_receipts_amount'),
+        CheckConstraint('(order_id is not null) <> (ticket_id is not null)', name='ck_sales_receipts_source'),
         Index('ix_sales_receipts_order_status', 'order_id', 'status'),
+        Index('ix_sales_receipts_ticket_status', 'ticket_id', 'status'),
         Index('ix_sales_receipts_status_reported', 'status', 'reported_at'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     number: Mapped[str] = mapped_column(String(32), unique=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
+    order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'))
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    cash_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
     method: Mapped[str] = mapped_column(String(16))
     amount: Mapped[int] = mapped_column(BigInteger)
     received_at: Mapped[date] = mapped_column(Date)

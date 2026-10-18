@@ -108,8 +108,9 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), can_receivables=has_role(user, *service_charges.VIEWERS), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action=""):
     from .charges import detail_context
+    from .receipts import ticket_context
     t = svc.load(session, user, ticket_id)
     dispatcher = has_role(user, *svc.DISPATCHERS)
     own = "technician" in user.roles and t.assignee_id == user.id and t.status != "HOAN_THANH"
@@ -149,7 +150,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   form=form or {}, failed_action=failed_action, error=error, error_code=error_code,
                   retained_fields=retained_fields if error and failed_action not in visible_actions else [],
                   saved=request.query_params.get("da_luu") == "1" and not error, status=status,
-                  **detail_context(session, user, t, charge_shown))
+                  **detail_context(session, user, t, charge_shown),
+                  **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
 
 
 # Đường dẫn /moi và các ô tìm/chọn được đăng ký trước /{ticket_id} ở cuối module.

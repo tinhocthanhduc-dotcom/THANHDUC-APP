@@ -47,3 +47,13 @@ def reject(receipt_id: int,body: SalesReceiptDecision,user: User=Depends(current
 @router.post('/sales-receipts/{receipt_id}/void',response_model=SalesReceiptOut)
 def void(receipt_id: int,body: SalesReceiptDecision,user: User=Depends(current_user),session: Session=Depends(get_session)):
     return svc.void(session,user,receipt_id,body.reason,body.version)
+
+
+@router.get('/service-tickets/{ticket_id}/receipts',response_model=SalesOrderReceipts)
+def for_ticket(ticket_id: int,user: User=Depends(current_user),session: Session=Depends(get_session)):
+    return svc.for_ticket(session,user,ticket_id)
+
+
+@router.post('/service-tickets/{ticket_id}/receipts',response_model=SalesReceiptOut,status_code=201)
+def report_for_ticket(ticket_id: int,body: SalesReceiptReport,user: User=Depends(current_user),session: Session=Depends(get_session)):
+    return svc.report_for_ticket(session,user,ticket_id,body)
