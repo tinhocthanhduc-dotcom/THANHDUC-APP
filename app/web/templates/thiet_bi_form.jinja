@@ -28,5 +28,6 @@
 </fieldset>
 {% if can_device_write %}<button class="primary">Lưu thiết bị</button>{% endif %}
 </form>
+{% if not is_new %}<section class="card service-action"><h2>Lịch sử giữ máy</h2>{% include 'giu_may_lich_su.jinja' %}</section>{% endif %}
 <script src="/static/devices.js" defer></script>
 {% endblock %}

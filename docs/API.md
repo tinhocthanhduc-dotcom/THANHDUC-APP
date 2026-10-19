@@ -612,3 +612,28 @@ Mã lỗi: `FORBIDDEN` (403), `NOT_FOUND` (404), `BAD_STATUS` (409), `VERSION_CO
 `TECH_WAREHOUSE_ONLY` (409) chỉ áp cho vật tư thợ thêm hoặc thay mã/kho/số lượng. Dòng kho công ty được điều phối lưu trước có thể giữ nguyên khi thợ bổ sung phí; không thể nhân bản dòng đó. Lưu dòng tiền/vật tư cũng tăng version phiếu, kể cả không thay cách thu.
 
 Web: `/yeu-cau-linh-kien` (Kho), các form yêu cầu/hủy trên `/dich-vu/{id}` đều có CSRF. `/dieu-phoi?view=paused` và `/dieu-phoi/bao-cao?status=TAM_DUNG&from=YYYY-MM-DD&to=YYYY-MM-DD` có lý do tạm dừng; báo cáo lọc các phiếu còn tạm dừng có bước tạm dừng gần nhất trong kỳ, theo giờ Việt Nam.
+
+## Giữ máy khách (KT4)
+
+Máy khách chỉ nằm trong `equipment_custody`, không lập chứng từ kho/quỹ và không thay tồn. Một máy chỉ có một bàn giao `CHO_NHAN`; khóa theo phiếu dịch vụ → thiết bị → dòng bàn giao. Bộ đệm `equipment.custody_location/holder_id/ticket_id` chỉ đổi cùng transaction với dòng `DA_NHAN`.
+
+Theo xác nhận của thẻ, bảng không cho sửa nội dung hoặc xóa. Trigger chỉ cho chốt **một lần** `CHO_NHAN → DA_NHAN/DA_HUY`, chỉ đổi `status`, `confirmed_by`, `confirmed_at`, `version` (+1). Mọi dòng đã chốt bất biến. Hủy bàn giao không đổi người đang giữ.
+
+| API | Nội dung và quyền |
+| --- | --- |
+| GET `/service-tickets/{id}/custody` | Lịch sử giữ máy; điều phối/kho/giám đốc, thợ được giao hoặc người tham gia giữ máy |
+| POST `/service-tickets/{id}/custody/receive` | `{version, accessories, accessories_note, condition_note}`; version **thiết bị**. Thợ được giao/điều phối nhận về khi phiếu mở, có serial; ghi `THO_GIU`, `DA_NHAN` ngay cho thợ được giao |
+| POST `/service-tickets/{id}/custody/handover` | `{version, location, holder_id?, partner_name?, expected_back?, accessories?, accessories_note?, condition_note?}`; version **thiết bị**. Người giữ/điều phối tạo chờ nhận. Kho kỹ thuật do thủ kho/điều phối giao tiếp, đối tác do điều phối xử lý. Nội dung bỏ trống kế thừa lần nhận trước |
+| POST `/equipment-custody/{id}/confirm` | `{version}` của **dòng bàn giao**. Thợ nhận phải đúng `holder_id`; kho kỹ thuật do kho/điều phối, đối tác do điều phối xác nhận |
+| POST `/equipment-custody/{id}/cancel` | `{version}` của **dòng bàn giao**; chỉ người giao hủy khi còn chờ |
+| POST `/service-tickets/{id}/custody/return` | `{version, accessories, accessories_note?, condition_note?}`; version **thiết bị**. Chỉ thợ thực sự đang giữ máy trả khách, không cần là thợ được giao sửa |
+
+`accessories` bắt buộc khai báo danh sách mã (`DAY_NGUON`, `KHAY_GIAY`, `HOP_MUC`, `DAY_USB`, `KHAC`); `[]` nghĩa là xác nhận không kèm phụ kiện. Web có nút Không kèm phụ kiện; không được chọn đồng thời nút đó và phụ kiện. `KHAC` phải có ghi chú. Khi trả, đối chiếu với **lần nhận khách mở chu kỳ**, kể cả phụ kiện đã thay đổi ở các lần bàn giao; thiếu phải ghi chú, vẫn được trả.
+
+Ảnh bắt buộc là JPEG/PNG/WEBP, không dùng PDF hay ảnh đã ẩn. Thêm tag `NHAN_MAY`, `TRA_MAY` vào API tệp; khuyến nghị `POST /attachments` với `entity=equipment_custody`, **`entity_id` là id phiếu dịch vụ**, `tag`, `file`. Đây là vùng ảnh giữ máy riêng: thợ B nhận máy của thợ A đọc/tải ảnh giữ máy được, không đọc ảnh sửa chữa, tiền hoặc chuyển trạng thái phiếu của A. `NHAN_MAY` do thợ được giao/điều phối tải, `TRA_MAY` do thợ đang giữ tải. Ảnh của chu kỳ đã trả trước không thay thế ảnh nhận/trả mới. API vẫn nhận ảnh đúng tag ở entity `service_ticket` với quyền tệp hiện hữu.
+
+Chuyển sang `HOAN_THANH`, `KHONG_LAM_DUOC`, `DA_HUY`, `DA_DONG` kiểm máy đã về `TAI_KHACH` trước khi kết thúc. Người chỉ được giao giữ máy bị `FORBIDDEN` (403) khi sửa phiếu, còn mở toàn bộ phiếu sửa của người khác vẫn 404. Đường đi Không sửa, trả máy: trả máy rồi mới Không làm được.
+
+Mã lỗi tiếng Việt: `SERIAL_REQUIRED`, `CONDITION_REQUIRED`, `ACCESSORIES_REQUIRED`, `BAD_ACCESSORIES`, `PARTNER_REQUIRED`, `BAD_HOLDER`/`BAD_ASSIGNEE`, `BAD_LOCATION`, `PHOTO_REQUIRED`, `BAD_FILE_TYPE`, `MISSING_ACCESSORIES` (kèm danh sách thiếu), `REASON_REQUIRED`, `MACHINE_HELD` (409, kèm phiếu đang giữ), `HANDOVER_PENDING` (409), `MACHINE_NOT_RETURNED` (409), `VERSION_CONFLICT` (409), `BAD_STATUS` (409), `SAME_HOLDER` (409), `FORBIDDEN` (403), `NOT_FOUND` (404).
+
+Web: khối Máy khách trên `/dich-vu/{id}`; `/giu-may/{id}` chỉ có thao tác giữ máy để người nhận không cần quyền sửa phiếu. Mọi POST có CSRF, gồm tải ảnh. `/thiet-bi/{serial}` có lịch sử; `/may-dang-giu?location=...` chỉ điều phối/kho/giám đốc, đỏ khi quá 7 ngày **từ lúc nhận khách trong chu kỳ hiện tại** (đổi người giữ không đặt lại tuổi) hoặc quá `expected_back`, theo giờ Việt Nam. Việc của tôi có Máy tôi đang giữ, Máy chờ tôi nhận, Máy chờ nhận vào kho kỹ thuật. Audit `custody.receive/handover/confirm/cancel/return` và `equipment.custody` lưu trước/sau trong cùng transaction.

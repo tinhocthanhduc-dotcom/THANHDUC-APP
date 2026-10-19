@@ -9,7 +9,7 @@
 </form>
 {% endfor %}
 </div><p class="hint">Chọn hoặc chụp ảnh, rồi bấm Tải. Ảnh JPEG, PNG, WEBP; tệp khác có thể là PDF.</p>{% endif %}
-{% for tag, label in [('TRUOC','Ảnh trước'), ('SAU','Ảnh sau sửa'), ('KHAC','Tệp khác'), ('BIEN_BAN','Biên bản')] %}
+{% for tag, label in [('TRUOC','Ảnh trước'), ('SAU','Ảnh sau sửa'), ('KHAC','Tệp khác'), ('BIEN_BAN','Biên bản'), ('NHAN_MAY','Ảnh nhận máy'), ('TRA_MAY','Ảnh trả máy')] %}
 {% set group = files|selectattr('tag', 'equalto', tag)|list %}
 {% if group %}<h3>{{ label }}</h3><div class="photo-gallery">
 {% for file in group %}<article class="photo-item">

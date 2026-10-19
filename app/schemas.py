@@ -521,6 +521,9 @@ class EquipmentOut(EquipmentFields):
     model_config = ConfigDict(from_attributes=True)
 
     serial: str
+    custody_location: str
+    custody_holder_id: int | None
+    custody_ticket_id: int | None
     version: int
     created_by: int
     created_at: datetime
@@ -1045,3 +1048,52 @@ class PartRequestOut(BaseModel):
     decision_note: str
     created_at: datetime
     version: int
+
+
+CustodyLocation = Literal['TAI_KHACH', 'THO_GIU', 'KHO_KY_THUAT', 'DOI_TAC']
+Accessory = Literal['DAY_NGUON', 'KHAY_GIAY', 'HOP_MUC', 'DAY_USB', 'KHAC']
+
+
+class CustodyIntake(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    accessories: list[Accessory] = Field(max_length=5)
+    accessories_note: str = Field(default='', max_length=2000)
+    condition_note: str = Field(default='', max_length=2000)
+
+
+class CustodyHandover(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    location: CustodyLocation
+    holder_id: int | None = Field(default=None, ge=1)
+    partner_name: str = Field(default='', max_length=300)
+    expected_back: date | None = None
+    accessories: list[Accessory] | None = Field(default=None, max_length=5)
+    accessories_note: str | None = Field(default=None, max_length=2000)
+    condition_note: str | None = Field(default=None, max_length=2000)
+
+
+class CustodyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    serial: str
+    ticket_id: int
+    location: CustodyLocation
+    holder_id: int | None
+    partner_name: str
+    expected_back: date | None
+    accessories: list[str]
+    accessories_note: str
+    condition_note: str
+    status: str
+    created_by: int
+    created_at: datetime
+    confirmed_by: int | None
+    confirmed_at: datetime | None
+    version: int
+
+
+class CustodyVersion(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    version: int = Field(ge=1)

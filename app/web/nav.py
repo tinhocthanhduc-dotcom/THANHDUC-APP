@@ -11,13 +11,14 @@ from ..security import has_role
 GROUPS = (
     {'label': '', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
-        {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi',), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
+        {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
     )},
     {'label': 'Bán hàng', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban',), 'roles': ('sales', 'warehouse', 'finance')},
     )},
     {'label': 'Dịch vụ', 'items': (
+        {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
         {'label': 'Dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
         {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),

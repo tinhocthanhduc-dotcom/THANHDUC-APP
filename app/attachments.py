@@ -22,7 +22,7 @@ from .schemas import AttachmentOut
 from .security import has_role
 from .stock_docs import _transaction
 
-TAGS = ("TRUOC", "SAU", "BIEN_BAN", "KHAC")
+TAGS = ("TRUOC", "SAU", "BIEN_BAN", "KHAC", "NHAN_MAY", "TRA_MAY")
 MAX_SIDE = 1600
 MAX_PIXELS = 60_000_000  # chặn ảnh "bom" giải nén
 HIDERS = ("dispatcher",)
@@ -41,8 +41,13 @@ def _stock_doc(session: Session, user: User, entity_id: str, write: bool):
         raise BusinessError("FORBIDDEN", "Chỉ Kho được thêm tệp cho phiếu kho.", status=403)
 
 
+def _custody(session: Session, user: User, entity_id: str, write: bool):
+    from .equipment_custody import load
+    load(session,user,int(entity_id))
+
+
 # Loại chứng từ được đính kèm và cách kiểm quyền xem/ghi của từng loại.
-TARGETS = {"service_ticket": _service_ticket, "stock_doc": _stock_doc}
+TARGETS = {"service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
 
 
 def _check(session: Session, user: User, entity: str, entity_id: str, write: bool):
@@ -86,8 +91,17 @@ def add(session: Session, user: User, entity: str, entity_id: str, tag: str, fil
         raise BusinessError("EMPTY_FILE", "Tệp rỗng.")
     if len(data) > get_settings().max_upload_mb * 1024 * 1024:
         raise BusinessError("FILE_TOO_LARGE", "Tệp quá lớn.", {"max_mb": get_settings().max_upload_mb})
+    if entity == 'equipment_custody' or tag in ('NHAN_MAY','TRA_MAY'):
+        from .equipment_custody import check_photo
+        if not str(entity_id).isdigit():
+            raise BusinessError('BAD_ENTITY','Mã phiếu giữ máy chưa hợp lệ.')
+        if entity not in ('equipment_custody','service_ticket') or tag not in ('NHAN_MAY','TRA_MAY'):
+            raise BusinessError('BAD_TAG','Mục giữ máy chỉ nhận ảnh nhận máy hoặc trả máy.')
+        check_photo(session,user,int(entity_id),write=True,tag=tag)
     _check(session, user, entity, entity_id, write=True)
     content, content_type, ext, width, height = _prepare(data)
+    if tag in ('NHAN_MAY','TRA_MAY') and not content_type.startswith('image/'):
+        raise BusinessError('BAD_FILE_TYPE','Ảnh nhận và trả máy phải là ảnh JPEG, PNG hoặc WEBP.')
     now = datetime.now(UTC)
     rel = f"{entity}/{now:%Y/%m}/{uuid.uuid4().hex}.{ext}"
     target = _root() / rel

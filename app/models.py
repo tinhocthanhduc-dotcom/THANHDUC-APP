@@ -438,6 +438,8 @@ class Equipment(Base):
     __tablename__ = "equipment"
     __table_args__ = (
         CheckConstraint("condition in ('MOI','CU')", name="ck_equipment_condition"),
+        CheckConstraint("custody_location in ('TAI_KHACH','THO_GIU','KHO_KY_THUAT','DOI_TAC')", name="ck_equipment_custody_location"),
+        CheckConstraint("(custody_location = 'THO_GIU') = (custody_holder_id is not null)", name="ck_equipment_custody_holder"),
         Index("ix_equipment_search", "search_text", postgresql_using="gin", postgresql_ops={"search_text": "gin_trgm_ops"}),
     )
 
@@ -450,6 +452,9 @@ class Equipment(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     search_text: Mapped[str] = mapped_column(Text, default="")
+    custody_location: Mapped[str] = mapped_column(String(16), default='TAI_KHACH', server_default='TAI_KHACH')
+    custody_holder_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    custody_ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id', name='fk_equipment_custody_ticket', use_alter=True), index=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -1023,3 +1028,36 @@ class PartRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1)
     __mapper_args__ = {"version_id_col": version}
+
+
+class EquipmentCustody(Base):
+    """KT4: lịch sử nhận và bàn giao máy khách, tách khỏi tồn kho công ty."""
+    __tablename__ = 'equipment_custody'
+    __table_args__ = (
+        CheckConstraint("location in ('TAI_KHACH','THO_GIU','KHO_KY_THUAT','DOI_TAC')", name='ck_custody_location'),
+        CheckConstraint("(location = 'THO_GIU') = (holder_id is not null)", name='ck_custody_holder'),
+        CheckConstraint("location <> 'DOI_TAC' or btrim(partner_name) <> ''", name='ck_custody_partner'),
+        CheckConstraint("status in ('CHO_NHAN','DA_NHAN','DA_HUY')", name='ck_custody_status'),
+        CheckConstraint("accessories <@ ARRAY['DAY_NGUON','KHAY_GIAY','HOP_MUC','DAY_USB','KHAC']::varchar[]", name='ck_custody_accessories'),
+        CheckConstraint("(status = 'CHO_NHAN' and confirmed_by is null and confirmed_at is null) or (status <> 'CHO_NHAN' and confirmed_by is not null and confirmed_at is not null)", name='ck_custody_confirmation'),
+        Index('uq_custody_pending_serial', 'serial', unique=True, postgresql_where=text("status = 'CHO_NHAN'")),
+        Index('ix_custody_serial_id', 'serial', 'id'),
+        Index('ix_custody_ticket_id', 'ticket_id'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    serial: Mapped[str] = mapped_column(ForeignKey('equipment.serial'))
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'))
+    location: Mapped[str] = mapped_column(String(16))
+    holder_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    partner_name: Mapped[str] = mapped_column(String(300), default='')
+    expected_back: Mapped[date | None] = mapped_column(Date)
+    accessories: Mapped[list[str]] = mapped_column(ARRAY(String(16)))
+    accessories_note: Mapped[str] = mapped_column(Text, default='')
+    condition_note: Mapped[str] = mapped_column(Text, default='')
+    status: Mapped[str] = mapped_column(String(8))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    confirmed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {'version_id_col': version}
