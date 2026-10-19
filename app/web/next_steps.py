@@ -4,9 +4,9 @@ from ..errors import BusinessError
 from ..security import has_role
 
 
-def permitted(check, user):
+def permitted(check, user, *args):
     try:
-        check(user)
+        check(user, *args)
         return True
     except BusinessError:
         return False
@@ -22,6 +22,10 @@ def link(label, href, hint=''):
 
 def block(primary, secondary=()):
     return dict(primary=primary, secondary=list(secondary)) if primary else None
+
+
+def ticket_report_label(user, ticket):
+    return 'Báo đã thu' if has_role(user,'technician') and ticket.assignee_id == user.id else 'Báo thu'
 
 
 def quote(user, q, linked):
@@ -72,8 +76,8 @@ def service(session, user, t):
     if t.status in ('HOAN_THANH','DA_DONG'):
         balance=sales_receipts.balance(t) if t.receivable else None
         available=balance['remaining']-balance['pending'] if balance else 0
-        if t.priced_at and available>0 and permitted(sales_receipts.check_ticket_reporter,user):
-            return block(form('Báo thu','receipt-report',base+'/bao-thu','Kiểm tra số tiền và cách thu trong mục Thu tiền trước khi báo.'))
+        if t.priced_at and available>0 and permitted(sales_receipts.check_ticket_reporter,user,t):
+            return block(form(ticket_report_label(user,t),'receipt-report',base+'/bao-thu','Kiểm tra số tiền và cách thu trong mục Thu tiền trước khi báo.'))
         if dispatcher and t.status=='HOAN_THANH':return block(transition('Đóng phiếu','DA_DONG'))
     return None
 

@@ -2691,7 +2691,7 @@ def test_t3_web_ticket_overpay_version_csrf_reopen_and_void_origin(client,db,t3_
     assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'csrf':''}).status_code==403
     assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'amount':'500.000','version':1}).status_code==409
     csrf=service_login(client,p['technician'])
-    assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'csrf':csrf}).status_code==403
+    assert client.post(f'/dich-vu/{t.id}/bao-thu',data={**data,'csrf':csrf}).status_code==409  # KT1: thợ được báo, nhưng vẫn vượt số phải thu.
     r=report(db,p,t,500000)
     sales_receipts.confirm(db,p['finance'],r.id,r.version)
     csrf=service_login(client,p['dispatcher'])
