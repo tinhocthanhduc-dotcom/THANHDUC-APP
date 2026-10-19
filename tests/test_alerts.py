@@ -110,6 +110,8 @@ def test_customer_limit_allowed_debt_and_no_debt_even_high_limit(db,people):
 def test_customer_debt_age_reuses_sales_aging_and_paid_disappears(db,people,monkeypatch,days,severity):
     p=people;configure_receipts(db,p)
     clock(monkeypatch,NOW-timedelta(days=days));o=fee(db,p,100000)
+    # Khoản cũ có hạn 30 ngày theo migration S3; giữ cùng ngưỡng cảnh báo cũ.
+    o.payment_term='CONG_NO';o.due_days=30;db.commit()
     found=rows(db,p,'KHACH_NO_QUA_HAN')
     assert (found[0]['level'] if found else None)==severity
     r=report(db,p,o,o.receivable,NOW)

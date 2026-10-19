@@ -17,15 +17,18 @@ from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, Product, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
-from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn
+from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
 from ..security import has_role
 from . import checked_form, money, render, web_user
 from .quotes import _quantity
-from .receipts import order_context
+from .receipts import order_context, _report_body
 
 from . import next_steps
 
 router = APIRouter()
+FULFILLMENTS = {'TAI_QUAY':'Tại quầy','KHACH_LAY_SAU':'Khách lấy sau','THO_GIAO':'Thợ giao','VAN_CHUYEN':'Gửi vận chuyển'}
+PAYMENTS = {'TRA_NGAY':'Trả ngay','DAT_COC':'Đặt cọc','CONG_NO':'Công nợ'}
+
 STATUSES = {'NHAP':'Nháp','DA_CHOT':'Đã chốt','GIAO_MOT_PHAN':'Giao một phần','DA_GIAO':'Đã giao','DA_HUY':'Đã hủy'}
 
 
@@ -66,7 +69,7 @@ def _error(exc):
         return message,exc.code,exc.status
     loc=exc.errors()[0]['loc']
     labels={'qty':'Số lượng','unit_price':'Đơn giá','vat_rate':'VAT','kind':'Loại dòng','warehouse_code':'Kho',
-            'customer_code':'Khách hàng','contact_name':'Người liên hệ','delivery_address':'Địa chỉ giao',
+            'customer_code':'Khách hàng','fulfillment':'Cách nhận hàng','payment_term':'Thanh toán','due_days':'Số ngày nợ','deposit_amount':'Tiền cọc','carrier_name':'Đơn vị vận chuyển','tracking_code':'Mã vận đơn','contact_name':'Người liên hệ','delivery_address':'Địa chỉ giao',
             'description':'Mô tả','unit':'Đơn vị','product_code':'Mã hàng','lines':'Dòng đơn bán','warehouses':'Kho'}
     message=labels.get(str(loc[-1]),'Dữ liệu')+' chưa hợp lệ, hãy kiểm tra lại.'
     if len(loc)>1 and isinstance(loc[1],int) and loc[0]=='lines':
@@ -86,16 +89,28 @@ def _active_order(session, quote_id):
 def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action=''):
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
-            customer_code='',contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[])
+            customer_code='',contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
+            fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days=30,deposit_amount='')
         for line in data['lines']:
             line['unit_price']=money(line['unit_price'])
+        if data.get('deposit_amount') not in (None,''):
+            data['deposit_amount']=money(data['deposit_amount'])
     customer=session.get(Customer,data['customer_code']) if data['customer_code'] else None
     codes={l.get('product_code') for l in data['lines'] if l.get('product_code')}
     shipments=svc.deliveries(session,order.id) if order else []
     ids={l.stock_doc_id for g in shipments for l in g.lines if l.stock_doc_id}
     source=quotes.load(session,request.state.user,order.quote_id) if order and order.quote_id and has_role(request.state.user,'sales','finance') else None
     receipt_ctx=order_context(session,request.state.user,order,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action)
-    return render(request,'don_ban_form.jinja',deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
+    deposit_remaining=0
+    if order and order.payment_term=='DAT_COC' and receipt_ctx['collection']:
+        balance=receipt_ctx['collection']['balance']
+        deposit_remaining=max(0,order.deposit_amount-balance['paid']-balance['pending'])
+        if deposit_remaining>0:
+            receipt_ctx['receipt_report_label']='Báo thu cọc'
+            if receipt_form is None:
+                receipt_ctx['receipt_data']['amount']=money(min(deposit_remaining,receipt_ctx['available']))
+    return render(request,'don_ban_form.jinja',fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+                  order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
                   customer_name=customer.name if customer else '',source=source,
@@ -103,7 +118,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]),
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
-                  next_step=next_steps.order(request.state.user,order,receipt_ctx['available']),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
+                  next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
                   warehouses=_warehouses(session),can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse'),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
@@ -120,7 +135,8 @@ def _raw(form):
         lines.append(line)
     return dict(customer_code=str(form.get('customer_code','')),contact_name=str(form.get('contact_name','')),
                 delivery_address=str(form.get('delivery_address','')),note=str(form.get('note','')),promised_date=str(form.get('promised_date','')),
-                version=str(form.get('version','')),lines=lines)
+                version=str(form.get('version','')),lines=lines,fulfillment=str(form.get('fulfillment','TAI_QUAY')),
+                payment_term=str(form.get('payment_term','TRA_NGAY')),due_days=str(form.get('due_days','30')),deposit_amount=str(form.get('deposit_amount','')))
 
 
 def _body(data):
@@ -135,12 +151,22 @@ def _body(data):
             raise BusinessError('BAD_VAT',f'VAT dòng {i} phải là 0, 5, 8 hoặc 10%.')
         lines.append({**line,'qty':line['qty'].replace(',','.'),'unit_price':int(price.replace('.','')) if price else None,'vat_rate':vat})
     return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines,
-                promised_date=data.get('promised_date') or None)
+                promised_date=data.get('promised_date') or None,fulfillment=data.get('fulfillment','TAI_QUAY'),
+                payment_term=data.get('payment_term','TRA_NGAY'),due_days=data.get('due_days','30'),
+                deposit_amount=_deposit(data.get('deposit_amount','')))
+
+
+def _deposit(value):
+    value=str(value or '').strip()
+    if not value:return None
+    if not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)',value) or len(value.replace('.',''))>19:
+        raise BusinessError('BAD_DEPOSIT','Tiền cọc phải là số nguyên đồng, có thể dùng dấu chấm hàng nghìn.')
+    return int(value.replace('.',''))
 
 
 @router.get('/don-ban')
 def listing(request: Request,q: str='',status: str='',phan: int=0,
-            from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,
+            from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,fulfillment: str='',overdue: bool=False,
             user: User=Depends(order_user),session: Session=Depends(get_session)):
     error=code=None
     http_status=200
@@ -149,13 +175,14 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
             start,end=(date.fromisoformat(v) if v else None for v in (from_date,to_date))
         except ValueError:
             raise BusinessError('BAD_DATE_RANGE','Khoảng ngày chưa hợp lệ, hãy nhập ngày theo lịch.')
-        rows=svc.search(session,user,q[:200],status or None,from_date=start,to_date=end,holding=holding)
+        rows=svc.search(session,user,q[:200],status or None,from_date=start,to_date=end,holding=holding,fulfillment=fulfillment or None,overdue=overdue)
     except BusinessError as exc:
         rows=[]
         error,code,http_status=_error(exc)
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({r.customer_code for r in rows}))).all())
     return render(request,'don_ban_dong.jinja' if phan else 'don_ban_ds.jinja',rows=rows,names=names,q=q,
-                  selected_status=status,statuses=STATUSES,from_date=from_date,to_date=to_date,holding=holding,today=svc._today(),
+                  selected_status=status,statuses=STATUSES,fulfillments=FULFILLMENTS,selected_fulfillment=fulfillment,overdue=overdue,
+                  summaries=svc.summaries(session,rows),from_date=from_date,to_date=to_date,holding=holding,today=svc._today(),
                   can_write=has_role(user,'sales'),can_receivables=has_role(user,'sales','finance'),error=error,error_code=code,status=http_status)
 
 
@@ -278,13 +305,23 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             svc.set_promised_date(session,user,order_id,body.promised_date,version)
         elif action=='cancel':
             svc.cancel(session,user,order_id,str(form.get('reason','')),version)
+        elif action=='options':
+            values={k:str(form[k]) for k in svc.TERM_FIELDS if k in form}
+            if 'deposit_amount' in values:values['deposit_amount']=_deposit(values['deposit_amount'])
+            svc.change_options(session,user,order_id,SalesOrderOptions(version=version,**values))
+        elif action=='counter-sale':
+            raw={k:str(form.get(k,'')) for k in ('version','method','amount','received_at','note')}
+            body=SalesCounterSale(**_report_body(form,raw).model_dump())
+            svc.counter_sale(session,user,order_id,body)
         elif action=='confirm':
-            svc.confirm(session,user,order_id,version)
+            body=SalesOrderConfirm(version=version,credit_override_reason=str(form.get('credit_override_reason','')))
+            svc.confirm(session,user,order_id,version,body.credit_override_reason)
         elif action=='deliver':
             rows=[dict(order_line_no=int(k[8:]),qty=str(v).replace(',','.')) for k,v in form.items() if re.fullmatch(r'deliver_[0-9]+',k)]
             body=SalesDeliveryIn(version=version,lines=rows if rows or 'delivery_form' in form else None,
-                receiver_name=str(form.get('receiver_name','')),note=str(form.get('note','')))
-            svc.deliver(session,user,order_id,version,body.lines,body.receiver_name,body.note)
+                receiver_name=str(form.get('receiver_name','')),note=str(form.get('note','')),
+                carrier_name=str(form.get('carrier_name','')),tracking_code=str(form.get('tracking_code','')))
+            svc.deliver(session,user,order_id,version,body.lines,body.receiver_name,body.note,body.carrier_name,body.tracking_code)
         else:
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác đơn bán.',status=404)
     except (BusinessError,ValidationError) as exc:

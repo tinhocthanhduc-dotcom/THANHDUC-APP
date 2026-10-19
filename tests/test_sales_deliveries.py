@@ -203,8 +203,12 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     spec=importlib.util.spec_from_file_location('s2_migration',file)
     migration=importlib.util.module_from_spec(spec);spec.loader.exec_module(migration)
     assert migration.down_revision=='0027'
+    s3_spec=importlib.util.spec_from_file_location('s3_migration',file.parent/'0029_s3_ban_tai_quay.py')
+    s3=importlib.util.module_from_spec(s3_spec);s3_spec.loader.exec_module(s3)
     with engine.begin() as conn:
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
+        monkeypatch.setattr(s3,'op',Operations(MigrationContext.configure(conn)))
+        s3.downgrade()
         migration.downgrade()
         assert conn.scalar(text('select receivable from sales_orders where id=:id'),dict(id=wid))==waiting_total
         migration.upgrade()
@@ -216,6 +220,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         assert conn.scalar(text('select receivable from sales_orders where id=:id'),dict(id=wid))==0
         old_bt=conn.execute(text('select number,amount,status,version from sales_receipts where id=:id'),dict(id=bt_id)).one()
         assert tuple(old_bt)==(bt_number,100,'CHO_XAC_NHAN',bt_version)
+        s3.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

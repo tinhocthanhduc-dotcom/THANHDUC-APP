@@ -2,7 +2,7 @@
 from datetime import date, datetime, time, timedelta
 from urllib.parse import quote, urlencode
 
-from sqlalchemy import case, exists, func, literal, select
+from sqlalchemy import Date, case, cast, exists, func, literal, select, union_all
 
 from . import config, dashboard, day_closings, finance_reports, purchase_reports, sales_reports, service_tickets, stock_reservations
 from .models import (CashDoc, Customer, Product, PurchaseOrder, SalesReceipt, ServiceTicket,
@@ -101,12 +101,19 @@ def collect(session,user,today=None,now=None) -> list[dict]:
             lambda r:(f"{r['name']} vượt hạn mức",f"Còn nợ {_money(r['remaining'])} đồng; "+
                 (f"hạn mức {_money(r['credit_limit'])} đồng." if r['allow_debt'] else 'khách không được nợ.'),_customer_link(r['link_key'])))
 
-        debts=sales_reports._debts(user,today)
+        sales=sales_reports._debts(user,today)
+        # Đơn bán tính theo hạn riêng; dịch vụ vẫn quá 30 ngày như trước.
+        all_debts=finance_reports._debts()
+        service_days=func.greatest(0,literal(today,type_=Date)-all_debts.c.day-config.ALERT_DEBT_DAYS)
+        debts=union_all(select(sales.c.customer_code,sales.c.remaining,sales.c.days,
+                cast(func.timezone('Asia/Ho_Chi_Minh',sales.c.confirmed_at),Date).label('oldest')),
+            select(all_debts.c.customer_code,all_debts.c.remaining,service_days,all_debts.c.day)
+                .where(all_debts.c.kind=='DV')).subquery()
         add('KHACH_NO_QUA_HAN',select(Customer.code.label('link_key'),Customer.name,func.sum(debts.c.remaining).label('amount'),
-            func.max(debts.c.days).label('days'),func.min(debts.c.confirmed_at).label('oldest'),
-            case((func.max(debts.c.days)>60,'DO'),else_='VANG').label('level'))
-            .join(debts,debts.c.customer_code==Customer.code).where(debts.c.days>config.ALERT_DEBT_DAYS).group_by(Customer.code),
-            lambda r:(f"{r['name']} nợ quá hạn",f"{_money(r['amount'])} đồng quá {config.ALERT_DEBT_DAYS} ngày; khoản cũ nhất {r['days']} ngày.",_customer_link(r['link_key'])))
+            func.max(debts.c.days).label('days'),func.min(debts.c.oldest).label('oldest'),
+            case((func.max(debts.c.days)>config.ALERT_DEBT_DAYS,'DO'),else_='VANG').label('level'))
+            .join(debts,debts.c.customer_code==Customer.code).where(debts.c.days>0).group_by(Customer.code),
+            lambda r:(f"{r['name']} nợ quá hạn",f"{_money(r['amount'])} đồng; khoản cũ nhất quá hạn {r['days']} ngày.",_customer_link(r['link_key'])))
 
         ncc=purchase_reports._aging(today,overdue_days=config.ALERT_DEBT_DAYS).subquery()
         add('NCC_NO_QUA_HAN',select(ncc.c.supplier_code.label('link_key'),ncc.c.name,ncc.c.overdue,ncc.c.oldest,literal('VANG').label('level'))

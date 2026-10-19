@@ -617,7 +617,14 @@ class SalesOrderLineIn(QuoteLineIn):
         return None if isinstance(value, str) and not value.strip() else value
 
 
-class SalesOrderIn(BaseModel):
+class SalesOrderTerms(BaseModel):
+    fulfillment: Literal['TAI_QUAY','KHACH_LAY_SAU','THO_GIAO','VAN_CHUYEN'] = 'TAI_QUAY'
+    payment_term: Literal['TRA_NGAY','DAT_COC','CONG_NO'] = 'TRA_NGAY'
+    due_days: int = Field(default=30, ge=0, le=180)
+    deposit_amount: int | None = Field(default=None, strict=True, ge=0, le=9_223_372_036_854_775_807)
+
+
+class SalesOrderIn(SalesOrderTerms):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     customer_code: str = Field(min_length=1, max_length=16)
     promised_date: date | None = None
@@ -639,7 +646,7 @@ class SalesOrderCancel(SalesOrderVersion):
     reason: str = Field(default='', max_length=2000)
 
 
-class SalesOrderFromQuote(QuoteVersion):
+class SalesOrderFromQuote(SalesOrderTerms, QuoteVersion):
     """version là phiên bản báo giá; warehouses ánh xạ line_no sang kho xuất."""
     warehouses: dict[Annotated[int, Field(ge=1)], Annotated[str, Field(max_length=16)]] = Field(default_factory=dict, max_length=200)
     promised_date: date | None = None
@@ -648,7 +655,19 @@ class SalesOrderFromQuote(QuoteVersion):
     note: str | None = Field(default=None, max_length=4000)
 
 
-class SalesOrderUpdate(SalesOrderVersion):
+class SalesOrderOptions(SalesOrderVersion):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    fulfillment: Literal['TAI_QUAY','KHACH_LAY_SAU','THO_GIAO','VAN_CHUYEN'] | None = None
+    payment_term: Literal['TRA_NGAY','DAT_COC','CONG_NO'] | None = None
+    due_days: int | None = Field(default=None, ge=0, le=180)
+    deposit_amount: int | None = Field(default=None, strict=True, ge=0, le=9_223_372_036_854_775_807)
+
+
+class SalesOrderConfirm(SalesOrderVersion):
+    credit_override_reason: str = Field(default='', max_length=2000)
+
+
+class SalesOrderUpdate(SalesOrderOptions):
     promised_date: date | None = None
     contact_name: str | None = Field(default=None, max_length=200)
     delivery_address: str | None = Field(default=None, max_length=2000)
@@ -666,7 +685,9 @@ class SalesOrderLineOut(SalesOrderLineIn):
     stock_doc_id: int | None
 
 
-class SalesOrderOut(BaseModel):
+class SalesOrderOut(SalesOrderTerms):
+    credit_override_by: int | None
+    credit_override_reason: str
     model_config = ConfigDict(from_attributes=True)
     id: int
     number: str
@@ -738,6 +759,8 @@ class SalesOrderReceipts(BaseModel):
 
 
 class SalesReceivableOut(BaseModel):
+    due_date: date | None = None
+    overdue_days: int = 0
     order: SalesOrderOut
     balance: SalesReceiptBalance
     days: int
@@ -1116,6 +1139,8 @@ class SalesDeliveryLineIn(BaseModel):
 
 
 class SalesDeliveryIn(SalesOrderVersion):
+    carrier_name: str = Field(default='', max_length=200)
+    tracking_code: str = Field(default='', max_length=100)
     lines: list[SalesDeliveryLineIn] | None = Field(default=None, max_length=200)
     receiver_name: str = Field(default='', max_length=200)
     note: str = Field(default='', max_length=4000)
@@ -1133,6 +1158,8 @@ class SalesDeliveryLineOut(BaseModel):
 
 
 class SalesDeliveryOut(BaseModel):
+    carrier_name: str
+    tracking_code: str
     model_config = ConfigDict(from_attributes=True)
     id: int
     number: str
@@ -1150,3 +1177,7 @@ class SalesDeliveryOut(BaseModel):
     voided_at: datetime | None
     version: int
     lines: list[SalesDeliveryLineOut]
+
+
+class SalesCounterSale(SalesReceiptReport):
+    pass

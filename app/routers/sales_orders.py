@@ -7,7 +7,7 @@ from .. import sales_orders as svc, stock_reservations
 from ..db import get_session
 from ..models import User
 from ..schemas import (SalesOrderCancel, SalesOrderFromQuote, SalesOrderIn, SalesOrderOut,
-                       SalesOrderUpdate, SalesOrderVersion, SalesOrderPromise, SalesDeliveryIn, SalesDeliveryOut)
+                       SalesOrderUpdate, SalesOrderVersion, SalesOrderPromise, SalesDeliveryIn, SalesDeliveryOut, SalesOrderConfirm, SalesOrderOptions, SalesCounterSale)
 from ..security import current_user
 
 router = APIRouter(prefix='/sales-orders', tags=['Đơn bán'])
@@ -17,8 +17,8 @@ router = APIRouter(prefix='/sales-orders', tags=['Đơn bán'])
 def search(q: str = '', status: str | None = None, customer_code: str | None = None,
            from_date: date | None = Query(default=None, alias='from'),
            to_date: date | None = Query(default=None, alias='to'),
-           holding: bool = False, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.search(session, user, q, status, customer_code, from_date, to_date, holding)
+           holding: bool = False, fulfillment: str | None = None, overdue: bool = False, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.search(session, user, q, status, customer_code, from_date, to_date, holding, fulfillment, overdue)
 
 
 @router.get('/{order_id}', response_model=SalesOrderOut)
@@ -42,13 +42,13 @@ def update_lines(order_id: int, body: SalesOrderUpdate, user: User = Depends(cur
 
 
 @router.post('/{order_id}/confirm', response_model=SalesOrderOut)
-def confirm(order_id: int, body: SalesOrderVersion, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.confirm(session, user, order_id, body.version)
+def confirm(order_id: int, body: SalesOrderConfirm, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.confirm(session, user, order_id, body.version, body.credit_override_reason)
 
 
 @router.post('/{order_id}/deliver', response_model=SalesOrderOut)
 def deliver(order_id: int, body: SalesDeliveryIn, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.deliver(session, user, order_id, body.version, body.lines, body.receiver_name, body.note)
+    return svc.deliver(session, user, order_id, body.version, body.lines, body.receiver_name, body.note, body.carrier_name, body.tracking_code)
 
 
 @router.post('/{order_id}/cancel', response_model=SalesOrderOut)
@@ -85,3 +85,13 @@ def void_delivery(delivery_id: int, body: SalesOrderCancel, user: User = Depends
 def deliveries(order_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
     svc.load(session,user,order_id)
     return svc.deliveries(session,order_id)
+
+
+@router.patch('/{order_id}/options', response_model=SalesOrderOut)
+def options(order_id: int, body: SalesOrderOptions, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.change_options(session,user,order_id,body)
+
+
+@router.post('/{order_id}/counter-sale', response_model=SalesOrderOut)
+def counter_sale(order_id: int, body: SalesCounterSale, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.counter_sale(session,user,order_id,body)

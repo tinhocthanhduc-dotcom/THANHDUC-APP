@@ -26,6 +26,22 @@ PREFIXES = {
 }
 
 
+def lock_counter(session: Session, prefix: str, doc_date: date) -> None:
+    """Khóa bộ đếm trước các khóa nghiệp vụ, chưa cấp hoặc tiêu tốn số.
+
+    Luồng gộp nhiều thao tác phải khóa theo cùng thứ tự với luồng thông thường.
+    Khởi tạo ở 0 vẫn để next_number cấp số 1 và được rollback cùng giao dịch.
+    """
+    if prefix not in PREFIXES:
+        raise BusinessError("UNKNOWN_DOC_TYPE", "Loại chứng từ không tồn tại.", {"prefix": prefix})
+    params = {"p": prefix, "y": doc_date.year}
+    session.execute(text(
+        "insert into doc_counters (prefix, year, last) values (:p, :y, 0) "
+        "on conflict (prefix, year) do nothing"), params)
+    session.execute(text(
+        "select last from doc_counters where prefix = :p and year = :y for update"), params)
+
+
 def next_number(session: Session, prefix: str, doc_date: date) -> str:
     """Tăng bộ đếm trong transaction của người gọi.
 

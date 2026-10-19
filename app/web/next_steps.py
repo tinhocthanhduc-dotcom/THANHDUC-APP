@@ -40,12 +40,14 @@ def quote(user, q, linked):
     return None
 
 
-def order(user, o, available=0):
+def order(user, o, available=0, deposit_remaining=0):
     if o is None:
         return block(form('Lưu đơn bán', 'order-edit', '/don-ban/moi')) if permitted(sales_orders.check_writer,user) else None
     base=f'/don-ban/{o.id}'
     if o.status=='NHAP' and permitted(sales_orders.check_writer,user):
         return block(form('Chốt đơn', 'order-confirm', base+'/confirm', 'Lưu thay đổi và chọn đủ kho trước khi chốt.'))
+    if o.status in ('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO') and deposit_remaining>0 and permitted(sales_orders.check_writer,user):
+        return block(form('Báo thu cọc','receipt-report',base+'/bao-thu','Đã điền sẵn phần cọc còn cần báo. Không chặn giao hàng.'))
     if o.status in ('DA_CHOT','GIAO_MOT_PHAN') and has_role(user,*sales_orders.DELIVERERS):
         return block(form('Giao hàng', 'order-deliver', base+'/deliver'))
     if o.status in ('GIAO_MOT_PHAN','DA_GIAO') and available>0 and permitted(sales_orders.check_writer,user):

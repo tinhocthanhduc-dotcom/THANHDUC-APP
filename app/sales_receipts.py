@@ -88,20 +88,25 @@ def _record(session, user, receipt, action, before, reason=''):
 def report(session: Session, user, order_id, body: SalesReceiptReport):
     sales_orders.check_writer(user)
     with _transaction(session):
-        order = sales_orders._load(session, order_id, lock=True)
-        sales_orders._version(order, body.version)
-        if order.status not in ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'):
-            raise BusinessError('BAD_STATUS', 'Chỉ báo thu cho đơn đã chốt hoặc đã giao.', status=409)
-        current = balance(order)
-        if current['paid'] + current['pending'] + body.amount > sales_orders.effective_total(order):
-            raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số phải thu của đơn.',
-                                current, status=409)
-        received = body.received_at or _today()
-        receipt = SalesReceipt(number=next_number(session, 'BT', received), order_id=order.id,
-                     method=body.method, amount=body.amount, received_at=received, note=body.note,
-                     status='CHO_XAC_NHAN', reason='', reported_by=user.id)
-        session.add(receipt)
-        _record(session, user, receipt, 'report', None)
+        return report_in_tx(session,user,order_id,body)
+
+
+def report_in_tx(session, user, order_id, body: SalesReceiptReport):
+    sales_orders.check_writer(user)
+    order = sales_orders._load(session, order_id, lock=True)
+    sales_orders._version(order, body.version)
+    if order.status not in ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'):
+        raise BusinessError('BAD_STATUS', 'Chỉ báo thu cho đơn đã chốt hoặc đã giao.', status=409)
+    current = balance(order)
+    if current['paid'] + current['pending'] + body.amount > sales_orders.effective_total(order):
+        raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số phải thu của đơn.',
+                            current, status=409)
+    received = body.received_at or _today()
+    receipt = SalesReceipt(number=next_number(session, 'BT', received), order_id=order.id,
+                 method=body.method, amount=body.amount, received_at=received, note=body.note,
+                 status='CHO_XAC_NHAN', reason='', reported_by=user.id)
+    session.add(receipt)
+    _record(session, user, receipt, 'report', None)
     return receipt
 
 
@@ -254,10 +259,10 @@ def receivables(session: Session, user):
         raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh, kế toán hoặc giám đốc được xem đơn cần thu.', status=403)
     paid,pending = _sums()
     totals = select(SalesReceipt.order_id,paid.label('paid'),pending.label('pending')).group_by(SalesReceipt.order_id).subquery()
-    stmt = (select(SalesOrder,func.coalesce(totals.c.paid,0),func.coalesce(totals.c.pending,0),sales_orders.first_delivery()).options(selectinload(SalesOrder.lines))
+    stmt = (select(SalesOrder,func.coalesce(totals.c.paid,0),func.coalesce(totals.c.pending,0),sales_orders.first_delivery(),sales_orders.due_date_sql()).options(selectinload(SalesOrder.lines))
             .outerjoin(totals, totals.c.order_id == SalesOrder.id)
             .where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable > func.coalesce(totals.c.paid,0))
             .order_by(sales_orders.first_delivery(),SalesOrder.id))
     return [dict(order=o,balance=_balance(o.receivable,pay,wait),
-                 days=max(0,(_today()-first.astimezone(TZ).date()).days))
-            for o,pay,wait,first in session.execute(stmt)]
+                 days=max(0,(_today()-first.astimezone(TZ).date()).days),due_date=due,overdue_days=max(0,(_today()-due).days))
+            for o,pay,wait,first,due in session.execute(stmt)]
