@@ -1,0 +1,17 @@
+# Chạy trên máy văn phòng, ra Internet qua Cloudflare Tunnel (không mở cổng modem, không cần IP tĩnh).
+# Dùng kèm file chính:
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.tunnel.yml --env-file deploy/.env up -d --build
+# Trong trang Cloudflare, tên miền phụ trỏ tới dịch vụ HTTP, địa chỉ api:8000.
+services:
+  # Cloudflare lo HTTPS nên không bật Caddy và không chiếm cổng 80/443 của máy.
+  caddy:
+    profiles: ["vps"]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Đặt TUNNEL_TOKEN trong deploy/.env}
+    depends_on:
+      - api
