@@ -46,9 +46,9 @@ def order(user, o, available=0):
     base=f'/don-ban/{o.id}'
     if o.status=='NHAP' and permitted(sales_orders.check_writer,user):
         return block(form('Chốt đơn', 'order-confirm', base+'/confirm', 'Lưu thay đổi và chọn đủ kho trước khi chốt.'))
-    if o.status=='DA_CHOT' and has_role(user,*sales_orders.DELIVERERS):
+    if o.status in ('DA_CHOT','GIAO_MOT_PHAN') and has_role(user,*sales_orders.DELIVERERS):
         return block(form('Giao hàng', 'order-deliver', base+'/deliver'))
-    if o.status=='DA_GIAO' and available>0 and permitted(sales_orders.check_writer,user):
+    if o.status in ('GIAO_MOT_PHAN','DA_GIAO') and available>0 and permitted(sales_orders.check_writer,user):
         return block(form('Báo thu', 'receipt-report', base+'/bao-thu', 'Kiểm tra số tiền và cách thu trong mục Thu tiền trước khi báo.'))
     return None
 

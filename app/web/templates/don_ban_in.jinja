@@ -3,13 +3,13 @@
 {% block main %}
 <div class="bar report-tools"><a href="/don-ban/{{ o.id }}">← Đơn bán</a><button type="button" onclick="window.print()">In / Lưu PDF</button></div>
 <article class="acceptance-report quote-print">
-<header><h2>{{ company.company_name }}</h2><p>{{ company.company_address }}</p><p>MST: {{ company.company_tax_code }} · Tel: {{ company.company_phone }} · Hotline: {{ company.company_hotline }}</p><h1>PHIẾU GIAO HÀNG</h1><p>Số đơn: <strong>{{ o.number }}</strong> · Ngày: {{ issued }}</p></header>
-<p>Trạng thái: {{ statuses[o.status] }}</p><dl><dt>Khách hàng</dt><dd>{{ customer.name }}</dd><dt>Mã khách hàng</dt><dd>{{ customer.code }}</dd><dt>Người liên hệ</dt><dd>{{ o.contact_name or '—' }}</dd><dt>Địa chỉ giao</dt><dd class="service-text">{{ o.delivery_address or '—' }}</dd></dl>
+<header><h2>{{ company.company_name }}</h2><p>{{ company.company_address }}</p><p>MST: {{ company.company_tax_code }} · Tel: {{ company.company_phone }} · Hotline: {{ company.company_hotline }}</p><h1>PHIẾU GIAO HÀNG</h1><p>Số giao: <strong>{{ gh.number }}</strong> · Số đơn: <strong>{{ o.number }}</strong> · Ngày: {{ issued }}</p></header>
+<p>Người nhận: {{ gh.receiver_name or '—' }}</p><p>Trạng thái: {{ statuses[o.status] }}</p><dl><dt>Khách hàng</dt><dd>{{ customer.name }}</dd><dt>Mã khách hàng</dt><dd>{{ customer.code }}</dd><dt>Người liên hệ</dt><dd>{{ o.contact_name or '—' }}</dd><dt>Địa chỉ giao</dt><dd class="service-text">{{ o.delivery_address or '—' }}</dd></dl>
 <table class="quote-print-table"><thead><tr><th>STT</th><th>Hàng hóa / dịch vụ</th><th>Số lượng</th><th>ĐVT</th><th>Đơn giá</th><th>VAT</th><th>Tiền dòng</th></tr></thead><tbody>
-{% for line in o.lines %}<tr><td data-label="STT">{{ line.line_no }}</td><td data-label="Hàng hóa / dịch vụ">{% if line.product_code %}{{ line.product_code }} · {% endif %}{{ line.description }}</td><td data-label="Số lượng">{{ quantity(line.qty) }}</td><td data-label="ĐVT">{{ line.unit }}</td><td data-label="Đơn giá">{{ line.unit_price|money }}</td><td data-label="VAT">{{ line.vat_rate }}%</td><td data-label="Tiền dòng">{{ line.amount|money }}</td></tr>{% endfor %}
+{% for line in lines %}<tr><td data-label="STT">{{ line.line_no }}</td><td data-label="Hàng hóa / dịch vụ">{% if line.product_code %}{{ line.product_code }} · {% endif %}{{ line.description }}</td><td data-label="Số lượng">{{ quantity(line.qty) }}</td><td data-label="ĐVT">{{ line.unit }}</td><td data-label="Đơn giá">{{ line.unit_price|money }}</td><td data-label="VAT">{{ line.vat_rate }}%</td><td data-label="Tiền dòng">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
-<dl><dt>Tiền hàng</dt><dd>{{ o.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ o.vat_total|money }} đồng</dd><dt><strong>Tổng cộng</strong></dt><dd><strong>{{ o.total|money }} đồng</strong></dd></dl>
-<p><strong>Bằng chữ:</strong> {{ words }}.</p>{% if o.note %}<h2>Ghi chú</h2><p class="service-text">{{ o.note }}</p>{% endif %}
+<dl><dt>Tiền hàng</dt><dd>{{ gh.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ gh.vat_total|money }} đồng</dd><dt><strong>Tổng cộng</strong></dt><dd><strong>{{ gh.total|money }} đồng</strong></dd></dl>
+<p><strong>Bằng chữ:</strong> {{ words }}.</p>{% if gh.note %}<h2>Ghi chú lần giao</h2><p class="service-text">{{ gh.note }}</p>{% endif %}{% if o.note %}<h2>Ghi chú</h2><p class="service-text">{{ o.note }}</p>{% endif %}
 <div class="report-signatures"><section><h2>Người giao</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Người nhận</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
 </article>
 {% endblock %}

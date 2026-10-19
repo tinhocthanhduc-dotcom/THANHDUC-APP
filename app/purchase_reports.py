@@ -6,7 +6,7 @@ from sqlalchemy import Date, Numeric, case, cast, func, literal, select, union, 
 from . import finance_reports, supplier_debts
 from .errors import BusinessError
 from .models import (Customer, Product, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, PurchaseReceiptLine,
-                     PurchaseReturn, PurchaseReturnLine, SalesOrder, SalesOrderLine, ServiceLine,
+                     PurchaseReturn, PurchaseReturnLine, SalesDelivery, SalesDeliveryLine, SalesOrder, SalesOrderLine, ServiceLine,
                      ServiceTicket, StockDoc, StockLedger, Supplier, SupplierOpeningDebt)
 from .sales_reports import _window
 from .security import has_role
@@ -141,10 +141,11 @@ def aging_totals(session, user, as_of=None):
 
 
 def _margin_sources(start, end):
-    sales = select(literal('DB').label('kind'), SalesOrder.id, SalesOrder.number, SalesOrder.customer_code,
-        cast(func.timezone('Asia/Ho_Chi_Minh', SalesOrder.delivered_at),Date).label('day'),
-        SalesOrder.subtotal.label('revenue'), literal('THU_TIEN').label('billing')).where(
-        SalesOrder.status=='DA_GIAO', *_window(SalesOrder.delivered_at,start,end))
+    sales = select(literal('GH').label('kind'), SalesDelivery.id, SalesDelivery.number, SalesOrder.customer_code,
+        cast(func.timezone('Asia/Ho_Chi_Minh', SalesDelivery.delivered_at),Date).label('day'),
+        SalesDelivery.subtotal.label('revenue'), literal('THU_TIEN').label('billing')).join(
+        SalesOrder,SalesOrder.id==SalesDelivery.order_id).where(
+        SalesDelivery.status=='DA_GIAO', *_window(SalesDelivery.delivered_at,start,end))
     service_amounts = select(ServiceLine.ticket_id,func.sum(ServiceLine.amount).label('amount')).group_by(ServiceLine.ticket_id).subquery()
     services = select(literal('DV'),ServiceTicket.id,ServiceTicket.number,ServiceTicket.customer_code,
         cast(func.timezone('Asia/Ho_Chi_Minh',ServiceTicket.priced_at),Date),
@@ -153,8 +154,8 @@ def _margin_sources(start, end):
         ServiceTicket.status.in_(('HOAN_THANH','DA_DONG')),ServiceTicket.priced_at.is_not(None),*_window(ServiceTicket.priced_at,start,end))
     documents = union_all(sales,services).cte('margin_documents')
     # Một PX có thể gắn nhiều dòng, kể cả nhiều dòng cùng mã. Khử trùng trước khi nối sổ.
-    links = union(select(literal('DB').label('kind'),SalesOrderLine.order_id.label('id'),SalesOrderLine.stock_doc_id.label('doc_id'))
-            .where(SalesOrderLine.stock_doc_id.is_not(None)),
+    links = union(select(literal('GH').label('kind'),SalesDeliveryLine.delivery_id.label('id'),SalesDeliveryLine.stock_doc_id.label('doc_id'))
+            .where(SalesDeliveryLine.stock_doc_id.is_not(None)),
         select(literal('DV'),ServiceLine.ticket_id,ServiceLine.stock_doc_id).where(ServiceLine.stock_doc_id.is_not(None))).subquery()
     cost = (select(documents.c.kind,documents.c.id,StockLedger.product_code,(-func.sum(StockLedger.amount)).label('cost'))
         .select_from(documents).join(links,(links.c.kind==documents.c.kind)&(links.c.id==documents.c.id))
@@ -182,10 +183,10 @@ def gross_margin(session, user, start=None, end=None):
         .order_by(query.c.day,query.c.kind,query.c.id))
     total=_rows(session,select(func.count().label('documents'),
         *_margin_columns(func.coalesce(func.sum(query.c.revenue),0),func.coalesce(func.sum(query.c.cost),0))).select_from(query))[0]
-    def goods(model,kind,parent,key):
-        return (select(model.product_code,model.amount.label('revenue'),literal(0).label('cost')).select_from(model)
-            .join(documents,(documents.c.kind==kind)&(documents.c.id==parent)).where(model.kind==key))
-    sales=goods(SalesOrderLine,'DB',SalesOrderLine.order_id,'HANG')
+    sales=(select(SalesOrderLine.product_code,SalesDeliveryLine.amount.label('revenue'),literal(0).label('cost'))
+        .select_from(SalesDeliveryLine).join(SalesOrderLine,(SalesOrderLine.order_id==SalesDeliveryLine.order_id)&
+            (SalesOrderLine.line_no==SalesDeliveryLine.order_line_no))
+        .join(documents,(documents.c.kind=='GH')&(documents.c.id==SalesDeliveryLine.delivery_id)).where(SalesOrderLine.kind=='HANG'))
     services=(select(ServiceLine.product_code,case((documents.c.billing=='MIEN_PHI',0),else_=ServiceLine.amount),literal(0))
         .select_from(ServiceLine).join(documents,(documents.c.kind=='DV')&(documents.c.id==ServiceLine.ticket_id)).where(ServiceLine.kind=='VAT_TU'))
     product_events=union_all(sales,services,select(costs.c.product_code,literal(0),costs.c.cost)).subquery()

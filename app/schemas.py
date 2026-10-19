@@ -657,6 +657,7 @@ class SalesOrderUpdate(SalesOrderVersion):
 
 
 class SalesOrderLineOut(SalesOrderLineIn):
+    closed_qty: Decimal = Decimal(0)
     model_config = ConfigDict(from_attributes=True)
     line_no: int
     unit_price: int
@@ -727,6 +728,8 @@ class SalesReceiptBalance(BaseModel):
     paid: int
     pending: int
     remaining: int
+    advance: int = 0
+    available: int = 0
 
 
 class SalesOrderReceipts(BaseModel):
@@ -1105,3 +1108,45 @@ class CustodyOut(BaseModel):
 class CustodyVersion(BaseModel):
     model_config = ConfigDict(extra='forbid')
     version: int = Field(ge=1)
+
+
+class SalesDeliveryLineIn(BaseModel):
+    order_line_no: int = Field(gt=0)
+    qty: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
+
+
+class SalesDeliveryIn(SalesOrderVersion):
+    lines: list[SalesDeliveryLineIn] | None = Field(default=None, max_length=200)
+    receiver_name: str = Field(default='', max_length=200)
+    note: str = Field(default='', max_length=4000)
+
+
+class SalesDeliveryLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    order_id: int
+    order_line_no: int
+    qty: Decimal
+    amount: int
+    vat_amount: int
+    warehouse_code: str | None
+    stock_doc_id: int | None
+
+
+class SalesDeliveryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    order_id: int
+    delivered_at: datetime
+    delivered_by: int
+    receiver_name: str
+    note: str
+    subtotal: int
+    vat_total: int
+    total: int
+    status: str
+    void_reason: str
+    voided_by: int | None
+    voided_at: datetime | None
+    version: int
+    lines: list[SalesDeliveryLineOut]

@@ -23,6 +23,7 @@ def order(db,people,monkeypatch):
     o=orders.create(db,people['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[
         dict(kind='KHAC',description='Đơn một triệu',qty=1,unit_price=1000000,vat_rate=0)]))
     orders.confirm(db,people['sales'],o.id,o.version)
+    orders.deliver(db,people['sales'],o.id,o.version)
     return o
 
 
@@ -42,10 +43,10 @@ def test_two_reports_capacity_numbers_and_balance(db,people,order):
     b=report(db,people['sales'],order,400000)
     assert [a.number,b.number]==['BT-26-00001','BT-26-00002']
     assert a.status=='CHO_XAC_NHAN' and a.version==1 and a.received_at==date(2026,10,18)
-    assert svc.balance(order)==dict(receivable=1000000,paid=0,pending=1000000,remaining=1000000)
+    assert svc.balance(order)==dict(receivable=1000000,paid=0,pending=1000000,remaining=1000000,advance=0,available=0)
     assert fail('OVER_PAYMENT',report,db,people['sales'],order,1).status==409
     assert db.query(SalesReceipt).count()==2
-    assert order.receivable==1000000 and order.version==2
+    assert order.receivable==1000000 and order.version==3
 
 
 def test_report_only_confirmed_or_delivered(db,people):
@@ -59,7 +60,7 @@ def test_finance_confirmation_balance_pending_and_remaining(db,people,order):
     a=report(db,people['sales'],order,600000)
     b=report(db,people['sales'],order,400000)
     svc.confirm(db,people['finance'],a.id,a.version)
-    assert svc.balance(order)==dict(receivable=1000000,paid=600000,pending=400000,remaining=400000)
+    assert svc.balance(order)==dict(receivable=1000000,paid=600000,pending=400000,remaining=400000,advance=0,available=0)
     assert a.decided_by==people['finance'].id and a.decided_at is not None and a.version==2
     assert [r.id for r in svc.list_pending(db,people['finance'])]==[b.id]
     svc.confirm(db,people['finance'],b.id,b.version)
@@ -90,6 +91,8 @@ def test_self_confirmation_and_director_exception(db,people,order,make_user):
 
 
 def test_cancel_blocked_until_pending_rejected_or_confirmed_voided(db,people,order):
+    gh=orders.deliveries(db,order.id)[0]
+    orders.void_delivery(db,people['director'],gh.id,'Chưa giao',gh.version)
     pending=report(db,people['sales'],order,600000)
     confirmed=report(db,people['sales'],order,400000)
     svc.confirm(db,people['finance'],confirmed.id,confirmed.version)
@@ -151,6 +154,8 @@ def test_concurrent_reports_lock_order_not_only_receipts(db,engine,people,order)
 
 
 def test_report_cancel_race_never_leaves_receipt_on_cancelled_order(db,engine,people,order):
+    gh=orders.deliveries(db,order.id)[0]
+    orders.void_delivery(db,people['director'],gh.id,'Chưa giao',gh.version)
     oid,uid,version=order.id,people['sales'].id,order.version
     barrier=Barrier(2)
     def attempt(action):
@@ -177,7 +182,7 @@ def test_pending_filters_oldest_and_receivables_age(db,people,order):
     b=svc.report(db,people['sales'],order.id,SalesReceiptReport(version=order.version,method='CHUYEN_KHOAN',amount=200000,received_at=date(2026,10,2)))
     a.reported_at=datetime(2026,10,3,tzinfo=UTC)
     b.reported_at=datetime(2026,10,4,tzinfo=UTC)
-    order.confirmed_at=datetime(2026,10,10,16,tzinfo=UTC)
+    orders.deliveries(db,order.id)[0].delivered_at=datetime(2026,10,10,16,tzinfo=UTC)
     db.commit()
     assert [r.id for r in svc.list_pending(db,people['finance'])]==[a.id,b.id]
     assert [r.id for r in svc.list_pending(db,people['finance'],'CHUYEN_KHOAN',date(2026,10,2),date(2026,10,2))]==[b.id]
@@ -236,8 +241,9 @@ def test_receivables_oldest_first_and_pending_is_still_debt(db,people,order):
     older=orders.create(db,people['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[
         dict(kind='KHAC',description='Đơn cũ',qty=1,unit_price=1000000,vat_rate=0)]))
     orders.confirm(db,people['sales'],older.id,older.version)
-    order.confirmed_at=datetime(2026,10,10,16,tzinfo=UTC)
-    older.confirmed_at=datetime(2026,10,1,16,tzinfo=UTC)
+    orders.deliver(db,people['sales'],older.id,older.version)
+    orders.deliveries(db,order.id)[0].delivered_at=datetime(2026,10,10,16,tzinfo=UTC)
+    orders.deliveries(db,older.id)[0].delivered_at=datetime(2026,10,1,16,tzinfo=UTC)
     db.commit()
     pending=report(db,people['sales'],older,1000000)
     rows=svc.receivables(db,people['finance'])

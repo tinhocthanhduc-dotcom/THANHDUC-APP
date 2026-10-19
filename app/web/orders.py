@@ -15,9 +15,9 @@ from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, SalesOrder, StockDoc, User, VAT_RATES, Warehouse
+from ..models import Customer, Product, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
-from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise
+from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn
 from ..security import has_role
 from . import checked_form, money, render, web_user
 from .quotes import _quantity
@@ -26,7 +26,7 @@ from .receipts import order_context
 from . import next_steps
 
 router = APIRouter()
-STATUSES = {'NHAP':'Nháp','DA_CHOT':'Đã chốt','DA_GIAO':'Đã giao','DA_HUY':'Đã hủy'}
+STATUSES = {'NHAP':'Nháp','DA_CHOT':'Đã chốt','GIAO_MOT_PHAN':'Giao một phần','DA_GIAO':'Đã giao','DA_HUY':'Đã hủy'}
 
 
 def order_user(user: User = Depends(web_user)):
@@ -91,10 +91,13 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
             line['unit_price']=money(line['unit_price'])
     customer=session.get(Customer,data['customer_code']) if data['customer_code'] else None
     codes={l.get('product_code') for l in data['lines'] if l.get('product_code')}
-    ids={l.stock_doc_id for l in order.lines if l.stock_doc_id} if order else set()
+    shipments=svc.deliveries(session,order.id) if order else []
+    ids={l.stock_doc_id for g in shipments for l in g.lines if l.stock_doc_id}
     source=quotes.load(session,request.state.user,order.quote_id) if order and order.quote_id and has_role(request.state.user,'sales','finance') else None
     receipt_ctx=order_context(session,request.state.user,order,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action)
-    return render(request,'don_ban_form.jinja',o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
+    return render(request,'don_ban_form.jinja',deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
+                  can_void_delivery=has_role(request.state.user,'director'),
+                  can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
                   customer_name=customer.name if customer else '',source=source,
                   reservations=stock_reservations.for_order(session,order) if order else {},
                   stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]),
@@ -249,7 +252,7 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
 @router.post('/don-ban/{order_id}/{action}')
 def action(request: Request,order_id: int,action: str,form=Depends(checked_form),session: Session=Depends(get_session)):
     user=request.state.user
-    if action in ('reserve','release'):
+    if action in ('reserve','release','close-remaining','void-delivery'):
         pass  # quyền theo người lập đơn/kho được kiểm trong module giữ hàng
     elif action=='deliver':
         if not has_role(user,'sales','warehouse'):
@@ -258,7 +261,15 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
         _writer(user)
     try:
         version=_version(form)
-        if action=='reserve':
+        if action=='void-delivery':
+            delivery_id=_reservation_id({'reservation_id':form.get('delivery_id')})
+            gh=session.get(SalesDelivery,delivery_id)
+            if gh is None or gh.order_id!=order_id:
+                raise BusinessError('NOT_FOUND','Không tìm thấy lần giao của đơn.',status=404)
+            svc.void_delivery(session,user,delivery_id,str(form.get('reason','')),version)
+        elif action=='close-remaining':
+            svc.close_remaining(session,user,order_id,str(form.get('reason','')),version)
+        elif action=='reserve':
             stock_reservations.keep_more(session,user,order_id,version)
         elif action=='release':
             stock_reservations.release(session,user,order_id,_reservation_id(form),str(form.get('reason','')),version)
@@ -270,7 +281,10 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
         elif action=='confirm':
             svc.confirm(session,user,order_id,version)
         elif action=='deliver':
-            svc.deliver(session,user,order_id,version)
+            rows=[dict(order_line_no=int(k[8:]),qty=str(v).replace(',','.')) for k,v in form.items() if re.fullmatch(r'deliver_[0-9]+',k)]
+            body=SalesDeliveryIn(version=version,lines=rows if rows or 'delivery_form' in form else None,
+                receiver_name=str(form.get('receiver_name','')),note=str(form.get('note','')))
+            svc.deliver(session,user,order_id,version,body.lines,body.receiver_name,body.note)
         else:
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác đơn bán.',status=404)
     except (BusinessError,ValidationError) as exc:
@@ -281,8 +295,34 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
 
 
 @router.get('/don-ban/{order_id}/in-giao')
-def print_delivery(request: Request,order_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
+def latest_print(order_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
     order=svc.load(session,user,order_id)
-    return render(request,'don_ban_in.jinja',o=order,customer=session.get(Customer,order.customer_code),
-                  company=get_settings(),quantity=_quantity,words=money_words(order.total),statuses=STATUSES,
-                  issued=(order.delivered_at or order.created_at).astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
+    rows=[g for g in svc.deliveries(session,order.id) if g.status=='DA_GIAO']
+    if not rows:
+        raise BusinessError('BAD_STATUS','Đơn chưa có lần giao để in.',status=409)
+    return RedirectResponse(f'/don-ban/{order_id}/giao/{rows[-1].id}/in',status_code=303)
+
+
+@router.get('/don-ban/{order_id}/giao/{delivery_id}/in')
+def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
+    order=svc.load(session,user,order_id)
+    gh=next((g for g in svc.deliveries(session,order.id) if g.id==delivery_id),None)
+    if gh is None:
+        raise BusinessError('NOT_FOUND','Không tìm thấy lần giao của đơn.',status=404)
+    original={l.line_no:l for l in order.lines}
+    lines=[dict(line_no=l.order_line_no,product_code=original[l.order_line_no].product_code,
+        description=original[l.order_line_no].description,qty=l.qty,unit=original[l.order_line_no].unit,
+        unit_price=original[l.order_line_no].unit_price,vat_rate=original[l.order_line_no].vat_rate,
+        amount=l.amount) for l in gh.lines]
+    return render(request,'don_ban_in.jinja',o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
+                  company=get_settings(),quantity=_quantity,words=money_words(gh.total),statuses=STATUSES,
+                  issued=gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
+
+
+@router.get('/don-ban/giao/{delivery_id}')
+def delivery_order(delivery_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
+    gh=session.get(SalesDelivery,delivery_id)
+    if gh is None:
+        raise BusinessError('NOT_FOUND','Không tìm thấy lần giao.',status=404)
+    svc.load(session,user,gh.order_id)
+    return RedirectResponse(f'/don-ban/{gh.order_id}',status_code=303)

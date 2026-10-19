@@ -151,7 +151,7 @@ def test_confirm_locks_prices_sets_receivable_and_empty_rejected(db, people):
     o = svc.create(db,u,body())
     v = o.version
     svc.confirm(db,u,o.id,v)
-    assert o.status == 'DA_CHOT' and o.receivable == o.total == 986000
+    assert o.status == 'DA_CHOT' and o.receivable == 0 and o.total == 986000
     assert o.confirmed_by == u.id and o.confirmed_at is not None and o.version == v+1
     assert failure('PRICE_LOCKED',svc.update_lines,db,u,o.id,SalesOrderUpdate(version=o.version,lines=[])).status == 409
     failure('BAD_STATUS',svc.confirm,db,u,o.id,o.version)
@@ -165,8 +165,8 @@ def test_deliver_two_warehouses_posts_px_and_stock(db, stocked):
     assert (o.subtotal,o.vat_total,o.total,o.receivable) == (1800000,176000,1976000,1976000)
     docs = list(db.scalars(select(StockDoc).where(StockDoc.kind=='PX').order_by(StockDoc.warehouse_code)))
     assert [(d.warehouse_code,d.status,d.customer_code) for d in docs] == [('K145','DA_GHI','KTD-000001'),('K58','DA_GHI','KTD-000001')]
-    assert {d.reason for d in docs} == {f'Giao đơn {o.number}'}
-    assert [d.lines[0].note for d in docs] == [f'{o.number} dòng 3',f'{o.number} dòng 1']
+    assert {d.reason for d in docs} == {f'Giao {svc.deliveries(db,o.id)[0].number} cho {o.number}'}
+    assert [d.lines[0].note for d in docs] == [f'{o.number} dòng 3; {svc.deliveries(db,o.id)[0].number}',f'{o.number} dòng 1; {svc.deliveries(db,o.id)[0].number}']
     assert len({l.stock_doc_id for l in o.lines if l.kind=='HANG'}) == 2 and o.lines[1].stock_doc_id is None
     assert balance(db,'K58','TD-0001') == (Decimal('3'),300000)
     assert balance(db,'K145','TD-0002') == (Decimal('2'),800000)
@@ -202,6 +202,8 @@ def test_cancel_delivered_restores_stock_and_keeps_history(db, stocked):
     svc.confirm(db,stocked['sales'],o.id,o.version)
     svc.deliver(db,stocked['sales'],o.id,o.version)
     doc_ids = {l.stock_doc_id for l in o.lines if l.kind=='HANG'}
+    gh=svc.deliveries(db,o.id)[0]
+    svc.void_delivery(db,stocked['director'],gh.id,'Hủy lần giao trước',gh.version)
     svc.cancel(db,stocked['sales'],o.id,'Khách trả hàng',o.version)
     assert o.status == 'DA_HUY' and o.receivable == 0 and o.total == 1976000
     assert {l.stock_doc_id for l in o.lines if l.kind=='HANG'} == doc_ids
@@ -270,12 +272,14 @@ def test_audit_every_order_operation(db, stocked):
     svc.update_lines(db,user,o.id,SalesOrderUpdate(version=o.version,lines=body().lines))
     svc.confirm(db,user,o.id,o.version)
     svc.deliver(db,user,o.id,o.version)
+    gh=svc.deliveries(db,o.id)[0]
+    svc.void_delivery(db,stocked['director'],gh.id,'Hủy lần giao trước',gh.version)
     svc.cancel(db,user,o.id,'Khách trả hàng',o.version)
     q=quote(db,user)
     svc.create_from_quote(db,user,q.id,SalesOrderFromQuote(version=q.version,warehouses={1:'K58'}))
     logs=list(db.scalars(select(AuditLog).where(AuditLog.entity=='sales_order').order_by(AuditLog.id)))
     assert [l.action for l in logs]==['sales_order.create','sales_order.update_lines','sales_order.confirm',
-            'sales_order.deliver','sales_order.cancel','sales_order.create_from_quote']
+            'sales_order.deliver','sales_order.void_delivery','sales_order.cancel','sales_order.create_from_quote']
     for log in logs:
         assert 'lines' in log.after and log.after['number'].startswith('DB-26-')
         if log.action in ('sales_order.create','sales_order.create_from_quote'):
@@ -299,10 +303,12 @@ def test_api_full_order_flow_and_from_quote(client, db, stocked):
     r=client.put(f'/sales-orders/{oid}/lines',headers=sales,json=dict(version=data['version'],lines=[GOOD,OTHER,SECOND]))
     assert r.status_code==200 and len(r.json()['lines'])==3
     r=client.post(f'/sales-orders/{oid}/confirm',headers=sales,json=dict(version=r.json()['version']))
-    assert r.status_code==200 and r.json()['receivable']==1976000
+    assert r.status_code==200 and r.json()['receivable']==0
     r=client.post(f'/sales-orders/{oid}/deliver',headers=warehouse,json=dict(version=r.json()['version']))
     assert r.status_code==200 and r.json()['status']=='DA_GIAO'
     assert {l['stock_doc_id'] for l in r.json()['lines'] if l['kind']=='HANG'} != {None}
+    gh=svc.deliveries(db,oid)[0]
+    r=client.post(f'/sales-orders/deliveries/{gh.id}/void',headers=headers(stocked['director']),json=dict(version=gh.version,reason='Hủy lần giao trước'))
     r=client.post(f'/sales-orders/{oid}/cancel',headers=sales,json=dict(version=r.json()['version'],reason='Khách trả hàng'))
     assert r.status_code==200 and r.json()['status']=='DA_HUY'
     assert balance(db,'K58','TD-0001')==(Decimal('5'),500000)
@@ -363,6 +369,8 @@ def test_group_same_warehouse_and_repeat_product_lines(db, stocked):
     assert len(docs)==1 and len(docs[0].lines)==2
     assert o.lines[0].stock_doc_id==o.lines[1].stock_doc_id==docs[0].id
     assert balance(db,'K58','TD-0001')==(Decimal('2'),200000)
+    gh=svc.deliveries(db,o.id)[0]
+    svc.void_delivery(db,stocked['director'],gh.id,'Hủy lần giao trước',gh.version)
     svc.cancel(db,stocked['sales'],o.id,'Trả đủ các dòng',o.version)
     assert balance(db,'K58','TD-0001')==(Decimal('5'),500000)
 
@@ -372,6 +380,8 @@ def test_other_only_order_delivers_and_cancels_without_stock(db, people):
     svc.confirm(db,people['sales'],o.id,o.version)
     svc.deliver(db,people['sales'],o.id,o.version)
     assert o.status=='DA_GIAO' and db.query(StockDoc).count()==0 and db.query(StockLedger).count()==0
+    gh=svc.deliveries(db,o.id)[0]
+    svc.void_delivery(db,people['director'],gh.id,'Hủy lần giao trước',gh.version)
     svc.cancel(db,people['sales'],o.id,'Khách hủy dịch vụ',o.version)
     assert o.receivable==0
 
@@ -389,7 +399,7 @@ def test_cancellation_rolls_back_all_reversals_on_failure(db, stocked, monkeypat
             raise BusinessError('DOC_NOT_POSTED','Phiếu xuất không còn ở trạng thái đã ghi.',status=409)
         return original(*args)
     monkeypatch.setattr(stock_posting,'void_in_tx',fail_second)
-    failure('DOC_NOT_POSTED',svc.cancel,db,stocked['sales'],o.id,'Khách trả hàng',o.version)
+    failure('DOC_NOT_POSTED',svc.void_delivery,db,stocked['director'],svc.deliveries(db,o.id)[0].id,'Khách trả hàng',1)
     assert len(calls)==2
     db.expire_all()
     assert o.status=='DA_GIAO' and o.version==version and o.receivable==o.total

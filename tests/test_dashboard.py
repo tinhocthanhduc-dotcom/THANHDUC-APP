@@ -32,7 +32,9 @@ def test_revenue_sales_services_status_free_and_month_to_today(db,people,monkeyp
     fee(db,p,250000);completed(db,p);completed(db,p,billing='MIEN_PHI')
     draft=sales_orders.create(db,p['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[dict(kind='KHAC',description='Chưa giao',qty=1,unit_price=9000000)]))
     sales_orders.confirm(db,p['sales'],draft.id,draft.version)
-    cancelled=fee(db,p,5000000);sales_orders.cancel(db,p['sales'],cancelled.id,'Hủy đơn',cancelled.version)
+    cancelled=fee(db,p,5000000);gh=sales_orders.deliveries(db,cancelled.id)[0]
+    sales_orders.void_delivery(db,p['director'],gh.id,'Hủy giao',gh.version)
+    sales_orders.cancel(db,p['sales'],cancelled.id,'Hủy đơn',cancelled.version)
     clock(monkeypatch,datetime(2026,10,2,9,tzinfo=svc.TZ));fee(db,p,100000);completed(db,p)
     clock(monkeypatch,datetime(2026,10,19,9,tzinfo=svc.TZ));fee(db,p,999999);completed(db,p)
     data=svc.summary(db,p['director'],DAY)

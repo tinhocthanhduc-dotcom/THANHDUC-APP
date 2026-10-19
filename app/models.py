@@ -549,7 +549,7 @@ class QuoteLine(Base):
     quote: Mapped['Quote'] = relationship(back_populates='lines')
 
 
-SALES_ORDER_STATUSES = ('NHAP', 'DA_CHOT', 'DA_GIAO', 'DA_HUY')
+SALES_ORDER_STATUSES = ('NHAP', 'DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO', 'DA_HUY')
 
 
 class SalesOrder(Base):
@@ -598,6 +598,7 @@ class SalesOrderLine(Base):
                         "(kind = 'KHAC' and product_code is null and warehouse_code is null)",
                         name='ck_sales_order_lines_product_warehouse'),
         CheckConstraint('qty > 0', name='ck_sales_order_lines_qty'),
+        CheckConstraint('closed_qty >= 0 and closed_qty <= qty', name='ck_sales_order_lines_closed_qty'),
         CheckConstraint('unit_price >= 0 and amount >= 0 and vat_amount >= 0', name='ck_sales_order_lines_money'),
         CheckConstraint(_in('vat_rate', VAT_RATES).replace("'", ''), name='ck_sales_order_lines_vat'),
         CheckConstraint("kind = 'HANG' or stock_doc_id is null", name='ck_sales_order_lines_stock_doc'),
@@ -610,6 +611,7 @@ class SalesOrderLine(Base):
     warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
     description: Mapped[str] = mapped_column(Text)
     qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    closed_qty: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=0, server_default=text('0'))
     unit: Mapped[str] = mapped_column(String(32))
     unit_price: Mapped[int] = mapped_column(BigInteger)
     vat_rate: Mapped[int] = mapped_column(Integer, default=0)
@@ -1108,3 +1110,45 @@ class StockReservation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SalesDelivery(Base):
+    __tablename__ = 'sales_deliveries'
+    __table_args__ = (
+        CheckConstraint("status in ('DA_GIAO','DA_HUY')", name='ck_sales_deliveries_status'),
+        CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_sales_deliveries_money'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'), index=True)
+    delivered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    delivered_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    receiver_name: Mapped[str] = mapped_column(String(200), default='')
+    note: Mapped[str] = mapped_column(Text, default='')
+    subtotal: Mapped[int] = mapped_column(BigInteger)
+    vat_total: Mapped[int] = mapped_column(BigInteger)
+    total: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16), default='DA_GIAO')
+    void_reason: Mapped[str] = mapped_column(Text, default='')
+    voided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    lines: Mapped[list['SalesDeliveryLine']] = relationship(order_by='SalesDeliveryLine.order_line_no', cascade='all, delete-orphan')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class SalesDeliveryLine(Base):
+    __tablename__ = 'sales_delivery_lines'
+    __table_args__ = (
+        ForeignKeyConstraint(['order_id','order_line_no'], ['sales_order_lines.order_id','sales_order_lines.line_no']),
+        CheckConstraint('qty > 0', name='ck_sales_delivery_lines_qty'),
+        CheckConstraint('amount >= 0 and vat_amount >= 0', name='ck_sales_delivery_lines_money'),
+    )
+    delivery_id: Mapped[int] = mapped_column(ForeignKey('sales_deliveries.id'), primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
+    order_line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    qty: Mapped[Decimal] = mapped_column(Numeric(14,3))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'))

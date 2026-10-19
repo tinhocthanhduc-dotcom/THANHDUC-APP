@@ -197,6 +197,10 @@ def void(session: Session, user: User, doc_id: int, reason: str, version: int | 
             raise BusinessError('SOURCE_LOCKED', 'Phiếu nhập từ đơn mua phải hủy lần nhận trên đơn mua.', status=409)
         if session.scalar(select(PurchaseReturn.id).where(PurchaseReturn.stock_doc_id == doc_id, PurchaseReturn.status == 'DA_GHI')) is not None:
             raise BusinessError('SOURCE_LOCKED', 'Phiếu xuất trả NCC phải hủy phiếu trả hàng trên đơn mua.', status=409)
+        from .models import SalesDelivery, SalesDeliveryLine
+        if session.scalar(select(SalesDelivery.id).join(SalesDeliveryLine).where(SalesDeliveryLine.stock_doc_id==doc_id,
+                SalesDelivery.status=='DA_GIAO')) is not None:
+            raise BusinessError('SOURCE_LOCKED','Phiếu xuất giao hàng phải hủy lần giao trên đơn bán.',status=409)
         doc = void_in_tx(session, user, doc_id, reason, version)
     return doc
 

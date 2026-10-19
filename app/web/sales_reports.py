@@ -92,7 +92,7 @@ def download(request: Request,table: str,user: User=Depends(report_user),session
         for r in svc.aging(session,user):
             writer.writerow([r['label'],r['orders'],r['remaining'],r['pending']])
     elif table=='don-no':
-        writer.writerow(['Số đơn','Khách hàng','Nhân viên','Ngày chốt','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'])
+        writer.writerow(['Số đơn','Khách hàng','Nhân viên','Ngày phát sinh nợ','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'])
         for r in svc.aging_orders(session,user,request.query_params.get('nhom','')):
             writer.writerow([_csv_text(r['number']),_csv_text(r['customer_name']),_csv_text(r['employee_name']),
                 r['confirmed_at'].astimezone(svc.TZ).date().isoformat(),r['days'],r['receivable'],r['paid'],r['pending'],r['remaining']])

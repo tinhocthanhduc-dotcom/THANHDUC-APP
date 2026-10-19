@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import Date, case, cast, func, literal, select, union_all
 
+from . import sales_orders
 from .errors import BusinessError
 from .models import CashCategory, CashDoc, Customer, Fund, FundBalance, FundLedger, SalesOrder, SalesReceipt, ServiceTicket
 from .security import has_role
@@ -118,7 +119,7 @@ def _debts():
                 model.receivable, paid.label('paid'), pending.label('pending'), (model.receivable - paid).label('remaining'))
             .outerjoin(receipts, receipts.c.parent_id == model.id)
             .where(model.status.in_(status), model.receivable > paid))
-    return union_all(source(SalesOrder, SalesReceipt.order_id, ('DA_CHOT', 'DA_GIAO'), SalesOrder.confirmed_at, 'DB'),
+    return union_all(source(SalesOrder, SalesReceipt.order_id, ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'), sales_orders.first_delivery(), 'DB'),
                      source(ServiceTicket, SalesReceipt.ticket_id, ('HOAN_THANH', 'DA_DONG'), ServiceTicket.priced_at, 'DV')).subquery()
 
 

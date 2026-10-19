@@ -98,7 +98,7 @@ def download(request: Request, table: str, user: User = Depends(report_user), se
         r = svc.debt_totals(session, user)
         writer.writerow(['Cộng', '', r['receivable'], r['paid'], r['pending'], r['remaining']])
     elif table == 'chung-tu':
-        writer.writerow(['Chứng từ', 'Ngày chốt', 'Số ngày', 'Phải thu', 'Đã thu', 'Chờ xác nhận', 'Còn nợ'])
+        writer.writerow(['Chứng từ', 'Ngày phát sinh nợ', 'Số ngày', 'Phải thu', 'Đã thu', 'Chờ xác nhận', 'Còn nợ'])
         for r in svc.customer_docs(session, user, request.query_params.get('khach', '')):
             writer.writerow([_csv_text(r['number']), r['day'].isoformat() if r['day'] else '', r['days'],
                              r['receivable'], r['paid'], r['pending'], r['remaining']])

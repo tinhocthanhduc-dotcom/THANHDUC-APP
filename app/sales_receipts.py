@@ -56,7 +56,7 @@ def _sums():
 
 
 def _balance(receivable, paid, pending):
-    return dict(receivable=receivable, paid=int(paid), pending=int(pending), remaining=(receivable or 0)-int(paid))
+    return dict(receivable=receivable, paid=int(paid), pending=int(pending), remaining=max(0,(receivable or 0)-int(paid)))
 
 
 def balance(order: SalesOrder | ServiceTicket):
@@ -66,7 +66,11 @@ def balance(order: SalesOrder | ServiceTicket):
         raise ValueError('Đơn cần được load trong session để đọc số dư hiện tại.')
     column = SalesReceipt.ticket_id if isinstance(order,ServiceTicket) else SalesReceipt.order_id
     paid,pending = session.execute(select(*_sums()).where(column == order.id)).one()
-    return _balance(order.receivable, paid, pending)
+    result = _balance(order.receivable, paid, pending)
+    if isinstance(order,SalesOrder):
+        result['advance'] = max(0,int(paid)-(order.receivable or 0))
+        result['available'] = max(0,sales_orders.effective_total(order)-int(paid)-int(pending))
+    return result
 
 
 def for_order(session: Session, user, order_id):
@@ -86,12 +90,12 @@ def report(session: Session, user, order_id, body: SalesReceiptReport):
     with _transaction(session):
         order = sales_orders._load(session, order_id, lock=True)
         sales_orders._version(order, body.version)
-        if order.status not in ('DA_CHOT', 'DA_GIAO'):
+        if order.status not in ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'):
             raise BusinessError('BAD_STATUS', 'Chỉ báo thu cho đơn đã chốt hoặc đã giao.', status=409)
         current = balance(order)
-        if current['paid'] + current['pending'] + body.amount > (order.receivable or 0):
+        if current['paid'] + current['pending'] + body.amount > sales_orders.effective_total(order):
             raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số phải thu của đơn.',
-                                {**current, 'available': current['remaining']-current['pending']}, status=409)
+                                current, status=409)
         received = body.received_at or _today()
         receipt = SalesReceipt(number=next_number(session, 'BT', received), order_id=order.id,
                      method=body.method, amount=body.amount, received_at=received, note=body.note,
@@ -250,10 +254,10 @@ def receivables(session: Session, user):
         raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh, kế toán hoặc giám đốc được xem đơn cần thu.', status=403)
     paid,pending = _sums()
     totals = select(SalesReceipt.order_id,paid.label('paid'),pending.label('pending')).group_by(SalesReceipt.order_id).subquery()
-    stmt = (select(SalesOrder,func.coalesce(totals.c.paid,0),func.coalesce(totals.c.pending,0)).options(selectinload(SalesOrder.lines))
+    stmt = (select(SalesOrder,func.coalesce(totals.c.paid,0),func.coalesce(totals.c.pending,0),sales_orders.first_delivery()).options(selectinload(SalesOrder.lines))
             .outerjoin(totals, totals.c.order_id == SalesOrder.id)
-            .where(SalesOrder.status.in_(('DA_CHOT','DA_GIAO')),SalesOrder.receivable > func.coalesce(totals.c.paid,0))
-            .order_by(SalesOrder.confirmed_at,SalesOrder.id))
+            .where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable > func.coalesce(totals.c.paid,0))
+            .order_by(sales_orders.first_delivery(),SalesOrder.id))
     return [dict(order=o,balance=_balance(o.receivable,pay,wait),
-                 days=max(0,(_today()-o.confirmed_at.astimezone(TZ).date()).days))
-            for o,pay,wait in session.execute(stmt)]
+                 days=max(0,(_today()-first.astimezone(TZ).date()).days))
+            for o,pay,wait,first in session.execute(stmt)]

@@ -100,11 +100,13 @@ def keep_in_tx(session, user, order):
     from .stock_posting import _lock_balances
     lines = sorted((l for l in order.lines if l.kind == 'HANG'), key=lambda l: (l.warehouse_code,l.product_code,l.line_no))
     _lock_balances(session, {(l.warehouse_code,l.product_code) for l in lines})
+    from .sales_orders import remaining_lines
+    remaining = remaining_lines(session,order)
     for line in lines:
         old = session.scalar(select(StockReservation).where(StockReservation.order_id == order.id,
             StockReservation.order_line_id == line.line_no, StockReservation.status == 'GIU'))
         held = old.qty if old else ZERO
-        more = min(line.qty-held, max(ZERO, available(session, line.warehouse_code, line.product_code)))
+        more = min(remaining[line.line_no]['remaining']-held, max(ZERO, available(session, line.warehouse_code, line.product_code)))
         if more <= 0:
             continue
         if old:
@@ -128,13 +130,15 @@ def close_in_tx(session, user, order, *, warehouse_code=None, exported=False, re
 
 def for_order(session, order):
     rows = list(session.scalars(select(StockReservation).where(StockReservation.order_id == order.id).order_by(StockReservation.id)))
+    from .sales_orders import remaining_lines
+    remaining = remaining_lines(session,order)
     result = {}
     for line in order.lines:
         if line.kind != 'HANG':
             continue
-        current = next((r for r in reversed(rows) if r.order_line_id == line.line_no and r.status in ('GIU','DA_XUAT')), None)
+        current = next((r for r in reversed(rows) if r.order_line_id == line.line_no and r.status == 'GIU'), None)
         held = current.qty if current else ZERO
-        result[line.line_no] = dict(reservation=current, held=held, missing=max(ZERO,line.qty-held))
+        result[line.line_no] = dict(reservation=current, held=held, missing=max(ZERO,remaining[line.line_no]['remaining']-held))
     return result
 
 
@@ -149,7 +153,7 @@ def keep_more(session, user, order_id, version):
         if not can_keep(user, order):
             raise BusinessError('FORBIDDEN', 'Chỉ người lập đơn, kho hoặc giám đốc được giữ thêm hàng.', status=403)
         sales_orders._version(order, version)
-        sales_orders._status(order, ('DA_CHOT',))
+        sales_orders._status(order, ('DA_CHOT','GIAO_MOT_PHAN'))
         sales_orders._lines(session, [sales_orders.SalesOrderLineIn.model_validate(l, from_attributes=True) for l in order.lines], require_warehouse=True)
         before = sales_orders.snapshot(order)
         keep_in_tx(session, user, order)
@@ -165,7 +169,7 @@ def release(session, user, order_id, reservation_id, reason, version):
     with sales_orders._transaction(session):
         order = sales_orders._load(session, order_id, lock=True)
         sales_orders._version(order, version)
-        sales_orders._status(order, ('DA_CHOT',))
+        sales_orders._status(order, ('DA_CHOT','GIAO_MOT_PHAN'))
         reason = (reason or '').strip()
         if not reason:
             raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do nhả hàng.')
@@ -189,3 +193,23 @@ def picker(session, products, warehouse_code):
         return {}
     values = quantities(session, [(warehouse_code,p.code) for p in products])
     return {p.code: values.get((warehouse_code,p.code), dict(qty=ZERO,reserved=ZERO,available=ZERO)) for p in products}
+
+
+def split_in_tx(session, user, order, line, qty, number):
+    """Đã khóa dòng tồn; chốt một lần dòng cũ, ghi mới phần xuất và phần còn giữ."""
+    old = session.scalar(select(StockReservation).where(StockReservation.order_id==order.id,
+        StockReservation.order_line_id==line.line_no, StockReservation.status=='GIU'))
+    if old is None:
+        return
+    held = old.qty
+    _close(session,user,old,'DA_NHA',f'Tách khi giao {number}')
+    exported = StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=line.warehouse_code,
+        product_code=line.product_code,qty=min(qty,held),status='DA_XUAT',reason=f'Giao {number}',created_by=user.id,
+        closed_by=user.id,closed_at=datetime.now(UTC))
+    session.add(exported)
+    _record(session,user,exported,'export')
+    if held > qty:
+        row = StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=line.warehouse_code,
+            product_code=line.product_code,qty=held-qty,status='GIU',reason='',created_by=user.id)
+        session.add(row)
+        _record(session,user,row,'keep')
