@@ -28,10 +28,10 @@ def _specs(user, today, now):
     specs = {}
     def add(key, title, stmt, kind, link):
         specs[key] = dict(key=key, title=title, statement=stmt, kind=kind, link=link)
-    def docs(model, name, amount=None):
+    def docs(model, name, amount=None, overdue=None):
         return select(model.id, model.number, model.status, name.label('customer'),
             (amount if amount is not None else model.total).label('amount'),
-            literal(False).label('overdue'))
+            (literal(False) if overdue is None else overdue).label('overdue'))
 
     t = ServiceTicket
     overdue = (t.status.in_(service_tickets.OPEN)) & t.due_at.is_not(None) & (t.due_at < now)
@@ -95,6 +95,11 @@ def _specs(user, today, now):
         add('orders_draft', 'Đơn nháp chưa chốt', orders.where(SalesOrder.status=='NHAP').order_by(SalesOrder.created_at, SalesOrder.id), 'order', '/don-ban')
         add('orders_unreported', 'Đã giao · chưa báo thu đủ', orders.where(SalesOrder.status.in_(('GIAO_MOT_PHAN','DA_GIAO')), _available(SalesOrder)>0)
             .order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
+        deposit_gap=SalesOrder.deposit_amount-(func.coalesce(SalesOrder.receivable,0)-_available(SalesOrder))
+        deposits=docs(SalesOrder,Customer.name,deposit_gap).join(Customer,Customer.code==SalesOrder.customer_code).where(
+            SalesOrder.payment_term=='DAT_COC',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),deposit_gap>0)
+        if not director:deposits=deposits.where(SalesOrder.created_by==user.id)
+        add('orders_deposit','Chưa thu cọc',deposits.order_by(SalesOrder.confirmed_at,SalesOrder.id),'order','/don-ban')
         rejected = select(SalesReceipt.id, SalesReceipt.number, SalesReceipt.status, Customer.name.label('customer'),
             SalesReceipt.amount, literal(False).label('overdue'), SalesReceipt.order_id, SalesReceipt.ticket_id,
             SalesReceipt.reason).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(t, t.id==SalesReceipt.ticket_id).join(
@@ -108,6 +113,10 @@ def _specs(user, today, now):
         waiting = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code).where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
         if not director and not has_role(user, 'warehouse'):waiting=waiting.where(SalesOrder.created_by==user.id)
         add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
+        pickups=docs(SalesOrder,Customer.name,overdue=literal(True)).join(Customer,Customer.code==SalesOrder.customer_code).where(
+            SalesOrder.fulfillment=='KHACH_LAY_SAU',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')),SalesOrder.promised_date<today)
+        if not director and not has_role(user,'warehouse'):pickups=pickups.where(SalesOrder.created_by==user.id)
+        add('orders_pickup_late','Khách hẹn lấy quá ngày',pickups.order_by(SalesOrder.promised_date,SalesOrder.id),'order','/don-ban')
     if has_role(user, 'warehouse'):
         requests = select(PartRequest.id, PartRequest.number, PartRequest.status, Customer.name.label('customer'),
             literal(0).label('amount'), literal(False).label('overdue')).join(t, t.id == PartRequest.ticket_id).join(
@@ -139,6 +148,7 @@ def _group(session, spec, page=1):
         else:
             prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"
             if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"

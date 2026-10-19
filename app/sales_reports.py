@@ -13,7 +13,7 @@ from .models import Customer, Quote, SalesOrder, SalesReceipt, User, SalesDelive
 from .security import has_role
 
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
-BUCKETS = {'0_7':'0–7 ngày', '8_30':'8–30 ngày', '31_60':'31–60 ngày', 'over_60':'Trên 60 ngày'}
+BUCKETS = {'0_7':'Chưa quá hạn / quá 1–7 ngày', '8_30':'Quá hạn 8–30 ngày', '31_60':'Quá hạn 31–60 ngày', 'over_60':'Quá hạn trên 60 ngày'}
 
 
 def _today():
@@ -106,10 +106,10 @@ def _debts(user,as_of):
     receipts = select(SalesReceipt.order_id,paid.label('paid'),pending.label('pending')).group_by(SalesReceipt.order_id).subquery()
     paid = func.coalesce(receipts.c.paid,0)
     pending = func.coalesce(receipts.c.pending,0)
-    days = func.greatest(0,literal(as_of,type_=Date)-cast(func.timezone('Asia/Ho_Chi_Minh',sales_orders.first_delivery()),Date))
+    days = func.greatest(0,literal(as_of,type_=Date)-sales_orders.due_date_sql())
     bucket = case((days<=7,'0_7'),(days<=30,'8_30'),(days<=60,'31_60'),else_='over_60')
     return (select(SalesOrder.id.label('id'),SalesOrder.number.label('number'),SalesOrder.customer_code.label('customer_code'),
-                   SalesOrder.created_by.label('created_by'),sales_orders.first_delivery().label('confirmed_at'),days.label('days'),
+                   SalesOrder.created_by.label('created_by'),sales_orders.first_delivery().label('confirmed_at'),sales_orders.due_date_sql().label('due_date'),days.label('days'),
                    SalesOrder.receivable.label('receivable'),paid.label('paid'),pending.label('pending'),
                    (SalesOrder.receivable-paid).label('remaining'),bucket.label('bucket'))
             .outerjoin(receipts,receipts.c.order_id==SalesOrder.id)

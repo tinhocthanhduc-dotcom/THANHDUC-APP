@@ -3,6 +3,7 @@
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action=='deliver' else o.version }}"><input type="hidden" name="delivery_form" value="1"><h2>Giao hàng theo số thực</h2>
 {% for line in o.lines if delivery_state[line.line_no].remaining>0 %}<label>Dòng {{ line.line_no }} · {{ line.description }} (còn {{ delivery_state[line.line_no].remaining|qty }})
 <input name="deliver_{{ line.line_no }}" inputmode="decimal" value="{{ action_form.get('deliver_' ~ line.line_no,'') if failed_action=='deliver' else (delivery_state[line.line_no].remaining|qty) }}" required></label>{% endfor %}
+{% if o.fulfillment=='VAN_CHUYEN' %}<label>Đơn vị vận chuyển<input name="carrier_name" maxlength="200" value="{{ action_form.get('carrier_name','') if failed_action=='deliver' else '' }}"></label><label>Mã vận đơn<input name="tracking_code" maxlength="100" value="{{ action_form.get('tracking_code','') if failed_action=='deliver' else '' }}"></label>{% endif %}
 <label>Người nhận<input name="receiver_name" maxlength="200" value="{{ action_form.get('receiver_name','') if failed_action=='deliver' else '' }}"></label>
 <label>Ghi chú<textarea name="note" maxlength="4000">{{ action_form.get('note','') if failed_action=='deliver' else '' }}</textarea></label>
 <button class="primary">Giao hàng</button></form>{% endif %}

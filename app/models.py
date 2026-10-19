@@ -549,6 +549,10 @@ class QuoteLine(Base):
     quote: Mapped['Quote'] = relationship(back_populates='lines')
 
 
+FULFILLMENTS = ('TAI_QUAY','KHACH_LAY_SAU','THO_GIAO','VAN_CHUYEN')
+PAYMENT_TERMS = ('TRA_NGAY','DAT_COC','CONG_NO')
+
+
 SALES_ORDER_STATUSES = ('NHAP', 'DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO', 'DA_HUY')
 
 
@@ -558,6 +562,10 @@ class SalesOrder(Base):
         CheckConstraint(_in('status', SALES_ORDER_STATUSES), name='ck_sales_orders_status'),
         CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_sales_orders_money'),
         CheckConstraint('receivable is null or receivable >= 0', name='ck_sales_orders_receivable'),
+        CheckConstraint(_in('fulfillment', FULFILLMENTS), name='ck_sales_orders_fulfillment'),
+        CheckConstraint(_in('payment_term', PAYMENT_TERMS), name='ck_sales_orders_payment_term'),
+        CheckConstraint('due_days between 0 and 180', name='ck_sales_orders_due_days'),
+        CheckConstraint("payment_term <> 'DAT_COC' or (deposit_amount is not null and deposit_amount > 0 and deposit_amount <= total)", name='ck_sales_orders_deposit'),
         Index('uq_sales_orders_active_quote', 'quote_id', unique=True,
               postgresql_where=text("quote_id is not null and status <> 'DA_HUY'")),
         Index('ix_sales_orders_status_created', 'status', 'created_at'),
@@ -570,6 +578,12 @@ class SalesOrder(Base):
     contact_name: Mapped[str] = mapped_column(String(200), default='')
     delivery_address: Mapped[str] = mapped_column(Text, default='')
     promised_date: Mapped[date | None] = mapped_column(Date)
+    fulfillment: Mapped[str] = mapped_column(String(16), default='TAI_QUAY', server_default='TAI_QUAY')
+    payment_term: Mapped[str] = mapped_column(String(16), default='TRA_NGAY', server_default='TRA_NGAY')
+    due_days: Mapped[int] = mapped_column(Integer, default=30, server_default=text('30'))
+    deposit_amount: Mapped[int | None] = mapped_column(BigInteger)
+    credit_override_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    credit_override_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
     note: Mapped[str] = mapped_column(Text, default='')
     status: Mapped[str] = mapped_column(String(16), default='NHAP')
     cancel_reason: Mapped[str] = mapped_column(Text, default='')
@@ -1124,6 +1138,8 @@ class SalesDelivery(Base):
     delivered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     delivered_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     receiver_name: Mapped[str] = mapped_column(String(200), default='')
+    carrier_name: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    tracking_code: Mapped[str] = mapped_column(String(100), default='', server_default='')
     note: Mapped[str] = mapped_column(Text, default='')
     subtotal: Mapped[int] = mapped_column(BigInteger)
     vat_total: Mapped[int] = mapped_column(BigInteger)

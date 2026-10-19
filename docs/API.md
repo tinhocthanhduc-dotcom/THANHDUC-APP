@@ -704,9 +704,39 @@ hoặc tự chọn thứ tự giữ cho các đơn cũ.
 - Báo thu được khi `DA_CHOT`, `GIAO_MOT_PHAN`, `DA_GIAO`, tối đa giá trị đơn còn hiệu lực trừ đã xác nhận và chờ.
   `balance`: `remaining=max(0,receivable-paid)`, `advance=max(0,paid-receivable)`, `available` là số còn được báo (có thể ứng trước).
 - Doanh thu và lãi gộp bán hàng dùng GH còn hiệu lực, ngày giao giờ VN, tiền trước VAT và đúng PX của GH. Số đơn đếm distinct trong kỳ.
-  Công nợ/tuổi nợ/cảnh báo/Việc của tôi dùng số thực giao; tuổi tính từ GH đầu còn hiệu lực. Dashboard và bản tóm tắt dùng lại báo cáo này.
+  Công nợ/cảnh báo/Việc của tôi dùng số thực giao; S3 tính tuổi quá hạn từ ngày GH đầu còn hiệu lực cộng due_days. Dashboard và bản tóm tắt dùng lại báo cáo này.
 - Web `/don-ban/{id}`: cột Đặt/Đã giữ/Đã giao/Đã đóng/Còn lại; nhập lượng giao, người nhận và ghi chú. Lỗi giữ dữ liệu nhập, mọi POST có CSRF + form_key.
   In từng GH tại `/don-ban/{order_id}/giao/{delivery_id}/in`; `/don-ban/{id}/in-giao` chuyển tới GH còn hiệu lực gần nhất, chưa giao trả `BAD_STATUS`.
 - Lỗi: `OVER_DELIVERY` (409), `EMPTY_DELIVERY`, `OVER_PAID` (409), `BAD_STATUS` (409), `REASON_REQUIRED`, `VERSION_CONFLICT` (409), `FORBIDDEN` (403); lỗi tồn S1 giữ nguyên.
 - Migration 0028 chuyển mỗi đơn cũ DA_GIAO thành một GH đủ dòng, giữ PX/ngày giao/tiền, đặt DA_CHOT phải thu 0; không đổi báo thu cũ hay ghi lại sổ kho/quỹ.
   Downgrade gỡ cấu trúc GH và trở về nghĩa phải thu cũ; lịch sử giao một phần không biểu diễn được ở schema cũ, cần sao lưu trước khi hạ trên dữ liệu thật.
+
+## Nhận hàng, thanh toán và bán tại quầy (S3)
+
+`SalesOrderIn`, tạo từ báo giá, cập nhật dòng và `SalesOrderOut` có thêm:
+
+- `fulfillment`: `TAI_QUAY` (mặc định), `KHACH_LAY_SAU`, `THO_GIAO`, `VAN_CHUYEN`.
+- `payment_term`: `TRA_NGAY` (mặc định), `DAT_COC`, `CONG_NO`.
+- `due_days`: 0–180, mặc định 30 khi chọn công nợ; trả ngay/đặt cọc được chuẩn hóa thành 0.
+- `deposit_amount`: cọc dự kiến, chỉ với DAT_COC, số nguyên >0 và ≤ tổng đơn; không tự ghi tiền.
+- `credit_override_by`, `credit_override_reason`: chỉ lõi ghi khi giám đốc chốt vượt hạn mức.
+
+`PATCH /sales-orders/{id}/options`: `version` và các trường điều kiện cần đổi. NHAP đổi đủ bốn trường; DA_CHOT/GIAO_MOT_PHAN chỉ được gửi `fulfillment`. Đã giao đủ/đã hủy không đổi. Đổi cách nhận vẫn kiểm version và ghi audit trước/sau. `PUT .../lines` giữ điều kiện cũ nếu API không gửi trường điều kiện đó.
+
+`POST /sales-orders/{id}/confirm` nhận thêm `credit_override_reason`. Chốt CONG_NO kiểm `Customer.allow_debt` và nợ hiện tại của khách (dùng `_debts` tài chính, gồm DB và DV) + tổng đơn ≤ credit_limit. Kinh doanh bị `CREDIT_LIMIT` (409), câu “Cần giám đốc chốt”. Giám đốc vượt hạn mức phải có lý do (`REASON_REQUIRED` nếu thiếu); người và lý do được lưu trong đơn và audit. TRA_NGAY/DAT_COC không kiểm hạn mức.
+
+`POST /sales-orders/{id}/counter-sale` nhận `version`, `method` (TIEN_MAT/CHUYEN_KHOAN), `amount`, `received_at` tùy chọn, `note`. Chỉ sales/director, đơn NHAP TAI_QUAY + TRA_NGAY; amount phải bằng đúng tổng đơn. Một transaction ngoài gọi `confirm_in_tx` → `deliver_in_tx` giao đủ một GH → `sales_receipts.report_in_tx` tạo BT CHO_XAC_NHAN. Các hàm công khai confirm/deliver/report vẫn dùng cùng phần thân và tự commit như trước. Không tạo PT/quỹ tới khi kế toán xác nhận BT. Bất kỳ lỗi nào trả lại cả trạng thái, giữ hàng, GH/PX/BT, audit và bộ đếm. Form web có CSRF và form_key S0 nên gửi lại cùng khóa chỉ chuyển về kết quả cũ.
+
+Hạn đơn = ngày giao đầu còn hiệu lực (giờ VN) + due_days hiệu lực. Ngày hạn chưa bị tính quá hạn. `sales_orders.summaries`, `sales_receipts.receivables` thêm `due_date`, `overdue_days`; nhóm tuổi nợ bán hàng dùng số ngày quá hạn, không còn số ngày từ chốt/giao. Khoản chưa đến hạn thuộc nhóm 0–7 với số ngày 0. `KHACH_NO_QUA_HAN`: DB quá hạn từ ngày 1; vàng đến 30 ngày quá hạn, đỏ khi trên 30; DV giữ cách cũ (tuổi trên 30 ngày, đỏ khi trên 60), dùng ngưỡng config đang có. Công thức còn nợ/ứng trước của S2 giữ nguyên.
+
+`GET /sales-orders` và `/don-ban`: thêm `fulfillment`, `overdue=1`. Danh sách hiện trạng thái giao, trạng thái tiền và nhãn quá hạn. `/don-ban/can-thu` hiện Hạn, Quá hạn (ngày), tô đỏ khoản quá hạn.
+
+Việc của tôi thêm “Chưa thu cọc”: đơn DAT_COC đã chốt còn thiếu cọc sau khi cộng đã thu + chờ, chỉ người lập (director xem tất cả); link tới form Báo thu cọc đã điền phần còn thiếu. Báo đủ số cọc, kể cả BT đang chờ, thì hết nhắc; không chặn giao. “Khách hẹn lấy quá ngày”: KHACH_LAY_SAU chờ giao đủ, promised_date < hôm nay; người lập và kho thấy. Đơn đã giao đủ/đóng phần còn lại không còn nhắc.
+
+`SalesDeliveryIn`/Out và snapshot GH thêm `carrier_name` (≤200), `tracking_code` (≤100), tùy chọn, chỉ dùng khi VAN_CHUYEN. Form giao/chi tiết/in GH giữ và hiện hai trường; lỗi giữ lại dữ liệu. THO_GIAO hiện là lựa chọn/nhãn, chưa tự điều phối thợ.
+
+Mã lỗi mới: `BAD_TERMS`, `BAD_DEPOSIT`, `BAD_FULFILLMENT`, `BAD_COUNTER_SALE` (409), `BAD_AMOUNT`, `CREDIT_LIMIT` (409). Tiếp tục dùng `PRICE_LOCKED`, `VERSION_CONFLICT`, `REASON_REQUIRED`, `NEGATIVE_STOCK`, `RESERVED_STOCK`, `FORBIDDEN` như các bước trước.
+
+Migration 0029 sau 0028 đặt mọi đơn cũ TAI_QUAY + CONG_NO + 30 ngày, giữ kết quả cảnh báo 30/60 ngày cũ; đơn tạo mới mặc định TRA_NGAY. Không thay số liệu sổ kho, sổ quỹ hay báo thu cũ.
+
+Bán tại quầy khóa bộ đếm GH rồi PX trước khi chốt giữ tồn, cùng thứ tự với giao hàng/xuất kho thường. `doc_numbers.lock_counter` chỉ khóa (khởi tạo 0 nếu chưa có), không cấp số hay commit; số vẫn do `next_number` cấp trong transaction. Ngày giao được cố định xuyên suốt thao tác để giữ đúng khóa kể cả lúc qua năm mới.
