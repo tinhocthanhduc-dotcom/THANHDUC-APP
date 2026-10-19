@@ -101,7 +101,7 @@ def product_totals(session, user, start=None, end=None):
     return _rows(session, _sum(_product_purchases(start,end).subquery(), ('received_qty','returned_qty','net_amount')))[0]
 
 
-def _aging(as_of):
+def _aging(as_of, overdue_days=None):
     # Cùng truy vấn nguồn với supplier_debts.balance, không nạp từng NCC vào ORM.
     balances = supplier_debts._balances().subquery()
     charges = union_all(
@@ -116,12 +116,16 @@ def _aging(as_of):
     allocation = allocation.join(balances,balances.c.supplier_code == charges.c.supplier_code).subquery()
     days = func.greatest(0,literal(as_of,type_=Date)-allocation.c.day)
     bucket = case((days<=30,'days_0_30'),(days<=60,'days_31_60'),(days<=90,'days_61_90'),else_='days_over_90')
+    extra = [] if overdue_days is None else [
+        func.sum(case((days>overdue_days,allocation.c.amount),else_=0)).label('overdue'),
+        func.min(allocation.c.day).filter((days>overdue_days)&(allocation.c.amount>0)).label('oldest')]
     allocated = select(allocation.c.supplier_code,
-        *[func.sum(case((bucket==key,allocation.c.amount),else_=0)).label(key) for key in BUCKETS])
+        *[func.sum(case((bucket==key,allocation.c.amount),else_=0)).label(key) for key in BUCKETS], *extra)
     allocated = allocated.group_by(allocation.c.supplier_code).subquery()
     return (select(balances.c.supplier_code, balances.c.name,
         *[func.coalesce(allocated.c[k],0).label(k) for k in BUCKETS],
-        func.greatest(0,-balances.c.remaining).label('advance'), balances.c.remaining)
+        func.greatest(0,-balances.c.remaining).label('advance'), balances.c.remaining,
+        *([] if overdue_days is None else [func.coalesce(allocated.c.overdue,0).label('overdue'),allocated.c.oldest]))
         .outerjoin(allocated,allocated.c.supplier_code==balances.c.supplier_code).where(balances.c.remaining!=0))
 
 

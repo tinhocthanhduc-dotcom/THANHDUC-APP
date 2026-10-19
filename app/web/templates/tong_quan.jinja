@@ -18,6 +18,7 @@
 {{ tile('Báo thu chờ xác nhận',s.pending_receipts.count,'/bao-thu',false) }}
 {{ tile('Tiền báo thu chờ',s.pending_receipts.amount,'/bao-thu') }}
 </div>
+{% include 'canh_bao.jinja' %}
 <section class="sales-report-section card"><h2>Doanh thu 30 ngày gần nhất</h2><p>{{ s.chart_start.strftime('%d/%m/%Y') }} – {{ s.today.strftime('%d/%m/%Y') }} · Chưa VAT · gồm đơn bán và dịch vụ</p>
 <svg class="overview-chart" viewBox="0 0 900 235" role="img" aria-labelledby="revenue-title revenue-description"><title id="revenue-title">Doanh thu chưa VAT 30 ngày</title><desc id="revenue-description">Mỗi cột là một ngày; bảng số liệu bên dưới có đủ 30 ngày.</desc><line x1="30" y1="190" x2="885" y2="190" stroke="currentColor"/>
 {% for b in bars %}<rect x="{{ b.x }}" y="{{ 190-b.height }}" width="20" height="{{ b.height }}" fill="currentColor"><title>{{ b.day.strftime('%d/%m/%Y') }}: {{ b.amount|money }} đồng</title></rect>{% if (loop.index0%7==0 and loop.index0<25) or loop.last %}<text x="{{ b.x+10 }}" y="215" text-anchor="{{ 'end' if loop.last else 'middle' }}">{{ b.day.strftime('%d/%m') }}</text>{% endif %}{% endfor %}</svg>

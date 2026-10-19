@@ -5,6 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 DEFAULT_VAT_RATE = 8
+ALERT_RECEIPT_PENDING_DAYS = 1
+ALERT_DEBT_DAYS = 30
+ALERT_SLOW_STOCK_DAYS = 90
+ALERT_CLOSING_LOOKBACK_DAYS = 7
 
 
 class Settings(BaseSettings):
