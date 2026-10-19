@@ -1,0 +1,1 @@
+{% for w in rows %}<button type="button" data-pick-tech-warehouse="{{ w.code }}" data-label="{{ w.code }} · {{ w.holder }}">{{ w.holder }} · {{ w.code }} · {{ w.name }}</button>{% else %}<p class="hint">Không có kho thợ phù hợp.</p>{% endfor %}

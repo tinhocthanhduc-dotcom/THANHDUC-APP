@@ -5,6 +5,7 @@
 {% if material %}
 <div data-picker><label>Hàng (tìm và chọn)<input name="line_product" value="{{ line.product_code or '' }}" required autocomplete="off" data-live=".charge-options" data-source="/dich-vu/tim-vat-tu"></label>
 <span class="hint" data-charge-name>{{ charge_names.get(line.product_code, '') }}</span><div class="charge-options product-options" aria-live="polite"></div></div>
+{% if charge_default_warehouse and line.warehouse_code and line.warehouse_code != charge_default_warehouse %}<p class="hint">Dòng đã lưu ở kho {{ line.warehouse_code }}; khi sửa hãy chọn kho của bạn.</p>{% endif %}
 <fieldset><legend>Kho xuất</legend><div class="seg stock-seg">
 {% for warehouse in charge_warehouses %}<label><input type="radio" name="warehouse_{{ index }}" value="{{ warehouse.code }}" data-charge-warehouse {% if line.warehouse_code == warehouse.code %}checked{% endif %} required><span>{{ warehouse.code }} · {{ warehouse.name }}{% if not warehouse.active %} (Ngừng dùng){% endif %}</span></label>{% endfor %}
 </div></fieldset>

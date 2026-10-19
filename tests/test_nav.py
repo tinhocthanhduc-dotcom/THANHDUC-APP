@@ -14,7 +14,7 @@ from test_web import service_people, service_login, d5_image
 
 # Đối chiếu độc lập với bảng vai trò, không sinh kỳ vọng từ cấu hình cần kiểm thử.
 EXPECTED = {
-    'technician': {'/viec-cua-toi', '/dich-vu', '/thiet-bi', '/tien-toi-giu'},
+    'technician': {'/viec-cua-toi', '/dich-vu', '/thiet-bi', '/tien-toi-giu', '/hang-toi-giu'},
     'dispatcher': {'/viec-cua-toi', '/dieu-phoi', '/dich-vu', '/thiet-bi', '/khach-hang'},
     'reception': {'/viec-cua-toi', '/dich-vu', '/thiet-bi', '/khach-hang'},
     'sales': {'/viec-cua-toi', '/thiet-bi', '/khach-hang', '/bao-gia', '/don-ban',

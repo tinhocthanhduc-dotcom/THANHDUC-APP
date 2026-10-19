@@ -54,7 +54,7 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
         payable=receipts.payable_by_order(session,request.state.user,row.id) if row else 0,
         supplier_name=supplier.name if supplier else '',
         product_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(codes))).all()),
-        warehouses=list(session.scalars(select(Warehouse).order_by(Warehouse.code))),
+        warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code))),
         can_write=has_role(request.state.user, *svc.WRITERS), editable=row is None or row.status=='NHAP',
         error=error, error_code=code, status=status, reason=reason, saved=request.query_params.get('da_luu')=='1' and not error)
 

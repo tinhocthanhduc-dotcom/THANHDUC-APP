@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
-from .. import products, stock_docs, stock_posting, stock_min_levels
+from .. import products, stock_docs, stock_posting, stock_min_levels, technician_stock
 from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
@@ -87,7 +87,8 @@ def _form(request, session, doc, error=None, status=200, action_reason='', saved
     # Chỉ các bảng danh mục được đọc để gợi ý; không sửa tồn hoặc sổ ở tầng web.
     warehouses = list(session.scalars(select(Warehouse).order_by(Warehouse.code)))
     suppliers = list(session.scalars(select(Supplier).where(or_(Supplier.active.is_(True), Supplier.code == doc.get('supplier_code'))).order_by(Supplier.name)))
-    return render(request, 'phieu_form.jinja', d=doc, kinds=KINDS, states=STATES,
+    selected_dest = session.get(Warehouse,doc.get('to_warehouse_code')) if doc.get('to_warehouse_code') else None
+    return render(request, 'phieu_form.jinja', d=doc, kinds=KINDS, states=STATES, tech_destination=selected_dest.name if selected_dest and selected_dest.kind == 'THO' else '',
                   warehouses=warehouses, suppliers=suppliers, error=error, status=status,
                   action_reason=action_reason, saved=saved,
                   product_names={code: name for code, name in session.execute(
@@ -117,9 +118,36 @@ def product_picker(request: Request, q: str = '', user: User = Depends(web_user)
     return render(request, 'phieu_chon_hang.jinja', rows=products.search(session, q[:200], limit=20))
 
 
+@router.get('/phieu-kho/tim-kho-tho')
+def pick_tech_warehouse(request: Request,q: str='',user: User=Depends(web_user),session: Session=Depends(get_session)):
+    rows = [dict(code=w.code,name=w.name,holder=u.full_name) for w,u in session.execute(select(Warehouse,User).join(User,User.id==Warehouse.holder_id).where(
+        Warehouse.kind=='THO',Warehouse.active.is_(True)).order_by(User.full_name,Warehouse.code))
+        if fold(q[:200]) in fold(w.code+' '+w.name+' '+u.full_name+' '+u.username)][:20]
+    return render(request,'phieu_chon_kho_tho.jinja',rows=rows)
+
+
+@router.get('/hang-toi-giu')
+def technician_held(request: Request,tho: int | None=None,user: User=Depends(web_user),session: Session=Depends(get_session)):
+    data=technician_stock.held(session,user,tho)
+    return render(request,'hang_toi_giu.jinja',**data,can_manage=has_role(user,'warehouse'))
+
+
+@router.get('/hang-toi-giu/phieu/{doc_id}')
+def technician_transfer(request: Request,doc_id: int,tho: int | None=None,user: User=Depends(web_user),session: Session=Depends(get_session)):
+    data=technician_stock.held(session,user,tho)
+    doc=stock_docs.load(session,doc_id)
+    if not data['warehouse'] or doc.kind!='CK' or data['warehouse'].code not in (doc.warehouse_code,doc.to_warehouse_code):
+        raise BusinessError('FORBIDDEN','Bạn chỉ được xem phiếu chuyển liên quan kho của mình.',status=403)
+    return render(request,'hang_phieu_ck.jinja',d=doc,**data)
+
+
 @router.get('/phieu-kho/moi')
 def new(request: Request, loai: str = 'PN', user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return _form(request, session, _blank(loai))
+    data = _blank(loai)
+    data['warehouse_code'] = request.query_params.get('kho_nguon','')
+    data['to_warehouse_code'] = request.query_params.get('kho_dich') or None
+    if loai == 'CK' and data['warehouse_code']:data['reason'] = 'Trả hàng từ kho thợ'
+    return _form(request, session, data)
 
 
 def _save_form(request, session, form, doc_id=None, posting=False):
@@ -198,7 +226,7 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
         warehouse_column = StockMinLevel.warehouse_code
     else:
         stmt = select(StockBalance.warehouse_code, StockBalance.product_code, StockBalance.qty,
-                      StockBalance.value, StockBalance.avg_cost, Product.name).join(
+                      StockBalance.value, StockBalance.avg_cost, Product.name, Warehouse.kind.label('warehouse_kind')).join(Warehouse,Warehouse.code==StockBalance.warehouse_code).join(
             Product, Product.code == StockBalance.product_code
         ).order_by(StockBalance.warehouse_code, StockBalance.product_code)
         warehouse_column = StockBalance.warehouse_code
@@ -208,7 +236,7 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
         stmt = stmt.where(or_(Product.search_text.like(like_pattern(fold(q))), Product.code.ilike(like_pattern(q))))
     rows = list(session.execute(stmt).mappings())
     return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', rows=rows, q=q, kho=kho, canh_bao=canh_bao,
-                  warehouses=list(session.scalars(select(Warehouse).order_by(Warehouse.code))))
+                  warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows))
 
 
 def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False):
@@ -223,7 +251,7 @@ def _card(request, session, kho, ma, min_qty=None, version=None, error=None, sta
     return render(request, 'the_kho.jinja', rows=rows, product=product, warehouse=warehouse,
                   min_qty=min_qty if min_qty is not None else str(level.min_qty if level else 0),
                   level_version=version if version is not None else (level.version if level else 0),
-                  can_write=has_role(request.state.user, 'warehouse'), error=error, status=status, saved=saved)
+                  can_write=has_role(request.state.user, 'warehouse') and warehouse.kind=='KHO', error=error, status=status, saved=saved)
 
 
 @router.get('/the-kho/{kho}/{ma}')

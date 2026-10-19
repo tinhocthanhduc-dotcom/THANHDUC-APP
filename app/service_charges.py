@@ -11,7 +11,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import audit, service_sla, service_tickets, stock_docs, stock_posting
+from . import audit, service_sla, service_tickets, stock_docs, stock_posting, technician_stock
 from .errors import BusinessError
 from .models import Product, SalesReceipt, ServiceLine, ServiceTicket, User, Warehouse
 from .schemas import ServiceCharges, ServiceLineOut, StockDocIn, StockDocLineIn
@@ -44,6 +44,9 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
         free_reason = body.free_reason.strip()
         if body.billing == "MIEN_PHI" and len(free_reason) < 3:
             raise BusinessError("REASON_REQUIRED", "Miễn phí phải ghi lý do.")
+        own = technician_stock.restricted_warehouse(session, user, lock=True)
+        if own and any(x.kind == 'VAT_TU' and x.warehouse_code != own.code for x in body.lines):
+            raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
         _validate_lines(session, body)
         before = _snapshot(t)
         lines = []

@@ -166,6 +166,8 @@ class WarehouseIn(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     address: str = Field(default="", max_length=2000)
     active: bool = True
+    kind: Literal['KHO', 'THO'] = 'KHO'
+    holder_id: int | None = Field(default=None, ge=1)
 
 
 class WarehousePatch(BaseModel):
@@ -175,6 +177,8 @@ class WarehousePatch(BaseModel):
     name: str = Field(default="", min_length=1, max_length=300)
     address: str = Field(default="", max_length=2000)
     active: bool = True
+    kind: Literal['KHO', 'THO'] = 'KHO'
+    holder_id: int | None = Field(default=None, ge=1)
 
 
 class WarehouseOut(WarehouseIn):

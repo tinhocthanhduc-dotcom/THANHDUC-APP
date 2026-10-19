@@ -1,0 +1,4 @@
+{% extends 'base.jinja' %}{% block title %}{{ d.number }}{% endblock %}
+{% block main %}<h1>{{ d.number }}</h1><a href="/hang-toi-giu">← Hàng tôi giữ</a>
+<section class="card"><p>Chuyển kho {{ d.warehouse_code }} → {{ d.to_warehouse_code }}</p><p>{{ d.doc_date }} · {{ d.status }}</p><p>{{ d.reason }}</p>
+{% for line in d.lines %}<p>{{ line.product_code }} · Số lượng {{ line.qty }}</p>{% endfor %}</section>{% endblock %}
