@@ -20,6 +20,8 @@ from ..schemas import ServiceAssign, ServiceReason, ServiceTicketIn, ServiceTran
 from ..security import has_role
 from . import checked_form, render, templates, web_user, nav
 
+from . import next_steps
+
 router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 STATUSES = {
@@ -138,7 +140,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     site = session.get(CustomerSite, t.site_id) if t.site_id else None
     return render(request, "dich_vu_chi_tiet.jinja", t=t, customer=session.get(Customer, t.customer_code), site=site,
                   files=attachments.list_for(session, user, "service_ticket", str(t.id)),
-                  can_upload=has_role(user, *svc.CREATORS) or own,
+                  next_step=next_steps.service(session,user,t),can_upload=has_role(user, *svc.CREATORS) or own,
                   can_hide=dispatcher, photo_form=photo_form or {},
                   users=_users(session), technicians=_technicians(session) if dispatcher else [],
                   counts=svc.open_counts(session) if dispatcher else {},
@@ -171,9 +173,10 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "SUA_TAI_CHO", "priority": "THUONG", "symptom": ""}
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     sites, machines = _choices(session, data['customer_code'])
-    return render(request, "dich_vu_moi.jinja", d=data, customer_name=customer.name if customer else "",
+    can_create=has_role(request.state.user, *svc.CREATORS)
+    return render(request, "dich_vu_moi.jinja", next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_name=customer.name if customer else "",
                   sites=sites, machines=machines, error=error, error_code=error_code, status=status,
-                  can_create=has_role(request.state.user, *svc.CREATORS))
+                  can_create=can_create)
 
 
 @router.get("/dich-vu/tim-khach")

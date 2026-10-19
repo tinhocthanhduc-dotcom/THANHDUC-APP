@@ -3,6 +3,7 @@
 {% block title %}{{ q.number if q else 'Tạo báo giá' }}{% endblock %}
 {% block main %}
 <div class="bar quote-heading"><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><a href="/bao-gia">← Báo giá</a>{% if q %}<a class="btn" href="/bao-gia/{{ q.id }}/in">In báo giá</a>{% endif %}</div>
+{% include 'buoc_tiep.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if q %}<p>Trạng thái: <strong>{{ statuses[q.status] }}</strong></p>{% endif %}
@@ -10,7 +11,7 @@
 {% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
 {% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
 {% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
-<form method="post" class="card form" action="{{ '/bao-gia/' ~ q.id if q else '/bao-gia/moi' }}" data-quote-form data-quote-unsaved="{{ '1' if unsaved else '0' }}" data-quote-editable="{{ '1' if can_write and editable else '0' }}">
+<form id="quote-edit" method="post" class="card form" action="{{ '/bao-gia/' ~ q.id if q else '/bao-gia/moi' }}" data-quote-form data-quote-unsaved="{{ '1' if unsaved else '0' }}" data-quote-editable="{{ '1' if can_write and editable else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
 <div data-picker><label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".quote-customer-options" data-source="/bao-gia/tim-khach"></label><span class="hint" data-quote-customer-name>{{ customer_name }}</span><div class="quote-customer-options product-options" aria-live="polite"></div></div>
@@ -25,8 +26,8 @@
 {% if q %}<section class="card service-action"><h2>Số tiền đã lưu</h2><dl><dt>Tiền hàng</dt><dd>{{ q.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ q.vat_total|money }} đồng</dd><dt>Tổng cộng</dt><dd>{{ q.total|money }} đồng</dd></dl></section>{% endif %}
 {% if q and can_write %}
 <div class="quote-actions">
-{% if q.status == 'NHAP' %}<form method="post" action="/bao-gia/{{ q.id }}/send" data-quote-send>{{ token('send') }}<button class="primary">Gửi</button></form>{% endif %}
-{% if q.status == 'DA_GUI' %}{% for action,label in [('accept','Khách đồng ý'),('reject','Khách từ chối'),('revise','Tạo bản sửa')] %}<form method="post" action="/bao-gia/{{ q.id }}/{{ action }}">{{ token(action) }}<button>{{ label }}</button></form>{% endfor %}{% endif %}
+{% if q.status == 'NHAP' %}<form id="quote-send" method="post" action="/bao-gia/{{ q.id }}/send" data-quote-send>{{ token('send') }}<button class="primary">Gửi</button></form>{% endif %}
+{% if q.status == 'DA_GUI' %}{% for action,label in [('accept','Khách đồng ý'),('reject','Khách từ chối'),('revise','Tạo bản sửa')] %}<form id="quote-{{ action }}" method="post" action="/bao-gia/{{ q.id }}/{{ action }}">{{ token(action) }}<button>{{ label }}</button></form>{% endfor %}{% endif %}
 </div>
 {% if q.status in ['NHAP','DA_GUI'] %}<form method="post" action="/bao-gia/{{ q.id }}/cancel" class="card form service-action">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action == 'cancel' else '' }}</textarea></label><button>Hủy báo giá</button></form>{% endif %}
 {% endif %}

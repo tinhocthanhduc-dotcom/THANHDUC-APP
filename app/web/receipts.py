@@ -17,6 +17,8 @@ from ..schemas import SalesReceiptReport
 from ..security import has_role
 from . import checked_form, money, render, web_user
 
+from . import next_steps
+
 router=APIRouter()
 METHODS={'TIEN_MAT':'Tiền mặt','CHUYEN_KHOAN':'Chuyển khoản'}
 STATUSES={'CHO_XAC_NHAN':'Chờ xác nhận','DA_XAC_NHAN':'Đã xác nhận','TU_CHOI':'Từ chối','DA_HUY':'Đã hủy'}
@@ -56,7 +58,7 @@ def _collection_context(session,user,parent,collection,origin,can_report,reporta
     people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_(ids))).all())
     cash_ids={r.cash_doc_id for r in collection['receipts'] if r.cash_doc_id} if collection else set()
     prefix='/dich-vu' if origin=='ticket' else '/don-ban'
-    return dict(collection=collection,receipt_people=people,receipt_data=form if form is not None else dict(version=parent.version if parent else 0,
+    return dict(collection=collection,receipt_next=next_steps.receipt,receipt_people=people,receipt_data=form if form is not None else dict(version=parent.version if parent else 0,
                 method='TIEN_MAT',amount=money(available),received_at=svc._today().isoformat(),note=''),
                 receipt_methods=METHODS,receipt_statuses=STATUSES,can_report=can_report,
                 can_decide=has_role(user,'finance'),can_void=has_role(user,'director'),available=available,
@@ -123,14 +125,14 @@ def report_ticket(request: Request,ticket_id: int,form=Depends(checked_form),ses
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#thu-tien',status_code=303)
 
 
-def _queue(request,session,user,filters=None,error=None,code='',status=200,decision=None,failed=None,action=''):
+def _queue(request,session,user,filters=None,error=None,code='',status=200,decision=None,failed=None,action='',selected=None):
     filters=filters if filters is not None else {k:request.query_params.get(k,'') for k in ('method','from','to')}
     try:
         try:
             start,end=(date.fromisoformat(filters.get(k,'')) if filters.get(k) else None for k in ('from','to'))
         except ValueError:
             raise BusinessError('BAD_DATE_RANGE','Khoảng ngày chưa hợp lệ, hãy nhập ngày theo lịch.')
-        rows=svc.list_pending(session,user,filters.get('method') or None,start,end)
+        rows=[selected] if selected is not None else svc.list_pending(session,user,filters.get('method') or None,start,end)
     except BusinessError as exc:
         rows=[]
         error,code,status=_error(exc)
@@ -141,10 +143,10 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
     receipt_sources={r.id:dict(number=parents[r.id].number,customer_code=parents[r.id].customer_code,
                               url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else f"/dich-vu/{r.ticket_id}#thu-tien") for r in sources}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({p.customer_code for p in parents.values()}))).all())
-    return render(request,'bao_thu_ds.jinja',rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
+    return render(request,'bao_thu_chi_tiet.jinja' if selected else 'bao_thu_ds.jinja',rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
                   receipt_methods=METHODS,receipt_statuses=STATUSES,can_decide=True,can_void=has_role(user,'director'),
                   receipt_people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({v for r in rows for v in (r.reported_by,r.decided_by) if v}))).all()),
-                  origin='queue',error=error,error_code=code,status=status,receipt_decision=decision or {},failed=failed,
+                  receipt_next=next_steps.receipt,origin='queue',error=error,error_code=code,status=status,receipt_decision=decision or {},failed=failed,
                   failed_receipt_id=failed.id if failed else None,failed_receipt_action=action,
                   saved=request.query_params.get('da_luu')=='1' and not error)
 
@@ -152,6 +154,13 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
 @router.get('/bao-thu')
 def pending(request: Request,user: User=Depends(finance_user),session: Session=Depends(get_session)):
     return _queue(request,session,user)
+
+
+@router.get('/bao-thu/{receipt_id}')
+def detail(request: Request,receipt_id: int,user: User=Depends(finance_user),session: Session=Depends(get_session)):
+    receipt=session.get(SalesReceipt,receipt_id)
+    if receipt is None:raise BusinessError('NOT_FOUND','Không tìm thấy báo thu.',status=404)
+    return _queue(request,session,user,selected=receipt)
 
 
 @router.post('/bao-thu/{receipt_id}/{action}')
@@ -187,6 +196,8 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
             return _form(request,session,order=sales_orders.load(session,user,receipt.order_id),error=message,code=code,status=status,
                          receipt_decision=dict(form),failed_receipt_id=receipt.id,failed_receipt_action=action)
         return _queue(request,session,user,filters,message,code,status,dict(form),receipt,action)
+    if form.get('return_to')=='work':
+        return RedirectResponse('/viec-cua-toi?xong='+('confirmed' if action=='confirm' else 'rejected' if action=='reject' else 'done'),status_code=303)
     if receipt.ticket_id and form.get('origin')=='ticket':
         return RedirectResponse(f'/dich-vu/{receipt.ticket_id}?da_luu=1#thu-tien',status_code=303)
     if receipt.order_id and form.get('origin')=='order':

@@ -11,7 +11,7 @@ from ..security import has_role
 GROUPS = (
     {'label': '', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
-        {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi',), 'roles': ('technician', 'sales', 'warehouse')},
+        {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi',), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
     )},
     {'label': 'Bán hàng', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
@@ -103,9 +103,9 @@ def home_url(user):
 
 
 def work_url(user):
-    """U1 chỉ chuyển tới danh sách sẵn có; U2 sẽ thay bằng nội dung công việc."""
-    return next(href for role, href in (('technician', '/dich-vu'), ('sales', '/don-ban'),
-                                       ('warehouse', '/phieu-kho')) if has_role(user, role))
+    """Đích danh sách theo vai trò cho nơi còn dùng helper; mặc định an toàn."""
+    return next((href for role, href in (('technician', '/dich-vu'), ('sales', '/don-ban'),
+                                       ('warehouse', '/phieu-kho')) if has_role(user, role)), '/viec-cua-toi')
 
 
 def menu(user, path, query=None):

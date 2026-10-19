@@ -5,6 +5,7 @@
 {% block title %}{{ t.number }}{% endblock %}
 {% block main %}
 <div class="bar"><h1>{{ t.number }}</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
+{% include 'buoc_tiep.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if retained_fields %}<section class="card form service-action"><h2>Dữ liệu vừa gửi chưa được lưu</h2>
 <p>Trạng thái phiếu đã thay đổi. <a href="/dich-vu/{{ t.id }}">Tải lại phiếu</a> trước khi tiếp tục.</p>
@@ -27,7 +28,7 @@
 </section>
 {% include "dich_vu_tien.jinja" %}
 {% if can_assign %}
-<form method="post" action="/dich-vu/{{ t.id }}/assign" class="card form service-action">
+<form id="service-assign" method="post" action="/dich-vu/{{ t.id }}/assign" class="card form service-action">
   <h2>Giao thợ{% if t.transfer_request %} / Duyệt chuyển việc{% endif %}</h2>{{ version('assign') }}
   <fieldset><legend>Chọn thợ — số việc đang mở</legend><div class="seg stock-seg">
     {% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if (failed_action == 'assign' and form.get('assignee_id', '')|string == tech.id|string) or (failed_action != 'assign' and t.assignee_id == tech.id) %}checked{% endif %} required><span>{{ tech.full_name }} · {{ counts.get(tech.id, 0) }} việc đang mở</span></label>{% endfor %}
@@ -36,7 +37,7 @@
 {% endif %}
 {% for target in transitions %}
 {% set action = 'transition:' ~ target %}
-<form method="post" action="/dich-vu/{{ t.id }}/transition" class="card form service-action">
+<form id="service-{{ target }}" method="post" action="/dich-vu/{{ t.id }}/transition" class="card form service-action">
   {{ version(action) }}<input type="hidden" name="to_status" value="{{ target }}">
   <h2>{{ transition_labels[target] }}</h2>
   {% if target == 'DA_HEN' %}<label>Ngày giờ hẹn (giờ Việt Nam, +07:00)<input type="datetime-local" name="appointment_at" value="{{ form.get('appointment_at', '') if failed_action == action else appointment_value }}" required></label>{% endif %}
