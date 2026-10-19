@@ -498,6 +498,10 @@ from .receipts import router as receipts_router
 
 router.include_router(receipts_router)
 
+from .parts import router as parts_router
+
+router.include_router(parts_router)
+
 from .services import router as services_router
 
 router.include_router(services_router)

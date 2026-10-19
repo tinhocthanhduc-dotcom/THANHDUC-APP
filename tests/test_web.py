@@ -1013,7 +1013,7 @@ def test_d3_technician_flow_and_photo_required(client, db, service_people, tmp_p
             assert ticket.appointment_at.isoformat() == '2026-10-20T02:30:00+00:00'
             assert '20/10/2026 09:30' in response.text
         if target == 'CHO_LINH_KIEN':
-            assert '>Làm tiếp</button>' in response.text
+            assert '>Tiếp tục làm</button>' in response.text
     response = service_action(client, ticket, csrf, to_status='HOAN_THANH', note='Đã sửa xong máy')
     assert response.status_code == 400 and 'Cần chụp ảnh sau sửa trước khi hoàn thành' in response.text
     assert 'Đã sửa xong máy</textarea>' in response.text

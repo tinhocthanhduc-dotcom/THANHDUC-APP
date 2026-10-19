@@ -18,6 +18,7 @@ PREFIXES = {
     "TN": "Trả nhà cung cấp",
     "BT": "Báo thu",
     "DV": "Phiếu dịch vụ",
+    "YC": "Yêu cầu linh kiện",
     "PT": "Phiếu thu",
     "PC": "Phiếu chi",
     "CQ": "Chuyển quỹ",

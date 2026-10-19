@@ -34,7 +34,9 @@ def detail_context(session, user, ticket, shown=None):
     warehouses = list(session.scalars(select(Warehouse).where(or_(Warehouse.active.is_(True),
                       Warehouse.code.in_([line.get('warehouse_code') for line in data['lines'] if line.get('warehouse_code')]))).order_by(Warehouse.code)))
     own = technician_stock.restricted_warehouse(session,user)
-    if own:warehouses = [own]
+    if own:
+        saved_codes = {line.warehouse_code for line in ticket.lines if line.kind == 'VAT_TU'}
+        warehouses = [w for w in warehouses if w.code == own.code or w.code in saved_codes]
     names = dict(session.execute(select(Product.code, Product.name).where(
                  Product.code.in_([line.get('product_code') for line in data['lines'] if line.get('product_code')]))).all())
     docs = list(session.execute(select(StockDoc.id, StockDoc.number).where(

@@ -23,9 +23,11 @@
     <dt>Hạn xử lý</dt><dd>{{ t.due_at|service_time }}</dd><dt>Hẹn khách</dt><dd>{{ t.appointment_at|service_time }}</dd>
   </dl>
   <h3>Mô tả lỗi</h3><p class="service-text">{{ t.symptom }}</p>
+  {% if t.hold_reason %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
   {% if t.status_reason %}<h3>Lý do</h3><p class="service-text">{{ t.status_reason }}</p>{% endif %}
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
 </section>
+{% include "dich_vu_linh_kien.jinja" %}
 {% include "dich_vu_tien.jinja" %}
 {% if can_assign %}
 <form id="service-assign" method="post" action="/dich-vu/{{ t.id }}/assign" class="card form service-action">
@@ -41,6 +43,7 @@
   {{ version(action) }}<input type="hidden" name="to_status" value="{{ target }}">
   <h2>{{ transition_labels[target] }}</h2>
   {% if target == 'DA_HEN' %}<label>Ngày giờ hẹn (giờ Việt Nam, +07:00)<input type="datetime-local" name="appointment_at" value="{{ form.get('appointment_at', '') if failed_action == action else appointment_value }}" required></label>{% endif %}
+  {% if target == 'TAM_DUNG' %}<fieldset><legend>Lý do tạm dừng</legend><div class="seg stock-seg">{% for code,label in hold_reasons.items() %}<label><input type="radio" name="hold_reason" value="{{ code }}" {% if failed_action == action and form.get('hold_reason') == code %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset><p class="hint">Chọn Khác thì phải ghi chú bên dưới.</p>{% endif %}
   {{ note(action, 'Lý do' if (target in ['KHONG_LAM_DUOC', 'DA_HUY'] or (t.status == 'HOAN_THANH' and target == 'DANG_LAM')) else 'Ghi chú', (target in ['KHONG_LAM_DUOC', 'DA_HUY'] or (t.status == 'HOAN_THANH' and target == 'DANG_LAM'))) }}
   <button {% if target == 'DA_HUY' %}data-service-confirm="Hủy phiếu dịch vụ này?"{% endif %}>{{ transition_labels[target] }}</button>
 </form>

@@ -62,7 +62,7 @@ def assign(ticket_id: int, body: ServiceAssign, user: User = Depends(current_use
 
 @router.post("/{ticket_id}/transition", response_model=ServiceTicketOut)
 def transition(ticket_id: int, body: ServiceTransition, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at)
+    return svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason)
 
 
 @router.post("/{ticket_id}/transfer-request", response_model=ServiceTicketOut)

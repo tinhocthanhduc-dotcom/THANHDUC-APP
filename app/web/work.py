@@ -12,7 +12,7 @@ from .purchases import STATUSES as PURCHASE_STATUSES
 from .receipts import STATUSES as RECEIPT_STATUSES
 
 LABELS = dict(service=SERVICE_STATUSES, order=ORDER_STATUSES, quote=QUOTE_STATUSES,
-              purchase=PURCHASE_STATUSES, receipt=RECEIPT_STATUSES, stock={'SAP_HET':'Sắp hết'})
+              purchase=PURCHASE_STATUSES, receipt=RECEIPT_STATUSES, stock={'SAP_HET':'Sắp hết'}, part={'CHO_CAP':'Chờ cấp'})
 NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhận báo thu.', 'rejected':'Đã từ chối báo thu.'}
 
 

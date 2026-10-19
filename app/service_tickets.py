@@ -24,21 +24,24 @@ CREATORS = ("dispatcher", "sales", "reception")
 DISPATCHERS = ("dispatcher",)
 TECHNICIAN = "technician"
 
-OPEN = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN")
+OPEN = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
 CLOSED = ("HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
 # Trạng thái đích hợp lệ từ mỗi trạng thái, ngoài giao thợ (assign) và hủy (DA_HUY, chỉ điều phối).
 FLOW = {
     "DA_GIAO": {"DA_NHAN"},
     "DA_NHAN": {"DA_HEN", "KHONG_LAM_DUOC"},
     "DA_HEN": {"DA_HEN", "DANG_LAM", "KHONG_LAM_DUOC"},  # DA_HEN -> DA_HEN là dời lịch hẹn
-    "DANG_LAM": {"HOAN_THANH", "CHO_LINH_KIEN", "KHONG_LAM_DUOC"},
+    "DANG_LAM": {"HOAN_THANH", "CHO_LINH_KIEN", "TAM_DUNG", "KHONG_LAM_DUOC"},
     "CHO_LINH_KIEN": {"DANG_LAM", "KHONG_LAM_DUOC"},
+    "TAM_DUNG": {"DANG_LAM", "KHONG_LAM_DUOC"},
     "HOAN_THANH": {"DANG_LAM", "DA_DONG"},  # chỉ điều phối: mở lại nghiệm thu (có lý do) hoặc đóng hồ sơ
 }
 # Phiếu đã hoàn thành chỉ điều phối được mở lại, hủy hoặc đóng; hủy lúc đó trả vật tư về kho.
 CANCELLABLE = OPEN + ("HOAN_THANH",)
+HOLD_REASONS = {"CHO_KHACH_DUYET": "Chờ khách duyệt", "CHO_KY_THUAT_KHAC": "Chờ kỹ thuật khác",
+                "CHO_DOI_TAC": "Chờ đối tác", "HEN_NGAY_KHAC": "Hẹn ngày khác", "KHAC": "Khác"}
 NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY")
-ASSIGNABLE = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN")
+ASSIGNABLE = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
 
 
 def _now() -> datetime:
@@ -149,13 +152,14 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
         before, from_status = snapshot(t), t.status
         action = "assign" if t.assignee_id is None else "reassign"
         t.assignee_id, t.status, t.transfer_request, t.appointment_at = tech.id, "DA_GIAO", "", None
+        t.hold_reason = ""
         t.due_at = service_sla.due_at("DA_GIAO", t.priority, _now(), None)
         _record(session, user, t, action, before, from_status, note)
     return t
 
 
 def transition(session: Session, user: User, ticket_id: int, to_status: str, version: int | None,
-               note: str = "", appointment_at: datetime | None = None) -> ServiceTicket:
+               note: str = "", appointment_at: datetime | None = None, hold_reason: str = "") -> ServiceTicket:
     note = (note or "").strip()
     with _transaction(session):
         t = _get(session, user, ticket_id, lock=True)
@@ -172,6 +176,13 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
             if to_status not in FLOW.get(t.status, ()):
                 raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
                                     {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
+        if to_status == "TAM_DUNG":
+            if hold_reason not in HOLD_REASONS:
+                raise BusinessError("HOLD_REASON_REQUIRED", "Phải chọn lý do tạm dừng.")
+            if hold_reason == "KHAC" and not note:
+                raise BusinessError("REASON_REQUIRED", "Tạm dừng vì lý do khác phải ghi chú.")
+        elif hold_reason:
+            raise BusinessError("BAD_HOLD_REASON", "Chỉ gửi lý do tạm dừng khi tạm dừng phiếu.")
         if to_status == "HOAN_THANH":
             from .attachments import has_visible  # attachments cũng dùng module này
 
@@ -197,6 +208,10 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
         elif reopening:
             service_charges.release(session, user, t, note)
         t.status = to_status
+        if to_status == "TAM_DUNG":
+            t.hold_reason = hold_reason
+        elif to_status == "DANG_LAM":
+            t.hold_reason = ""
         if to_status in NEEDS_REASON:
             t.status_reason = note
         if to_status in CLOSED:

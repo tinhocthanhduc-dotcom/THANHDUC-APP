@@ -321,7 +321,7 @@ class StockMinLevelIn(BaseModel):
 
 ServiceKind = Literal["SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY"]
 ServicePriority = Literal["KHAN", "GAP", "THUONG"]
-ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY"]
+ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY"]
 
 
 class ServiceTicketIn(BaseModel):
@@ -347,6 +347,7 @@ class ServiceTransition(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     to_status: ServiceStatus
+    hold_reason: str = Field(default="", max_length=24)
     version: int | None = Field(default=None, ge=1)
     note: str = Field(default="", max_length=2000)
     appointment_at: AwareDatetime | None = None
@@ -388,6 +389,7 @@ class ServiceTicketOut(BaseModel):
     appointment_at: datetime | None
     due_at: datetime | None
     status_reason: str
+    hold_reason: str
     transfer_request: str
     billing: Literal["THU_TIEN", "MIEN_PHI"] | None
     free_reason: str
@@ -1008,3 +1010,38 @@ class PurchaseReturnOut(BaseModel):
     voided_at: datetime | None
     version: int
     lines: list[PurchaseReturnLineOut]
+
+
+class PartRequestIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    product_code: str = Field(min_length=1, max_length=16)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    reason: str = Field(default="", max_length=2000)
+    version: int = Field(ge=1)
+
+
+class PartDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    warehouse_code: str = Field(default="", max_length=16)
+    note: str = Field(default="", max_length=2000)
+
+
+class PartRequestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    number: str
+    ticket_id: int
+    requester_id: int
+    product_code: str
+    qty: Decimal
+    reason: str
+    status: str
+    from_warehouse_code: str | None
+    to_warehouse_code: str | None
+    stock_doc_id: int | None
+    decided_by: int | None
+    decided_at: datetime | None
+    decision_note: str
+    created_at: datetime
+    version: int

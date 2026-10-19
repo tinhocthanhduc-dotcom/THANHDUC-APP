@@ -26,14 +26,14 @@ router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 STATUSES = {
     "MOI": "Mới", "DA_GIAO": "Đã giao", "DA_NHAN": "Đã nhận", "DA_HEN": "Đã hẹn",
-    "DANG_LAM": "Đang làm", "CHO_LINH_KIEN": "Chờ linh kiện", "HOAN_THANH": "Hoàn thành",
+    "DANG_LAM": "Đang làm", "CHO_LINH_KIEN": "Chờ linh kiện", "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành",
     "DA_DONG": "Đã đóng", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Đã hủy",
 }
 KINDS = {"SUA_TAI_CHO": "Sửa tại chỗ", "MANG_VE": "Mang về", "BAO_HANH": "Bảo hành", "MUC_DINH_KY": "Mực định kỳ"}
 PRIORITIES = {"KHAN": "Khẩn", "GAP": "Gấp", "THUONG": "Thường"}
 TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Bắt đầu", "CHO_LINH_KIEN": "Chờ linh kiện",
-    "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
+    "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy",
@@ -47,7 +47,7 @@ def local_time(value):
 
 templates.env.filters["service_time"] = local_time
 templates.env.globals.update(service_statuses=STATUSES, service_kinds=KINDS,
-                             service_priorities=PRIORITIES, step_labels=STEPS)
+                             service_priorities=PRIORITIES, step_labels=STEPS, hold_reasons=svc.HOLD_REASONS)
 
 
 def _own_only(user):
@@ -110,7 +110,8 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action=""):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None):
+    from .parts import detail_context as part_context
     from .charges import detail_context
     from .receipts import ticket_context
     t = svc.load(session, user, ticket_id)
@@ -120,8 +121,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     if dispatcher and t.status in svc.CANCELLABLE:
         targets.append("DA_HUY")
     labels = dict(TRANSITIONS)
-    if t.status == "CHO_LINH_KIEN":
-        labels["DANG_LAM"] = "Làm tiếp"
+    if t.status in ("CHO_LINH_KIEN", "TAM_DUNG"):
+        labels["DANG_LAM"] = "Tiếp tục làm"
     if t.status == "HOAN_THANH":
         labels["DANG_LAM"] = "Mở lại"
     if t.status == "DA_HEN":
@@ -134,7 +135,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     if dispatcher and t.transfer_request:
         visible_actions.add("transfer-reject")
     retained_fields = [(key, str(value)) for key, value in (form or {}).items()
-                       if key in {"version", "assignee_id", "to_status", "note", "reason", "appointment_at"}]
+                       if key in {"version", "assignee_id", "to_status", "note", "reason", "appointment_at", "hold_reason"}]
     # D1 là danh mục chỉ đọc; phiếu và lịch sử luôn được tải qua lõi D2.
     from ..models import CustomerSite
     site = session.get(CustomerSite, t.site_id) if t.site_id else None
@@ -153,6 +154,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   retained_fields=retained_fields if error and failed_action not in visible_actions else [],
                   saved=request.query_params.get("da_luu") == "1" and not error, status=status,
                   **detail_context(session, user, t, charge_shown),
+                  **part_context(session, user, t, part_form),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
 
 
@@ -233,8 +235,8 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
                 # datetime-local không có múi giờ: luôn gửi giờ Việt Nam +07:00 tới lõi.
                 appointment = value.replace(tzinfo=TZ).isoformat() if value.tzinfo is None else value.isoformat()
             body = ServiceTransition(to_status=form.get('to_status'), version=version,
-                                     note=form.get('note', ''), appointment_at=appointment or None)
-            svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at)
+                                     note=form.get('note', ''), appointment_at=appointment or None, hold_reason=str(form.get("hold_reason", "")))
+            svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason)
         elif action in ("transfer-request", "transfer-reject"):
             body = ServiceReason(reason=form.get('reason', ''), version=version)
             fn = svc.request_transfer if action == "transfer-request" else svc.reject_transfer

@@ -596,3 +596,19 @@ Không đổi `stock_posting` hay giá vốn: CK giữa kho công ty/kho thợ b
 Kho THO bị loại khỏi lựa chọn và kiểm tra lõi đơn mua/đơn bán; nhận hàng kiểm lại loại kho phòng trường hợp kho đổi loại sau khi đặt đơn. Mức cảnh báo tồn không nhận kho thợ (BAD_WAREHOUSE 409); Sắp hết và cảnh báo R2 cũng loại kho thợ, kể cả mức đã tồn tại trước khi đổi loại. Báo cáo tồn chia Kho công ty / Thợ đang giữ, tổng toàn bộ vẫn gồm cả hai; báo cáo/tổng quan gốc không lọc bỏ kho thợ.
 
 GET `/hang-toi-giu`: kỹ thuật chỉ kho active của mình, query `tho` khác mình bị FORBIDDEN 403; warehouse/director dùng `?tho={id}` để xem thợ. Mọi dữ liệu chỉ SELECT, gồm số lượng dương và CK DA_GHI gần nhất theo mã (bỏ phiếu đã hủy/dòng đảo). Link CK của thợ mở GET `/hang-toi-giu/phieu/{id}` chỉ đọc, chỉ phiếu liên quan kho mình; không mở quyền vào toàn bộ /phieu-kho hoặc bất kỳ POST nào. Thủ kho/giám đốc có nút Trả kho mở CK với nguồn đã chọn, vẫn phải chọn đích/dòng và ghi qua form cũ có CSRF/version. Menu Hàng tôi giữ dành cho kỹ thuật/giám đốc; thủ kho mở từ danh mục Kho → Xem hàng thợ giữ.
+
+## Yêu cầu linh kiện và tạm dừng (KT3)
+
+- `POST /service-tickets/{id}/part-requests`: `{version, product_code, qty, reason}`; version của phiếu dịch vụ, số lượng > 0. Thợ được giao hoặc điều phối tạo khi `DANG_LAM`/`CHO_LINH_KIEN`; tự chuyển `DANG_LAM` sang `CHO_LINH_KIEN`, có bước lịch sử và audit trong cùng transaction. `requester_id` là người bấm tạo.
+- `GET /service-tickets/{id}/part-requests`: lịch sử yêu cầu của phiếu, theo quyền xem phiếu.
+- `GET /part-requests?status=CHO_CAP`: thủ kho/giám đốc xem danh sách cũ trước.
+- `POST /part-requests/{id}/supply`: `{version, warehouse_code}`; version của yêu cầu. Chỉ kho công ty `KHO` đang dùng; lập và ghi CK trong transaction. Kho nhận được tra **lúc cấp**, theo thợ đang được giao; `from_warehouse_code`, `to_warehouse_code`, `stock_doc_id` lưu dấu vết cấp hàng kể cả sau này đổi thợ.
+- `POST /part-requests/{id}/out-of-stock`: `{version, note}`; thủ kho/giám đốc, bắt buộc ghi chú. Chuyển `HET_HANG`; giao diện chỉ mở form đơn mua điền sẵn mã, không tự lập đơn.
+- `POST /part-requests/{id}/cancel`: `{version, note}`; người tạo hoặc điều phối/giám đốc hủy yêu cầu còn `CHO_CAP`, bắt buộc lý do.
+- `POST /service-tickets/{id}/transition`: thêm `to_status=TAM_DUNG`, `hold_reason` là `CHO_KHACH_DUYET`, `CHO_KY_THUAT_KHAC`, `CHO_DOI_TAC`, `HEN_NGAY_KHAC` hoặc `KHAC`. `KHAC` bắt buộc `note`. Chỉ từ `DANG_LAM`; quay về `DANG_LAM` xóa `hold_reason`. Hủy/không làm được theo cùng luật chờ linh kiện. Tạm dừng không đóng phiếu, không ghi tồn.
+
+Mã lỗi: `FORBIDDEN` (403), `NOT_FOUND` (404), `BAD_STATUS` (409), `VERSION_CONFLICT` (409), `NO_TECH_WAREHOUSE` (409: thợ đang được giao chưa có kho riêng), `BAD_PRODUCT`, `BAD_WAREHOUSE`, `REASON_REQUIRED`, `HOLD_REASON_REQUIRED`, `BAD_HOLD_REASON`, `NEGATIVE_STOCK` (409, kèm mã/kho/tồn/số cần). Thiếu tồn không tạo CK và không đổi yêu cầu. Mọi thay đổi yêu cầu ghi `part_request.create/supply/out_of_stock/cancel` vào audit với trước/sau.
+
+`TECH_WAREHOUSE_ONLY` (409) chỉ áp cho vật tư thợ thêm hoặc thay mã/kho/số lượng. Dòng kho công ty được điều phối lưu trước có thể giữ nguyên khi thợ bổ sung phí; không thể nhân bản dòng đó. Lưu dòng tiền/vật tư cũng tăng version phiếu, kể cả không thay cách thu.
+
+Web: `/yeu-cau-linh-kien` (Kho), các form yêu cầu/hủy trên `/dich-vu/{id}` đều có CSRF. `/dieu-phoi?view=paused` và `/dieu-phoi/bao-cao?status=TAM_DUNG&from=YYYY-MM-DD&to=YYYY-MM-DD` có lý do tạm dừng; báo cáo lọc các phiếu còn tạm dừng có bước tạm dừng gần nhất trong kỳ, theo giờ Việt Nam.
