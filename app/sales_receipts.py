@@ -10,7 +10,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from . import audit, sales_orders, cash_docs, cash_posting, finance_mappings
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import SalesOrder, SalesReceipt, ServiceTicket, SALES_RECEIPT_METHODS
+from .models import Customer, SalesOrder, SalesReceipt, ServiceTicket, SALES_RECEIPT_METHODS
 from .schemas import CashDocIn, SalesReceiptOut, SalesReceiptReport
 from .security import has_role
 
@@ -109,15 +109,16 @@ def _ticket(session,ticket_id):
     return row
 
 
-def check_ticket_reporter(user):
-    if not has_role(user,'dispatcher','sales'):
-        raise BusinessError('FORBIDDEN','Chỉ điều phối, kinh doanh hoặc giám đốc được báo thu dịch vụ.',status=403)
+def check_ticket_reporter(user, ticket):
+    if not (has_role(user,'dispatcher','sales') or
+            (has_role(user,'technician') and ticket.assignee_id == user.id)):
+        raise BusinessError('FORBIDDEN','Chỉ điều phối, kinh doanh, giám đốc hoặc thợ được giao phiếu được báo thu dịch vụ.',status=403)
 
 
 def report_for_ticket(session,user,ticket_id,body: SalesReceiptReport):
-    check_ticket_reporter(user)
     with _transaction(session):
         ticket = _ticket(session,ticket_id)
+        check_ticket_reporter(user, ticket)
         _version(ticket,body.version)
         if ticket.status not in ('HOAN_THANH','DA_DONG') or (ticket.receivable or 0)<=0 or ticket.billing=='MIEN_PHI':
             raise BusinessError('BAD_STATUS','Chỉ báo thu cho phiếu dịch vụ đã hoàn thành hoặc đã đóng còn số phải thu.',status=409)
@@ -132,6 +133,27 @@ def report_for_ticket(session,user,ticket_id,body: SalesReceiptReport):
         session.add(receipt)
         _record(session,user,receipt,'report',None)
     return receipt
+
+
+def held_by(session, user):
+    """Tiền mặt đang chờ của chính người báo, không phụ thuộc người hiện giữ phiếu."""
+    with session.no_autoflush:
+        rows = [dict(row) for row in session.execute(select(
+            SalesReceipt.id, SalesReceipt.number, SalesReceipt.ticket_id, SalesReceipt.order_id,
+            ServiceTicket.number.label('ticket_number'), SalesOrder.number.label('order_number'),
+            Customer.name.label('customer'), SalesReceipt.amount, SalesReceipt.received_at,
+            func.sum(SalesReceipt.amount).over().label('held_total')
+        ).outerjoin(ServiceTicket, ServiceTicket.id == SalesReceipt.ticket_id).outerjoin(
+            SalesOrder, SalesOrder.id == SalesReceipt.order_id).join(
+            Customer, Customer.code == func.coalesce(ServiceTicket.customer_code, SalesOrder.customer_code))
+        .where(SalesReceipt.reported_by == user.id, SalesReceipt.method == 'TIEN_MAT',
+               SalesReceipt.status == 'CHO_XAC_NHAN')
+        .order_by(SalesReceipt.received_at, SalesReceipt.reported_at, SalesReceipt.id)).mappings()]
+        total = int(rows[0]['held_total']) if rows else 0
+        for row in rows:
+            row.pop('held_total')
+            row['amount'] = int(row['amount'])
+        return dict(rows=rows, total=total)
 
 
 def for_ticket(session,user,ticket_id):

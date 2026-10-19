@@ -574,4 +574,13 @@ Dependency `check_navigation` gắn trên toàn bộ router web, trước khi đ
 
 Khối Bước tiếp theo chỉ chọn form/route hiện có theo quyền và trạng thái: gửi/chấp nhận báo giá, tạo đơn từ báo giá, chốt/giao/báo thu đơn, giao/nhận/hẹn/làm/hoàn thành dịch vụ, báo thu/đóng phiếu và xác nhận/từ chối báo thu. Nút ở đầu trang submit đúng form cũ bằng thuộc tính `form`, giữ CSRF, version, kiểm dữ liệu chưa lưu và validation của trình duyệt/lõi. GET `/bao-thu/{id}` cho finance/director hiển thị một báo thu; nút quyết định ở khối mới gửi `return_to=work`, thành công về Việc của tôi với thông báo xanh, các POST cũ giữ redirect cũ.
 
-Lõi dịch vụ hiện yêu cầu hẹn khách trước khi bắt đầu, lưu cách thu/miễn phí và ảnh SAU trước khi hoàn thành; hoàn thành tự khóa giá. Nút chính dẫn tới bước còn thiếu, không thêm đường bỏ qua luật. Ràng buộc DB cũng không cho phiếu hoàn thành chưa khóa giá. Thợ thấy việc chưa báo thu nhưng không có nút báo thu/đóng phiếu vì lõi không cấp quyền đó. Không đổi schema, luật tiền/kho hay quyền ghi.
+Lõi dịch vụ hiện yêu cầu hẹn khách trước khi bắt đầu, lưu cách thu/miễn phí và ảnh SAU trước khi hoàn thành; hoàn thành tự khóa giá. Nút chính dẫn tới bước còn thiếu, không thêm đường bỏ qua luật. Ràng buộc DB cũng không cho phiếu hoàn thành chưa khóa giá. KT1 bổ sung quyền báo thu cho thợ được giao phiếu; quyền đóng phiếu vẫn chỉ điều phối/giám đốc. Không đổi schema, luật tiền/kho hay quyền ghi.
+
+
+## Thợ báo thu tại chỗ (KT1)
+
+`check_ticket_reporter(user, ticket)` cho dispatcher/sales/director hoặc technician có `ticket.assignee_id == user.id`. `report_for_ticket` kiểm quyền sau `_ticket(... FOR UPDATE, populate_existing=True)` trong cùng transaction, trước version và trạng thái: thợ khác nhận `FORBIDDEN` 403, kể cả session đã tải người được giao cũ. API POST `/service-tickets/{id}/receipts` và web POST `/dich-vu/{id}/bao-thu` dùng chung kiểm này. Giữ nguyên điều kiện HOAN_THANH/DA_DONG có thu tiền, OVER_PAYMENT tính cả báo thu chờ, version, số BT và audit; báo thu không tạo PT hay ghi quỹ. Chỉ kế toán/giám đốc xác nhận; chỉ giám đốc hủy BT đã xác nhận.
+
+`held_by(session, user)` chỉ SELECT/no_autoflush: trả `rows` (id/số BT, số DV hoặc DB, khách, amount nguyên đồng, received_at) và `total`. Chỉ tiền mặt CHO_XAC_NHAN do chính user báo; chuyển khoản, BT xác nhận/từ chối/hủy và người khác bị loại. Không lọc theo người hiện được giao phiếu, vì chuyển việc không chuyển tiền người báo đang giữ.
+
+GET `/tien-toi-giu` cho mọi tài khoản đăng nhập, kể cả admin-only; tất cả chỉ thấy tiền mình giữ. Menu khai báo tại nav.py dùng `menu_roles` riêng (mặc định bằng roles) để hiện mục này cho kỹ thuật/giám đốc, trong khi vai trò khác vẫn được mở trang cá nhân. Sau Hoàn thành, thợ được giao có nút U2 “Báo đã thu”, dùng form cũ có CSRF/version, cách thu là nút chạm, số tiền mặc định còn nợ trừ chờ, nhập `50.000` lưu 50000; lịch sử từng BT giữ nguyên. Không migration, không sửa cash_posting, stock_* hoặc doc_counters.

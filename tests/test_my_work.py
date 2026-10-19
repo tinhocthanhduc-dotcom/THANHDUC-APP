@@ -303,7 +303,7 @@ def test_service_end_to_end_existing_core_holds_appointment_price_photo_rules(cl
     photo=parsed.forms[parsed.primary['form']]
     page=client.post(photo['action'],data=photo['fields'],files={'file':('sau.png',d5_image(),'image/png')})
     page=next_action(client,page);db.expire_all();assert t.status=='HOAN_THANH' and t.priced_at is not None
-    assert Page(page.text).primary is None  # Thợ không được tự báo thu hoặc đóng phiếu.
+    assert Page(page.text).primary['data-next-route']==f'/dich-vu/{t.id}/bao-thu'  # KT1: thợ được báo thu phiếu của mình.
     service_login(client,p['dispatcher']);page=client.get(str(page.url))
     page=next_action(client,page,method='TIEN_MAT',amount='500.000',received_at=DAY.isoformat())
     assert 'Đóng phiếu' in page.text
