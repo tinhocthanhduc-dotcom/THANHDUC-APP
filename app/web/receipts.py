@@ -58,7 +58,7 @@ def _collection_context(session,user,parent,collection,origin,can_report,reporta
     people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_(ids))).all())
     cash_ids={r.cash_doc_id for r in collection['receipts'] if r.cash_doc_id} if collection else set()
     prefix='/dich-vu' if origin=='ticket' else '/don-ban'
-    return dict(collection=collection,receipt_next=next_steps.receipt,receipt_people=people,receipt_data=form if form is not None else dict(version=parent.version if parent else 0,
+    return dict(collection=collection,receipt_next=next_steps.receipt,receipt_report_label=next_steps.ticket_report_label(user,parent) if origin=='ticket' else 'Báo thu',receipt_people=people,receipt_data=form if form is not None else dict(version=parent.version if parent else 0,
                 method='TIEN_MAT',amount=money(available),received_at=svc._today().isoformat(),note=''),
                 receipt_methods=METHODS,receipt_statuses=STATUSES,can_report=can_report,
                 can_decide=has_role(user,'finance'),can_void=has_role(user,'director'),available=available,
@@ -79,7 +79,7 @@ def order_context(session,user,order,form=None,decision=None,failed_id=None,fail
 def ticket_context(session,user,ticket,form=None,decision=None,failed_id=None,failed_action=''):
     reportable=ticket.status in ('HOAN_THANH','DA_DONG') and (ticket.receivable or 0)>0
     collection=svc.for_ticket(session,user,ticket.id) if reportable else None
-    return _collection_context(session,user,ticket,collection,'ticket',has_role(user,'dispatcher','sales'),
+    return _collection_context(session,user,ticket,collection,'ticket',next_steps.permitted(svc.check_ticket_reporter,user,ticket),
         reportable,form,decision,failed_id,failed_action)
 
 
@@ -114,15 +114,21 @@ def _report_body(form,raw):
 @router.post('/dich-vu/{ticket_id}/bao-thu')
 def report_ticket(request: Request,ticket_id: int,form=Depends(checked_form),session: Session=Depends(get_session)):
     user=request.state.user
-    svc.check_ticket_reporter(user)
     raw={key:str(form.get(key,'')) for key in ('version','method','amount','received_at','note')}
     try:
         svc.report_for_ticket(session,user,ticket_id,_report_body(form,raw))
     except (BusinessError,ValidationError) as exc:
+        if isinstance(exc,BusinessError) and exc.code=='FORBIDDEN':
+            return render(request,'loi.jinja',error=exc,status=exc.status)
         from .services import _detail
         message,code,status=_error(exc)
         return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,receipt_form=raw)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#thu-tien',status_code=303)
+
+
+@router.get('/tien-toi-giu')
+def held(request: Request,user: User=Depends(web_user),session: Session=Depends(get_session)):
+    return render(request,'tien_toi_giu.jinja',held=svc.held_by(session,user))
 
 
 def _queue(request,session,user,filters=None,error=None,code='',status=200,decision=None,failed=None,action='',selected=None):

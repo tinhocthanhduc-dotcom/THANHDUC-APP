@@ -127,7 +127,7 @@ def test_service_invalid_status_roles_reject_and_xor_db(db,t3_people):
     for t in (free,working):fails('BAD_STATUS',report,db,p,t,500000)
     t=ticket(db,p,status='DA_DONG')
     body=SalesReceiptReport(version=t.version,method='TIEN_MAT',amount=500000)
-    for role in ('finance','technician'):
+    for role in ('finance',):
         fails('FORBIDDEN',svc.report_for_ticket,db,p[role],t.id,body)
     r=svc.report_for_ticket(db,p['sales'],t.id,body)
     svc.reject(db,p['finance'],r.id,'Chưa nhận tiền',r.version)
