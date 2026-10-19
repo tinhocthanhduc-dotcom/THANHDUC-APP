@@ -20,6 +20,8 @@ GROUPS = (
     {'label': 'Dịch vụ', 'items': (
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
         {'label': 'Dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
+        {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),
+         'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'menu_roles': ('technician',)},
         {'label': 'Thiết bị', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
     {'label': 'Kho', 'items': (
@@ -112,7 +114,7 @@ def menu(user, path, query=None):
     current = matching(path, query)
     groups = []
     for group in GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if has_role(user, *item['roles'])]
+        visible = [dict(item, active=item is current) for item in group['items'] if has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)

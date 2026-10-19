@@ -5,11 +5,11 @@
 {% if can_report and receipt_reportable %}
 {% if available>0 or error_code in ['OVER_PAYMENT','BAD_AMOUNT','BAD_FORM','VERSION_CONFLICT'] %}
 <form id="receipt-report" method="post" action="{{ receipt_report_url }}" class="card form" data-receipt-report>
-<h3>Báo thu</h3><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ receipt_data.version }}">
+<h3>{{ receipt_report_label }}</h3><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ receipt_data.version }}">
 <fieldset><legend>Cách thu</legend><div class="seg stock-seg">{% for value,label in receipt_methods.items() %}<label><input type="radio" name="method" value="{{ value }}" {% if receipt_data.method==value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
 <label>Số tiền (đồng)<input name="amount" value="{{ receipt_data.amount }}" inputmode="numeric" data-money required></label>
 <label>Ngày thu<input type="date" name="received_at" value="{{ receipt_data.received_at }}" required></label>
-<label>Ghi chú<textarea name="note" maxlength="4000">{{ receipt_data.note }}</textarea></label><button class="primary">Báo thu</button>
+<label>Ghi chú<textarea name="note" maxlength="4000">{{ receipt_data.note }}</textarea></label><button class="primary">{{ receipt_report_label }}</button>
 </form>{% else %}<p class="alert ok">Đã thu hoặc đã báo đủ số phải thu; chờ tài chính xác nhận các phiếu còn lại.</p>{% endif %}
 {% endif %}
 <div class="receipt-grid">{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% else %}<p>Chưa có báo thu.</p>{% endfor %}</div>
