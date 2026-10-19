@@ -22,6 +22,7 @@ GROUPS = (
         {'label': 'Dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
         {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),
          'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'menu_roles': ('technician',)},
+        {'label': 'Hàng tôi giữ', 'href': '/hang-toi-giu', 'prefixes': ('/hang-toi-giu',), 'roles': ('technician','warehouse'), 'menu_roles': ('technician',)},
         {'label': 'Thiết bị', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
     {'label': 'Kho', 'items': (

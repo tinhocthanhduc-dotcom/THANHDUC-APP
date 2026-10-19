@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from . import audit, purchase_orders as orders, quotes, stock_docs, stock_posting
 from .errors import BusinessError
-from .models import PurchaseReceipt, PurchaseReceiptLine, PurchaseReturn
+from .models import Warehouse, PurchaseReceipt, PurchaseReceiptLine, PurchaseReturn
 from .schemas import PurchaseReceiveLineIn, PurchaseReceiptOut, StockDocIn, StockDocLineIn
 
 check_writer = orders.check_writer
@@ -102,6 +102,8 @@ def receive(session, user, order_id, version, receipt_date, lines):
             groups.setdefault(line.warehouse_code,[]).append((line,part.qty,amount,vat))
         before=orders.snapshot(order); result=[]
         for warehouse in sorted(groups):
+            if not session.scalar(select(Warehouse.code).where(Warehouse.code == warehouse, Warehouse.kind == 'KHO', Warehouse.active.is_(True)).with_for_update(read=True)):
+                raise BusinessError('BAD_WAREHOUSE','Đơn mua chỉ nhận vào kho công ty đang dùng.')
             rows=sorted(groups[warehouse],key=lambda r:r[0].line_no)
             doc=stock_docs.insert(session,user,StockDocIn(kind='PN',warehouse_code=warehouse,doc_date=receipt_date,
                 supplier_code=order.supplier_code,reason=f'Nhận hàng {order.number}',

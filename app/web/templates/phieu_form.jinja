@@ -1,5 +1,6 @@
 {% extends "base.jinja" %}
-{% block title %}{{ d.number or 'Lập phiếu kho' }}{% endblock %}
+{% block title %}{{ d.number or 'Lập phiếu kho' }}<script src="/static/technician-stock.js" defer></script>
+{% endblock %}
 {% block main %}
 <div class="bar"><h1>{{ d.number or 'Lập phiếu kho' }} · {{ states[d.status] }}</h1><a href="/phieu-kho">← Phiếu kho</a></div>
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
@@ -17,9 +18,11 @@
 <fieldset><legend>Kho nguồn</legend><div class="seg stock-seg">
 {% for w in warehouses %}<label><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if d.warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.warehouse_code != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
 </div></fieldset>
-<fieldset data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend><div class="seg stock-seg">
-{% for w in warehouses %}<label><input type="radio" name="to_warehouse_code" value="{{ w.code }}" {% if d.to_warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.to_warehouse_code != w.code %}disabled{% endif %}><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
-</div></fieldset>
+<fieldset data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend>
+<input type="hidden" name="to_warehouse_code" value="{{ d.to_warehouse_code or '' }}">
+<div class="seg stock-seg">{% for w in warehouses if w.kind=='KHO' %}<label><input type="radio" name="to_regular_warehouse" value="{{ w.code }}" {% if d.to_warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.to_warehouse_code != w.code %}disabled{% endif %}><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}</div>
+<div data-picker data-tech-destination><label>Hoặc chuyển cho thợ (tìm và chọn)<input value="{{ tech_destination }}" autocomplete="off" data-live=".tech-warehouse-options" data-source="/phieu-kho/tim-kho-tho"></label><input type="hidden" data-picked-value value="{{ d.to_warehouse_code or '' }}" data-destination-picker><div class="tech-warehouse-options product-options"></div></div>
+</fieldset>
 <label data-kind-only="PN" {% if d.kind != 'PN' %}hidden{% endif %}>Nhà cung cấp<select name="supplier_code" {% if d.kind != 'PN' %}disabled{% endif %}><option value="">Chọn nhà cung cấp</option>{% for s in suppliers %}<option value="{{ s.code }}" {% if d.supplier_code == s.code %}selected{% endif %}>{{ s.code }} · {{ s.name }}</option>{% endfor %}</select></label>
 <label data-kind-only="PX" {% if d.kind != 'PX' %}hidden{% endif %}>Mã khách hàng (nếu có)<input name="customer_code" value="{{ d.customer_code or '' }}" {% if d.kind != 'PX' %}disabled{% endif %}></label>
 <label>Lý do<input name="reason" value="{{ d.reason }}" maxlength="2000"></label>
@@ -39,4 +42,5 @@
 </form>{% endif %}
 <template id="stock-line-template">{% set line = {'product_code':'', 'qty':'1', 'unit_cost':'', 'serial':'', 'note':''} %}{% include 'phieu_dong.jinja' %}</template>
 <script src="/static/stock.js" defer></script>
+<script src="/static/technician-stock.js" defer></script>
 {% endblock %}

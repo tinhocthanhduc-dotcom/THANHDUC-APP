@@ -12,11 +12,11 @@ from pydantic import ValidationError
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from .. import products, service_charges, service_tickets
+from .. import products, service_charges, service_tickets, technician_stock
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, StockDoc, User, Warehouse
+from ..models import Customer, Product, StockBalance, StockDoc, User, Warehouse
 from ..schemas import ServiceCharges, ServiceLineOut
 from ..security import has_role
 from . import checked_form, money, render, web_user
@@ -33,11 +33,13 @@ def detail_context(session, user, ticket, shown=None):
     data = shown if shown is not None else saved
     warehouses = list(session.scalars(select(Warehouse).where(or_(Warehouse.active.is_(True),
                       Warehouse.code.in_([line.get('warehouse_code') for line in data['lines'] if line.get('warehouse_code')]))).order_by(Warehouse.code)))
+    own = technician_stock.restricted_warehouse(session,user)
+    if own:warehouses = [own]
     names = dict(session.execute(select(Product.code, Product.name).where(
                  Product.code.in_([line.get('product_code') for line in data['lines'] if line.get('product_code')]))).all())
     docs = list(session.execute(select(StockDoc.id, StockDoc.number).where(
                 StockDoc.id.in_({line.stock_doc_id for line in ticket.lines if line.stock_doc_id is not None})).order_by(StockDoc.id)))
-    return dict(charges=data, charge_names=names, charge_warehouses=warehouses, charge_docs=docs,
+    return dict(charges=data, charge_names=names, charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
                 can_charge=has_role(user, 'dispatcher') or ticket.assignee_id == user.id,
                 charge_editable=ticket.status in service_tickets.OPEN,
                 charge_unsaved=shown is not None,
@@ -76,7 +78,17 @@ def _body(raw, version):
 
 @router.get('/dich-vu/tim-vat-tu')
 def pick_material(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return render(request, 'dich_vu_chon_vat_tu.jinja', rows=products.search(session, q[:200], active_only=True, limit=20))
+    own = technician_stock.restricted_warehouse(session,user)
+    held_qty = {}
+    if own:
+        from ..customers import like_pattern
+        from ..text import fold
+        found = list(session.execute(select(Product,StockBalance.qty).join(StockBalance,StockBalance.product_code == Product.code).where(
+            StockBalance.warehouse_code == own.code,StockBalance.qty > 0,Product.active.is_(True),
+            or_(Product.search_text.like(like_pattern(fold(q[:200]))),Product.code.ilike(like_pattern(q[:200])))).order_by(Product.code).limit(20)))
+        rows = [p for p,qty in found]; held_qty = {p.code:qty for p,qty in found}
+    else:rows = products.search(session,q[:200],active_only=True,limit=20)
+    return render(request,'dich_vu_chon_vat_tu.jinja',rows=rows,held_qty=held_qty)
 
 
 @router.post('/dich-vu/{ticket_id}/tien/luu')

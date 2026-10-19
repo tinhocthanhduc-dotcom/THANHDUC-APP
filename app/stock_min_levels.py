@@ -23,8 +23,11 @@ def _conflict():
 def set_level(session: Session, user: User, warehouse: str, product: str, body: StockMinLevelIn) -> StockMinLevel:
     check_writer(user)
     try:
-        if session.get(Warehouse, warehouse) is None:
+        wh = session.get(Warehouse, warehouse)
+        if wh is None:
             raise BusinessError('BAD_WAREHOUSE', 'Kho không tồn tại.', status=404)
+        if wh.kind != 'KHO':
+            raise BusinessError('BAD_WAREHOUSE','Kho của thợ không đặt mức cảnh báo tồn.',status=409)
         if session.get(Product, product) is None:
             raise BusinessError('BAD_PRODUCT', 'Mã hàng không tồn tại.', status=404)
         level = session.get(StockMinLevel, (warehouse, product))
@@ -69,6 +72,7 @@ def low_stock_query():
         (StockMinLevel.min_qty-qty).label('shortage')).select_from(StockMinLevel).outerjoin(
             StockBalance, and_(StockBalance.warehouse_code == StockMinLevel.warehouse_code,
                               StockBalance.product_code == StockMinLevel.product_code)
-        ).join(Product, Product.code == StockMinLevel.product_code).where(
+        ).join(Product, Product.code == StockMinLevel.product_code).join(Warehouse, Warehouse.code == StockMinLevel.warehouse_code).where(
+            Warehouse.kind == 'KHO',
             StockMinLevel.min_qty > 0, qty <= StockMinLevel.min_qty
         ).order_by((qty > 0), StockMinLevel.warehouse_code, StockMinLevel.product_code)

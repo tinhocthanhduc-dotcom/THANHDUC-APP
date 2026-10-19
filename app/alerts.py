@@ -6,7 +6,7 @@ from sqlalchemy import case, exists, func, literal, select
 
 from . import config, dashboard, day_closings, finance_reports, purchase_reports, sales_reports, service_tickets
 from .models import (CashDoc, Customer, Product, PurchaseOrder, SalesReceipt, ServiceTicket,
-                     StockBalance, StockDoc, StockLedger, StockMinLevel)
+                     StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse)
 from .security import has_role
 
 LABELS = {'DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
@@ -74,7 +74,7 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         qty=func.coalesce(b.qty,0)
         add('DUOI_TON_TOI_THIEU',select(m.product_code.label('link_key'),m.warehouse_code,Product.name,m.min_qty,qty.label('qty'),
             m.updated_at.label('oldest'),case((qty<=0,'DO'),else_='VANG').label('level'))
-            .join(Product,Product.code==m.product_code).outerjoin(b,(b.product_code==m.product_code)&(b.warehouse_code==m.warehouse_code))
+            .join(Product,Product.code==m.product_code).join(Warehouse,Warehouse.code==m.warehouse_code).where(Warehouse.kind=='KHO').outerjoin(b,(b.product_code==m.product_code)&(b.warehouse_code==m.warehouse_code))
             .where(m.min_qty>0,qty<m.min_qty),
             lambda r:(f"{r['link_key']} · {r['warehouse_code']}",f"{r['name']}: tồn {_qty(r['qty'])}, mức tối thiểu {_qty(r['min_qty'])}.",
                 '/the-kho/'+quote(r['warehouse_code'],safe='')+'/'+quote(r['link_key'],safe='')))

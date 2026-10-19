@@ -1,5 +1,6 @@
 {% extends "base.jinja" %}
-{% block title %}{{ c.name or label }}{% endblock %}
+{% block title %}{{ c.name or label }}{% if not supplier and not finance_catalog %}<script src="/static/technician-stock.js" defer></script>{% endif %}
+{% endblock %}
 {% block main %}
 {% if finance_catalog %}<nav class="seg finance-nav"><a class="btn" href="/quy">Quỹ</a><a class="btn" href="/danh-muc-thu-chi">Danh mục thu chi</a><a class="btn" href="/ghep-tai-chinh">Bảng ghép</a></nav>{% endif %}
 <div class="bar"><h1>{% if is_new %}Thêm {{ label | lower }}{% else %}{{ c.code }} · {{ c.name }}{% endif %}</h1><a href="{{ path }}">← Danh sách</a></div>
@@ -20,6 +21,10 @@
 {% else %}
 {% if is_new and not supplier %}<label>Mã kho<input name="code" value="{{ c.code }}" required pattern="[Kk][0-9]+" maxlength="16" placeholder="K58"></label>{% endif %}
 <label>Tên<input name="name" value="{{ c.name }}" required maxlength="300"></label>
+{% if not supplier %}
+<fieldset><legend>Loại kho</legend><div class="seg stock-seg">{% for value,text in [('KHO','Kho công ty'),('THO','Kho của thợ')] %}<label><input type="radio" name="kind" value="{{ value }}" {% if c.kind==value %}checked{% endif %}><span>{{ text }}</span></label>{% endfor %}</div></fieldset>
+<div data-picker data-holder-picker><label>Thợ giữ kho (chọn khi là Kho của thợ)<input value="{{ holder_name }}" autocomplete="off" data-live=".holder-options" data-source="/kho/tim-tho"></label><input type="hidden" name="holder_id" data-picked-value value="{{ c.holder_id or '' }}"><div class="holder-options product-options"></div></div>
+{% endif %}
 {% if supplier %}
 <label>Mã số thuế<input name="tax_code" value="{{ c.tax_code }}"></label>
 <label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Ngăn cách bằng dấu phẩy"></label>
@@ -31,4 +36,5 @@
 </fieldset>
 {% if can_write %}<button class="primary">Lưu</button>{% else %}<p class="hint">Chỉ Kho hoặc giám đốc được sửa danh mục này.</p>{% endif %}
 </form>
+{% if not supplier and not finance_catalog %}<script src="/static/technician-stock.js" defer></script>{% endif %}
 {% endblock %}

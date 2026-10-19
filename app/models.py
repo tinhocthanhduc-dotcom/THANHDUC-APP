@@ -156,11 +156,17 @@ class DocCounter(Base):
 
 class Warehouse(Base):
     __tablename__ = "warehouses"
+    __table_args__ = (
+        CheckConstraint("(kind = 'KHO' and holder_id is null) or (kind = 'THO' and holder_id is not null)", name="ck_warehouses_holder"),
+        Index("uq_warehouses_active_holder", "holder_id", unique=True, postgresql_where="kind = 'THO' and active"),
+    )
 
     code: Mapped[str] = mapped_column(String(16), primary_key=True)
     name: Mapped[str] = mapped_column(String(300))
     address: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    kind: Mapped[str] = mapped_column(String(3), default="KHO", server_default="KHO")
+    holder_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     __mapper_args__ = {"version_id_col": version}

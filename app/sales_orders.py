@@ -124,7 +124,7 @@ def _lines(session, lines, require_warehouse=False):
         elif line.product_code or line.warehouse_code:
             raise BusinessError('BAD_LINE', 'Dòng khác không có mã hàng hoặc kho.', {'line_no': i})
     codes = sorted({line.warehouse_code for line in lines if line.kind == 'HANG' and line.warehouse_code})
-    valid = set(session.scalars(select(Warehouse.code).where(Warehouse.code.in_(codes), Warehouse.active.is_(True))
+    valid = set(session.scalars(select(Warehouse.code).where(Warehouse.code.in_(codes), Warehouse.active.is_(True), Warehouse.kind == 'KHO')
                                .order_by(Warehouse.code).with_for_update(read=True)))
     if set(codes) - valid:
         raise BusinessError('BAD_WAREHOUSE', 'Kho không tồn tại hoặc đã ngừng sử dụng.', {'codes': sorted(set(codes) - valid)})

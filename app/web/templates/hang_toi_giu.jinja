@@ -1,0 +1,10 @@
+{% extends 'base.jinja' %}
+{% block title %}Hàng tôi giữ{% endblock %}
+{% block main %}<h1>{{ 'Thợ đang giữ' if can_manage else 'Hàng tôi giữ' }}</h1>
+{% if can_manage %}<form class="card form" action="/hang-toi-giu"><div data-picker data-holder-picker><label>Chọn thợ<input value="{{ holder.full_name if holder else '' }}" data-live=".holder-options" data-source="/kho/tim-tho" autocomplete="off"></label><input type="hidden" name="tho" value="{{ holder.id if holder else '' }}" data-picked-value><div class="holder-options product-options"></div></div><button>Xem hàng thợ giữ</button></form>{% endif %}
+{% if warehouse %}<div class="bar"><h2>{{ warehouse.code }} · {{ warehouse.name }}</h2>{% if can_manage %}<a class="btn primary" href="/phieu-kho/moi?loai=CK&amp;kho_nguon={{ warehouse.code }}">Trả kho</a>{% endif %}</div>
+<div class="work-rows">{% for r in rows %}<article class="card work-row"><strong>{{ r.product_code }} · {{ r.name }}</strong><span>Số lượng đang giữ: {{ r.qty }}</span>
+{% if r.doc_id %}<a href="{{ '/phieu-kho/' if can_manage else '/hang-toi-giu/phieu/' }}{{ r.doc_id }}">{{ r.number }}</a><span>Lần nhận/trả gần nhất: {{ r.doc_date.strftime('%d/%m/%Y') }}</span>{% endif %}
+</article>{% else %}<p class="card">Kho thợ không còn hàng.</p>{% endfor %}</div>
+{% else %}<p class="card">{{ 'Chọn thợ có kho riêng đang dùng.' if can_manage else 'Bạn chưa có kho riêng đang dùng.' }}</p>{% endif %}
+<script src="/static/technician-stock.js" defer></script>{% endblock %}

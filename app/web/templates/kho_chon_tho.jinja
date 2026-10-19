@@ -1,0 +1,1 @@
+{% for u in rows %}<button type="button" data-pick-holder="{{ u.id }}" data-label="{{ u.full_name }}">{{ u.full_name }} · {{ u.username }}</button>{% else %}<p class="hint">Không có kỹ thuật viên phù hợp.</p>{% endfor %}

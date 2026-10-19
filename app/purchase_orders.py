@@ -99,7 +99,7 @@ def _lines(session, lines):
         codes = sorted({getattr(line, attr) for line in lines})
         rows = {r.code: r for r in session.scalars(select(model).where(model.code.in_(codes)).order_by(model.code)
                     .with_for_update(read=True).execution_options(populate_existing=True))}
-        bad = [c for c in codes if c not in rows or not rows[c].active]
+        bad = [c for c in codes if c not in rows or not rows[c].active or (model is Warehouse and rows[c].kind != 'KHO')]
         if bad:
             raise BusinessError(code, message + ', '.join(bad), {'invalid_codes': bad})
     result = []

@@ -68,7 +68,7 @@ def _error(exc):
 
 
 def _warehouses(session):
-    return list(session.scalars(select(Warehouse).order_by(Warehouse.code)))
+    return list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code)))
 
 
 def _active_order(session, quote_id):

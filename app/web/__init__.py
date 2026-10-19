@@ -388,10 +388,11 @@ def product_update(request: Request, code: str, form=Depends(checked_form), sess
 # ---------- Kho và nhà cung cấp ----------
 
 
-def _catalog_form(request, row, supplier, is_new=False, **ctx):
+def _catalog_form(request, row, supplier, is_new=False, session=None, **ctx):
+    holder = session.get(User, int(row["holder_id"])) if session and str(row.get("holder_id") or "").isdigit() else None
     return render(request, "danh_muc_form.jinja", c=row, supplier=supplier,
                   path="/nha-cung-cap" if supplier else "/kho",
-                  label="Nhà cung cấp" if supplier else "Kho", is_new=is_new,
+                  label="Nhà cung cấp" if supplier else "Kho", is_new=is_new, holder_name=holder.full_name if holder else "",
                   can_write=has_role(request.state.user, *catalog_svc.WRITERS), **ctx)
 
 
@@ -402,7 +403,17 @@ def _catalog_data(form, supplier):
         data.update(tax_code=str(form.get("tax_code", "")),
                     phones=[p.strip() for p in str(form.get("phones", "")).split(",") if p.strip()],
                     note=str(form.get("note", "")))
+    else:
+        data.update(kind=str(form.get("kind", "KHO")), holder_id=form.get("holder_id") or None)
     return data
+
+
+@router.get("/kho/tim-tho")
+def pick_warehouse_holder(request: Request, q: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from ..text import fold
+    catalog_svc.check_writer(user)
+    rows = [u for u in session.scalars(select(User).where(User.active.is_(True), User.roles.contains(["technician"])).order_by(User.full_name)) if fold(q[:200]) in fold(u.full_name+" "+u.username+" "+str(u.id))][:20]
+    return render(request, "kho_chon_tho.jinja", rows=rows)
 
 
 def _register_catalog(path, model, in_schema, patch_schema):
@@ -415,10 +426,10 @@ def _register_catalog(path, model, in_schema, patch_schema):
                       supplier=supplier, label="Nhà cung cấp" if supplier else "Kho",
                       can_write=has_role(user, *catalog_svc.WRITERS))
 
-    def new(request: Request, user: User = Depends(web_user)):
+    def new(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
         catalog_svc.check_writer(user)
-        row = dict(code="", name="", address="", active=True, version=0, tax_code="", phones=[], note="")
-        return _catalog_form(request, row, supplier, is_new=True, error=None)
+        row = dict(code="", name="", address="", active=True, version=0, tax_code="", phones=[], note="", kind="KHO", holder_id=None)
+        return _catalog_form(request, row, supplier, session=session, is_new=True, error=None)
 
     def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
         user = request.state.user
@@ -430,15 +441,15 @@ def _register_catalog(path, model, in_schema, patch_schema):
         try:
             row = catalog_svc.create(session, user, model, in_schema(**data))
         except ValidationError as exc:
-            return _catalog_form(request, shown, supplier, is_new=True, error=("Mã kho phải có dạng K58 hoặc K145." if any(e["loc"] == ("code",) for e in exc.errors()) else _error_text(exc)), status=400)
+            return _catalog_form(request, shown, supplier, session=session, is_new=True, error=("Mã kho phải có dạng K58 hoặc K145." if any(e["loc"] == ("code",) for e in exc.errors()) else _error_text(exc)), status=400)
         except BusinessError as exc:
-            return _catalog_form(request, shown, supplier, is_new=True, error=exc.message, status=exc.status)
+            return _catalog_form(request, shown, supplier, session=session, is_new=True, error=exc.message, status=exc.status)
         return RedirectResponse(f"{path}/{quote(row.code)}?da_luu=1", status_code=303)
 
     def view(request: Request, code: str, da_luu: int = 0,
              user: User = Depends(web_user), session: Session = Depends(get_session)):
         row = catalog_svc.snapshot(catalog_svc.load(session, model, code))
-        return _catalog_form(request, row, supplier, error=None, saved=bool(da_luu))
+        return _catalog_form(request, row, supplier, session=session, error=None, saved=bool(da_luu))
 
     def update(request: Request, code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
         user = request.state.user
@@ -450,9 +461,9 @@ def _register_catalog(path, model, in_schema, patch_schema):
             row = catalog_svc.update(session, user, model, code,
                                      patch_schema(version=form.get("version"), **data))
         except ValidationError as exc:
-            return _catalog_form(request, shown, supplier, error=_error_text(exc), status=400)
+            return _catalog_form(request, shown, supplier, session=session, error=_error_text(exc), status=400)
         except BusinessError as exc:
-            return _catalog_form(request, shown, supplier, error=exc.message, status=exc.status)
+            return _catalog_form(request, shown, supplier, session=session, error=exc.message, status=exc.status)
         return RedirectResponse(f"{path}/{quote(row.code)}?da_luu=1", status_code=303)
 
     router.add_api_route(path, listing, methods=["GET"])

@@ -76,8 +76,11 @@ def _validate(session: Session, body: StockDocIn):
         raise BusinessError("BAD_TRANSFER", "Chỉ phiếu chuyển kho được có kho đích.")
     # Khóa kho theo mã cố định để các phiếu chuyển ngược chiều không khóa chéo nhau.
     for code in sorted({body.warehouse_code, body.to_warehouse_code} - {None}):
-        if not _active(session, Warehouse, code):
+        wh = _active(session, Warehouse, code)
+        if not wh:
             raise BusinessError("BAD_WAREHOUSE", "Kho không tồn tại hoặc đã ngừng sử dụng.", {"code": code})
+        if body.kind == 'KK' and wh.kind == 'THO' and not body.reason.strip():
+            raise BusinessError('REASON_REQUIRED','Kiểm kê kho thợ phải ghi lý do.')
     if body.kind == "PN" and not body.supplier_code:
         raise BusinessError("BAD_SUPPLIER", "Phiếu nhập cần nhà cung cấp đang sử dụng.")
     if body.supplier_code is not None and not _active(session, Supplier, body.supplier_code):

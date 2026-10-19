@@ -26,6 +26,6 @@
 {% if t.receivable is not none %}<dt>Cần thu</dt><dd>{{ t.receivable|money }} đồng</dd>{% endif %}
 </dl></div>
 {% if charge_docs %}<h3>Phiếu xuất vật tư</h3><ul>{% for doc_id, number in charge_docs %}<li><a href="/phieu-kho/{{ doc_id }}">{{ number }}</a></li>{% endfor %}</ul>{% endif %}
-{% for kind in ['PHI','VAT_TU'] %}<template id="charge-template-{{ kind }}">{% set line = dict(kind=kind, description='', product_code='', warehouse_code='', qty='1', unit_price='0', vat_rate=default_vat_rate) %}{% set index = 'new' %}{% include 'dich_vu_tien_dong.jinja' %}</template>{% endfor %}
+{% for kind in ['PHI','VAT_TU'] %}<template id="charge-template-{{ kind }}">{% set line = dict(kind=kind, description='', product_code='', warehouse_code=charge_default_warehouse, qty='1', unit_price='0', vat_rate=default_vat_rate) %}{% set index = 'new' %}{% include 'dich_vu_tien_dong.jinja' %}</template>{% endfor %}
 </section>
 <script src="/static/charges.js" defer></script>
