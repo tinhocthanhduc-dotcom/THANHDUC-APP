@@ -637,3 +637,19 @@ Chuyển sang `HOAN_THANH`, `KHONG_LAM_DUOC`, `DA_HUY`, `DA_DONG` kiểm máy đ
 Mã lỗi tiếng Việt: `SERIAL_REQUIRED`, `CONDITION_REQUIRED`, `ACCESSORIES_REQUIRED`, `BAD_ACCESSORIES`, `PARTNER_REQUIRED`, `BAD_HOLDER`/`BAD_ASSIGNEE`, `BAD_LOCATION`, `PHOTO_REQUIRED`, `BAD_FILE_TYPE`, `MISSING_ACCESSORIES` (kèm danh sách thiếu), `REASON_REQUIRED`, `MACHINE_HELD` (409, kèm phiếu đang giữ), `HANDOVER_PENDING` (409), `MACHINE_NOT_RETURNED` (409), `VERSION_CONFLICT` (409), `BAD_STATUS` (409), `SAME_HOLDER` (409), `FORBIDDEN` (403), `NOT_FOUND` (404).
 
 Web: khối Máy khách trên `/dich-vu/{id}`; `/giu-may/{id}` chỉ có thao tác giữ máy để người nhận không cần quyền sửa phiếu. Mọi POST có CSRF, gồm tải ảnh. `/thiet-bi/{serial}` có lịch sử; `/may-dang-giu?location=...` chỉ điều phối/kho/giám đốc, đỏ khi quá 7 ngày **từ lúc nhận khách trong chu kỳ hiện tại** (đổi người giữ không đặt lại tuổi) hoặc quá `expected_back`, theo giờ Việt Nam. Việc của tôi có Máy tôi đang giữ, Máy chờ tôi nhận, Máy chờ nhận vào kho kỹ thuật. Audit `custody.receive/handover/confirm/cancel/return` và `equipment.custody` lưu trước/sau trong cùng transaction.
+
+
+## Chống gửi trùng form web (S0)
+
+Form POST đã đăng nhập gửi cả `csrf` và `form_key` (UUID mới mỗi lần vẽ form).
+Khóa được lưu bằng transaction riêng trước khi gọi nghiệp vụ. Gửi lại cùng khóa
+và người dùng: phiếu đã xong trả 303 về URL kết quả cũ; đang xử lý trả 409
+`ALREADY_SUBMITTED`. Thiếu/sai UUID: 400 `BAD_FORM_KEY`; khóa của người khác: 403
+`FORBIDDEN`. CSRF vẫn được kiểm trước khóa. API JSON giữ nguyên hợp đồng hiện tại.
+
+Form báo lỗi nghiệp vụ/nhập liệu được gỡ khóa để sửa và gửi lại; form vẽ lại có
+khóa mới. Lỗi không xác định giữ `DANG_XU_LY`, kể cả khi chứng từ đã commit, để
+không tạo trùng. Chỉ cập nhật khóa một lần sang `XONG` (trigger bảo vệ).
+
+Dọn khóa cũ hơn 30 ngày bằng lệnh chạy tay: `python -m app.form_keys purge`.
+Lệnh áp dụng cho cả khóa hoàn tất và khóa đang xử lý đã quá hạn; không có cron tự chạy.

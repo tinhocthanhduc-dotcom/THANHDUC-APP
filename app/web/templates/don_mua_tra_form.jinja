@@ -5,7 +5,7 @@
 <p>Từ <a href="/phieu-kho/{{ pn.id }}">{{ pn.number }}</a> · Kho {{ receipt.warehouse_code }}</p>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 <form method="post" class="card form" data-purchase-return onsubmit="return confirm('Trả hàng sẽ ghi sổ PX và giảm công nợ NCC. Bạn có chắc?');">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <label>Ngày trả<input type="date" name="return_date" value="{{ d.return_date }}" required></label>
 <p>Nhập 0 để bỏ qua dòng. Tiền giảm nợ theo giá mua chưa VAT và VAT của lần nhận; giá vốn xuất do sổ kho tính.</p>
 {% for l in receipt.lines %}{% set ol=order_lines[l.order_line_id] %}{% set done=returned.get(l.id,0) %}

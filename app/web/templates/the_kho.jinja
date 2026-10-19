@@ -4,7 +4,7 @@
 {% if saved %}<p class="alert ok">Đã lưu mức tồn tối thiểu.</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
 {% if warehouse.kind=='KHO' %}<form method="post" action="/the-kho/{{ warehouse.code }}/{{ product.code }}" class="card form">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ level_version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ level_version }}">
 <label>Mức tồn tối thiểu<input name="min_qty" value="{{ min_qty }}" inputmode="decimal" required {% if not can_write %}readonly{% endif %}></label>
 <p class="hint">Đặt 0 để không cảnh báo.</p>
 {% if can_write %}<button class="primary">Lưu</button>{% endif %}

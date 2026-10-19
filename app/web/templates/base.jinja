@@ -28,7 +28,7 @@
   </details>
   <form method="post" action="/dang-xuat" class="who">
     <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
-    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
     <button class="link">Đăng xuất</button>
   </form>
 </header>
@@ -37,6 +37,31 @@
 {% endif %}
 <main>{% block main %}{% endblock %}</main>
 <script>
+// Chặn bấm lại ở trình duyệt; form_key mới là khóa chống trùng ở máy chủ.
+// Lắng nghe ở document sau các kiểm tra/confirm của từng form.
+document.addEventListener('submit', function(event) {
+  var form = event.target;
+  if ((form.getAttribute('method') || 'get').toLowerCase() !== 'post' || event.defaultPrevented) return;
+  if (form.dataset.submitting) { event.preventDefault(); return; }
+  form.dataset.submitting = '1';
+  var submitter = event.submitter;
+  // Nút bị disabled không được trình duyệt gửi: giữ name/value của nút được bấm.
+  if (submitter && submitter.name) {
+    var value = document.createElement('input');
+    value.type = 'hidden'; value.name = submitter.name; value.value = submitter.value;
+    form.appendChild(value);
+  }
+  document.querySelectorAll('button, input[type=submit]').forEach(function(button) {
+    if (button.form !== form || (button.type !== 'submit' && button.type !== 'image')) return;
+    button.disabled = true;
+    if (button.tagName === 'INPUT') button.value = 'Đang gửi…';
+    else button.textContent = 'Đang gửi…';
+  });
+});
+// Quay lại từ bộ nhớ trang của trình duyệt: lấy form và khóa mới.
+window.addEventListener('pageshow', function(event) {
+  if (event.persisted && document.querySelector('form[data-submitting]')) location.reload();
+});
 // Tìm sống dùng chung cho danh sách và ô tìm/chọn hàng.
 window.bindLive = function(input) {
   if (input.dataset.liveBound) return;

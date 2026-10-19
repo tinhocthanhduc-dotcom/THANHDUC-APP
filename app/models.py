@@ -1,6 +1,7 @@
 """Lược đồ dữ liệu chung. Mọi thay đổi cấu trúc phải đi kèm một file trong migrations/versions."""
 from datetime import date, datetime
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
@@ -18,7 +19,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -1061,3 +1062,21 @@ class EquipmentCustody(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, default=1)
     __mapper_args__ = {'version_id_col': version}
+
+
+class FormSubmission(Base):
+    __tablename__ = "form_submissions"
+    __table_args__ = (
+        CheckConstraint("status in ('DANG_XU_LY','XONG')", name="ck_form_submissions_status"),
+        CheckConstraint("(status = 'DANG_XU_LY' and finished_at is null and result_url = '') or (status = 'XONG' and finished_at is not null and result_url <> '')",
+                        name="ck_form_submissions_result"),
+        Index("ix_form_submissions_created_at", "created_at"),
+    )
+
+    key: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    path: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))
+    result_url: Mapped[str] = mapped_column(Text, server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

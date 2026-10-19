@@ -2,7 +2,7 @@
 {% if pending_correction %}<p><a href="/dieu-chinh">Yêu cầu #{{ pending_correction }} đang chờ giám đốc duyệt.</a></p>{% else %}
 <p>Giám đốc duyệt sẽ ghi đảo phiếu cũ và lập phiếu mới ngày hôm nay; ngày gốc vẫn giữ trạng thái chốt sổ.</p>
 <form method="post" action="/thu-chi/{{ doc.id }}/dieu-chinh" class="card form" data-correction-form>
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ correction.version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ correction.version }}">
 <label>Số tiền mới<input name="new_amount" value="{{ correction.new_amount }}" inputmode="numeric" data-money required></label>
 <fieldset><legend>Quỹ mới</legend><div class="seg cash-funds">{% for f in funds %}<label><input type="radio" name="new_fund_code" value="{{ f.code }}" {% if correction.new_fund_code==f.code %}checked{% endif %} {% if not f.active %}disabled{% endif %} required><span>{{ f.code }} · {{ f.name }}</span></label>{% endfor %}</div></fieldset>
 <div data-picker><label>Danh mục mới (tìm và chọn)<input name="new_category_code" value="{{ correction.new_category_code }}" autocomplete="off" data-live=".cash-options" data-source="/thu-chi/tim/danh-muc-{{ doc.kind }}" required></label><div class="cash-options product-options" aria-live="polite"></div></div>

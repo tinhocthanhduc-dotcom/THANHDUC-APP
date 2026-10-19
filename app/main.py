@@ -3,11 +3,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from . import web
+from . import form_keys
 from .db import get_session
 from .errors import BusinessError, business_error_handler
 from .routers import equipment_custody, part_requests, purchase_returns, supplier_debts, purchase_receipts, purchase_orders, attachments, auth, customers, products, quotes, sales_orders, sales_receipts, service_tickets, stock_docs, suppliers, warehouses
 
 app = FastAPI(title="Thành Đức Core", version="0.2.0")
+form_keys.install(app)
 app.include_router(auth.router)
 app.include_router(customers.router)
 app.include_router(products.router)

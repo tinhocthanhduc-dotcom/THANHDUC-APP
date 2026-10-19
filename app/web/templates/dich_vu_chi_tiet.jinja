@@ -1,5 +1,5 @@
 {% extends "base.jinja" %}
-{% macro version(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ form.get('version', t.version) if failed_action == action else t.version }}">{% endmacro %}
+{% macro version(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ form.get('version', t.version) if failed_action == action else t.version }}">{% endmacro %}
 {% macro note(action, label='Ghi chú', required=false) %}<label>{{ label }}<textarea name="note" maxlength="2000" {% if required %}required minlength="3"{% endif %}>{{ form.get('note', '') if failed_action == action else '' }}</textarea></label>{% endmacro %}
 {% macro reason(action) %}<label>Lý do<textarea name="reason" maxlength="2000" required minlength="3">{{ form.get('reason', '') if failed_action == action else '' }}</textarea></label>{% endmacro %}
 {% block title %}{{ t.number }}{% endblock %}

@@ -12,11 +12,13 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import customers as customer_svc
 from .. import customer_sites as site_svc
 from .. import products as product_svc
 from .. import inventory_catalogs as catalog_svc
+from .. import form_keys
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -45,6 +47,7 @@ def money(value: int | None) -> str:
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals["web_navigation"] = nav.menu
+templates.env.globals["form_key"] = form_keys.form_key
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
@@ -58,6 +61,7 @@ async def login_required_handler(request: Request, exc: LoginRequired) -> Respon
 
 
 async def web_error_page(request: Request, exc: BusinessError) -> Response:
+    request.state.form_business_error = True
     return render(request, "loi.jinja", error=exc, status=exc.status)
 
 
@@ -87,6 +91,9 @@ async def checked_form(request: Request, user: User = Depends(web_user)):
     form = await request.form()
     if not hmac.compare_digest(str(form.get("csrf", "")), request.state.csrf):
         raise BusinessError("BAD_CSRF", "Trang đã cũ, hãy tải lại rồi thử lại.", status=403)
+    request.state.form_submission_key = await run_in_threadpool(
+        form_keys.reserve, form.get("form_key"), user.id, request.url.path,
+    )
     return form
 
 
@@ -94,6 +101,8 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
     from ..config import DEFAULT_VAT_RATE
     ctx.setdefault("default_vat_rate", DEFAULT_VAT_RATE)
     status = ctx.pop("status", 200)
+    if ctx.get("error") or ctx.get("error_code"):
+        request.state.form_business_error = True
     ctx.setdefault("user", getattr(request.state, "user", None))
     ctx.setdefault("csrf", getattr(request.state, "csrf", ""))
     return templates.TemplateResponse(request, name, ctx, status_code=status)
