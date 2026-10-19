@@ -165,7 +165,9 @@ async def login_submit(request: Request, session: Session = Depends(get_session)
     if not user or not user.active or not verify_password(str(form.get("password", "")), user.password_hash):
         return render(request, "dang_nhap.jinja", next=next_url, username=username, error="Sai tên đăng nhập hoặc mật khẩu.", status=401)
     s = get_settings()
-    response = RedirectResponse(nav.home_url(user), status_code=303)
+    # Quay lại trang đang mở trước khi hết phiên nếu vai trò được vào, không thì về trang đầu theo vai trò.
+    target = next_url if next_url != "/" and nav.allowed(user, next_url.split("?")[0]) else nav.home_url(user)
+    response = RedirectResponse(target, status_code=303)
     response.set_cookie(
         COOKIE, issue_token(user), max_age=s.token_minutes * 60, httponly=True, samesite="lax", secure=s.cookie_secure
     )

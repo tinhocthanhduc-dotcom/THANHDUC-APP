@@ -49,7 +49,7 @@ class Menu(HTMLParser):
 def test_exact_menu_home_and_login_for_each_role(client, make_user, role):
     user = make_user('nav.'+role, role)
     response = client.post('/dang-nhap', data={'username': user.username, 'password': PASSWORD,
-                                             'next': '/khach-hang'}, follow_redirects=False)
+                                             'next': '/'}, follow_redirects=False)
     assert response.status_code == 303 and response.headers['location'] == HOMES[role]
     assert client.get('/', follow_redirects=False).headers['location'] == HOMES[role]
     page = client.get(HOMES[role])
@@ -184,3 +184,14 @@ def test_temporary_work_redirects_and_logged_out_home(client, make_user):
     for role, target in (('technician', '/dich-vu'), ('sales', '/don-ban'), ('warehouse', '/phieu-kho')):
         service_login(client, make_user('work.'+role, role))
         assert client.get('/viec-cua-toi', follow_redirects=False).headers['location'] == target
+
+
+def test_login_returns_to_allowed_next_page_else_role_home(client, make_user):
+    from conftest import PASSWORD
+
+    make_user("seller_next", "sales")
+    page = client.post("/dang-nhap", data={"username": "seller_next", "password": PASSWORD, "next": "/bao-gia"}, follow_redirects=False)
+    assert page.headers["location"] == "/bao-gia"
+    client.cookies.clear()
+    page = client.post("/dang-nhap", data={"username": "seller_next", "password": PASSWORD, "next": "/thu-chi"}, follow_redirects=False)
+    assert page.headers["location"] == "/viec-cua-toi"
