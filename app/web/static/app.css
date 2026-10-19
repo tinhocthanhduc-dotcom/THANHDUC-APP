@@ -283,3 +283,15 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .purchase-report-table th:first-child,.purchase-report-table td:first-child{text-align:left;white-space:normal;min-width:170px;max-width:260px;overflow-wrap:anywhere}
 .purchase-report-table tfoot{font-weight:700;background:var(--bg)}
 .purchase-loss{color:var(--bad);background:var(--bad-bg)}
+
+/* R1: two summary columns at 360px, four on desktop. */
+.overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.overview-tile{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:112px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);text-decoration:none;overflow-wrap:anywhere;color:var(--text)}
+.overview-tile strong{font-size:1.25rem;font-variant-numeric:tabular-nums}.overview-tile small{color:var(--muted)}
+.overview-tile:hover,.overview-tile:focus-visible{border-color:var(--accent);outline:2px solid var(--accent)}
+.overview-chart{display:block;width:100%;height:auto;color:var(--accent)}.overview-chart text{fill:var(--text);font-size:17px}
+.overview-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.overview-days a{display:flex;justify-content:space-between;gap:8px;padding:10px 0;font-variant-numeric:tabular-nums}
+@media(min-width:760px){.overview-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.overview-chart+details summary{cursor:pointer;min-height:44px;padding:12px 0}.overview-days a{min-height:44px;overflow-wrap:anywhere}
+
+@media(max-width:600px){.overview-chart text{font-size:35px}}

@@ -127,8 +127,12 @@ def _error_text(exc: ValidationError) -> str:
 
 
 @router.get("/")
-def home():
-    return RedirectResponse("/khach-hang", status_code=303)
+def home(request: Request, session: Session = Depends(get_session)):
+    try:
+        user = web_user(request, session)
+    except LoginRequired:
+        return RedirectResponse("/khach-hang", status_code=303)
+    return RedirectResponse("/tong-quan" if has_role(user, "finance") else "/khach-hang", status_code=303)
 
 
 @router.get("/dang-nhap")
@@ -515,3 +519,7 @@ router.include_router(purchase_returns_router)
 from .purchase_reports import router as purchase_reports_router
 
 router.include_router(purchase_reports_router)
+
+from .dashboard import router as dashboard_router
+
+router.include_router(dashboard_router)
