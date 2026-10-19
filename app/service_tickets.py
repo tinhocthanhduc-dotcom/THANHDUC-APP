@@ -67,6 +67,12 @@ def _get(session: Session, user: User, ticket_id: int, lock: bool = False) -> Se
     if lock:
         stmt = stmt.with_for_update().execution_options(populate_existing=True)
     t = session.scalars(stmt).first()
+    # Người nhận giữ máy chỉ có quyền giữ máy; không có quyền sửa phiếu của thợ khác.
+    if t is not None and lock and _own_only(user) and t.assignee_id != user.id:
+        from .models import EquipmentCustody
+        if session.scalar(select(EquipmentCustody.id).where(EquipmentCustody.ticket_id==t.id,
+            or_(EquipmentCustody.holder_id==user.id,EquipmentCustody.created_by==user.id)).limit(1)):
+            raise BusinessError('FORBIDDEN','Bạn chỉ được thao tác giữ máy, không được sửa phiếu này.',status=403)
     # Thợ không thấy phiếu của người khác: trả như không tồn tại.
     if t is None or (_own_only(user) and t.assignee_id != user.id):
         raise BusinessError("NOT_FOUND", "Không tìm thấy phiếu dịch vụ.", status=404)
@@ -165,6 +171,10 @@ def transition(session: Session, user: User, ticket_id: int, to_status: str, ver
         t = _get(session, user, ticket_id, lock=True)
         _check_version(t, version)
         is_dispatcher = has_role(user, *DISPATCHERS)
+        if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG') and (
+                is_dispatcher or (t.assignee_id == user.id and to_status != 'DA_HUY' and t.status != 'HOAN_THANH')):
+            from .equipment_custody import check_returned
+            check_returned(session,t)
         if to_status == "DA_HUY":
             if not is_dispatcher:
                 raise BusinessError("FORBIDDEN", "Chỉ điều phối hoặc giám đốc được hủy phiếu.", status=403)

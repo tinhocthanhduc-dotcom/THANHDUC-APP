@@ -4,9 +4,9 @@ from urllib.parse import quote, urlencode
 
 from sqlalchemy import case, func, literal, or_, select
 
-from . import sales_receipts, service_sla, service_tickets, stock_min_levels
+from . import equipment_custody, sales_receipts, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, Supplier
+from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, Supplier
 from .security import has_role
 
 LIMIT = 20
@@ -64,6 +64,28 @@ def _specs(user, today, now):
         add('service_close', 'Dịch vụ chờ đóng phiếu', service.where(t.status=='HOAN_THANH',
             or_(t.billing=='MIEN_PHI', (t.priced_at.is_not(None)) & (_available(t)<=0))), 'service', '/dich-vu')
 
+    if has_role(user,'technician'):
+        eq=Equipment
+        cycle=equipment_custody.cycle_starts()
+        holding=select(t.id,(t.number+' · '+eq.serial).label('number'),literal('THO_GIU').label('status'),
+            Customer.name.label('customer'),literal(0).label('amount'),literal(False).label('overdue')).join(
+                eq,eq.custody_ticket_id==t.id).join(Customer,Customer.code==t.customer_code).join(cycle,cycle.c.serial==eq.serial).where(
+                eq.custody_location=='THO_GIU')
+        if not director:holding=holding.where(eq.custody_holder_id==user.id)
+        add('machines_held','Máy tôi đang giữ',holding.order_by(cycle.c.started,eq.serial),'custody','/viec-cua-toi?nhom=machines_held')
+    if has_role(user,'technician','warehouse'):
+        incoming=select(t.id,(t.number+' · '+EquipmentCustody.serial).label('number'),EquipmentCustody.status,
+            Customer.name.label('customer'),literal(0).label('amount'),literal(False).label('overdue')).join(
+                EquipmentCustody,EquipmentCustody.ticket_id==t.id).join(Customer,Customer.code==t.customer_code).where(
+                EquipmentCustody.status=='CHO_NHAN').order_by(EquipmentCustody.created_at,EquipmentCustody.id)
+        if has_role(user,'technician'):
+            tech=incoming.where(EquipmentCustody.location=='THO_GIU')
+            if not director:tech=tech.where(EquipmentCustody.holder_id==user.id)
+            add('machines_pending','Máy chờ tôi nhận',tech,'custody','/viec-cua-toi?nhom=machines_pending')
+        if has_role(user,'warehouse'):
+            add('machines_warehouse','Máy chờ nhận vào kho kỹ thuật',incoming.where(EquipmentCustody.location=='KHO_KY_THUAT'),
+                'custody','/may-dang-giu')
+
     if has_role(user, 'sales'):
         q = docs(Quote, Customer.name).join(Customer, Customer.code==Quote.customer_code).where(Quote.status.in_(('NHAP','DA_GUI')))
         if not director:q=q.where(Quote.created_by==user.id)
@@ -115,7 +137,7 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien'}[kind]
+            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"

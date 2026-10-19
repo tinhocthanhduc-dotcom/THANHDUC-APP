@@ -111,6 +111,7 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
 
 
 def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None):
+    from .custody import context as custody_context
     from .parts import detail_context as part_context
     from .charges import detail_context
     from .receipts import ticket_context
@@ -155,6 +156,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   saved=request.query_params.get("da_luu") == "1" and not error, status=status,
                   **detail_context(session, user, t, charge_shown),
                   **part_context(session, user, t, part_form),
+                  **custody_context(session,user,t),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
 
 
@@ -217,8 +219,8 @@ def detail(request: Request, ticket_id: int, user: User = Depends(web_user), ses
 @router.post("/dich-vu/{ticket_id}/{action}")
 def action(request: Request, ticket_id: int, action: str, form=Depends(checked_form), session: Session = Depends(get_session)):
     user = request.state.user
-    # load ở đầu giữ nguyên quy tắc 404 cho thợ mở phiếu của người khác.
-    svc.load(session, user, ticket_id)
+    # Người chỉ nhận giữ máy bị 403 khi sửa phiếu; thợ ngoài cuộc vẫn 404.
+    svc._get(session, user, ticket_id, lock=True)
     failed_action = "transition:" + str(form.get("to_status", "")) if action == "transition" else action
     try:
         version = _version(form)

@@ -27,6 +27,7 @@
   {% if t.status_reason %}<h3>Lý do</h3><p class="service-text">{{ t.status_reason }}</p>{% endif %}
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
 </section>
+{% include "may_khach.jinja" %}
 {% include "dich_vu_linh_kien.jinja" %}
 {% include "dich_vu_tien.jinja" %}
 {% if can_assign %}

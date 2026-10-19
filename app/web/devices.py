@@ -91,7 +91,9 @@ def _form(request, session, data, is_new=False, error=None, status=200, saved=Fa
                                   or_(CustomerSite.active.is_(True), CustomerSite.id == selected)).order_by(CustomerSite.id)))
     product = session.get(Product, data.get('product_code')) if data.get('product_code') else None
     customer = session.get(Customer, data.get('customer_code')) if data.get('customer_code') else None
-    return render(request, 'thiet_bi_form.jinja', d=data, sites=sites, selected_site=data.get('site_id'),
+    from ..equipment_custody import history, LOCATIONS, STATUSES, ACCESSORIES
+    return render(request, 'thiet_bi_form.jinja',custody_history=history(session,data['serial']) if not is_new else [],
+                  custody_locations=LOCATIONS,custody_statuses=STATUSES,custody_accessories=ACCESSORIES,custody_users=dict(session.execute(select(User.id,User.full_name)).all()), d=data, sites=sites, selected_site=data.get('site_id'),
                   product_name=product.name if product else '', customer_name=customer.name if customer else '',
                   is_new=is_new, error=error, saved=saved, status=status,
                   can_device_write=has_role(request.state.user, *customer_sites.WRITERS))

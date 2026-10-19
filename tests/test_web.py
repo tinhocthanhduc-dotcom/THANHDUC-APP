@@ -1220,7 +1220,9 @@ def test_d5_upload_after_photo_then_complete(client, db, service_people, d5_tick
     a = db.query(Attachment).one()
     assert a.tag == 'SAU' and a.entity_id == str(d5_ticket.id)
     assert f'src="/attachments/{a.id}/file"' in response.text
-    assert response.text.count('capture="environment"') == 2
+    # D5 có hai camera ảnh sửa; KT4 thêm camera nhận máy ở khối Máy khách riêng.
+    repair_photos = response.text.split('<section id="anh"', 1)[1].split('</section>', 1)[0]
+    assert repair_photos.count('capture="environment"') == 2
     assert 'Ảnh trước' in response.text and 'Ảnh sau sửa' in response.text
     assert 'Ẩn ảnh / tệp</summary>' not in response.text
     file_response = client.get(f'/attachments/{a.id}/file')
