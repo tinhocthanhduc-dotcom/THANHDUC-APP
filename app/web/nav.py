@@ -26,6 +26,7 @@ GROUPS = (
         {'label': 'Thiết bị', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
     {'label': 'Kho', 'items': (
+        {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
         {'label': 'Tồn kho', 'href': '/ton-kho', 'prefixes': ('/ton-kho', '/the-kho'), 'roles': ('sales', 'warehouse', 'finance')},
         {'label': 'Phiếu kho', 'href': '/phieu-kho', 'prefixes': ('/phieu-kho',), 'roles': ('warehouse',)},
         {'label': 'Sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}},

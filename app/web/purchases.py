@@ -125,7 +125,13 @@ def pick_product(request: Request, q: str='', user: User=Depends(purchase_user),
 @router.get('/don-mua/moi')
 def new(request: Request, user: User=Depends(purchase_user), session: Session=Depends(get_session)):
     svc.check_writer(user)
-    return _form(request,session)
+    code = request.query_params.get('product_code', '')
+    product = session.get(Product, code) if code else None
+    data = None
+    if product and product.active:
+        data = dict(supplier_code='', order_date=quotes._today().isoformat(), expected_date='', note='', version=0,
+            lines=[dict(product_code=product.code, warehouse_code='', qty='1', unit_cost=money(svc.suggest_cost(session,user,code) or 0), vat_rate=DEFAULT_VAT_RATE)])
+    return _form(request,session,data=data)
 
 
 @router.post('/don-mua/moi')

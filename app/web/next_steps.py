@@ -64,9 +64,9 @@ def service(session, user, t):
     if t.status=='DA_GIAO' and can_step:return block(transition('Nhận việc','DA_NHAN'))
     if t.status=='DA_NHAN' and can_step:return block(transition('Hẹn khách để bắt đầu','DA_HEN'))
     if t.status=='DA_HEN' and can_step:return block(transition('Bắt đầu làm','DANG_LAM'))
-    if t.status=='CHO_LINH_KIEN' and can_step:return block(transition('Làm tiếp','DANG_LAM'))
+    if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))
     if t.status=='DANG_LAM' and can_step:
-        secondary=[transition('Chờ linh kiện','CHO_LINH_KIEN')]
+        secondary=[form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]
         if t.billing is None:
             return block(form('Lưu tiền trước khi hoàn thành','service-charges',base+'/tien/luu',
                 'Chọn Có thu tiền hoặc Miễn phí; giá sẽ được khóa khi hoàn thành.'),secondary)

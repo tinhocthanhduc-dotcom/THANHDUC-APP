@@ -307,7 +307,7 @@ class StockMinLevel(Base):
 
 SERVICE_KINDS = ("SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY")
 SERVICE_PRIORITIES = ("KHAN", "GAP", "THUONG")
-SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
+SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
 VAT_RATES = (0, 5, 8, 10)
 
 
@@ -325,6 +325,7 @@ class ServiceTicket(Base):
         CheckConstraint(_in("status", SERVICE_STATUSES), name="ck_service_tickets_status"),
         CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
         Index("ix_service_tickets_open", "status", "due_at"),
+        CheckConstraint("hold_reason in ('','CHO_KHACH_DUYET','CHO_KY_THUAT_KHAC','CHO_DOI_TAC','HEN_NGAY_KHAC','KHAC')", name="ck_service_tickets_hold_reason"),
         CheckConstraint("billing in ('THU_TIEN','MIEN_PHI')", name="ck_service_tickets_billing"),
         CheckConstraint("billing <> 'MIEN_PHI' or free_reason <> ''", name="ck_service_tickets_free_reason"),
         CheckConstraint("(priced_at is null) = (total is null)", name="ck_service_tickets_priced"),
@@ -342,6 +343,7 @@ class ServiceTicket(Base):
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hold_reason: Mapped[str] = mapped_column(String(24), default="", server_default="")
     status_reason: Mapped[str] = mapped_column(Text, default="")
     # Thợ xin chuyển việc: lý do chờ điều phối duyệt (giao thợ khác) hoặc từ chối.
     transfer_request: Mapped[str] = mapped_column(Text, default="")
@@ -992,3 +994,32 @@ class DailyDigest(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     __mapper_args__ = {'version_id_col': version}
+
+
+class PartRequest(Base):
+    """KT3: yêu cầu cấp linh kiện, không xóa."""
+    __tablename__ = "part_requests"
+    __table_args__ = (
+        CheckConstraint("qty > 0", name="ck_part_requests_qty"),
+        CheckConstraint("btrim(reason) <> ''", name="ck_part_requests_reason"),
+        CheckConstraint("status in ('CHO_CAP','DA_CAP','HET_HANG','DA_HUY')", name="ck_part_requests_status"),
+        Index("ix_part_requests_ticket_id", "ticket_id"),
+        Index("ix_part_requests_queue", "status", "created_at", "id"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("service_tickets.id"))
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"))
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(8), default="CHO_CAP")
+    from_warehouse_code: Mapped[str | None] = mapped_column(ForeignKey("warehouses.code"))
+    to_warehouse_code: Mapped[str | None] = mapped_column(ForeignKey("warehouses.code"))
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey("stock_docs.id"))
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {"version_id_col": version}

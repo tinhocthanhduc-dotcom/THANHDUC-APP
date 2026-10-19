@@ -45,12 +45,16 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         func.count().filter(opened),
         func.count().filter(opened, ServiceTicket.due_at < now),
         func.count().filter(ServiceTicket.status == "CHO_LINH_KIEN"),
+        func.count().filter(ServiceTicket.status == "TAM_DUNG"),
     )).one()
-    count_open, count_overdue, count_parts = counts
+    count_open, count_overdue, count_parts, count_paused = counts
     if view == "open":
         rows = list(session.scalars(select(ServiceTicket).where(opened)
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())))
         title = "Đơn đang mở"
+    elif view == "paused":
+        rows = svc.search(session, user, status="TAM_DUNG", limit=count_paused or 1)
+        title = "Tạm dừng"
     elif view == "parts":
         rows = svc.search(session, user, status="CHO_LINH_KIEN", limit=count_parts or 1)
         title = "Chờ linh kiện"
@@ -59,7 +63,7 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         # Truyền limit theo tổng thực tế: không cắt danh sách ở giới hạn tìm kiếm mặc định.
         rows = svc.search(session, user, overdue=True, limit=count_overdue or 1)
     return render(request, "dieu_phoi.jinja", rows=rows, view=view, title=title,
-                  count_open=count_open, count_overdue=count_overdue, count_parts=count_parts,
+                  count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
                   users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
                   now=now, delay=_delay)
 
@@ -170,6 +174,13 @@ def _report(session, start, end, since, until):
     return sorted(technicians.values(), key=lambda row: (row['name'].casefold(), row['user_id'] or 0)), daily
 
 
+def _paused(session, since, until):
+    latest = select(ServiceStep.ticket_id, func.max(ServiceStep.at).label('at')).where(
+        ServiceStep.to_status == 'TAM_DUNG').group_by(ServiceStep.ticket_id).subquery()
+    return list(session.scalars(select(ServiceTicket).join(latest, latest.c.ticket_id == ServiceTicket.id).where(
+        ServiceTicket.status == 'TAM_DUNG', latest.c.at >= since, latest.c.at < until).order_by(latest.c.at, ServiceTicket.id)))
+
+
 def _report_context(request, session):
     try:
         start, end, since, until = _date_range(request)
@@ -177,7 +188,12 @@ def _report_context(request, session):
         return dict(start=request.query_params.get("from", ""), end=request.query_params.get("to", ""),
                     technicians=[], daily=[], error=exc.message, status=exc.status)
     technicians, daily = _report(session, start, end, since, until)
-    return dict(start=start.isoformat(), end=end.isoformat(), technicians=technicians, daily=daily, error=None)
+    selected = request.query_params.get('status', '')
+    if selected not in ('', 'TAM_DUNG'):
+        raise BusinessError('BAD_STATUS', 'Bộ lọc trạng thái chưa hợp lệ.')
+    return dict(start=start.isoformat(), end=end.isoformat(), technicians=technicians, daily=daily, error=None,
+        selected_status=selected, paused=_paused(session,since,until) if selected else [],
+        users=dict(session.execute(select(User.id,User.full_name)).all()))
 
 
 @router.get("/dieu-phoi/bao-cao")
@@ -196,6 +212,13 @@ def report_csv(request: Request, user: User = Depends(dispatch_user), session: S
     technicians, daily = _report(session, start, end, since, until)
     output = io.StringIO()
     writer = csv.writer(output)
+    if request.query_params.get('status') == 'TAM_DUNG':
+        names = dict(session.execute(select(User.id, User.full_name)).all())
+        writer.writerow(['Số phiếu', 'Thợ', 'Trạng thái', 'Lý do tạm dừng'])
+        for row in _paused(session,since,until):
+            writer.writerow([row.number, _csv_text(names.get(row.assignee_id,'')), 'Tạm dừng', svc.HOLD_REASONS.get(row.hold_reason,'')])
+        return Response("\ufeff" + output.getvalue(), media_type='text/csv; charset=utf-8',
+                        headers={'Content-Disposition':'attachment; filename="tam-dung.csv"', 'Cache-Control':'private, no-store'})
     writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ"])
     for row in technicians:
         writer.writerow([_csv_text(row['name']), row['completed'], row['failed'],

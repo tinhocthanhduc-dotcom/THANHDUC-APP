@@ -6,11 +6,12 @@
 <a class="card {% if view == 'open' %}on{% endif %}" href="/dieu-phoi?view=open"><strong>{{ count_open }}</strong><span>Đơn đang mở</span></a>
 <a class="card {% if view == 'overdue' %}on{% endif %}" href="/dieu-phoi?view=overdue"><strong>{{ count_overdue }}</strong><span>Đơn quá hạn</span></a>
 <a class="card {% if view == 'parts' %}on{% endif %}" href="/dieu-phoi?view=parts"><strong>{{ count_parts }}</strong><span>Chờ linh kiện</span></a>
+<a class="card {% if view == 'paused' %}on{% endif %}" href="/dieu-phoi?view=paused"><strong>{{ count_paused }}</strong><span>Tạm dừng</span></a>
 </div>
 <h2>{{ title }}</h2>
 <ul class="list service-list">
 {% for t in rows %}<li {% if t.due_at and t.due_at < now %}class="service-overdue"{% endif %}><a href="/dich-vu/{{ t.id }}">
-  <span class="code">{{ t.number }}</span><strong>{{ service_statuses[t.status] }}</strong>
+  <span class="code">{{ t.number }}</span><strong>{{ service_statuses[t.status] }}</strong>{% if t.hold_reason %}<span>Lý do: {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</span>{% endif %}
   <span>{{ users.get(t.assignee_id, 'Chưa giao') }}{% if t.assignee_id %} · {{ open_counts.get(t.assignee_id, 0) }} việc đang mở{% endif %}</span>
   <span class="meta">{% if t.due_at and t.due_at < now %}{{ delay(t.due_at, now) }} · {% endif %}Hạn: {{ t.due_at|service_time }}</span>
 </a></li>{% else %}<li class="empty">Không có đơn phù hợp.</li>{% endfor %}

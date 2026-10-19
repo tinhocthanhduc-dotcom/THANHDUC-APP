@@ -5,6 +5,7 @@ và vật tư được xuất kho bằng phiếu PX tự lập và ghi sổ tron
 Mở lại hoặc hủy phiếu đã hoàn thành thì hủy các phiếu PX đó (sổ kho ghi đảo) và mở khóa giá.
 Báo thu do sales_receipts quản lý; danh sách cần thu nối tổng đã thu/chờ bằng SQL.
 """
+from collections import Counter
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -45,8 +46,16 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
         if body.billing == "MIEN_PHI" and len(free_reason) < 3:
             raise BusinessError("REASON_REQUIRED", "Miễn phí phải ghi lý do.")
         own = technician_stock.restricted_warehouse(session, user, lock=True)
-        if own and any(x.kind == 'VAT_TU' and x.warehouse_code != own.code for x in body.lines):
-            raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
+        if own:
+            # Mỗi dòng cũ chỉ miễn kiểm một lần; không cho nhân bản dòng kho công ty.
+            unchanged = Counter((x.product_code, x.warehouse_code, x.qty) for x in t.lines if x.kind == 'VAT_TU')
+            for x in body.lines:
+                if x.kind != 'VAT_TU' or x.warehouse_code == own.code:
+                    continue
+                key = (x.product_code, x.warehouse_code, x.qty)
+                if not unchanged[key]:
+                    raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư thêm hoặc sửa phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
+                unchanged[key] -= 1
         _validate_lines(session, body)
         before = _snapshot(t)
         lines = []
@@ -60,6 +69,8 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
         t.lines = lines
         t.billing = body.billing
         t.free_reason = free_reason if body.billing == "MIEN_PHI" else ""
+        # Thay dòng cũng là sửa phiếu, kể cả khi cách thu không thay đổi.
+        t.version += 1
         session.flush()
         audit.record(session, user, "service_ticket.charges", "service_ticket", str(t.id), before, _snapshot(t))
     return t

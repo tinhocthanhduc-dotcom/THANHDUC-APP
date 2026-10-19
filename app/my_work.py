@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import sales_receipts, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Customer, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, Supplier
+from .models import Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, Supplier
 from .security import has_role
 
 LIMIT = 20
@@ -49,7 +49,10 @@ def _specs(user, today, now):
         add('service_appointment_overdue', 'Lịch hẹn từ ngày trước chưa xử lý',
             own.where(t.status=='DA_HEN', t.appointment_at<start), 'service', '/dich-vu')
         add('service_today', 'Hôm nay có hẹn', own.where(t.status=='DA_HEN', t.appointment_at>=start, t.appointment_at<end), 'service', '/dich-vu')
-        add('service_working', 'Đang làm và chờ linh kiện', own.where(t.status.in_(('DANG_LAM','CHO_LINH_KIEN'))), 'service', '/dich-vu')
+        ready = (t.status == 'CHO_LINH_KIEN') & select(PartRequest.id).where(PartRequest.ticket_id == t.id).exists() & ~select(PartRequest.id).where(PartRequest.ticket_id == t.id, PartRequest.status == 'CHO_CAP').exists()
+        add('service_parts_ready', 'Đã có linh kiện', own.where(ready), 'service', '/dich-vu')
+        add('service_paused', 'Tạm dừng · cần tiếp tục', own.where(t.status == 'TAM_DUNG'), 'service', '/dich-vu')
+        add('service_working', 'Đang làm và chờ linh kiện', own.where(t.status.in_(('DANG_LAM','CHO_LINH_KIEN')), ~ready), 'service', '/dich-vu')
     if has_role(user, 'technician', 'dispatcher'):
         pending = service.where(t.status.in_(('HOAN_THANH','DA_DONG')), t.billing=='THU_TIEN', t.priced_at.is_not(None), _available(t)>0)
         if not director and not has_role(user, 'dispatcher'):
@@ -84,6 +87,10 @@ def _specs(user, today, now):
         if not director and not has_role(user, 'warehouse'):waiting=waiting.where(SalesOrder.created_by==user.id)
         add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
     if has_role(user, 'warehouse'):
+        requests = select(PartRequest.id, PartRequest.number, PartRequest.status, Customer.name.label('customer'),
+            literal(0).label('amount'), literal(False).label('overdue')).join(t, t.id == PartRequest.ticket_id).join(
+                Customer, Customer.code == t.customer_code).where(PartRequest.status == 'CHO_CAP').order_by(PartRequest.created_at, PartRequest.id)
+        add('parts_pending', 'Yêu cầu linh kiện chờ cấp', requests, 'part', '/yeu-cau-linh-kien')
         orders = docs(PurchaseOrder, Supplier.name).join(Supplier, Supplier.code==PurchaseOrder.supplier_code).where(
             PurchaseOrder.status.in_(('DA_DAT','NHAN_MOT_PHAN'))).order_by(PurchaseOrder.expected_date.asc().nulls_last(), PurchaseOrder.id)
         add('purchases_waiting', 'Đơn mua chờ nhận hàng', orders, 'purchase', '/don-mua')
@@ -108,10 +115,11 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu'}[kind]
+            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"
+            if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"
             row['amount'] = int(row['amount'] or 0)
         row['kind'] = kind
         rows.append(row)
