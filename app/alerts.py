@@ -118,8 +118,9 @@ def collect(session,user,today=None,now=None) -> list[dict]:
 
         if has_role(user,'director'):
             cutoff=today-timedelta(days=config.ALERT_SLOW_STOCK_DAYS)
+            # Lần nhập đầu gồm cả tồn đầu kỳ (KK) và chuyển kho đến, không chỉ PN.
             first=(select(StockLedger.warehouse_code,StockLedger.product_code,func.min(StockDoc.doc_date).label('oldest'))
-                .join(StockDoc,StockDoc.id==StockLedger.doc_id).where(StockDoc.kind=='PN',StockDoc.status=='DA_GHI',StockLedger.is_reversal.is_(False))
+                .join(StockDoc,StockDoc.id==StockLedger.doc_id).where(StockDoc.status=='DA_GHI',StockLedger.is_reversal.is_(False),StockLedger.qty_in>0)
                 .group_by(StockLedger.warehouse_code,StockLedger.product_code).subquery())
             recent=exists(select(StockLedger.id).join(StockDoc,StockDoc.id==StockLedger.doc_id).where(
                 StockLedger.warehouse_code==b.warehouse_code,StockLedger.product_code==b.product_code,

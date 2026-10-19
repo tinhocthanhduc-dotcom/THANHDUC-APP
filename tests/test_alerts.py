@@ -239,3 +239,11 @@ def test_credit_limit_exact_equality_and_service_debt_are_included(db,people,mon
     t=ticket(db,p,monkeypatch,NOW);complete(db,p,t)
     found=rows(db,p,'KHACH_VUOT_HAN_MUC')
     assert len(found)==1 and '111.000' in found[0]['detail']
+
+
+def test_slow_stock_counts_opening_stock_as_first_input(db,people):
+    from app import stock_opening
+    p=people
+    for doc in stock_opening.create_opening(db,p['director'],'K58',DAY-timedelta(days=100),[dict(MA_HANG='TD-0001',SO_LUONG='2',DON_GIA='150')]):
+        stock_posting.post(db,p['director'],doc.id,doc.version)
+    found=rows(db,p,'CHAM_LUAN_CHUYEN');assert len(found)==1 and '300 đồng' in found[0]['detail']
