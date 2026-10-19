@@ -6,7 +6,7 @@
 {% endmacro %}
 {% block title %}Báo cáo bán hàng{% endblock %}
 {% block main %}
-<h1>Báo cáo bán hàng</h1><p>{% if 'finance' in user.roles or 'director' in user.roles %}Số liệu toàn bộ nhân viên.{% else %}Số liệu do bạn lập đơn/báo giá.{% endif %} Đơn vị: đồng.</p>
+<h1>Báo cáo bán hàng</h1><p>{% if report_all %}Số liệu toàn bộ nhân viên.{% else %}Số liệu do bạn lập đơn/báo giá.{% endif %} Đơn vị: đồng.</p>
 <div class="seg sales-report-presets">{% for label,value,active in presets %}<a class="btn {{ 'primary' if active else '' }}" href="/bao-cao/ban-hang?period={{ value }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
 <form action="/bao-cao/ban-hang" class="form quote-filters"><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ start }}" required></label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label></div><button>Lọc</button></form>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% else %}
@@ -18,7 +18,7 @@
 {% if bucket %}<div id="chi-tiet-no"><div class="bar"><h3>Danh sách nợ {{ buckets[bucket] }}</h3><a class="btn" href="/bao-cao/ban-hang/don-no.csv?{{ query }}&nhom={{ bucket }}">Tải CSV danh sách</a></div>
 <table class="sales-report-table"><thead><tr><th>Đơn bán</th><th>Khách hàng</th><th>Nhân viên</th><th>Số ngày</th><th>Phải thu</th><th>Đã thu</th><th>Chờ xác nhận</th><th>Còn nợ</th></tr></thead><tbody>{% for r in detail %}<tr><th data-label="Đơn bán"><a href="/don-ban/{{ r.id }}#thu-tien">{{ r.number }}</a></th><td data-label="Khách hàng">{{ r.customer_name }}</td><td data-label="Nhân viên">{{ r.employee_name }}</td><td data-label="Số ngày">{{ r.days }}</td><td data-label="Phải thu">{{ r.receivable|money }}</td><td data-label="Đã thu">{{ r.paid|money }}</td><td data-label="Chờ xác nhận">{{ r.pending|money }}</td><td data-label="Còn nợ">{{ r.remaining|money }}</td></tr>{% else %}<tr><td colspan="8">Không có đơn trong nhóm này.</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 </section>
-<section class="sales-report-section" id="chuyen-doi-bao-gia"><div class="bar"><h2>Tỷ lệ báo giá thành đơn</h2><a class="btn" href="/bao-cao/ban-hang/bao-gia.csv?{{ query }}">Tải CSV</a></div><p>Báo giá lập trong khoảng, loại bản bị thay bằng bản sửa. Đơn liên kết phải chưa hủy.{% if 'finance' not in user.roles and 'director' not in user.roles %} Chỉ tính báo giá và đơn do bạn lập.{% endif %}</p>
+<section class="sales-report-section" id="chuyen-doi-bao-gia"><div class="bar"><h2>Tỷ lệ báo giá thành đơn</h2><a class="btn" href="/bao-cao/ban-hang/bao-gia.csv?{{ query }}">Tải CSV</a></div><p>Báo giá lập trong khoảng, loại bản bị thay bằng bản sửa. Đơn liên kết phải chưa hủy.{% if not report_all %} Chỉ tính báo giá và đơn do bạn lập.{% endif %}</p>
 <table class="sales-report-table"><thead><tr><th>Số báo giá</th><th>Có đơn chưa hủy</th><th>Tỷ lệ</th></tr></thead><tbody><tr><td data-label="Số báo giá">{{ conversion.quotes }}</td><td data-label="Có đơn chưa hủy">{{ conversion.converted }}</td><td data-label="Tỷ lệ">{{ '%.2f'|format(conversion.rate) }}%</td></tr></tbody></table></section>
 {% endif %}
 {% endblock %}

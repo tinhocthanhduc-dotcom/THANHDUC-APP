@@ -3,7 +3,7 @@
 {% block title %}Tổng quan{% endblock %}
 {% block main %}
 <div class="bar"><h1>Tổng quan</h1><span>{{ s.today.strftime('%d/%m/%Y') }} · Giờ Việt Nam</span></div>
-<div class="bar"><a class="btn" href="/tong-quan/ngay">Các ngày trước</a>{% if 'director' in user.roles %}<form method="post" action="/tong-quan/ngay"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Lưu tóm tắt hôm nay</button></form>{% endif %}</div>
+<div class="bar"><a class="btn" href="/tong-quan/ngay">Các ngày trước</a>{% if can_save %}<form method="post" action="/tong-quan/ngay"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Lưu tóm tắt hôm nay</button></form>{% endif %}</div>
 <p>Doanh thu chưa VAT gồm đơn Đã giao và dịch vụ Có thu tiền đã chốt giá. Các khoản quỹ, nợ và tồn là số hiện tại.</p>
 <div class="overview-grid">
 {{ tile('Doanh thu hôm nay',s.revenue_today,'/bao-cao/ban-hang?'+today_query,detail='Chưa VAT · gồm dịch vụ') }}

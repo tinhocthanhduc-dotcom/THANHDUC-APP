@@ -40,7 +40,7 @@ def test_dang_nhap_sai_va_dung(client, make_user):
     r = client.post("/dang-nhap", data={"username": "le.tan", "password": "sai-mat-khau", "next": "/hang-hoa"})
     assert r.status_code == 401 and "Sai tên đăng nhập" in r.text
     r = client.post("/dang-nhap", data={"username": "Le.Tan ", "password": PASSWORD, "next": "/hang-hoa"}, follow_redirects=False)
-    assert r.headers["location"] == "/hang-hoa"
+    assert r.headers["location"] == "/dich-vu"
     cookie = r.headers["set-cookie"]
     assert "HttpOnly" in cookie and "SameSite=lax" in cookie
 
@@ -48,7 +48,7 @@ def test_dang_nhap_sai_va_dung(client, make_user):
 def test_khong_chuyen_huong_ra_trang_ngoai(client, make_user):
     make_user("le.tan", "reception")
     r = client.post("/dang-nhap", data={"username": "le.tan", "password": PASSWORD, "next": "//evil.example"}, follow_redirects=False)
-    assert r.headers["location"] == "/khach-hang"
+    assert r.headers["location"] == "/dich-vu"
 
 
 def test_dang_xuat(client, web_login):
@@ -134,12 +134,12 @@ def test_hai_nguoi_cung_sua(client, web_login):
     assert 'name="version" value="1"' in r.text
 
 
-def test_ky_thuat_chi_xem(client, web_login):
+def test_ky_thuat_khong_vao_khach_hang(client, web_login):
     csrf = web_login("ban.hang", "sales")
     client.post("/khach-hang/moi", data=customer_form(csrf))
     csrf = web_login("ky.thuat", "technician")
-    page = client.get("/khach-hang/KTD-000001").text
-    assert "<fieldset disabled>" in page and ">Lưu<" not in page
+    page = client.get("/khach-hang/KTD-000001")
+    assert page.status_code == 403 and "Bạn không có quyền vào trang này" in page.text
     r = client.post("/khach-hang/KTD-000001", data=customer_form(csrf, version="1"))
     assert r.status_code == 403 and "không có quyền" in r.text
 
@@ -199,7 +199,7 @@ def test_catalog_web_create_update_search_and_conflict(client, web_login, path, 
     assert 'name="version" value="1"' in r.text
     assert 'Ngừng sử dụng' in client.get(path).text
     csrf = web_login('ban.hang', 'sales')
-    assert '<fieldset disabled>' in client.get(path + '/' + code).text
+    assert client.get(path + '/' + code).status_code == 403
     assert client.get(path + '/moi').status_code == 403
     assert client.post(path + '/' + code, data={**form, 'csrf': csrf}).status_code == 403
     assert client.post(path + '/moi', data={**data, 'csrf': csrf}).status_code == 403
@@ -315,7 +315,9 @@ def test_k6_sales_read_only(client, web_login, stock_catalog):
     csrf = web_login('thu.kho', 'warehouse')
     doc_id = stock_create_web(client, csrf)
     csrf = web_login('ban.hang', 'sales')
-    for path in ['/phieu-kho', '/phieu-kho/moi', f'/phieu-kho/{doc_id}', '/ton-kho', '/the-kho/K58/TD-0001']:
+    for path in ['/phieu-kho', '/phieu-kho/moi', f'/phieu-kho/{doc_id}']:
+        assert client.get(path).status_code == 403
+    for path in ['/ton-kho', '/the-kho/K58/TD-0001']:
         r = client.get(path)
         assert r.status_code == 200, r.text
         assert '>Ghi sổ<' not in r.text and '>Lưu nháp<' not in r.text and '>Hủy nháp<' not in r.text
@@ -415,11 +417,11 @@ def test_opening_web_bom_and_semicolon(client, web_login, stock_catalog, db):
     assert doc.lines[0].qty == Decimal('2.500') and doc.lines[0].unit_cost == 120000
 
 
-def test_opening_web_sales_read_only_and_csrf_enforced(client, web_login, stock_catalog, db):
+def test_opening_web_sales_denied_and_csrf_enforced(client, web_login, stock_catalog, db):
     from app.models import StockDoc
     csrf = web_login('ban.hang', 'sales')
     r = client.get('/ton-dau-ky')
-    assert r.status_code == 200 and '>Tạo phiếu KK nháp<' not in r.text and '<fieldset disabled>' in r.text
+    assert r.status_code == 403 and 'Bạn không có quyền vào trang này' in r.text
     assert opening_upload(client, csrf).status_code == 403
     csrf = web_login('thu.kho', 'warehouse')
     assert client.post('/ton-dau-ky', data={'warehouse_code': 'K58', 'doc_date': '2026-12-31'},
@@ -430,7 +432,7 @@ def test_opening_web_sales_read_only_and_csrf_enforced(client, web_login, stock_
 def test_opening_web_sample_csv(client, web_login):
     import csv
     from io import StringIO
-    web_login('ban.hang', 'sales')
+    web_login('thu.kho', 'warehouse')
     r = client.get('/ton-dau-ky/mau.csv')
     assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv')
     assert 'attachment' in r.headers['content-disposition']
@@ -561,7 +563,8 @@ def test_k7_old_version_preserves_entered_qty(client, web_login, stock_catalog, 
 def test_k7_sales_and_csrf(client, web_login, stock_catalog, db):
     from app.models import StockMinLevel
     csrf = web_login('ban.hang', 'sales')
-    for path in ['/ton-kho?canh-bao=1', '/the-kho/K58/TD-0001']:
+    assert client.get('/ton-kho?canh-bao=1').status_code == 403
+    for path in ['/ton-kho', '/the-kho/K58/TD-0001']:
         r = client.get(path)
         assert r.status_code == 200 and '>Lưu<' not in r.text
     assert set_min_level(client, csrf).status_code == 403
@@ -804,7 +807,7 @@ def test_d1_audit_and_soft_deactivation(client, web_login, d1_catalog, db):
 
 def test_d1_picker_sites_scoped_and_optional_ownership(client, web_login, d1_catalog, db):
     from app.models import CustomerSite, Equipment
-    csrf = web_login('ky.thuat', 'technician')
+    csrf = web_login('dieu.phoi', 'dispatcher')
     client.post('/khach-hang/KTD-000001/dia-diem/moi', data=site_form(csrf))
     data = site_form(csrf); data['name'] = 'Khách thứ hai'
     client.post('/khach-hang/KTD-000002/dia-diem/moi', data=data)
@@ -945,12 +948,12 @@ def service_action(client, ticket, csrf, action='transition', **kw):
     return client.post(f'/dich-vu/{ticket.id}/{action}', data={'csrf': csrf, 'version': str(ticket.version), **kw})
 
 
-def test_d3_sales_create_and_customer_choices(client, db, service_people, monkeypatch):
+def test_d3_reception_create_and_customer_choices(client, db, service_people, monkeypatch, make_user):
     from datetime import UTC, datetime
     from app import service_tickets as svc
     from app.models import ServiceTicket
     monkeypatch.setattr(svc, '_now', lambda: datetime(2026, 10, 17, 6, tzinfo=UTC))
-    csrf = service_login(client, service_people['sales'])
+    csrf = service_login(client, make_user('dv.reception', 'reception'))
     page = client.get('/dich-vu/moi').text
     assert 'data-live=".service-options"' in page and 'href="/khach-hang/moi"' in page
     assert '<select' not in page
@@ -1145,7 +1148,7 @@ def test_d3_transfer_request_reject_and_cancel(client, db, service_people):
 
 
 def test_d3_create_errors_keep_form_and_version_is_required(client, db, service_people):
-    csrf = service_login(client, service_people['sales'])
+    csrf = service_login(client, service_people['dispatcher'])
     data = service_form(csrf, customer_code='KTD-999999', symptom='Giữ nguyên mô tả lỗi', kind='BAO_HANH', priority='KHAN')
     response = client.post('/dich-vu/moi', data=data)
     assert response.status_code == 400 and 'không tồn tại' in response.text
@@ -2641,6 +2644,8 @@ def test_t3_web_service_collection_queue_source_pt_link_and_paid_disappears(clie
     assert f'href="/dich-vu/{t.id}#thu-tien"' in queue.text and f'href="/don-ban/{o.id}#thu-tien"' in queue.text
     assert client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1)).status_code==200
     db.expire_all();pt=db.get(CashDoc,receipt.cash_doc_id)
+    assert client.get(f'/dich-vu/{t.id}').status_code==403  # Finance xem tiền qua Báo thu, không mở phiếu DV.
+    service_login(client,p['director'])
     page=client.get(f'/dich-vu/{t.id}')
     assert pt.number in page.text and f'href="/thu-chi/{pt.id}"' in page.text
     assert 'data-balance="remaining">0 đồng' in page.text
@@ -2678,7 +2683,7 @@ def test_t3_web_ticket_overpay_version_csrf_reopen_and_void_origin(client,db,t3_
     from app import sales_receipts,service_tickets
     from app.models import SalesReceipt
     from test_receipt_cash import ticket,report
-    p=t3_people;t=ticket(db,p);csrf=service_login(client,p['sales'])
+    p=t3_people;t=ticket(db,p);csrf=service_login(client,p['dispatcher'])
     data=dict(csrf=csrf,version=t.version,method='TIEN_MAT',amount='500.001',received_at='2026-10-18',note='Giữ dữ liệu')
     response=client.post(f'/dich-vu/{t.id}/bao-thu',data=data)
     assert response.status_code==409 and 'OVER_PAYMENT' in response.text

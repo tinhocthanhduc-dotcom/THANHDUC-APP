@@ -550,3 +550,15 @@ Tất cả chỉ SELECT, no_autoflush cả kiểm quyền, COUNT OVER trước L
 - `--day` neo khoảng doanh thu vào ngày yêu cầu; quỹ, nợ, tồn, việc đang mở và cảnh báo thời điểm vẫn theo số liệu nguồn tại lúc chạy, không tái dựng số dư lịch sử. Bản đã lưu giữ nguyên cho đến lần lưu đè kế tiếp.
 - GET `/tong-quan/ngay?page=1` (30 bản/trang, mới nhất trước), GET `/tong-quan/ngay/{day}`: director/finance. Finance được lọc cả JSON dùng để render và văn bản sao chép, loại tồn kho, lãi gộp và CHAM_LUAN_CHUYEN. POST `/tong-quan/ngay` lưu hôm nay giờ Việt Nam, chỉ director và phải có `csrf`.
 - Lỗi: `FORBIDDEN` (403), `BAD_CSRF` (403), `NOT_FOUND` (404, chưa lưu ngày đó), `VERSION_CONFLICT` (409). `python -m scripts.daily_digest --user tuan [--day YYYY-MM-DD]` kiểm tài khoản tồn tại, đang hoạt động, có vai trò director trước khi ghi; lỗi tài khoản thoát mã 1.
+
+## Menu và quyền trang web (U1)
+
+`app/web/nav.py` là cấu hình duy nhất cho nhãn/link, prefix và vai trò của từng mục, cùng thứ tự trang đầu. Giám đốc nhận mọi vai trò nghiệp vụ qua `has_role`. Người nhiều vai trò thấy hợp các mục được phép; trang đầu ưu tiên finance/director → Tổng quan, dispatcher → Điều phối, reception → Dịch vụ, rồi technician/sales/warehouse → Việc của tôi. Đăng nhập thành công luôn về trang đầu này, không chuyển theo `next` do trình duyệt gửi lên.
+
+Dependency `check_navigation` gắn trên toàn bộ router web, trước khi đăng ký các route thường/tạo động/router con. Nó kiểm cả GET, kết quả tìm sống, CSV và POST; truy cập không được phép sẽ trả HTML 403 với câu “Bạn không có quyền vào trang này” và link về `/`. Prefix khớp ranh giới đường dẫn, prefix cụ thể nhất thắng; route chưa khai báo bị chặn mặc định. Đăng nhập, đăng xuất và `/` có luồng riêng. API Bearer và quyền ghi/kiểm phiếu được giao trong lõi giữ nguyên.
+
+- `/ton-kho?canh-bao=1` thuộc Sắp hết (warehouse), khác Tồn kho/Thẻ kho (sales, warehouse, finance); các dạng bool theo cùng parser FastAPI/Pydantic (`true`, `on`, `yes`, `t`, `y`, kể cả chữ hoa) cũng nhận cùng quyền để không lách bằng query.
+- `/dich-vu/can-thu` và CSV cùng prefix thuộc Báo thu (finance); các bộ chọn máy/vật tư, ảnh và biên bản dưới `/dich-vu/...` vẫn theo mục Dịch vụ. File `/attachments/{id}/file` tiếp tục kiểm thực thể ở lõi, gồm chỉ phiếu được giao cho thợ.
+- `/viec-cua-toi` hiện chỉ chuyển hướng tạm: technician → `/dich-vu`, sales → `/don-ban`, warehouse → `/phieu-kho`; U2 sẽ bổ sung nội dung. Nhóm còn một mục hiện thẳng link; desktop nhóm dùng details/summary, mobile có nút Menu; không thêm thư viện JS.
+
+`tests/test_nav.py` đối chiếu riêng bảng vai trò với menu HTML và HTTP, kiểm mọi prefix có route thật, mọi GET web thuộc một mục và mọi route web nhận dependency chặn quyền. Không migration, không đổi luật hoặc dữ liệu sổ kho/quỹ/công nợ.

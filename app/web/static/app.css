@@ -310,3 +310,29 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .digest-numbers dt { overflow-wrap:anywhere; }
 .digest-numbers dd { margin:0; text-align:right; font-weight:600; }
 @media(max-width:480px) { .digest-numbers { grid-template-columns:minmax(0,1fr); gap:4px; } .digest-numbers dd { text-align:left; margin-bottom:12px; } }
+
+/* U1: một menu từ nav.py, nhóm native details/summary, điều khiển 44px. */
+.top { align-items:center; }
+.menu-shell { flex:1; min-width:0; }
+.menu-shell > .menu-toggle { display:none; }
+.top .role-nav { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.role-nav a, .nav-group > summary, .menu-toggle { min-height:44px; padding:10px 12px; border-radius:8px; }
+.top .role-nav a { display:block; white-space:normal; overflow-wrap:anywhere; }
+.nav-group { position:relative; }
+.nav-group > summary { cursor:pointer; list-style-position:inside; }
+.nav-group.on > summary, .nav-group[open] > summary, .top .role-nav a.on { color:var(--text); background:var(--tag); font-weight:600; }
+.nav-children { position:absolute; top:100%; left:0; z-index:20; min-width:210px; max-width:min(320px,90vw); padding:6px; background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 18px #0002; }
+.top .who { margin-left:auto; flex-shrink:0; }
+.top .who .identity { display:flex; flex-direction:column; max-width:230px; overflow-wrap:anywhere; }
+.identity small { font-size:.8rem; }
+@media(max-width:900px) {
+  .top { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+  .brand { grid-column:1; grid-row:1; }
+  .top .who { grid-column:2; grid-row:1; max-width:220px; flex-wrap:wrap; justify-content:flex-end; }
+  .top .who .identity { display:flex; max-width:170px; text-align:right; }
+  .menu-shell { grid-column:1/-1; grid-row:2; }
+  .menu-shell > .menu-toggle { display:list-item; cursor:pointer; width:fit-content; border:1px solid var(--line); }
+  .top .role-nav { display:flex; flex-direction:column; align-items:stretch; padding:8px 0; }
+  .nav-children { position:static; min-width:0; max-width:none; margin-left:12px; box-shadow:none; }
+  .nav-group > summary { width:100%; }
+}

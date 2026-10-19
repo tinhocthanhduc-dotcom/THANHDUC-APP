@@ -159,7 +159,7 @@ def test_web_summary_home_redirects_menu_svg_and_role_permissions(client,people)
     for role in ('director','finance','sales','warehouse','technician'):
         service_login(client,p[role])
         root=client.get('/',follow_redirects=False)
-        assert root.status_code==303 and root.headers['location']==('/tong-quan' if role in ('director','finance') else '/khach-hang')
+        assert root.status_code==303 and root.headers['location']==('/tong-quan' if role in ('director','finance') else '/viec-cua-toi')
         page=client.get('/tong-quan')
         if role in ('director','finance'):
             assert page.status_code==200 and '<svg' in page.text and page.text.count('<rect ')==30
@@ -167,8 +167,8 @@ def test_web_summary_home_redirects_menu_svg_and_role_permissions(client,people)
             assert ('Giá trị tồn kho' in page.text)==(role=='director')
             assert ('Lãi gộp tháng này' in page.text)==(role=='director')
             assert 'href="/bao-thu"' in page.text
-            nav=page.text.split('<nav>',1)[1].split('</nav>',1)[0]
+            nav=page.text.split('<nav aria-label="Menu chính" class="role-nav">',1)[1].split('</nav>',1)[0]
             assert nav.index('href="/tong-quan"')<nav.index('href="/khach-hang"')
         else:assert page.status_code==403
     client.cookies.clear()
-    assert client.get('/',follow_redirects=False).headers['location']=='/khach-hang'
+    assert client.get('/',follow_redirects=False).headers['location']=='/dang-nhap'

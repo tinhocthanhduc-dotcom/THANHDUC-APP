@@ -13,6 +13,7 @@ from .. import sales_reports as svc
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import User
+from ..security import has_role
 from . import render, web_user
 from .dispatch import _csv_text
 
@@ -55,7 +56,7 @@ def page(request: Request,user: User=Depends(report_user),session: Session=Depen
         today=svc._today()
         last=today.replace(day=1)-timedelta(days=1)
         return render(request,'bao_cao_ban_hang.jinja',start=start.isoformat(),end=end.isoformat(),
-            daily=svc.daily(session,user,start,end),totals=svc.totals(session,user,start,end),
+            report_all=has_role(user,'finance'),daily=svc.daily(session,user,start,end),totals=svc.totals(session,user,start,end),
             employees=svc.by_employee(session,user,start,end),customers=svc.by_customer(session,user,start,end),
             aging=svc.aging(session,user),conversion=svc.quote_conversion(session,user,start,end),
             detail=detail,bucket=bucket,buckets=svc.BUCKETS,query=_links(start,end),as_of=today.isoformat(),error=None,
@@ -63,7 +64,7 @@ def page(request: Request,user: User=Depends(report_user),session: Session=Depen
                      ('Tháng này','month',start==today.replace(day=1) and end==today.replace(day=monthrange(today.year,today.month)[1])),
                      ('Tháng trước','last_month',start==last.replace(day=1) and end==last)])
     except BusinessError as exc:
-        return render(request,'bao_cao_ban_hang.jinja',start=request.query_params.get('from',''),end=request.query_params.get('to',''),
+        return render(request,'bao_cao_ban_hang.jinja',report_all=has_role(user,'finance'),start=request.query_params.get('from',''),end=request.query_params.get('to',''),
                       presets=[('Hôm nay','today',False),('Tháng này','month',False),('Tháng trước','last_month',False)],
                       error=exc.message,error_code=exc.code,status=exc.status)
 
