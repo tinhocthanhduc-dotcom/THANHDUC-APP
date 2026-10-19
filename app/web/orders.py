@@ -10,14 +10,14 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import customers, products, quotes, sales_orders as svc
+from .. import customers, products, quotes, sales_orders as svc, stock_reservations
 from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, Product, SalesOrder, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
-from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate
+from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise
 from ..security import has_role
 from . import checked_form, money, render, web_user
 from .quotes import _quantity
@@ -50,6 +50,13 @@ def _version(form):
         raise BusinessError('VERSION_REQUIRED','Phải gửi phiên bản chứng từ, hãy tải lại trang.')
 
 
+def _reservation_id(form):
+    value=str(form.get('reservation_id',''))
+    if not value.isdigit() or len(value)>19 or not 0<int(value)<=9_223_372_036_854_775_807:
+        raise BusinessError('BAD_RESERVATION','Dòng giữ hàng chưa hợp lệ, hãy tải lại trang.')
+    return int(value)
+
+
 def _error(exc):
     if isinstance(exc,BusinessError):
         message = exc.message
@@ -79,7 +86,7 @@ def _active_order(session, quote_id):
 def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action=''):
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
-            customer_code='',contact_name='',delivery_address='',note='',version=0,lines=[])
+            customer_code='',contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[])
         for line in data['lines']:
             line['unit_price']=money(line['unit_price'])
     customer=session.get(Customer,data['customer_code']) if data['customer_code'] else None
@@ -89,6 +96,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     receipt_ctx=order_context(session,request.state.user,order,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action)
     return render(request,'don_ban_form.jinja',o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
                   customer_name=customer.name if customer else '',source=source,
+                  reservations=stock_reservations.for_order(session,order) if order else {},
+                  stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]),
+                  can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available']),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
                   warehouses=_warehouses(session),can_write=has_role(request.state.user,'sales'),
@@ -106,7 +116,7 @@ def _raw(form):
                     vat_rate=str(form.get(f'vat_{i}',str(DEFAULT_VAT_RATE))))
         lines.append(line)
     return dict(customer_code=str(form.get('customer_code','')),contact_name=str(form.get('contact_name','')),
-                delivery_address=str(form.get('delivery_address','')),note=str(form.get('note','')),
+                delivery_address=str(form.get('delivery_address','')),note=str(form.get('note','')),promised_date=str(form.get('promised_date','')),
                 version=str(form.get('version','')),lines=lines)
 
 
@@ -121,12 +131,13 @@ def _body(data):
         except ValueError:
             raise BusinessError('BAD_VAT',f'VAT dòng {i} phải là 0, 5, 8 hoặc 10%.')
         lines.append({**line,'qty':line['qty'].replace(',','.'),'unit_price':int(price.replace('.','')) if price else None,'vat_rate':vat})
-    return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines)
+    return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines,
+                promised_date=data.get('promised_date') or None)
 
 
 @router.get('/don-ban')
 def listing(request: Request,q: str='',status: str='',phan: int=0,
-            from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),
+            from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,
             user: User=Depends(order_user),session: Session=Depends(get_session)):
     error=code=None
     http_status=200
@@ -135,13 +146,13 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
             start,end=(date.fromisoformat(v) if v else None for v in (from_date,to_date))
         except ValueError:
             raise BusinessError('BAD_DATE_RANGE','Khoảng ngày chưa hợp lệ, hãy nhập ngày theo lịch.')
-        rows=svc.search(session,user,q[:200],status or None,from_date=start,to_date=end)
+        rows=svc.search(session,user,q[:200],status or None,from_date=start,to_date=end,holding=holding)
     except BusinessError as exc:
         rows=[]
         error,code,http_status=_error(exc)
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({r.customer_code for r in rows}))).all())
     return render(request,'don_ban_dong.jinja' if phan else 'don_ban_ds.jinja',rows=rows,names=names,q=q,
-                  selected_status=status,statuses=STATUSES,from_date=from_date,to_date=to_date,
+                  selected_status=status,statuses=STATUSES,from_date=from_date,to_date=to_date,holding=holding,today=svc._today(),
                   can_write=has_role(user,'sales'),can_receivables=has_role(user,'sales','finance'),error=error,error_code=code,status=http_status)
 
 
@@ -151,8 +162,9 @@ def pick_customer(request: Request,q: str='',user: User=Depends(order_user),sess
 
 
 @router.get('/don-ban/tim-hang')
-def pick_product(request: Request,q: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
-    return render(request,'don_ban_chon.jinja',kind='product',rows=products.search(session,q[:200],active_only=True,limit=20))
+def pick_product(request: Request,q: str='',warehouse: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
+    rows=products.search(session,q[:200],active_only=True,limit=20)
+    return render(request,'don_ban_chon.jinja',kind='product',rows=rows,warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
 
 
 @router.get('/don-ban/moi')
@@ -179,7 +191,7 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
 def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
     customer=session.get(Customer,quote.customer_code)
     data=data if data is not None else dict(version=quote.version,contact_name=quote.contact_name,
-        delivery_address=customer.address,note=quote.note,warehouses={})
+        delivery_address=customer.address,note=quote.note,promised_date='',warehouses={})
     return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,quantity=_quantity,
                   warehouses=_warehouses(session),linked=_active_order(session,quote.id),
                   next_step=next_steps.block(next_steps.form('Tạo đơn bán','order-from-quote',f'/don-ban/tu-bao-gia/{quote.id}')) if quote.status=='CHAP_NHAN' and not _active_order(session,quote.id) else None,
@@ -203,10 +215,10 @@ def from_quote(request: Request,quote_id: int,form=Depends(checked_form),session
     source=quotes.load(session,user,quote_id)
     customer=session.get(Customer,source.customer_code)
     raw=dict(version=str(form.get('version','')),contact_name=str(form.get('contact_name',source.contact_name)),
-             delivery_address=str(form.get('delivery_address',customer.address)),note=str(form.get('note',source.note)),
+             delivery_address=str(form.get('delivery_address',customer.address)),note=str(form.get('note',source.note)),promised_date=str(form.get('promised_date','')),
              warehouses={int(k[10:]):str(v) for k,v in form.items() if re.fullmatch(r'warehouse_[0-9]+',k)})
     try:
-        body=SalesOrderFromQuote(**{**raw,'version':_version(form)})
+        body=SalesOrderFromQuote(**{**raw,'version':_version(form),'promised_date':raw['promised_date'] or None})
         order=svc.create_from_quote(session,user,quote_id,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
@@ -237,14 +249,23 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
 @router.post('/don-ban/{order_id}/{action}')
 def action(request: Request,order_id: int,action: str,form=Depends(checked_form),session: Session=Depends(get_session)):
     user=request.state.user
-    if action=='deliver':
+    if action in ('reserve','release'):
+        pass  # quyền theo người lập đơn/kho được kiểm trong module giữ hàng
+    elif action=='deliver':
         if not has_role(user,'sales','warehouse'):
             raise BusinessError('FORBIDDEN','Chỉ kinh doanh, kho hoặc giám đốc được giao đơn bán.',status=403)
     else:
         _writer(user)
     try:
         version=_version(form)
-        if action=='cancel':
+        if action=='reserve':
+            stock_reservations.keep_more(session,user,order_id,version)
+        elif action=='release':
+            stock_reservations.release(session,user,order_id,_reservation_id(form),str(form.get('reason','')),version)
+        elif action=='promise':
+            body=SalesOrderPromise(version=version,promised_date=form.get('promised_date') or None)
+            svc.set_promised_date(session,user,order_id,body.promised_date,version)
+        elif action=='cancel':
             svc.cancel(session,user,order_id,str(form.get('reason','')),version)
         elif action=='confirm':
             svc.confirm(session,user,order_id,version)
@@ -252,7 +273,7 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             svc.deliver(session,user,order_id,version)
         else:
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác đơn bán.',status=404)
-    except BusinessError as exc:
+    except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _form(request,session,order=svc.load(session,user,order_id),error=message,code=code,status=status,
                      action_form=dict(form),action=action)

@@ -4,12 +4,12 @@ from urllib.parse import quote, urlencode
 
 from sqlalchemy import case, exists, func, literal, select
 
-from . import config, dashboard, day_closings, finance_reports, purchase_reports, sales_reports, service_tickets
+from . import config, dashboard, day_closings, finance_reports, purchase_reports, sales_reports, service_tickets, stock_reservations
 from .models import (CashDoc, Customer, Product, PurchaseOrder, SalesReceipt, ServiceTicket,
                      StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse)
 from .security import has_role
 
-LABELS = {'DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
+LABELS = {'GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
           'BAO_THU_CHO':'Báo thu chờ xác nhận','KHACH_VUOT_HAN_MUC':'Khách vượt hạn mức',
           'KHACH_NO_QUA_HAN':'Khách nợ quá hạn','NCC_NO_QUA_HAN':'NCC nợ quá hạn',
           'DON_MUA_TRE':'Đơn mua trễ hẹn','CHUA_CHOT_SO':'Ngày chưa chốt sổ',
@@ -77,6 +77,14 @@ def collect(session,user,today=None,now=None) -> list[dict]:
             .join(Product,Product.code==m.product_code).join(Warehouse,Warehouse.code==m.warehouse_code).where(Warehouse.kind=='KHO').outerjoin(b,(b.product_code==m.product_code)&(b.warehouse_code==m.warehouse_code))
             .where(m.min_qty>0,qty<m.min_qty),
             lambda r:(f"{r['link_key']} · {r['warehouse_code']}",f"{r['name']}: tồn {_qty(r['qty'])}, mức tối thiểu {_qty(r['min_qty'])}.",
+                '/the-kho/'+quote(r['warehouse_code'],safe='')+'/'+quote(r['link_key'],safe='')))
+
+        held=stock_reservations.held_query()
+        add('GIU_VUOT_TON',select(b.product_code.label('link_key'),b.warehouse_code,Product.name,b.qty,held.c.reserved,
+            held.c.oldest,literal('DO').label('level')).join(Product,Product.code==b.product_code).join(
+            held,(held.c.warehouse_code==b.warehouse_code)&(held.c.product_code==b.product_code)).where(held.c.reserved>b.qty),
+            lambda r:(f"Giữ vượt tồn: {r['link_key']} · {r['warehouse_code']}",
+                f"{r['name']}: tồn {_qty(r['qty'])}, đang giữ {_qty(r['reserved'])}.",
                 '/the-kho/'+quote(r['warehouse_code'],safe='')+'/'+quote(r['link_key'],safe='')))
 
         r=SalesReceipt

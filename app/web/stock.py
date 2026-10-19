@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
-from .. import products, stock_docs, stock_posting, stock_min_levels, technician_stock
+from .. import products, stock_docs, stock_posting, stock_min_levels, technician_stock, stock_reservations
 from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
@@ -90,6 +90,7 @@ def _form(request, session, doc, error=None, status=200, action_reason='', saved
     selected_dest = session.get(Warehouse,doc.get('to_warehouse_code')) if doc.get('to_warehouse_code') else None
     return render(request, 'phieu_form.jinja', d=doc, kinds=KINDS, states=STATES, tech_destination=selected_dest.name if selected_dest and selected_dest.kind == 'THO' else '',
                   warehouses=warehouses, suppliers=suppliers, error=error, status=status,
+                  stock_values=stock_reservations.quantities(session,[(doc['warehouse_code'],r['product_code']) for r in doc['lines'] if r['product_code'] and doc['warehouse_code']]),
                   action_reason=action_reason, saved=saved,
                   product_names={code: name for code, name in session.execute(
                       select(Product.code, Product.name).where(Product.code.in_([r['product_code'] for r in doc['lines']]))
@@ -114,8 +115,9 @@ def listing(request: Request, loai: str = '', kho: str = '', trang_thai: str = '
 
 
 @router.get('/phieu-kho/tim-hang')
-def product_picker(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return render(request, 'phieu_chon_hang.jinja', rows=products.search(session, q[:200], limit=20))
+def product_picker(request: Request, q: str = '', warehouse: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    rows=products.search(session,q[:200],limit=20)
+    return render(request, 'phieu_chon_hang.jinja', rows=rows,warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
 
 
 @router.get('/phieu-kho/tim-kho-tho')
@@ -235,6 +237,8 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
     if fold(q):
         stmt = stmt.where(or_(Product.search_text.like(like_pattern(fold(q))), Product.code.ilike(like_pattern(q))))
     rows = list(session.execute(stmt).mappings())
+    values=stock_reservations.quantities(session,[(r['warehouse_code'],r['product_code']) for r in rows])
+    rows=[{**r,**values.get((r['warehouse_code'],r['product_code']),dict(reserved=0,available=r['qty']))} for r in rows]
     return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', rows=rows, q=q, kho=kho, canh_bao=canh_bao,
                   warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows))
 
@@ -249,6 +253,8 @@ def _card(request, session, kho, ma, min_qty=None, version=None, error=None, sta
                                 .order_by(StockLedger.id)))
     level = session.get(StockMinLevel, (kho, product.code))
     return render(request, 'the_kho.jinja', rows=rows, product=product, warehouse=warehouse,
+                  stock=stock_reservations.quantities(session,[(kho,ma)]).get((kho,ma),dict(qty=0,reserved=0,available=0)),
+                  reservations=stock_reservations.held_orders(session,kho,ma),
                   min_qty=min_qty if min_qty is not None else str(level.min_qty if level else 0),
                   level_version=version if version is not None else (level.version if level else 0),
                   can_write=has_role(request.state.user, 'warehouse') and warehouse.kind=='KHO', error=error, status=status, saved=saved)

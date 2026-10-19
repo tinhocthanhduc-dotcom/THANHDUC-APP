@@ -1,8 +1,9 @@
+{% import 'kha_dung_chon.jinja' as stock %}
 <fieldset class="card quote-line" data-order-line>
 <div class="bar"><strong>Dòng hàng / dịch vụ</strong>{% if can_write and editable %}<button type="button" data-order-remove>Xóa dòng</button>{% endif %}</div>
 <fieldset><legend>Loại dòng</legend><div class="seg stock-seg">{% for kind,label in [('HANG','Hàng'),('KHAC','Khác')] %}<label><input type="radio" name="kind_{{ index }}" value="{{ kind }}" {% if line.kind==kind %}checked{% endif %} data-order-kind required><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
 <div data-order-goods {% if line.kind=='KHAC' %}hidden{% endif %}>
-<div data-picker><label>Hàng (tìm và chọn)<input name="product_code" value="{{ line.product_code or '' }}" autocomplete="off" data-live=".order-options" data-source="/don-ban/tim-hang"></label><span class="hint" data-order-product-name>{{ product_names.get(line.product_code,'') }}</span><div class="order-options product-options" aria-live="polite"></div></div>
+<div data-picker><label>Hàng (tìm và chọn)<input name="product_code" value="{{ line.product_code or '' }}" autocomplete="off" data-live=".order-options" data-source="/don-ban/tim-hang"></label><span class="hint" data-order-product-name>{{ product_names.get(line.product_code,'') }}</span><span class="hint" data-availability-summary>{{ stock.text(stock_values.get((line.warehouse_code,line.product_code)),line.warehouse_code) if stock_values is defined else '' }}</span><div class="order-options product-options" aria-live="polite"></div></div>
 <fieldset><legend>Kho xuất</legend>{% set warehouse_value=line.warehouse_code %}{% set warehouse_name='warehouse_' ~ index %}{% include 'don_ban_kho.jinja' %}</fieldset>
 </div>
 <label>Mô tả<input name="description" value="{{ line.description }}" maxlength="1000"></label>

@@ -1,6 +1,8 @@
 {% extends "base.jinja" %}
 {% block title %}Thẻ kho {{ product.code }}{% endblock %}
 {% block main %}<div class="bar"><h1>Thẻ kho {{ warehouse.code }} · {{ product.code }} · {{ product.name }}</h1><a href="/ton-kho?kho={{ warehouse.code }}">← Tồn kho</a></div>
+<section class="card"><dl><dt>Tồn thực tế</dt><dd>{{ stock.qty|qty }}</dd><dt>Đang giữ</dt><dd><a href="#dang-giu">{{ stock.reserved|qty }}</a></dd><dt>Khả dụng</dt><dd>{{ stock.available|qty }}</dd></dl>{% if stock.available<0 %}<p class="alert bad">Giữ vượt tồn</p>{% endif %}</section>
+<section id="dang-giu" class="card"><h2>Đơn đang giữ hàng</h2>{% for r, number, name, promised in reservations %}<article><a href="/don-ban/{{ r.order_id }}">{{ number }}</a> · {{ name }}<p>Giữ {{ r.qty|qty }} · Hẹn {{ promised.strftime('%d/%m/%Y') if promised else 'Chưa hẹn' }}</p></article>{% else %}<p>Không có đơn đang giữ.</p>{% endfor %}</section>
 {% if saved %}<p class="alert ok">Đã lưu mức tồn tối thiểu.</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
 {% if warehouse.kind=='KHO' %}<form method="post" action="/the-kho/{{ warehouse.code }}/{{ product.code }}" class="card form">

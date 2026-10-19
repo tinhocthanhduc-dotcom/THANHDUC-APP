@@ -17,7 +17,7 @@
     var pick = e.target.closest('[data-pick-product]');
     if (pick) {
       var row = pick.closest('[data-stock-line]'), input = row.querySelector('[name=product_code]');
-      input.value = pick.dataset.pickProduct; input.dispatchEvent(new Event('stock-picked'));
+      window.pickAvailability(pick); input.value = pick.dataset.pickProduct; input.dispatchEvent(new Event('stock-picked'));
       row.querySelector('.product-name').textContent = pick.dataset.productName;
       row.querySelector('.product-options').replaceChildren(); return;
     }

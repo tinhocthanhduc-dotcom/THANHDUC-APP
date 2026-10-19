@@ -1,6 +1,7 @@
 """Giao diện web cho nhân viên: đăng nhập, khách hàng, hàng hóa. Mọi quy tắc nằm ở tầng nghiệp vụ, trang web chỉ gọi vào."""
 import hashlib
 import hmac
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
@@ -44,6 +45,12 @@ def money(value: int | None) -> str:
     return f"{int(value or 0):,}".replace(",", ".")
 
 
+def quantity(value):
+    text = format(Decimal(str(value or 0)), 'f')
+    return (text.rstrip('0').rstrip('.') if '.' in text else text).replace('.', ',')
+
+
+templates.env.filters['qty'] = quantity
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals["web_navigation"] = nav.menu

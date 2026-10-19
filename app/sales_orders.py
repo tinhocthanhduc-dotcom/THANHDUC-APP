@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
-from . import audit, quotes, stock_docs, stock_posting
+from . import audit, quotes, stock_docs, stock_posting, stock_reservations
 from .config import get_settings
 from .customers import like_pattern
 from .doc_numbers import next_number
@@ -79,11 +79,14 @@ def load(session: Session, user, order_id):
     return _load(session, order_id)
 
 
-def search(session: Session, user, q='', status=None, customer_code=None, from_date=None, to_date=None):
+def search(session: Session, user, q='', status=None, customer_code=None, from_date=None, to_date=None, holding=False):
     check_reader(user)
     if status and status not in SALES_ORDER_STATUSES:
         raise BusinessError('BAD_STATUS', 'Trạng thái đơn bán không hợp lệ.')
     stmt = select(SalesOrder).options(selectinload(SalesOrder.lines)).join(Customer, SalesOrder.customer_code == Customer.code)
+    if holding:
+        from .models import StockReservation
+        stmt = stmt.where(select(StockReservation.id).where(StockReservation.order_id == SalesOrder.id, StockReservation.status == 'GIU').exists())
     needle = fold(q)
     if needle:
         stmt = stmt.where(or_(SalesOrder.number.ilike(like_pattern(needle)), Customer.search_text.like(like_pattern(needle))))
@@ -145,7 +148,7 @@ def _new(session, user, body, quote_id=None, action='create'):
     customer = quotes._customer(session, body.customer_code)
     lines = _lines(session, body.lines)
     order = SalesOrder(number=next_number(session, 'DB', _today()), customer_code=body.customer_code,
-                       quote_id=quote_id, contact_name=body.contact_name,
+                       quote_id=quote_id, contact_name=body.contact_name, promised_date=body.promised_date,
                        delivery_address=customer.address if body.delivery_address is None else body.delivery_address,
                        note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines)
     quotes._totals(order)
@@ -181,7 +184,7 @@ def create_from_quote(session: Session, user, quote_id, body: SalesOrderFromQuot
         order = _new(session, user, SalesOrderIn(customer_code=quote.customer_code,
                      contact_name=quote.contact_name if body.contact_name is None else body.contact_name,
                      delivery_address=body.delivery_address, note=quote.note if body.note is None else body.note,
-                     lines=lines), quote_id, 'create_from_quote')
+                     lines=lines, promised_date=body.promised_date), quote_id, 'create_from_quote')
     return order
 
 
@@ -202,6 +205,8 @@ def update_lines(session: Session, user, order_id, body: SalesOrderUpdate):
             value = getattr(body, field)
             if value is not None:
                 setattr(order, field, value)
+        if 'promised_date' in body.model_fields_set:
+            order.promised_date = body.promised_date
         order.version += 1
         quotes._totals(order)
         _record(session, user, order, 'update_lines', before)
@@ -222,6 +227,7 @@ def confirm(session: Session, user, order_id, version):
         quotes._totals(order)
         order.status, order.receivable = 'DA_CHOT', order.total
         order.confirmed_at, order.confirmed_by = datetime.now(UTC), user.id
+        stock_reservations.keep_in_tx(session, user, order)
         _record(session, user, order, 'confirm', before)
     return order
 
@@ -245,7 +251,8 @@ def deliver(session: Session, user, order_id, version):
                      customer_code=order.customer_code, reason=f'Giao đơn {order.number}',
                      lines=[StockDocLineIn(product_code=line.product_code, qty=line.qty,
                             note=f'{order.number} dòng {line.line_no}') for line in parts]))
-            stock_posting.post_in_tx(session, user, doc.id, None)
+            stock_posting.post_in_tx(session, user, doc.id, None, for_order_id=order.id)
+            stock_reservations.close_in_tx(session, user, order, warehouse_code=wh, exported=True)
             for line in parts:
                 line.stock_doc_id = doc.id
         order.status = 'DA_GIAO'
@@ -270,9 +277,23 @@ def cancel(session: Session, user, order_id, reason, version):
         if order.status == 'DA_GIAO':
             for doc_id in sorted({line.stock_doc_id for line in order.lines if line.stock_doc_id is not None}):
                 stock_posting.void_in_tx(session, user, doc_id, f'{order.number}: {reason}', None)
+        stock_reservations.close_in_tx(session, user, order, reason=reason)
         order.status, order.cancel_reason = 'DA_HUY', reason
         if order.receivable is not None:
             order.receivable = 0
         # Giữ tổng và liên kết PX để xem lại lịch sử sau hủy; không còn số phải thu.
         _record(session, user, order, 'cancel', before, reason)
+    return order
+
+
+def set_promised_date(session, user, order_id, promised_date, version):
+    check_writer(user)
+    with _transaction(session):
+        order = _load(session, order_id, lock=True)
+        _version(order, version)
+        _status(order, ('NHAP','DA_CHOT'))
+        before = snapshot(order)
+        order.promised_date = promised_date
+        order.version += 1
+        _record(session, user, order, 'promise', before)
     return order

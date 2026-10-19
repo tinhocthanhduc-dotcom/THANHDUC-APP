@@ -620,6 +620,7 @@ class SalesOrderLineIn(QuoteLineIn):
 class SalesOrderIn(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     customer_code: str = Field(min_length=1, max_length=16)
+    promised_date: date | None = None
     contact_name: str = Field(default='', max_length=200)
     delivery_address: str | None = Field(default=None, max_length=2000)
     note: str = Field(default='', max_length=4000)
@@ -630,6 +631,10 @@ class SalesOrderVersion(QuoteVersion):
     pass
 
 
+class SalesOrderPromise(SalesOrderVersion):
+    promised_date: date | None
+
+
 class SalesOrderCancel(SalesOrderVersion):
     reason: str = Field(default='', max_length=2000)
 
@@ -637,12 +642,14 @@ class SalesOrderCancel(SalesOrderVersion):
 class SalesOrderFromQuote(QuoteVersion):
     """version là phiên bản báo giá; warehouses ánh xạ line_no sang kho xuất."""
     warehouses: dict[Annotated[int, Field(ge=1)], Annotated[str, Field(max_length=16)]] = Field(default_factory=dict, max_length=200)
+    promised_date: date | None = None
     contact_name: str | None = Field(default=None, max_length=200)
     delivery_address: str | None = Field(default=None, max_length=2000)
     note: str | None = Field(default=None, max_length=4000)
 
 
 class SalesOrderUpdate(SalesOrderVersion):
+    promised_date: date | None = None
     contact_name: str | None = Field(default=None, max_length=200)
     delivery_address: str | None = Field(default=None, max_length=2000)
     note: str | None = Field(default=None, max_length=4000)
@@ -664,6 +671,7 @@ class SalesOrderOut(BaseModel):
     number: str
     customer_code: str
     quote_id: int | None
+    promised_date: date | None = None
     contact_name: str
     delivery_address: str
     note: str
