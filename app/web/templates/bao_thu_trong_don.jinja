@@ -1,7 +1,7 @@
 <section class="service-action" id="thu-tien">
 {% if error_code=="MAPPING_REQUIRED" %}<a class="btn" href="/ghep-tai-chinh">Ghép tài chính</a>{% endif %}
 <div class="bar"><h2>Thu tiền</h2>{% if can_view_receipt_receivables %}<a href="{{ receipt_receivables_url }}">{{ 'Dịch vụ cần thu' if origin=='ticket' else 'Đơn cần thu' }}</a>{% endif %}{% if can_decide %}<a href="/bao-thu">Báo thu chờ xác nhận</a>{% endif %}</div>
-<dl class="card receipt-balance"><dt>Phải thu</dt><dd data-balance="receivable">{{ collection.balance.receivable|money }} đồng</dd><dt>Đã thu</dt><dd data-balance="paid">{{ collection.balance.paid|money }} đồng</dd><dt>Chờ xác nhận</dt><dd data-balance="pending">{{ collection.balance.pending|money }} đồng</dd><dt>Còn nợ</dt><dd data-balance="remaining">{{ collection.balance.remaining|money }} đồng</dd></dl>
+<dl class="card receipt-balance"><dt>Phải thu</dt><dd data-balance="receivable">{{ collection.balance.receivable|money }} đồng</dd><dt>Đã thu</dt><dd data-balance="paid">{{ collection.balance.paid|money }} đồng</dd><dt>Chờ xác nhận</dt><dd data-balance="pending">{{ collection.balance.pending|money }} đồng</dd><dt>Còn nợ</dt><dd data-balance="remaining">{{ collection.balance.remaining|money }} đồng</dd><dt>Khách ứng trước</dt><dd data-balance="advance">{{ collection.balance.get('advance',0)|money }} đồng</dd></dl>
 {% if can_report and receipt_reportable %}
 {% if available>0 or error_code in ['OVER_PAYMENT','BAD_AMOUNT','BAD_FORM','VERSION_CONFLICT'] %}
 <form id="receipt-report" method="post" action="{{ receipt_report_url }}" class="card form" data-receipt-report>

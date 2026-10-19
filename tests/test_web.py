@@ -2017,20 +2017,26 @@ def test_b3_shortage_shows_product_warehouse_and_preserves_order(client,db,web_l
 
 def test_b3_cancel_delivered_requires_reason_and_returns_stock(client,db,web_login,b3_catalog):
     from decimal import Decimal
+    from app import sales_orders
     from app.models import StockBalance,StockDoc
     csrf=web_login('b3.sales','sales')
     order=b3_create(client,db,csrf)
     b3_action(client,db,csrf,order,'confirm')
     page=b3_action(client,db,csrf,order,'deliver')
-    assert 'data-order-cancel' in page.text and 'Hủy sẽ trả hàng về kho' in page.text
-    response=b3_action(client,db,csrf,order,'cancel')
-    assert response.status_code==400 and 'REASON_REQUIRED' in response.text
-    db.expire_all()
-    assert order.status=='DA_GIAO'
+    assert 'Hủy đơn</button>' not in page.text and 'Hủy lần giao</button>' not in page.text
     response=b3_action(client,db,csrf,order,'cancel',reason='Khách trả hàng')
-    assert response.status_code==200 and 'Đã hủy' in response.text and 'Khách trả hàng' in response.text
+    assert response.status_code==409 and 'BAD_STATUS' in response.text
+    csrf=web_login('b3.director','director')
+    gh=sales_orders.deliveries(db,order.id)[0]
+    response=client.post(f'/don-ban/{order.id}/void-delivery',data=dict(csrf=csrf,version=gh.version,delivery_id=gh.id,reason=''))
+    assert response.status_code==400 and 'REASON_REQUIRED' in response.text
+    response=client.post(f'/don-ban/{order.id}/void-delivery',data=dict(csrf=csrf,version=gh.version,delivery_id=gh.id,reason='Khách trả hàng'))
+    assert response.status_code==200 and 'Đã hủy' in response.text
     db.expire_all()
-    assert order.status=='DA_HUY' and order.receivable==0
+    assert order.status=='DA_CHOT' and order.receivable==0
+    assert b3_action(client,db,csrf,order,'cancel',reason='Hủy sau khi hủy giao').status_code==200
+    db.expire_all()
+    assert order.status=='DA_HUY'
     assert db.get(StockBalance,('K58','TD-0001')).qty==Decimal(5)
     assert db.query(StockDoc).filter_by(kind='PX').one().status=='DA_HUY'
 
@@ -2141,6 +2147,8 @@ def test_b3_from_quote_stale_preserves_fields(client,db,web_login,b3_catalog):
 def test_b3_finance_read_only_and_date_errors(client,db,web_login,b3_catalog):
     csrf=web_login('b3.sales','sales')
     order=b3_create(client,db,csrf)
+    b3_action(client,db,csrf,order,'confirm')
+    b3_action(client,db,csrf,order,'deliver')
     csrf=web_login('b3.finance','finance')
     for path in ('/don-ban',f'/don-ban/{order.id}',f'/don-ban/{order.id}/in-giao'):
         page=client.get(path)
@@ -2158,6 +2166,9 @@ def b4_order(client,db,web_login,b3_catalog,configured_finance):
     csrf=web_login('b4.sales','sales')
     order=b3_create(client,db,csrf,qty=['2','1'],unit_price=['500.000','0'],vat_0='0',vat_1='0')
     assert b3_action(client,db,csrf,order,'confirm').status_code==200
+    db.expire_all()
+    assert order.receivable==0
+    assert b3_action(client,db,csrf,order,'deliver').status_code==200
     db.expire_all()
     assert order.receivable==1000000
     return order,csrf
@@ -2220,11 +2231,10 @@ def test_b4_web_reject_reason_releases_capacity_and_filters(client,db,make_user,
 def test_b4_web_has_receipts_blocks_cancel_until_void_and_reject(client,db,make_user,b4_order):
     from app.models import SalesReceipt,User,StockBalance
     order,csrf=b4_order
-    assert b3_action(client,db,csrf,order,'deliver').status_code==200
     b4_report(client,db,order,csrf,'600.000')
     b4_report(client,db,order,csrf,'400.000')
     blocked=b3_action(client,db,csrf,order,'cancel',reason='Khách hủy đơn')
-    assert blocked.status_code==409 and 'HAS_RECEIPTS' in blocked.text and 'Tài chính phải từ chối hoặc hủy báo thu trước' in blocked.text
+    assert blocked.status_code==409 and 'BAD_STATUS' in blocked.text
     db.expire_all()
     assert db.get(StockBalance,('K58','TD-0001')).qty==3
     receipts=db.query(SalesReceipt).order_by(SalesReceipt.id).all()
@@ -2239,6 +2249,10 @@ def test_b4_web_has_receipts_blocks_cancel_until_void_and_reject(client,db,make_
     assert r.status_code==400 and 'REASON_REQUIRED' in r.text
     r=client.post(f'/bao-thu/{receipts[0].id}/void',data=dict(csrf=csrf,version=2,reason='Trả lại khách',origin='order'))
     assert r.status_code==200 and 'data-balance="remaining">1.000.000 đồng' in r.text
+    from app import sales_orders
+    gh=sales_orders.deliveries(db,order.id)[0]
+    response=client.post(f'/don-ban/{order.id}/void-delivery',data=dict(csrf=csrf,version=gh.version,delivery_id=gh.id,reason='Hủy lần giao'))
+    assert response.status_code==200
     csrf=service_login(client,db.query(User).filter_by(username='b4.sales').one())
     assert b3_action(client,db,csrf,order,'cancel',reason='Khách hủy đơn').status_code==200
     db.expire_all()
@@ -2360,7 +2374,7 @@ def test_b5_csv_bom_headers_exact_money_and_formula_escape(client,db,b5_data):
         'nhan-vien':['Mã nhân viên','Nhân viên','Số đơn','Trước VAT','VAT','Tổng'],
         'khach-hang':['Mã khách','Khách hàng','Số đơn','Trước VAT','VAT','Tổng'],
         'tuoi-no':['Nhóm tuổi nợ','Số đơn','Còn nợ','Chờ xác nhận'],
-        'don-no':['Số đơn','Khách hàng','Nhân viên','Ngày chốt','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'],
+        'don-no':['Số đơn','Khách hàng','Nhân viên','Ngày phát sinh nợ','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'],
         'bao-gia':['Số báo giá','Có đơn chưa hủy','Tỷ lệ (%)'],
     }
     for table,expected in headers.items():
@@ -2782,7 +2796,7 @@ def test_t5_finance_page_totals_presets_and_csv(client, db, t5_money):
         'chi':['Mã danh mục','Danh mục','Số phiếu','Số tiền'],
         'dong-tien':['Ngày','Thu','Chi','Chênh lệch','Số dư cuối ngày'],
         'cong-no':['Mã khách','Khách hàng','Phải thu','Đã thu','Chờ xác nhận','Còn nợ'],
-        'chung-tu':['Chứng từ','Ngày chốt','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ']}
+        'chung-tu':['Chứng từ','Ngày phát sinh nợ','Số ngày','Phải thu','Đã thu','Chờ xác nhận','Còn nợ']}
     for table, header in headers.items():
         r = client.get(f'/bao-cao/tai-chinh/{table}.csv')
         assert r.status_code == 200 and r.content.startswith(b'\xef\xbb\xbf')

@@ -87,7 +87,7 @@ class Page(HTMLParser):
         if tag=='form':
             self.current=dict(a, fields={})
             if 'id' in a:self.forms[a['id']]=self.current
-        if tag=='input' and self.current is not None and a.get('type')=='hidden':
+        if tag=='input' and self.current is not None and (a.get('type')=='hidden' or a.get('name','').startswith('deliver_')):
             self.current['fields'][a['name']]=a.get('value','')
         if 'data-next-primary' in a:self.primary=a
         if 'data-work-shortcut' in a:self.shortcuts[a['href']]=a

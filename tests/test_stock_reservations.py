@@ -116,6 +116,8 @@ def test_delivery_consumes_own_hold_atomically_and_cancel_keeps_export_history(d
     assert svc.available(db,'K58','TD-0001')==3
     doc=db.get(StockDoc,row.lines[0].stock_doc_id)
     assert (doc.kind,doc.status)==('PX','DA_GHI')
+    gh=sales_orders.deliveries(db,row.id)[0]
+    sales_orders.void_delivery(db,p['director'],gh.id,'Khách đổi ý',gh.version)
     sales_orders.cancel(db,p['sales'],row.id,'Khách đổi ý',row.version)
     assert db.get(StockBalance,('K58','TD-0001')).qty==7 and holds(db,row,'DA_XUAT')[0].qty==4
 
@@ -334,9 +336,10 @@ def test_each_reservation_lifecycle_has_before_after_actor_and_reason(db,people)
     svc.keep_more(db,p['sales'],row.id,row.version)
     sales_orders.deliver(db,p['warehouse'],row.id,row.version)
     logs=list(db.scalars(select(AuditLog).where(AuditLog.entity=='stock_reservation').order_by(AuditLog.id)))
-    assert [r.action for r in logs]==['stock_reservation.keep','stock_reservation.release','stock_reservation.keep','stock_reservation.export']
+    assert [r.action for r in logs]==['stock_reservation.keep','stock_reservation.release','stock_reservation.keep','stock_reservation.release','stock_reservation.export']
     assert logs[0].before is None and logs[0].after['status']=='GIU' and logs[0].user_id==p['sales'].id
     assert logs[1].before['status']=='GIU' and logs[1].after['status']=='DA_NHA'
     assert logs[1].reason=='Khách hẹn lại' and logs[1].user_id==p['warehouse'].id
-    assert logs[3].before['status']=='GIU' and logs[3].after['status']=='DA_XUAT'
-    assert logs[3].after['closed_by']==p['warehouse'].id and logs[3].after['closed_at']
+    assert logs[3].before['status']=='GIU' and logs[3].after['status']=='DA_NHA'
+    assert logs[4].before is None and logs[4].after['status']=='DA_XUAT'
+    assert logs[4].after['closed_by']==p['warehouse'].id and logs[4].after['closed_at']

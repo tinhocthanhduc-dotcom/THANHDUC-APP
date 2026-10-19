@@ -13,6 +13,7 @@ PREFIXES = {
     "KK": "Phiếu kiểm kê",
     "BG": "Báo giá",
     "DB": "Đơn bán",
+    "GH": "Phiếu giao hàng",
     "DM": "Đơn mua",
     "TH": "Trả hàng NCC",
     "TN": "Trả nhà cung cấp",

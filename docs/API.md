@@ -231,9 +231,9 @@ B2 gồm lõi và API, chưa có màn hình (B3). Bearer authentication như cá
 - `POST /sales-orders` → 201: `customer_code`, `contact_name`, `delivery_address` (bỏ qua thì lấy địa chỉ khách), `note`, `lines` (nháp có thể rỗng). Cấp số DB theo ngày Việt Nam trong transaction lưu đơn.
 - `POST /sales-orders/from-quote/{quote_id}` → 201: `version` **của báo giá**, `warehouses` tùy chọn là ánh xạ số dòng báo giá sang kho, ví dụ `{ "version": 3, "warehouses": { "1": "K58", "3": "K145" } }`. Chỉ từ `CHAP_NHAN`; sao chép giá, VAT, số lượng, mô tả, đơn vị, liên hệ và ghi chú, không lấy lại giá bán hiện tại. Có thể ghi đè `contact_name`, `delivery_address`, `note` trong body. Dòng có mã thành `HANG`, dòng tự do thành `KHAC`. Chỉ ánh xạ kho cho dòng HANG; nháp có thể chưa chọn kho. Không sửa báo giá gốc.
 - `PUT /sales-orders/{id}/lines`: `version` **của đơn**, `lines` thay toàn bộ; tùy chọn `contact_name`, `delivery_address`, `note`. Khách và liên kết báo giá cố định từ khi lập đơn. Chỉ sửa khi `NHAP`.
-- `POST /sales-orders/{id}/confirm`: `{ "version": 1 }`. `NHAP → DA_CHOT`, bắt buộc ít nhất một dòng và kho cho tất cả dòng HANG. Khóa giá, ghi `receivable = total`, người/thời điểm chốt.
+- `POST /sales-orders/{id}/confirm`: `{ "version": 1 }`. `NHAP → DA_CHOT`, bắt buộc ít nhất một dòng và kho cho tất cả dòng HANG. Khóa giá, ghi `receivable = 0` (S2: chỉ phát sinh phải thu khi giao GH), người/thời điểm chốt.
 - `POST /sales-orders/{id}/deliver`: `{ "version": 2 }`. `DA_CHOT → DA_GIAO`, mỗi kho một phiếu PX, lý do `Giao đơn DB-…`, ghi chú từng dòng `DB-… dòng n`. Gọi `stock_docs.insert` + `stock_posting.post_in_tx` trong cùng transaction, gắn `stock_doc_id` vào dòng HANG. Dòng KHAC không xuất kho. Đơn chỉ có KHAC vẫn giao được mà không lập PX.
-- `POST /sales-orders/{id}/cancel`: `{ "version": 3, "reason": "Khách trả hàng" }`. Cho phép từ `NHAP`, `DA_CHOT`, `DA_GIAO` sang `DA_HUY`. Nếu đã giao, gọi `stock_posting.void_in_tx` cho từng PX; không xóa phiếu, dòng hoặc liên kết PX. Giữ tổng tiền, thời điểm chốt/giao để tra cứu; số phải thu bằng 0 nếu đã chốt, còn null nếu chưa từng chốt. Mỗi PX được hủy một lần dù nhiều dòng cùng tham chiếu.
+- `POST /sales-orders/{id}/cancel`: `{ "version": 3, "reason": "Khách hủy" }`. Chỉ từ `NHAP` hoặc `DA_CHOT`, không có GH còn hiệu lực. Đã có GH phải hủy từng lần giao (chỉ giám đốc) trước. Vẫn chặn `HAS_RECEIPTS` khi còn báo thu chờ hoặc đã xác nhận. Giữ lịch sử, không xóa.
 - `GET /sales-orders?q=&status=&customer_code=&from=2026-10-01&to=2026-10-31`: tìm số DB/tên khách không dấu, lọc trạng thái/khách và ngày tạo (giờ Việt Nam, bao gồm hai đầu).
 - `GET /sales-orders/{id}`: đầu đơn cùng `lines`, tổng tiền chính thức, version, liên kết PX, thông tin chốt/giao.
 
@@ -270,7 +270,7 @@ Lỗi từ lõi kho (ví dụ `DOC_NOT_POSTED`, `VOID_COST_CONFLICT`) được g
 
 ## Màn hình đơn bán (B3)
 
-`/don-ban` dùng `sales_orders.search` để lọc trạng thái, số/tên khách không dấu và khoảng ngày tạo (giờ Việt Nam). `/don-ban/moi`, `/don-ban/{id}` gọi create/update_lines; Chốt/Giao/Hủy gọi confirm/deliver/cancel. Mọi POST có CSRF và version. Tiền chỉ bỏ dấu chấm khi nhập, tổng chính thức do lõi trả; ô tiền không dùng type=number. Lỗi thiếu tồn hiện mã hàng, kho, tồn và số cần. Nháp được thiếu kho; chốt phải đủ kho. Nếu còn thay đổi chưa lưu, trình duyệt nhắc Lưu trước khi Chốt. Hủy đơn đã giao yêu cầu lý do và hỏi xác nhận trả hàng về kho.
+`/don-ban` dùng `sales_orders.search` để lọc trạng thái, số/tên khách không dấu và khoảng ngày tạo (giờ Việt Nam). `/don-ban/moi`, `/don-ban/{id}` gọi create/update_lines; Chốt/Giao/Hủy gọi confirm/deliver/cancel. Mọi POST có CSRF và version. Tiền chỉ bỏ dấu chấm khi nhập, tổng chính thức do lõi trả; ô tiền không dùng type=number. Lỗi thiếu tồn hiện mã hàng, kho, tồn và số cần. Nháp được thiếu kho; chốt phải đủ kho. Nếu còn thay đổi chưa lưu, trình duyệt nhắc Lưu trước khi Chốt. S2: đơn đã giao chỉ hủy sau khi giám đốc hủy các lần giao; in theo từng GH, không in toàn bộ đơn.
 
 Khách cố định sau khi tạo theo hợp đồng B2; có thể sửa liên hệ, địa chỉ giao, ghi chú và toàn bộ dòng khi nháp. Ô tìm/chọn khách tự điền địa chỉ, vẫn cho sửa. Chọn hàng tự điền mã/giá bán; loại dòng, kho và VAT dùng nút chạm.
 
@@ -434,7 +434,7 @@ Chỉ `finance`, `director`; vai trò khác trả `FORBIDDEN` (403). Tất cả 
 
 - `funds`, `fund_total`: số dư hiện tại, gồm cả quỹ ngừng dùng và quỹ chưa phát sinh (số dư 0).
 - `categories(session, user, direction, start=None, end=None)`, `category_totals`, `daily`: mặc định tháng hiện tại theo giờ Việt Nam. Lọc `fund_ledger.entry_date`, không lọc trạng thái phiếu (phiếu hủy vẫn giữ phát sinh gốc). Dòng đảo vào ngày hủy. Thu = tổng tiền có dấu của PT, chi = âm tổng tiền có dấu của PC; loại CQ và đầu kỳ. Số phiếu là số chứng từ khác nhau có phát sinh trong khoảng, mỗi phiếu tính một lần trong mỗi bảng kể cả có cả dòng gốc và đảo. Dòng tiền có đủ ngày; số dư cộng toàn bộ sổ từ trước khoảng cộng lũy kế mọi phát sinh, gồm đầu kỳ/CQ.
-- `customers`, `debt_totals`, `customer_docs(session, user, customer_code)`: công nợ hiện tại, không giới hạn theo khoảng thu chi. Chỉ cộng chứng từ còn nợ: đơn DA_CHOT/DA_GIAO, dịch vụ HOAN_THANH/DA_DONG. GROUP BY báo thu riêng theo từng nguồn trước khi UNION ALL, tránh nhân dòng giữa hai nguồn. Chỉ DA_XAC_NHAN trừ nợ; CHO_XAC_NHAN chỉ hiện riêng. Ngày chốt là `confirmed_at` của đơn hoặc `priced_at` của dịch vụ, chuyển giờ Việt Nam; số ngày tính tới hôm nay, tối thiểu 0.
+- `customers`, `debt_totals`, `customer_docs(session, user, customer_code)`: công nợ hiện tại, không giới hạn theo khoảng thu chi. Chỉ cộng chứng từ còn nợ: đơn GIAO_MOT_PHAN/DA_GIAO có giá trị đã giao còn nợ, dịch vụ HOAN_THANH/DA_DONG. GROUP BY báo thu riêng theo từng nguồn trước khi UNION ALL, tránh nhân dòng giữa hai nguồn. Chỉ DA_XAC_NHAN trừ nợ; CHO_XAC_NHAN chỉ hiện riêng. Ngày phát sinh nợ là ngày GH đầu tiên còn hiệu lực của đơn hoặc `priced_at` của dịch vụ, chuyển giờ Việt Nam; số ngày tính tới hôm nay, tối thiểu 0.
 
 Web GET `/bao-cao/tai-chinh`: `period=today|month|last_month` hoặc `from=YYYY-MM-DD&to=YYYY-MM-DD`; `khach=...` mở danh sách chứng từ còn nợ, có link DB/DV. GET `/bao-cao/tai-chinh/{table}.csv` với `table=quy|thu|chi|dong-tien|cong-no|chung-tu`; CSV UTF-8 có BOM, tiền nguyên đồng, chuỗi người dùng được chống công thức Excel. Không có endpoint ghi hoặc migration.
 
@@ -684,3 +684,29 @@ Các mã khác: `REASON_REQUIRED`, `VERSION_CONFLICT`, `BAD_STATUS`, `FORBIDDEN`
 Các đơn đã chốt trước khi nâng cấp chưa có dòng giữ: trang đơn hiện phần chưa giữ
 và có nút “Giữ thêm” để phân bổ theo khả dụng hiện tại; migration không tự sửa sổ
 hoặc tự chọn thứ tự giữ cho các đơn cũ.
+
+
+## Giao hàng theo số thực (S2)
+
+- `POST /sales-orders/{id}/deliver`: `version` của đơn, `receiver_name`, `note`, `lines: [{"order_line_no": 1, "qty": "6"}]`.
+  Cho phép `DA_CHOT` và `GIAO_MOT_PHAN`; số 0 bỏ qua, ít nhất một dòng dương, không trùng dòng hay vượt phần còn lại.
+  Bỏ `lines` giữ tương thích lệnh giao đủ cũ. `GET /sales-orders/{id}/deliveries` đọc GH và các dòng, PX của từng lần.
+- Mỗi lần cấp `GH-YY-nnnnn`, một PX/kho chỉ cho lượng giao thực tế; KHAC không xuất kho. Giữ hàng S1 được chốt `DA_NHA` với lý do tách GH, ghi mới phần `DA_XUAT` và `GIU` còn lại; không sửa lượng lịch sử.
+  Đơn, GH, PX, sổ và giữ hàng cùng transaction, khóa đơn trước và tồn theo mã tăng dần. S0 bảo vệ chống gửi trùng form web.
+- Tiền từng dòng làm tròn HALF_UP như B1, VAT tính trên tiền dòng đã làm tròn. Lần giao đủ toàn bộ dòng lấy phần dư tiền/VAT của dòng gốc trừ các GH còn hiệu lực trước đó.
+- `receivable` là tổng `total` các GH `DA_GIAO`, chốt đơn bằng 0. `delivered_at` là ngày giao gần nhất còn hiệu lực.
+  Số giao + số đóng đủ mọi dòng: `DA_GIAO`; đã giao chưa đủ: `GIAO_MOT_PHAN`; chưa giao: `DA_CHOT`.
+- `POST /sales-orders/{id}/close-remaining`: `version`, `reason`, chỉ giám đốc hoặc người lập (sales); đơn phải `GIAO_MOT_PHAN`.
+  Đóng lượng chưa giao, nhả giữ còn lại. Báo thu chờ + xác nhận lớn hơn tiền thực giao thì `OVER_PAID` (409): “Khách đã trả nhiều hơn phần giao; xử lý hoàn tiền trước”.
+  Khi đã đóng, tiền các GH đã giao được giữ nguyên, không tính lại theo tỷ lệ làm tròn.
+- `POST /sales-orders/deliveries/{delivery_id}/void`: `version` của GH, `reason`, chỉ giám đốc. Đảo PX, giảm phải thu và tính lại trạng thái đơn; không tự giữ lại hàng.
+  Hủy trực tiếp PX thuộc GH qua `stock_posting.void` bị `SOURCE_LOCKED`; `void_in_tx` vẫn dành cho transaction của GH.
+- Báo thu được khi `DA_CHOT`, `GIAO_MOT_PHAN`, `DA_GIAO`, tối đa giá trị đơn còn hiệu lực trừ đã xác nhận và chờ.
+  `balance`: `remaining=max(0,receivable-paid)`, `advance=max(0,paid-receivable)`, `available` là số còn được báo (có thể ứng trước).
+- Doanh thu và lãi gộp bán hàng dùng GH còn hiệu lực, ngày giao giờ VN, tiền trước VAT và đúng PX của GH. Số đơn đếm distinct trong kỳ.
+  Công nợ/tuổi nợ/cảnh báo/Việc của tôi dùng số thực giao; tuổi tính từ GH đầu còn hiệu lực. Dashboard và bản tóm tắt dùng lại báo cáo này.
+- Web `/don-ban/{id}`: cột Đặt/Đã giữ/Đã giao/Đã đóng/Còn lại; nhập lượng giao, người nhận và ghi chú. Lỗi giữ dữ liệu nhập, mọi POST có CSRF + form_key.
+  In từng GH tại `/don-ban/{order_id}/giao/{delivery_id}/in`; `/don-ban/{id}/in-giao` chuyển tới GH còn hiệu lực gần nhất, chưa giao trả `BAD_STATUS`.
+- Lỗi: `OVER_DELIVERY` (409), `EMPTY_DELIVERY`, `OVER_PAID` (409), `BAD_STATUS` (409), `REASON_REQUIRED`, `VERSION_CONFLICT` (409), `FORBIDDEN` (403); lỗi tồn S1 giữ nguyên.
+- Migration 0028 chuyển mỗi đơn cũ DA_GIAO thành một GH đủ dòng, giữ PX/ngày giao/tiền, đặt DA_CHOT phải thu 0; không đổi báo thu cũ hay ghi lại sổ kho/quỹ.
+  Downgrade gỡ cấu trúc GH và trở về nghĩa phải thu cũ; lịch sử giao một phần không biểu diễn được ở schema cũ, cần sao lưu trước khi hạ trên dữ liệu thật.

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import event, select, text
 from sqlalchemy.orm import Session
 
-from app import cash_docs, cash_posting, finance_catalogs, finance_reports as svc, sales_receipts
+from app import sales_orders, cash_docs, cash_posting, finance_catalogs, finance_reports as svc, sales_receipts
 from app.errors import BusinessError
 from app.models import AuditLog, CashCategory, Customer, Fund, FundBalance
 from app.schemas import CashCategoryIn
@@ -34,8 +34,10 @@ def t5_debts(db, t3_people, configured_finance, monkeypatch):
     monkeypatch.setattr(cash_docs, 'today', lambda: TODAY)
     p = t3_people
     o = order(db, p)
+    sales_orders.deliver(db,p['sales'],o.id,o.version)
     t = ticket(db, p)
     o.confirmed_at = datetime.fromisoformat('2026-10-08T00:30:00+07:00')
+    sales_orders.deliveries(db,o.id)[0].delivered_at = o.confirmed_at
     t.priced_at = datetime.fromisoformat('2026-10-09T23:30:00+07:00')
     db.commit()
     for parent, amount in [(o, 400000), (t, 100000)]:

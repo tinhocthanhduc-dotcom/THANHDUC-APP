@@ -53,7 +53,7 @@ def _error(exc):
 
 
 def _collection_context(session,user,parent,collection,origin,can_report,reportable,form,decision,failed_id,failed_action):
-    available=collection['balance']['remaining']-collection['balance']['pending'] if collection else 0
+    available=collection['balance'].get('available',collection['balance']['remaining']-collection['balance']['pending']) if collection else 0
     ids={v for r in collection['receipts'] for v in (r.reported_by,r.decided_by) if v} if collection else set()
     people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_(ids))).all())
     cash_ids={r.cash_doc_id for r in collection['receipts'] if r.cash_doc_id} if collection else set()
@@ -73,7 +73,7 @@ def _collection_context(session,user,parent,collection,origin,can_report,reporta
 def order_context(session,user,order,form=None,decision=None,failed_id=None,failed_action=''):
     collection=svc.for_order(session,user,order.id) if order and order.status!='NHAP' else None
     return _collection_context(session,user,order,collection,'order',has_role(user,'sales'),
-        bool(order and order.status in ('DA_CHOT','DA_GIAO')),form,decision,failed_id,failed_action)
+        bool(order and order.status in ('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),form,decision,failed_id,failed_action)
 
 
 def ticket_context(session,user,ticket,form=None,decision=None,failed_id=None,failed_action=''):

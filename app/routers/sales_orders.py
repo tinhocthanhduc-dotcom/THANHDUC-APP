@@ -7,7 +7,7 @@ from .. import sales_orders as svc, stock_reservations
 from ..db import get_session
 from ..models import User
 from ..schemas import (SalesOrderCancel, SalesOrderFromQuote, SalesOrderIn, SalesOrderOut,
-                       SalesOrderUpdate, SalesOrderVersion, SalesOrderPromise)
+                       SalesOrderUpdate, SalesOrderVersion, SalesOrderPromise, SalesDeliveryIn, SalesDeliveryOut)
 from ..security import current_user
 
 router = APIRouter(prefix='/sales-orders', tags=['Đơn bán'])
@@ -47,8 +47,8 @@ def confirm(order_id: int, body: SalesOrderVersion, user: User = Depends(current
 
 
 @router.post('/{order_id}/deliver', response_model=SalesOrderOut)
-def deliver(order_id: int, body: SalesOrderVersion, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.deliver(session, user, order_id, body.version)
+def deliver(order_id: int, body: SalesDeliveryIn, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.deliver(session, user, order_id, body.version, body.lines, body.receiver_name, body.note)
 
 
 @router.post('/{order_id}/cancel', response_model=SalesOrderOut)
@@ -69,3 +69,19 @@ def release(order_id: int, reservation_id: int, body: SalesOrderCancel, user: Us
 @router.patch('/{order_id}/promised-date', response_model=SalesOrderOut)
 def promise(order_id: int, body: SalesOrderPromise, user: User = Depends(current_user), session: Session = Depends(get_session)):
     return svc.set_promised_date(session, user, order_id, body.promised_date, body.version)
+
+
+@router.post('/{order_id}/close-remaining', response_model=SalesOrderOut)
+def close_remaining(order_id: int, body: SalesOrderCancel, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.close_remaining(session,user,order_id,body.reason,body.version)
+
+
+@router.post('/deliveries/{delivery_id}/void', response_model=SalesOrderOut)
+def void_delivery(delivery_id: int, body: SalesOrderCancel, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.void_delivery(session,user,delivery_id,body.reason,body.version)
+
+
+@router.get('/{order_id}/deliveries', response_model=list[SalesDeliveryOut])
+def deliveries(order_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    svc.load(session,user,order_id)
+    return svc.deliveries(session,order_id)

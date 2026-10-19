@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import sales_reports as svc, sales_receipts
 from app.errors import BusinessError
-from app.models import AuditLog, Customer, Quote, SalesOrder, SalesReceipt
+from app.models import AuditLog, Customer, Quote, SalesOrder, SalesOrderLine, SalesDelivery, SalesDeliveryLine, SalesReceipt
 from app.schemas import SalesReceiptReport
 
 
@@ -26,7 +26,19 @@ def order(db,p,n,**changes):
               delivered_at=datetime.fromisoformat('2026-10-01T23:30:00+07:00'),delivered_by=p['b'].id,
               subtotal=100000,vat_total=10000,total=110000,receivable=110000)
     data.update(changes)
-    o=SalesOrder(**data);db.add(o);db.commit()
+    if 'confirmed_at' in changes and 'delivered_at' not in changes:
+        data['delivered_at']=changes['confirmed_at']
+    if data['status']=='DA_CHOT':data['receivable']=0
+    o=SalesOrder(**data)
+    o.lines=[SalesOrderLine(line_no=1,kind='KHAC',description='Dịch vụ',qty=1,unit='lần',unit_price=o.subtotal,
+        vat_rate=0,amount=o.subtotal,vat_amount=o.vat_total)]
+    db.add(o);db.flush()
+    if o.status=='DA_GIAO':
+        gh=SalesDelivery(number=f'GH-26-{n:05}',order_id=o.id,delivered_at=o.delivered_at,delivered_by=o.delivered_by,
+            subtotal=o.subtotal,vat_total=o.vat_total,total=o.total,status='DA_GIAO',lines=[
+                SalesDeliveryLine(order_id=o.id,order_line_no=1,qty=1,amount=o.subtotal,vat_amount=o.vat_total)])
+        db.add(gh)
+    db.commit()
     return o
 
 
@@ -81,7 +93,7 @@ def test_creator_scope_not_delivered_by_and_finance_all(db,report_people,make_us
 
 def test_aging_b4_balance_pending_and_fully_paid(db,report_people):
     p=report_people
-    o=order(db,p,1,status='DA_CHOT',subtotal=1000000,vat_total=0,total=1000000,receivable=1000000)
+    o=order(db,p,1,status='DA_GIAO',delivered_at=datetime.fromisoformat('2026-10-08T23:30:00+07:00'),subtotal=1000000,vat_total=0,total=1000000,receivable=1000000)
     receipt=sales_receipts.report(db,p['a'],o.id,SalesReceiptReport(version=o.version,method='TIEN_MAT',amount=1000000))
     assert svc.aging(db,p['finance'])[1]['remaining']==sales_receipts.balance(o)['remaining']==1000000
     detail=svc.aging_orders(db,p['finance'],'8_30')[0]
@@ -94,7 +106,7 @@ def test_aging_boundaries_zero_to_over_sixty_and_receipt_statuses(db,report_peop
     p=report_people
     for n,days in enumerate([0,7,8,30,31,60,61],1):
         stamp=datetime.combine(date(2026,10,18)-timedelta(days=days),datetime.min.time(),svc.TZ)
-        order(db,p,n,confirmed_at=stamp,receivable=100000,status='DA_CHOT')
+        order(db,p,n,confirmed_at=stamp,receivable=100000,status='DA_GIAO')
     groups=svc.aging(db,p['finance'])
     assert [(r['orders'],r['remaining']) for r in groups]==[(2,200000),(2,200000),(2,200000),(1,100000)]
     # Khoảng doanh thu tháng này không làm mất nhóm nợ cũ hơn 60 ngày.

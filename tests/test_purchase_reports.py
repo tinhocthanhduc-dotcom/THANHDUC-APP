@@ -136,9 +136,11 @@ def test_gross_margin_average_cost_shared_px_free_lines_vat_and_cancelled_order(
         dict(kind='HANG',product_code='TD-0001',warehouse_code='K58',qty=1,unit_price=300000,vat_rate=8),
         dict(kind='KHAC',description='Công lắp',qty=1,unit_price=200000,vat_rate=5)])
     assert o.lines[0].stock_doc_id==o.lines[1].stock_doc_id
-    cancelled=sold(db,p);sales_orders.cancel(db,p['sales'],cancelled.id,'Bỏ đơn',cancelled.version)
+    cancelled=sold(db,p);gh=sales_orders.deliveries(db,cancelled.id)[0]
+    sales_orders.void_delivery(db,p['director'],gh.id,'Bỏ lần giao',gh.version)
+    sales_orders.cancel(db,p['sales'],cancelled.id,'Bỏ đơn',cancelled.version)
     result=svc.gross_margin(db,p['finance'],DAY,DAY);row=result['documents'][0]
-    assert len(result['documents'])==1 and row['number']==o.number
+    assert len(result['documents'])==1 and row['number']==sales_orders.deliveries(db,o.id)[0].number
     assert (row['revenue'],row['cost'],row['profit'],row['rate'])==(750000,300000,450000,Decimal('60.0'))
     assert o.total>row['revenue']
     assert result['products']==[dict(product_code='TD-0001',name='Máy in',revenue=550000,cost=300000,profit=250000,rate=Decimal('45.5'))]
@@ -168,10 +170,10 @@ def test_margin_vietnam_window_and_service_reopened_excluded(db,report_people,mo
     clock(monkeypatch,datetime(2026,10,18,23,30,tzinfo=svc.TZ));a=sold(db,p);t=completed(db,p)
     clock(monkeypatch,datetime(2026,10,19,0,30,tzinfo=svc.TZ));b=sold(db,p)
     db.execute(text("SET LOCAL TIME ZONE 'America/New_York'"))
-    assert {r['number'] for r in svc.gross_margin(db,p['finance'],DAY,DAY)['documents']}=={a.number,t.number}
-    assert svc.gross_margin(db,p['finance'],DAY+timedelta(days=1),DAY+timedelta(days=1))['documents'][0]['number']==b.number
+    assert {r['number'] for r in svc.gross_margin(db,p['finance'],DAY,DAY)['documents']}=={sales_orders.deliveries(db,a.id)[0].number,t.number}
+    assert svc.gross_margin(db,p['finance'],DAY+timedelta(days=1),DAY+timedelta(days=1))['documents'][0]['number']==sales_orders.deliveries(db,b.id)[0].number
     service_tickets.transition(db,p['director'],t.id,'DANG_LAM',t.version,'Sửa lại')
-    assert [r['number'] for r in svc.gross_margin(db,p['finance'],DAY,DAY)['documents']]==[a.number]
+    assert [r['number'] for r in svc.gross_margin(db,p['finance'],DAY,DAY)['documents']]==[sales_orders.deliveries(db,a.id)[0].number]
 
 
 def test_reports_all_queries_readonly_no_orm_loads_no_autoflush_no_ledger_or_audit_changes(db,engine,report_people):

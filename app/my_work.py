@@ -93,19 +93,19 @@ def _specs(user, today, now):
         orders = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code)
         if not director:orders=orders.where(SalesOrder.created_by==user.id)
         add('orders_draft', 'Đơn nháp chưa chốt', orders.where(SalesOrder.status=='NHAP').order_by(SalesOrder.created_at, SalesOrder.id), 'order', '/don-ban')
-        add('orders_unreported', 'Đã giao · chưa báo thu đủ', orders.where(SalesOrder.status=='DA_GIAO', _available(SalesOrder)>0)
+        add('orders_unreported', 'Đã giao · chưa báo thu đủ', orders.where(SalesOrder.status.in_(('GIAO_MOT_PHAN','DA_GIAO')), _available(SalesOrder)>0)
             .order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
         rejected = select(SalesReceipt.id, SalesReceipt.number, SalesReceipt.status, Customer.name.label('customer'),
             SalesReceipt.amount, literal(False).label('overdue'), SalesReceipt.order_id, SalesReceipt.ticket_id,
             SalesReceipt.reason).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(t, t.id==SalesReceipt.ticket_id).join(
                 Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code)).where(SalesReceipt.status=='TU_CHOI',
-                or_((SalesOrder.status.in_(('DA_CHOT','DA_GIAO'))) & (_available(SalesOrder)>0),
+                or_((SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO'))) & (_available(SalesOrder)>0),
                     (literal(has_role(user, 'dispatcher', 'reception', 'technician'))) &
                     (t.status.in_(('HOAN_THANH','DA_DONG'))) & (_available(t)>0)))
         if not director:rejected=rejected.where(SalesReceipt.reported_by==user.id)
         add('receipts_rejected', 'Báo thu bị từ chối · cần làm lại', rejected.order_by(SalesReceipt.reported_at, SalesReceipt.id), 'receipt', '/bao-thu')
     if has_role(user, 'sales', 'warehouse'):
-        waiting = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code).where(SalesOrder.status=='DA_CHOT')
+        waiting = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code).where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
         if not director and not has_role(user, 'warehouse'):waiting=waiting.where(SalesOrder.created_by==user.id)
         add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
     if has_role(user, 'warehouse'):
