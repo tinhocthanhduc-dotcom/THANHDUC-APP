@@ -524,3 +524,21 @@ CSV GET `/bao-cao-mua-hang/{table}.csv` với table=ncc/hang/tuoi-no/lai-gop/lai
 - `services`: count trạng thái trong service_tickets.OPEN và count còn mở có due_at < now. `pending_receipts`: count/amount của CHO_XAC_NHAN, gồm cả nguồn DB và DV.
 
 GET `/tong-quan`: lưới 2 cột điện thoại/4 cột desktop, link tới các trang báo cáo/quỹ/nợ/tồn/dịch vụ/báo thu có sẵn, SVG 30 cột và bảng số liệu ngày mở rộng. Tiền nguyên đồng có dấu chấm nghìn. Menu Tổng quan đầu tiên chỉ cho director/finance. GET `/` chuyển hai vai trò này sang `/tong-quan`; các vai trò khác và chưa đăng nhập giữ hướng `/khach-hang`. Không thêm POST, migration hoặc ghi sổ. Tất cả truy vấn dùng no_autoflush; kiểm chứng bằng transaction READ ONLY và đối chiếu audit/sổ kho/sổ quỹ không đổi.
+
+### Cảnh báo theo luật (R2)
+
+`app.alerts.collect(session,user,today=None,now=None) -> list[dict]` trả `AlertList` (vẫn là list), mỗi mục chỉ có level (DO/VANG), kind, title/detail tiếng Việt và link. Metadata `result.counts[kind]` là tổng số thật trước giới hạn; tối đa 20 mục/kind, ưu tiên DO rồi kind rồi thời điểm cũ nhất, khóa hòa theo link. Counts gồm các kind bằng 0, riêng CHAM_LUAN_CHUYEN bị loại cả metadata khi người xem không phải director. Quyền qua dashboard.check_reader: finance/director, còn lại FORBIDDEN (403).
+
+Ngưỡng module `app.config`: ALERT_RECEIPT_PENDING_DAYS=1, ALERT_DEBT_DAYS=30, ALERT_SLOW_STOCK_DAYS=90, ALERT_CLOSING_LOOKBACK_DAYS=7. Ngày/giờ Asia/Ho_Chi_Minh; today/now có thể truyền để kiểm thử (now thiếu timezone hiểu là giờ VN).
+
+- DV_QUA_HAN (DO): trạng thái OPEN và due_at < now, link phiếu DV.
+- DUOI_TON_TOI_THIEU: mức >0 và tồn **nhỏ hơn** mức; không có balance coi là 0; tồn <=0 DO, còn lại VANG. Bằng mức không cảnh báo. Link thẻ kho.
+- BAO_THU_CHO (VANG): CHO_XAC_NHAN, reported_at < now − số ngày ngưỡng (đủ số ngày chính xác chưa tính là cũ hơn), link /bao-thu.
+- KHACH_VUOT_HAN_MUC (DO): cùng nguồn finance_reports._debts/customers, gồm DB và DV; nợ > credit_limit hoặc allow_debt=false và có nợ. Link chi tiết công nợ khách.
+- KHACH_NO_QUA_HAN: dùng sales_reports._debts, nhóm theo khách, chỉ phần nợ quá ngưỡng; khoản cũ nhất >60 ngày DO, còn lại VANG. Trả đủ không còn cảnh báo.
+- NCC_NO_QUA_HAN (VANG): dùng phép phân bổ FIFO M5, chỉ khoản phân bổ còn nợ quá ngưỡng; nợ mới, đã trả đủ/đã trả trước không cảnh báo. `_aging` chỉ thêm tùy chọn nội bộ overdue_days để trả overdue/oldest, không đổi kết quả các API M5 đang có và không chép công thức FIFO.
+- DON_MUA_TRE (VANG): DA_DAT/NHAN_MOT_PHAN có expected_date < today, link đơn mua.
+- CHUA_CHOT_SO (VANG): ngày có CashDoc DA_GHI trong [today − lookback, today), và day_closings.is_closed=false; không tính hôm nay/ngày không phát sinh, ngày đã mở khóa có thể hiện lại. Không giữ khóa advisory hay ghi ngày mới.
+- CHAM_LUAN_CHUYEN (VANG, chỉ director): còn tồn >0, PN DA_GHI đầu tiên tại kho/mã cũ hơn ngưỡng, không có PX DA_GHI gốc trong [today − ngưỡng,today]. Dùng doc_date theo ngày nghiệp vụ; bỏ bút toán đảo và PX/PN đã hủy. Vì vậy xuất rồi hủy được coi là không xuất. Detail có ROUND(qty × avg_cost), link thẻ kho.
+
+Tất cả chỉ SELECT, no_autoflush cả kiểm quyền, COUNT OVER trước LIMIT cho tổng chính xác; không nạp ORM chứng từ và không đổi audit/sổ kho/quỹ/công nợ. Chốt sổ nhóm theo ngày rồi gọi helper T4 cho từng ngày trong lookback. Trên `/tong-quan`, khối Cần xử lý ngay dưới lưới số, nhóm details/summary, chấm đỏ/vàng có nhãn truy cập, link cả dòng và thông báo “và N mục khác”; rỗng hiện “Không có việc cần xử lý”. Không thêm POST/migration/AI.

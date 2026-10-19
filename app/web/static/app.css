@@ -295,3 +295,11 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .overview-chart+details summary{cursor:pointer;min-height:44px;padding:12px 0}.overview-days a{min-height:44px;overflow-wrap:anywhere}
 
 @media(max-width:600px){.overview-chart text{font-size:35px}}
+
+/* R2: grouped rule alerts remain readable and tappable at 360px. */
+.overview-alerts{margin-top:20px}.alert-group{border-top:1px solid var(--line);margin-top:12px}
+.alert-group summary{min-height:48px;padding:12px 0;cursor:pointer;font-weight:600;overflow-wrap:anywhere}
+.alert-group ul{list-style:none;margin:0;padding:0}.alert-group li+li{border-top:1px solid var(--line)}
+.alert-group li a{display:grid;grid-template-columns:12px minmax(0,1fr);gap:10px;min-height:48px;padding:12px 0;color:var(--text);text-decoration:none;overflow-wrap:anywhere}
+.alert-group li a:focus-visible{outline:2px solid var(--accent)}.alert-detail{display:block;margin-top:4px;color:var(--muted)}
+.alert-dot{width:10px;height:10px;margin-top:6px;border-radius:50%}.alert-dot-red{background:#b42318}.alert-dot-yellow{background:#c89200}.alert-more{color:var(--muted)}
