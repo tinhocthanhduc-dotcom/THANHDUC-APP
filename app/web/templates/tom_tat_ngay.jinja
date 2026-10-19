@@ -1,0 +1,21 @@
+{% extends 'base.jinja' %}
+{% block title %}Tóm tắt {{ digest.day.strftime('%d/%m/%Y') }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>Tóm tắt {{ digest.day.strftime('%d/%m/%Y') }}</h1><a class="btn" href="/tong-quan/ngay">Các ngày trước</a></div>
+<p>Bản {{ digest.version }} · Lưu lúc {{ digest.created_at.strftime('%d/%m/%Y %H:%M %z') }}. Doanh thu theo ngày đã chọn; quỹ, công nợ, tồn và việc đang mở là ảnh chụp tại lúc lưu.</p>
+<section class="card"><div class="bar"><h2>Văn bản tóm tắt</h2><button type="button" data-copy-digest>Sao chép</button><span data-copy-status role="status"></span></div><pre id="digest-text" class="digest-text">{{ digest.text }}</pre></section>
+<section class="sales-report-section"><h2>Bảng số đã lưu</h2><dl class="digest-numbers">
+<dt>Doanh thu ngày (chưa VAT)</dt><dd>{{ s.revenue_today|money }}</dd>
+<dt>Doanh thu tháng đến ngày này</dt><dd>{{ s.revenue_month|money }}</dd>
+{% if 'gross_margin_month' in s %}<dt>Lãi gộp tháng</dt><dd>{{ s.gross_margin_month|money }}</dd>{% endif %}
+<dt>Tổng quỹ</dt><dd>{{ s.fund_total|money }}</dd><dt>Khách còn nợ</dt><dd>{{ s.customer_debt|money }}</dd><dt>Nợ nhà cung cấp</dt><dd>{{ s.supplier_debt|money }}</dd>
+{% if 'inventory_total' in s %}<dt>Giá trị tồn kho</dt><dd>{{ s.inventory_total|money }}</dd>{% endif %}
+<dt>Dịch vụ đang mở / quá hạn</dt><dd>{{ s.services.open }} / {{ s.services.overdue }}</dd>
+<dt>Báo thu chờ xác nhận</dt><dd>{{ s.pending_receipts.count }} phiếu · {{ s.pending_receipts.amount|money }}</dd><dt>Cảnh báo đỏ</dt><dd>{{ s.red_alert_count }}</dd>
+</dl></section>
+<section class="sales-report-section"><h2>Từng quỹ</h2><div class="overview-grid">{% for f in s.funds %}<div class="overview-tile"><span>{{ f.code }} · {{ f.name }}</span><strong>{{ f.balance|money }}</strong></div>{% else %}<p>Chưa có quỹ.</p>{% endfor %}</div></section>
+{% if 'inventory' in s %}<section class="sales-report-section"><h2>Giá trị tồn theo kho</h2><div class="overview-grid">{% for w in s.inventory %}<div class="overview-tile"><span>{{ w.warehouse_code }} · {{ w.name }}</span><strong>{{ w.value|money }}</strong></div>{% else %}<p>Chưa có kho.</p>{% endfor %}</div></section>{% endif %}
+<section class="sales-report-section"><h2>Cảnh báo tại lúc lưu</h2><dl class="digest-numbers">{% for kind,count in s.alert_counts.items() %}<dt>{{ alert_labels.get(kind,kind) }}</dt><dd>{{ count }}</dd>{% endfor %}</dl>
+{% for a in s.red_alerts %}<p class="card"><a href="{{ a.link }}">{{ a.title }}</a><br>{{ a.detail }}</p>{% else %}<p>Không có cảnh báo đỏ.</p>{% endfor %}</section>
+<script src="/static/daily_digest.js" defer></script>
+{% endblock %}

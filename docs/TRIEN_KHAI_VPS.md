@@ -116,3 +116,9 @@ $DC start api
 # Tệp đính kèm cùng ngày:
 $DC exec -T api sh -c 'rm -rf /app/data/files/* && tar -xzf - -C /app/data' < /var/backups/thanhduc/daily/thanhduc-files-<ngày>.tar.gz
 ```
+
+### Tóm tắt ngày (R3)
+
+- Mẫu chưa bật: `deploy/daily_digest.cron.example`; lịch 18:30 yêu cầu múi giờ của cron/máy chủ là `Asia/Ho_Chi_Minh`.
+- Thay `/opt/THANHDUC-APP` và `--user tuan` bằng đường dẫn triển khai và tài khoản giám đốc đang hoạt động; quản trị viên tự cài dòng mẫu vào cron khi cần.
+- Chạy thử `docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec -T api python -m scripts.daily_digest --user tuan --day 2026-10-18`; lệnh lưu/in bản ngày đã chọn, `created_by` để trống cho nguồn chạy lệnh; quỹ, tồn và công nợ là ảnh chụp lúc chạy.

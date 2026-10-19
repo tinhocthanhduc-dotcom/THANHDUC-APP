@@ -1,0 +1,10 @@
+{% extends 'base.jinja' %}
+{% block title %}Các bản tóm tắt ngày{% endblock %}
+{% block main %}
+<div class="bar"><h1>Các bản tóm tắt ngày</h1><a class="btn" href="/tong-quan">Tổng quan</a></div>
+<p>Mỗi ngày giữ bản lưu gần nhất. Số liệu đã lưu không thay đổi khi sổ phát sinh thêm.</p>
+<div class="overview-grid">
+{% for row in rows %}<a class="overview-tile" href="/tong-quan/ngay/{{ row.day.isoformat() }}"><span>{{ row.day.strftime('%d/%m/%Y') }}</span><strong>{{ row.revenue_today|money }}</strong><small>Doanh thu ngày chưa VAT</small><span>{{ row.red_alert_count }} cảnh báo đỏ</span></a>{% else %}<p>Chưa có bản tóm tắt nào được lưu.</p>{% endfor %}
+</div>
+<nav class="bar" aria-label="Phân trang">{% if page>1 %}<a class="btn" href="?page={{ page-1 }}">Trang trước</a>{% endif %}<span>Trang {{ page }} · {{ total }} ngày đã lưu</span>{% if page*30<total %}<a class="btn" href="?page={{ page+1 }}">Trang sau</a>{% endif %}</nav>
+{% endblock %}

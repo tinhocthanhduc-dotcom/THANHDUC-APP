@@ -971,3 +971,18 @@ class PurchaseReturnLine(Base):
     amount: Mapped[int] = mapped_column(BigInteger)
     vat_amount: Mapped[int] = mapped_column(BigInteger)
     return_doc: Mapped['PurchaseReturn'] = relationship(back_populates='lines')
+
+
+class DailyDigest(Base):
+    """Ảnh chụp Tổng quan đã lưu; mỗi ngày giữ bản mới nhất."""
+
+    __tablename__ = 'daily_digests'
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    data: Mapped[dict] = mapped_column(JSONB)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    __mapper_args__ = {'version_id_col': version}
