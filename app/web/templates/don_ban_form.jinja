@@ -1,5 +1,5 @@
 {% extends 'base.jinja' %}
-{% macro token(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action==action else o.version }}">{% endmacro %}
+{% macro token(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action==action else o.version }}">{% endmacro %}
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
 {% block main %}
 <div class="bar quote-heading"><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><a href="/don-ban">← Đơn bán</a>{% if o and o.status=='DA_GIAO' %}<a class="btn" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
@@ -10,7 +10,7 @@
 {% if source %}<p><a href="/bao-gia/{{ source.id }}">Báo giá nguồn: {{ source.number }}</a></p>{% endif %}
 {% if o and o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
 <form id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
 <div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>
 <label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>

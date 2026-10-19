@@ -7,7 +7,7 @@
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
 {% if d.status == 'DA_HUY' %}<p class="alert warn">Lý do hủy: {{ d.void_reason }}</p>{% endif %}
 <form method="post" action="{% if d.id %}/phieu-kho/{{ d.id }}{% else %}/phieu-kho/moi{% endif %}" class="form" data-stock-form>
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 {% if d.id %}<input type="hidden" name="kind" value="{{ d.kind }}">{% endif %}
 <fieldset {% if not can_write or d.status != 'NHAP' %}disabled{% endif %}>
 <fieldset class="card"><legend>Loại phiếu</legend><div class="seg stock-seg">
@@ -36,7 +36,7 @@
 </form>
 {% if can_write and d.id and d.status in ['NHAP', 'DA_GHI'] %}
 <form method="post" class="card form stock-cancel" action="/phieu-kho/{{ d.id }}/{% if d.status == 'NHAP' %}cancel{% else %}void{% endif %}" {% if d.status == 'DA_GHI' %}data-confirm-void{% endif %}>
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <label>Lý do hủy<input name="reason" value="{{ action_reason }}" required {% if d.status == 'DA_GHI' %}minlength="3"{% endif %} maxlength="2000"></label>
 <button>{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</button>
 </form>{% endif %}

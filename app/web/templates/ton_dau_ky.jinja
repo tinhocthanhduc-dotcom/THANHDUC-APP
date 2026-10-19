@@ -11,7 +11,7 @@
 </table></div>{% endif %}
 {% if existing %}<div class="card"><p>Phiếu đầu kỳ đã có:</p><ul>{% for d in existing %}<li><a href="/phieu-kho/{{ d.id }}">{{ d.number }}</a></li>{% endfor %}</ul></div>{% endif %}
 <form method="post" enctype="multipart/form-data" class="card form" action="/ton-dau-ky">
-<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <fieldset {% if not can_write %}disabled{% endif %}>
 <fieldset><legend>Kho</legend><div class="seg stock-seg">
 {% for w in warehouses %}<label><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if warehouse == w.code %}checked{% endif %} {% if not w.active and warehouse != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}

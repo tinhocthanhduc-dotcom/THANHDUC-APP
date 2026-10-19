@@ -8,7 +8,7 @@
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
 <form method="post" class="card form">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
   <input type="hidden" name="version" value="{{ p.version }}">
   <fieldset {% if not can_write %}disabled{% endif %}>
   {% if is_new %}

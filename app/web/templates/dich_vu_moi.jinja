@@ -5,7 +5,7 @@
 {% include 'buoc_tiep.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 <form id="service-create" method="post" action="/dich-vu/moi" class="card form" data-service-form>
-<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <fieldset {% if not can_create %}disabled{% endif %}>
 <div class="service-picker" data-picker>
   <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>

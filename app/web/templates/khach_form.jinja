@@ -16,7 +16,7 @@
 </p>
 {% endif %}
 <form method="post" class="card form">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
   <input type="hidden" name="version" value="{{ c.version }}">
   <fieldset {% if ro %}disabled{% endif %}>
   <div class="field">

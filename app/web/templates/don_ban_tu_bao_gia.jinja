@@ -8,7 +8,7 @@
 {% if q.status!='CHAP_NHAN' %}<p class="alert bad">Chỉ lập đơn từ báo giá đã được khách chấp nhận.</p>{% endif %}
 <p>{{ customer.code }} · <strong>{{ customer.name }}</strong></p><p>Giá và các dòng được chép nguyên từ báo giá {{ q.number }}.</p>
 <form id="order-from-quote" method="post" class="card form" action="/don-ban/tu-bao-gia/{{ q.id }}">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if linked or q.status!='CHAP_NHAN' %}disabled{% endif %}>
 <label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
 <label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>

@@ -152,6 +152,7 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
     return render(request,'bao_thu_chi_tiet.jinja' if selected else 'bao_thu_ds.jinja',rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
                   receipt_methods=METHODS,receipt_statuses=STATUSES,can_decide=True,can_void=has_role(user,'director'),
                   receipt_people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({v for r in rows for v in (r.reported_by,r.decided_by) if v}))).all()),
+                  receipt_cash_docs=dict(session.execute(select(CashDoc.id,CashDoc.number).where(CashDoc.id.in_({r.cash_doc_id for r in sources if r.cash_doc_id}))).all()),
                   receipt_next=next_steps.receipt,origin='queue',error=error,error_code=code,status=status,receipt_decision=decision or {},failed=failed,
                   failed_receipt_id=failed.id if failed else None,failed_receipt_action=action,
                   saved=request.query_params.get('da_luu')=='1' and not error)
