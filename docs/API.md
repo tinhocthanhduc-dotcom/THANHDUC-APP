@@ -512,3 +512,15 @@ Không migration, không ghi dữ liệu. `app.purchase_reports` chỉ SELECT/GR
 Web GET `/bao-cao-mua-hang?tab=ncc|hang|tuoi-no|lai-gop&from=YYYY-MM-DD&to=YYYY-MM-DD`, preset `period=today|month|last_month`. Tab tuổi nợ dùng `as_of=YYYY-MM-DD` (mặc định hôm nay VN), độc lập khoảng mua/lãi gộp. Lãi âm tô đỏ; bảng cuộn trong khung trên điện thoại, trang không cuộn ngang. Warehouse chỉ thấy hai tab mua và không vào được hai tab tài chính bằng URL.
 
 CSV GET `/bao-cao-mua-hang/{table}.csv` với table=ncc/hang/tuoi-no/lai-gop/lai-gop-hang; giữ cùng tham số lọc. UTF-8 BOM, tiền không có dấu chấm nghìn và không có phần lẻ; qty tối đa 3 số lẻ, tỷ lệ 1 số lẻ. Có dòng cộng, bảo vệ ô chữ bắt đầu bằng ký tự công thức Excel, Cache-Control private/no-store. Chỉ có GET, không thêm API ghi. Lỗi BAD_DATE_RANGE/BAD_REPORT (400), FORBIDDEN (403).
+
+### Tổng quan (R1)
+
+`app.dashboard.summary(session,user,today=None)` chỉ đọc; director thấy toàn bộ, finance không có các key `gross_margin_month`, `inventory`, `inventory_total` và không chạy truy vấn của chúng. Vai trò khác FORBIDDEN (403). `today` là ngày neo báo cáo, mặc định ngày hiện tại Asia/Ho_Chi_Minh; hạn dịch vụ luôn so với thời điểm hiện tại.
+
+- `revenue_today`, `revenue_month`, `revenue_last_month`: doanh thu chưa VAT = sales_reports.totals subtotal đơn DA_GIAO + ServiceTicket.subtotal của THU_TIEN, priced_at có, trạng thái HOAN_THANH/DA_DONG. Tháng này ngày 1 → today; tháng trước toàn tháng, kể cả qua năm/nhuận. Ngày giao/chốt giá đổi theo giờ VN. `revenue_daily` đủ 30 ngày đến today, không phát sinh = 0; SQL nhóm tổng ngày rồi chỉ ghép tối đa 30 tổng trong Python.
+- Lãi gộp tháng này lấy nguyên `purchase_reports.gross_margin(...month_start,today)['totals']['profit']`, không tính lại; định nghĩa M5 vẫn gồm dịch vụ miễn phí với giá vốn.
+- `funds`/`fund_total` từ finance_reports; `customer_debt` từ debt_totals.remaining; `supplier_debt` từ purchase_reports.aging_totals.remaining (có bù trả trước).
+- Giá trị tồn theo kho = ROUND(SUM(qty × avg_cost)), gồm kho không phát sinh (0); tổng bằng SUM các giá trị đã làm tròn theo kho. Không dùng cột value thay công thức được yêu cầu.
+- `services`: count trạng thái trong service_tickets.OPEN và count còn mở có due_at < now. `pending_receipts`: count/amount của CHO_XAC_NHAN, gồm cả nguồn DB và DV.
+
+GET `/tong-quan`: lưới 2 cột điện thoại/4 cột desktop, link tới các trang báo cáo/quỹ/nợ/tồn/dịch vụ/báo thu có sẵn, SVG 30 cột và bảng số liệu ngày mở rộng. Tiền nguyên đồng có dấu chấm nghìn. Menu Tổng quan đầu tiên chỉ cho director/finance. GET `/` chuyển hai vai trò này sang `/tong-quan`; các vai trò khác và chưa đăng nhập giữ hướng `/khach-hang`. Không thêm POST, migration hoặc ghi sổ. Tất cả truy vấn dùng no_autoflush; kiểm chứng bằng transaction READ ONLY và đối chiếu audit/sổ kho/sổ quỹ không đổi.

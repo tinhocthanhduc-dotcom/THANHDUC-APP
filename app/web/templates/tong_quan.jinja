@@ -1,0 +1,27 @@
+{% extends 'base.jinja' %}
+{% macro tile(label,value,link,money=true,detail='') %}<a class="overview-tile" href="{{ link }}"><span>{{ label }}</span><strong>{{ value|money if money else value }}</strong>{% if detail %}<small>{{ detail }}</small>{% endif %}</a>{% endmacro %}
+{% block title %}Tổng quan{% endblock %}
+{% block main %}
+<div class="bar"><h1>Tổng quan</h1><span>{{ s.today.strftime('%d/%m/%Y') }} · Giờ Việt Nam</span></div>
+<p>Doanh thu chưa VAT gồm đơn Đã giao và dịch vụ Có thu tiền đã chốt giá. Các khoản quỹ, nợ và tồn là số hiện tại.</p>
+<div class="overview-grid">
+{{ tile('Doanh thu hôm nay',s.revenue_today,'/bao-cao/ban-hang?'+today_query,detail='Chưa VAT · gồm dịch vụ') }}
+{{ tile('Doanh thu tháng này',s.revenue_month,'/bao-cao/ban-hang?'+month_query,detail='Từ ngày 1 đến hôm nay · gồm dịch vụ') }}
+{{ tile('Doanh thu tháng trước',s.revenue_last_month,'/bao-cao/ban-hang?'+last_query,detail='Cả tháng · gồm dịch vụ') }}
+{% if 'gross_margin_month' in s %}{{ tile('Lãi gộp tháng này',s.gross_margin_month,'/bao-cao-mua-hang?tab=lai-gop&'+month_query) }}{% endif %}
+{{ tile('Tổng quỹ',s.fund_total,'/bao-cao/tai-chinh#quy') }}
+{{ tile('Khách còn nợ',s.customer_debt,'/bao-cao/tai-chinh#cong-no') }}
+{{ tile('Nợ nhà cung cấp',s.supplier_debt,'/bao-cao-mua-hang?tab=tuoi-no') }}
+{% if 'inventory_total' in s %}{{ tile('Giá trị tồn kho',s.inventory_total,'/ton-kho',detail='Số lượng × giá vốn bình quân') }}{% endif %}
+{{ tile('Dịch vụ đang mở',s.services.open,'/dich-vu',false) }}
+{{ tile('Dịch vụ quá hạn',s.services.overdue,'/dich-vu?overdue=1',false) }}
+{{ tile('Báo thu chờ xác nhận',s.pending_receipts.count,'/bao-thu',false) }}
+{{ tile('Tiền báo thu chờ',s.pending_receipts.amount,'/bao-thu') }}
+</div>
+<section class="sales-report-section card"><h2>Doanh thu 30 ngày gần nhất</h2><p>{{ s.chart_start.strftime('%d/%m/%Y') }} – {{ s.today.strftime('%d/%m/%Y') }} · Chưa VAT · gồm đơn bán và dịch vụ</p>
+<svg class="overview-chart" viewBox="0 0 900 235" role="img" aria-labelledby="revenue-title revenue-description"><title id="revenue-title">Doanh thu chưa VAT 30 ngày</title><desc id="revenue-description">Mỗi cột là một ngày; bảng số liệu bên dưới có đủ 30 ngày.</desc><line x1="30" y1="190" x2="885" y2="190" stroke="currentColor"/>
+{% for b in bars %}<rect x="{{ b.x }}" y="{{ 190-b.height }}" width="20" height="{{ b.height }}" fill="currentColor"><title>{{ b.day.strftime('%d/%m/%Y') }}: {{ b.amount|money }} đồng</title></rect>{% if (loop.index0%7==0 and loop.index0<25) or loop.last %}<text x="{{ b.x+10 }}" y="215" text-anchor="{{ 'end' if loop.last else 'middle' }}">{{ b.day.strftime('%d/%m') }}</text>{% endif %}{% endfor %}</svg>
+<details><summary>Xem số liệu từng ngày</summary><div class="overview-days">{% for b in bars %}<a href="/bao-cao/ban-hang?from={{ b.day.isoformat() }}&to={{ b.day.isoformat() }}"><span>{{ b.day.strftime('%d/%m') }}</span><strong>{{ b.amount|money }}</strong></a>{% endfor %}</div></details></section>
+<section class="sales-report-section"><h2>Số dư từng quỹ</h2><div class="overview-grid">{% for f in s.funds %}{{ tile(f.code+' · '+f.name,f.balance,'/so-quy/'+(f.code|urlquote),detail='Ngừng dùng' if not f.active else '') }}{% else %}<p>Chưa có quỹ.</p>{% endfor %}</div></section>
+{% if 'inventory' in s %}<section class="sales-report-section"><h2>Giá trị tồn theo kho</h2><div class="overview-grid">{% for w in s.inventory %}{{ tile(w.warehouse_code+' · '+w.name,w.value,'/ton-kho?kho='+(w.warehouse_code|urlquote)) }}{% else %}<p>Chưa có kho.</p>{% endfor %}</div></section>{% endif %}
+{% endblock %}
