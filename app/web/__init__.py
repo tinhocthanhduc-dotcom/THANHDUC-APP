@@ -25,6 +25,7 @@ from ..routers.customers import WRITERS as CUSTOMER_WRITERS
 from ..schemas import (Confirmation, CustomerCreate, CustomerIn, CustomerPatch, ProductIn, ProductPatch,
                        SupplierIn, SupplierPatch, WarehouseIn, WarehousePatch)
 from ..security import has_role, issue_token, verify_password
+from . import nav
 
 HERE = Path(__file__).parent
 COOKIE = "td_session"
@@ -43,6 +44,7 @@ def money(value: int | None) -> str:
 
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
+templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
@@ -56,9 +58,7 @@ async def login_required_handler(request: Request, exc: LoginRequired) -> Respon
 
 
 async def web_error_page(request: Request, exc: BusinessError) -> Response:
-    return templates.TemplateResponse(
-        request, "loi.jinja", {"user": getattr(request.state, "user", None), "error": exc}, status_code=exc.status
-    )
+    return render(request, "loi.jinja", error=exc, status=exc.status)
 
 
 def csrf_token(session_token: str) -> str:
@@ -106,7 +106,7 @@ def _digits(value) -> int:
 
 def _safe_next(value: str | None) -> str:
     v = value or ""
-    return v if v.startswith("/") and not v.startswith("//") and "\\" not in v else "/khach-hang"
+    return v if v.startswith("/") and not v.startswith("//") and "\\" not in v else "/"
 
 
 def _error_text(exc: ValidationError) -> str:
@@ -123,6 +123,17 @@ def _error_text(exc: ValidationError) -> str:
     return "Dữ liệu chưa hợp lệ, hãy kiểm tra lại."
 
 
+def check_navigation(request: Request, session: Session = Depends(get_session)):
+    if request.url.path not in nav.PUBLIC_PATHS:
+        user = web_user(request, session)
+        nav.check_access(user, request.url.path, request.query_params)
+
+
+# Áp dụng trước mọi add_api_route/include_router, cả route danh mục tạo động.
+# API và file ảnh vẫn dùng kiểm quyền thực thể ở lõi, không nhận dependency web.
+router.dependencies.append(Depends(check_navigation))
+
+
 # ---------- Đăng nhập ----------
 
 
@@ -131,12 +142,17 @@ def home(request: Request, session: Session = Depends(get_session)):
     try:
         user = web_user(request, session)
     except LoginRequired:
-        return RedirectResponse("/khach-hang", status_code=303)
-    return RedirectResponse("/tong-quan" if has_role(user, "finance") else "/khach-hang", status_code=303)
+        return RedirectResponse("/dang-nhap", status_code=303)
+    return RedirectResponse(nav.home_url(user), status_code=303)
+
+
+@router.get("/viec-cua-toi")
+def my_work(user: User = Depends(web_user)):
+    return RedirectResponse(nav.work_url(user), status_code=303)
 
 
 @router.get("/dang-nhap")
-def login_page(request: Request, next: str = "/khach-hang"):
+def login_page(request: Request, next: str = "/"):
     return render(request, "dang_nhap.jinja", next=_safe_next(next), username="", error=None)
 
 
@@ -149,7 +165,7 @@ async def login_submit(request: Request, session: Session = Depends(get_session)
     if not user or not user.active or not verify_password(str(form.get("password", "")), user.password_hash):
         return render(request, "dang_nhap.jinja", next=next_url, username=username, error="Sai tên đăng nhập hoặc mật khẩu.", status=401)
     s = get_settings()
-    response = RedirectResponse(next_url, status_code=303)
+    response = RedirectResponse(nav.home_url(user), status_code=303)
     response.set_cookie(
         COOKIE, issue_token(user), max_age=s.token_minutes * 60, httponly=True, samesite="lax", secure=s.cookie_secure
     )

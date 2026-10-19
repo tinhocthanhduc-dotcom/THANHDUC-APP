@@ -18,7 +18,7 @@ from ..errors import BusinessError
 from ..models import Customer, User
 from ..schemas import ServiceAssign, ServiceReason, ServiceTicketIn, ServiceTransition
 from ..security import has_role
-from . import checked_form, render, templates, web_user
+from . import checked_form, render, templates, web_user, nav
 
 router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -105,7 +105,7 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   q=q, selected_status=status, selected_assignee=selected, overdue=overdue,
                   technicians=[] if _own_only(user) else _technicians(session), own_only=_own_only(user),
                   heading="Việc của tôi" if _own_only(user) else "Dịch vụ",
-                  can_create=has_role(user, *svc.CREATORS), can_receivables=has_role(user, *service_charges.VIEWERS), customers=customers, users=_users(session), is_overdue=_is_overdue)
+                  can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
 def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action=""):

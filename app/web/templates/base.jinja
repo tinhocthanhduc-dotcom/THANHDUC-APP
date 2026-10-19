@@ -8,39 +8,32 @@
 </head>
 <body>
 {% if user %}
+{% set navigation = web_navigation(user, request.url.path, request.query_params) %}
 <header class="top">
   <a class="brand" href="/">Thành Đức</a>
-  <nav>
-    {% if 'director' in user.roles or 'finance' in user.roles %}<a href="/tong-quan" {% if request.url.path=='/tong-quan' %}class="on"{% endif %}>Tổng quan</a>{% endif %}
-    <a href="/khach-hang" {% if request.url.path.startswith('/khach-hang') %}class="on"{% endif %}>Khách hàng</a>
-    <a href="/hang-hoa" {% if request.url.path.startswith('/hang-hoa') %}class="on"{% endif %}>Hàng hóa</a>
-    <a href="/kho" {% if request.url.path.startswith('/kho') %}class="on"{% endif %}>Kho</a>
-    <a href="/nha-cung-cap" {% if request.url.path.startswith('/nha-cung-cap') %}class="on"{% endif %}>Nhà cung cấp</a>
-    <a href="/phieu-kho" {% if request.url.path.startswith('/phieu-kho') %}class="on"{% endif %}>Phiếu kho</a>
-    <a href="/ton-kho" {% if (request.url.path.startswith('/ton-kho') and request.query_params.get('canh-bao') != '1') or request.url.path.startswith('/the-kho') %}class="on"{% endif %}>Tồn kho</a>
-    <a href="/ton-dau-ky" {% if request.url.path.startswith('/ton-dau-ky') %}class="on"{% endif %}>Tồn đầu kỳ</a>
-    <a href="/ton-kho?canh-bao=1" {% if request.url.path == '/ton-kho' and request.query_params.get('canh-bao') == '1' %}class="on"{% endif %}>Sắp hết</a>
-    {% if 'dispatcher' in user.roles or 'director' in user.roles %}<a href="/dieu-phoi" {% if request.url.path.startswith('/dieu-phoi') %}class="on"{% endif %}>Điều phối</a>{% endif %}
-    {% if 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/don-mua" {% if request.url.path.startswith('/don-mua') %}class="on"{% endif %}>Đơn mua</a>{% endif %}
-    {% if 'sales' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-gia" {% if request.url.path.startswith('/bao-gia') %}class="on"{% endif %}>Báo giá</a>{% endif %}
-    {% if 'sales' in user.roles or 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/don-ban" {% if request.url.path.startswith('/don-ban') %}class="on"{% endif %}>Đơn bán</a>{% endif %}
-    {% if 'warehouse' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-cao-mua-hang" {% if request.url.path.startswith('/bao-cao-mua-hang') %}class="on"{% endif %}>Báo cáo mua hàng</a>{% endif %}
-    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/cong-no-ncc" {% if request.url.path.startswith('/cong-no-ncc') %}class="on"{% endif %}>Công nợ NCC</a>{% endif %}
-    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-thu" {% if request.url.path.startswith('/bao-thu') %}class="on"{% endif %}>Báo thu</a>{% endif %}
-    {% if 'sales' in user.roles or 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-cao/ban-hang" {% if request.url.path.startswith('/bao-cao/ban-hang') %}class="on"{% endif %}>Báo cáo bán hàng</a>{% endif %}
-    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/bao-cao/tai-chinh" {% if request.url.path.startswith('/bao-cao/tai-chinh') %}class="on"{% endif %}>Báo cáo tài chính</a>{% endif %}
-    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/ghep-tai-chinh" {% if request.url.path.startswith(('/quy','/danh-muc-thu-chi','/ghep-tai-chinh')) %}class="on"{% endif %}>Tài chính</a>{% endif %}
-    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/thu-chi" {% if request.url.path.startswith('/thu-chi') or request.url.path.startswith('/so-quy') %}class="on"{% endif %}>Thu chi · Sổ quỹ</a>{% endif %}
-    {% if 'finance' in user.roles or 'director' in user.roles %}<a href="/chot-so" {% if request.url.path.startswith('/chot-so') %}class="on"{% endif %}>Chốt sổ</a><a href="/dieu-chinh" {% if request.url.path.startswith('/dieu-chinh') %}class="on"{% endif %}>Điều chỉnh</a>{% endif %}
-    <a href="/dich-vu" {% if request.url.path.startswith('/dich-vu') %}class="on"{% endif %}>Dịch vụ</a>
-    <a href="/thiet-bi" {% if request.url.path.startswith('/thiet-bi') %}class="on"{% endif %}>Thiết bị</a>
-  </nav>
+  <details class="menu-shell" data-web-menu>
+    <summary class="menu-toggle">Menu</summary>
+    <nav aria-label="Menu chính" class="role-nav">
+    {% for group in navigation.groups %}
+      {% if not group.label or group['items']|length == 1 %}
+        {% for item in group['items'] %}<a href="{{ item.href }}" data-nav-item {% if item.active %}class="on" aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}
+      {% else %}
+        <details class="nav-group{% if group.active %} on{% endif %}">
+          <summary>{{ group.label }}</summary>
+          <div class="nav-children">{% for item in group['items'] %}<a href="{{ item.href }}" data-nav-item {% if item.active %}class="on" aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}</div>
+        </details>
+      {% endif %}
+    {% endfor %}
+    </nav>
+  </details>
   <form method="post" action="/dang-xuat" class="who">
-    <span>{{ user.full_name }}</span>
+    <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <button class="link">Đăng xuất</button>
   </form>
 </header>
+<script src="/static/nav.js" defer></script>
+<noscript><style>.menu-shell > .menu-toggle { display: list-item; }</style></noscript>
 {% endif %}
 <main>{% block main %}{% endblock %}</main>
 <script>
