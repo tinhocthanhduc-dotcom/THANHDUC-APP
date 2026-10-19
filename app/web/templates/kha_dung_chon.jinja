@@ -1,0 +1,1 @@
+{% macro text(value, warehouse) -%}{% if value %}Kho {{ warehouse }}: còn {{ value.available|qty }} (đang giữ {{ value.reserved|qty }}){% endif %}{%- endmacro %}

@@ -1,1 +1,2 @@
-{% for p in rows %}<button type="button" data-pick-product="{{ p.code }}" data-product-name="{{ p.name }}">{{ p.code }} · {{ p.name }}</button>{% else %}<p class="hint">Không có mã hàng phù hợp.</p>{% endfor %}
+{% import 'kha_dung_chon.jinja' as stock %}
+{% for p in rows %}<button type="button" data-availability-text="{{ stock.text(availability.get(p.code),warehouse) if availability is defined else '' }}" data-pick-product="{{ p.code }}" data-product-name="{{ p.name }}">{{ p.code }} · {{ p.name }}{% if availability is defined and p.code in availability %}<span class="hint"> · {{ stock.text(availability[p.code],warehouse) }}</span>{% endif %}</button>{% else %}<p class="hint">Không có mã hàng phù hợp.</p>{% endfor %}

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from .. import products, service_charges, service_tickets, technician_stock
+from .. import products, service_charges, service_tickets, technician_stock, stock_reservations
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
@@ -41,7 +41,7 @@ def detail_context(session, user, ticket, shown=None):
                  Product.code.in_([line.get('product_code') for line in data['lines'] if line.get('product_code')]))).all())
     docs = list(session.execute(select(StockDoc.id, StockDoc.number).where(
                 StockDoc.id.in_({line.stock_doc_id for line in ticket.lines if line.stock_doc_id is not None})).order_by(StockDoc.id)))
-    return dict(charges=data, charge_names=names, charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
+    return dict(charges=data, charge_names=names, charge_stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]), charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
                 can_charge=has_role(user, 'dispatcher') or ticket.assignee_id == user.id,
                 charge_editable=ticket.status in service_tickets.OPEN,
                 charge_unsaved=shown is not None,
@@ -79,7 +79,7 @@ def _body(raw, version):
 
 
 @router.get('/dich-vu/tim-vat-tu')
-def pick_material(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+def pick_material(request: Request, q: str = '', warehouse: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
     own = technician_stock.restricted_warehouse(session,user)
     held_qty = {}
     if own:
@@ -90,7 +90,8 @@ def pick_material(request: Request, q: str = '', user: User = Depends(web_user),
             or_(Product.search_text.like(like_pattern(fold(q[:200]))),Product.code.ilike(like_pattern(q[:200])))).order_by(Product.code).limit(20)))
         rows = [p for p,qty in found]; held_qty = {p.code:qty for p,qty in found}
     else:rows = products.search(session,q[:200],active_only=True,limit=20)
-    return render(request,'dich_vu_chon_vat_tu.jinja',rows=rows,held_qty=held_qty)
+    warehouse=own.code if own else warehouse
+    return render(request,'dich_vu_chon_vat_tu.jinja',rows=rows,held_qty=held_qty,warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
 
 
 @router.post('/dich-vu/{ticket_id}/tien/luu')

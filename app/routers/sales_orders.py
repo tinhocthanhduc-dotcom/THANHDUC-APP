@@ -3,11 +3,11 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from .. import sales_orders as svc
+from .. import sales_orders as svc, stock_reservations
 from ..db import get_session
 from ..models import User
 from ..schemas import (SalesOrderCancel, SalesOrderFromQuote, SalesOrderIn, SalesOrderOut,
-                       SalesOrderUpdate, SalesOrderVersion)
+                       SalesOrderUpdate, SalesOrderVersion, SalesOrderPromise)
 from ..security import current_user
 
 router = APIRouter(prefix='/sales-orders', tags=['Đơn bán'])
@@ -17,8 +17,8 @@ router = APIRouter(prefix='/sales-orders', tags=['Đơn bán'])
 def search(q: str = '', status: str | None = None, customer_code: str | None = None,
            from_date: date | None = Query(default=None, alias='from'),
            to_date: date | None = Query(default=None, alias='to'),
-           user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.search(session, user, q, status, customer_code, from_date, to_date)
+           holding: bool = False, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.search(session, user, q, status, customer_code, from_date, to_date, holding)
 
 
 @router.get('/{order_id}', response_model=SalesOrderOut)
@@ -54,3 +54,18 @@ def deliver(order_id: int, body: SalesOrderVersion, user: User = Depends(current
 @router.post('/{order_id}/cancel', response_model=SalesOrderOut)
 def cancel(order_id: int, body: SalesOrderCancel, user: User = Depends(current_user), session: Session = Depends(get_session)):
     return svc.cancel(session, user, order_id, body.reason, body.version)
+
+
+@router.post('/{order_id}/reserve', response_model=SalesOrderOut)
+def keep_more(order_id: int, body: SalesOrderVersion, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return stock_reservations.keep_more(session, user, order_id, body.version)
+
+
+@router.post('/{order_id}/reservations/{reservation_id}/release', response_model=SalesOrderOut)
+def release(order_id: int, reservation_id: int, body: SalesOrderCancel, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return stock_reservations.release(session, user, order_id, reservation_id, body.reason, body.version)
+
+
+@router.patch('/{order_id}/promised-date', response_model=SalesOrderOut)
+def promise(order_id: int, body: SalesOrderPromise, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.set_promised_date(session, user, order_id, body.promised_date, body.version)

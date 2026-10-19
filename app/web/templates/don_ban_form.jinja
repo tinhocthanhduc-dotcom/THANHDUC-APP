@@ -15,6 +15,7 @@
 <div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>
 <label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
 <label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>
+<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
 <label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
 <div data-order-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_ban_dong_form.jinja' %}{% endfor %}</div>
 {% if can_write and editable %}<button type="button" data-order-add>+ Thêm dòng</button>{% endif %}
@@ -23,6 +24,13 @@
 {% if can_write and editable %}<button class="primary">Lưu đơn</button><p class="hint">Lưu các thay đổi trước khi Chốt đơn. Nháp có thể thiếu kho; khi chốt phải chọn đủ kho.</p>{% endif %}
 </form>
 {% if o %}<section class="card service-action"><h2>Số tiền đã lưu</h2><dl><dt>Tiền hàng</dt><dd>{{ o.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ o.vat_total|money }} đồng</dd><dt>Tổng cộng</dt><dd>{{ o.total|money }} đồng</dd><dt>Phải thu</dt><dd>{{ (o.receivable|money) ~ ' đồng' if o.receivable is not none else 'Chưa chốt' }}</dd></dl></section>{% endif %}
+{% if o and o.status!='NHAP' %}<p>Ngày hẹn giao/lấy: {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'Chưa hẹn' }}</p>{% endif %}
+{% if o and o.status=='DA_CHOT' %}<section class="card form"><h2>Hàng đang giữ</h2>
+{% for line in o.lines if line.kind=='HANG' %}{% set held=reservations[line.line_no] %}<article class="card{% if held.missing>0 %} reservation-short{% endif %}"><strong>{{ line.product_code }} · {{ line.description }} · {{ line.warehouse_code }}</strong><p>Đã giữ {{ held.held|qty }}/{{ line.qty|qty }}{% if held.held==0 %} · Chưa giữ{% endif %}</p>
+{% if held.missing>0 %}<p class="alert warn">Thiếu {{ held.missing|qty }} {{ line.unit }} {{ line.description }} ở kho {{ line.warehouse_code }}</p>{% endif %}
+{% if can_release and held.reservation and held.reservation.status=='GIU' %}<form method="post" action="/don-ban/{{ o.id }}/release" class="form">{{ token('release') }}<input type="hidden" name="reservation_id" value="{{ held.reservation.id }}"><label>Lý do nhả<input name="reason" required value="{{ action_form.get('reason','') if failed_action=='release' and action_form.get('reservation_id')|string==held.reservation.id|string else '' }}"></label><button>Nhả</button></form>{% endif %}</article>{% endfor %}
+{% if can_keep and reservations.values()|selectattr('missing','gt',0)|list %}<form method="post" action="/don-ban/{{ o.id }}/reserve">{{ token('reserve') }}<button class="primary">Giữ thêm</button></form>{% endif %}
+{% if can_write %}<form class="form" method="post" action="/don-ban/{{ o.id }}/promise">{{ token('promise') }}<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ action_form.get('promised_date','') if failed_action=='promise' else (o.promised_date or '') }}"></label><button>Lưu ngày hẹn</button></form>{% endif %}</section>{% endif %}
 {% if collection %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
 {% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
 {% if o %}<div class="quote-actions">

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
-from . import audit
+from . import audit, stock_reservations
 from .errors import BusinessError
 from .inventory_catalogs import check_writer
 from .models import PurchaseReturn, PurchaseReceipt, StockBalance, StockDoc, StockLedger, User
@@ -120,15 +120,17 @@ def _apply(session: Session, doc: StockDoc, bal: StockBalance, move: Move, rever
     return amount
 
 
-def _post_moves(session: Session, doc: StockDoc, balances, pn_amounts=None) -> None:
+def _post_moves(session: Session, doc: StockDoc, balances, pn_amounts=None, for_order_id=None) -> None:
     for line in doc.lines:
         src = balances[(doc.warehouse_code, line.product_code)]
         if doc.kind == "PN":
             _apply(session, doc, src, Move(doc.warehouse_code, line.product_code, line.line_no, line.qty,
                                            (pn_amounts[line.line_no] if pn_amounts is not None else _round(line.qty * line.unit_cost)), line.unit_cost), False)
         elif doc.kind == "PX":
+            stock_reservations.check_out(session, src, line.qty, for_order_id)
             _apply(session, doc, src, Move(doc.warehouse_code, line.product_code, line.line_no, -line.qty), False)
         elif doc.kind == "CK":
+            stock_reservations.check_out(session, src, line.qty, for_order_id)
             moved = _apply(session, doc, src, Move(doc.warehouse_code, line.product_code, line.line_no, -line.qty), False)
             dst = balances[(doc.to_warehouse_code, line.product_code)]
             _apply(session, doc, dst, Move(doc.to_warehouse_code, line.product_code, line.line_no, line.qty, -moved), False)
@@ -155,7 +157,7 @@ def post(session: Session, user: User, doc_id: int, version: int | None) -> Stoc
     return doc
 
 
-def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None) -> StockDoc:
+def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None, for_order_id: int | None = None) -> StockDoc:
     """Ghi sổ trong transaction của nơi gọi (phiếu sinh tự động từ chứng từ khác), không kiểm vai trò."""
     doc = _load_for_update(session, doc_id)
     if doc.status != "NHAP":
@@ -177,7 +179,7 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *
     keys = {(doc.warehouse_code, line.product_code) for line in doc.lines}
     if doc.kind == "CK":
         keys |= {(doc.to_warehouse_code, line.product_code) for line in doc.lines}
-    _post_moves(session, doc, _lock_balances(session, keys), pn_amounts)
+    _post_moves(session, doc, _lock_balances(session, keys), pn_amounts, for_order_id)
     doc.status = "DA_GHI"
     doc.posted_by = user.id
     doc.posted_at = datetime.now(UTC)

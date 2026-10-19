@@ -70,14 +70,22 @@ window.bindLive = function(input) {
   var scope = input.closest('[data-stock-line], [data-picker]') || document;
   var target = scope.querySelector(input.dataset.live);
   function load() {
+    form = input.form; // Dòng mới có thể được bind trước khi gắn vào form.
     var current = ++sequence;
     var params = input.dataset.source ? new URLSearchParams({q: input.value}) : new URLSearchParams(new FormData(form));
+    var row = input.closest('[data-order-line], [data-charge-line], [data-stock-line]');
+    var wh = row && row.querySelector('[data-order-warehouse]:checked, [data-charge-warehouse]:checked');
+    wh = wh || (form && form.querySelector('[name=warehouse_code]:checked'));
+    if (wh) params.set('warehouse', wh.value);
     params.set('phan', '1');
     fetch((input.dataset.source || form.action) + '?' + params, {credentials: 'same-origin'})
       .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
       .then(function(html) {
         if (current !== sequence) return;
         target.innerHTML = html;
+        var summary = scope.querySelector('[data-availability-summary]');
+        var selected = target.querySelector('[data-availability-text]');
+        if (summary) summary.textContent = selected ? selected.dataset.availabilityText : '';
         if (!input.dataset.source) { params.delete('phan'); history.replaceState(null, '', form.action + '?' + params); }
       }).catch(function() { target.textContent = 'Không tải được kết quả, hãy thử lại.'; });
   }
@@ -86,6 +94,18 @@ window.bindLive = function(input) {
   input.addEventListener('stock-picked', function() { sequence++; clearTimeout(timer); });
 };
 document.querySelectorAll('[data-live]').forEach(window.bindLive);
+window.pickAvailability = function(button) {
+  var scope = button.closest('[data-picker], [data-stock-line]');
+  var summary = scope && scope.querySelector('[data-availability-summary]');
+  if (summary) summary.textContent = button.dataset.availabilityText || '';
+};
+document.addEventListener('change', function(event) {
+  if (!event.target.matches('[data-order-warehouse], [data-charge-warehouse], [name=warehouse_code]')) return;
+  var row = event.target.closest('[data-order-line], [data-charge-line]') || event.target.form;
+  if (row) row.querySelectorAll('[data-source="/don-ban/tim-hang"], [data-source="/phieu-kho/tim-hang"], [data-source="/dich-vu/tim-vat-tu"]').forEach(function(input) {
+    input.dispatchEvent(new Event('input'));
+  });
+});
 // Ô tiền: dấu chấm hàng nghìn, kể cả các dòng mới thêm.
 function fmtMoney(el) { var d = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, ''); el.value = d.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
 window.bindMoney = function(el) {

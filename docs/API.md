@@ -653,3 +653,34 @@ không tạo trùng. Chỉ cập nhật khóa một lần sang `XONG` (trigger b
 
 Dọn khóa cũ hơn 30 ngày bằng lệnh chạy tay: `python -m app.form_keys purge`.
 Lệnh áp dụng cho cả khóa hoàn tất và khóa đang xử lý đã quá hạn; không có cron tự chạy.
+
+## Giữ hàng và tồn khả dụng (S1)
+
+Chốt đơn bán giữ phần tồn khả dụng cho từng dòng HANG trong cùng transaction;
+thiếu hàng vẫn chốt và hiển thị phần thiếu. Tồn thực tế và giá vốn không thay đổi
+khi giữ/nhả. `stock_reservations.available(session, warehouse_code, product_code)`
+đọc tồn thực tế trừ tổng GIU; `quantities` là bản đọc theo lô dùng chung cho màn hình.
+Dòng đơn hiện dùng PK `(order_id, line_no)`, nên `order_line_id` lưu `line_no` và có
+FK ghép `(order_id, order_line_id)` về dòng đơn. Không đổi khóa dòng đơn cũ.
+
+- `POST /sales-orders/{id}/reserve`: `version` của đơn; người lập đơn (sales), kho hoặc giám đốc giữ thêm phần còn thiếu. Dòng GIU cũ được chốt DA_NHA với lý do “Giữ thêm”, dòng mới giữ tổng mới.
+- `POST /sales-orders/{id}/reservations/{reservation_id}/release`: `version`, `reason`; chỉ kho/giám đốc, đơn DA_CHOT. Nhả tay không hủy đơn.
+- `PATCH /sales-orders/{id}/promised-date`: `version`, `promised_date` (ISO hoặc null để xóa); sales/giám đốc, đơn NHAP/DA_CHOT. Không mở khóa giá.
+- Tạo/sửa nháp/tạo từ báo giá cũng nhận `promised_date`. `GET /sales-orders?holding=true` chỉ lấy đơn còn GIU.
+
+PX và chiều xuất CK kiểm khả dụng trong `stock_posting`, sau khi khóa dòng tồn.
+`RESERVED_STOCK` (409) có `warehouse`, `product`, `stock`, `reserved`, `available`,
+`requested` và `orders` (các số đơn đang giữ). Thông báo tiếng Việt nêu đủ các số này.
+Xuất quá tồn thực tế vẫn dùng `NEGATIVE_STOCK`. `post_in_tx(..., for_order_id=id)`
+là tham số nội bộ cho giao đơn, bỏ qua phần GIU của chính đơn đó; API ghi sổ tay
+không nhận tham số này. Giao thành công chốt GIU → DA_XUAT; hủy đơn chốt GIU → DA_NHA.
+
+PN, KK và void không kiểm giữ hàng. Nếu tồn thấp hơn tổng giữ: trang tồn/thẻ kho
+hiện “Giữ vượt tồn”, Tổng quan có cảnh báo đỏ `GIU_VUOT_TON`. Lịch sử giữ không xóa
+và không sửa số lượng; trigger chỉ cho chốt một lần từ GIU sang DA_XUAT/DA_NHA.
+Các mã khác: `REASON_REQUIRED`, `VERSION_CONFLICT`, `BAD_STATUS`, `FORBIDDEN`,
+`BAD_RESERVATION` (mã dòng giữ trên form sai), `NOT_FOUND`.
+
+Các đơn đã chốt trước khi nâng cấp chưa có dòng giữ: trang đơn hiện phần chưa giữ
+và có nút “Giữ thêm” để phân bổ theo khả dụng hiện tại; migration không tự sửa sổ
+hoặc tự chọn thứ tự giữ cho các đơn cũ.

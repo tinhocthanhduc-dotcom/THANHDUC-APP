@@ -10,6 +10,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -568,6 +569,7 @@ class SalesOrder(Base):
     quote_id: Mapped[int | None] = mapped_column(ForeignKey('quotes.id'))
     contact_name: Mapped[str] = mapped_column(String(200), default='')
     delivery_address: Mapped[str] = mapped_column(Text, default='')
+    promised_date: Mapped[date | None] = mapped_column(Date)
     note: Mapped[str] = mapped_column(Text, default='')
     status: Mapped[str] = mapped_column(String(16), default='NHAP')
     cancel_reason: Mapped[str] = mapped_column(Text, default='')
@@ -1080,3 +1082,29 @@ class FormSubmission(Base):
     result_url: Mapped[str] = mapped_column(Text, server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class StockReservation(Base):
+    __tablename__ = 'stock_reservations'
+    __table_args__ = (
+        ForeignKeyConstraint(['order_id','order_line_id'], ['sales_order_lines.order_id','sales_order_lines.line_no']),
+        CheckConstraint('qty > 0', name='ck_stock_reservations_qty'),
+        CheckConstraint("status <> 'DA_NHA' or length(trim(reason)) > 0", name='ck_stock_reservations_release_reason'),
+        CheckConstraint("status in ('GIU','DA_XUAT','DA_NHA')", name='ck_stock_reservations_status'),
+        CheckConstraint("(status = 'GIU' and closed_by is null and closed_at is null) or "
+                        "(status <> 'GIU' and closed_by is not null and closed_at is not null)", name='ck_stock_reservations_closed'),
+        Index('ix_stock_reservations_active_stock','warehouse_code','product_code', postgresql_where=text("status = 'GIU'")),
+        Index('uq_stock_reservations_active_line','order_id','order_line_id',unique=True, postgresql_where=text("status = 'GIU'")),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
+    order_line_id: Mapped[int] = mapped_column(Integer)
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty: Mapped[Decimal] = mapped_column(Numeric(14,3))
+    status: Mapped[str] = mapped_column(String(8))
+    reason: Mapped[str] = mapped_column(Text, default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

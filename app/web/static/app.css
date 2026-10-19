@@ -347,3 +347,9 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .next-step { display:grid; gap:10px; }
 .next-step h2 { margin:0; font-size:1.1rem; }
 .next-step .next-primary { width:100%; min-height:48px; text-align:center; }
+
+/* S1: trạng thái giữ hàng; các form thao tác vẫn vừa màn 360px. */
+.reservation-short { border-color: #b7791f; background: #fffbeb; }
+.order-overdue { border-left: 5px solid #b91c1c; background: #fef2f2; }
+.stock-overreserved { color: #b91c1c; font-weight: 700; }
+.stock-balance article, #dang-giu article { overflow-wrap: anywhere; }

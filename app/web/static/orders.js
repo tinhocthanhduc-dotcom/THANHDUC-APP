@@ -50,7 +50,7 @@
     button=event.target.closest('[data-order-pick]');
     if (!button) return;
     var picker=button.closest('[data-picker]'), input=picker.querySelector('input'), row=button.closest('[data-order-line]');
-    input.value=button.dataset.orderPick; input.dispatchEvent(new Event('stock-picked'));
+    window.pickAvailability(button); input.value=button.dataset.orderPick; input.dispatchEvent(new Event('stock-picked'));
     picker.querySelector('.product-options').replaceChildren();
     if (button.dataset.kind==='customer') {
       form.querySelector('[data-order-customer-name]').textContent=button.dataset.name;

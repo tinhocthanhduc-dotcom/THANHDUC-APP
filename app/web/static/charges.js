@@ -49,7 +49,7 @@
     button = event.target.closest('[data-charge-pick]');
     if (button) {
       var row = button.closest('[data-charge-line]'), input = row.querySelector('[name=line_product]');
-      input.value = button.dataset.chargePick; input.dispatchEvent(new Event('stock-picked'));
+      window.pickAvailability(button); input.value = button.dataset.chargePick; input.dispatchEvent(new Event('stock-picked'));
       row.querySelector('[data-charge-name]').textContent = button.dataset.name;
       row.querySelector('.charge-options').replaceChildren();
       if (!row.querySelector('[name=line_description]').value) row.querySelector('[name=line_description]').value = button.dataset.name;
