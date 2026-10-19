@@ -4,7 +4,7 @@
 <dl class="card receipt-balance"><dt>Phải thu</dt><dd data-balance="receivable">{{ collection.balance.receivable|money }} đồng</dd><dt>Đã thu</dt><dd data-balance="paid">{{ collection.balance.paid|money }} đồng</dd><dt>Chờ xác nhận</dt><dd data-balance="pending">{{ collection.balance.pending|money }} đồng</dd><dt>Còn nợ</dt><dd data-balance="remaining">{{ collection.balance.remaining|money }} đồng</dd></dl>
 {% if can_report and receipt_reportable %}
 {% if available>0 or error_code in ['OVER_PAYMENT','BAD_AMOUNT','BAD_FORM','VERSION_CONFLICT'] %}
-<form method="post" action="{{ receipt_report_url }}" class="card form" data-receipt-report>
+<form id="receipt-report" method="post" action="{{ receipt_report_url }}" class="card form" data-receipt-report>
 <h3>Báo thu</h3><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ receipt_data.version }}">
 <fieldset><legend>Cách thu</legend><div class="seg stock-seg">{% for value,label in receipt_methods.items() %}<label><input type="radio" name="method" value="{{ value }}" {% if receipt_data.method==value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
 <label>Số tiền (đồng)<input name="amount" value="{{ receipt_data.amount }}" inputmode="numeric" data-money required></label>

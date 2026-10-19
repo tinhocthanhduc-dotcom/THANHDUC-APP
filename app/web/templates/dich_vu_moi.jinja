@@ -2,8 +2,9 @@
 {% block title %}Nhận đơn dịch vụ{% endblock %}
 {% block main %}
 <div class="bar"><h1>Nhận đơn dịch vụ</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
+{% include 'buoc_tiep.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-<form method="post" action="/dich-vu/moi" class="card form" data-service-form>
+<form id="service-create" method="post" action="/dich-vu/moi" class="card form" data-service-form>
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <fieldset {% if not can_create %}disabled{% endif %}>
 <div class="service-picker" data-picker>

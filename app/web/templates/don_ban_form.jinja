@@ -3,12 +3,13 @@
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
 {% block main %}
 <div class="bar quote-heading"><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><a href="/don-ban">← Đơn bán</a>{% if o and o.status=='DA_GIAO' %}<a class="btn" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
+{% include 'buoc_tiep.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if o %}<p>Trạng thái: <strong>{{ statuses[o.status] }}</strong></p>{% endif %}
 {% if source %}<p><a href="/bao-gia/{{ source.id }}">Báo giá nguồn: {{ source.number }}</a></p>{% endif %}
 {% if o and o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
-<form method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
+<form id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
 <div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>
@@ -25,8 +26,8 @@
 {% if collection %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
 {% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
 {% if o %}<div class="quote-actions">
-{% if can_write and o.status=='NHAP' %}<form method="post" action="/don-ban/{{ o.id }}/confirm" data-order-confirm>{{ token('confirm') }}<button class="primary">Chốt đơn</button></form>{% endif %}
-{% if can_deliver and o.status=='DA_CHOT' %}<form method="post" action="/don-ban/{{ o.id }}/deliver">{{ token('deliver') }}<button class="primary">Giao hàng</button></form>{% endif %}
+{% if can_write and o.status=='NHAP' %}<form id="order-confirm" method="post" action="/don-ban/{{ o.id }}/confirm" data-order-confirm>{{ token('confirm') }}<button class="primary">Chốt đơn</button></form>{% endif %}
+{% if can_deliver and o.status=='DA_CHOT' %}<form id="order-deliver" method="post" action="/don-ban/{{ o.id }}/deliver">{{ token('deliver') }}<button class="primary">Giao hàng</button></form>{% endif %}
 </div>{% endif %}
 {% if o and can_write and o.status in ['NHAP','DA_CHOT','DA_GIAO'] %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="card form service-action" {% if o.status=='DA_GIAO' %}data-order-cancel{% endif %}>{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else '' }}</textarea></label>{% if o.status=='DA_GIAO' %}<p class="alert warn">Hủy sẽ trả hàng về kho</p>{% endif %}<button>Hủy đơn</button></form>{% endif %}
 {% if failed_action=='cancel' and o and o.status=='DA_HUY' %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}

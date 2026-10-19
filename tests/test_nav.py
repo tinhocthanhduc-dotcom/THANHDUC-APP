@@ -15,14 +15,14 @@ from test_web import service_people, service_login, d5_image
 # Đối chiếu độc lập với bảng vai trò, không sinh kỳ vọng từ cấu hình cần kiểm thử.
 EXPECTED = {
     'technician': {'/viec-cua-toi', '/dich-vu', '/thiet-bi'},
-    'dispatcher': {'/dieu-phoi', '/dich-vu', '/thiet-bi', '/khach-hang'},
-    'reception': {'/dich-vu', '/thiet-bi', '/khach-hang'},
+    'dispatcher': {'/viec-cua-toi', '/dieu-phoi', '/dich-vu', '/thiet-bi', '/khach-hang'},
+    'reception': {'/viec-cua-toi', '/dich-vu', '/thiet-bi', '/khach-hang'},
     'sales': {'/viec-cua-toi', '/thiet-bi', '/khach-hang', '/bao-gia', '/don-ban',
               '/bao-cao/ban-hang', '/hang-hoa', '/ton-kho'},
     'warehouse': {'/viec-cua-toi', '/don-ban', '/hang-hoa', '/ton-kho', '/phieu-kho',
                   '/ton-kho?canh-bao=1', '/ton-dau-ky', '/kho', '/don-mua',
                   '/nha-cung-cap', '/bao-cao-mua-hang'},
-    'finance': {'/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
+    'finance': {'/viec-cua-toi', '/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
                 '/hang-hoa', '/ton-kho', '/don-mua', '/nha-cung-cap', '/bao-cao-mua-hang',
                 '/bao-thu', '/thu-chi', '/chot-so', '/dieu-chinh', '/cong-no-ncc',
                 '/bao-cao/tai-chinh', '/ghep-tai-chinh'},
@@ -179,11 +179,13 @@ def test_exact_active_item_group_and_single_item_not_dropdown(client, make_user)
     assert exc.value.status == 403
 
 
-def test_temporary_work_redirects_and_logged_out_home(client, make_user):
+def test_work_page_replaces_redirect_and_logged_out_home(client, make_user):
     assert client.get('/', follow_redirects=False).headers['location'] == '/dang-nhap'
     for role, target in (('technician', '/dich-vu'), ('sales', '/don-ban'), ('warehouse', '/phieu-kho')):
-        service_login(client, make_user('work.'+role, role))
-        assert client.get('/viec-cua-toi', follow_redirects=False).headers['location'] == target
+        user=make_user('work.'+role, role)
+        service_login(client, user)
+        assert client.get('/viec-cua-toi').status_code == 200
+        assert nav.work_url(user) == target
 
 
 def test_login_returns_to_allowed_next_page_else_role_home(client, make_user):

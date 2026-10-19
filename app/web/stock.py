@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
@@ -194,16 +194,7 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
              canh_bao: bool = Query(default=False, alias='canh-bao'),
              user: User = Depends(web_user), session: Session = Depends(get_session)):
     if canh_bao:
-        qty = func.coalesce(StockBalance.qty, 0)
-        stmt = select(StockMinLevel.warehouse_code, StockMinLevel.product_code, Product.name,
-                      qty.label('qty'), func.coalesce(StockBalance.value, 0).label('value'),
-                      func.coalesce(StockBalance.avg_cost, 0).label('avg_cost'), StockMinLevel.min_qty,
-                      (StockMinLevel.min_qty - qty).label('shortage')).select_from(StockMinLevel).outerjoin(
-            StockBalance, and_(StockBalance.warehouse_code == StockMinLevel.warehouse_code,
-                               StockBalance.product_code == StockMinLevel.product_code)
-        ).join(Product, Product.code == StockMinLevel.product_code).where(
-            StockMinLevel.min_qty > 0, qty <= StockMinLevel.min_qty
-        ).order_by((qty > 0), StockMinLevel.warehouse_code, StockMinLevel.product_code)
+        stmt = stock_min_levels.low_stock_query()
         warehouse_column = StockMinLevel.warehouse_code
     else:
         stmt = select(StockBalance.warehouse_code, StockBalance.product_code, StockBalance.qty,

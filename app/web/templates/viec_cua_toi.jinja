@@ -1,0 +1,14 @@
+{% extends 'base.jinja' %}
+{% block title %}Việc của tôi{% endblock %}
+{% block main %}
+<div class="bar"><h1>Việc của tôi</h1>{% if selected_group %}<a class="btn" href="/viec-cua-toi">Tất cả nhóm việc</a>{% endif %}</div>
+{% if notice %}<p class="alert ok" role="status">{{ notice }}</p>{% endif %}
+<div class="bar">{% for label,href in shortcuts %}<a class="btn" href="{{ href }}" data-work-shortcut>{{ label }}</a>{% endfor %}</div>
+<p>Chọn chứng từ để làm bước tiếp theo. Tiền là số đã lưu; giờ Việt Nam.</p>
+{% for group in groups %}<section class="card work-group" data-work-group="{{ group.key }}">
+<div class="bar"><h2>{{ group.title }}</h2><strong class="tag" data-work-count>{{ group.count }}</strong></div>
+<div class="work-rows">{% for row in group.rows %}<a class="work-row{% if row.overdue %} work-overdue{% endif %}" href="{{ row.link }}"><strong>{{ row.number }}</strong><span>{{ row.customer }}</span><span class="tag">{{ labels[row.kind].get(row.status,row.status) }}</span>{% if row.overdue %}<span class="alert bad">Quá hạn / cần xử lý ngay</span>{% endif %}
+{% if row.kind=='stock' %}<span>{{ row.warehouse_code }} · Tồn {{ row.qty }} · Mức tối thiểu {{ row.min_qty }}</span>{% elif row.kind in ['quote','order','purchase','receipt'] %}<strong>{{ row.amount|money }} đồng</strong>{% endif %}{% if row.reason %}<span>{{ row.reason }}</span>{% endif %}</a>{% else %}<p class="empty">Không có việc trong nhóm này.</p>{% endfor %}</div>
+{% if not selected_group %}<a class="btn" href="{{ group.link }}">Xem tất cả · {{ group.count }}</a>{% else %}<nav class="bar" aria-label="Phân trang việc">{% if page>1 %}<a class="btn" href="{{ group.link }}&trang={{ page-1 }}">Trang trước</a>{% endif %}<span>Trang {{ page }}</span>{% if page*20<group.count %}<a class="btn" href="{{ group.link }}&trang={{ page+1 }}">Trang sau</a>{% endif %}</nav>{% endif %}
+</section>{% else %}<p class="card">Không có nhóm việc phù hợp với vai trò hiện tại.</p>{% endfor %}
+{% endblock %}

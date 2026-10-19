@@ -336,3 +336,14 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .nav-children { position:static; min-width:0; max-width:none; margin-left:12px; box-shadow:none; }
   .nav-group > summary { width:100%; }
 }
+
+/* U2: nhóm công việc, một nút chính ở đầu chứng từ. */
+.work-group, .next-step { margin:16px 0; }
+.work-group h2 { font-size:1.1rem; }
+.work-rows { display:grid; gap:8px; margin:12px 0; }
+.work-row { display:grid; gap:6px; padding:14px; border:1px solid var(--line); border-radius:8px; color:var(--text); text-decoration:none; overflow-wrap:anywhere; min-width:0; }
+.work-row .tag { width:fit-content; }
+.work-overdue { border-left:4px solid var(--bad); }
+.next-step { display:grid; gap:10px; }
+.next-step h2 { margin:0; font-size:1.1rem; }
+.next-step .next-primary { width:100%; min-height:48px; text-align:center; }

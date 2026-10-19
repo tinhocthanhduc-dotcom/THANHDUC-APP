@@ -1,0 +1,8 @@
+{% if next_step %}
+<section class="card next-step" data-next-step><h2>Bước tiếp theo</h2>
+{% set a=next_step.primary %}
+{% if a.hint %}<p class="hint">{{ a.hint }}</p>{% endif %}
+{% if a.form %}<button class="primary next-primary" type="submit" form="{{ a.form }}" data-next-primary data-next-route="{{ a.route }}" {% if a.return_work %}name="return_to" value="work"{% endif %}>{{ a.label }}</button>{% else %}<a class="btn primary next-primary" href="{{ a.href }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</a>{% endif %}
+{% for a in next_step.secondary %}{% if a.form %}<button type="submit" form="{{ a.form }}" data-next-route="{{ a.route }}" {% if a.return_work %}name="return_to" value="work"{% endif %}>{{ a.label }}</button>{% else %}<a class="btn" href="{{ a.href }}">{{ a.label }}</a>{% endif %}{% endfor %}
+</section>
+{% endif %}

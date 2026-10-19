@@ -23,6 +23,8 @@ from . import checked_form, money, render, web_user
 from .quotes import _quantity
 from .receipts import order_context
 
+from . import next_steps
+
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp','DA_CHOT':'Đã chốt','DA_GIAO':'Đã giao','DA_HUY':'Đã hủy'}
 
@@ -88,7 +90,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     return render(request,'don_ban_form.jinja',o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
                   customer_name=customer.name if customer else '',source=source,
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
-                  stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
+                  next_step=next_steps.order(request.state.user,order,receipt_ctx['available']),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
                   warehouses=_warehouses(session),can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse'),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
@@ -180,6 +182,7 @@ def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
         delivery_address=customer.address,note=quote.note,warehouses={})
     return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,quantity=_quantity,
                   warehouses=_warehouses(session),linked=_active_order(session,quote.id),
+                  next_step=next_steps.block(next_steps.form('Tạo đơn bán','order-from-quote',f'/don-ban/tu-bao-gia/{quote.id}')) if quote.status=='CHAP_NHAN' and not _active_order(session,quote.id) else None,
                   error=error,error_code=code,status=status)
 
 

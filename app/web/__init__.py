@@ -147,8 +147,9 @@ def home(request: Request, session: Session = Depends(get_session)):
 
 
 @router.get("/viec-cua-toi")
-def my_work(user: User = Depends(web_user)):
-    return RedirectResponse(nav.work_url(user), status_code=303)
+def my_work_page(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .work import page
+    return page(request, user, session)
 
 
 @router.get("/dang-nhap")

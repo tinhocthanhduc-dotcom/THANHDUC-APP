@@ -19,6 +19,8 @@ from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
 from . import checked_form, money, render, web_user
 
+from . import next_steps
+
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp', 'DA_GUI':'Đã gửi', 'CHAP_NHAN':'Chấp nhận', 'TU_CHOI':'Từ chối', 'DA_HUY':'Đã hủy'}
 
@@ -56,7 +58,7 @@ def _form(request, session, data=None, quote=None, error=None, code='', status=2
     return render(request, 'bao_gia_form.jinja', q=quote, d=data, customer_name=customer.name if customer else '',
                   product_names=names, statuses=STATUSES, vat_rates=VAT_RATES,
                   can_write=has_role(request.state.user,*svc.WRITERS), is_new=quote is None,
-                  linked_order=linked_order, editable=quote is None or quote.status == 'NHAP', replaced=replacement,
+                  next_step=next_steps.quote(request.state.user,quote,linked_order),linked_order=linked_order, editable=quote is None or quote.status == 'NHAP', replaced=replacement,
                   error=error, error_code=code, status=status, action_form=action_form or {}, failed_action=action,
                   saved=request.query_params.get('da_luu') == '1' and not error, unsaved=error is not None)
 

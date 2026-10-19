@@ -1,0 +1,7 @@
+{% extends 'base.jinja' %}
+{% block title %}{{ rows[0].number }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>{{ rows[0].number }}</h1><a href="/viec-cua-toi">Việc của tôi</a></div>
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+{% for r in rows %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}
+{% endblock %}

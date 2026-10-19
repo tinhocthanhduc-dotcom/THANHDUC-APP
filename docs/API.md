@@ -559,6 +559,19 @@ Dependency `check_navigation` gắn trên toàn bộ router web, trước khi đ
 
 - `/ton-kho?canh-bao=1` thuộc Sắp hết (warehouse), khác Tồn kho/Thẻ kho (sales, warehouse, finance); các dạng bool theo cùng parser FastAPI/Pydantic (`true`, `on`, `yes`, `t`, `y`, kể cả chữ hoa) cũng nhận cùng quyền để không lách bằng query.
 - `/dich-vu/can-thu` và CSV cùng prefix thuộc Báo thu (finance); các bộ chọn máy/vật tư, ảnh và biên bản dưới `/dich-vu/...` vẫn theo mục Dịch vụ. File `/attachments/{id}/file` tiếp tục kiểm thực thể ở lõi, gồm chỉ phiếu được giao cho thợ.
-- `/viec-cua-toi` hiện chỉ chuyển hướng tạm: technician → `/dich-vu`, sales → `/don-ban`, warehouse → `/phieu-kho`; U2 sẽ bổ sung nội dung. Nhóm còn một mục hiện thẳng link; desktop nhóm dùng details/summary, mobile có nút Menu; không thêm thư viện JS.
+- `/viec-cua-toi` là trang công việc U2 cho mọi vai trò nghiệp vụ. Nhóm còn một mục hiện thẳng link; desktop nhóm dùng details/summary, mobile có nút Menu; không thêm thư viện JS.
 
 `tests/test_nav.py` đối chiếu riêng bảng vai trò với menu HTML và HTTP, kiểm mọi prefix có route thật, mọi GET web thuộc một mục và mọi route web nhận dependency chặn quyền. Không migration, không đổi luật hoặc dữ liệu sổ kho/quỹ/công nợ.
+
+## Việc của tôi và bước tiếp theo (U2)
+
+`my_work.collect(session, user, today=None)` chỉ SELECT, không autoflush hoặc nạp ORM chứng từ. Mỗi nhóm có key, tiêu đề, tổng thật, tối đa 20 dòng và link danh sách lọc `/viec-cua-toi?nhom=...&trang=1` (20 dòng/trang). Nhóm của người nhiều vai trò được hợp theo key; giám đốc thấy mọi nhóm. Trang đầu theo vai trò giữ nguyên U1; tài khoản admin không có vai trò nghiệp vụ bị 403, không lỗi 500.
+
+- Kỹ thuật: phiếu được giao cho mình, ưu tiên quá hạn rồi Khẩn/Gấp/Thường; chờ nhận, cần hẹn khách sau khi nhận, lịch hẹn hôm nay hoặc từ ngày trước, đang làm/chờ linh kiện, hoàn thành/đã đóng chưa báo thu đủ. Khoảng ngày hẹn theo Asia/Ho_Chi_Minh, SLA dùng hạn do lõi `service_sla` tính.
+- Bán hàng: báo giá nháp/đã gửi, đơn nháp, đơn chờ giao, đơn đã giao chưa báo thu đủ và báo thu bị từ chối còn cần báo lại; chỉ chứng từ của mình, trừ giám đốc. “Chưa báo thu đủ” = phải thu − đã xác nhận − chờ xác nhận > 0, dùng tổng báo thu B4/T3, không tính lại công nợ.
+- Kho: đơn bán chờ giao, đơn mua đã đặt/nhận một phần và Sắp hết. `stock_min_levels.low_stock_query` dùng chung với trang Sắp hết, kể cả mã chưa có balance; giữ điều kiện tồn <= mức tối thiểu hiện hành.
+- Điều phối/lễ tân: phiếu mới chưa giao; điều phối thêm dịch vụ chưa báo thu/chờ đóng. Kế toán: báo thu chờ xác nhận. Menu Việc của tôi hiện cho các vai trò có nhóm.
+
+Khối Bước tiếp theo chỉ chọn form/route hiện có theo quyền và trạng thái: gửi/chấp nhận báo giá, tạo đơn từ báo giá, chốt/giao/báo thu đơn, giao/nhận/hẹn/làm/hoàn thành dịch vụ, báo thu/đóng phiếu và xác nhận/từ chối báo thu. Nút ở đầu trang submit đúng form cũ bằng thuộc tính `form`, giữ CSRF, version, kiểm dữ liệu chưa lưu và validation của trình duyệt/lõi. GET `/bao-thu/{id}` cho finance/director hiển thị một báo thu; nút quyết định ở khối mới gửi `return_to=work`, thành công về Việc của tôi với thông báo xanh, các POST cũ giữ redirect cũ.
+
+Lõi dịch vụ hiện yêu cầu hẹn khách trước khi bắt đầu, lưu cách thu/miễn phí và ảnh SAU trước khi hoàn thành; hoàn thành tự khóa giá. Nút chính dẫn tới bước còn thiếu, không thêm đường bỏ qua luật. Ràng buộc DB cũng không cho phiếu hoàn thành chưa khóa giá. Thợ thấy việc chưa báo thu nhưng không có nút báo thu/đóng phiếu vì lõi không cấp quyền đó. Không đổi schema, luật tiền/kho hay quyền ghi.

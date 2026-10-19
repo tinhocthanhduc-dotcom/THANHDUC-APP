@@ -56,3 +56,19 @@ def set_level(session: Session, user: User, warehouse: str, product: str, body: 
     except Exception:
         session.rollback()
         raise
+
+
+def low_stock_query():
+    """Cùng truy vấn chỉ đọc cho Sắp hết và Việc của tôi, kể cả chưa có balance."""
+    from sqlalchemy import and_, func, select
+    from .models import StockBalance
+    qty = func.coalesce(StockBalance.qty, 0)
+    return select(StockMinLevel.warehouse_code, StockMinLevel.product_code, Product.name,
+        qty.label('qty'), func.coalesce(StockBalance.value, 0).label('value'),
+        func.coalesce(StockBalance.avg_cost, 0).label('avg_cost'), StockMinLevel.min_qty,
+        (StockMinLevel.min_qty-qty).label('shortage')).select_from(StockMinLevel).outerjoin(
+            StockBalance, and_(StockBalance.warehouse_code == StockMinLevel.warehouse_code,
+                              StockBalance.product_code == StockMinLevel.product_code)
+        ).join(Product, Product.code == StockMinLevel.product_code).where(
+            StockMinLevel.min_qty > 0, qty <= StockMinLevel.min_qty
+        ).order_by((qty > 0), StockMinLevel.warehouse_code, StockMinLevel.product_code)

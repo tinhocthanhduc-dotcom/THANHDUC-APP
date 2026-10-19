@@ -1,7 +1,7 @@
 <section id="anh" class="card service-action"><h2>Ảnh</h2>
 {% if can_upload %}<div class="photo-upload-grid">
 {% for tag, label in [('TRUOC','Ảnh trước'), ('SAU','Ảnh sau sửa'), ('KHAC','Tệp khác')] %}
-<form method="post" action="/dich-vu/{{ t.id }}/anh/tai" enctype="multipart/form-data" class="form" data-photo-upload>
+<form id="photo-{{ tag }}-form" method="post" action="/dich-vu/{{ t.id }}/anh/tai" enctype="multipart/form-data" class="form" data-photo-upload>
   <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="tag" value="{{ tag }}">
   <label class="btn photo-capture" for="photo-{{ tag }}">{{ label }}</label>
   <input id="photo-{{ tag }}" type="file" name="file" required {% if tag != 'KHAC' %}accept="image/*" capture="environment"{% else %}accept="image/*,application/pdf"{% endif %}>
