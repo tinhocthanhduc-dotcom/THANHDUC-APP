@@ -542,3 +542,11 @@ Ngưỡng module `app.config`: ALERT_RECEIPT_PENDING_DAYS=1, ALERT_DEBT_DAYS=30,
 - CHAM_LUAN_CHUYEN (VANG, chỉ director): còn tồn >0, PN DA_GHI đầu tiên tại kho/mã cũ hơn ngưỡng, không có PX DA_GHI gốc trong [today − ngưỡng,today]. Dùng doc_date theo ngày nghiệp vụ; bỏ bút toán đảo và PX/PN đã hủy. Vì vậy xuất rồi hủy được coi là không xuất. Detail có ROUND(qty × avg_cost), link thẻ kho.
 
 Tất cả chỉ SELECT, no_autoflush cả kiểm quyền, COUNT OVER trước LIMIT cho tổng chính xác; không nạp ORM chứng từ và không đổi audit/sổ kho/quỹ/công nợ. Chốt sổ nhóm theo ngày rồi gọi helper T4 cho từng ngày trong lookback. Trên `/tong-quan`, khối Cần xử lý ngay dưới lưới số, nhóm details/summary, chấm đỏ/vàng có nhãn truy cập, link cả dòng và thông báo “và N mục khác”; rỗng hiện “Không có việc cần xử lý”. Không thêm POST/migration/AI.
+
+## Tóm tắt ngày (R3)
+
+- `daily_digest.build(session, user, day)` chỉ đọc Tổng quan/cảnh báo bằng quyền giám đốc; kết quả JSON gồm ngày ISO, tiền nguyên đồng, số ô chính, quỹ/kho, counts thật theo kind và tối đa 5 cảnh báo đỏ đầu tiên. `alerts.collect(...).red_count` đếm toàn bộ cảnh báo đỏ trước giới hạn 20 dòng/kind; không đổi cấu trúc các mục cảnh báo R2.
+- `daily_digest.save(session, user, day)` chỉ giám đốc đang hoạt động: khóa riêng theo ngày, tạo/ghi đè một bản, tăng version mỗi lần, ghi audit `digest.create`/`digest.update` trước/sau trong cùng transaction. `created_at`/`created_by` mô tả bản chụp hiện hành; nguồn CLI để `created_by=null`, audit vẫn ghi tài khoản giám đốc đã dùng. Không ghi hay khóa ngày sổ kho/quỹ/công nợ.
+- `--day` neo khoảng doanh thu vào ngày yêu cầu; quỹ, nợ, tồn, việc đang mở và cảnh báo thời điểm vẫn theo số liệu nguồn tại lúc chạy, không tái dựng số dư lịch sử. Bản đã lưu giữ nguyên cho đến lần lưu đè kế tiếp.
+- GET `/tong-quan/ngay?page=1` (30 bản/trang, mới nhất trước), GET `/tong-quan/ngay/{day}`: director/finance. Finance được lọc cả JSON dùng để render và văn bản sao chép, loại tồn kho, lãi gộp và CHAM_LUAN_CHUYEN. POST `/tong-quan/ngay` lưu hôm nay giờ Việt Nam, chỉ director và phải có `csrf`.
+- Lỗi: `FORBIDDEN` (403), `BAD_CSRF` (403), `NOT_FOUND` (404, chưa lưu ngày đó), `VERSION_CONFLICT` (409). `python -m scripts.daily_digest --user tuan [--day YYYY-MM-DD]` kiểm tài khoản tồn tại, đang hoạt động, có vai trò director trước khi ghi; lỗi tài khoản thoát mã 1.

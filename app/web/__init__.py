@@ -523,3 +523,7 @@ router.include_router(purchase_reports_router)
 from .dashboard import router as dashboard_router
 
 router.include_router(dashboard_router)
+
+from .daily_digest import router as daily_digest_router
+
+router.include_router(daily_digest_router)

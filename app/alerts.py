@@ -18,9 +18,10 @@ LIMIT = 20
 
 
 class AlertList(list):
-    def __init__(self, items, counts):
+    def __init__(self, items, counts, red_count=0):
         super().__init__(items)
         self.counts = counts
+        self.red_count = red_count
 
 
 def _money(value):
@@ -50,12 +51,16 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         today=today or now.date()
         counts={k:0 for k in LABELS if k!='CHAM_LUAN_CHUYEN' or has_role(user,'director')}
         items=[]
+        red_count=0
         def add(kind,stmt,build):
             # COUNT OVER chạy trước LIMIT, và sau GROUP BY của truy vấn nguồn.
+            nonlocal red_count
             source=stmt.subquery()
-            rows=session.execute(select(source,func.count().over().label('_count'))
+            rows=session.execute(select(source,func.count().over().label('_count'),
+                func.count().filter(source.c.level=='DO').over().label('_red_count'))
                 .order_by(source.c.level,source.c.oldest,source.c.link_key).limit(LIMIT)).mappings().all()
             counts[kind]=int(rows[0]['_count']) if rows else 0
+            red_count+=int(rows[0]['_red_count']) if rows else 0
             for row in rows:
                 title,detail,link=build(row)
                 items.append(dict(level=row['level'],kind=kind,title=title,detail=detail,link=link,_oldest=_stamp(row['oldest'])))
@@ -135,4 +140,4 @@ def collect(session,user,today=None,now=None) -> list[dict]:
 
         items.sort(key=lambda r:(0 if r['level']=='DO' else 1,r['kind'],r['_oldest'],r['link']))
         for item in items:del item['_oldest']
-        return AlertList(items,counts)
+        return AlertList(items,counts,red_count)
