@@ -1,5 +1,6 @@
 (function () {
   const form = document.querySelector("[data-tech-completion]");
+  const screen = document.querySelector("[data-technician-ticket]");
   const format = (n) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   const money = (v) => {
     const raw = v.replace(/\./g, "").trim();
@@ -28,17 +29,17 @@
   function update() {
     if (!form) return;
     const mode =
-        form.querySelector("[name=collection_mode]:checked")?.value || "",
+        screen.querySelector("[name=collection_mode]:checked")?.value || "",
       free = mode === "FREE",
       total = actual();
-    form.querySelector("[data-customer-charge]").hidden = free;
-    form.querySelector("[data-tech-partial]").hidden = mode !== "PARTIAL";
-    form.querySelector("[data-tech-free]").hidden = !free;
-    form.querySelector("[data-tech-method]").hidden = ![
+    screen.querySelector("[data-customer-charge]").hidden = free;
+    screen.querySelector("[data-tech-partial]").hidden = mode !== "PARTIAL";
+    screen.querySelector("[data-tech-free]").hidden = !free;
+    screen.querySelector("[data-tech-method]").hidden = ![
       "FULL",
       "PARTIAL",
     ].includes(mode);
-    form.querySelector("[data-tech-actual]").textContent = format(total);
+    screen.querySelector("[data-tech-actual]").textContent = format(total);
     form.elements.free_reason.required = free;
     form.elements.partial_amount.required = mode === "PARTIAL";
     let ready = true;
@@ -62,7 +63,7 @@
             null &&
           !document.querySelector("[data-photo-tag=SAU] [data-uploading]");
       if (check.dataset.check === "warehouses")
-        ok = Array.from(form.querySelectorAll("[name=material_qty]")).every(
+        ok = Array.from(screen.querySelectorAll("[name=material_qty]")).every(
           (input) =>
             Number(input.value.replace(",", ".")) >= 0 &&
             Number(input.value.replace(",", ".")) <= Number(input.dataset.held),
@@ -76,9 +77,9 @@
     document.querySelector("#completion-checks .alert").hidden = ready;
   }
   if (form) {
-    form.addEventListener("input", update);
-    form.addEventListener("change", update);
-    form.addEventListener("click", (e) => {
+    screen.addEventListener("input", update);
+    screen.addEventListener("change", update);
+    screen.addEventListener("click", (e) => {
       const suggestion = e.target.closest("[data-fee-suggestion]"),
         step = e.target.closest("[data-qty-step]");
       if (suggestion)
@@ -101,7 +102,7 @@
         );
       }
       if (e.target.closest("[data-collection-clear]"))
-        form
+        screen
           .querySelectorAll("[name=collection_mode]")
           .forEach((input) => (input.checked = false));
       update();
