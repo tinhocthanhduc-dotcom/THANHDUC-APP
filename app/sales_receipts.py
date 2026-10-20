@@ -154,18 +154,24 @@ def report_for_ticket(session,user,ticket_id,body: SalesReceiptReport):
         ticket = _ticket(session,ticket_id)
         check_ticket_reporter(user, ticket)
         _version(ticket,body.version)
-        if ticket.status not in ('HOAN_THANH','DA_DONG') or (ticket.receivable or 0)<=0 or ticket.billing=='MIEN_PHI':
-            raise BusinessError('BAD_STATUS','Chỉ báo thu cho phiếu dịch vụ đã hoàn thành hoặc đã đóng còn số phải thu.',status=409)
-        current = balance(ticket)
-        if current['paid']+current['pending']+body.amount>ticket.receivable:
-            raise BusinessError('OVER_PAYMENT','Tổng đã thu và chờ xác nhận vượt số phải thu của phiếu dịch vụ.',
-                                {**current,'available':current['remaining']-current['pending']},status=409)
-        received = body.received_at or _today()
-        receipt = SalesReceipt(number=next_number(session,'BT',received),ticket_id=ticket.id,
-                    method=body.method,amount=body.amount,received_at=received,note=body.note,
-                    status='CHO_XAC_NHAN',reason='',reported_by=user.id)
-        session.add(receipt)
-        _record(session,user,receipt,'report',None)
+        return report_for_ticket_in_tx(session, user, ticket, body)
+
+
+def report_for_ticket_in_tx(session, user, ticket: ServiceTicket, body: SalesReceiptReport):
+    """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
+    check_ticket_reporter(user, ticket)
+    if ticket.status not in ('HOAN_THANH','DA_DONG') or (ticket.receivable or 0)<=0 or ticket.billing=='MIEN_PHI':
+        raise BusinessError('BAD_STATUS','Chỉ báo thu cho phiếu dịch vụ đã hoàn thành hoặc đã đóng còn số phải thu.',status=409)
+    current = balance(ticket)
+    if current['paid']+current['pending']+body.amount>ticket.receivable:
+        raise BusinessError('OVER_PAYMENT','Tổng đã thu và chờ xác nhận vượt số phải thu của phiếu dịch vụ.',
+                            {**current,'available':current['remaining']-current['pending']},status=409)
+    received = body.received_at or _today()
+    receipt = SalesReceipt(number=next_number(session,'BT',received),ticket_id=ticket.id,
+                method=body.method,amount=body.amount,received_at=received,note=body.note,
+                status='CHO_XAC_NHAN',reason='',reported_by=user.id)
+    session.add(receipt)
+    _record(session,user,receipt,'report',None)
     return receipt
 
 

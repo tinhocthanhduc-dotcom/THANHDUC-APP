@@ -1,0 +1,1 @@
+{% for kind in ['PHI','VAT_TU'] %}<template id="charge-template-{{ kind }}">{% set line = dict(kind=kind, description='', product_code='', warehouse_code=charge_default_warehouse, qty='1', unit_price='0', vat_rate=default_vat_rate) %}{% set index = 'new' %}{% include 'dich_vu_tien_dong.jinja' %}</template>{% endfor %}

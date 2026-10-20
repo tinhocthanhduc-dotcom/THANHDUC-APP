@@ -37,49 +37,54 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
     with _transaction(session):
         t = service_tickets._get(session, user, ticket_id, lock=True)
         service_tickets._check_version(t, body.version)
-        if not has_role(user, *service_tickets.DISPATCHERS) and t.assignee_id != user.id:
-            raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được sửa tiền của phiếu này.", status=403)
-        if t.status not in service_tickets.OPEN:
-            code = "PRICE_LOCKED" if t.priced_at is not None else "BAD_STATUS"
-            raise BusinessError(code, "Phiếu đã hoàn thành hoặc đóng, không sửa tiền được.", {"status": t.status}, status=409)
-        free_reason = body.free_reason.strip()
-        if body.billing == "MIEN_PHI" and len(free_reason) < 3:
-            raise BusinessError("REASON_REQUIRED", "Miễn phí phải ghi lý do.")
-        warranty_override = (t.warranty_basis in ('PHIEU_TRUOC', 'MAY_CON_HAN')
-                             and t.billing == 'MIEN_PHI' and body.billing == 'THU_TIEN')
-        if warranty_override:
-            if not has_role(user, 'dispatcher'):
-                raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc được đổi bảo hành sang Có thu tiền.', status=403)
-            if not body.billing_reason.strip():
-                raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do thu tiền phiếu còn bảo hành.')
-        own = technician_stock.restricted_warehouse(session, user, lock=True)
-        if own:
-            # Mỗi dòng cũ chỉ miễn kiểm một lần; không cho nhân bản dòng kho công ty.
-            unchanged = Counter((x.product_code, x.warehouse_code, x.qty) for x in t.lines if x.kind == 'VAT_TU')
-            for x in body.lines:
-                if x.kind != 'VAT_TU' or x.warehouse_code == own.code:
-                    continue
-                key = (x.product_code, x.warehouse_code, x.qty)
-                if not unchanged[key]:
-                    raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư thêm hoặc sửa phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
-                unchanged[key] -= 1
-        _validate_lines(session, body)
-        before = _snapshot(t)
-        lines = []
-        for i, x in enumerate(body.lines, 1):
-            amount = _round(x.qty * x.unit_price)
-            lines.append(ServiceLine(line_no=i, kind=x.kind, product_code=x.product_code, warehouse_code=x.warehouse_code,
-                                     description=x.description, qty=x.qty, unit_price=x.unit_price, vat_rate=x.vat_rate,
-                                     amount=amount, vat_amount=_round(Decimal(amount) * x.vat_rate / 100)))
-        t.lines.clear()
-        session.flush()  # xóa dòng cũ trước để số dòng mới không trùng
-        t.lines = lines
-        t.billing = body.billing
-        t.free_reason = free_reason if body.billing == "MIEN_PHI" else ""
-        # Thay dòng cũng là sửa phiếu, kể cả khi cách thu không thay đổi.
-        t.version += 1
-        session.flush()
-        audit.record(session, user, "service_ticket.charges", "service_ticket", str(t.id), before, _snapshot(t), body.billing_reason.strip() if warranty_override else "")
+        return set_charges_in_tx(session, user, t, body)
+
+
+def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: ServiceCharges) -> ServiceTicket:
+    """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
+    if not has_role(user, *service_tickets.DISPATCHERS) and t.assignee_id != user.id:
+        raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được sửa tiền của phiếu này.", status=403)
+    if t.status not in service_tickets.OPEN:
+        code = "PRICE_LOCKED" if t.priced_at is not None else "BAD_STATUS"
+        raise BusinessError(code, "Phiếu đã hoàn thành hoặc đóng, không sửa tiền được.", {"status": t.status}, status=409)
+    free_reason = body.free_reason.strip()
+    if body.billing == "MIEN_PHI" and len(free_reason) < 3:
+        raise BusinessError("REASON_REQUIRED", "Miễn phí phải ghi lý do.")
+    warranty_override = (t.warranty_basis in ('PHIEU_TRUOC', 'MAY_CON_HAN')
+                         and t.billing == 'MIEN_PHI' and body.billing == 'THU_TIEN')
+    if warranty_override:
+        if not has_role(user, 'dispatcher'):
+            raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc được đổi bảo hành sang Có thu tiền.', status=403)
+        if not body.billing_reason.strip():
+            raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do thu tiền phiếu còn bảo hành.')
+    own = technician_stock.restricted_warehouse(session, user, lock=True)
+    if own:
+        # Mỗi dòng cũ chỉ miễn kiểm một lần; không cho nhân bản dòng kho công ty.
+        unchanged = Counter((x.product_code, x.warehouse_code, x.qty) for x in t.lines if x.kind == 'VAT_TU')
+        for x in body.lines:
+            if x.kind != 'VAT_TU' or x.warehouse_code == own.code:
+                continue
+            key = (x.product_code, x.warehouse_code, x.qty)
+            if not unchanged[key]:
+                raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư thêm hoặc sửa phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
+            unchanged[key] -= 1
+    _validate_lines(session, body)
+    before = _snapshot(t)
+    lines = []
+    for i, x in enumerate(body.lines, 1):
+        amount = _round(x.qty * x.unit_price)
+        lines.append(ServiceLine(line_no=i, kind=x.kind, product_code=x.product_code, warehouse_code=x.warehouse_code,
+                                 description=x.description, qty=x.qty, unit_price=x.unit_price, vat_rate=x.vat_rate,
+                                 amount=amount, vat_amount=_round(Decimal(amount) * x.vat_rate / 100)))
+    t.lines.clear()
+    session.flush()  # xóa dòng cũ trước để số dòng mới không trùng
+    t.lines = lines
+    t.billing = body.billing
+    t.free_reason = free_reason if body.billing == "MIEN_PHI" else ""
+    # Thay dòng cũng là sửa phiếu, kể cả khi cách thu không thay đổi.
+    t.version += 1
+    session.flush()
+    audit.record(session, user, "service_ticket.charges", "service_ticket", str(t.id), before, _snapshot(t), body.billing_reason.strip() if warranty_override else "")
     return t
 
 

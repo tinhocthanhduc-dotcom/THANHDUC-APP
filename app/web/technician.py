@@ -1,4 +1,4 @@
-"""UX1a: trình bày công việc của thợ; mọi ghi vẫn dùng route và lõi hiện có."""
+"""Màn công việc và hoàn thành gộp cho kỹ thuật viên."""
 import re
 from datetime import datetime, time
 from urllib.parse import urlencode
@@ -12,7 +12,7 @@ from .. import attachments, service_tickets, technician_stock
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, CustomerSite, Equipment, Product, SalesOrder, ServiceTicket, User
-from . import next_steps, render, web_user
+from . import checked_form, next_steps, render, web_user
 
 router = APIRouter()
 
@@ -58,14 +58,14 @@ def detail_context(session, user, ticket, ctx):
     eq = session.get(Equipment,ticket.serial) if ticket.serial else None
     product = session.get(Product,eq.product_code) if eq else None
     checks = [dict(key='photo',label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
-        dict(key='billing',label='Đã lưu Có thu tiền / Miễn phí và lý do miễn phí',ok=ticket.billing in ('THU_TIEN','MIEN_PHI') and (ticket.billing!='MIEN_PHI' or bool(ticket.free_reason.strip())))]
+        dict(key='billing',label='Chọn cách thu và lý do nếu miễn phí',ok=ctx['charges']['billing'] in ('THU_TIEN','MIEN_PHI') and (ctx['charges']['billing']!='MIEN_PHI' or len(ctx['charges']['free_reason'].strip())>=3))]
     if ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH'):
         checks.append(dict(key='machine',label='Máy đã trả khách',ok=not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
-    checks.append(dict(key='warehouses',label='Vật tư đã chọn kho của bạn',ok=all(warehouse and line.warehouse_code==warehouse.code for line in ticket.lines if line.kind=='VAT_TU')))
+    checks.append(dict(key='warehouses',label='Vật tư đã chọn kho của bạn',ok=all(warehouse and line.get('warehouse_code')==warehouse.code for line in ctx['charges']['lines'] if line['kind']=='VAT_TU')))
     target = {'DA_GIAO':'DA_NHAN','DA_NHAN':'DA_HEN','DA_HEN':'DANG_LAM','DANG_LAM':'HOAN_THANH',
               'CHO_LINH_KIEN':'DANG_LAM','TAM_DUNG':'DANG_LAM'}.get(ticket.status)
     labels={'DA_GIAO':'Nhận đơn','DA_NHAN':'Hẹn khách','DA_HEN':'Đã đến khách','DANG_LAM':'Hoàn thành','CHO_LINH_KIEN':'Tiếp tục làm','TAM_DUNG':'Tiếp tục làm'}
-    primary = dict(form='service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
+    primary = dict(form='service-complete' if ticket.status=='DANG_LAM' else 'service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
     exceptions=[s for s in ctx['transitions'] if s!=target and s not in ('DA_HUY','DA_DONG')]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     return dict(technician_view=True,checks=checks,completion_ready=all(c['ok'] for c in checks),
@@ -110,3 +110,34 @@ def ticket(request:Request,ticket_id:int,user:User=Depends(technician_user),sess
     from .services import _detail
     owned(session,user,ticket_id)
     return _detail(request,session,user,ticket_id,technician_view=True)
+
+
+@router.post('/tho/phieu/{ticket_id}/hoan-thanh')
+def complete(request: Request, ticket_id: int, form=Depends(checked_form),
+             user: User = Depends(technician_user), session: Session = Depends(get_session)):
+    from pydantic import ValidationError
+    from .. import service_completion
+    from ..schemas import SalesReceiptReport, ServiceTransition
+    from .charges import _raw, _body
+    from .services import _detail, _message, _version
+    owned(session, user, ticket_id)
+    request.state.technician_return = True
+    raw = _raw(form)
+    shown = {key: str(form.get(key, '')) for key in ('note', 'amount', 'method')}
+    try:
+        version = _version(form)
+        charges = _body(raw, version)
+        note = ServiceTransition(to_status='HOAN_THANH', version=version, note=shown['note']).note
+        amount = shown['amount'].strip()
+        if amount and not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)', amount):
+            raise BusinessError('BAD_AMOUNT', 'Số tiền phải là số nguyên đồng, có thể dùng dấu chấm hàng nghìn.')
+        digits = amount.replace('.', '').lstrip('0') or '0'
+        if len(digits) > 19:
+            raise BusinessError('BAD_AMOUNT', 'Số tiền vượt giới hạn lưu trữ.')
+        receipt = SalesReceiptReport(version=version, method=shown['method'], amount=int(digits), note=note) if int(digits) else None
+        service_completion.complete(session, user, ticket_id, charges, note, receipt)
+    except (BusinessError, ValidationError) as exc:
+        message, code, status = _message(exc)
+        return _detail(request, session, user, ticket_id, error=message, error_code=code, status=status,
+                       charge_shown=raw, completion_form=shown, technician_view=True)
+    return after_post(request, session, user, ticket_id, '/tho')

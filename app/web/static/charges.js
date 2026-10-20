@@ -26,13 +26,33 @@
     form.querySelector('[data-charge-total]').textContent = valid ? format(subtotal + vatTotal) : '—';
     form.querySelector('[data-charge-receivable]').textContent = billing() === 'MIEN_PHI' ? '0' : valid && billing() ? format(subtotal + vatTotal) : '—';
   }
+  function completionChecks() {
+    if (!form.hasAttribute('data-charge-combined')) return;
+    var ready = true;
+    document.querySelectorAll('[data-check]').forEach(function(check) {
+      var ok = check.dataset.ok === '1';
+      if (check.dataset.check === 'billing') ok = !!billing() && (billing() !== 'MIEN_PHI' || form.querySelector('[data-free-reason]').value.trim().length >= 3);
+      if (check.dataset.check === 'warehouses') {
+        ok = Array.from(form.querySelectorAll('[data-charge-line]')).every(function(row) {
+          if (row.querySelector('[name=line_kind]').value !== 'VAT_TU') return true;
+          return !!row.querySelector('[data-charge-warehouse]:checked');
+        });
+      }
+      check.dataset.ok = ok ? '1' : '0';
+      check.textContent = (ok ? '✓ ' : '✗ ') + check.dataset.label;
+      ready = ready && ok;
+    });
+    document.querySelector('[data-tho-primary]').disabled = !ready;
+    var warning = document.querySelector('#completion-checks .alert');
+    if (warning) warning.hidden = ready;
+  }
   function reindex() {
     form.querySelectorAll('[data-charge-line]').forEach(function(row, index) {
       row.querySelectorAll('[data-charge-vat]').forEach(function(input) { input.name = 'vat_' + index; });
       row.querySelectorAll('[data-charge-warehouse]').forEach(function(input) { input.name = 'warehouse_' + index; });
     });
   }
-  function changed() { if (editable) dirty = true; preview(); }
+  function changed() { if (editable) dirty = true; preview(); completionChecks(); }
   form.addEventListener('input', changed); form.addEventListener('change', changed);
   form.addEventListener('click', function(event) {
     if (!editable) return;
@@ -67,5 +87,5 @@
       warning.scrollIntoView({block:'center'});
     });
   });
-  preview();
+  preview(); completionChecks();
 })();
