@@ -2,7 +2,10 @@
 {% block title %}Hàng tôi giữ{% endblock %}
 {% block main %}<h1>{{ 'Thợ đang giữ' if can_manage else 'Hàng tôi giữ' }}</h1>
 {% if can_manage %}<form class="card form" action="/hang-toi-giu"><div data-picker data-holder-picker><label>Chọn thợ<input value="{{ holder.full_name if holder else '' }}" data-live=".holder-options" data-source="/kho/tim-tho" autocomplete="off"></label><input type="hidden" name="tho" value="{{ holder.id if holder else '' }}" data-picked-value><div class="holder-options product-options"></div></div><button>Xem hàng thợ giữ</button></form>{% endif %}
-{% if warehouse and can_return %}<p><a class="btn primary" href="/tho-tra-hang/moi">Trả kho / Báo hư</a></p>{% endif %}
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if warehouse and can_return %}<p class="stock-actions"><a class="btn primary" href="/hang-toi-giu/xin-linh-kien">Yêu cầu linh kiện</a> <a class="btn primary" href="/tho-tra-hang/moi">Trả kho / Báo hư</a></p>{% endif %}
+{% if stock_requests %}<section class="card" id="xin-linh-kien"><h2>Yêu cầu linh kiện mang theo</h2>{% for r in stock_requests %}<div class="work-row"><p><strong>{{ r.number }}</strong> · {{ r.product_code }} · {{ r.qty|qty }} · {{ part_statuses[r.status] }}{% if r.decision_note %} · {{ r.decision_note }}{% endif %}</p>
+{% if r.status=='CHO_CAP' %}<form method="post" action="/hang-toi-giu/xin-linh-kien/{{ r.id }}/huy"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version }}"><button class="link">Hủy yêu cầu</button></form>{% endif %}</div>{% endfor %}</section>{% endif %}
 {% if return_requests %}<section class="card"><h2>Yêu cầu trả kho / Báo hư</h2>{% for r in return_requests %}<p><a href="/tho-tra-hang/{{ r.id }}">{{ r.number }}</a> · {{ {'CHO_NHAN':'Chờ nhận','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'}[r.status] }}</p>{% endfor %}</section>{% endif %}
 {% if warehouse %}<div class="bar"><h2>{{ warehouse.code }} · {{ warehouse.name }}</h2>{% if can_manage %}<a class="btn primary" href="/phieu-kho/moi?loai=CK&amp;kho_nguon={{ warehouse.code }}">Trả kho</a>{% endif %}</div>
 <div class="work-rows">{% for r in rows %}<article class="card work-row"><strong>{{ r.product_code }} · {{ r.name }}</strong><span>Số lượng đang giữ: {{ r.qty }}</span>
