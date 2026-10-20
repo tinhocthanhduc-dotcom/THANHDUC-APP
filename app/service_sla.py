@@ -27,7 +27,10 @@ def end_of_day(now: datetime) -> datetime:
     return end if end > local else end + timedelta(days=1)
 
 
-def due_at(status: str, priority: str, now: datetime, appointment_at: datetime | None) -> datetime | None:
+def due_at(status: str, priority: str, now: datetime, appointment_at: datetime | None, appointment_slot: str | None = None) -> datetime | None:
+    if status in ('DA_NHAN','DA_HEN') and appointment_at is not None and appointment_slot is not None:
+        from .service_appointments import end
+        return end(appointment_at, appointment_slot)
     rule = SLA.get(status, {}).get(priority)
     if rule is None:
         return None

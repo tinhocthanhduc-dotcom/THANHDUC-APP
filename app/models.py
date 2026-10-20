@@ -309,7 +309,7 @@ class StockMinLevel(Base):
 
 SERVICE_KINDS = ("SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY")
 SERVICE_PRIORITIES = ("KHAN", "GAP", "THUONG")
-SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
+SERVICE_STATUSES = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY", "KHACH_HEN_SAU")
 VAT_RATES = (0, 5, 8, 10)
 
 
@@ -328,6 +328,7 @@ class ServiceTicket(Base):
         CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
         CheckConstraint("(warranty_of_id is null and warranty_basis is null) or (kind = 'BAO_HANH' and warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'))", name='ck_service_tickets_warranty'),
         CheckConstraint("warranty_of_id is null or warranty_of_id <> id", name='ck_service_tickets_warranty_self'),
+        CheckConstraint("appointment_slot in ('SANG','CHIEU','GIO') and appointment_at is not null or appointment_slot is null", name='ck_service_tickets_slot'),
         Index("ix_service_tickets_open", "status", "due_at"),
         CheckConstraint("hold_reason in ('','CHO_KHACH_DUYET','CHO_KY_THUAT_KHAC','CHO_DOI_TAC','HEN_NGAY_KHAC','KHAC')", name="ck_service_tickets_hold_reason"),
         CheckConstraint("billing in ('THU_TIEN','MIEN_PHI')", name="ck_service_tickets_billing"),
@@ -346,6 +347,7 @@ class ServiceTicket(Base):
     status: Mapped[str] = mapped_column(String(16), default="MOI")
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    appointment_slot: Mapped[str | None] = mapped_column(String(5))
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     hold_reason: Mapped[str] = mapped_column(String(24), default="", server_default="")
     status_reason: Mapped[str] = mapped_column(Text, default="")
@@ -400,7 +402,7 @@ class ServiceVisit(Base):
         CheckConstraint(_in('outcome', VISIT_OUTCOMES), name='ck_service_visits_outcome'),
         CheckConstraint('(ended_at is null) = (outcome is null)', name='ck_service_visits_closed'),
         CheckConstraint('ended_at is null or ended_at >= started_at', name='ck_service_visits_time'),
-        CheckConstraint("outcome not in ('HEN_LAI','KHONG_GAP_KHACH') or (next_appointment_at is not null and btrim(note) <> '')", name='ck_service_visits_appointment'),
+        CheckConstraint("(outcome <> 'KHONG_GAP_KHACH' or next_appointment_at is not null) and (outcome not in ('HEN_LAI','KHONG_GAP_KHACH') or btrim(note) <> '')", name='ck_service_visits_appointment'),
         Index('uq_service_visits_open_ticket', 'ticket_id', unique=True, postgresql_where=text('ended_at is null')),
         Index('ix_service_visits_technician_started', 'technician_id', 'started_at'),
     )
@@ -1318,3 +1320,45 @@ class SalesRefund(Base):
     cash_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
     version: Mapped[int] = mapped_column(Integer, default=1)
     __mapper_args__ = {'version_id_col': version}
+
+
+class TechnicianReturn(Base):
+    """Yêu cầu trả hàng tốt từ kho thợ, chỉ thủ kho xác nhận ghi CK."""
+    __tablename__ = 'technician_returns'
+    __table_args__ = (
+        CheckConstraint("status in ('CHO_NHAN','DA_NHAN','DA_HUY')", name='ck_technician_returns_status'),
+        CheckConstraint("(status = 'DA_HUY') = (btrim(void_reason) <> '')", name='ck_technician_returns_reason'),
+        CheckConstraint("warehouse_code <> to_warehouse_code", name='ck_technician_returns_warehouse'),
+        Index('ix_technician_returns_queue', 'status', 'created_at'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), index=True)
+    technician_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    to_warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    status: Mapped[str] = mapped_column(String(8), default='CHO_NHAN')
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
+    note: Mapped[str] = mapped_column(Text, default='')
+    void_reason: Mapped[str] = mapped_column(Text, default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    received_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    lines: Mapped[list['TechnicianReturnLine']] = relationship(order_by='TechnicianReturnLine.line_no')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class TechnicianReturnLine(Base):
+    __tablename__ = 'technician_return_lines'
+    __table_args__ = (
+        CheckConstraint('qty > 0', name='ck_technician_return_lines_qty'),
+        CheckConstraint('received_qty is null or (received_qty >= 0 and received_qty <= qty)', name='ck_technician_return_lines_received'),
+        UniqueConstraint('return_id', 'product_code'),
+    )
+    return_id: Mapped[int] = mapped_column(ForeignKey('technician_returns.id'), primary_key=True)
+    line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    received_qty: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))

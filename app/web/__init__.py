@@ -594,3 +594,6 @@ router.include_router(recovered_parts_router)
 
 from .technician import router as technician_router
 router.include_router(technician_router)
+
+from .technician_returns import router as technician_returns_router
+router.include_router(technician_returns_router)

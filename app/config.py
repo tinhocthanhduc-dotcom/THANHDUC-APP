@@ -1,7 +1,7 @@
 """Cấu hình đọc từ biến môi trường (file .env trên máy chủ, không đưa lên GitHub)."""
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,20 @@ class Settings(BaseSettings):
     token_minutes: int = 12 * 60
     search_limit: int = 20
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
+    slot_sang: str = '08:00-12:00'
+    slot_chieu: str = '13:30-17:30'
+
+    @field_validator('slot_sang', 'slot_chieu')
+    @classmethod
+    def valid_slot(cls, value):
+        import re
+        from datetime import time
+        if not re.fullmatch(r'\d{2}:\d{2}-\d{2}:\d{2}', value):
+            raise ValueError('Khung giờ phải là HH:MM-HH:MM')
+        start, end = (time.fromisoformat(v) for v in value.split('-'))
+        if start >= end: raise ValueError('Giờ kết thúc phải sau giờ bắt đầu')
+        return value
+
     # Bật trên máy chủ thật (HTTPS) để trình duyệt chỉ gửi cookie đăng nhập qua kết nối mã hóa.
     cookie_secure: bool = False
     # Thư mục lưu tệp đính kèm (ảnh nghiệm thu, biên bản). Sao lưu cùng database.

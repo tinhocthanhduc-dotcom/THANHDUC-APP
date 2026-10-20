@@ -65,7 +65,7 @@ def assign(ticket_id: int, body: ServiceAssign, user: User = Depends(current_use
 
 @router.post("/{ticket_id}/transition", response_model=ServiceTicketOut)
 def transition(ticket_id: int, body: ServiceTransition, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason)
+    return svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason, body.appointment_slot)
 
 
 @router.post("/{ticket_id}/transfer-request", response_model=ServiceTicketOut)
@@ -93,7 +93,7 @@ def visits(ticket_id: int, user: User = Depends(current_user), session: Session 
 
 @router.post('/{ticket_id}/no-show', response_model=ServiceTicketOut)
 def no_show(ticket_id: int, body: ServiceNoShow, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.no_show(session, user, ticket_id, body.version, body.note, body.appointment_at)
+    return svc.no_show(session, user, ticket_id, body.version, body.note, body.appointment_at, body.appointment_slot)
 
 
 @router.post('/{ticket_id}/warranty', response_model=ServiceTicketOut)

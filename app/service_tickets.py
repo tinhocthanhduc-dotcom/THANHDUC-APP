@@ -25,22 +25,22 @@ DISPATCHERS = ("dispatcher",)
 TECHNICIAN = "technician"
 
 OPEN = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
-CLOSED = ("HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
+CLOSED = ("HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY", "KHACH_HEN_SAU")
 # Trạng thái đích hợp lệ từ mỗi trạng thái, ngoài giao thợ (assign) và hủy (DA_HUY, chỉ điều phối).
 FLOW = {
     "DA_GIAO": {"DA_NHAN"},
     "DA_NHAN": {"DA_HEN", "KHONG_LAM_DUOC"},
     "DA_HEN": {"DA_HEN", "DANG_LAM", "KHONG_LAM_DUOC"},  # DA_HEN -> DA_HEN là dời lịch hẹn
-    "DANG_LAM": {"DA_HEN", "HOAN_THANH", "CHO_LINH_KIEN", "TAM_DUNG", "KHONG_LAM_DUOC"},
-    "CHO_LINH_KIEN": {"DANG_LAM", "KHONG_LAM_DUOC"},
-    "TAM_DUNG": {"DANG_LAM", "KHONG_LAM_DUOC"},
+    "DANG_LAM": {"DA_HEN", "HOAN_THANH", "CHO_LINH_KIEN", "TAM_DUNG", "KHONG_LAM_DUOC", "KHACH_HEN_SAU"},
+    "CHO_LINH_KIEN": {"DANG_LAM", "KHONG_LAM_DUOC", "KHACH_HEN_SAU"},
+    "TAM_DUNG": {"DANG_LAM", "KHONG_LAM_DUOC", "KHACH_HEN_SAU"},
     "HOAN_THANH": {"DANG_LAM", "DA_DONG"},  # chỉ điều phối: mở lại nghiệm thu (có lý do) hoặc đóng hồ sơ
 }
 # Phiếu đã hoàn thành chỉ điều phối được mở lại, hủy hoặc đóng; hủy lúc đó trả vật tư về kho.
 CANCELLABLE = OPEN + ("HOAN_THANH",)
 HOLD_REASONS = {"CHO_KHACH_DUYET": "Chờ khách duyệt", "CHO_KY_THUAT_KHAC": "Chờ kỹ thuật khác",
                 "CHO_DOI_TAC": "Chờ đối tác", "HEN_NGAY_KHAC": "Hẹn ngày khác", "KHAC": "Khác"}
-NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY")
+NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY", "KHACH_HEN_SAU")
 ASSIGNABLE = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
 
 
@@ -125,10 +125,14 @@ def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket
         serial = _serial(body.serial)
         _check_site_and_serial(session, customer.code, body.site_id, serial)
         now = _now()
+        if body.appointment_at is not None or body.appointment_slot is not None:
+            from .service_appointments import validate
+            validate(body.appointment_at, body.appointment_slot, now)
         t = ServiceTicket(
             number=next_number(session, "DV", now.astimezone(service_sla.TZ).date()),
             customer_code=customer.code, site_id=body.site_id, serial=serial,
             kind=body.kind, priority=body.priority, symptom=body.symptom, status="MOI",
+            appointment_at=body.appointment_at, appointment_slot=body.appointment_slot,
             due_at=service_sla.due_at("MOI", body.priority, now, None), created_by=user.id,
         )
         from . import service_warranty
@@ -161,7 +165,7 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
         if from_status == "DANG_LAM":
             service_visits.close_visit(session, t, "CHUYEN_THO", _now(), note.strip())
         action = "assign" if t.assignee_id is None else "reassign"
-        t.assignee_id, t.status, t.transfer_request, t.appointment_at = tech.id, "DA_GIAO", "", None
+        t.assignee_id, t.status, t.transfer_request = tech.id, "DA_GIAO", ""
         t.hold_reason = ""
         t.due_at = service_sla.due_at("DA_GIAO", t.priority, _now(), None)
         _record(session, user, t, action, before, from_status, note)
@@ -169,33 +173,36 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
 
 
 def transition(session: Session, user: User, ticket_id: int, to_status: str, version: int | None,
-               note: str = "", appointment_at: datetime | None = None, hold_reason: str = "") -> ServiceTicket:
-    return _transition(session, user, ticket_id, to_status, version, note, appointment_at, hold_reason)
+               note: str = "", appointment_at: datetime | None = None, hold_reason: str = "", appointment_slot: str | None = None) -> ServiceTicket:
+    if to_status == "KHACH_HEN_SAU":
+        from .technician_returns import close_ticket
+        return close_ticket(session, user, ticket_id, version, note)
+    return _transition(session, user, ticket_id, to_status, version, note, appointment_at, hold_reason, appointment_slot=appointment_slot)
 
 
 def no_show(session: Session, user: User, ticket_id: int, version: int | None,
-            note: str = '', appointment_at: datetime | None = None) -> ServiceTicket:
+            note: str = '', appointment_at: datetime | None = None, appointment_slot: str | None = None) -> ServiceTicket:
     """Ghi nhận lần đến không gặp khách bằng đường dời hẹn hiện có."""
-    return _transition(session, user, ticket_id, 'DA_HEN', version, note, appointment_at, no_show=True)
+    return _transition(session, user, ticket_id, 'DA_HEN', version, note, appointment_at, no_show=True, appointment_slot=appointment_slot)
 
 
 def _transition(session: Session, user: User, ticket_id: int, to_status: str, version: int | None,
                 note: str = '', appointment_at: datetime | None = None, hold_reason: str = '',
-                no_show: bool = False) -> ServiceTicket:
+                no_show: bool = False, appointment_slot: str | None = None) -> ServiceTicket:
     note = (note or "").strip()
     with _transaction(session):
         t = _get(session, user, ticket_id, lock=True)
         _check_version(t, version)
-        return transition_in_tx(session, user, t, to_status, note, appointment_at, hold_reason, no_show)
+        return transition_in_tx(session, user, t, to_status, note, appointment_at, hold_reason, no_show, appointment_slot)
 
 
 def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: str,
                      note: str = "", appointment_at: datetime | None = None, hold_reason: str = "",
-                     no_show: bool = False) -> ServiceTicket:
+                     no_show: bool = False, appointment_slot: str | None = None) -> ServiceTicket:
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
     note = (note or "").strip()
     is_dispatcher = has_role(user, *DISPATCHERS)
-    if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG') and (
+    if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG','KHACH_HEN_SAU') and (
             is_dispatcher or (t.assignee_id == user.id and to_status != 'DA_HUY' and t.status != 'HOAN_THANH')):
         from .equipment_custody import check_returned
         check_returned(session,t)
@@ -207,22 +214,23 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     else:
         if not is_dispatcher and (t.assignee_id != user.id or t.status == "HOAN_THANH"):
             raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được cập nhật phiếu này.", status=403)
-        if to_status not in FLOW.get(t.status, ()):
+        direct_arrival = t.status == "DA_NHAN" and to_status == "DANG_LAM" and t.appointment_at is not None
+        if not direct_arrival and to_status not in FLOW.get(t.status, ()):
             raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
                                 {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
     if to_status == 'DA_DONG':
         from .service_recovered_parts import check_received
         check_received(session, t)
     returning = t.status == 'DANG_LAM' and to_status == 'DA_HEN'
-    if no_show and t.status != 'DA_HEN':
+    if no_show and not (t.status == 'DA_HEN' or (t.status == 'DA_NHAN' and t.appointment_at is not None)):
         raise BusinessError('BAD_STATUS', 'Chỉ ghi không gặp khách trên phiếu đang hẹn.', status=409)
     if returning or no_show:
         if not note:
             raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do / người liên hệ và đã gọi khách chưa.')
         if appointment_at is None:
             raise BusinessError('APPOINTMENT_REQUIRED', 'Phải chọn giờ hẹn mới.')
-        if appointment_at.tzinfo is None or appointment_at <= _now():
-            raise BusinessError('BAD_APPOINTMENT', 'Giờ hẹn mới phải sau hiện tại.')
+        from .service_appointments import validate
+        validate(appointment_at, appointment_slot, _now())
     if to_status == "TAM_DUNG":
         if hold_reason not in HOLD_REASONS:
             raise BusinessError("HOLD_REASON_REQUIRED", "Phải chọn lý do tạm dừng.")
@@ -244,7 +252,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     if to_status == "DA_HEN":
         if appointment_at is None:
             raise BusinessError("APPOINTMENT_REQUIRED", "Phải chọn giờ hẹn khách.")
-    elif appointment_at is not None:
+    elif appointment_at is not None or appointment_slot is not None:
         raise BusinessError("BAD_APPOINTMENT", "Chỉ gửi giờ hẹn khi chốt lịch hẹn.")
     before, from_status = snapshot(t), t.status
     from . import service_charges  # service_charges cũng dùng module này
@@ -255,7 +263,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         service_charges.release(session, user, t, note)
     stamp = _now()
     if from_status == 'DANG_LAM':
-        outcome = {'HOAN_THANH': 'XONG', 'DA_HEN': 'HEN_LAI', 'DA_HUY': 'HUY'}.get(to_status, to_status)
+        outcome = {'HOAN_THANH': 'XONG', 'DA_HEN': 'HEN_LAI', 'DA_HUY': 'HUY', 'KHACH_HEN_SAU': 'HEN_LAI'}.get(to_status, to_status)
         service_visits.close_visit(session, t, outcome, stamp, note, appointment_at if returning else None)
     if to_status == 'DANG_LAM':
         service_visits.open_visit(session, t, stamp)
@@ -263,8 +271,15 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         service_visits.open_visit(session, t, stamp)
         service_visits.close_visit(session, t, 'KHONG_GAP_KHACH', stamp, note, appointment_at)
     if to_status == 'DA_HEN':
+        if appointment_slot is not None:
+            from .service_appointments import validate
+            validate(appointment_at, appointment_slot, _now())
         t.appointment_at = appointment_at
+        t.appointment_slot = appointment_slot
     t.status = to_status
+    if to_status == 'KHACH_HEN_SAU':
+        t.receivable = 0
+        t.appointment_at = t.appointment_slot = None
     if to_status == "TAM_DUNG":
         t.hold_reason = hold_reason
     elif to_status == "DANG_LAM":
@@ -273,7 +288,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         t.status_reason = note
     if to_status in CLOSED:
         t.transfer_request = ""
-    t.due_at = service_sla.due_at(to_status, t.priority, _now(), t.appointment_at)
+    t.due_at = service_sla.due_at(to_status, t.priority, _now(), t.appointment_at, t.appointment_slot)
     action = ("cancel" if to_status == "DA_HUY" else "reschedule" if from_status == to_status
               else "reopen" if reopening else "close" if to_status == "DA_DONG" else "transition")
     if no_show:
@@ -347,3 +362,18 @@ def open_counts(session: Session) -> dict[int, int]:
         .group_by(ServiceTicket.assignee_id)
     )
     return {uid: n for uid, n in rows}
+
+
+def reschedule(session, user, ticket_id, version, appointment_at, appointment_slot=None, note=''):
+    _require(user, DISPATCHERS, 'Chỉ điều phối được đổi hẹn trước khi làm.')
+    with _transaction(session):
+        t = _get(session,user,ticket_id,lock=True);_check_version(t,version)
+        if t.status not in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'):
+            raise BusinessError('BAD_STATUS','Chỉ đổi hẹn trước khi bắt đầu làm.',status=409)
+        from .service_appointments import validate
+        validate(appointment_at,appointment_slot,_now())
+        before=snapshot(t);t.appointment_at=appointment_at;t.appointment_slot=appointment_slot
+        t.due_at=service_sla.due_at(t.status,t.priority,_now(),t.appointment_at,t.appointment_slot)
+        t.version += 1
+        _record(session,user,t,'reschedule',before,t.status,note)
+    return t

@@ -1,5 +1,6 @@
 {% extends "base.jinja" %}
-{% block title %}Nhận đơn dịch vụ{% endblock %}
+{% block title %}Nhận đơn dịch vụ<script src="/static/appointments.js" defer></script>
+{% endblock %}
 {% block main %}
 <div class="bar"><h1>Nhận đơn dịch vụ</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
 {% include 'buoc_tiep.jinja' %}
@@ -24,9 +25,11 @@
 <fieldset><legend>Mức ưu tiên</legend><div class="seg stock-seg">
 {% for value, label in service_priorities.items() %}<label><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></fieldset>
+{% with ap_form=d, returning=false, allow_later=false %}{% include 'hen_khach.jinja' %}{% endwith %}
 <label>Mô tả lỗi<textarea name="symptom" required minlength="3" maxlength="4000">{{ d.symptom }}</textarea></label>
 </fieldset>
 {% if can_create %}<button class="primary">Nhận đơn</button>{% endif %}
 </form>
 <script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script>
+<script src="/static/appointments.js" defer></script>
 {% endblock %}

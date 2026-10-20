@@ -52,6 +52,9 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         rows = list(session.scalars(select(ServiceTicket).where(opened)
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())))
         title = "Đơn đang mở"
+    elif view == 'deferred':
+        rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status=='KHACH_HEN_SAU').order_by(ServiceTicket.id.desc())))
+        title = 'Khách hẹn lần sau'
     elif view == "paused":
         rows = svc.search(session, user, status="TAM_DUNG", limit=count_paused or 1)
         title = "Tạm dừng"
@@ -69,7 +72,7 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
     visit_counts = dict(session.execute(select(ServiceVisit.ticket_id, func.count()).where(
         ServiceVisit.ticket_id.in_([t.id for t in rows])).group_by(ServiceVisit.ticket_id)).all())
     return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
-                  count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
+                  count_deferred=session.scalar(select(func.count()).select_from(ServiceTicket).where(ServiceTicket.status=='KHACH_HEN_SAU')),count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
                   users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
                   now=now, delay=_delay)
 
@@ -125,13 +128,14 @@ def _report(session, start, end, since, until):
     # D6 cho mở lại nghiệm thu: chỉ tính lần hoàn thành cuối của phiếu hiện vẫn hoàn thành/đóng.
     # Không nhân đôi một phiếu khi hoàn thành lại, không tính phiếu đã hủy hoặc đang mở lại.
     final_steps = select(func.max(ServiceStep.id)).where(
-        ServiceStep.to_status.in_(("HOAN_THANH", "KHONG_LAM_DUOC")),
+        ServiceStep.to_status.in_(("HOAN_THANH", "KHONG_LAM_DUOC", "KHACH_HEN_SAU")),
         ServiceStep.action == "transition",
     ).group_by(ServiceStep.ticket_id)
     endings = list(session.scalars(select(ServiceStep).join(ServiceTicket, ServiceTicket.id == ServiceStep.ticket_id).where(
         ServiceStep.id.in_(final_steps), ServiceStep.at >= since, ServiceStep.at < until,
         or_(and_(ServiceStep.to_status == "HOAN_THANH", ServiceTicket.status.in_(("HOAN_THANH", "DA_DONG"))),
-            and_(ServiceStep.to_status == "KHONG_LAM_DUOC", ServiceTicket.status == "KHONG_LAM_DUOC")),
+            and_(ServiceStep.to_status == "KHONG_LAM_DUOC", ServiceTicket.status == "KHONG_LAM_DUOC"),
+            and_(ServiceStep.to_status == "KHACH_HEN_SAU", ServiceTicket.status == "KHACH_HEN_SAU")),
     ).order_by(ServiceStep.id)))
     ticket_ids = {step.ticket_id for step in endings}
     history = defaultdict(list)
@@ -154,6 +158,8 @@ def _report(session, start, end, since, until):
                 elapsed = (ending.at - assignments[-1].at).total_seconds() / 60
                 if elapsed >= 0:
                     row['durations'].append(elapsed)
+        elif ending.to_status == 'KHACH_HEN_SAU':
+            row['deferred'] = row.get('deferred',0)+1
         else:
             row['failed'] += 1
         flags = [lateness[s.id] for s in history[ending.ticket_id] if s.id <= ending.id]
@@ -193,6 +199,7 @@ def _report(session, start, end, since, until):
             completed=0, failed=0, durations=[], late=0, classified=0, unknown=0))
         row['warranty_calls'] = count
     for row in technicians.values():
+        row.setdefault('deferred',0)
         row.setdefault('warranty_calls', 0)
         for key in ('visits', 'visits_done', 'visits_return', 'visits_no_show', 'visit_hours'):
             row.setdefault(key, 0)
@@ -256,12 +263,12 @@ def report_csv(request: Request, user: User = Depends(dispatch_user), session: S
             writer.writerow([row.number, _csv_text(names.get(row.assignee_id,'')), 'Tạm dừng', svc.HOLD_REASONS.get(row.hold_reason,'')])
         return Response("\ufeff" + output.getvalue(), media_type='text/csv; charset=utf-8',
                         headers={'Content-Disposition':'attachment; filename="tam-dung.csv"', 'Cache-Control':'private, no-store'})
-    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách", "Bị gọi bảo hành"])
+    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách", "Bị gọi bảo hành", "Khách hẹn lần sau"])
     for row in technicians:
         writer.writerow([_csv_text(row['name']), row['completed'], row['failed'],
                          f"{row['avg_minutes']:.1f}" if row['avg_minutes'] is not None else "",
                          f"{row['late_rate']:.1f}" if row['late_rate'] is not None else "", row['unknown'], row['visits'], row['visits_done'],
-                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}", row['warranty_calls']])
+                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}", row['warranty_calls'], row['deferred']])
     writer.writerow([])
     writer.writerow(["Ngày", "Đơn nhận", "Đơn hoàn thành"])
     writer.writerows([row['day'], row['received'], row['completed']] for row in daily)

@@ -321,7 +321,10 @@ class StockMinLevelIn(BaseModel):
 
 ServiceKind = Literal["SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY"]
 ServicePriority = Literal["KHAN", "GAP", "THUONG"]
-ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY"]
+ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY", "KHACH_HEN_SAU"]
+
+
+AppointmentSlot = Literal["SANG", "CHIEU", "GIO"]
 
 
 class ServiceTicketIn(BaseModel):
@@ -335,6 +338,8 @@ class ServiceTicketIn(BaseModel):
     symptom: str = Field(min_length=3, max_length=4000)
 
     warranty_of_id: int | None = Field(default=None, ge=1)
+    appointment_at: AwareDatetime | None = None
+    appointment_slot: AppointmentSlot | None = None
 
     @model_validator(mode='after')
     def warranty_kind(self):
@@ -399,6 +404,7 @@ class ServiceTransition(BaseModel):
     version: int | None = Field(default=None, ge=1)
     note: str = Field(default="", max_length=2000)
     appointment_at: AwareDatetime | None = None
+    appointment_slot: AppointmentSlot | None = None
 
 
 class ServiceNoShow(BaseModel):
@@ -406,6 +412,7 @@ class ServiceNoShow(BaseModel):
     version: int | None = Field(default=None, ge=1)
     note: str = Field(default='', max_length=2000)
     appointment_at: AwareDatetime | None = None
+    appointment_slot: AppointmentSlot | None = None
 
 
 class ServiceVisitOut(BaseModel):
@@ -458,6 +465,7 @@ class ServiceTicketOut(BaseModel):
     status: ServiceStatus
     assignee_id: int | None
     appointment_at: datetime | None
+    appointment_slot: AppointmentSlot | None
     due_at: datetime | None
     status_reason: str
     hold_reason: str

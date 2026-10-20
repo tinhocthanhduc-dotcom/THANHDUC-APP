@@ -1,0 +1,8 @@
+<section data-return-fields><p class="alert warn">Lần sau sẽ kết thúc phiếu này, không tính tiền. Khi khách hẹn lại, điều phối tạo phiếu tiếp.</p><h3>Trả vật tư về kho</h3><p class="hint">Kho thợ chỉ giảm khi thủ kho xác nhận đã nhận. Có thể trả thêm hàng đang giữ bằng cách sửa số trả từ 0.</p>
+{% for row in return_rows %}<fieldset class="card"><legend>{{ return_names.get(row.product_code,row.product_code) }} · {{ row.product_code }}</legend>
+<input type="hidden" name="return_product" value="{{ row.product_code }}">
+{% if row.held is defined %}<p>Đã cấp: {{ row.supplied|qty }} · Đang giữ: {{ row.held|qty }}</p>{% endif %}
+<label>Số trả<input name="return_qty" value="{{ row.qty }}" inputmode="decimal" required></label>
+<label>Kho nhận<select name="return_warehouse"><option value="">Chọn kho nhận</option>{% for warehouse in return_warehouses %}<option value="{{ warehouse.code }}" {% if row.to_warehouse_code==warehouse.code %}selected{% endif %}>{{ warehouse.code }} · {{ warehouse.name }}</option>{% endfor %}</select></label>
+</fieldset>{% else %}<p>Không có vật tư đang giữ cần trả.</p>{% endfor %}
+</section>

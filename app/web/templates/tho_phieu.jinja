@@ -3,17 +3,18 @@
 {% macro transition(target, primary=false) %}{% set action='transition:' ~ target %}
 <form id="service-{{ target }}" method="post" action="/dich-vu/{{ t.id }}/transition" class="card form">
 {{ hidden(action) }}<input type="hidden" name="to_status" value="{{ target }}"><h2>{{ tech_primary.label if primary else transition_labels[target] }}</h2>
-{% if target=='DA_HEN' %}<label>Ngày giờ hẹn (giờ Việt Nam)<input type="datetime-local" name="appointment_at" value="{{ form.get('appointment_at','') if failed_action==action else appointment_value }}" required></label>{% endif %}
+{% if target=='DA_HEN' %}{% with ap_form=form if failed_action==action else {}, returning=t.status=='DANG_LAM', allow_later=t.status=='DANG_LAM' %}{% include 'hen_khach.jinja' %}{% endwith %}{% if t.status=='DANG_LAM' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}{% endif %}
+{% if target=='KHACH_HEN_SAU' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}
 {% if target=='TAM_DUNG' %}<label>Lý do tạm dừng<select name="hold_reason" required><option value="">Chọn lý do</option>{% for code,label in hold_reasons.items() %}<option value="{{ code }}" {% if failed_action==action and form.get('hold_reason')==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
-{% if target not in ['DA_NHAN','DANG_LAM'] %}<label>{{ 'Lý do' if target in ['DA_HEN','KHONG_LAM_DUOC','TAM_DUNG'] else 'Ghi chú' }}<textarea name="note" maxlength="2000" {% if target=='KHONG_LAM_DUOC' or (target=='DA_HEN' and t.status=='DANG_LAM') %}required{% endif %}>{{ form.get('note','') if failed_action==action else '' }}</textarea></label>{% endif %}
-{% if not primary %}<button>{{ transition_labels[target] }}</button>{% endif %}</form>
+{% if target not in ['DA_NHAN','DANG_LAM'] %}<label>{{ 'Lý do' if target in ['DA_HEN','KHONG_LAM_DUOC','TAM_DUNG','KHACH_HEN_SAU'] else 'Ghi chú' }}<textarea name="note" maxlength="2000" {% if target in ['KHONG_LAM_DUOC','KHACH_HEN_SAU'] or (target=='DA_HEN' and t.status=='DANG_LAM') %}required{% endif %}>{{ form.get('note','') if failed_action==action else '' }}</textarea></label>{% endif %}
+{% if not primary %}<button {% if target=='DA_HEN' %}data-appointment-submit data-label="{{ transition_labels[target] }}"{% endif %}>{{ transition_labels[target] }}</button>{% endif %}</form>
 {% endmacro %}
 {% block title %}{{ t.number }} · Thợ{% endblock %}
 {% block main %}<div class="tho-screen" data-technician-ticket="{{ t.id }}">
 <a href="/tho">← Hôm nay</a><section class="card"><h1>{{ t.number }}</h1><h2>{{ customer.name }}</h2>
 <p>{{ machine_name }} {{ '· ' ~ t.serial if t.serial else '' }}</p><p class="service-text">{{ t.symptom }}</p>
-<p>{{ service_statuses[t.status] }}</p><div class="tho-contact">{% if phone %}<a class="btn" href="tel:{{ phone }}">Gọi</a>{% endif %}{% if maps %}<a class="btn" href="{{ maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</div></section>
-<ol class="tho-progress" aria-label="Bước dịch vụ">{% for label in ['Nhận','Hẹn','Đến khách','Xong'] %}<li {% if loop.index0==step_index %}aria-current="step"{% endif %}>{{ label }}</li>{% endfor %}</ol>
+<p>{{ service_statuses[t.status] }}</p>{% if t.appointment_at %}<p>Hẹn: {{ t.appointment_at|appointment_label(t.appointment_slot) }}</p>{% endif %}<div class="tho-contact">{% if phone %}<a class="btn" href="tel:{{ phone }}">Gọi</a>{% endif %}{% if maps %}<a class="btn" href="{{ maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</div></section>
+<ol class="tho-progress" aria-label="Bước dịch vụ">{% for label in (['Nhận','Đến khách','Xong'] if t.appointment_at else ['Nhận','Hẹn','Đến khách','Xong']) %}<li {% if loop.index0==step_index %}aria-current="step"{% endif %}>{{ label }}</li>{% endfor %}</ol>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if t.status=='DANG_LAM' %}
 {% include 'dich_vu_anh.jinja' %}{% include 'tho_hoan_thanh.jinja' %}
@@ -28,12 +29,12 @@
 {% if exception_targets or can_no_show or can_request_transfer or can_request_parts %}<details class="card tho-other" {% if failed_action and failed_action!='transition:' ~ current_target or part_form %}open{% endif %}>
 <summary>Việc khác</summary><div class="tho-other-forms">
 {% for target in exception_targets %}{{ transition(target) }}{% endfor %}
-{% if can_no_show %}<form id="service-no-show" method="post" action="/dich-vu/{{ t.id }}/no-show" class="card form"><h2>Không gặp khách</h2>{{ hidden('no-show') }}<label>Giờ hẹn mới<input type="datetime-local" name="appointment_at" value="{{ form.get('appointment_at','') if failed_action=='no-show' else '' }}" required></label><label>Người liên hệ, đã gọi chưa / lý do<textarea name="note" required maxlength="2000">{{ form.get('note','') if failed_action=='no-show' else '' }}</textarea></label><button>Không gặp khách</button></form>{% endif %}
+{% if can_no_show %}<form id="service-no-show" method="post" action="/dich-vu/{{ t.id }}/no-show" class="card form"><h2>Không gặp khách</h2>{{ hidden('no-show') }}{% with ap_form=form if failed_action=='no-show' else {}, returning=true, allow_later=false %}{% include 'hen_khach.jinja' %}{% endwith %}<label>Người liên hệ, đã gọi chưa / lý do<textarea name="note" required maxlength="2000">{{ form.get('note','') if failed_action=='no-show' else '' }}</textarea></label><button>Không gặp khách</button></form>{% endif %}
 {% if can_request_parts %}{% include 'dich_vu_yeu_cau_form.jinja' %}{% endif %}
 {% if can_request_transfer %}<form id="service-transfer" method="post" action="/dich-vu/{{ t.id }}/transfer-request" class="card form"><h2>Xin chuyển việc</h2>{{ hidden('transfer-request') }}<label>Lý do<textarea name="reason" required minlength="3" maxlength="2000">{{ form.get('reason','') if failed_action=='transfer-request' else '' }}</textarea></label><button>Xin chuyển việc</button></form>{% endif %}
 </div></details>{% endif %}
-<p><a href="/dich-vu/{{ t.id }}">Xem chi tiết đầy đủ</a></p>
+{% include 'tra_vat_tu_history.jinja' %}<p><a href="/dich-vu/{{ t.id }}">Xem chi tiết đầy đủ</a></p>
 <details class="card"><summary>Lịch sử</summary><ol class="service-history">{% for step in t.steps %}<li>{{ step.at|service_time }} · {{ step_labels.get(step.action,step.action) }} · {{ service_statuses[step.to_status] }}{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}</ol>
 <h2>Các lượt đến khách</h2>{% for visit in visits %}<p>{{ visit.started_at|service_time }} · {{ visit_outcomes.get(visit.outcome,'Đang ở khách') }} · {{ visit.note }}</p>{% endfor %}</details>
 <div class="tho-bottom-action">{% if tech_primary %}<button class="primary" type="submit" form="{{ tech_primary.form }}" data-tho-primary {% if t.status=='DANG_LAM' and not completion_ready %}disabled aria-describedby="completion-checks"{% endif %}>{{ tech_primary.label }}</button>{% else %}<a class="btn primary" href="/tho">Về Hôm nay</a>{% endif %}</div>
-</div><script src="/static/parts.js" defer></script><script src="/static/services.js" defer></script><script src="/static/recovered-parts.js" defer></script>{% endblock %}
+</div><script src="/static/appointments.js" defer></script><script src="/static/parts.js" defer></script><script src="/static/services.js" defer></script><script src="/static/recovered-parts.js" defer></script>{% endblock %}
