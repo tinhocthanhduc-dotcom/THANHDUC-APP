@@ -37,6 +37,12 @@ def proposal(session, ticket, lock=False):
         StockBalance.warehouse_code==own.code if own else False, StockBalance.qty>0)).all())
     allocated = defaultdict(Decimal)
     for row in requests: allocated[(row.product_code, row.from_warehouse_code)] += row.qty
+    planned=Counter()
+    for line in getattr(ticket,'lines',()):
+        if line.kind=='VAT_TU' and own and line.warehouse_code==own.code:planned[line.product_code]+=line.qty
+    for code,qty in planned.items():
+        supplied=sum(amount for (product,_),amount in allocated.items() if product==code)
+        if qty>supplied:allocated[(code,default)]+=qty-supplied
     remaining = dict(stocks); rows = []
     for (product, dest), supplied in allocated.items():
         available = remaining.get(product, Decimal(0)); qty = min(supplied, available)

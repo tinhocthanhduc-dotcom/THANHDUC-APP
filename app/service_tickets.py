@@ -162,10 +162,13 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
         return assign_in_tx(session,user,ticket_id,assignee_id,version,note)
 
 
-def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "") -> ServiceTicket:
+def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "", *, _technician_transfer=False) -> ServiceTicket:
     """Giao thợ, hoặc chuyển sang thợ khác (cũng là cách duyệt yêu cầu chuyển việc). Phiếu về DA_GIAO."""
-    _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
+    if not _technician_transfer:
+        _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
     t = _get(session, user, ticket_id, lock=True)
+    if _technician_transfer and ("technician" not in user.roles or t.assignee_id!=user.id or t.status not in ("DA_GIAO","DA_NHAN","DA_HEN","DANG_LAM","CHO_LINH_KIEN","TAM_DUNG")):
+        raise BusinessError("FORBIDDEN","Không được chuyển phiếu này.",status=403)
     _check_version(t, version)
     if t.status not in ASSIGNABLE:
         raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không giao thợ được.", {"status": t.status}, status=409)
@@ -173,7 +176,7 @@ def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int,
     if t.assignee_id == tech.id and t.status == "DA_GIAO":
         raise BusinessError("SAME_ASSIGNEE", "Phiếu đang giao cho thợ này rồi.", status=409)
     before, from_status = snapshot(t), t.status
-    if from_status == "DANG_LAM":
+    if from_status == "DANG_LAM" and not _technician_transfer:
         service_visits.close_visit(session, t, "CHUYEN_THO", _now(), note.strip())
     action = "assign" if t.assignee_id is None else "reassign"
     t.assignee_id, t.status, t.transfer_request = tech.id, "DA_GIAO", ""

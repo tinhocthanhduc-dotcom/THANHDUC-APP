@@ -1685,7 +1685,7 @@ def test_d7_csv_headers_and_vietnam_date_defaults(client, service_people, d7_his
     assert 'name="from" value="2026-10-05"' in response.text
     assert 'name="to" value="2026-10-11"' in response.text
     rows = d7_csv(client)
-    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách', 'Bị gọi bảo hành', 'Khách hẹn lần sau']
+    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách', 'Bị gọi bảo hành', 'Khách hẹn lần sau', 'Doanh thu chưa VAT', 'Chi phí vật tư', 'Chênh lệch']
     assert ['Ngày', 'Đơn nhận', 'Đơn hoàn thành'] in rows
     response = client.get('/dieu-phoi/bao-cao.csv?from=2026-10-10&to=2026-10-10')
     assert response.content.startswith(b'\xef\xbb\xbf')

@@ -187,6 +187,13 @@ def hide(session: Session, user: User, attachment_id: int, reason: str, version:
     if len(reason) < 3:
         raise BusinessError("REASON_REQUIRED", "Ẩn tệp phải ghi lý do.")
     with _transaction(session):
+        source=session.get(Attachment,attachment_id)
+        if source and source.entity=='service_ticket' and 'technician' in user.roles and not has_role(user,*HIDERS):
+            t=service_tickets._get(session,user,int(source.entity_id),lock=True)
+            if source.created_by!=user.id or t.assignee_id!=user.id:
+                raise BusinessError('FORBIDDEN','Chỉ xóa ảnh do chính mình tải trên phiếu của mình.',status=403)
+            if t.status not in service_tickets.OPEN:
+                raise BusinessError('BAD_STATUS','Không xóa ảnh sau khi phiếu đã hoàn thành hoặc đóng.',status=409)
         a = _get(session, user, attachment_id, lock=True)
         if a.hidden:
             raise BusinessError("ALREADY_HIDDEN", "Tệp đã ẩn.", status=409)

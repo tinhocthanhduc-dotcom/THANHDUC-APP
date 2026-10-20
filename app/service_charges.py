@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from . import audit, service_sla, service_tickets, stock_docs, stock_posting, technician_stock
 from .errors import BusinessError
-from .models import Product, SalesReceipt, ServiceLine, ServiceTicket, User, Warehouse
+from .models import Product, SalesReceipt, ServiceLine, ServiceTicket, User, Warehouse, StockBalance, StockDocLine, StockLedger, StockDoc
 from .schemas import ServiceCharges, ServiceLineOut, StockDocIn, StockDocLineIn
 from .security import has_role
 from .stock_docs import _transaction
@@ -126,6 +126,12 @@ def complete(session: Session, user: User, t: ServiceTicket) -> None:
                           reason=f"Vật tư phiếu dịch vụ {t.number}",
                           lines=[StockDocLineIn(product_code=x.product_code, qty=x.qty, note=f"{t.number} dòng {x.line_no}") for x in parts])
         doc = stock_docs.insert(session, user, body)
+        costs = {}
+        for code in sorted({x.product_code for x in parts}):
+            bal=session.scalar(select(StockBalance).where(StockBalance.warehouse_code==wh,StockBalance.product_code==code).with_for_update().execution_options(populate_existing=True))
+            costs[code]=bal.avg_cost if bal else 0
+        for line in doc.lines:line.unit_cost=costs[line.product_code]
+        session.flush()
         stock_posting.post_in_tx(session, user, doc.id, None)
         for x in parts:
             x.stock_doc_id = doc.id
@@ -165,3 +171,13 @@ def receivables(session: Session, user: User, from_date: date | None = None, to_
         ticket.paid,ticket.pending,ticket.remaining = current['paid'],current['pending'],current['remaining']
         rows.append(ticket)
     return rows
+
+
+def material_costs(session, ticket_ids):
+    """Read each posted PX line once, even when a product occurs on several service lines."""
+    links=select(ServiceLine.ticket_id,ServiceLine.stock_doc_id).where(ServiceLine.ticket_id.in_(ticket_ids),ServiceLine.stock_doc_id.is_not(None)).distinct().subquery()
+    posted_cost=select(StockLedger.unit_cost).where(StockLedger.doc_id==StockDocLine.doc_id,StockLedger.line_no==StockDocLine.line_no,StockLedger.qty_out>0,StockLedger.is_reversal.is_(False)).limit(1).correlate(StockDocLine).scalar_subquery()
+    values=session.execute(select(links.c.ticket_id,StockDocLine.qty,func.coalesce(StockDocLine.unit_cost,posted_cost,0)).select_from(links).join(StockDoc,StockDoc.id==links.c.stock_doc_id).join(StockDocLine,StockDocLine.doc_id==StockDoc.id).where(StockDoc.kind=='PX',StockDoc.status=='DA_GHI'))
+    result={}
+    for ident,qty,cost in values:result[ident]=result.get(ident,Decimal(0))+qty*cost
+    return result
