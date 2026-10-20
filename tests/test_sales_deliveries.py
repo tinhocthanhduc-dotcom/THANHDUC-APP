@@ -205,9 +205,14 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     assert migration.down_revision=='0027'
     s3_spec=importlib.util.spec_from_file_location('s3_migration',file.parent/'0029_s3_ban_tai_quay.py')
     s3=importlib.util.module_from_spec(s3_spec);s3_spec.loader.exec_module(s3)
+    s5_spec=importlib.util.spec_from_file_location('s5_migration',file.parent/'0031_s5_tra_hang_hoan_tien.py')
+    s5=importlib.util.module_from_spec(s5_spec);s5_spec.loader.exec_module(s5)
     with engine.begin() as conn:
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s3,'op',Operations(MigrationContext.configure(conn)))
+        monkeypatch.setattr(s5,'op',Operations(MigrationContext.configure(conn)))
+        # Hạ lớp S5 phụ thuộc GH trước khi tái hiện schema S1/S2.
+        s5.downgrade()
         s3.downgrade()
         migration.downgrade()
         assert conn.scalar(text('select receivable from sales_orders where id=:id'),dict(id=wid))==waiting_total
@@ -221,6 +226,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         old_bt=conn.execute(text('select number,amount,status,version from sales_receipts where id=:id'),dict(id=bt_id)).one()
         assert tuple(old_bt)==(bt_number,100,'CHO_XAC_NHAN',bt_version)
         s3.upgrade()
+        s5.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

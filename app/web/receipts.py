@@ -160,6 +160,9 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
 
 @router.get('/bao-thu')
 def pending(request: Request,user: User=Depends(finance_user),session: Session=Depends(get_session)):
+    if request.query_params.get('tab')=='hoan-tien':
+        from .sales_returns import refund_queue
+        return refund_queue(request,session,user)
     return _queue(request,session,user)
 
 

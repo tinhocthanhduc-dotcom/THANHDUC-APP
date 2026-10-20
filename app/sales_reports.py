@@ -4,12 +4,12 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Date, Numeric, case, cast, exists, func, literal, select, true
+from sqlalchemy import Date, Numeric, case, cast, exists, func, literal, select, true, union_all
 from sqlalchemy.orm import Session
 
 from . import sales_receipts, sales_orders
 from .errors import BusinessError
-from .models import Customer, Quote, SalesOrder, SalesReceipt, User, SalesDelivery
+from .models import Customer, Quote, SalesOrder, SalesReceipt, User, SalesDelivery, SalesReturn
 from .security import has_role
 
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -60,50 +60,46 @@ def _money_rows(rows):
     return rows
 
 
-def _revenue(user,start,end):
-    return (SalesDelivery.status == 'DA_GIAO', _scope(user,SalesOrder.created_by),
-            *_window(SalesDelivery.delivered_at,start,end))
+def _events(user,start,end):
+    sources=[]
+    for model,stamp,status,sign in ((SalesDelivery,SalesDelivery.delivered_at,'DA_GIAO',1),(SalesReturn,SalesReturn.returned_at,'DA_NHAN',-1)):
+        sources.append(select(model.order_id,SalesOrder.created_by,SalesOrder.customer_code,
+            cast(func.timezone('Asia/Ho_Chi_Minh',stamp),Date).label('day'),
+            (sign*model.subtotal).label('subtotal'),(sign*model.vat_total).label('vat_total'),(sign*model.total).label('total')).join(
+                SalesOrder,SalesOrder.id==model.order_id).where(model.status==status,_scope(user,SalesOrder.created_by),*_window(stamp,start,end)))
+    return union_all(*sources).subquery()
 
 
-def _money():
-    return (func.count(func.distinct(SalesOrder.id)).label('orders'),
-            func.coalesce(func.sum(SalesDelivery.subtotal),0).label('subtotal'),
-            func.coalesce(func.sum(SalesDelivery.vat_total),0).label('vat_total'),
-            func.coalesce(func.sum(SalesDelivery.total),0).label('total'))
+def _money(events):
+    return (func.count(func.distinct(events.c.order_id)).label('orders'),
+        *[func.coalesce(func.sum(events.c[k]),0).label(k) for k in ('subtotal','vat_total','total')])
 
 
 def daily(session: Session,user,start: date | None=None,end: date | None=None):
-    start,end = date_range(start,end)
-    day = cast(func.timezone('Asia/Ho_Chi_Minh',SalesDelivery.delivered_at),Date).label('day')
-    rows = _rows(session,select(day,*_money()).select_from(SalesDelivery).join(SalesOrder,SalesOrder.id==SalesDelivery.order_id).where(*_revenue(user,start,end)).group_by(day).order_by(day))
-    return _money_rows(rows)
+    start,end=date_range(start,end);events=_events(user,start,end)
+    return _money_rows(_rows(session,select(events.c.day,*_money(events)).group_by(events.c.day).order_by(events.c.day)))
 
 
 def totals(session: Session,user,start: date | None=None,end: date | None=None):
-    start,end = date_range(start,end)
-    return _money_rows(_rows(session,select(*_money()).select_from(SalesDelivery).join(SalesOrder,SalesOrder.id==SalesDelivery.order_id).where(*_revenue(user,start,end))))[0]
+    start,end=date_range(start,end);events=_events(user,start,end)
+    return _money_rows(_rows(session,select(*_money(events))))[0]
 
 
 def by_employee(session: Session,user,start: date | None=None,end: date | None=None):
-    start,end = date_range(start,end)
-    stmt = (select(SalesOrder.created_by.label('user_id'),User.full_name.label('name'),*_money())
-            .select_from(SalesDelivery).join(SalesOrder,SalesOrder.id==SalesDelivery.order_id).join(User,User.id==SalesOrder.created_by).where(*_revenue(user,start,end))
-            .group_by(SalesOrder.created_by,User.full_name).order_by(func.sum(SalesDelivery.total).desc(),SalesOrder.created_by))
-    return _money_rows(_rows(session,stmt))
+    start,end=date_range(start,end);events=_events(user,start,end)
+    return _money_rows(_rows(session,select(events.c.created_by.label('user_id'),User.full_name.label('name'),*_money(events)).join(
+        User,User.id==events.c.created_by).group_by(events.c.created_by,User.full_name).order_by(func.sum(events.c.total).desc(),events.c.created_by)))
 
 
 def by_customer(session: Session,user,start: date | None=None,end: date | None=None):
-    start,end = date_range(start,end)
-    stmt = (select(SalesOrder.customer_code.label('customer_code'),Customer.name.label('name'),*_money())
-            .select_from(SalesDelivery).join(SalesOrder,SalesOrder.id==SalesDelivery.order_id).join(Customer,Customer.code==SalesOrder.customer_code).where(*_revenue(user,start,end))
-            .group_by(SalesOrder.customer_code,Customer.name).order_by(func.sum(SalesDelivery.total).desc(),SalesOrder.customer_code).limit(20))
-    return _money_rows(_rows(session,stmt))
+    start,end=date_range(start,end);events=_events(user,start,end)
+    return _money_rows(_rows(session,select(events.c.customer_code,Customer.name.label('name'),*_money(events)).join(
+        Customer,Customer.code==events.c.customer_code).group_by(events.c.customer_code,Customer.name).order_by(func.sum(events.c.total).desc(),events.c.customer_code).limit(20)))
 
 
 def _debts(user,as_of):
     # Cùng định nghĩa đã thu/chờ của B4, tổng hợp GROUP BY trước khi nối đơn để không nhân dòng.
-    paid,pending = sales_receipts._sums()
-    receipts = select(SalesReceipt.order_id,paid.label('paid'),pending.label('pending')).group_by(SalesReceipt.order_id).subquery()
+    receipts=sales_receipts.totals()
     paid = func.coalesce(receipts.c.paid,0)
     pending = func.coalesce(receipts.c.pending,0)
     days = func.greatest(0,literal(as_of,type_=Date)-sales_orders.due_date_sql())
@@ -112,7 +108,7 @@ def _debts(user,as_of):
                    SalesOrder.created_by.label('created_by'),sales_orders.first_delivery().label('confirmed_at'),sales_orders.due_date_sql().label('due_date'),days.label('days'),
                    SalesOrder.receivable.label('receivable'),paid.label('paid'),pending.label('pending'),
                    (SalesOrder.receivable-paid).label('remaining'),bucket.label('bucket'))
-            .outerjoin(receipts,receipts.c.order_id==SalesOrder.id)
+            .outerjoin(receipts,receipts.c.parent_id==SalesOrder.id)
             .where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable>paid,_scope(user,SalesOrder.created_by)).subquery())
 
 

@@ -86,7 +86,7 @@ def _active_order(session, quote_id):
                            SalesOrder.status!='DA_HUY')).first()
 
 
-def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action=''):
+def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action='',refund_form=None):
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
             customer_code='',contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
@@ -104,14 +104,15 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     deposit_remaining=0
     if order and order.payment_term=='DAT_COC' and receipt_ctx['collection']:
         balance=receipt_ctx['collection']['balance']
-        deposit_remaining=max(0,order.deposit_amount-balance['paid']-balance['pending'])
+        deposit_remaining=max(0,min(order.deposit_amount,svc.effective_total(order))-balance['paid']-balance['pending'])
         if deposit_remaining>0:
             receipt_ctx['receipt_report_label']='Báo thu cọc'
             if receipt_form is None:
                 receipt_ctx['receipt_data']['amount']=money(min(deposit_remaining,receipt_ctx['available']))
     from .technician_deliveries import context as delivery_context
     tech_delivery=delivery_context(session,request.state.user,order) if order and order.fulfillment=='THO_GIAO' else None
-    return render(request,'don_ban_form.jinja',tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+    from .sales_returns import order_context as return_context
+    return render(request,'don_ban_form.jinja',returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,

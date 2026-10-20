@@ -2486,18 +2486,20 @@ def test_t1_web_mapping_blank_options_only_valid_and_director_save(client,db,fin
     category(db,f);category(db,f,'CHI','CHI')
     csrf=service_login(client,d)
     r=client.get('/ghep-tai-chinh')
-    assert r.status_code==200 and r.text.count('Chưa ghép')==5
-    assert r.text.count('name="target_code" value=""')==5 and 'QUY-TM' not in r.text
+    assert r.status_code==200 and r.text.count('Chưa ghép')==6
+    assert r.text.count('name="target_code" value=""')==6 and 'QUY-TM' not in r.text
     choices=client.get('/ghep-tai-chinh/tim/THU_TIEN_MAT?q=tien+mat').text
     assert 'QUY-TM' in choices and 'TK-ACB' not in choices and 'TM-NGUNG' not in choices
     choices=client.get('/ghep-tai-chinh/tim/THU_CHUYEN_KHOAN').text
     assert 'TK-ACB' in choices and 'QUY-TM' not in choices
     choices=client.get('/ghep-tai-chinh/tim/DANH_MUC_BAN_HANG').text
     assert 'THU-BH' in choices and 'data-finance-pick="CHI"' not in choices
+    choices=client.get('/ghep-tai-chinh/tim/DANH_MUC_HOAN_TIEN_BAN').text
+    assert 'data-finance-pick="CHI"' in choices and 'data-finance-pick="THU-BH"' not in choices
     r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='TK-ACB'))
     assert r.status_code==400 and 'BAD_MAPPING' in r.text and 'value="TK-ACB"' in r.text
     r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code='QUY-TM'))
-    assert r.status_code==200 and r.text.count('Chưa ghép')==4
+    assert r.status_code==200 and r.text.count('Chưa ghép')==5
     assert finance_mappings.require(db,'THU_TIEN_MAT')=='QUY-TM'
     r=client.post('/ghep-tai-chinh/THU_TIEN_MAT',data=dict(csrf=csrf,version=1,target_code=''))
     assert r.status_code==409 and 'VERSION_CONFLICT' in r.text

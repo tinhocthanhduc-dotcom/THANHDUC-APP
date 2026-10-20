@@ -100,6 +100,8 @@ def _draft(doc):
 
 
 def check_source(doc):
+    if doc.source_type=='SALES_REFUND':
+        raise BusinessError('SOURCE_LOCKED','Phiếu chi hoàn tiền gắn đề nghị hoàn, không được sửa hoặc hủy riêng.',status=409)
     if doc.source_type=='SUPPLIER_PAYMENT':
         raise BusinessError('SOURCE_LOCKED','Phiếu chi này được tạo từ trả NCC. Phải hủy trả tiền tại trang công nợ NCC.',status=409)
     if doc.source_type=='SALES_RECEIPT':
@@ -161,6 +163,8 @@ def insert(session,user,body: CashDocIn):
 
 def create(session,user,body: CashDocIn):
     check_writer(user)
+    if body.source_type=='SALES_REFUND':
+        raise BusinessError('SOURCE_LOCKED','Hoàn tiền phải được duyệt từ đề nghị hoàn.',status=409)
     with _transaction(session):
         doc = insert(session,user,body)
     return doc

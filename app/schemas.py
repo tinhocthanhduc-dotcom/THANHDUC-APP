@@ -166,7 +166,7 @@ class WarehouseIn(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     address: str = Field(default="", max_length=2000)
     active: bool = True
-    kind: Literal['KHO', 'THO'] = 'KHO'
+    kind: Literal['KHO', 'THO', 'LOI'] = 'KHO'
     holder_id: int | None = Field(default=None, ge=1)
 
 
@@ -177,7 +177,7 @@ class WarehousePatch(BaseModel):
     name: str = Field(default="", min_length=1, max_length=300)
     address: str = Field(default="", max_length=2000)
     active: bool = True
-    kind: Literal['KHO', 'THO'] = 'KHO'
+    kind: Literal['KHO', 'THO', 'LOI'] = 'KHO'
     holder_id: int | None = Field(default=None, ge=1)
 
 
@@ -748,6 +748,7 @@ class SalesReceiptOut(BaseModel):
 
 
 class SalesReceiptBalance(BaseModel):
+    refunded: int = 0
     receivable: int | None
     paid: int
     pending: int
@@ -1203,3 +1204,23 @@ class SalesDeliveryFailed(SalesOrderVersion):
 
 class TechnicianDeliveryIn(SalesDeliveryIn):
     receipt: SalesReceiptReport | None = None
+
+
+class SalesReturnLineIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    delivery_id: int = Field(gt=0)
+    order_line_no: int = Field(gt=0)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    condition: Literal['TOT','LOI'] = 'TOT'
+    warehouse_code: str | None = Field(default=None, max_length=16)
+
+
+class SalesReturnIn(SalesOrderVersion):
+    reason: str = Field(min_length=1,max_length=2000)
+    lines: list[SalesReturnLineIn] = Field(min_length=1,max_length=200)
+
+
+class SalesRefundIn(SalesOrderVersion):
+    amount: int = Field(strict=True,gt=0,le=9_223_372_036_854_775_807)
+    method: Literal['TIEN_MAT','CHUYEN_KHOAN']
+    reason: str = Field(min_length=1,max_length=2000)

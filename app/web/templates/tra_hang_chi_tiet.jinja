@@ -1,0 +1,7 @@
+{% extends 'base.jinja' %}
+{% block title %}{{ r.number }}{% endblock %}
+{% block main %}<div class="bar"><h1>{{ r.number }}</h1><a href="/don-ban/{{ o.id }}">{{ o.number }}</a><a class="btn" href="/tra-hang/{{ r.id }}/in">In phiếu trả</a></div>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<section class="card"><p>{{ customer.name }} · {{ r.returned_at|service_time }}</p><p>{{ r.reason }}</p><p>{{ 'Đã nhận' if r.status=='DA_NHAN' else 'Đã hủy: ' ~ r.void_reason }}</p>{% for line in r.lines %}<article class="card"><strong>{{ lines[line.order_line_no].description }}</strong><p>{{ line.qty|qty }} {{ lines[line.order_line_no].unit }} · {{ 'Tốt' if line.condition=='TOT' else 'Lỗi' }} · {{ line.warehouse_code or 'Không nhập kho' }}</p><p>{{ (line.amount+line.vat_amount)|money }} đồng</p></article>{% endfor %}<p>Tổng trả: <strong>{{ r.total|money }} đồng</strong></p></section>
+{% if can_void %}<form class="card form" method="post" action="/tra-hang/{{ r.id }}/void"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ raw.get('version',r.version) }}"><label>Lý do hủy (chỉ trong ngày)<textarea name="reason" required maxlength="2000">{{ raw.get('reason','') }}</textarea></label><button>Hủy phiếu trả</button></form>{% endif %}
+{% endblock %}

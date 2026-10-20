@@ -43,7 +43,7 @@ def test_two_reports_capacity_numbers_and_balance(db,people,order):
     b=report(db,people['sales'],order,400000)
     assert [a.number,b.number]==['BT-26-00001','BT-26-00002']
     assert a.status=='CHO_XAC_NHAN' and a.version==1 and a.received_at==date(2026,10,18)
-    assert svc.balance(order)==dict(receivable=1000000,paid=0,pending=1000000,remaining=1000000,advance=0,available=0)
+    assert svc.balance(order)==dict(receivable=1000000,paid=0,pending=1000000,remaining=1000000,advance=0,available=0,refunded=0)
     assert fail('OVER_PAYMENT',report,db,people['sales'],order,1).status==409
     assert db.query(SalesReceipt).count()==2
     assert order.receivable==1000000 and order.version==3
@@ -60,7 +60,7 @@ def test_finance_confirmation_balance_pending_and_remaining(db,people,order):
     a=report(db,people['sales'],order,600000)
     b=report(db,people['sales'],order,400000)
     svc.confirm(db,people['finance'],a.id,a.version)
-    assert svc.balance(order)==dict(receivable=1000000,paid=600000,pending=400000,remaining=400000,advance=0,available=0)
+    assert svc.balance(order)==dict(receivable=1000000,paid=600000,pending=400000,remaining=400000,advance=0,available=0,refunded=0)
     assert a.decided_by==people['finance'].id and a.decided_at is not None and a.version==2
     assert [r.id for r in svc.list_pending(db,people['finance'])]==[b.id]
     svc.confirm(db,people['finance'],b.id,b.version)
@@ -90,7 +90,7 @@ def test_self_confirmation_and_director_exception(db,people,order,make_user):
     assert director.status=='DA_XAC_NHAN'
 
 
-def test_cancel_blocked_until_pending_rejected_or_confirmed_voided(db,people,order):
+def test_cancel_pending_rejected_then_confirmed_deposit_becomes_refund(db,people,order):
     gh=orders.deliveries(db,order.id)[0]
     orders.void_delivery(db,people['director'],gh.id,'Chưa giao',gh.version)
     pending=report(db,people['sales'],order,600000)
@@ -98,10 +98,11 @@ def test_cancel_blocked_until_pending_rejected_or_confirmed_voided(db,people,ord
     svc.confirm(db,people['finance'],confirmed.id,confirmed.version)
     fail('HAS_RECEIPTS',orders.cancel,db,people['sales'],order.id,'Khách hủy',order.version)
     svc.reject(db,people['finance'],pending.id,'Chưa nhận tiền',pending.version)
-    fail('HAS_RECEIPTS',orders.cancel,db,people['sales'],order.id,'Khách hủy',order.version)
-    svc.void(db,people['director'],confirmed.id,'Hoàn tiền cho khách',confirmed.version)
     orders.cancel(db,people['sales'],order.id,'Khách hủy',order.version)
     assert order.status=='DA_HUY' and len(svc.for_order(db,people['finance'],order.id)['receipts'])==2
+    from app.models import SalesRefund
+    refund=db.scalar(select(SalesRefund).where(SalesRefund.order_id==order.id))
+    assert refund.amount==400000 and refund.status=='CHO_DUYET' and confirmed.status=='DA_XAC_NHAN'
 
 
 def test_void_director_reason_and_debt_restored(db,people,order):

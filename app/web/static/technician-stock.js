@@ -15,7 +15,7 @@
       document.querySelector('[name=to_warehouse_code]').value = event.target.value;
       document.querySelector('[data-tech-destination] input:not([type=hidden])').value = '';
     }
-    if (event.target.name === 'kind' && event.target.value === 'KHO') {
+    if (event.target.name === 'kind' && event.target.value !== 'THO') {
       var picker = document.querySelector('[data-holder-picker]');
       if (picker) { picker.querySelector('[data-picked-value]').value = ''; picker.querySelector('input:not([type=hidden])').value = ''; }
     }

@@ -1,6 +1,7 @@
 {% extends 'base.jinja' %}
 {% block title %}Báo thu{% endblock %}
 {% block main %}
+<nav class="bar"><a class="btn primary" href="/bao-thu">Báo thu chờ xác nhận</a><a class="btn" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a></nav>
 <div class="bar"><h1>Báo thu</h1><a href="/don-ban/can-thu">Đơn cần thu</a><a href="/dich-vu/can-thu">Dịch vụ cần thu</a></div><p>Chờ xác nhận · cũ nhất trước.</p>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if error_code=="MAPPING_REQUIRED" %}<a class="btn" href="/ghep-tai-chinh">Ghép tài chính</a>{% endif %}

@@ -159,7 +159,7 @@ class DocCounter(Base):
 class Warehouse(Base):
     __tablename__ = "warehouses"
     __table_args__ = (
-        CheckConstraint("(kind = 'KHO' and holder_id is null) or (kind = 'THO' and holder_id is not null)", name="ck_warehouses_holder"),
+        CheckConstraint("(kind in ('KHO','LOI') and holder_id is null) or (kind = 'THO' and holder_id is not null)", name="ck_warehouses_holder"),
         Index("uq_warehouses_active_holder", "holder_id", unique=True, postgresql_where="kind = 'THO' and active"),
     )
 
@@ -709,9 +709,9 @@ class CashCategory(Base):
 class FinanceMapping(Base):
     __tablename__ = 'finance_mappings'
     __table_args__ = (
-        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG')", name='ck_finance_mappings_key'),
+        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN')", name='ck_finance_mappings_key'),
         CheckConstraint("(key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN') and category_code is null) or "
-                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG') and fund_code is null)", name='ck_finance_mappings_target'),
+                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN') and fund_code is null)", name='ck_finance_mappings_target'),
     )
     key: Mapped[str] = mapped_column(String(32), primary_key=True)
     fund_code: Mapped[str | None] = mapped_column(ForeignKey('funds.code'))
@@ -1186,3 +1186,75 @@ class SalesDeliveryAttempt(Base):
     reason: Mapped[str] = mapped_column(String(20))
     note: Mapped[str] = mapped_column(Text, default='')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SalesReturn(Base):
+    __tablename__ = 'sales_returns'
+    __table_args__ = (
+        CheckConstraint("status in ('DA_NHAN','DA_HUY')", name='ck_sales_returns_status'),
+        CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_sales_returns_money'),
+        CheckConstraint('length(trim(reason)) > 0', name='ck_sales_returns_reason'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'), index=True)
+    returned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    reason: Mapped[str] = mapped_column(Text)
+    subtotal: Mapped[int] = mapped_column(BigInteger, default=0)
+    vat_total: Mapped[int] = mapped_column(BigInteger, default=0)
+    total: Mapped[int] = mapped_column(BigInteger, default=0)
+    status: Mapped[str] = mapped_column(String(16), default='DA_NHAN')
+    void_reason: Mapped[str] = mapped_column(Text, default='')
+    voided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    lines: Mapped[list['SalesReturnLine']] = relationship(cascade='all, delete-orphan', order_by='SalesReturnLine.line_no')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class SalesReturnLine(Base):
+    __tablename__ = 'sales_return_lines'
+    __table_args__ = (
+        ForeignKeyConstraint(['order_id','order_line_no'], ['sales_order_lines.order_id','sales_order_lines.line_no']),
+        ForeignKeyConstraint(['delivery_id','order_line_no'], ['sales_delivery_lines.delivery_id','sales_delivery_lines.order_line_no']),
+        CheckConstraint('qty > 0', name='ck_sales_return_lines_qty'),
+        CheckConstraint("condition in ('TOT','LOI')", name='ck_sales_return_lines_condition'),
+        CheckConstraint('amount >= 0 and vat_amount >= 0 and unit_cost >= 0 and cost_amount >= 0', name='ck_sales_return_lines_money'),
+    )
+    return_id: Mapped[int] = mapped_column(ForeignKey('sales_returns.id'), primary_key=True)
+    line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
+    order_line_no: Mapped[int] = mapped_column(Integer)
+    delivery_id: Mapped[int] = mapped_column(ForeignKey('sales_deliveries.id'))
+    qty: Mapped[Decimal] = mapped_column(Numeric(14,3))
+    condition: Mapped[str] = mapped_column(String(3))
+    warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    vat_amount: Mapped[int] = mapped_column(BigInteger)
+    unit_cost: Mapped[int] = mapped_column(BigInteger)
+    cost_amount: Mapped[int] = mapped_column(BigInteger)
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'))
+
+
+class SalesRefund(Base):
+    __tablename__ = 'sales_refunds'
+    __table_args__ = (
+        CheckConstraint("status in ('CHO_DUYET','DA_CHI','TU_CHOI')", name='ck_sales_refunds_status'),
+        CheckConstraint("method in ('TIEN_MAT','CHUYEN_KHOAN')", name='ck_sales_refunds_method'),
+        CheckConstraint('amount > 0', name='ck_sales_refunds_amount'),
+        CheckConstraint('length(trim(reason)) > 0', name='ck_sales_refunds_reason'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'), index=True)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    method: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default='CHO_DUYET')
+    requested_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cash_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {'version_id_col': version}

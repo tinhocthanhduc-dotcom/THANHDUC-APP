@@ -109,10 +109,8 @@ def daily(session, user, start=None, end=None):
 
 def _debts():
     def source(model, receipt_key, status, stamp, kind):
-        paid = func.coalesce(func.sum(case((SalesReceipt.status == 'DA_XAC_NHAN', SalesReceipt.amount), else_=0)), 0)
-        pending = func.coalesce(func.sum(case((SalesReceipt.status == 'CHO_XAC_NHAN', SalesReceipt.amount), else_=0)), 0)
-        receipts = select(receipt_key.label('parent_id'), paid.label('paid'), pending.label('pending')).where(
-            receipt_key.is_not(None)).group_by(receipt_key).subquery()
+        from . import sales_receipts
+        receipts=sales_receipts.totals(model)
         paid, pending = func.coalesce(receipts.c.paid, 0), func.coalesce(receipts.c.pending, 0)
         day = cast(func.timezone('Asia/Ho_Chi_Minh', stamp), Date)
         return (select(literal(kind).label('kind'), model.id, model.number, model.customer_code, day.label('day'),

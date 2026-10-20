@@ -820,3 +820,91 @@ có liên kết tới màn hình này; tiền/kho của đơn và DV vẫn độ
 Migration `0030` nối `0029`. Khi downgrade về S3, cần trả kho để mỗi dòng chỉ còn
 một GIU trước; migration từ chối downgrade nếu còn GIU đồng thời ở nhiều kho,
 không tự xóa hoặc gộp mất thông tin giữ hàng.
+
+## S5 · Trả hàng sau bán và hoàn tiền
+
+Trả hàng không hủy đơn/GH: lập TH theo từng dòng GH gốc còn hiệu lực. Trạng thái
+giao không đổi, đơn có nhãn “Có trả hàng”. `warehouses.kind` nhận thêm `LOI`
+(không có holder); kho này không dùng để bán, xuất vật tư DV hoặc CK sang kho thợ.
+Tiền tố TH tiếp tục dùng bộ cấp số chung với TH trả NCC cũ; không đánh lại số cũ.
+HT là tiền tố đề nghị hoàn tiền mới.
+
+| API | Quyền | Nội dung |
+| --- | --- | --- |
+| POST `/sales-orders/{id}/returns` | Sales, kho, giám đốc | `version`, `reason`, `lines` theo ví dụ dưới |
+| GET `/sales-orders/{id}/returns` | Người được xem đơn | Danh sách TH, bao gồm phiếu đã hủy |
+| GET `/sales-returns/{id}` | Người được xem đơn | TH và các dòng |
+| POST `/sales-returns/{id}/void` | Giám đốc | `version` của TH, `reason`; chỉ trong ngày Việt Nam |
+| POST `/sales-orders/{id}/refunds` | Sales, giám đốc | `version` của đơn, `amount` nguyên đồng, `method`, `reason` |
+| GET `/sales-orders/{id}/refunds` | Người được xem đơn | Danh sách HT |
+| GET `/sales-refunds` | Kế toán, giám đốc | HT đang CHO_DUYET |
+| POST `/sales-refunds/{id}/approve` | Kế toán, giám đốc | `version` của HT |
+| POST `/sales-refunds/{id}/reject` | Kế toán, giám đốc | `version` của HT, `reason` bắt buộc |
+
+Ví dụ nhận trả:
+
+```json
+{
+  "version": 7,
+  "reason": "Khách trả hai hộp lỗi",
+  "lines": [{"delivery_id": 3, "order_line_no": 1, "qty": "2", "condition": "LOI", "warehouse_code": "K900"}]
+}
+```
+
+`condition=TOT` nhận về kho gốc **dòng đơn** hoặc kho KHO khác đang dùng, kể cả
+GH đã xuất từ kho thợ. LOI nhận về kho lỗi đang dùng; có thể bỏ `warehouse_code`
+để dùng kho lỗi đang hoạt động có mã nhỏ nhất. Mỗi dòng trả không vượt lượng GH
+đã giao trừ tổng TH còn hiệu lực của chính GH/dòng đó. Một lần có thể tách cùng
+dòng GH thành hàng tốt và lỗi; tổng số lượng vẫn bị kiểm soát.
+
+Trong cùng transaction, mỗi kho có một PN nhận lại gắn khách hàng (không NCC),
+nhập bằng giá vốn dòng PX gốc qua `pn_amounts`; không dùng bình quân hiện tại.
+Dòng TH lưu thêm `line_no` và `cost_amount` để giữ chính xác phần dư giá vốn.
+Lần trả cuối lấy phần tiền hàng, VAT và vốn còn lại của dòng GH để tổng khớp đồng.
+`receivable` giảm theo tổng TH. PN không thể hủy riêng ngoài TH.
+
+Báo cáo bán hàng cộng GH dương và TH âm theo ngày chứng từ tại Việt Nam. Lãi gộp
+cộng TH với doanh thu âm và giá vốn âm bằng PN; một PN nhiều dòng chỉ được cộng
+một lần. TH hủy không còn hiệu lực trong tổng trả/báo cáo.
+
+Nguồn số **đã thu thuần** dùng chung là BT đã xác nhận trừ HT DA_CHI.
+`balance.paid` từ đây là số thu thuần, `balance.refunded` là tổng đã hoàn,
+`remaining=max(0,receivable-paid)`, `advance=max(0,paid-receivable)`.
+Công nợ, tuổi nợ, cảnh báo, summaries và Việc của tôi đọc cùng nguồn.
+Dịch vụ giữ luồng BT hiện tại. Hạn mức báo thu đơn cũng trừ các TH còn hiệu lực.
+
+Đề nghị HT không vượt `advance` trừ các HT CHO_DUYET. Lúc duyệt khóa đơn rồi HT,
+kiểm tra lại số ứng trước và ghi PC trong cùng transaction. Quỹ dùng ghép
+THU_TIEN_MAT/THU_CHUYEN_KHOAN; danh mục Chi dùng DANH_MUC_HOAN_TIEN_BAN.
+Migration tạo khóa ghép rỗng: giám đốc phải tự ghép, không có danh mục/quỹ đoán sẵn.
+Người lập không tự duyệt (trừ giám đốc); ngày đã chốt sổ và quỹ thiếu tiền vẫn bị
+lõi quỹ chặn. Không được tạo, sửa hoặc hủy riêng PC gắn SALES_REFUND.
+
+Đơn DA_CHOT có BT xác nhận được hủy kèm tự tạo HT cho toàn bộ thu thuần còn chưa
+có đề nghị. Nếu thu qua nhiều cách, tách HT theo cách thu gốc. BT CHO_XAC_NHAN
+vẫn phải xử lý trước. Các BT đã xác nhận giữ nguyên lịch sử, tiền chỉ ra khi duyệt HT.
+Hủy GH chỉ trong cùng ngày; GH đã có TH hiệu lực bị chặn. Hủy TH chỉ trong ngày,
+đảo PN và tăng lại receivable; không cho hủy khi đã chi hoàn làm ứng trước âm.
+Header TH/HT có trigger chặn DELETE; mọi thao tác đều có audit và kiểm version.
+
+| Mã lỗi | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| OVER_RETURN | 409 | Vượt lượng GH còn được trả, sai dòng/GH hoặc GH đã hủy |
+| NO_DEFECT_WAREHOUSE | 409 | Không có kho LOI đang dùng phù hợp |
+| OVER_REFUND | 409 | Vượt ứng trước khả dụng, hoặc khi duyệt không còn đủ ứng trước |
+| SELF_CONFIRM | 403 | Người lập tự duyệt HT |
+| MAPPING_REQUIRED | 409 | Chưa ghép quỹ/danh mục hoàn tiền |
+| USE_RETURN | 409 | GH khác ngày Việt Nam: dùng phiếu trả hàng |
+| HAS_RETURNS | 409 | GH có TH còn hiệu lực |
+| RETURN_DAY_ONLY | 409 | Hủy TH khác ngày |
+| REFUND_PAID | 409 | Đã chi hoàn, không thể hủy TH/BT làm ứng trước hoặc thu thuần âm |
+| SOURCE_COST_MISSING | 409 | Không tìm được dòng vốn PX gốc |
+| DAY_CLOSED / NEGATIVE_CASH | 409 | Ngày chốt sổ hoặc quỹ không đủ chi |
+| NEGATIVE_STOCK / VOID_COST_CONFLICT | 409 | Hàng trả đã xuất/biến động vốn, không thể đảo PN |
+
+Web: `/don-ban/{id}/tra-hang`, `/tra-hang/{id}`, `/tra-hang/{id}/in`;
+form đề nghị hoàn trên chi tiết đơn; hàng chờ duyệt ở
+`/bao-thu?tab=hoan-tien` và Việc của tôi của kế toán. Mọi POST dùng CSRF/form_key,
+lỗi giữ dữ liệu nhập, replay không ghi trùng. Không thêm thư viện JS.
+Migration 0031 nối 0030; downgrade cần xử lý kho LOI trước, không tự biến kho lỗi
+thành kho bán được.

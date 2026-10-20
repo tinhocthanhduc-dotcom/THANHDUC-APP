@@ -536,6 +536,9 @@ router.include_router(quotes_router)
 
 from .orders import router as orders_router
 
+from .sales_returns import router as sales_returns_router
+router.include_router(sales_returns_router)
+
 router.include_router(orders_router)
 
 from .sales_reports import router as sales_reports_router

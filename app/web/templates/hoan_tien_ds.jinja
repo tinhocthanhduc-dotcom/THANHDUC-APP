@@ -1,0 +1,8 @@
+{% extends 'base.jinja' %}
+{% block title %}Hoàn tiền chờ duyệt{% endblock %}
+{% block main %}<nav class="bar"><a class="btn" href="/bao-thu">Báo thu chờ xác nhận</a><a class="btn primary" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a></nav><h1>Hoàn tiền chờ duyệt</h1>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if error_code=='MAPPING_REQUIRED' %}<a href="/ghep-tai-chinh">Ghép tài chính</a>{% endif %}
+{% if request.query_params.get('da_luu') %}<p class="alert ok">Đã xử lý đề nghị hoàn.</p>{% endif %}
+{% for r in rows %}<section class="card" id="refund-{{ r.id }}"><h2>{{ r.number }}</h2><p><a href="/don-ban/{{ r.order_id }}">{{ orders[r.order_id].number }}</a></p><p>{{ r.amount|money }} đồng · {{ 'Tiền mặt' if r.method=='TIEN_MAT' else 'Chuyển khoản' }}</p><p>{{ r.reason }}</p>
+<form method="post" action="/hoan-tien/{{ r.id }}/approve"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version }}"><button>Duyệt và chi hoàn tiền</button></form>
+<form method="post" class="form" action="/hoan-tien/{{ r.id }}/reject"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version }}"><label>Lý do từ chối<textarea name="reason" maxlength="2000" required>{{ raw.get('reason','') }}</textarea></label><button>Từ chối</button></form></section>{% else %}<p class="card">Không có đề nghị hoàn tiền chờ duyệt.</p>{% endfor %}{% endblock %}

@@ -6,7 +6,7 @@ from sqlalchemy import Date, Numeric, case, cast, func, literal, select, union, 
 from . import finance_reports, supplier_debts
 from .errors import BusinessError
 from .models import (Customer, Product, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, PurchaseReceiptLine,
-                     PurchaseReturn, PurchaseReturnLine, SalesDelivery, SalesDeliveryLine, SalesOrder, SalesOrderLine, ServiceLine,
+                     PurchaseReturn, PurchaseReturnLine, SalesDelivery, SalesDeliveryLine, SalesOrder, SalesOrderLine, SalesReturn, SalesReturnLine, ServiceLine,
                      ServiceTicket, StockDoc, StockLedger, Supplier, SupplierOpeningDebt)
 from .sales_reports import _window
 from .security import has_role
@@ -152,15 +152,19 @@ def _margin_sources(start, end):
         case((ServiceTicket.billing=='MIEN_PHI',0),else_=func.coalesce(service_amounts.c.amount,0)),ServiceTicket.billing)
     services = services.outerjoin(service_amounts,service_amounts.c.ticket_id==ServiceTicket.id).where(
         ServiceTicket.status.in_(('HOAN_THANH','DA_DONG')),ServiceTicket.priced_at.is_not(None),*_window(ServiceTicket.priced_at,start,end))
-    documents = union_all(sales,services).cte('margin_documents')
+    returns=select(literal('TH'),SalesReturn.id,SalesReturn.number,SalesOrder.customer_code,
+        cast(func.timezone('Asia/Ho_Chi_Minh',SalesReturn.returned_at),Date),-SalesReturn.subtotal,literal('THU_TIEN')).join(
+        SalesOrder,SalesOrder.id==SalesReturn.order_id).where(SalesReturn.status=='DA_NHAN',*_window(SalesReturn.returned_at,start,end))
+    documents = union_all(sales,services,returns).cte('margin_documents')
     # Một PX có thể gắn nhiều dòng, kể cả nhiều dòng cùng mã. Khử trùng trước khi nối sổ.
     links = union(select(literal('GH').label('kind'),SalesDeliveryLine.delivery_id.label('id'),SalesDeliveryLine.stock_doc_id.label('doc_id'))
             .where(SalesDeliveryLine.stock_doc_id.is_not(None)),
-        select(literal('DV'),ServiceLine.ticket_id,ServiceLine.stock_doc_id).where(ServiceLine.stock_doc_id.is_not(None))).subquery()
+        select(literal('DV'),ServiceLine.ticket_id,ServiceLine.stock_doc_id).where(ServiceLine.stock_doc_id.is_not(None)),
+        select(literal('TH'),SalesReturnLine.return_id,SalesReturnLine.stock_doc_id).where(SalesReturnLine.stock_doc_id.is_not(None))).subquery()
     cost = (select(documents.c.kind,documents.c.id,StockLedger.product_code,(-func.sum(StockLedger.amount)).label('cost'))
         .select_from(documents).join(links,(links.c.kind==documents.c.kind)&(links.c.id==documents.c.id))
         .join(StockDoc,StockDoc.id==links.c.doc_id).join(StockLedger,StockLedger.doc_id==StockDoc.id)
-        .where(StockDoc.kind=='PX',StockDoc.status=='DA_GHI',StockLedger.is_reversal.is_(False))
+        .where(StockDoc.kind.in_(('PX','PN')),StockDoc.status=='DA_GHI',StockLedger.is_reversal.is_(False))
         .group_by(documents.c.kind,documents.c.id,StockLedger.product_code).cte('margin_costs'))
     return documents,cost
 
@@ -189,7 +193,10 @@ def gross_margin(session, user, start=None, end=None):
         .join(documents,(documents.c.kind=='GH')&(documents.c.id==SalesDeliveryLine.delivery_id)).where(SalesOrderLine.kind=='HANG'))
     services=(select(ServiceLine.product_code,case((documents.c.billing=='MIEN_PHI',0),else_=ServiceLine.amount),literal(0))
         .select_from(ServiceLine).join(documents,(documents.c.kind=='DV')&(documents.c.id==ServiceLine.ticket_id)).where(ServiceLine.kind=='VAT_TU'))
-    product_events=union_all(sales,services,select(costs.c.product_code,literal(0),costs.c.cost)).subquery()
+    returned_products=select(SalesOrderLine.product_code,-SalesReturnLine.amount,literal(0)).select_from(SalesReturnLine).join(
+        SalesOrderLine,(SalesOrderLine.order_id==SalesReturnLine.order_id)&(SalesOrderLine.line_no==SalesReturnLine.order_line_no)).join(
+        documents,(documents.c.kind=='TH')&(documents.c.id==SalesReturnLine.return_id)).where(SalesOrderLine.kind=='HANG')
+    product_events=union_all(sales,services,returned_products,select(costs.c.product_code,literal(0),costs.c.cost)).subquery()
     products=select(product_events.c.product_code,Product.name,
         *_margin_columns(func.sum(product_events.c.revenue),func.sum(product_events.c.cost)))
     products=products.join(Product,Product.code==product_events.c.product_code).group_by(product_events.c.product_code,Product.name).subquery()
