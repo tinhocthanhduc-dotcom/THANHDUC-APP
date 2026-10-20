@@ -261,6 +261,7 @@
       var availability = row.querySelector("[data-availability-summary]");
       if (
         form.dataset.orderEditable === "1" &&
+        goods &&
         availability &&
         (/Thiếu|Không đủ/i.test(availability.textContent) ||
           (availability.hasAttribute("data-available") &&
