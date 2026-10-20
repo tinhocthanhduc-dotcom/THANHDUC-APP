@@ -1,0 +1,4 @@
+{# UI0: macro dùng chung. Lỗi hiện ngay dưới đúng ô, giá trị đã nhập được giữ nguyên. #}
+{% macro invalid(errors, name) %}{% if errors and errors.get(name) %} field-invalid{% endif %}{% endmacro %}
+{% macro field_error(errors, name) %}{% if errors and errors.get(name) %}<small class="field-error" id="loi-{{ name }}">{{ errors[name] }}</small>{% endif %}{% endmacro %}
+{% macro described(errors, name) %}{% if errors and errors.get(name) %} aria-invalid="true" aria-describedby="loi-{{ name }}"{% endif %}{% endmacro %}
