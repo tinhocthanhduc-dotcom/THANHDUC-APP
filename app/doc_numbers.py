@@ -20,6 +20,7 @@ PREFIXES = {
     "TN": "Trả nhà cung cấp",
     "BT": "Báo thu",
     "DV": "Phiếu dịch vụ",
+    "TK": "Thợ trả hàng",
     "YC": "Yêu cầu linh kiện",
     "PT": "Phiếu thu",
     "PC": "Phiếu chi",

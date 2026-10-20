@@ -4,7 +4,7 @@
 <p class="hint">{{ jobs|length }} việc đang mở của bạn</p>
 <div class="tho-jobs">{% for job in jobs %}<article class="card tho-job {% if job.overdue %}service-overdue{% endif %}" data-job="{{ job.kind }}:{{ job.id }}">
 <div class="bar"><a href="{{ job.href }}"><strong>{{ job.number }}</strong></a>{% if job.priority %}<span class="badge">{{ service_priorities[job.priority] }}</span>{% endif %}</div>
-<h2>{{ job.customer }}</h2>{% if job.appointment %}<p>{{ 'Quá giờ · ' if job.overdue else '' }}Hẹn {{ job.appointment|service_time }}</p>{% elif job.overdue %}<p>Quá hạn xử lý</p>{% endif %}
+<h2>{{ job.customer }}</h2>{% if job.appointment %}<p>{{ 'Quá giờ · ' if job.overdue else '' }}Hẹn {{ job.appointment|appointment_label(job.get('appointment_slot')) }}</p>{% elif job.overdue %}<p>Quá hạn xử lý</p>{% endif %}
 {% if job.address %}<p class="tho-one-line" title="{{ job.address }}">{{ job.address }}</p>{% endif %}
 {% if job.machine or job.serial %}<p class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</p>{% endif %}
 <p class="tho-one-line" title="{{ job.symptom }}">{{ job.symptom }}</p>

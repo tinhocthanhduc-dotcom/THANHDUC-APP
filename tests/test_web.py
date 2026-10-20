@@ -933,15 +933,18 @@ def service_login(client, user):
 
 
 def service_form(csrf, **kw):
+    from app import service_tickets
+    from datetime import timedelta
+    day=(service_tickets._now().astimezone(service_tickets.service_sla.TZ)+timedelta(days=1)).date().isoformat()
     return {'csrf': csrf, 'customer_code': 'KTD-000001', 'site_id': '', 'serial': '',
-            'kind': 'SUA_TAI_CHO', 'priority': 'THUONG', 'symptom': 'Máy in bị kẹt giấy', **kw}
+            'kind': 'SUA_TAI_CHO', 'priority': 'THUONG', 'symptom': 'Máy in bị kẹt giấy', 'appointment_choice':'CHIEU:'+day, **kw}
 
 
 def new_service(db, people):
     from app import service_tickets
     from app.schemas import ServiceTicketIn
     return service_tickets.create(db, people['sales'], ServiceTicketIn(**{k: v for k, v in service_form('x').items()
-                                                                       if k not in ('csrf', 'site_id', 'serial')}))
+                                                                       if k not in ('csrf', 'site_id', 'serial', 'appointment_choice')}))
 
 
 def service_action(client, ticket, csrf, action='transition', **kw):
@@ -1682,7 +1685,7 @@ def test_d7_csv_headers_and_vietnam_date_defaults(client, service_people, d7_his
     assert 'name="from" value="2026-10-05"' in response.text
     assert 'name="to" value="2026-10-11"' in response.text
     rows = d7_csv(client)
-    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách', 'Bị gọi bảo hành']
+    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách', 'Bị gọi bảo hành', 'Khách hẹn lần sau']
     assert ['Ngày', 'Đơn nhận', 'Đơn hoàn thành'] in rows
     response = client.get('/dieu-phoi/bao-cao.csv?from=2026-10-10&to=2026-10-10')
     assert response.content.startswith(b'\xef\xbb\xbf')

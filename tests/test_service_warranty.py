@@ -151,8 +151,8 @@ def test_d7_counts_original_completing_technician_csv_and_links(client,db,people
     service_login(client,p['dispatcher'])
     data=client.get('/dieu-phoi/bao-cao.csv?from=2026-10-18&to=2026-10-18')
     rows=list(csv.reader(io.StringIO(data.content.decode('utf-8-sig'))))
-    assert rows[0][-1]=='Bị gọi bảo hành'
-    assert rows[1][0]==p['technician'].full_name and rows[1][-1]=='1'
+    warranty_col=rows[0].index('Bị gọi bảo hành')
+    assert rows[1][0]==p['technician'].full_name and rows[1][warranty_col]=='1'
     assert 'Bảo hành cho' in client.get(f'/dich-vu/{t.id}').text
     assert 'Đã bị gọi bảo hành' in client.get(f'/dich-vu/{parent.id}').text
     page=client.get('/dieu-phoi/bao-cao?from=2026-10-18&to=2026-10-18')
@@ -167,7 +167,7 @@ def test_new_warranty_web_form_and_search_expiry(client,db,people):
     response=client.get('/dich-vu/tim-bao-hanh',params=dict(customer_code='KTD-000001',q=parent.number))
     assert parent.number in response.text and 'Còn hạn' in response.text
     response=client.post('/dich-vu/moi',data={**form['fields'],'customer_code':'KTD-000001','kind':'BAO_HANH','priority':'THUONG',
-        'symptom':'Bảo hành lại lỗi kẹt giấy','warranty_of_id':str(expired.id)},follow_redirects=False)
+        'symptom':'Bảo hành lại lỗi kẹt giấy','warranty_of_id':str(expired.id),'appointment_choice':'CHIEU:'+(tickets._now()+timedelta(days=1)).date().isoformat()},follow_redirects=False)
     assert response.status_code==303
     page=client.get(response.headers['location']);assert 'Hết hạn bảo hành' in page.text
 

@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier
+from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn
 from .security import has_role
 
 LIMIT = 20
@@ -44,7 +44,7 @@ def _specs(user, today, now):
         own = service if director else service.where(t.assignee_id == user.id)
         add('service_assigned', 'Mới giao · chờ nhận', own.where(t.status=='DA_GIAO'), 'service', '/dich-vu')
         # Không để phiếu biến mất sau Nhận việc: lõi yêu cầu hẹn trước khi làm.
-        add('service_accepted', 'Đã nhận · cần hẹn khách', own.where(t.status=='DA_NHAN'), 'service', '/dich-vu')
+        add('service_accepted', 'Đã nhận · hẹn / đến khách', own.where(t.status=='DA_NHAN'), 'service', '/dich-vu')
         add('service_appointment_overdue', 'Lịch hẹn từ ngày trước chưa xử lý',
             own.where(t.status=='DA_HEN', t.appointment_at<start), 'service', '/dich-vu')
         add('service_today', 'Hôm nay có hẹn', own.where(t.status=='DA_HEN', t.appointment_at>=start, t.appointment_at<end), 'service', '/dich-vu')
@@ -130,6 +130,10 @@ def _specs(user, today, now):
             literal(0).label('amount'), literal(False).label('overdue')).join(t, t.id == PartRequest.ticket_id).join(
                 Customer, Customer.code == t.customer_code).where(PartRequest.status == 'CHO_CAP').order_by(PartRequest.created_at, PartRequest.id)
         add('parts_pending', 'Yêu cầu linh kiện chờ cấp', requests, 'part', '/yeu-cau-linh-kien')
+        returning = select(TechnicianReturn.id, TechnicianReturn.number, TechnicianReturn.status, Customer.name.label('customer'),
+            literal(0).label('amount'), literal(False).label('overdue')).join(t,t.id==TechnicianReturn.ticket_id).join(
+                Customer,Customer.code==t.customer_code).where(TechnicianReturn.status=='CHO_NHAN').order_by(TechnicianReturn.created_at,TechnicianReturn.id)
+        add('technician_returns','Thợ trả hàng',returning,'technician_return','/viec-cua-toi?nhom=technician_returns')
         orders = docs(PurchaseOrder, Supplier.name).join(Supplier, Supplier.code==PurchaseOrder.supplier_code).where(
             PurchaseOrder.status.in_(('DA_DAT','NHAN_MOT_PHAN'))).order_by(PurchaseOrder.expected_date.asc().nulls_last(), PurchaseOrder.id)
         add('purchases_waiting', 'Đơn mua chờ nhận hàng', orders, 'purchase', '/don-mua')
@@ -157,7 +161,7 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien'}[kind]
+            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"

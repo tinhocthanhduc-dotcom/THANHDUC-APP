@@ -1,0 +1,13 @@
+{% extends 'base.jinja' %}{% block title %}{{ row.number }}{% endblock %}
+{% block main %}<h1>{{ row.number }} · Thợ trả hàng</h1><p><a href="/viec-cua-toi">← Việc của tôi</a> · <a href="/dich-vu/{{ row.ticket_id }}">Phiếu dịch vụ</a></p>
+{% if error %}<p class="alert bad" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+<section class="card"><h2>{{ statuses[row.status] }}</h2><p>{{ row.warehouse_code }} → {{ row.to_warehouse_code }}</p>
+{% if row.note %}<p>{{ row.note }}</p>{% endif %}{% if row.void_reason %}<p>Lý do hủy: {{ row.void_reason }}</p>{% endif %}
+{% if row.stock_doc_id and doc_url %}<p><a href="{{ doc_url }}">Phiếu CK trả kho</a></p>{% endif %}
+{% for line in row.lines %}<p>{{ line.product_code }} · {{ names.get(line.product_code,'') }}: yêu cầu {{ line.qty|qty }}{% if line.received_qty is not none %} · Thực nhận {{ line.received_qty|qty }}{% endif %}</p>{% endfor %}</section>
+{% if row.status=='CHO_NHAN' %}{% if can_receive %}<form id="return-receive" class="card form" method="post" action="/tho-tra-hang/{{ row.id }}/nhan">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',row.version) }}">
+<h2>Nhận hàng từ thợ</h2>{% for line in row.lines %}<label>{{ line.product_code }} · Số thực nhận (tối đa {{ line.qty|qty }})<input name="qty_{{ line.product_code }}" inputmode="decimal" value="{{ d.get('qty_' ~ line.product_code,line.qty) }}" required></label>{% endfor %}
+<label>Ghi chú chênh lệch<textarea name="note" maxlength="2000">{{ d.get('note','') }}</textarea></label><p class="hint">Nhận thiếu phải ghi chú. Xác nhận sẽ chuyển đúng số thực nhận từ kho thợ về kho nhận.</p><button class="primary">Đã nhận</button></form>{% endif %}
+<form id="return-cancel" class="card form" method="post" action="/tho-tra-hang/{{ row.id }}/huy"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',row.version) }}"><label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ d.get('reason','') }}</textarea></label><button>Hủy yêu cầu trả</button></form>{% endif %}
+{% endblock %}

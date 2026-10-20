@@ -3,7 +3,7 @@
 {% block main %}
 <section class="card"><h2>Đơn bán chờ giao thợ</h2>{% for order in delivery_orders %}<p><a href="/giao-don/{{ order.id }}">{{ order.number }}</a> · {{ delivery_labels[order.id] }} · {{ order.delivery_address }}</p>{% else %}<p>Không có đơn bán chờ giao thợ.</p>{% endfor %}</section>
 <div class="bar"><h1>Điều phối</h1><a class="btn" href="/dieu-phoi/bao-cao">Báo cáo dịch vụ</a></div>
-<div class="dispatch-tiles">
+<div class="dispatch-tiles"><a class="card" href="/dieu-phoi?view=deferred"><strong>{{ count_deferred }}</strong><span>Khách hẹn lần sau</span></a>
 <a class="card {% if view == 'open' %}on{% endif %}" href="/dieu-phoi?view=open"><strong>{{ count_open }}</strong><span>Đơn đang mở</span></a>
 <a class="card {% if view == 'overdue' %}on{% endif %}" href="/dieu-phoi?view=overdue"><strong>{{ count_overdue }}</strong><span>Đơn quá hạn</span></a>
 <a class="card {% if view == 'parts' %}on{% endif %}" href="/dieu-phoi?view=parts"><strong>{{ count_parts }}</strong><span>Chờ linh kiện</span></a>
@@ -12,9 +12,9 @@
 <h2>{{ title }}</h2>
 <ul class="list service-list">
 {% for t in rows %}<li {% if t.due_at and t.due_at < now %}class="service-overdue"{% endif %}><a href="/dich-vu/{{ t.id }}">
-  <span class="code">{{ t.number }}</span><strong>{{ service_statuses[t.status] }}</strong>{% if visit_counts.get(t.id,0) >= 3 %}<span class="badge">Đi nhiều lần</span>{% endif %}{% if t.hold_reason %}<span>Lý do: {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</span>{% endif %}
+  <span class="code">{{ t.number }}</span><strong>{{ service_statuses[t.status] }}</strong>{% if visit_counts.get(t.id,0) >= 3 and t.status not in ['HOAN_THANH','DA_DONG','KHACH_HEN_SAU'] %}<span class="badge">Đi nhiều lần</span>{% endif %}{% if t.hold_reason %}<span>Lý do: {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</span>{% endif %}
   <span>{{ users.get(t.assignee_id, 'Chưa giao') }}{% if t.assignee_id %} · {{ open_counts.get(t.assignee_id, 0) }} việc đang mở{% endif %}</span>
-  <span class="meta">{% if t.due_at and t.due_at < now %}{{ delay(t.due_at, now) }} · {% endif %}Hạn: {{ t.due_at|service_time }}</span>
-</a></li>{% else %}<li class="empty">Không có đơn phù hợp.</li>{% endfor %}
+  <span class="meta">{% if t.appointment_at %}Hẹn: {{ t.appointment_at|appointment_label(t.appointment_slot) }} · {% endif %}{% if t.due_at and t.due_at < now %}{{ delay(t.due_at, now) }} · {% endif %}Hạn: {{ t.due_at|service_time }}</span>
+</a>{% if t.status=='KHACH_HEN_SAU' %}<a class="btn" href="/dich-vu/moi?tiep_theo={{ t.id }}">Tạo phiếu tiếp</a>{% endif %}</li>{% else %}<li class="empty">Không có đơn phù hợp.</li>{% endfor %}
 </ul>
 {% endblock %}

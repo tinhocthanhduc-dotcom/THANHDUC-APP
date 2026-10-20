@@ -1,0 +1,1 @@
+{% if ticket_returns %}<section class="card"><h2>Yêu cầu trả kho</h2>{% for row in ticket_returns %}<p><a href="/tho-tra-hang/{{ row.id }}">{{ row.number }}</a> · {{ {'CHO_NHAN':'Chờ kho nhận','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'}[row.status] }} · {{ row.warehouse_code }} → {{ row.to_warehouse_code }}</p>{% endfor %}</section>{% endif %}

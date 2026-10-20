@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments, service_tickets, technician_stock
+from .. import attachments, service_appointments, service_tickets, technician_stock
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, CustomerSite, Equipment, Product, SalesOrder, ServiceTicket, User
@@ -64,10 +64,13 @@ def detail_context(session, user, ticket, ctx):
     checks.append(dict(key='warehouses',label='Vật tư đã chọn kho của bạn',ok=all(warehouse and line.get('warehouse_code')==warehouse.code for line in ctx['charges']['lines'] if line['kind']=='VAT_TU')))
     target = {'DA_GIAO':'DA_NHAN','DA_NHAN':'DA_HEN','DA_HEN':'DANG_LAM','DANG_LAM':'HOAN_THANH',
               'CHO_LINH_KIEN':'DANG_LAM','TAM_DUNG':'DANG_LAM'}.get(ticket.status)
+    if ticket.status=='DA_NHAN' and ticket.appointment_at: target='DANG_LAM'
     labels={'DA_GIAO':'Nhận đơn','DA_NHAN':'Hẹn khách','DA_HEN':'Đã đến khách','DANG_LAM':'Hoàn thành','CHO_LINH_KIEN':'Tiếp tục làm','TAM_DUNG':'Tiếp tục làm'}
+    if ticket.status=='DA_NHAN' and ticket.appointment_at: labels['DA_NHAN']='Đã đến khách'
     primary = dict(form='service-complete' if ticket.status=='DANG_LAM' else 'service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
-    exceptions=[s for s in ctx['transitions'] if s!=target and s not in ('DA_HUY','DA_DONG')]
+    exceptions=[s for s in ctx['transitions'] if s!=target and s not in ('DA_HUY','DA_DONG') and not (s=='KHACH_HEN_SAU' and ticket.status=='DANG_LAM')]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
+    if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
     return dict(technician_view=True,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=product.name if product else '',**contact(ctx['customer'],ctx['site']))
@@ -75,7 +78,7 @@ def detail_context(session, user, ticket, ctx):
 
 def _schedule(appointment,status,now):
     local = appointment.astimezone(service_tickets.service_sla.TZ) if appointment else None
-    if status=='DA_HEN' and local and local.date()<=now.astimezone(service_tickets.service_sla.TZ).date(): return (0,local)
+    if status in ('DA_NHAN','DA_HEN') and local and local.date()<=now.astimezone(service_tickets.service_sla.TZ).date(): return (0,local)
     if status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):return (1,local or now)
     return (2 if local else 3,local or now)
 
@@ -90,7 +93,7 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
         action=next_steps.service(session,user,ticket)
         jobs.append(dict(kind='service',id=ticket.id,number=ticket.number,priority=ticket.priority,customer=customer.name,
             machine=machine or '',serial=ticket.serial or '',symptom=ticket.symptom,appointment=ticket.appointment_at,
-            overdue=(ticket.status=='DA_HEN' and ticket.appointment_at is not None and ticket.appointment_at<now) or (ticket.due_at is not None and ticket.due_at<now),
+            appointment_slot=ticket.appointment_slot, overdue=(ticket.status in ('DA_HEN','DA_NHAN') and ticket.appointment_at is not None and service_appointments.end(ticket.appointment_at,ticket.appointment_slot)<now) or (ticket.due_at is not None and ticket.due_at<now),
             href=f'/tho/phieu/{ticket.id}',action=action['primary'] if action else None,
             sort=_schedule(ticket.appointment_at,ticket.status,now),**contact(customer,site)))
     orders=session.scalars(select(SalesOrder).where(SalesOrder.delivery_assignee_id==user.id,SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))))

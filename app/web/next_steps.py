@@ -64,7 +64,7 @@ def service(session, user, t):
         return form(label,'service-'+target,base+'/transition')
     if t.status=='MOI' and dispatcher:return block(form('Giao thợ','service-assign',base+'/assign','Chọn thợ trong form Giao thợ.'))
     if t.status=='DA_GIAO' and can_step:return block(transition('Nhận việc','DA_NHAN'))
-    if t.status=='DA_NHAN' and can_step:return block(transition('Hẹn khách để bắt đầu','DA_HEN'))
+    if t.status=='DA_NHAN' and can_step:return block(transition('Đã đến khách','DANG_LAM') if t.appointment_at else transition('Hẹn khách để bắt đầu','DA_HEN'))
     if t.status=='DA_HEN' and can_step:return block(transition('Đã đến khách','DANG_LAM'),
         [form('Không gặp khách','service-no-show',base+'/no-show','Ghi người liên hệ, đã gọi chưa và giờ hẹn mới.')])
     if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))

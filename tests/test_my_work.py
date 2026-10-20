@@ -288,14 +288,13 @@ def test_sales_end_to_end_only_follow_next_actions(client, db, people, configure
 def test_service_end_to_end_existing_core_holds_appointment_price_photo_rules(client, db, people, configured_finance):
     p=people;csrf=service_login(client,p['reception'])
     page=client.get('/dich-vu/moi')
-    page=next_action(client,page,customer_code='KTD-000001',kind='SUA_TAI_CHO',priority='THUONG',symptom='Máy in kẹt giấy')
+    page=next_action(client,page,customer_code='KTD-000001',kind='SUA_TAI_CHO',priority='THUONG',symptom='Máy in kẹt giấy',appointment_choice='CHIEU:2026-10-19')
     t=db.query(ServiceTicket).one();assert t.status=='MOI'
     service_login(client,p['dispatcher']);page=client.get(str(page.url))
     page=next_action(client,page,assignee_id=p['technician'].id)
     service_login(client,p['technician']);page=client.get(str(page.url))
     page=next_action(client,page);db.expire_all();assert t.status=='DA_NHAN'
-    assert 'Hẹn khách để bắt đầu' in page.text
-    page=next_action(client,page,appointment_at='2026-10-18T11:00')
+    assert 'Đã đến khách' in page.text
     page=next_action(client,page);db.expire_all();assert t.status=='DANG_LAM'
     assert 'Lưu tiền trước khi hoàn thành' in page.text
     page=next_action(client,page,billing='THU_TIEN',free_reason='',line_kind='PHI',line_description='Công sửa',line_qty='1',line_price='500.000',line_product='',warehouse_0='',vat_0=0)
