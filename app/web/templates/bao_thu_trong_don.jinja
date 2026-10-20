@@ -12,5 +12,5 @@
 <label>Ghi chú<textarea name="note" maxlength="4000">{{ receipt_data.note }}</textarea></label><button class="primary">{{ receipt_report_label }}</button>
 </form>{% else %}<p class="alert ok">Đã thu hoặc đã báo đủ số phải thu; chờ tài chính xác nhận các phiếu còn lại.</p>{% endif %}
 {% endif %}
-<div class="receipt-grid">{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% else %}<p>Chưa có báo thu.</p>{% endfor %}</div>
+{% if not workflow_page %}<div class="receipt-grid">{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% else %}<p>Chưa có báo thu.</p>{% endfor %}</div>{% endif %}
 </section>

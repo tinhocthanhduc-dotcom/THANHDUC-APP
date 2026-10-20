@@ -4,7 +4,7 @@
 <form id="service-charges" method="post" action="/dich-vu/{{ t.id }}/tien/luu" class="form" data-charge-form data-charge-unsaved="{{ '1' if charge_unsaved else '0' }}" data-charge-editable="{{ '1' if can_charge and charge_editable else '0' }}">
 {% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ charges.version }}">
 {% include 'dich_vu_tien_fields.jinja' %}
-{% if can_charge and charge_editable %}<button class="primary">Lưu tiền</button><p class="hint">Bấm Lưu tiền trước khi Hoàn thành. Số lưu chính thức do lõi tính.</p>{% endif %}
+{% if can_charge and charge_editable %}{% if not workflow_page or not next_step or next_step.primary.form!='service-charges' %}<button>Lưu tiền</button>{% endif %}<p class="hint">Bấm Lưu tiền trước khi Hoàn thành. Số lưu chính thức do lõi tính.</p>{% endif %}
 </form>
 <div class="charge-saved"><strong>{{ 'Số tiền đã chốt' if t.priced_at else 'Tổng các dòng đã lưu (lõi tính)' }}</strong><dl>
 <dt>Tiền dòng</dt><dd>{{ (t.subtotal if t.subtotal is not none else charge_subtotal)|money }} đồng</dd><dt>VAT</dt><dd>{{ (t.vat_total if t.vat_total is not none else charge_vat)|money }} đồng</dd>

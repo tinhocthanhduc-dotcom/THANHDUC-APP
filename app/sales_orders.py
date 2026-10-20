@@ -202,26 +202,31 @@ def create_from_quote(session: Session, user, quote_id, body: SalesOrderFromQuot
 def update_lines(session: Session, user, order_id, body: SalesOrderUpdate):
     check_writer(user)
     with _transaction(session):
-        order = _load(session, order_id, lock=True)
-        _version(order, body.version)
-        if order.status != 'NHAP':
-            raise BusinessError('PRICE_LOCKED', 'Đơn bán đã chốt hoặc đã hủy, không sửa dòng được.', status=409)
-        quotes._customer(session, order.customer_code)
-        lines = _lines(session, body.lines)
-        before = snapshot(order)
-        order.lines.clear()
-        session.flush()
-        order.lines = lines
-        for field in ('contact_name', 'delivery_address', 'note'):
-            value = getattr(body, field)
-            if value is not None:
-                setattr(order, field, value)
-        if 'promised_date' in body.model_fields_set:
-            order.promised_date = body.promised_date
-        order.version += 1
-        quotes._totals(order)
-        _apply_terms(order,body,partial=True)
-        _record(session, user, order, 'update_lines', before)
+        return update_in_tx(session,user,order_id,body)
+
+
+def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
+    check_writer(user)
+    order = _load(session, order_id, lock=True)
+    _version(order, body.version)
+    if order.status != 'NHAP':
+        raise BusinessError('PRICE_LOCKED', 'Đơn bán đã chốt hoặc đã hủy, không sửa dòng được.', status=409)
+    quotes._customer(session, order.customer_code)
+    lines = _lines(session, body.lines)
+    before = snapshot(order)
+    order.lines.clear()
+    session.flush()
+    order.lines = lines
+    for field in ('contact_name', 'delivery_address', 'note'):
+        value = getattr(body, field)
+        if value is not None:
+            setattr(order, field, value)
+    if 'promised_date' in body.model_fields_set:
+        order.promised_date = body.promised_date
+    order.version += 1
+    quotes._totals(order)
+    _apply_terms(order,body,partial=True)
+    _record(session, user, order, 'update_lines', before)
     return order
 
 
@@ -546,12 +551,10 @@ def _apply_terms(order, body, partial=False):
 def _check_credit(session,user,order,reason):
     if order.payment_term!='CONG_NO':
         return
-    from . import finance_reports
     customer=quotes._customer(session,order.customer_code)
-    debts=finance_reports._debts()
-    remaining=int(session.scalar(select(func.coalesce(func.sum(debts.c.remaining),0)).where(debts.c.customer_code==customer.code)))
-    if customer.allow_debt and remaining+order.total<=customer.credit_limit:
-        return
+    state=credit_state(session,customer,order.total)
+    remaining=state['remaining']
+    if state['allowed']:return
     details=dict(remaining=remaining,total=order.total,credit_limit=customer.credit_limit,allow_debt=customer.allow_debt)
     if not has_role(user,'director'):
         raise BusinessError('CREDIT_LIMIT','Khách chưa được nợ hoặc vượt hạn mức. Cần giám đốc chốt.',details,status=409)
@@ -630,3 +633,17 @@ def summaries(session, orders, today=None):
             delivery_label='Đã giao đủ' if o.status=='DA_GIAO' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Chưa giao',
             money_label='Còn nợ' if remaining else 'Khách ứng trước' if advance else 'Đã thu đủ phần đã giao' if o.status!='NHAP' else 'Chưa phát sinh')
     return state
+
+
+def save_and_confirm(session,user,body,order_id=None,credit_override_reason=''):
+    check_writer(user)
+    with _transaction(session):
+        order = update_in_tx(session,user,order_id,body) if order_id is not None else _new(session,user,body)
+        return confirm_in_tx(session,user,order.id,order.version,credit_override_reason)
+
+
+def credit_state(session,customer,total):
+    from . import finance_reports
+    debts=finance_reports._debts()
+    remaining=int(session.scalar(select(func.coalesce(func.sum(debts.c.remaining),0)).where(debts.c.customer_code==customer.code)))
+    return dict(remaining=remaining,allowed=customer.allow_debt and remaining+total<=customer.credit_limit)

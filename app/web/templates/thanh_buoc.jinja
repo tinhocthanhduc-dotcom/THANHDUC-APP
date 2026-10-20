@@ -1,0 +1,10 @@
+{% if workflow.terminal %}<p class="tag workflow-terminal" data-workflow-terminal>{{ workflow.terminal }}</p>{% else %}
+<ol class="workflow-steps" aria-label="Các bước xử lý" data-workflow-steps>{% for label in workflow.labels %}<li {% if loop.index0==workflow.current %}aria-current="step"{% endif %}>{{ '●' if loop.index0<=workflow.current else '○' }} {{ label }}</li>{% endfor %}</ol>
+{% endif %}
+{% if next_step %}<section class="workflow-action" data-workflow-action>
+{% if check_heading %}<h2>{{ check_heading }}</h2>{% endif %}{% include 'dieu_kien.jinja' %}
+{% set a=next_step.primary %}{% set blocked=primary_checks|selectattr('blocking')|rejectattr('ok')|list %}
+<div class="workflow-buttons">{% if a.form %}<button class="primary next-primary" type="submit" form="{{ a.form }}" data-next-primary data-next-route="{{ a.route }}" {% if a.then %}name="then" value="{{ a.then }}"{% endif %} {% if blocked %}disabled aria-describedby="workflow-checks"{% endif %}>{{ a.label }}</button>{% else %}<a class="btn primary next-primary" href="{{ a.href }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</a>{% endif %}
+{% for a in next_step.secondary %}{% if a.form %}<button type="submit" form="{{ a.form }}">{{ a.label }}</button>{% endif %}{% endfor %}</div>
+<p class="hint" data-primary-missing {% if not blocked %}hidden{% endif %}>Còn thiếu: {% for c in blocked %}{{ c.label }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+</section>{% endif %}

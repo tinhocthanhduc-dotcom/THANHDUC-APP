@@ -1450,7 +1450,7 @@ def test_d6_ui_complete_shows_generated_px_and_reopen_returns_stock(client, db, 
     assert 'value="999.000"' in response.text
     csrf = service_login(client, service_people['dispatcher'])
     page = client.get(f'/dich-vu/{charge_work.id}').text
-    assert '>Mở lại</button>' in page and '>Đóng hồ sơ</button>' in page
+    assert '>Mở lại</button>' in page and '>Đóng phiếu</button>' in page
     response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='')
     assert response.status_code == 400 and 'Phải ghi lý do' in response.text
     response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='Khách yêu cầu kiểm tra thêm')

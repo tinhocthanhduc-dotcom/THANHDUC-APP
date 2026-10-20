@@ -2,20 +2,21 @@
 {% macro token(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action==action else o.version }}">{% endmacro %}
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
+{% import 'viec_khac.jinja' as other %}
 {% block main %}
 <div class="bar quote-heading"><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><a href="/don-ban">← Đơn bán</a>{% if o and o.status=='DA_GIAO' %}<a class="btn" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
-{% include 'buoc_tiep.jinja' %}
-{% if returns_ctx %}{% include 'tra_hang_trong_don.jinja' %}{% endif %}
+{% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
+
 {% if tech_delivery %}<section class="card"><h2>Giao bằng thợ</h2><p>{{ tech_delivery.label }} · {{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Chưa có thợ' }}</p><p>Đang ở kho thợ: {% for r in tech_delivery.held %}{{ r.product_code }}: {{ r.qty|qty }} {% else %}0{% endfor %}</p><a class="btn" href="/giao-don/{{ o.id }}">Phân công · Bàn giao cho thợ · Dùng hàng thợ đang có · Trả kho</a>{% for a in tech_delivery.attempts %}<p>Giao không thành: {{ tech_delivery.reason_labels[a.reason] }} · {{ a.note }}</p>{% endfor %}</section>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if o %}<p>Trạng thái: <strong>{{ statuses[o.status] }}</strong></p>{% endif %}
-{% if o and o.status not in ['NHAP','DA_HUY'] %}<section class="card form"><h2>Tiến độ giao hàng</h2><p>{{ 'Chưa giao' if o.status=='DA_CHOT' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Đã giao đủ' }}</p>
+{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="card form"><h2>Tiến độ giao hàng</h2><p>{{ 'Chưa giao' if o.status=='DA_CHOT' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Đã giao đủ' }}</p>
 {% for line in o.lines %}<article class="card"><strong>Dòng {{ line.line_no }} · {{ line.description }}</strong><dl><dt>Đặt</dt><dd>{{ line.qty|qty }}</dd><dt>Đã giữ</dt><dd>{{ reservations[line.line_no].held|qty if line.kind=='HANG' else '—' }}</dd><dt>Đã giao</dt><dd>{{ delivery_state[line.line_no].delivered|qty }}</dd><dt>Đã đóng</dt><dd>{{ line.closed_qty|qty }}</dd><dt>Còn lại</dt><dd>{{ delivery_state[line.line_no].remaining|qty }}</dd></dl></article>{% endfor %}</section>{% endif %}
 {% if collection %}<p class="alert {{ 'warn' if collection.balance.remaining>0 else 'ok' }}">{{ 'Còn nợ: ' ~ (collection.balance.remaining|money) ~ ' đồng' if collection.balance.remaining>0 else 'Khách ứng trước: ' ~ (collection.balance.advance|money) ~ ' đồng' if collection.balance.advance>0 else 'Đã thu đủ phần đã giao' }}</p>{% endif %}
 {% if source %}<p><a href="/bao-gia/{{ source.id }}">Báo giá nguồn: {{ source.number }}</a></p>{% endif %}
 {% if o and o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
-<form id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
+{% if o and not editable %}<details class="card" data-order-readonly><summary>{{ customer_name }} · {{ fulfillments[o.fulfillment] }} · {{ payments[o.payment_term] }} · {{ o.total|money }} đồng · Xem khách và dòng hàng</summary><form data-workflow-form="order" id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
 {% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Cố định sau khi tạo đơn' if o else ('Không sửa được ở trạng thái này' if not can_write or not editable else ''))) %}<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>{% endcall %}
@@ -28,30 +29,56 @@
 <p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
 {% if can_write and editable %}<button type="button" data-order-add>+ Thêm dòng</button>{% endif %}
 </fieldset>
+{% if can_write and editable and is_director %}<label>Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
 <p class="alert warn" data-order-warning hidden></p>
-{% if can_write and editable %}<button class="primary">Lưu đơn</button><p class="hint">Lưu các thay đổi trước khi Chốt đơn. Nháp có thể thiếu kho; khi chốt phải chọn đủ kho.</p>{% endif %}
-</form>
+{% if can_write and editable %}<button>Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p>{% endif %}
+</form></details>{% else %}<form data-workflow-form="order" id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
+<fieldset {% if not can_write or not editable %}disabled{% endif %}>
+{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Cố định sau khi tạo đơn' if o else ('Không sửa được ở trạng thái này' if not can_write or not editable else ''))) %}<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>{% endcall %}
+{% include 'don_ban_dieu_kien.jinja' %}
+<label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
+<label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>
+<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
+<label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
+<div data-order-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_ban_dong_form.jinja' %}{% endfor %}</div>
+<p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
+{% if can_write and editable %}<button type="button" data-order-add>+ Thêm dòng</button>{% endif %}
+</fieldset>
+{% if can_write and editable and is_director %}<label>Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
+<p class="alert warn" data-order-warning hidden></p>
+{% if can_write and editable %}<button>Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p>{% endif %}
+</form>{% endif %}
 {% if o %}<section class="card service-action"><h2>Số tiền đã lưu</h2><dl><dt>Tiền hàng</dt><dd>{{ o.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ o.vat_total|money }} đồng</dd><dt>Tổng cộng</dt><dd>{{ o.total|money }} đồng</dd><dt>Phải thu</dt><dd>{{ (o.receivable|money) ~ ' đồng' if o.receivable is not none else 'Chưa chốt' }}</dd></dl></section>{% endif %}
 {% if o and o.status!='NHAP' %}<p>Ngày hẹn giao/lấy: {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'Chưa hẹn' }}</p>{% endif %}
 {% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="card form"><h2>Hàng đang giữ</h2>
 {% for line in o.lines if line.kind=='HANG' %}{% set held=reservations[line.line_no] %}<article class="card{% if held.missing>0 %} reservation-short{% endif %}"><strong>{{ line.product_code }} · {{ line.description }} · {{ line.warehouse_code }}</strong><p>Đã giữ {{ held.held|qty }}/{{ line.qty|qty }}{% if held.held==0 %} · Chưa giữ{% endif %}</p>
 {% if held.missing>0 %}<p class="alert warn">Thiếu {{ held.missing|qty }} {{ line.unit }} {{ line.description }} ở kho {{ line.warehouse_code }}</p>{% endif %}
-{% if can_release and held.reservation and held.reservation.status=='GIU' %}<form method="post" action="/don-ban/{{ o.id }}/release" class="form">{{ token('release') }}<input type="hidden" name="reservation_id" value="{{ held.reservation.id }}"><label>Lý do nhả<input name="reason" required value="{{ action_form.get('reason','') if failed_action=='release' and action_form.get('reservation_id')|string==held.reservation.id|string else '' }}"></label><button>Nhả</button></form>{% endif %}</article>{% endfor %}
+</article>{% endfor %}
 {% if can_keep and reservations.values()|selectattr('missing','gt',0)|list %}<form method="post" action="/don-ban/{{ o.id }}/reserve">{{ token('reserve') }}<button class="primary">Giữ thêm</button></form>{% endif %}
-{% if can_write %}<form class="form" method="post" action="/don-ban/{{ o.id }}/promise">{{ token('promise') }}<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ action_form.get('promised_date','') if failed_action=='promise' else (o.promised_date or '') }}"></label><button>Lưu ngày hẹn</button></form>{% endif %}</section>{% endif %}
-{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_write %}<form class="card form" method="post" action="/don-ban/{{ o.id }}/options">{{ token('options') }}<fieldset><legend>Đổi cách nhận hàng</legend><div class="seg stock-seg">{% for value,label in fulfillments.items() %}<label><input type="radio" name="fulfillment" value="{{ value }}" {% if (action_form.get('fulfillment') if failed_action=='options' else o.fulfillment)==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset><button>Lưu cách nhận hàng</button></form>{% endif %}
+</section>{% endif %}
+
 {% if o %}<p>{{ fulfillments[o.fulfillment] }} · {{ payments[o.payment_term] }}{% if o.payment_term=='CONG_NO' %} · {{ o.due_days }} ngày nợ{% elif o.payment_term=='DAT_COC' %} · Cọc dự kiến {{ o.deposit_amount|money }} đồng{% endif %}</p>{% if order_summary.due_date %}<p class="{{ 'alert bad' if order_summary.overdue_days>0 else '' }}">Hạn thanh toán: {{ order_summary.due_date.strftime('%d/%m/%Y') }}{% if order_summary.overdue_days>0 %} · Quá hạn {{ order_summary.overdue_days }} ngày{% endif %}</p>{% endif %}{% if o.credit_override_by %}<p class="alert warn">Giám đốc chốt vượt hạn mức: {{ o.credit_override_reason }}</p>{% endif %}{% endif %}
-{% include 'don_ban_lan_giao.jinja' %}
-{% if collection %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
-{% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
+
+{% if collection and o.status in ['GIAO_MOT_PHAN','DA_GIAO'] %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
 {% if o %}<div class="quote-actions">
-{% if can_write and o.status=='NHAP' %}<form id="order-confirm" method="post" action="/don-ban/{{ o.id }}/confirm" data-order-confirm>{{ token('confirm') }}{% if is_director and o.payment_term=='CONG_NO' %}<label>Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ action_form.get('credit_override_reason','') if failed_action=='confirm' else '' }}</textarea></label>{% endif %}<button class="primary">Chốt đơn</button></form>{% endif %}
-{% include 'don_ban_tai_quay.jinja' %}
+
+
 {% include 'don_ban_giao.jinja' %}
 </div>{% endif %}
-{% if o and can_write and o.status in ['NHAP','DA_CHOT'] %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="card form service-action" {% if o.status=='DA_GIAO' %}data-order-cancel{% endif %}>{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else '' }}</textarea></label>{% if o.status=='DA_GIAO' %}<p class="alert warn">Hủy sẽ trả hàng về kho</p>{% endif %}<button>Hủy đơn</button></form>{% endif %}
+
 {% if failed_action=='cancel' and o and o.status=='DA_HUY' %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
+{% call other.group(open=failed_action in ['options','promise','release','cancel','confirm','counter-sale','close-remaining'] or (returns_ctx and returns_ctx.raw) or (receipt_error and o and o.status=='DA_CHOT')) %}{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_release %}{% for line in o.lines if line.kind=='HANG' %}{% set held=reservations[line.line_no] %}{% if held.reservation and held.reservation.status=='GIU' %}<p>{{ line.product_code }} · {{ line.warehouse_code }}</p><form method="post" action="/don-ban/{{ o.id }}/release" class="form">{{ token('release') }}<input type="hidden" name="reservation_id" value="{{ held.reservation.id }}"><label>Lý do nhả<input name="reason" required value="{{ action_form.get('reason','') if failed_action=='release' and action_form.get('reservation_id')|string==held.reservation.id|string else '' }}"></label><button>Nhả</button></form>{% endif %}{% endfor %}{% endif %}
+{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_write %}<form class="form" method="post" action="/don-ban/{{ o.id }}/promise">{{ token('promise') }}<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ action_form.get('promised_date','') if failed_action=='promise' else (o.promised_date or '') }}"></label><button>Lưu ngày hẹn</button></form>{% endif %}
+{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_write %}<form class="card form" method="post" action="/don-ban/{{ o.id }}/options">{{ token('options') }}<fieldset><legend>Đổi cách nhận hàng</legend><div class="seg stock-seg">{% for value,label in fulfillments.items() %}<label><input type="radio" name="fulfillment" value="{{ value }}" {% if (action_form.get('fulfillment') if failed_action=='options' else o.fulfillment)==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset><button>Lưu cách nhận hàng</button></form>{% endif %}
+{% if o and can_write and o.status in ['NHAP','DA_CHOT'] %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="card form service-action" {% if o.status=='DA_GIAO' %}data-order-cancel{% endif %}>{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else '' }}</textarea></label>{% if o.status=='DA_GIAO' %}<p class="alert warn">Hủy sẽ trả hàng về kho</p>{% endif %}<button>Hủy đơn</button></form>{% endif %}
+{% if can_write and o.status=='NHAP' %}<form id="order-confirm" method="post" action="/don-ban/{{ o.id }}/confirm" data-order-confirm>{{ token('confirm') }}{% if is_director and o.payment_term=='CONG_NO' %}<label>Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ action_form.get('credit_override_reason','') if failed_action=='confirm' else '' }}</textarea></label>{% endif %}<button class="primary">Chốt đơn</button></form>{% endif %}
+{% if o %}{% include 'don_ban_tai_quay.jinja' %}{% endif %}{% if can_close and o.status=='GIAO_MOT_PHAN' %}<form class="card form" method="post" action="/don-ban/{{ o.id }}/close-remaining"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action=='close-remaining' else o.version }}"><label>Lý do đóng phần còn lại<textarea name="reason" required>{{ action_form.get('reason','') if failed_action=='close-remaining' else '' }}</textarea></label><button>Đóng phần còn lại</button></form>{% endif %}
+{% if collection and o.status=='DA_CHOT' %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}{% if returns_ctx %}{% include 'tra_hang_trong_don.jinja' %}{% endif %}{% endcall %}
+{% if o %}<details class="card" {% if failed_action=='void-delivery' or failed_receipt_id %}open{% endif %}><summary>Lịch sử</summary>{% include 'don_ban_lan_giao.jinja' %}{% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
+{% if collection %}{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}{% endif %}</details>{% endif %}
 <template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code=default_warehouse,description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
+<script src="/static/workflow.js" defer></script>
 <script src="/static/orders.js" defer></script>
 <script src="/static/picked.js" defer></script>
 {% endblock %}

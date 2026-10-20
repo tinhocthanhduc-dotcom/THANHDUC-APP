@@ -19,7 +19,7 @@ from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
 from . import checked_form, money, render, web_user
 
-from . import next_steps, picked
+from . import next_steps, picked, steps
 
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp', 'DA_GUI':'Đã gửi', 'CHAP_NHAN':'Chấp nhận', 'TU_CHOI':'Từ chối', 'DA_HUY':'Đã hủy'}
@@ -58,7 +58,7 @@ def _form(request, session, data=None, quote=None, error=None, code='', status=2
     replacement = svc.load(session, request.state.user, quote.replaced_by_id) if quote and quote.replaced_by_id else None
     linked_order = session.execute(select(SalesOrder.id, SalesOrder.number).where(SalesOrder.quote_id == quote.id,
                                   SalesOrder.status != 'DA_HUY')).first() if quote else None
-    return render(request, 'bao_gia_form.jinja', q=quote, d=data, line_errors=picked.line_errors(data['lines'],error,code), customer_card=card, customer_name=customer.name if customer else '',
+    return render(request, 'bao_gia_form.jinja', workflow=steps.quote(quote,linked_order),primary_checks=steps.quote_checks(data) if quote is None or quote.status=='NHAP' else [],today=svc._today().isoformat(), q=quote, d=data, line_errors=picked.line_errors(data['lines'],error,code), customer_card=card, customer_name=customer.name if customer else '',
                   product_names=names, statuses=STATUSES, vat_rates=VAT_RATES,
                   can_write=has_role(request.state.user,*svc.WRITERS), is_new=quote is None,
                   next_step=next_steps.quote(request.state.user,quote,linked_order),linked_order=linked_order, editable=quote is None or quote.status == 'NHAP', replaced=replacement,
@@ -148,7 +148,8 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
     svc.check_writer(user)
     raw=_raw(form)
     try:
-        quote=svc.create(session,user,QuoteIn(**_body(raw)))
+        body=QuoteIn(**_body(raw))
+        quote=svc.save_and_send(session,user,body) if form.get('then')=='send' else svc.create(session,user,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _form(request,session,raw,error=message,code=code,status=status)
@@ -167,7 +168,9 @@ def update(request: Request,quote_id: int,form=Depends(checked_form),session: Se
     quote=svc.load(session,user,quote_id)
     raw=_raw(form)
     try:
-        svc.update_lines(session,user,quote_id,QuoteUpdate(version=_version(form),**_body(raw)))
+        body=QuoteUpdate(version=_version(form),**_body(raw))
+        if form.get('then')=='send': svc.save_and_send(session,user,body,quote_id)
+        else: svc.update_lines(session,user,quote_id,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _form(request,session,raw,quote=svc.load(session,user,quote_id),error=message,code=code,status=status)

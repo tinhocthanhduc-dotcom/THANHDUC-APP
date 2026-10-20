@@ -1,7 +1,7 @@
 <article class="card receipt-card" id="bt-{{ r.id }}">
 <div class="bar"><strong>{{ r.number }}</strong><span class="tag">{{ receipt_statuses[r.status] }}</span></div>
 {% if origin=='queue' %}<p>Nguồn: <a href="{{ receipt_sources[r.id].url }}">{{ receipt_sources[r.id].number }}</a> · {{ names.get(receipt_sources[r.id].customer_code,'') }}</p>{% endif %}
-{% set next_step=receipt_next(user,r) %}{% include 'buoc_tiep.jinja' %}
+{% if not workflow_page %}{% set next_step=receipt_next(user,r) %}{% include 'buoc_tiep.jinja' %}{% endif %}
 {% if r.cash_doc_id %}<p>Phiếu thu: {% if can_decide %}<a href="/thu-chi/{{ r.cash_doc_id }}">{{ receipt_cash_docs.get(r.cash_doc_id, 'Xem PT') }}</a>{% else %}{{ receipt_cash_docs.get(r.cash_doc_id, 'Đã lập') }}{% endif %}</p>{% endif %}
 <p><strong>{{ r.amount|money }} đồng</strong> · {{ receipt_methods[r.method] }}</p>
 <p class="hint">Ngày thu {{ r.received_at.strftime('%d/%m/%Y') }} · Người báo {{ receipt_people.get(r.reported_by,r.reported_by) }}</p>

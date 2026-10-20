@@ -2,11 +2,24 @@
 {% macro version(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ form.get('version', t.version) if failed_action == action else t.version }}">{% endmacro %}
 {% macro note(action, label='Ghi chú', required=false) %}<label>{{ label }}<textarea name="note" maxlength="2000" {% if required %}required minlength="3"{% endif %}>{{ form.get('note', '') if failed_action == action else '' }}</textarea></label>{% endmacro %}
 {% macro reason(action) %}<label>Lý do<textarea name="reason" maxlength="2000" required minlength="3">{{ form.get('reason', '') if failed_action == action else '' }}</textarea></label>{% endmacro %}
+{% macro action_form(target) %}
+{% set action = 'transition:' ~ target %}
+<form id="service-{{ target }}" method="post" action="/dich-vu/{{ t.id }}/transition" enctype="multipart/form-data" class="card form service-action">
+  {{ version(action) }}<input type="hidden" name="to_status" value="{{ target }}">
+  <h2>{{ transition_labels[target] }}</h2>
+  {% if target == 'DA_HEN' %}{% with ap_form=form if failed_action==action else {}, returning=t.status=='DANG_LAM', allow_later=t.status=='DANG_LAM' %}{% include 'hen_khach.jinja' %}{% endwith %}{% if t.status=='DANG_LAM' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}{% endif %}
+{% if target=='KHACH_HEN_SAU' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}
+  {% if target == 'TAM_DUNG' %}<fieldset><legend>Lý do tạm dừng</legend><div class="seg stock-seg">{% for code,label in hold_reasons.items() %}<label><input type="radio" name="hold_reason" value="{{ code }}" {% if failed_action == action and form.get('hold_reason') == code %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset><p class="hint">Chọn Khác thì phải ghi chú bên dưới.</p>{% endif %}
+  {{ note(action, 'Lý do' if (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status == 'HOAN_THANH' and target == 'DANG_LAM')) else 'Ghi chú', (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status == 'HOAN_THANH' and target == 'DANG_LAM'))) }}
+  {% if not next_step or next_step.primary.form!='service-' ~ target %}<button {% if target=='DA_HEN' %}data-appointment-submit data-label="{{ transition_labels[target] }}"{% endif %} {% if target == 'DA_HUY' %}data-service-confirm="Hủy phiếu dịch vụ này?"{% endif %}>{{ transition_labels[target] }}</button>{% endif %}
+</form>
+{% endmacro %}
 {% block title %}{{ t.number }}{% endblock %}
+{% import 'viec_khac.jinja' as other %}
 {% block main %}
 {% for order in linked_orders %}<p><a href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}
 <div class="bar"><h1>{{ t.number }}</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
-{% include 'buoc_tiep.jinja' %}
+{% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if retained_fields %}<section class="card form service-action"><h2>Dữ liệu vừa gửi chưa được lưu</h2>
 <p>Trạng thái phiếu đã thay đổi. <a href="/dich-vu/{{ t.id }}">Tải lại phiếu</a> trước khi tiếp tục.</p>
@@ -28,43 +41,29 @@
   {% if t.status_reason %}<h3>Lý do</h3><p class="service-text">{{ t.status_reason }}</p>{% endif %}
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
 </section>
-<section class="card service-action" id="service-visits"><h2>Các lượt đến khách</h2>
-<ol class="service-history">{% for visit in visits %}<li>
-<strong>Lượt {{ loop.index }} · {{ users.get(visit.technician_id, 'Nhân viên') }}</strong>
-{% if not visit.ended_at %}<p>Đang ở khách từ {{ (visit.started_at|service_time)[11:] }}</p>{% endif %}
-<dl><dt>Giờ đến</dt><dd>{{ visit.started_at|service_time }}</dd><dt>Giờ kết thúc</dt><dd>{{ visit.ended_at|service_time }}</dd>
-<dt>Thời lượng</dt><dd>{{ '%.1f phút'|format((visit.ended_at - visit.started_at).total_seconds() / 60) if visit.ended_at else 'Đang mở' }}</dd>
-<dt>Kết quả</dt><dd>{{ visit_outcomes.get(visit.outcome, 'Đang ở khách') }}</dd>
-{% if visit.next_appointment_at %}<dt>Hẹn lần sau</dt><dd>{{ visit.next_appointment_at|service_time }}</dd>{% endif %}</dl>
-{% if visit.note %}<p class="service-text">{{ visit.note }}</p>{% endif %}</li>{% else %}<li>Chưa có lượt đến khách.</li>{% endfor %}</ol></section>
+
 {% include 'bao_hanh_chi_tiet.jinja' %}
-{% include 'linh_kien_thu_hoi_trong_phieu.jinja' %}
+{% if t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG','HOAN_THANH','DA_DONG'] %}{% include 'linh_kien_thu_hoi_trong_phieu.jinja' %}{% endif %}
 {% include "may_khach.jinja" %}
-{% include "dich_vu_linh_kien.jinja" %}
-{% include "dich_vu_tien.jinja" %}
-{% if can_reschedule %}<form id="service-reschedule" method="post" action="/dich-vu/{{ t.id }}/reschedule" class="card form"><h2>Đổi hẹn khách</h2>{{ version('reschedule') }}{% with ap_form=form if failed_action=='reschedule' else {}, returning=false, allow_later=false %}{% include 'hen_khach.jinja' %}{% endwith %}{{ note('reschedule') }}<button>Dời hẹn</button></form>{% endif %}
+{% if t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'] %}{% include 'dich_vu_linh_kien.jinja' %}{% endif %}
+{% if t.status in ['HOAN_THANH','DA_DONG'] %}<details class="card"><summary>Tiền và vật tư đã chốt · {{ (t.total or 0)|money }} đồng</summary>{% include 'dich_vu_tien.jinja' %}</details>{% elif t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'] %}{% include 'dich_vu_tien.jinja' %}{% endif %}
+
 {% if t.status=='KHACH_HEN_SAU' and can_followup %}<a class="btn" href="/dich-vu/moi?tiep_theo={{ t.id }}">Tạo phiếu tiếp</a>{% endif %}
 {% include 'tra_vat_tu_history.jinja' %}
-{% if can_assign %}
+{% if t.status=='MOI' %}{% if can_assign %}
 <form id="service-assign" method="post" action="/dich-vu/{{ t.id }}/assign" class="card form service-action">
   <h2>Giao thợ{% if t.transfer_request %} / Duyệt chuyển việc{% endif %}</h2>{{ version('assign') }}
   <fieldset><legend>Chọn thợ — số việc đang mở</legend><div class="seg stock-seg">
     {% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if (failed_action == 'assign' and form.get('assignee_id', '')|string == tech.id|string) or (failed_action != 'assign' and t.assignee_id == tech.id) %}checked{% endif %} required><span>{{ tech.full_name }} · {{ counts.get(tech.id, 0) }} việc đang mở</span></label>{% endfor %}
-  </div></fieldset>{{ note('assign') }}<button class="primary">Giao thợ</button>
+  </div></fieldset>{{ note('assign') }}{% if not next_step or next_step.primary.form!='service-assign' %}<button>Giao thợ</button>{% endif %}
 </form>
-{% endif %}
-{% for target in transitions %}
-{% set action = 'transition:' ~ target %}
-<form id="service-{{ target }}" method="post" action="/dich-vu/{{ t.id }}/transition" enctype="multipart/form-data" class="card form service-action">
-  {{ version(action) }}<input type="hidden" name="to_status" value="{{ target }}">
-  <h2>{{ transition_labels[target] }}</h2>
-  {% if target == 'DA_HEN' %}{% with ap_form=form if failed_action==action else {}, returning=t.status=='DANG_LAM', allow_later=t.status=='DANG_LAM' %}{% include 'hen_khach.jinja' %}{% endwith %}{% if t.status=='DANG_LAM' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}{% endif %}
-{% if target=='KHACH_HEN_SAU' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}
-  {% if target == 'TAM_DUNG' %}<fieldset><legend>Lý do tạm dừng</legend><div class="seg stock-seg">{% for code,label in hold_reasons.items() %}<label><input type="radio" name="hold_reason" value="{{ code }}" {% if failed_action == action and form.get('hold_reason') == code %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset><p class="hint">Chọn Khác thì phải ghi chú bên dưới.</p>{% endif %}
-  {{ note(action, 'Lý do' if (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status == 'HOAN_THANH' and target == 'DANG_LAM')) else 'Ghi chú', (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status == 'HOAN_THANH' and target == 'DANG_LAM'))) }}
-  <button {% if target=='DA_HEN' %}data-appointment-submit data-label="{{ transition_labels[target] }}"{% endif %} {% if target == 'DA_HUY' %}data-service-confirm="Hủy phiếu dịch vụ này?"{% endif %}>{{ transition_labels[target] }}</button>
-</form>
-{% endfor %}
+{% endif %}{% endif %}
+{% set normal_target=next_step.primary.form|replace('service-','') if next_step and next_step.primary.form else '' %}
+{% if normal_target in transitions %}{{ action_form(normal_target) }}{% endif %}
+
+
+
+{% call other.group(open=failed_action and failed_action!='transition:' ~ normal_target and (failed_action!='assign' or t.status!='MOI') or (receipt_error and next_step and next_step.primary.form=='service-DA_DONG')) %}{% if can_reschedule %}<form id="service-reschedule" method="post" action="/dich-vu/{{ t.id }}/reschedule" class="card form"><h2>Đổi hẹn khách</h2>{{ version('reschedule') }}{% with ap_form=form if failed_action=='reschedule' else {}, returning=false, allow_later=false %}{% include 'hen_khach.jinja' %}{% endwith %}{{ note('reschedule') }}<button>Dời hẹn</button></form>{% endif %}
 {% if can_no_show %}<form id="service-no-show" method="post" action="/dich-vu/{{ t.id }}/no-show" class="card form service-action">
 <h2>Không gặp khách</h2>{{ version('no-show') }}
 {% with ap_form=form if failed_action=='no-show' else {}, returning=true, allow_later=false %}{% include 'hen_khach.jinja' %}{% endwith %}
@@ -75,11 +74,28 @@
 {% if can_reject_transfer %}
 <form method="post" action="/dich-vu/{{ t.id }}/transfer-reject" class="card form service-action"><h2>Từ chối chuyển</h2>{{ version('transfer-reject') }}<label>Lý do / ghi chú<textarea name="reason" maxlength="2000">{{ form.get('reason', '') if failed_action == 'transfer-reject' else '' }}</textarea></label><button>Từ chối chuyển</button></form>
 {% endif %}
-{% include "dich_vu_anh.jinja" %}
+{% if t.status!='MOI' %}{% if can_assign %}
+<form id="service-assign" method="post" action="/dich-vu/{{ t.id }}/assign" class="card form service-action">
+  <h2>Giao thợ{% if t.transfer_request %} / Duyệt chuyển việc{% endif %}</h2>{{ version('assign') }}
+  <fieldset><legend>Chọn thợ — số việc đang mở</legend><div class="seg stock-seg">
+    {% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if (failed_action == 'assign' and form.get('assignee_id', '')|string == tech.id|string) or (failed_action != 'assign' and t.assignee_id == tech.id) %}checked{% endif %} required><span>{{ tech.full_name }} · {{ counts.get(tech.id, 0) }} việc đang mở</span></label>{% endfor %}
+  </div></fieldset>{{ note('assign') }}{% if not next_step or next_step.primary.form!='service-assign' %}<button>Giao thợ</button>{% endif %}
+</form>
+{% endif %}{% endif %}{% for target in transitions if target!=normal_target %}{{ action_form(target) }}{% endfor %}{% if collection and next_step and next_step.primary.form=='service-DA_DONG' %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}{% endcall %}
+<details class="card" {% if photo_form or (next_step and next_step.primary.form=='photo-SAU-form') or t.status=='DANG_LAM' %}open{% endif %}><summary>Ảnh và tệp</summary>{% include 'dich_vu_anh.jinja' %}</details>
 <a class="btn service-action" href="/dich-vu/{{ t.id }}/bien-ban">In biên bản</a>
-<section class="card service-action"><h2>Lịch sử bước</h2><ol class="service-history">
+<details class="card"><summary>Lịch sử</summary><section class="card service-action" id="service-visits"><h2>Các lượt đến khách</h2>
+<ol class="service-history">{% for visit in visits %}<li>
+<strong>Lượt {{ loop.index }} · {{ users.get(visit.technician_id, 'Nhân viên') }}</strong>
+{% if not visit.ended_at %}<p>Đang ở khách từ {{ (visit.started_at|service_time)[11:] }}</p>{% endif %}
+<dl><dt>Giờ đến</dt><dd>{{ visit.started_at|service_time }}</dd><dt>Giờ kết thúc</dt><dd>{{ visit.ended_at|service_time }}</dd>
+<dt>Thời lượng</dt><dd>{{ '%.1f phút'|format((visit.ended_at - visit.started_at).total_seconds() / 60) if visit.ended_at else 'Đang mở' }}</dd>
+<dt>Kết quả</dt><dd>{{ visit_outcomes.get(visit.outcome, 'Đang ở khách') }}</dd>
+{% if visit.next_appointment_at %}<dt>Hẹn lần sau</dt><dd>{{ visit.next_appointment_at|service_time }}</dd>{% endif %}</dl>
+{% if visit.note %}<p class="service-text">{{ visit.note }}</p>{% endif %}</li>{% else %}<li>Chưa có lượt đến khách.</li>{% endfor %}</ol></section><section class="card service-action"><h2>Lịch sử bước</h2><ol class="service-history">
 {% for step in t.steps %}<li><strong>{{ step_labels.get(step.action, step.action) }}</strong> · {{ service_statuses.get(step.to_status, step.to_status) }}<br><span class="meta">{{ step.at|service_time }} · {{ users.get(step.actor_id, 'Nhân viên') }}{% if step.assignee_id %} · Giao: {{ users.get(step.assignee_id, 'Nhân viên') }}{% endif %}</span>{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}
-</ol></section>
-{% if collection %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
+</ol></section></details>
+{% if collection %}{% if not next_step or next_step.primary.form!='service-DA_DONG' %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}<details class="card" {% if failed_receipt_id %}open{% endif %}><summary>Lịch sử báo thu</summary>{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}</details>{% endif %}
+<script src="/static/workflow.js" defer></script>
 <script src="/static/technician-returns.js" defer></script><script src="/static/appointments.js" defer></script><script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script><script src="/static/recovered-parts.js" defer></script>
 {% endblock %}

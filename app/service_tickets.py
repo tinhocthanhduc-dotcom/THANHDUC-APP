@@ -118,28 +118,33 @@ def _check_site_and_serial(session: Session, customer_code: str, site_id: int | 
 def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket:
     _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
     with _transaction(session):
-        customer = session.scalars(select(Customer).where(Customer.code == body.customer_code).with_for_update(read=True)).first()
-        if customer is None or customer.status != "DANG_DUNG":
-            details = {"merged_into": customer.merged_into} if customer is not None and customer.merged_into else {}
-            raise BusinessError("BAD_CUSTOMER", "Khách hàng không tồn tại hoặc đã ngừng/gộp.", details)
-        serial = _serial(body.serial)
-        _check_site_and_serial(session, customer.code, body.site_id, serial)
-        now = _now()
-        if body.appointment_at is not None or body.appointment_slot is not None:
-            from .service_appointments import validate
-            validate(body.appointment_at, body.appointment_slot, now)
-        t = ServiceTicket(
-            number=next_number(session, "DV", now.astimezone(service_sla.TZ).date()),
-            customer_code=customer.code, site_id=body.site_id, serial=serial,
-            kind=body.kind, priority=body.priority, symptom=body.symptom, status="MOI",
-            appointment_at=body.appointment_at, appointment_slot=body.appointment_slot,
-            due_at=service_sla.due_at("MOI", body.priority, now, None), created_by=user.id,
-        )
-        from . import service_warranty
-        service_warranty.apply(session, t, body.warranty_of_id)
-        session.add(t)
-        session.flush()
-        _record(session, user, t, "create", None, None)
+        return create_in_tx(session,user,body)
+
+
+def create_in_tx(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket:
+    _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
+    customer = session.scalars(select(Customer).where(Customer.code == body.customer_code).with_for_update(read=True)).first()
+    if customer is None or customer.status != "DANG_DUNG":
+        details = {"merged_into": customer.merged_into} if customer is not None and customer.merged_into else {}
+        raise BusinessError("BAD_CUSTOMER", "Khách hàng không tồn tại hoặc đã ngừng/gộp.", details)
+    serial = _serial(body.serial)
+    _check_site_and_serial(session, customer.code, body.site_id, serial)
+    now = _now()
+    if body.appointment_at is not None or body.appointment_slot is not None:
+        from .service_appointments import validate
+        validate(body.appointment_at, body.appointment_slot, now)
+    t = ServiceTicket(
+        number=next_number(session, "DV", now.astimezone(service_sla.TZ).date()),
+        customer_code=customer.code, site_id=body.site_id, serial=serial,
+        kind=body.kind, priority=body.priority, symptom=body.symptom, status="MOI",
+        appointment_at=body.appointment_at, appointment_slot=body.appointment_slot,
+        due_at=service_sla.due_at("MOI", body.priority, now, None), created_by=user.id,
+    )
+    from . import service_warranty
+    service_warranty.apply(session, t, body.warranty_of_id)
+    session.add(t)
+    session.flush()
+    _record(session, user, t, "create", None, None)
     return t
 
 
@@ -154,21 +159,27 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
     """Giao thợ, hoặc chuyển sang thợ khác (cũng là cách duyệt yêu cầu chuyển việc). Phiếu về DA_GIAO."""
     _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
     with _transaction(session):
-        t = _get(session, user, ticket_id, lock=True)
-        _check_version(t, version)
-        if t.status not in ASSIGNABLE:
-            raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không giao thợ được.", {"status": t.status}, status=409)
-        tech = _technician(session, assignee_id)
-        if t.assignee_id == tech.id and t.status == "DA_GIAO":
-            raise BusinessError("SAME_ASSIGNEE", "Phiếu đang giao cho thợ này rồi.", status=409)
-        before, from_status = snapshot(t), t.status
-        if from_status == "DANG_LAM":
-            service_visits.close_visit(session, t, "CHUYEN_THO", _now(), note.strip())
-        action = "assign" if t.assignee_id is None else "reassign"
-        t.assignee_id, t.status, t.transfer_request = tech.id, "DA_GIAO", ""
-        t.hold_reason = ""
-        t.due_at = service_sla.due_at("DA_GIAO", t.priority, _now(), None)
-        _record(session, user, t, action, before, from_status, note)
+        return assign_in_tx(session,user,ticket_id,assignee_id,version,note)
+
+
+def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "") -> ServiceTicket:
+    """Giao thợ, hoặc chuyển sang thợ khác (cũng là cách duyệt yêu cầu chuyển việc). Phiếu về DA_GIAO."""
+    _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
+    t = _get(session, user, ticket_id, lock=True)
+    _check_version(t, version)
+    if t.status not in ASSIGNABLE:
+        raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không giao thợ được.", {"status": t.status}, status=409)
+    tech = _technician(session, assignee_id)
+    if t.assignee_id == tech.id and t.status == "DA_GIAO":
+        raise BusinessError("SAME_ASSIGNEE", "Phiếu đang giao cho thợ này rồi.", status=409)
+    before, from_status = snapshot(t), t.status
+    if from_status == "DANG_LAM":
+        service_visits.close_visit(session, t, "CHUYEN_THO", _now(), note.strip())
+    action = "assign" if t.assignee_id is None else "reassign"
+    t.assignee_id, t.status, t.transfer_request = tech.id, "DA_GIAO", ""
+    t.hold_reason = ""
+    t.due_at = service_sla.due_at("DA_GIAO", t.priority, _now(), None)
+    _record(session, user, t, action, before, from_status, note)
     return t
 
 
@@ -377,3 +388,9 @@ def reschedule(session, user, ticket_id, version, appointment_at, appointment_sl
         t.version += 1
         _record(session,user,t,'reschedule',before,t.status,note)
     return t
+
+
+def create_and_assign(session,user,body,assignee_id):
+    with _transaction(session):
+        ticket=create_in_tx(session,user,body)
+        return assign_in_tx(session,user,ticket.id,assignee_id,ticket.version)

@@ -1,0 +1,1 @@
+<div id="workflow-checks" data-workflow-checks><ul class="workflow-checks">{% for c in primary_checks %}<li data-condition="{{ c.key }}" data-ok="{{ '1' if c.ok else '0' }}" data-blocking="{{ '1' if c.blocking else '0' }}">{{ '✓' if c.ok else '✗' }} {{ c.label }}</li>{% endfor %}</ul></div>
