@@ -7,6 +7,6 @@
 <label><input type="radio" name="canh-bao" value="1" {% if canh_bao %}checked{% endif %}><span>Sắp hết</span></label>
 </div></fieldset>
 <fieldset><legend>Kho</legend><div class="seg stock-seg"><label><input type="radio" name="kho" value="" {% if not kho %}checked{% endif %}><span>Tất cả</span></label>
-{% for w in warehouses %}<label><input type="radio" name="kho" value="{{ w.code }}" {% if kho == w.code %}checked{% endif %}><span>{{ w.code }}</span></label>{% endfor %}</div></fieldset>
+{% for w in warehouses %}<label><input type="radio" name="kho" value="{{ w.code }}" {% if kho == w.code %}checked{% endif %}><span>{{ w.code }}{{ ' · Kho Chờ Xử lý' if w.kind=='LOI' else '' }}</span></label>{% endfor %}</div></fieldset>
 <label>Tìm mã hoặc tên hàng<input name="q" value="{{ q }}" data-live="#stock-results" placeholder="Ví dụ: muc in"></label><button>Xem tồn</button>
 </form><div id="stock-results">{% include 'ton_dong.jinja' %}</div>{% endblock %}

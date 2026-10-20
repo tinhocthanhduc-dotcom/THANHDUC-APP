@@ -84,4 +84,7 @@ def _summary(session,user,today):
     if has_role(user,'director'):
         result['gross_margin_month']=purchase_reports.gross_margin(session,user,month_start,today)['totals']['profit']
         result['inventory'],result['inventory_total']=_inventory(session)
+        from . import pending_items
+        groups=pending_items.totals(session,user,now=now)
+        result['pending_items']=dict(value=sum(g['value'] for g in groups.values()),overdue=sum(g['overdue'] for g in groups.values()))
     return result

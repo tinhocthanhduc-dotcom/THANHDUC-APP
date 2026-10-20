@@ -71,8 +71,16 @@ def _technician_return_line(session, user, entity_id, write):
         raise BusinessError('BAD_STATUS','Chỉ thêm ảnh khi yêu cầu đang chờ kho nhận.',status=409)
 
 
+def _pending_item(session,user,entity_id,write):
+    from . import pending_items
+    row=pending_items.load(session,user,int(entity_id))
+    if write:
+        pending_items.writer(user)
+        if row.status!='DANG_CHO':raise BusinessError('BAD_STATUS','Chỉ thêm ảnh vào hồ sơ đang chờ.',status=409)
+
+
 # Loại chứng từ được đính kèm và cách kiểm quyền xem/ghi của từng loại.
-TARGETS = {"technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
+TARGETS = {"pending_item": _pending_item, "technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
 
 
 def _check(session: Session, user: User, entity: str, entity_id: str, write: bool):
@@ -128,7 +136,7 @@ def add(session: Session, user: User, entity: str, entity_id: str, tag: str, fil
         check_photo(session,user,int(entity_id),write=True,tag=tag)
     _check(session, user, entity, entity_id, write=True)
     content, content_type, ext, width, height = _prepare(data)
-    if (tag in ('NHAN_MAY','TRA_MAY','GIAO_HANG') or entity=='technician_return_line') and not content_type.startswith('image/'):
+    if (tag in ('NHAN_MAY','TRA_MAY','GIAO_HANG') or entity in ('technician_return_line','pending_item')) and not content_type.startswith('image/'):
         raise BusinessError('BAD_FILE_TYPE','Ảnh nhận và trả máy phải là ảnh JPEG, PNG hoặc WEBP.')
     now = datetime.now(UTC)
     rel = f"{entity}/{now:%Y/%m}/{uuid.uuid4().hex}.{ext}"
@@ -188,6 +196,7 @@ def hide(session: Session, user: User, attachment_id: int, reason: str, version:
         raise BusinessError("REASON_REQUIRED", "Ẩn tệp phải ghi lý do.")
     with _transaction(session):
         source=session.get(Attachment,attachment_id)
+        if source and source.entity=='pending_item':_pending_item(session,user,source.entity_id,write=True)
         if source and source.entity=='service_ticket' and 'technician' in user.roles and not has_role(user,*HIDERS):
             t=service_tickets._get(session,user,int(source.entity_id),lock=True)
             if source.created_by!=user.id or t.assignee_id!=user.id:

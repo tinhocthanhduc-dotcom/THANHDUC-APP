@@ -1378,3 +1378,36 @@ class TechnicianReturnLine(Base):
     damage_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
     received_condition: Mapped[str | None] = mapped_column(String(8))
     received_damage_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+
+
+class PendingItem(Base):
+    """Hồ sơ đi kèm sổ kho LOI; không tự thay đổi tồn."""
+    __tablename__ = 'pending_items'
+    __table_args__ = (
+        CheckConstraint('qty_in > 0',name='ck_pending_items_qty_in'),
+        CheckConstraint('qty_left >= 0 and qty_left <= qty_in',name='ck_pending_items_qty_left'),
+        CheckConstraint('unit_cost >= 0',name='ck_pending_items_cost'),
+        CheckConstraint("group_code in ('HANG_LOI','CHO_BH_NCC','THANH_LY','THU_HOI','CHUA_PHAN_LOAI')",name='ck_pending_items_group'),
+        CheckConstraint("source in ('THU_HOI','THO_BAO_HU','KHACH_TRA','CHUYEN_TAY','KIEM_KE','TON_CU')",name='ck_pending_items_source'),
+        CheckConstraint("(status='DANG_CHO' and qty_left>0) or (status in ('XONG','DA_HUY') and qty_left=0)",name='ck_pending_items_status'),
+        Index('ix_pending_items_stock','warehouse_code','product_code','status'),
+        Index('ix_pending_items_group','group_code','status'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
+    number: Mapped[str] = mapped_column(Text,unique=True)
+    warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty_in: Mapped[Decimal] = mapped_column(Numeric(14,3))
+    qty_left: Mapped[Decimal] = mapped_column(Numeric(14,3))
+    unit_cost: Mapped[int] = mapped_column(BigInteger)
+    group_code: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text)
+    source_ref: Mapped[str] = mapped_column(Text,default='')
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'))
+    supplier_code: Mapped[str | None] = mapped_column(ForeignKey('suppliers.code'))
+    reason: Mapped[str] = mapped_column(Text,default='')
+    entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    status: Mapped[str] = mapped_column(Text,default='DANG_CHO')
+    version: Mapped[int] = mapped_column(Integer,default=1)
+    __mapper_args__ = {'version_id_col': version}

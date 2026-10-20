@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me"
     token_minutes: int = 12 * 60
     search_limit: int = 20
+    pending_alert_days: int = Field(default=30, ge=0, le=36500)
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'

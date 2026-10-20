@@ -2,6 +2,7 @@
 {% block title %}Việc của tôi{% endblock %}
 {% block main %}
 <div class="bar"><h1>Việc của tôi</h1>{% if selected_group %}<a class="btn" href="/viec-cua-toi">Tất cả nhóm việc</a>{% endif %}</div>
+{% if pending_notices %}<section class="card" data-alert-kind="CHO_XU_LY_QUA_HAN"><h2>Cần xử lý</h2><p class="alert bad"><a href="{{ pending_notices[0].link }}">Hàng chờ xử lý quá hạn · {{ pending_notices.counts.CHO_XU_LY_QUA_HAN }} hồ sơ</a></p></section>{% endif %}
 {% if notice %}<p class="alert ok" role="status">{{ notice }}</p>{% endif %}
 <div class="bar">{% for label,href in shortcuts %}<a class="btn" href="{{ href }}" data-work-shortcut>{{ label }}</a>{% endfor %}</div>
 <p>Chọn chứng từ để làm bước tiếp theo. Tiền là số đã lưu; giờ Việt Nam.</p>
