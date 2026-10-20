@@ -1,6 +1,7 @@
 {% extends 'base.jinja' %}
 {% macro token(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action==action else o.version }}">{% endmacro %}
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
+{% import 'da_chon.jinja' as picked %}
 {% block main %}
 <div class="bar quote-heading"><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><a href="/don-ban">← Đơn bán</a>{% if o and o.status=='DA_GIAO' %}<a class="btn" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
 {% include 'buoc_tiep.jinja' %}
@@ -17,13 +18,14 @@
 <form id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
-<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>
+{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Cố định sau khi tạo đơn' if o else ('Không sửa được ở trạng thái này' if not can_write or not editable else ''))) %}<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% endif %}</div>{% endcall %}
 {% include 'don_ban_dieu_kien.jinja' %}
 <label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
 <label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>
 <label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
 <label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
 <div data-order-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_ban_dong_form.jinja' %}{% endfor %}</div>
+<p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
 {% if can_write and editable %}<button type="button" data-order-add>+ Thêm dòng</button>{% endif %}
 </fieldset>
 <p class="alert warn" data-order-warning hidden></p>
@@ -49,6 +51,7 @@
 </div>{% endif %}
 {% if o and can_write and o.status in ['NHAP','DA_CHOT'] %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="card form service-action" {% if o.status=='DA_GIAO' %}data-order-cancel{% endif %}>{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else '' }}</textarea></label>{% if o.status=='DA_GIAO' %}<p class="alert warn">Hủy sẽ trả hàng về kho</p>{% endif %}<button>Hủy đơn</button></form>{% endif %}
 {% if failed_action=='cancel' and o and o.status=='DA_HUY' %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
-<template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code='',description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
+<template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code=default_warehouse,description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
 <script src="/static/orders.js" defer></script>
+<script src="/static/picked.js" defer></script>
 {% endblock %}

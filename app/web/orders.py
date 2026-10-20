@@ -23,7 +23,7 @@ from . import checked_form, money, render, web_user
 from .quotes import _quantity
 from .receipts import order_context, _report_body
 
-from . import next_steps
+from . import next_steps, picked
 
 router = APIRouter()
 FULFILLMENTS = {'TAI_QUAY':'Tại quầy','KHACH_LAY_SAU':'Khách lấy sau','THO_GIAO':'Thợ giao','VAN_CHUYEN':'Gửi vận chuyển'}
@@ -96,6 +96,10 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
         if data.get('deposit_amount') not in (None,''):
             data['deposit_amount']=money(data['deposit_amount'])
     customer=session.get(Customer,data['customer_code']) if data['customer_code'] else None
+    card = picked.customer_cards(session, request.state.user, [customer]).get(customer.code) if customer else None
+    if card and not data.get('contact_name', '').strip(): data['contact_name'] = card['contact']
+    if card and not data.get('delivery_address', '').strip() and data.get('fulfillment') in ('VAN_CHUYEN', 'THO_GIAO'): data['delivery_address'] = card['address']
+
     codes={l.get('product_code') for l in data['lines'] if l.get('product_code')}
     shipments=svc.deliveries(session,order.id) if order else []
     ids={l.stock_doc_id for g in shipments for l in g.lines if l.stock_doc_id}
@@ -109,6 +113,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
             receipt_ctx['receipt_report_label']='Báo thu cọc'
             if receipt_form is None:
                 receipt_ctx['receipt_data']['amount']=money(min(deposit_remaining,receipt_ctx['available']))
+    warehouses=_warehouses(session)
+    default_warehouse=next((w.code for w in warehouses if w.code==get_settings().sales_default_warehouse and w.active), '')
+    stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')])
     from .technician_deliveries import context as delivery_context
     tech_delivery=delivery_context(session,request.state.user,order) if order and order.fulfillment=='THO_GIAO' else None
     from .sales_returns import order_context as return_context
@@ -116,13 +123,13 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
-                  customer_name=customer.name if customer else '',source=source,
+                  line_errors=picked.line_errors(data['lines'],error,code,stock_values=stock_values if order is None or order.status=='NHAP' else None), customer_card=card, customer_name=customer.name if customer else '',source=source,
                   reservations=stock_reservations.for_order(session,order) if order else {},
-                  stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]),
+                  stock_values=stock_values,
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
-                  warehouses=_warehouses(session),can_write=has_role(request.state.user,'sales'),
+                  warehouses=warehouses,default_warehouse=default_warehouse,can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse') and not (order and order.delivery_assignee_id),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
                   saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error),**receipt_ctx)
@@ -191,13 +198,14 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
 
 @router.get('/don-ban/tim-khach')
 def pick_customer(request: Request,q: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
-    return render(request,'don_ban_chon.jinja',kind='customer',rows=[c for c in customers.search(session,q[:200]) if c.status=='DANG_DUNG'])
+    rows = [c for c in customers.search(session,q[:200]) if c.status=='DANG_DUNG']
+    return render(request,'don_ban_chon.jinja',kind='customer',rows=rows, customer_cards=picked.customer_cards(session,user,rows))
 
 
 @router.get('/don-ban/tim-hang')
-def pick_product(request: Request,q: str='',warehouse: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
+def pick_product(request: Request,q: str='',customer_code: str='',warehouse: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
     rows=products.search(session,q[:200],active_only=True,limit=20)
-    return render(request,'don_ban_chon.jinja',kind='product',rows=rows,warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
+    return render(request,'don_ban_chon.jinja',kind='product',rows=rows,last_prices=picked.last_prices(session,customer_code,rows),warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
 
 
 @router.get('/don-ban/moi')

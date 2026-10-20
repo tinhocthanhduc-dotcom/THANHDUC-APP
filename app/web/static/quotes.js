@@ -14,7 +14,7 @@
     var button=event.target.closest('[data-quote-add]');
     if (button) {
       var row=document.querySelector('#quote-line-template').content.firstElementChild.cloneNode(true);
-      form.querySelector('[data-quote-lines]').appendChild(row); reindex();
+      form.querySelector('[data-quote-lines]').appendChild(row); row.classList.add('line-open'); reindex();
       row.querySelectorAll('[data-live]').forEach(window.bindLive);
       row.querySelectorAll('[data-money]').forEach(window.bindMoney);
       changed(); row.querySelector('input').focus(); return;
@@ -32,7 +32,9 @@
       row.querySelector('[data-quote-product-name]').textContent=button.dataset.name;
       row.querySelector('[name=description]').value=button.dataset.name;
       row.querySelector('[name=unit]').value=button.dataset.unit;
-      row.querySelector('[name=unit_price]').value=button.dataset.price.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+      var price=row.querySelector('[name=unit_price]');
+      if (!price.dataset.userTyped) price.value=(button.dataset.lastPrice || button.dataset.price).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+      row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+button.dataset.lastPrice.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
     }
     changed();
   });

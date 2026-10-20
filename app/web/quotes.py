@@ -19,7 +19,7 @@ from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
 from . import checked_form, money, render, web_user
 
-from . import next_steps
+from . import next_steps, picked
 
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp', 'DA_GUI':'Đã gửi', 'CHAP_NHAN':'Chấp nhận', 'TU_CHOI':'Từ chối', 'DA_HUY':'Đã hủy'}
@@ -50,12 +50,15 @@ def _form(request, session, data=None, quote=None, error=None, code='', status=2
         for line in data['lines']:
             line['unit_price'] = money(line['unit_price'])
     customer = session.get(Customer, data.get('customer_code')) if data.get('customer_code') else None
+    card = picked.customer_cards(session, request.state.user, [customer]).get(customer.code) if customer else None
+    if card and not data.get('contact_name', '').strip(): data['contact_name'] = card['contact']
+
     codes = {line.get('product_code') for line in data['lines'] if line.get('product_code')}
     names = dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all())
     replacement = svc.load(session, request.state.user, quote.replaced_by_id) if quote and quote.replaced_by_id else None
     linked_order = session.execute(select(SalesOrder.id, SalesOrder.number).where(SalesOrder.quote_id == quote.id,
                                   SalesOrder.status != 'DA_HUY')).first() if quote else None
-    return render(request, 'bao_gia_form.jinja', q=quote, d=data, customer_name=customer.name if customer else '',
+    return render(request, 'bao_gia_form.jinja', q=quote, d=data, line_errors=picked.line_errors(data['lines'],error,code), customer_card=card, customer_name=customer.name if customer else '',
                   product_names=names, statuses=STATUSES, vat_rates=VAT_RATES,
                   can_write=has_role(request.state.user,*svc.WRITERS), is_new=quote is None,
                   next_step=next_steps.quote(request.state.user,quote,linked_order),linked_order=linked_order, editable=quote is None or quote.status == 'NHAP', replaced=replacement,
@@ -123,12 +126,14 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,user: User=Dep
 
 @router.get('/bao-gia/tim-khach')
 def pick_customer(request: Request,q: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
-    return render(request,'bao_gia_chon.jinja',kind='customer',rows=[c for c in customers.search(session,q[:200]) if c.status=='DANG_DUNG'])
+    rows = [c for c in customers.search(session,q[:200]) if c.status=='DANG_DUNG']
+    return render(request,'bao_gia_chon.jinja',kind='customer',rows=rows, customer_cards=picked.customer_cards(session,user,rows))
 
 
 @router.get('/bao-gia/tim-hang')
-def pick_product(request: Request,q: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
-    return render(request,'bao_gia_chon.jinja',kind='product',rows=products.search(session,q[:200],active_only=True,limit=20))
+def pick_product(request: Request,q: str='',customer_code: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
+    rows = products.search(session,q[:200],active_only=True,limit=20)
+    return render(request,'bao_gia_chon.jinja',kind='product',rows=rows,last_prices=picked.last_prices(session,customer_code,rows))
 
 
 @router.get('/bao-gia/moi')

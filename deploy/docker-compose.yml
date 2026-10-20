@@ -26,6 +26,7 @@ services:
       TD_COOKIE_SECURE: "true"
       TD_SLOT_SANG: ${TD_SLOT_SANG:-08:00-12:00}
       TD_SLOT_CHIEU: ${TD_SLOT_CHIEU:-13:30-17:30}
+      TD_SALES_DEFAULT_WAREHOUSE: ${TD_SALES_DEFAULT_WAREHOUSE:-58}
     volumes:
       - files:/app/data/files
     depends_on:

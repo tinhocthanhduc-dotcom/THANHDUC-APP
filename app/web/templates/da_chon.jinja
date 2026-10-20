@@ -1,0 +1,15 @@
+{% macro block(text='', locked='', invalid=false) -%}
+<section data-picked class="picked-block" {% if invalid %}data-picked-invalid{% endif %}>
+<div data-picked-summary hidden><div data-picked-text>{{ text }}</div>{% if locked %}<small>{{ locked }}</small>{% else %}<button type="button" data-picked-edit>Sửa</button>{% endif %}</div>
+<div data-picked-detail>{{ caller() }}{% if not locked %}<button type="button" data-picked-cancel hidden>Hủy sửa</button>{% endif %}</div>
+</section>
+{%- endmacro %}
+{% macro customer(card, locked='') -%}
+{% call block(locked=locked) %}{{ caller() }}{% endcall %}
+{%- endmacro %}
+{% macro card(c) -%}
+<div data-customer-card data-address="{{ c.address if c else '' }}" {% if not c %}hidden{% endif %}>{% if c %}<strong data-card-title>{{ c.code }} · {{ c.name }}</strong><div data-card-address>{{ c.phone }} · {{ c.address }}</div>{% if c.can_debt %}<div data-card-debt>Còn nợ {{ c.debt|money }} · Hạn mức {{ c.limit|money }}</div>{% endif %}{% else %}<strong data-card-title></strong><div data-card-address></div>{% endif %}</div>
+{%- endmacro %}
+{% macro attributes(c) -%}
+data-phone="{{ c.phone }}" data-address="{{ c.address }}" data-contact="{{ c.contact }}" {% if c.can_debt %}data-debt="{{ c.debt }}" data-limit="{{ c.limit }}"{% endif %}
+{%- endmacro %}
