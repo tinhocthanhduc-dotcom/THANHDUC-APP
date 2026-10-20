@@ -1,0 +1,89 @@
+{% extends 'base.jinja' %}{% from '_ui.jinja' import invalid, field_error, described %}
+{% block title %}Quy chuẩn giao diện{% endblock %}
+{% block main %}
+<div class="bar"><h1>Quy chuẩn giao diện</h1><span class="hint">Trang mẫu, không ghi dữ liệu.</span></div>
+{% if ok %}<span hidden data-toast="Đã ghi nhận (trang mẫu, không lưu)"></span>{% endif %}
+
+<section class="card ui-section" aria-labelledby="ui-mau">
+  <h2 id="ui-mau">Màu theo ý nghĩa</h2>
+  <div class="ui-swatches">
+    {% for key, label in swatches %}<span style="background: var(--{{ key }}); color: var(--{{ key }}-text)">{{ label }}</span>{% endfor %}
+  </div>
+  <p class="hint">Bấm "Sáng/Tối" cạnh tên tài khoản để đổi chế độ. Lựa chọn lưu trên máy này.</p>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-nut">
+  <h2 id="ui-nut">Nút</h2>
+  <div class="chips">
+    <button type="button" class="btn-ok" data-toast-demo="Đã ghi nhận">Xác nhận</button>
+    <button type="button" class="btn-danger" data-toast-demo="Đã hủy (mẫu)">Hủy</button>
+    <button type="button" class="btn-info" data-toast-demo="Đang gọi (mẫu)">Gọi khách</button>
+    <button type="button" class="btn-ghost" data-toast-demo="Việc phụ (mẫu)">Việc khác</button>
+  </div>
+  <div>
+    <button type="button" class="btn-ok btn-block" disabled>Hoàn thành</button>
+    <p class="why-disabled">Còn thiếu: ảnh nghiệm thu.</p>
+  </div>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-thongbao">
+  <h2 id="ui-thongbao">Thông báo nhỏ</h2>
+  <div class="chips">
+    <button type="button" class="btn-ghost" data-toast-demo="Đã ghi nhận">Thông báo thường</button>
+    <button type="button" class="btn-ghost" data-toast-demo="Không lưu được, hãy thử lại." data-toast-kind="bad">Thông báo lỗi</button>
+  </div>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-chip">
+  <h2 id="ui-chip">Chọn nhanh (danh sách ngắn)</h2>
+  <fieldset><legend class="label">Thu tiền (chọn một)</legend>
+    <div class="chips">
+      {% for v in ['Thu đủ', 'Thu một phần', 'Miễn phí'] %}<label class="chip"><input type="radio" name="mau_thu" value="{{ v }}"><span>{{ v }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  <fieldset><legend class="label">Lỗi gặp (chọn nhiều)</legend>
+    <div class="chips">
+      {% for v in ['Kẹt giấy', 'Lỗi nguồn', 'Hết mực', 'Tràn mực thải'] %}<label class="chip"><input type="checkbox" name="mau_loi" value="{{ v }}"><span>{{ v }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-tick">
+  <h2 id="ui-tick">Danh sách tick nhiều mã</h2>
+  <div class="pick-list">
+    {% for name, hold in [('Drum Brother DR-2385', 2), ('Mực HP 12A', 3), ('Trục kéo giấy HP 1020', 1)] %}
+    <div class="pick-row">
+      <label><input type="checkbox" name="mau_ma" value="{{ loop.index }}"><span><strong>{{ name }}</strong><small>Đang giữ {{ hold }}</small></span></label>
+      <div class="stepper"><button type="button" data-step="-1" aria-label="Bớt {{ name }}">−</button><input name="mau_sl_{{ loop.index }}" value="1" min="1" max="{{ hold }}" inputmode="numeric" aria-label="Số lượng {{ name }}"><button type="button" data-step="1" aria-label="Thêm {{ name }}">+</button></div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-form">
+  <h2 id="ui-form">Ô tiền và lỗi đúng ô</h2>
+  <form method="get" action="/ui/quy-chuan" class="form" id="mau-form">
+    <input type="hidden" name="thu" value="1">
+    <label class="{{ invalid(errors, 'ten') }}">Tên khách<input name="ten" value="{{ d.ten }}"{{ described(errors, 'ten') }}>{{ field_error(errors, 'ten') }}</label>
+    <label class="{{ invalid(errors, 'so_tien') }}">Tiền thu khách<input name="so_tien" value="{{ d.so_tien }}" inputmode="numeric" data-money autocomplete="off"{{ described(errors, 'so_tien') }}>{{ field_error(errors, 'so_tien') }}</label>
+    <p class="hint">Bỏ trống hoặc gõ chữ rồi bấm Kiểm tra: chỉ ô sai bị bôi đỏ, các ô khác giữ nguyên.</p>
+    <div class="action-bar">
+      <button class="btn-ok btn-block">Kiểm tra</button>
+    </div>
+  </form>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-vuot">
+  <h2 id="ui-vuot">Vuốt để xác nhận</h2>
+  <p class="hint">Chỉ dùng cho thao tác chốt cuối: Hoàn thành, Đóng phiếu, Chuyển thợ. Cả app chỉ có vuốt trái sang phải.</p>
+  <div class="swipe" data-swipe data-tone="ok" data-swipe-demo="Đã hoàn thành (mẫu)"><button type="submit">Vuốt để Hoàn thành</button></div>
+  <div class="swipe" data-swipe data-tone="danger" data-swipe-demo="Đã đóng phiếu (mẫu)"><button type="submit">Vuốt để đóng phiếu</button></div>
+  <div class="swipe swipe-off" data-swipe data-tone="ok" data-why="Còn thiếu: ảnh nghiệm thu"><button type="submit" aria-disabled="true">Chưa đủ để Hoàn thành</button></div>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-phim">
+  <h2 id="ui-phim">Phím tắt (máy tính)</h2>
+  <p><kbd>Esc</kbd> đóng khung đang mở · <kbd>/</kbd> vào ô tìm kiếm.</p>
+  <details><summary>Mở thử một khung, rồi bấm Esc</summary><p>Khung chi tiết.</p></details>
+</section>
+{% endblock %}
