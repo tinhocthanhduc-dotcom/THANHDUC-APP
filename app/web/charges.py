@@ -41,7 +41,7 @@ def detail_context(session, user, ticket, shown=None):
                  Product.code.in_([line.get('product_code') for line in data['lines'] if line.get('product_code')]))).all())
     docs = list(session.execute(select(StockDoc.id, StockDoc.number).where(
                 StockDoc.id.in_({line.stock_doc_id for line in ticket.lines if line.stock_doc_id is not None})).order_by(StockDoc.id)))
-    return dict(can_warranty_override=has_role(user,'dispatcher'), charges=data, charge_names=names, charge_stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]), charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
+    return dict(material_cost=service_charges.material_costs(session,[ticket.id]).get(ticket.id,0) if has_role(user,'dispatcher') else None,can_warranty_override=has_role(user,'dispatcher'), charges=data, charge_names=names, charge_stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]), charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
                 can_charge=has_role(user, 'dispatcher') or ticket.assignee_id == user.id,
                 charge_editable=ticket.status in service_tickets.OPEN,
                 charge_unsaved=shown is not None,

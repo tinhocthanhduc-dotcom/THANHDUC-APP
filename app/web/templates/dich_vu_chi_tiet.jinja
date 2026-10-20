@@ -36,6 +36,7 @@
     <dt>Thợ</dt><dd>{{ users.get(t.assignee_id, 'Chưa giao') }}</dd>
     <dt>Hạn xử lý</dt><dd>{{ t.due_at|service_time }}</dd><dt>Hẹn khách</dt><dd>{{ t.appointment_at|appointment_label(t.appointment_slot) }}</dd>
   </dl>
+  {% if material_cost is not none %}<p>Chi phí vật tư (giá vốn): {{ material_cost|money }} đồng</p>{% endif %}
   <h3>Mô tả lỗi</h3><p class="service-text">{{ t.symptom }}</p>
   {% if t.hold_reason %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
   {% if t.status_reason %}<h3>Lý do</h3><p class="service-text">{{ t.status_reason }}</p>{% endif %}

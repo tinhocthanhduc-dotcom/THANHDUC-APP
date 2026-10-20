@@ -1,0 +1,124 @@
+"""UX1e: one customer total, materials at cost, direct technician handover."""
+from collections import Counter
+from decimal import Decimal
+
+from sqlalchemy import select
+
+from . import service_charges, service_tickets, technician_returns, technician_stock
+from .config import DEFAULT_VAT_RATE
+from .errors import BusinessError
+from .models import Product, StockBalance, User, TechnicianReturn
+from .schemas import ServiceCharges, SalesReceiptReport
+
+FEE_DESCRIPTION = 'Phí dịch vụ (gồm công và vật tư)'
+
+
+def net_from_gross(total, vat=DEFAULT_VAT_RATE):
+    center=service_charges._round(Decimal(total)*100/(100+vat))
+    candidates=[(net,service_charges._round(Decimal(net)*vat/100)) for net in range(max(0,center-2),center+3)]
+    net,tax=min(candidates,key=lambda pair:(abs(sum(pair)-total),abs(pair[0]-center),pair[0]))
+    return net,tax
+
+
+def money(value):
+    import re
+    raw=str(value or '').strip()
+    if not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)',raw) or len(raw.replace('.',''))>18:
+        raise BusinessError('BAD_AMOUNT','Số tiền phải là số nguyên đồng, có thể dùng dấu chấm hàng nghìn.')
+    return int(raw.replace('.',''))
+
+
+def charges(session,user,ticket,version,total,mode,reason,materials):
+    if mode not in ('','FULL','PARTIAL','FREE'):
+        raise BusinessError('BAD_COLLECTION','Chọn Thu đủ, Thu một phần hoặc Miễn phí.')
+    free=mode=='FREE'
+    amount=0 if free else money(total)
+    if not free and amount<=0:
+        raise BusinessError('CUSTOMER_AMOUNT_REQUIRED','Chưa nhập tiền thu khách hoặc chọn Miễn phí')
+    own=technician_stock.own_warehouse(session,user,lock=True)
+    lines=[];counts=Counter()
+    for material in materials:
+        qty=technician_returns.quantity(material.get('qty',0))
+        if not qty:continue
+        if not own:raise BusinessError('NO_TECH_WAREHOUSE','Thợ chưa có kho riêng.',status=409)
+        code=material.get('product_code','');product=session.get(Product,code)
+        if not product or not product.active:raise BusinessError('BAD_PRODUCT','Hàng không còn đang dùng.')
+        counts[code]+=qty
+        # Never trust warehouse, price, tax or amount from the browser.
+        lines.append(dict(kind='VAT_TU',description=product.name,product_code=code,warehouse_code=own.code,qty=qty,unit_price=0,vat_rate=0))
+    for code in sorted(counts):
+        balance=session.scalar(select(StockBalance).where(StockBalance.warehouse_code==own.code,StockBalance.product_code==code))
+        if not balance or counts[code]>balance.qty:
+            raise BusinessError('NEGATIVE_STOCK','Số vật tư vượt số đang giữ trong kho của bạn.',status=409)
+    net,tax=net_from_gross(amount)
+    if not free:lines.append(dict(kind='PHI',description=FEE_DESCRIPTION,qty=1,unit_price=net,vat_rate=DEFAULT_VAT_RATE))
+    return ServiceCharges(version=version,billing='MIEN_PHI' if free else 'THU_TIEN',free_reason=reason if free else '',lines=lines),net+tax
+
+
+def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note=''):
+    from .stock_docs import _transaction
+    with _transaction(session):
+        t=service_tickets._get(session,user,ticket_id,lock=True)
+        if 'technician' not in user.roles or t.assignee_id!=user.id:
+            raise BusinessError('FORBIDDEN','Chỉ thợ được giao được hoàn thành phiếu.',status=403)
+        service_tickets._check_version(t,version)
+        if t.status!='DANG_LAM':raise BusinessError('BAD_STATUS','Chỉ hoàn thành phiếu đang làm.',status=409)
+        body,actual=charges(session,user,t,version,total,mode,reason,materials)
+        received=0
+        if mode=='FULL':received=actual
+        elif mode=='PARTIAL':
+            received=money(partial)
+            if not 0<received<actual:raise BusinessError('BAD_PARTIAL_AMOUNT','Thu một phần phải lớn hơn 0 và nhỏ hơn tổng phải thu.')
+        service_charges.set_charges_in_tx(session,user,t,body)
+        service_tickets.transition_in_tx(session,user,t,'HOAN_THANH',note)
+        if received:
+            from . import sales_receipts
+            sales_receipts.report_for_ticket_in_tx(session,user,t,SalesReceiptReport(version=t.version,amount=received,method=method,note=note))
+    return t
+
+
+def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entries=None):
+    with technician_returns.photo_transaction(session):
+        t=service_tickets._get(session,user,ticket_id,lock=True)
+        if 'technician' not in user.roles or t.assignee_id!=user.id:
+            raise BusinessError('FORBIDDEN','Chỉ chuyển được phiếu của chính mình.',status=403)
+        service_tickets._check_version(t,version)
+        allowed=('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') if failed else ('DA_GIAO','DA_NHAN','DA_HEN')
+        if t.status not in allowed:raise BusinessError('BAD_STATUS','Không chuyển thợ ở bước này.',status=409)
+        reason=(reason or '').strip()
+        if len(reason)<3:raise BusinessError('REASON_REQUIRED','Phải ghi lý do chuyển thợ ít nhất 3 ký tự.')
+        if assignee_id==user.id:raise BusinessError('SAME_ASSIGNEE','Chọn thợ khác với chính mình.')
+        service_tickets._technician(session,assignee_id)
+        proposal=technician_returns.proposal(session,t,lock=True)
+        # Auto-return allocated stock; the form may split it by condition but may not omit it.
+        required=Counter()
+        for row in proposal['rows']:required[row['product_code']]+=row['qty']
+        submitted=proposal['rows'] if entries is None else entries
+        totals=Counter()
+        for row in submitted:totals[row['product_code']]+=technician_returns.quantity(row['qty'])
+        if any(totals[code]<qty for code,qty in required.items()):
+            raise BusinessError('RETURN_REQUIRED','Phải tạo yêu cầu trả đủ vật tư đang giữ của phiếu trước khi chuyển thợ.')
+        # Existing pending returns already cover their quantities; don't request the same stock twice.
+        pending=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.ticket_id==t.id,TechnicianReturn.technician_id==user.id,TechnicianReturn.status=='CHO_NHAN').with_for_update()))
+        covered=Counter()
+        for request in pending:
+            for line in request.lines:covered[line.product_code]+=line.qty
+        adjusted=[]
+        for row in submitted:
+            qty=technician_returns.quantity(row['qty']);skip=min(qty,covered[row['product_code']]);covered[row['product_code']]-=skip
+            adjusted.append({**row,'qty':qty-skip})
+        submitted=adjusted
+        grouped=technician_returns.prepare(session,proposal['warehouse'],submitted)
+        technician_returns.create_requests(session,user,user.id,proposal['warehouse'],t.id,grouped)
+        old_name=user.full_name;new_name=session.get(User,assignee_id).full_name
+        history=f'Thợ {old_name} chuyển cho thợ {new_name}: {reason}'
+        # The visit outcome differs from a dispatcher reassignment.
+        if failed and t.status=='DANG_LAM':
+            from . import service_visits
+            service_visits.close_visit(session,t,'KHONG_LAM_DUOC',service_tickets._now(),history)
+        t.lines.clear();session.flush()
+        keep_free=bool(t.warranty_basis and t.billing=='MIEN_PHI')
+        t.billing='MIEN_PHI' if keep_free else None
+        t.free_reason=t.free_reason if keep_free else ''
+        service_tickets.assign_in_tx(session,user,t.id,assignee_id,None,history,_technician_transfer=True)
+    return t

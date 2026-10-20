@@ -49,7 +49,10 @@ def unchanged_error(client, db, t, data, code):
     assert response.status_code in (400, 409)
     assert f'data-error-code="{code}"' in response.text
     assert 'data-technician-ticket' in response.text
-    assert 'Đã chạy thử tại khách' in response.text and '500.000' in response.text
+    from decimal import Decimal
+    from app.service_charges import _round
+    total=sum(_round(Decimal(qty)*int(price.replace('.','')))+_round(Decimal(_round(Decimal(qty)*int(price.replace('.',''))))*int(data[f'vat_{i}'])/100) for i,(qty,price) in enumerate(zip(data['line_qty'],data['line_price'])))
+    assert 'Đã chạy thử tại khách' in response.text and f'{total:,}'.replace(',','.') in response.text
     assert snapshot(db, t) == before
     return response
 
@@ -81,7 +84,7 @@ def test_photo_required_rolls_back_new_charges(client, db, held):
 def test_over_payment_rolls_back_price_stock_visit_and_preserves_input(client, db, job):
     p, _, t = job; data = form(client, p, t); data.update(amount='900.000', method='CHUYEN_KHOAN')
     response = unchanged_error(client, db, t, data, 'OVER_PAYMENT')
-    assert 'value="900.000"' in response.text and 'value="CHUYEN_KHOAN" selected' in response.text
+    assert 'value="900.000"' in response.text and 'value="CHUYEN_KHOAN" checked' in response.text
 
 
 def test_negative_stock_rolls_back_everything(client, db, job):

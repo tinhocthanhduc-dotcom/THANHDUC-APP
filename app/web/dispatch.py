@@ -143,6 +143,9 @@ def _report(session, start, end, since, until):
         history[step.ticket_id].append(step)
     lateness = _history_lateness(session, ticket_ids, history)
     names = dict(session.execute(select(User.id, User.full_name)).all())
+    from .. import service_charges
+    costs=service_charges.material_costs(session,ticket_ids)
+    tickets={t.id:t for t in session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_(ticket_ids)))}
     technicians = {}
     completed_by_day = defaultdict(int)
     for ending in endings:
@@ -150,6 +153,8 @@ def _report(session, start, end, since, until):
             name=names.get(ending.assignee_id, "Chưa giao"), completed=0, failed=0, durations=[],
             late=0, classified=0, unknown=0))
         if ending.to_status == "HOAN_THANH":
+            row['revenue']=row.get('revenue',0)+(tickets[ending.ticket_id].subtotal or 0 if tickets[ending.ticket_id].billing=='THU_TIEN' else 0)
+            row['material_cost']=row.get('material_cost',0)+costs.get(ending.ticket_id,0)
             row['completed'] += 1
             completed_by_day[ending.at.astimezone(TZ).date()] += 1
             assignments = [s for s in history[ending.ticket_id] if s.id < ending.id
@@ -199,6 +204,8 @@ def _report(session, start, end, since, until):
             completed=0, failed=0, durations=[], late=0, classified=0, unknown=0))
         row['warranty_calls'] = count
     for row in technicians.values():
+        row.setdefault('revenue',0);row.setdefault('material_cost',0)
+        row['margin']=row['revenue']-row['material_cost']
         row.setdefault('deferred',0)
         row.setdefault('warranty_calls', 0)
         for key in ('visits', 'visits_done', 'visits_return', 'visits_no_show', 'visit_hours'):
@@ -263,12 +270,12 @@ def report_csv(request: Request, user: User = Depends(dispatch_user), session: S
             writer.writerow([row.number, _csv_text(names.get(row.assignee_id,'')), 'Tạm dừng', svc.HOLD_REASONS.get(row.hold_reason,'')])
         return Response("\ufeff" + output.getvalue(), media_type='text/csv; charset=utf-8',
                         headers={'Content-Disposition':'attachment; filename="tam-dung.csv"', 'Cache-Control':'private, no-store'})
-    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách", "Bị gọi bảo hành", "Khách hẹn lần sau"])
+    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách", "Bị gọi bảo hành", "Khách hẹn lần sau", "Doanh thu chưa VAT", "Chi phí vật tư", "Chênh lệch"])
     for row in technicians:
         writer.writerow([_csv_text(row['name']), row['completed'], row['failed'],
                          f"{row['avg_minutes']:.1f}" if row['avg_minutes'] is not None else "",
                          f"{row['late_rate']:.1f}" if row['late_rate'] is not None else "", row['unknown'], row['visits'], row['visits_done'],
-                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}", row['warranty_calls'], row['deferred']])
+                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}", row['warranty_calls'], row['deferred'],row['revenue'],row['material_cost'],row['margin']])
     writer.writerow([])
     writer.writerow(["Ngày", "Đơn nhận", "Đơn hoàn thành"])
     writer.writerows([row['day'], row['received'], row['completed']] for row in daily)

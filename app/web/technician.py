@@ -57,8 +57,34 @@ def detail_context(session, user, ticket, ctx):
     ctx.update(can_assign=False,can_hide=False,can_relink=False,can_decide=False,can_void=False,can_view_receipt_receivables=False)
     eq = session.get(Equipment,ticket.serial) if ticket.serial else None
     product = session.get(Product,eq.product_code) if eq else None
-    checks = [dict(key='photo',label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
-        dict(key='billing',label='Chọn cách thu và lý do nếu miễn phí',ok=ctx['charges']['billing'] in ('THU_TIEN','MIEN_PHI') and (ctx['charges']['billing']!='MIEN_PHI' or len(ctx['charges']['free_reason'].strip())>=3))]
+    from .. import technician_work
+    from ..config import get_settings,DEFAULT_VAT_RATE
+    from ..models import StockBalance
+    shown=ctx.get('completion_form') or {}
+    fee=sum(line.amount+line.vat_amount for line in ticket.lines)
+    if ctx.get('charge_unsaved'):
+        from decimal import Decimal,InvalidOperation
+        from ..service_charges import _round
+        try:
+            fee=sum(_round(Decimal(str(line['qty']).replace(',','.'))*int(str(line['unit_price']).replace('.','')))+_round(Decimal(_round(Decimal(str(line['qty']).replace(',','.'))*int(str(line['unit_price']).replace('.',''))))*int(line['vat_rate'])/100) for line in ctx['charges']['lines'])
+        except (ValueError,InvalidOperation,KeyError):pass
+    mode=shown.get('collection_mode','FREE' if ticket.billing=='MIEN_PHI' or (ticket.billing is None and ticket.warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN')) else '')
+    if ctx.get('charge_unsaved') and ctx['charges']['billing']=='MIEN_PHI':mode='FREE'
+    amount=shown.get('customer_amount',str(fee) if fee else '')
+    reason=shown.get('free_reason',(ctx['charges'].get('free_reason','') if ctx.get('charge_unsaved') else '') or ticket.free_reason or ('Bảo hành '+ticket.warranty_basis if ticket.warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN') else ''))
+    try:actual=sum(technician_work.net_from_gross(technician_work.money(amount)))
+    except BusinessError:actual=0
+    held=list(session.execute(select(Product,StockBalance.qty).join(StockBalance,StockBalance.product_code==Product.code).where(StockBalance.warehouse_code==warehouse.code if warehouse else False,StockBalance.qty>0,Product.active.is_(True)).order_by(Product.code)))
+    selected={line.product_code:str(line.qty) for line in ticket.lines if line.kind=='VAT_TU'}
+    if 'materials' in shown:selected={line['product_code']:line['qty'] for line in shown['materials']}
+    from . import quantity
+    for code,value in selected.items():
+        try:selected[code]=quantity(str(value).replace(',','.'))
+        except (ValueError,ArithmeticError):pass
+    ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0')) for p,qty in held],fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
+    billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
+    checks = [dict(key='photo' ,label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
+        dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]
     if ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH'):
         checks.append(dict(key='machine',label='Máy đã trả khách',ok=not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
     checks.append(dict(key='warehouses',label='Vật tư đã chọn kho của bạn',ok=all(warehouse and line.get('warehouse_code')==warehouse.code for line in ctx['charges']['lines'] if line['kind']=='VAT_TU')))
@@ -68,7 +94,7 @@ def detail_context(session, user, ticket, ctx):
     labels={'DA_GIAO':'Nhận đơn','DA_NHAN':'Hẹn khách','DA_HEN':'Đã đến khách','DANG_LAM':'Hoàn thành','CHO_LINH_KIEN':'Tiếp tục làm','TAM_DUNG':'Tiếp tục làm'}
     if ticket.status=='DA_NHAN' and ticket.appointment_at: labels['DA_NHAN']='Đã đến khách'
     primary = dict(form='service-complete' if ticket.status=='DANG_LAM' else 'service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
-    exceptions=[s for s in ctx['transitions'] if s!=target and s not in ('DA_HUY','DA_DONG') and not (s=='KHACH_HEN_SAU' and ticket.status=='DANG_LAM')]
+    exceptions=[s for s in ctx['transitions'] if s!=target and s in (('DA_HEN','TAM_DUNG','KHONG_LAM_DUOC') if ticket.status=='DANG_LAM' else ('KHACH_HEN_SAU','KHONG_LAM_DUOC') if ticket.status in ('CHO_LINH_KIEN','TAM_DUNG') else ()) and not (s=='KHACH_HEN_SAU' and ticket.status=='DANG_LAM')]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
     return dict(technician_view=True,checks=checks,completion_ready=all(c['ok'] for c in checks),
@@ -91,6 +117,7 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
         .outerjoin(Product,Product.code==Equipment.product_code).where(ServiceTicket.assignee_id==user.id,ServiceTicket.status.in_(service_tickets.OPEN))).all()
     for ticket,customer,site,machine in rows:
         action=next_steps.service(session,user,ticket)
+        if action and ticket.status=='DA_GIAO':action={**action,'primary':{**action['primary'],'label':'Nhận đơn'}}
         jobs.append(dict(kind='service',id=ticket.id,number=ticket.number,priority=ticket.priority,customer=customer.name,
             machine=machine or '',serial=ticket.serial or '',symptom=ticket.symptom,appointment=ticket.appointment_at,
             appointment_slot=ticket.appointment_slot, overdue=(ticket.status in ('DA_HEN','DA_NHAN') and ticket.appointment_at is not None and service_appointments.end(ticket.appointment_at,ticket.appointment_slot)<now) or (ticket.due_at is not None and ticket.due_at<now),
@@ -122,14 +149,34 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
     from .. import service_completion
     from ..schemas import SalesReceiptReport, ServiceTransition
     from .charges import _raw, _body
+    from .. import service_charges
     from .services import _detail, _message, _version
     owned(session, user, ticket_id)
     request.state.technician_return = True
+    if 'customer_amount' in form:
+        from .. import technician_work
+        shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note')}
+        shown['materials']=[dict(product_code=str(code),qty=str(qty)) for code,qty in zip(form.getlist('material_product'),form.getlist('material_qty'))]
+        try:
+            if len(form.getlist('material_product'))!=len(form.getlist('material_qty')):raise BusinessError('BAD_FORM','Dòng vật tư chưa đủ dữ liệu.')
+            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],shown['free_reason'],shown['materials'],shown['partial_amount'],shown['method'],shown['note'])
+        except (BusinessError,ValidationError) as exc:
+            message,code,status=_message(exc)
+            return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)
+        return after_post(request,session,user,ticket_id,'/tho')
     raw = _raw(form)
     shown = {key: str(form.get(key, '')) for key in ('note', 'amount', 'method')}
     try:
         version = _version(form)
         charges = _body(raw, version)
+        normalized=[]
+        for line in charges.lines:
+            if line.kind=='VAT_TU':
+                normalized.append(line.model_copy(update={'unit_price':0,'vat_rate':0}))
+                if line.unit_price:
+                    normalized.append(dict(kind='PHI',description='Phí dịch vụ (gồm công và vật tư)',qty=1,unit_price=service_charges._round(line.qty*line.unit_price),vat_rate=line.vat_rate))
+            else:normalized.append(line)
+        charges=type(charges)(**{**charges.model_dump(),'lines':normalized})
         note = ServiceTransition(to_status='HOAN_THANH', version=version, note=shown['note']).note
         amount = shown['amount'].strip()
         if amount and not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)', amount):
@@ -144,3 +191,56 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
         return _detail(request, session, user, ticket_id, error=message, error_code=code, status=status,
                        charge_shown=raw, completion_form=shown, technician_view=True)
     return after_post(request, session, user, ticket_id, '/tho')
+
+
+@router.post('/tho/phieu/{ticket_id}/chuyen-tho')
+def transfer_ticket(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from .services import _detail,_message,_version,return_lines
+    from .. import technician_work
+    from pydantic import ValidationError
+    owned(session,user,ticket_id);request.state.technician_return=True
+    try:
+        ident=str(form.get('assignee_id',''))
+        if not ident.isascii() or not ident.isdigit() or len(ident)>18:raise BusinessError('BAD_ASSIGNEE','Chọn thợ nhận.')
+        technician_work.transfer(session,user,ticket_id,int(ident),_version(form),str(form.get('reason','')),form.get('failed')=='1',return_lines(form) if form.getlist('return_product') else None)
+    except (BusinessError,ValidationError) as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,form=dict(form),failed_action='tech-transfer',error=message,error_code=code,status=status,technician_view=True,return_form=return_lines(form,photos=False) if form.getlist('return_product') else None)
+    return RedirectResponse('/tho?da_luu=1',status_code=303)
+
+
+@router.post('/tho/phieu/{ticket_id}/anh')
+async def upload_photo(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from starlette.datastructures import UploadFile
+    from fastapi.responses import JSONResponse
+    from ..config import get_settings
+    from .. import form_keys
+    t=owned(session,user,ticket_id)
+    t=service_tickets._get(session,user,ticket_id,lock=True)
+    if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Phiếu đã hoàn thành hoặc đóng.',status=409)
+    tag='TRUOC' if form.get('tag')=='TRUOC' else 'SAU'
+    upload=form.get('file')
+    try:
+        if not isinstance(upload,UploadFile):raise BusinessError('EMPTY_FILE','Chọn ảnh cần tải.')
+        data=await upload.read(get_settings().max_upload_mb*1024*1024+1)
+        if data.startswith(b'%PDF-'):raise BusinessError('BAD_FILE_TYPE','Ảnh nghiệm thu phải là ảnh.')
+        a=attachments.add(session,user,'service_ticket',str(t.id),tag,upload.filename or 'anh.jpg',data)
+    except BusinessError as exc:
+        request.state.form_business_error=True
+        return JSONResponse(dict(error=exc.message,code=exc.code),status_code=exc.status)
+    return JSONResponse(dict(id=a.id,version=a.version,url=f'/attachments/{a.id}/file',form_key=form_keys.form_key()),status_code=201)
+
+
+@router.post('/tho/phieu/{ticket_id}/anh/{attachment_id}/xoa')
+def delete_photo(request:Request,ticket_id:int,attachment_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from fastapi.responses import JSONResponse
+    from .services import _version
+    from ..models import Attachment
+    t=owned(session,user,ticket_id)
+    t=service_tickets._get(session,user,ticket_id,lock=True)
+    a=session.get(Attachment,attachment_id)
+    if not a or a.entity!='service_ticket' or a.entity_id!=str(t.id):raise BusinessError('NOT_FOUND','Không tìm thấy ảnh của phiếu.',status=404)
+    if a.created_by!=user.id:raise BusinessError('FORBIDDEN','Chỉ xóa ảnh do chính mình tải.',status=403)
+    if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Không xóa ảnh sau khi hoàn thành.',status=409)
+    attachments.hide(session,user,a.id,'Thợ xóa trước khi hoàn thành',_version(form))
+    return JSONResponse(dict(hidden=True))

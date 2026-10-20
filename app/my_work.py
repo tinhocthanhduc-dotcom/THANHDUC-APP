@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine
+from .models import Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
@@ -60,6 +60,8 @@ def _specs(user, today, now):
     if has_role(user, 'dispatcher', 'reception'):
         add('service_unassigned', 'Phiếu mới chưa giao thợ', service.where(t.status=='MOI', t.assignee_id.is_(None)), 'service', '/dich-vu')
     if has_role(user, 'dispatcher'):
+        recent=select(ServiceStep.ticket_id).join(User,User.id==ServiceStep.actor_id).where(ServiceStep.action=='reassign',ServiceStep.at>=now-timedelta(days=7),User.roles.contains(['technician']),ServiceStep.note.startswith('Thợ '))
+        add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent)), 'service','/dich-vu')
         add('service_close', 'Dịch vụ chờ đóng phiếu', service.where(t.status=='HOAN_THANH',
             or_(t.billing=='MIEN_PHI', (t.priced_at.is_not(None)) & (_available(t)<=0))), 'service', '/dich-vu')
 

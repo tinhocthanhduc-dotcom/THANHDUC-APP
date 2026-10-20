@@ -19,13 +19,15 @@ from web_forms import Forms
 
 class Screen(HTMLParser):
     def __init__(self,html):
-        super().__init__();self.tags=[];self.other=False;self.forms={};self.current=None;self.feed(html)
+        super().__init__();self.tags=[];self.other=False;self.other_depth=0;self.forms={};self.current=None;self.feed(html)
     def handle_starttag(self,tag,attrs):
         a=dict(attrs);self.tags.append((tag,a,self.other))
-        if tag=='details' and 'tho-other' in a.get('class',''):self.other=True
+        if tag=='details' and (self.other or 'tho-other' in a.get('class','')):
+            self.other_depth+=1;self.other=True
         if tag=='form':self.current=a.get('id');self.forms[self.current]=dict(a,other=self.other)
     def handle_endtag(self,tag):
-        if tag=='details':self.other=False
+        if tag=='details' and self.other_depth:
+            self.other_depth-=1;self.other=bool(self.other_depth)
 
 
 def login(client,p,role='technician'):
@@ -69,7 +71,7 @@ def test_vietnam_appointment_order_overdue_and_unappointed_last(client,db,people
 
 @pytest.mark.parametrize('state',['DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM'])
 def test_card_next_action_matches_u2(client,db,people,state):
-    p=people;t=ticket(db,p,state);label=next_steps.service(db,p['technician'],t)['primary']['label']
+    p=people;t=ticket(db,p,state);label='Nhận đơn' if state=='DA_GIAO' else next_steps.service(db,p['technician'],t)['primary']['label']
     login(client,p);page=client.get('/tho')
     labels=[a['data-next-label'] for tag,a,_ in Screen(page.text).tags if 'data-next-label' in a]
     assert labels==[label]
@@ -80,7 +82,8 @@ def test_only_current_step_and_exceptions_are_collapsed(client,db,people):
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
     assert page.status_code==200 and 'service-DANG_LAM' in screen.forms
     assert 'service-HOAN_THANH' not in screen.forms and 'service-charges' not in screen.forms and 'service-assign' not in screen.forms
-    assert screen.forms['service-DA_HEN']['other'] and screen.forms['service-no-show']['other']
+    assert screen.forms['service-transfer']['other'] and screen.forms['service-no-show']['other']
+    assert 'service-DA_HEN' not in screen.forms
     service_tickets.transition(db,p['technician'],t.id,'DANG_LAM',t.version)
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
     assert 'service-complete' in screen.forms and 'service-charges' not in screen.forms and 'service-assign' not in screen.forms
@@ -91,8 +94,8 @@ def test_only_current_step_and_exceptions_are_collapsed(client,db,people):
 def test_only_own_material_warehouse_and_completion_checks(client,db,held):
     p,own,_=held;t=ticket(db,p,'DANG_LAM');login(client,p)
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
-    whs=[a['value'] for tag,a,_ in screen.tags if 'data-charge-warehouse' in a and a.get('type')=='radio']
-    assert whs and set(whs)=={own.code}
+    assert not any('data-charge-warehouse' in a for tag,a,_ in screen.tags)
+    assert 'Vật tư đang giữ' in page.text and 'name="line_price"' not in page.text
     checks={a['data-check']:a['data-ok'] for _,a,_ in screen.tags if 'data-check' in a}
     assert checks['photo']==checks['billing']=='0' and '✗' in page.text
     button=next(a for tag,a,_ in screen.tags if 'data-tho-primary' in a);assert 'disabled' in button
@@ -146,9 +149,10 @@ def test_completed_reports_then_returns_to_today(client,db,people):
 
 def test_charges_photo_and_completion_post_return_to_mobile(client,db,people):
     p=people;t=ticket(db,p,'DANG_LAM');login(client,p);path=f'/tho/phieu/{t.id}'
-    page=client.get(path);form=Page(page.text).forms['photo-SAU-form']
-    response=client.post(form['action'],data={**form['fields']},files={'file':('sau.png',d5_image(),'image/png')},follow_redirects=False)
-    assert response.headers['location']==path+'?da_luu=1'
+    page=client.get(path);screen=Screen(page.text)
+    photo=next(a for _,a,_ in screen.tags if 'data-tech-photos' in a)
+    response=client.post(path+'/anh',data={'csrf':photo['data-csrf']},files={'file':('sau.png',d5_image(),'image/png')},follow_redirects=False)
+    assert response.status_code==201 and response.json()['id']
     form=Page(client.get(path).text).forms['service-complete']
     response=client.post(form['action'],data={**form['fields'],'billing':'MIEN_PHI','free_reason':'Bảo hành'},follow_redirects=False)
     assert response.headers['location']=='/tho'
