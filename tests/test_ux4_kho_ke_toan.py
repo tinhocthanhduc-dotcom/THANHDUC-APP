@@ -83,6 +83,10 @@ def test_cash_queue_compact_totals_group_and_self_exclusion(client,db,work_peopl
     page=client.get('/bao-thu?method=TIEN_MAT')
     assert 'id="cash-confirm-' not in page.text
     for row in rows:assert f'id="receipt-confirm-{row.id}"' not in page.text
+    p['technician'].roles=['technician','director'];db.commit();service_login(client,p['technician'])
+    page=client.get('/bao-thu?method=TIEN_MAT')
+    assert 'id="cash-confirm-' not in page.text
+    for row in rows:assert f'id="receipt-confirm-{row.id}"' not in page.text
 
 
 def test_cash_group_confirm_posts_three_receipts(client,db,work_people,configured_finance):
