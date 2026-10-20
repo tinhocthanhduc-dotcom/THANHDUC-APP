@@ -247,5 +247,6 @@ def test_recovered_routes_cannot_mix_company_cost_pool(db,lot):
     assert counts(db)==before
     sent=make(db,p,recovered,'GUI_NCC',to_warehouse_code='RNC',supplier_code='NCC-0001');waiting=child(db,sent)
     assert db.get(StockBalance,('RNC','TD-0001')).avg_cost==sent.cost_value==0
+    error('BAD_WAREHOUSE',make,db,p,waiting,'NCC_KHONG_NHAN',to_warehouse_code='CXL',reason='Không nhận; không được trộn vốn')
     destroyed=make(db,p,waiting,'HUY',actor='director',reason='Không sửa được');assert destroyed.cost_value==0
     assert db.get(StockBalance,('CXL','TD-0001')).avg_cost==100;assert_pending_invariant(db)

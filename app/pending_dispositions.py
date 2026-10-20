@@ -62,8 +62,8 @@ def _destination(session,item,kind,to_code,supplier):
     expected='KHO' if kind in ('SUA_XONG','NCC_TRA_VE') else 'LOI'
     if target is None or not target.active or target.code==source.code or target.kind!=expected or (expected=='LOI' and target.supplier_hold!=(kind=='GUI_NCC')):
         raise BusinessError('BAD_WAREHOUSE','Chọn đúng kho đích đang dùng cho cách xử lý này.')
-    if (target.recovered_only and kind!='GUI_NCC') or (kind=='GUI_NCC' and target.recovered_only!=source.recovered_only):
-        raise BusinessError('BAD_WAREHOUSE','Hàng thu hồi phải gửi vào kho Đang gửi NCC riêng có cờ Kho Thu hồi; hàng công ty vào kho NCC thường.')
+    if (target.recovered_only and kind!='GUI_NCC') or (source.recovered_only and target.kind=='LOI' and not target.recovered_only) or (kind=='GUI_NCC' and target.recovered_only!=source.recovered_only):
+        raise BusinessError('BAD_WAREHOUSE','Không chuyển giữa Kho Thu hồi và LOI thường. Hàng thu hồi gửi vào kho NCC riêng có cờ Kho Thu hồi.')
     return target
 
 
