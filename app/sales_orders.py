@@ -137,10 +137,16 @@ def _lines(session, lines, require_warehouse=False):
         elif line.product_code or line.warehouse_code:
             raise BusinessError('BAD_LINE', 'Dòng khác không có mã hàng hoặc kho.', {'line_no': i})
     codes = sorted({line.warehouse_code for line in lines if line.kind == 'HANG' and line.warehouse_code})
-    valid = set(session.scalars(select(Warehouse.code).where(Warehouse.code.in_(codes), Warehouse.active.is_(True), Warehouse.kind == 'KHO')
+    from .pending_liquidation import supply_query
+    pool=supply_query().subquery()
+    valid = set(session.scalars(select(Warehouse.code).where(Warehouse.code.in_(codes), Warehouse.active.is_(True), or_(Warehouse.kind == 'KHO',Warehouse.code.in_(select(pool.c.warehouse_code).where(pool.c.qty>0))))
                                .order_by(Warehouse.code).with_for_update(read=True)))
     if set(codes) - valid:
         raise BusinessError('BAD_WAREHOUSE', 'Kho không tồn tại hoặc đã ngừng sử dụng.', {'codes': sorted(set(codes) - valid)})
+    for line in lines:
+        if line.warehouse_code and session.get(Warehouse,line.warehouse_code).kind=='LOI':
+            if not session.scalar(select(pool.c.qty).where(pool.c.warehouse_code==line.warehouse_code,pool.c.product_code==line.product_code,pool.c.qty>0)):
+                raise BusinessError('BAD_WAREHOUSE','Mã hàng không có hồ sơ Thanh lý còn chờ ở kho đã chọn.')
     # Dùng nguyên phần tính dòng B1 (_round/_money_limit, VAT, giá bán và kiểm mã hàng).
     priced = quotes._lines(session, [QuoteLineIn(**line.model_dump(exclude={'kind', 'warehouse_code'})) for line in lines])
     return [SalesOrderLine(kind=source.kind, warehouse_code=source.warehouse_code,
@@ -155,6 +161,8 @@ def _record(session, user, order, action, before, reason=''):
 
 
 def _new(session, user, body, quote_id=None, action='create'):
+    from .pending_liquidation import check_fulfillment
+    check_fulfillment(session,body)
     customer = quotes._customer(session, body.customer_code)
     lines = _lines(session, body.lines)
     order = SalesOrder(number=next_number(session, 'DB', _today()), customer_code=body.customer_code,
@@ -163,6 +171,8 @@ def _new(session, user, body, quote_id=None, action='create'):
                        note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines)
     quotes._totals(order)
     _apply_terms(order,body)
+    from .pending_liquidation import check_fulfillment
+    check_fulfillment(session,order)
     session.add(order)
     _record(session, user, order, action, None)
     return order
@@ -226,6 +236,8 @@ def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
     order.version += 1
     quotes._totals(order)
     _apply_terms(order,body,partial=True)
+    from .pending_liquidation import check_fulfillment
+    check_fulfillment(session,order)
     _record(session, user, order, 'update_lines', before)
     return order
 
@@ -244,7 +256,12 @@ def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
     if not order.lines:
         raise BusinessError('EMPTY_LINES', 'Đơn bán phải có ít nhất một dòng trước khi chốt.')
     quotes._customer(session, order.customer_code)
+    from .pending_liquidation import check_fulfillment
+    check_fulfillment(session,order)
     _lines(session, [SalesOrderLineIn.model_validate(line, from_attributes=True) for line in order.lines], require_warehouse=True)
+    stock_posting._lock_balances(session,{(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG'})
+    from .pending_liquidation import check_prices
+    check_prices(session,user,order)
     before = snapshot(order)
     quotes._totals(order)
     _apply_terms(order,order)
@@ -346,6 +363,8 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
         raise BusinessError('FORBIDDEN','Chỉ kinh doanh, kho hoặc giám đốc được giao đơn bán.',status=403)
     from .schemas import SalesDeliveryIn
     order = _load(session, order_id, lock=True)
+    from .pending_liquidation import check_fulfillment
+    check_fulfillment(session,order,for_technician=_technician)
     actual_warehouse = None
     if _technician:
         from .technician_deliveries import check_assignee, warehouse
@@ -409,8 +428,14 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
     # Lấy số PX trước khóa tồn, cùng thứ tự với các luồng xuất kho khác.
     # Nếu khóa tồn rồi chờ doc_counters.PX, có thể deadlock với xuất DV.
     docs = []
+    liquidation=[]
+    if any(session.get(Warehouse,w).kind=='LOI' for w in by_wh):
+        lock_counter(session,'XL',stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date())
+        lock_counter(session,'PX',stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date())
     for wh in sorted(by_wh):
         pairs = by_wh[wh]
+        if session.get(Warehouse,wh).kind=='LOI':
+            liquidation.extend((wh,line,piece) for line,piece in pairs);continue
         doc = stock_docs.insert(session,user,StockDocIn(kind='PX', warehouse_code=wh,
             doc_date=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date(), customer_code=order.customer_code,
             reason=f'Giao {gh.number} cho {order.number}', lines=[StockDocLineIn(product_code=l.product_code,
@@ -423,6 +448,11 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
             piece.stock_doc_id = doc.id
             line.stock_doc_id = doc.id  # liên kết gần nhất để giữ tương thích API cũ
             stock_reservations.split_in_tx(session,user,order,line,piece.qty,gh.number,piece.warehouse_code)
+    from .pending_liquidation import deliver_in_tx as liquidate
+    for wh,line,piece in liquidation:
+        rows=liquidate(session,user,gh,line,piece.qty,wh)
+        piece.stock_doc_id=line.stock_doc_id=rows[0].stock_doc_id
+        stock_reservations.split_in_tx(session,user,order,line,piece.qty,gh.number,piece.warehouse_code)
     session.flush()
     _recompute(session,order)
     order.receivable = (order.receivable or 0)+gh.total
@@ -477,7 +507,10 @@ def void_delivery(session, user, delivery_id, reason, version):
         if not reason:
             raise BusinessError('REASON_REQUIRED','Phải nhập lý do hủy lần giao.')
         before, old = snapshot(order), delivery_snapshot(gh)
-        for doc_id in sorted({l.stock_doc_id for l in gh.lines if l.stock_doc_id}):
+        from .pending_liquidation import delivery_rows,void_delivery_in_tx
+        liquid_docs={r.stock_doc_id for r in delivery_rows(session,gh.id)}
+        void_delivery_in_tx(session,user,gh.id,f'{gh.number}: {reason}')
+        for doc_id in sorted({l.stock_doc_id for l in gh.lines if l.stock_doc_id}-liquid_docs):
             stock_posting.void_in_tx(session,user,doc_id,f'{gh.number}: {reason}',None)
         gh.status, gh.void_reason = 'DA_HUY', reason
         gh.voided_by, gh.voided_at = user.id, datetime.now(UTC)
@@ -575,6 +608,8 @@ def change_options(session,user,order_id,body):
             raise BusinessError('PRICE_LOCKED','Sau chốt chỉ được đổi cách nhận hàng khi chưa giao đủ.',status=409)
         before=snapshot(order)
         _apply_terms(order,body,partial=True)
+        from .pending_liquidation import check_fulfillment
+        check_fulfillment(session,order)
         order.version+=1
         _record(session,user,order,'change_options',before)
     return order
@@ -602,6 +637,8 @@ def counter_sale(session,user,order_id,body):
         day=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date()
         # Chốt giữ tồn: khóa GH/PX trước để không đảo thứ tự của luồng xuất kho.
         lock_counter(session,'GH',day)
+        if any(line.kind=='HANG' and session.get(Warehouse,line.warehouse_code).kind=='LOI' for line in order.lines):
+            lock_counter(session,'XL',day)
         if any(line.kind=='HANG' for line in order.lines):
             lock_counter(session,'PX',day)
         confirm_in_tx(session,user,order.id,order.version)

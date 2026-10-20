@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments,alerts,pending_items as svc,pending_dispositions as dispositions,products,stock_docs
+from .. import attachments,alerts,pending_items as svc,pending_dispositions as dispositions,products,stock_docs,pending_liquidation
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -50,7 +50,7 @@ def listing(request:Request,group:str='',warehouse:str='',min_days:str='',q:str=
     notices=alerts.pending_notices(session,user)
     return render(request,'cho_xu_ly_ds.jinja',**context(user),rows=rows,totals=totals,source_links=source_links(session,[row['item'] for row in rows]),
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI').order_by(Warehouse.code))),
-        view=view,supplier_names=dict(session.execute(select(Supplier.code,Supplier.name)).all()),selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days)
+        sold_quantities=pending_liquidation.sold_quantities(session,[r['item'].id for r in rows]),view=view,supplier_names=dict(session.execute(select(Supplier.code,Supplier.name)).all()),selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days)
 
 
 def transfer_form(request,session,user,data=None,error=None,code='',status=200):
@@ -101,7 +101,7 @@ def detail_page(request,session,user,ident,error=None,code='',status=200):
     treatments=list(session.scalars(select(PendingDisposition).where(PendingDisposition.item_id==row.id).order_by(PendingDisposition.id.desc())))
     disposition_photos={xl.id:attachments.list_for(session,user,'pending_disposition',str(xl.id)) for xl in treatments}
     return render(request,'cho_xu_ly_chi_tiet.jinja',**context(user),row=row,holding=warehouse.supplier_hold,recovered=warehouse.recovered_only,available=max(0,row.qty_left-dispositions.reserved(session,row.id)),
-        treatments=treatments,disposition_photos=disposition_photos,disposition_kinds=dispositions.KINDS,disposition_statuses=dispositions.STATUSES,can_approve=has_role(user,'director'),
+        treatments=treatments,disposition_photos=disposition_photos,disposition_kinds=dispositions.KINDS,disposition_statuses=dispositions.STATUSES,can_decide_return=has_role(user,'finance'),can_approve=has_role(user,'director'),
         destinations=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI'))).order_by(Warehouse.code))),
         default_warehouse=get_settings().sales_default_warehouse,product=session.get(Product,row.product_code),
         photos=attachments.list_for(session,user,'pending_item',str(ident)),history=history,source_links=source_links(session,[row]),
@@ -139,8 +139,8 @@ def process(request:Request,ident:int,form=Depends(checked_form),user:User=Depen
             if not attachments._prepare(photo)[1].startswith('image/'):raise BusinessError('BAD_FILE_TYPE','Chỉ nhận ảnh JPEG, PNG hoặc WEBP.')
         with stock_docs._transaction(session):
             row=dispositions.create(session,user,ident,str(form.get('kind','')),_qty(form.get('qty','')),int(form.get('version','0')),
-                to_warehouse_code=str(form.get('to_warehouse_code','')) or None,supplier_code=(str(form.get('supplier_code','')) if form.get('kind')=='GUI_NCC' else None),
-                reason=str(form.get('reason','')),_in_tx=True)
+                to_warehouse_code=str(form.get('to_warehouse_code','')) or None,supplier_code=(str(form.get('supplier_code','')) if form.get('kind') in ('GUI_NCC','TRA_NCC') else None),
+                reason=str(form.get('reason','')),amount=str(form.get('amount','0')).replace('.',''),vat_rate=str(form.get('vat_rate','0')),_in_tx=True)
             if photo:
                 a=attachments.add(session,user,'pending_disposition',str(row.id),'KHAC',upload.filename,photo,_in_tx=True)
                 paths.append(Path(get_settings().files_dir)/a.path)
@@ -154,26 +154,36 @@ def process(request:Request,ident:int,form=Depends(checked_form),user:User=Depen
 
 @router.post('/cho-xu-ly/xl/{ident}/duyet')
 def approve(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
-    dispositions.director(user)
+    dispositions._decider(session,user,ident)
+    kind=session.get(PendingDisposition,ident).kind
     try:dispositions.approve(session,user,ident,int(form.get('version','0')))
     except ValueError:raise BusinessError('VERSION_CONFLICT','Trang đã cũ, hãy tải lại.',status=409)
-    return RedirectResponse('/cho-xu-ly/duyet-huy',status_code=303)
+    return RedirectResponse('/cho-xu-ly/duyet-tra-ncc' if kind=='TRA_NCC' else '/cho-xu-ly/duyet-huy',status_code=303)
 
 
 @router.post('/cho-xu-ly/xl/{ident}/tu-choi')
 def reject(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
-    dispositions.director(user)
+    dispositions._decider(session,user,ident)
+    kind=session.get(PendingDisposition,ident).kind
     try:dispositions.reject(session,user,ident,int(form.get('version','0')),str(form.get('reason','')))
     except ValueError:raise BusinessError('VERSION_CONFLICT','Trang đã cũ, hãy tải lại.',status=409)
-    return RedirectResponse('/cho-xu-ly/duyet-huy',status_code=303)
+    return RedirectResponse('/cho-xu-ly/duyet-tra-ncc' if kind=='TRA_NCC' else '/cho-xu-ly/duyet-huy',status_code=303)
 
 
 @router.post('/cho-xu-ly/xl/{ident}/huy')
 def void_disposition(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
-    dispositions.director(user)
+    dispositions._decider(session,user,ident)
     try:row=dispositions.void(session,user,ident,int(form.get('version','0')),str(form.get('reason','')))
     except ValueError:raise BusinessError('VERSION_CONFLICT','Trang đã cũ, hãy tải lại.',status=409)
     return RedirectResponse(f'/cho-xu-ly/{row.item_id}#xl-{ident}',status_code=303)
+
+
+@router.get('/cho-xu-ly/duyet-tra-ncc')
+def supplier_return_approvals(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from ..models import StockBalance
+    if not has_role(user,'finance'):raise BusinessError('FORBIDDEN','Chỉ kế toán hoặc giám đốc duyệt trả NCC.',status=403)
+    rows=session.execute(select(PendingDisposition,PendingItem,Product.name,Supplier.name).join(PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).join(Supplier,Supplier.code==PendingDisposition.supplier_code).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)).all()
+    return render(request,'cho_xu_ly_duyet_tra_ncc.jinja',rows=rows,qty_text=qty_text)
 
 
 @router.get('/cho-xu-ly/{ident}')

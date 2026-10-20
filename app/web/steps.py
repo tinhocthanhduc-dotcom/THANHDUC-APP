@@ -52,7 +52,9 @@ def quote_checks(data):
 
 
 def order_checks(session,user,data,stock_values,customer):
-    from ..models import Product, Warehouse
+    from ..models import Product, Warehouse,StockBalance
+    from ..pending_liquidation import supply_query
+    pool=supply_query().subquery()
     checks=[check('customer','Đã chọn khách hàng',customer and customer.status=='DANG_DUNG'),
             check('lines','Có ít nhất 1 dòng',data['lines'])]
     demand={};total=0
@@ -69,7 +71,12 @@ def order_checks(session,user,data,stock_values,customer):
             if line.get('kind')=='HANG':
                 checks.append(check('product-'+str(i),f'Dòng {i}: đã chọn hàng đang dùng',product and product.active))
                 wh=session.get(Warehouse,line.get('warehouse_code')) if line.get('warehouse_code') else None
-                if line.get('warehouse_code') and (not wh or not wh.active or wh.kind!='KHO'):checks.append(check('active-warehouse-'+str(i),f'Dòng {i}: kho không còn dùng',False))
+                liquidation=bool(wh and wh.kind=='LOI' and session.scalar(select(pool.c.qty).where(pool.c.warehouse_code==wh.code,pool.c.product_code==line.get('product_code'),pool.c.qty>0)))
+                if liquidation and data.get('fulfillment')=='THO_GIAO':checks.append(check('THANH_LY_KHONG_GIAO_THO','Hàng thanh lý giao tại kho hoặc kho giao, không giao qua thợ.',False))
+                if liquidation:
+                    balance=session.get(StockBalance,(wh.code,line['product_code']))
+                    if balance and price<balance.avg_cost and not has_role(user,'director'):checks.append(check('CAN_GIAM_DOC_DUYET_GIA','Giá thanh lý dưới giá vốn, cần giám đốc chốt đơn.',False))
+                if line.get('warehouse_code') and (not wh or not wh.active or (wh.kind!='KHO' and not liquidation)):checks.append(check('active-warehouse-'+str(i),f'Dòng {i}: kho không còn dùng',False))
             elif not line.get('description','').strip():checks.append(check('description-'+str(i),f'Dòng {i}: cần mô tả',False))
             amount=quotes._round(qty*price);total+=amount+quotes._round(Decimal(amount)*int(line.get('vat_rate',8))/100)
             if line.get('kind')=='HANG' and line.get('warehouse_code') and line.get('product_code'):
@@ -80,7 +87,7 @@ def order_checks(session,user,data,stock_values,customer):
         available=stock_values.get((wh,product),{}).get('available',0)
         missing=max(Decimal(0),qty-available)
         checks.append(check('stock-'+wh+'-'+product,
-            f'{product} ở kho {wh}: thiếu {missing.normalize():f} · Sẽ giữ thiếu' if missing else f'{product} ở kho {wh}: đủ tồn khả dụng',not missing,False))
+            f'{product} ở kho {wh}: thiếu {missing.normalize():f} · Sẽ giữ thiếu' if missing else f'{product} ở kho {wh}: đủ tồn khả dụng',not missing,bool(session.get(Warehouse,wh) and session.get(Warehouse,wh).kind=='LOI')))
     if data.get('payment_term')=='CONG_NO' and customer:
         state=sales_orders.credit_state(session,customer,total)
         override=has_role(user,'director') and 1<=len(data.get('credit_override_reason','').strip())<=2000

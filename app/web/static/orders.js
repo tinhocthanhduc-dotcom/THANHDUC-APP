@@ -13,6 +13,22 @@
   if (!form) return;
   var editable=form.dataset.orderEditable==='1', dirty=editable && form.dataset.orderUnsaved==='1';
   function changed() { if (editable) dirty=true; }
+  function liquidationFulfillment() {
+    var tech=form.querySelector('[name=fulfillment][value=THO_GIAO]');
+    if (!tech) return;
+    tech.required=true;
+    var incompatible=tech.checked && !!form.querySelector('[data-liquidation="1"]:checked');
+    tech.setCustomValidity(incompatible ? 'Hàng thanh lý giao tại kho hoặc kho giao, không giao qua thợ.' : '');
+    var warning=form.querySelector('[data-liquidation-warning]');
+    if (!warning) { warning=document.createElement('p');warning.dataset.liquidationWarning='1';warning.className='alert bad';var picked=tech.closest('[data-picked]');(picked || tech.closest('fieldset')).after(warning); }
+    var block=tech.closest('[data-picked]');
+    if(incompatible && block){block.querySelector('[data-picked-detail]').hidden=false;block.querySelector('[data-picked-summary]').hidden=true;}
+    warning.hidden=!incompatible;warning.dataset.errorCode='THANH_LY_KHONG_GIAO_THO';
+    warning.textContent='Hàng thanh lý giao tại kho hoặc kho giao, không giao qua thợ.';
+  }
+  form.addEventListener('change',liquidationFulfillment);
+  liquidationFulfillment();
+
   function kind(row,clear) {
     var selected=row.querySelector('[data-order-kind]:checked'), goods=!selected || selected.value==='HANG';
     row.querySelector('[data-order-goods]').hidden=!goods;
@@ -56,6 +72,16 @@
       form.querySelector('[data-order-customer-name]').textContent=button.dataset.name;
 
     } else {
+      var previous=row.querySelector('[data-order-warehouse]:checked'), selected=previous ? previous.value : '';
+      var group=row.querySelector('[data-order-warehouse]').closest('.seg');
+      group.querySelectorAll('[data-liquidation-warehouse]').forEach(function(label){label.remove();});
+      JSON.parse(button.dataset.liquidationChoices || '[]').forEach(function(wh){
+        var label=document.createElement('label');label.dataset.liquidationWarehouse='1';
+        var radio=document.createElement('input');radio.type='radio';radio.name=group.querySelector('input').name;radio.value=wh.code;radio.dataset.orderWarehouse='';radio.dataset.liquidation='1';radio.checked=wh.code===selected;
+        var text=document.createElement('span');text.textContent=wh.code+' · Kho Chờ Xử lý · thanh lý còn '+wh.available;label.append(radio,text);group.append(label);
+      });
+      if(!group.querySelector('input:checked')) group.querySelector('input[value=""]').checked=true;
+      liquidationFulfillment();
       var availability=row.querySelector('[data-availability-summary]');
       if(button.hasAttribute('data-available')) availability.dataset.available=button.dataset.available; else delete availability.dataset.available;
       row.querySelector('[data-order-product-name]').textContent=button.dataset.name;

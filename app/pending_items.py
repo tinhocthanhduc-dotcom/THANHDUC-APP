@@ -147,6 +147,9 @@ def _locked(session,user,ident,version):
 def set_group(session,user,item_id,group_code,version,reason='',supplier_code=None):
     with _transaction(session):
         row=_locked(session,user,item_id,version);_group(session,group_code,supplier_code);before=snapshot(row)
+        if row.group_code=='THANH_LY' and group_code!='THANH_LY':
+            from .pending_liquidation import check_available
+            check_available(session,row,row.qty_left)
         row.group_code=group_code;row.supplier_code=supplier_code;row.reason=reason.strip() or row.reason
         row.version+=1;_record(session,user,row,'group',before,reason)
     return row

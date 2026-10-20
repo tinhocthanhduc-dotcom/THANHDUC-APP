@@ -7,7 +7,7 @@ from . import audit, cash_docs, cash_posting, day_closings, finance_mappings
 from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import CashDoc, PurchaseOrder, PurchaseReceipt, PurchaseReturn, StockDoc, Supplier, SupplierOpeningDebt, SupplierPayment
+from .models import CashDoc, PurchaseOrder, PurchaseReceipt, PurchaseReturn, StockDoc, Supplier, SupplierOpeningDebt, SupplierPayment,PendingDisposition
 from .schemas import CashDocIn, SupplierOpeningDebtIn, SupplierOpeningDebtOut, SupplierPaymentIn, SupplierPaymentOut
 from .security import has_role
 from .text import fold
@@ -54,12 +54,13 @@ def _balances():
         .where(SupplierPayment.status=='DA_GHI').group_by(SupplierPayment.supplier_code).subquery())
     returned=(select(PurchaseReturn.supplier_code,func.sum(PurchaseReturn.total).label('amount'))
         .where(PurchaseReturn.status=='DA_GHI').group_by(PurchaseReturn.supplier_code).subquery())
-    returned_amount=func.coalesce(returned.c.amount,0)
+    pending_return=(select(PendingDisposition.supplier_code,func.sum(PendingDisposition.total).label('amount')).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='DA_GHI').group_by(PendingDisposition.supplier_code).subquery())
+    returned_amount=func.coalesce(returned.c.amount,0)+func.coalesce(pending_return.c.amount,0)
     opening=func.coalesce(SupplierOpeningDebt.amount,0); received_amount=func.coalesce(received.c.amount,0); paid_amount=func.coalesce(paid.c.amount,0)
     return (select(Supplier.code.label('supplier_code'),Supplier.name,Supplier.active,opening.label('opening'),
             received_amount.label('received'),returned_amount.label('returned'),paid_amount.label('paid'),(opening+received_amount-returned_amount-paid_amount).label('remaining'))
         .outerjoin(SupplierOpeningDebt,SupplierOpeningDebt.supplier_code==Supplier.code)
-        .outerjoin(received,received.c.supplier_code==Supplier.code).outerjoin(returned,returned.c.supplier_code==Supplier.code).outerjoin(paid,paid.c.supplier_code==Supplier.code))
+        .outerjoin(received,received.c.supplier_code==Supplier.code).outerjoin(pending_return,pending_return.c.supplier_code==Supplier.code).outerjoin(returned,returned.c.supplier_code==Supplier.code).outerjoin(paid,paid.c.supplier_code==Supplier.code))
 
 
 def balance(session,user,supplier_code):
@@ -216,6 +217,12 @@ def timeline(session,user,supplier_code):
             t.total if reversal else -t.total,t.void_reason if reversal else t.reason,t.status,t.order_id,PurchaseOrder.number,t.stock_doc_id,StockDoc.number)
         stmt=stmt.select_from(t).join(PurchaseOrder,PurchaseOrder.id==t.order_id).join(StockDoc,StockDoc.id==t.stock_doc_id).where(t.supplier_code==supplier_code)
         return stmt.where(t.status=='DA_HUY') if reversal else stmt
-    events=union_all(initial,received(False),received(True),payment(False),payment(True),returned(False),returned(True)).subquery()
+    def pending_return(reversal):
+        x=PendingDisposition
+        stamp=x.voided_at if reversal else x.decided_at
+        day=cast(func.timezone('Asia/Ho_Chi_Minh',stamp),Date)
+        stmt=event(day,stamp,'void_pending_return' if reversal else 'pending_return',x.id,x.number,x.total if reversal else -x.total,x.void_reason if reversal else x.reason,x.status,stock_id=x.stock_doc_id,stock_number=StockDoc.number).select_from(x).join(StockDoc,StockDoc.id==x.stock_doc_id).where(x.supplier_code==supplier_code,x.kind=='TRA_NCC',x.status.in_(('DA_GHI','DA_HUY')))
+        return stmt.where(x.status=='DA_HUY') if reversal else stmt
+    events=union_all(pending_return(False),pending_return(True),initial,received(False),received(True),payment(False),payment(True),returned(False),returned(True)).subquery()
     ordering=(events.c.day,events.c.at,events.c.kind,events.c.id)
     return _rows(session,select(events,func.sum(events.c.change).over(order_by=ordering,rows=(None,0)).label('balance')).order_by(*ordering))

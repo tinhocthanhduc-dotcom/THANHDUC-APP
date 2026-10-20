@@ -47,6 +47,8 @@ def assign(session,user,order_id,body):
         order=sales_orders._load(session,order_id,lock=True)
         sales_orders._version(order,body.version)
         sales_orders._status(order,('DA_CHOT','GIAO_MOT_PHAN'))
+        from .pending_liquidation import check_fulfillment
+        check_fulfillment(session,order,for_technician=True)
         if order.fulfillment!='THO_GIAO':
             raise BusinessError('BAD_FULFILLMENT','Chỉ phân công thợ cho đơn Thợ giao.')
         warehouse(session,body.assignee_id)
