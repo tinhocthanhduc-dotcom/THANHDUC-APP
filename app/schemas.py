@@ -686,6 +686,9 @@ class SalesOrderLineOut(SalesOrderLineIn):
 
 
 class SalesOrderOut(SalesOrderTerms):
+    delivery_assignee_id: int | None = None
+    delivery_assigned_at: datetime | None = None
+    service_ticket_id: int | None = None
     credit_override_by: int | None
     credit_override_reason: str
     model_config = ConfigDict(from_attributes=True)
@@ -1181,3 +1184,22 @@ class SalesDeliveryOut(BaseModel):
 
 class SalesCounterSale(SalesReceiptReport):
     pass
+
+
+class SalesDeliveryAssign(SalesOrderVersion):
+    assignee_id: int = Field(gt=0)
+    service_ticket_id: int | None = Field(default=None, gt=0)
+
+
+class SalesDeliveryMove(SalesOrderVersion):
+    lines: list[SalesDeliveryLineIn] = Field(min_length=1, max_length=200)
+
+
+class SalesDeliveryFailed(SalesOrderVersion):
+    reason: Literal['KHACH_VANG','KHACH_TU_CHOI','SAI_DIA_CHI','HEN_LAI','KHAC']
+    note: str = Field(default='', max_length=4000)
+    promised_date: date | None = None
+
+
+class TechnicianDeliveryIn(SalesDeliveryIn):
+    receipt: SalesReceiptReport | None = None

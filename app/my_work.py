@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, Supplier
+from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, StockReservation, Warehouse, Supplier
 from .security import has_role
 
 LIMIT = 20
@@ -86,6 +86,15 @@ def _specs(user, today, now):
             add('machines_warehouse','Máy chờ nhận vào kho kỹ thuật',incoming.where(EquipmentCustody.location=='KHO_KY_THUAT'),
                 'custody','/may-dang-giu')
 
+    sales_deliveries=docs(SalesOrder,Customer.name,SalesOrder.total-(
+        func.coalesce(SalesOrder.receivable,0)-_available(SalesOrder))).join(Customer,Customer.code==SalesOrder.customer_code).where(
+        SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
+    tech_holds=select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='THO').exists()
+    if has_role(user,'technician'):
+        add('technician_deliveries','Đơn bán cần giao',sales_deliveries.where(SalesOrder.delivery_assignee_id==user.id).add_columns(
+            SalesOrder.delivery_address.label('address'),case((tech_holds,'Giao hàng / Ghi không giao được'),else_='Chờ kho bàn giao').label('next_label')).order_by(SalesOrder.promised_date,SalesOrder.id),'delivery','/viec-cua-toi?nhom=technician_deliveries')
+    if has_role(user,'warehouse'):
+        add('delivery_handover','Đơn chờ bàn giao cho thợ',sales_deliveries.where(SalesOrder.delivery_assignee_id.is_not(None),select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='KHO').exists()).order_by(SalesOrder.id),'delivery','/viec-cua-toi?nhom=delivery_handover')
     if has_role(user, 'sales'):
         q = docs(Quote, Customer.name).join(Customer, Customer.code==Quote.customer_code).where(Quote.status.in_(('NHAP','DA_GUI')))
         if not director:q=q.where(Quote.created_by==user.id)
@@ -146,7 +155,7 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may'}[kind]
+            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
             if spec['key']=='receipts_rejected':

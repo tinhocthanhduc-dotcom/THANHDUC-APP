@@ -581,3 +581,6 @@ router.include_router(dashboard_router)
 from .daily_digest import router as daily_digest_router
 
 router.include_router(daily_digest_router)
+
+from .technician_deliveries import router as technician_deliveries_router
+router.include_router(technician_deliveries_router)

@@ -4,6 +4,7 @@
 {% block main %}
 <div class="bar quote-heading"><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><a href="/don-ban">← Đơn bán</a>{% if o and o.status=='DA_GIAO' %}<a class="btn" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
 {% include 'buoc_tiep.jinja' %}
+{% if tech_delivery %}<section class="card"><h2>Giao bằng thợ</h2><p>{{ tech_delivery.label }} · {{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Chưa có thợ' }}</p><p>Đang ở kho thợ: {% for r in tech_delivery.held %}{{ r.product_code }}: {{ r.qty|qty }} {% else %}0{% endfor %}</p><a class="btn" href="/giao-don/{{ o.id }}">Phân công · Bàn giao cho thợ · Dùng hàng thợ đang có · Trả kho</a>{% for a in tech_delivery.attempts %}<p>Giao không thành: {{ tech_delivery.reason_labels[a.reason] }} · {{ a.note }}</p>{% endfor %}</section>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if o %}<p>Trạng thái: <strong>{{ statuses[o.status] }}</strong></p>{% endif %}

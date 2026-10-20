@@ -3,6 +3,8 @@
 Ảnh được xoay đúng chiều, bỏ thông tin EXIF (vị trí GPS) và thu về cạnh dài 1600px, lưu JPEG. PDF giữ nguyên.
 Loại tệp nhận theo nội dung, không tin đuôi file hay khai báo của trình duyệt. Không xóa, chỉ ẩn kèm lý do.
 """
+from contextlib import nullcontext
+
 import hashlib
 import io
 import os
@@ -22,7 +24,7 @@ from .schemas import AttachmentOut
 from .security import has_role
 from .stock_docs import _transaction
 
-TAGS = ("TRUOC", "SAU", "BIEN_BAN", "KHAC", "NHAN_MAY", "TRA_MAY")
+TAGS = ("TRUOC", "SAU", "BIEN_BAN", "KHAC", "NHAN_MAY", "TRA_MAY", "GIAO_HANG")
 MAX_SIDE = 1600
 MAX_PIXELS = 60_000_000  # chặn ảnh "bom" giải nén
 HIDERS = ("dispatcher",)
@@ -46,8 +48,19 @@ def _custody(session: Session, user: User, entity_id: str, write: bool):
     load(session,user,int(entity_id))
 
 
+def _sales_delivery(session, user, entity_id, write):
+    from .models import SalesDelivery
+    from .technician_deliveries import load, check_assignee
+    delivery=session.get(SalesDelivery,int(entity_id))
+    if delivery is None:
+        raise BusinessError('NOT_FOUND','Không tìm thấy lần giao.',status=404)
+    order=load(session,user,delivery.order_id)
+    if write:
+        check_assignee(user,order)
+
+
 # Loại chứng từ được đính kèm và cách kiểm quyền xem/ghi của từng loại.
-TARGETS = {"service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
+TARGETS = {"sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
 
 
 def _check(session: Session, user: User, entity: str, entity_id: str, write: bool):
@@ -84,13 +97,15 @@ def _prepare(data: bytes) -> tuple[bytes, str, str, int | None, int | None]:
         raise BusinessError("BAD_FILE_TYPE", "Chỉ nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF.")
 
 
-def add(session: Session, user: User, entity: str, entity_id: str, tag: str, filename: str, data: bytes) -> Attachment:
+def add(session: Session, user: User, entity: str, entity_id: str, tag: str, filename: str, data: bytes, *, _in_tx=False) -> Attachment:
     if tag not in TAGS:
         raise BusinessError("BAD_TAG", "Loại tệp phải là ảnh trước, ảnh sau, biên bản hoặc khác.", {"allowed": list(TAGS)})
     if not data:
         raise BusinessError("EMPTY_FILE", "Tệp rỗng.")
     if len(data) > get_settings().max_upload_mb * 1024 * 1024:
         raise BusinessError("FILE_TOO_LARGE", "Tệp quá lớn.", {"max_mb": get_settings().max_upload_mb})
+    if (tag=='GIAO_HANG') != (entity=='sales_delivery'):
+        raise BusinessError('BAD_TAG','Ảnh giao hàng chỉ gắn vào lần giao đơn bán.')
     if entity == 'equipment_custody' or tag in ('NHAN_MAY','TRA_MAY'):
         from .equipment_custody import check_photo
         if not str(entity_id).isdigit():
@@ -100,7 +115,7 @@ def add(session: Session, user: User, entity: str, entity_id: str, tag: str, fil
         check_photo(session,user,int(entity_id),write=True,tag=tag)
     _check(session, user, entity, entity_id, write=True)
     content, content_type, ext, width, height = _prepare(data)
-    if tag in ('NHAN_MAY','TRA_MAY') and not content_type.startswith('image/'):
+    if tag in ('NHAN_MAY','TRA_MAY','GIAO_HANG') and not content_type.startswith('image/'):
         raise BusinessError('BAD_FILE_TYPE','Ảnh nhận và trả máy phải là ảnh JPEG, PNG hoặc WEBP.')
     now = datetime.now(UTC)
     rel = f"{entity}/{now:%Y/%m}/{uuid.uuid4().hex}.{ext}"
@@ -110,7 +125,7 @@ def add(session: Session, user: User, entity: str, entity_id: str, tag: str, fil
     tmp.write_bytes(content)
     os.replace(tmp, target)
     try:
-        with _transaction(session):
+        with (nullcontext() if _in_tx else _transaction(session)):
             a = Attachment(entity=entity, entity_id=str(entity_id), tag=tag, filename=(filename or "tep")[:255],
                            content_type=content_type, size=len(content), sha256=hashlib.sha256(content).hexdigest(),
                            path=rel, width=width, height=height, created_by=user.id)

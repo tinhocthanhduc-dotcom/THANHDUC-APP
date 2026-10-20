@@ -578,6 +578,9 @@ class SalesOrder(Base):
     contact_name: Mapped[str] = mapped_column(String(200), default='')
     delivery_address: Mapped[str] = mapped_column(Text, default='')
     promised_date: Mapped[date | None] = mapped_column(Date)
+    delivery_assignee_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    delivery_assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    service_ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
     fulfillment: Mapped[str] = mapped_column(String(16), default='TAI_QUAY', server_default='TAI_QUAY')
     payment_term: Mapped[str] = mapped_column(String(16), default='TRA_NGAY', server_default='TRA_NGAY')
     due_days: Mapped[int] = mapped_column(Integer, default=30, server_default=text('30'))
@@ -1110,7 +1113,7 @@ class StockReservation(Base):
         CheckConstraint("(status = 'GIU' and closed_by is null and closed_at is null) or "
                         "(status <> 'GIU' and closed_by is not null and closed_at is not null)", name='ck_stock_reservations_closed'),
         Index('ix_stock_reservations_active_stock','warehouse_code','product_code', postgresql_where=text("status = 'GIU'")),
-        Index('uq_stock_reservations_active_line','order_id','order_line_id',unique=True, postgresql_where=text("status = 'GIU'")),
+        Index('uq_stock_reservations_active_line','order_id','order_line_id','warehouse_code',unique=True, postgresql_where=text("status = 'GIU'")),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
@@ -1168,3 +1171,18 @@ class SalesDeliveryLine(Base):
     vat_amount: Mapped[int] = mapped_column(BigInteger)
     warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
     stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'))
+
+
+class SalesDeliveryAttempt(Base):
+    __tablename__ = 'sales_delivery_attempts'
+    __table_args__ = (
+        CheckConstraint("result = 'KHONG_GIAO_DUOC'", name='ck_sales_delivery_attempts_result'),
+        CheckConstraint("reason in ('KHACH_VANG','KHACH_TU_CHOI','SAI_DIA_CHI','HEN_LAI','KHAC')", name='ck_sales_delivery_attempts_reason'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'), index=True)
+    assignee_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    result: Mapped[str] = mapped_column(String(20), default='KHONG_GIAO_DUOC')
+    reason: Mapped[str] = mapped_column(String(20))
+    note: Mapped[str] = mapped_column(Text, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

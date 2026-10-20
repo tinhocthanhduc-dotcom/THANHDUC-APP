@@ -2,7 +2,7 @@
 from sqlalchemy import func, select
 
 from .errors import BusinessError
-from .models import Product, StockBalance, StockDoc, StockLedger, User, Warehouse
+from .models import Product, StockReservation, SalesOrder, StockBalance, StockDoc, StockLedger, User, Warehouse
 from .security import has_role
 
 
@@ -39,4 +39,9 @@ def held(session, user, holder_id=None):
                 .outerjoin(recent, (recent.c.product_code == StockBalance.product_code) & (recent.c.rank == 1))
                 .where(StockBalance.warehouse_code == warehouse.code, StockBalance.qty > 0)
                 .order_by(StockBalance.product_code)).mappings())
-        return dict(warehouse=warehouse, holder=holder, rows=rows)
+        reserved={}
+        if warehouse:
+            for code,number,order_id,qty in session.execute(select(StockReservation.product_code,SalesOrder.number,SalesOrder.id,StockReservation.qty).join(
+                SalesOrder,SalesOrder.id==StockReservation.order_id).where(StockReservation.warehouse_code==warehouse.code,StockReservation.status=='GIU')):
+                reserved.setdefault(code,[]).append(dict(number=number,id=order_id,qty=qty))
+        return dict(warehouse=warehouse, holder=holder, rows=rows, reservations=reserved)

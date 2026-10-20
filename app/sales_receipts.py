@@ -86,14 +86,14 @@ def _record(session, user, receipt, action, before, reason=''):
 
 
 def report(session: Session, user, order_id, body: SalesReceiptReport):
-    sales_orders.check_writer(user)
     with _transaction(session):
         return report_in_tx(session,user,order_id,body)
 
 
 def report_in_tx(session, user, order_id, body: SalesReceiptReport):
-    sales_orders.check_writer(user)
     order = sales_orders._load(session, order_id, lock=True)
+    if not (has_role(user, 'sales') or (has_role(user, 'technician') and order.delivery_assignee_id == user.id)):
+        raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh hoặc thợ được giao đơn được báo thu.', status=403)
     sales_orders._version(order, body.version)
     if order.status not in ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'):
         raise BusinessError('BAD_STATUS', 'Chỉ báo thu cho đơn đã chốt hoặc đã giao.', status=409)
@@ -200,10 +200,13 @@ def _decide(session, user, receipt_id, version, target, reason=''):
     if target == 'DA_HUY':
         if not has_role(user, 'director'):
             raise BusinessError('FORBIDDEN', 'Chỉ giám đốc được hủy báo thu đã xác nhận.', status=403)
-    else:
-        check_finance(user)
     with _transaction(session):
         parent,receipt = _locked(session, receipt_id)
+        if target != 'DA_HUY':
+            if (target=='DA_XAC_NHAN' and receipt.order_id is not None and receipt.reported_by==user.id
+                    and has_role(user,'technician') and not has_role(user,'director')):
+                raise BusinessError('SELF_CONFIRM','Không được tự xác nhận báo thu do mình lập.',status=403)
+            check_finance(user)
         _version(receipt, version)
         expected = 'DA_XAC_NHAN' if target == 'DA_HUY' else 'CHO_XAC_NHAN'
         if receipt.status != expected:

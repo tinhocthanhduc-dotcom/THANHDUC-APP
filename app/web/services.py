@@ -140,7 +140,11 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     # D1 là danh mục chỉ đọc; phiếu và lịch sử luôn được tải qua lõi D2.
     from ..models import CustomerSite
     site = session.get(CustomerSite, t.site_id) if t.site_id else None
-    return render(request, "dich_vu_chi_tiet.jinja", t=t, customer=session.get(Customer, t.customer_code), site=site,
+    from ..models import SalesOrder
+    linked_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.service_ticket_id==t.id)))
+    if not has_role(user,'dispatcher','sales','warehouse','finance'):
+        linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
+    return render(request, "dich_vu_chi_tiet.jinja",linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
                   files=attachments.list_for(session, user, "service_ticket", str(t.id)),
                   next_step=next_steps.service(session,user,t),can_upload=has_role(user, *svc.CREATORS) or own,
                   can_hide=dispatcher, photo_form=photo_form or {},
