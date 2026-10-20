@@ -369,3 +369,17 @@
   );
   refresh();
 })();
+
+/* "+ Tạo mới khách hàng": mang theo chữ đang gõ ở ô tìm khách sang form tạo khách. */
+document.addEventListener("click", function (e) {
+  var link = e.target.closest && e.target.closest("[data-new-customer]");
+  if (!link) return;
+  var box = link.closest("[data-picker]") || link.parentElement;
+  var input = box && box.querySelector("[name=customer_code]");
+  var typed = input ? input.value.trim() : "";
+  if (!typed || /^KTD-\d+$/i.test(typed)) return;
+  e.preventDefault();
+  var url = new URL(link.href, location.href);
+  url.searchParams.set("q", typed);
+  location.href = url.toString();
+});

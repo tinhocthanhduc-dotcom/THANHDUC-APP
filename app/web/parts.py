@@ -9,7 +9,7 @@ from .. import part_requests as svc, products, technician_stock
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import PartRequest, Product, ServiceTicket, StockBalance, StockDoc, User, Warehouse
-from ..schemas import PartRequestIn
+from ..schemas import PartRequestIn, PartStockIn
 from ..security import has_role
 from . import checked_form, render, web_user
 
@@ -119,3 +119,56 @@ def decide(request: Request, ident: int, action: str, form=Depends(checked_form)
         message, code, status = _message(exc)
         return _queue(request, session, user, message, code, status, ident, data)
     return RedirectResponse('/yeu-cau-linh-kien?da_luu=1' + ('&status=HET_HANG' if action == 'het-hang' else ''), status_code=303)
+
+
+# ---------- Thợ xin hàng mang theo (không gắn phiếu) ----------
+
+
+def _stock_form(request, session, user, data=None, error=None, code='', status=200):
+    own = technician_stock.own_warehouse(session, user) if 'technician' in user.roles else None
+    return render(request, 'xin_linh_kien.jinja', own=own, d=data or {'qty': '1'}, error=error, error_code=code, status=status)
+
+
+@router.get('/hang-toi-giu/xin-linh-kien')
+def stock_request_page(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    if 'technician' not in user.roles:
+        raise BusinessError('FORBIDDEN', 'Chỉ thợ được xin hàng mang theo.', status=403)
+    return _stock_form(request, session, user)
+
+
+@router.get('/hang-toi-giu/tim-linh-kien')
+def stock_pick(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    if 'technician' not in user.roles:
+        raise BusinessError('FORBIDDEN', 'Chỉ thợ được xin hàng mang theo.', status=403)
+    rows = products.search(session, q[:200], active_only=True, limit=20)
+    own = technician_stock.own_warehouse(session, user)
+    warehouses = [own.code] if own else []
+    warehouses += [w.code for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code))]
+    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses,
+                  stocks=_stocks(session, [r.code for r in rows], warehouses))
+
+
+@router.post('/hang-toi-giu/xin-linh-kien')
+def stock_request(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .services import _message
+    user = request.state.user
+    data = {k: str(form.get(k, '')) for k in ('product_code', 'qty', 'reason')}
+    try:
+        svc.create_stock(session, user, PartStockIn(**{**data, 'qty': data['qty'].replace(',', '.')}))
+    except (BusinessError, ValidationError) as exc:
+        message, code, status = _message(exc)
+        if code == 'FORBIDDEN':
+            return render(request, 'loi.jinja', error=exc, status=status)
+        return _stock_form(request, session, user, data, message, code, status)
+    return RedirectResponse('/hang-toi-giu?da_luu=1#xin-linh-kien', status_code=303)
+
+
+@router.post('/hang-toi-giu/xin-linh-kien/{ident}/huy')
+def stock_request_cancel(request: Request, ident: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .services import _version
+    row = session.get(PartRequest, ident)
+    if row is None or row.ticket_id is not None or row.requester_id != request.state.user.id:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy yêu cầu mang theo của bạn.', status=404)
+    reason = str(form.get('reason', '')).strip() or 'Thợ hủy yêu cầu mang theo'
+    svc.cancel(session, request.state.user, ident, reason, _version(form))
+    return RedirectResponse('/hang-toi-giu?da_luu=1#xin-linh-kien', status_code=303)

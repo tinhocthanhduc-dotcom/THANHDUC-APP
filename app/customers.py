@@ -240,3 +240,37 @@ def search(session: Session, q: str, include_test: bool = True) -> list[Customer
         stmt = stmt.where(or_(*conds))
     stmt = stmt.order_by(Customer.updated_at.desc()).limit(limit)
     return list(session.scalars(stmt).all())
+
+
+def duplicates(session: Session, phone_text: str = "", tax_text: str = "", except_code: str = "", limit: int = 5) -> list[dict]:
+    """Báo trùng sớm khi đang gõ (chỉ đọc). Cùng chuẩn hóa và cùng phạm vi khách như _check_conflicts lúc lưu.
+
+    Số chưa hợp lệ thì bỏ qua, không báo lỗi: người dùng còn đang gõ.
+    """
+    found: dict[str, dict] = {}
+    active = Customer.status != "DA_GOP"
+    not_self = Customer.code != except_code if except_code else True
+    try:
+        tax = tax_code(tax_text)
+    except BusinessError:
+        tax = ""
+    if tax:
+        for c in session.scalars(select(Customer).where(active, not_self, Customer.tax_code == tax).limit(limit)):
+            found[c.code] = {"customer": c, "by": "MST"}
+    numbers = []
+    for raw in str(phone_text or "").replace(";", ",").replace("/", ",").split(","):
+        try:
+            numbers += phones(raw)
+        except BusinessError:
+            continue
+    if numbers:
+        stmt = (
+            select(Customer)
+            .join(CustomerPhone)
+            .where(active, not_self, CustomerPhone.phone.in_(numbers))
+            .distinct()
+            .limit(limit)
+        )
+        for c in session.scalars(stmt):
+            found.setdefault(c.code, {"customer": c, "by": "SĐT"})
+    return list(found.values())[:limit]

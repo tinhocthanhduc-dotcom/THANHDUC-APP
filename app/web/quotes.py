@@ -139,7 +139,11 @@ def pick_product(request: Request,q: str='',customer_code: str='',user: User=Dep
 @router.get('/bao-gia/moi')
 def new(request: Request,user: User=Depends(quote_user),session: Session=Depends(get_session)):
     svc.check_writer(user)
-    return _form(request,session)
+    data=None
+    chosen=session.get(Customer,request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
+    if chosen and chosen.status=='DANG_DUNG':
+        data={**_blank(),'customer_code':chosen.code}
+    return _form(request,session,data)
 
 
 @router.post('/bao-gia/moi')

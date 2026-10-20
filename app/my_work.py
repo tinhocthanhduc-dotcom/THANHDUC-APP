@@ -128,8 +128,8 @@ def _specs(user, today, now):
         if not director and not has_role(user,'warehouse'):pickups=pickups.where(SalesOrder.created_by==user.id)
         add('orders_pickup_late','Khách hẹn lấy quá ngày',pickups.order_by(SalesOrder.promised_date,SalesOrder.id),'order','/don-ban')
     if has_role(user, 'warehouse'):
-        requests = select(PartRequest.id, PartRequest.number, PartRequest.status, Customer.name.label('customer'),
-            literal(0).label('amount'), literal(False).label('overdue')).join(t, t.id == PartRequest.ticket_id).join(
+        requests = select(PartRequest.id, PartRequest.number, PartRequest.status, func.coalesce(Customer.name, 'Thợ xin mang theo').label('customer'),
+            literal(0).label('amount'), literal(False).label('overdue')).outerjoin(t, t.id == PartRequest.ticket_id).outerjoin(
                 Customer, Customer.code == t.customer_code).where(PartRequest.status == 'CHO_CAP').order_by(PartRequest.created_at, PartRequest.id)
         add('parts_pending', 'Yêu cầu linh kiện chờ cấp', requests, 'part', '/yeu-cau-linh-kien')
         returning = select(TechnicianReturn.id, TechnicianReturn.number, TechnicianReturn.status, func.coalesce(Customer.name,'Trả kho không gắn phiếu').label('customer'),

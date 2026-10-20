@@ -12,10 +12,12 @@
 {% endfor %}
 {% if error %}
 <p class="alert bad">{{ error }}
-  {% if error_detail and error_detail.existing %}Khách đó là <a href="/khach-hang/{{ error_detail.existing }}" target="_blank">{{ error_detail.existing }} · {{ error_detail.name }}</a>.{% endif %}
+  {% if error_detail and error_detail.existing %}Khách đó là <a href="/khach-hang/{{ error_detail.existing }}" target="_blank">{{ error_detail.existing }} · {{ error_detail.name }}</a>.
+  {% if return_to %}<a class="btn primary" data-use-customer href="{{ return_to }}?customer_code={{ error_detail.existing | urlencode }}">Dùng khách này</a>{% endif %}{% endif %}
 </p>
 {% endif %}
-<form method="post" class="card form">
+<form method="post" class="card form" data-dup-form data-dup-except="{{ c.code }}" data-dup-return="{{ return_to or '' }}">
+  {% if return_to %}<input type="hidden" name="quay_ve" value="{{ return_to }}">{% endif %}
   <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
   <input type="hidden" name="version" value="{{ c.version }}">
   <fieldset {% if ro %}disabled{% endif %}>
@@ -29,9 +31,10 @@
   </div>
   <label>Tên khách<input name="name" value="{{ c.name }}" required maxlength="300"></label>
   <div class="row2">
-    <label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Nhiều số cách nhau bằng dấu phẩy"></label>
-    <label>MST<input name="tax_code" value="{{ c.tax_code }}" inputmode="numeric" placeholder="Công ty cần MST hoặc SĐT"></label>
+    <label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Nhiều số cách nhau bằng dấu phẩy" data-dup-check="phone" data-dup-target="#dup-main"></label>
+    <label>MST<input name="tax_code" value="{{ c.tax_code }}" inputmode="numeric" placeholder="Công ty cần MST hoặc SĐT" data-dup-check="tax" data-dup-target="#dup-main"></label>
   </div>
+  <div id="dup-main" data-dup-result aria-live="polite"></div>
   <label>Địa chỉ<input name="address" value="{{ c.address }}"></label>
   <label>Email<input name="email" type="email" value="{{ c.email }}"></label>
   <label>Ghi chú<textarea name="note" rows="2">{{ c.note }}</textarea></label>
@@ -41,10 +44,11 @@
     {% for x in c.contacts %}
     <div class="contact">
       <input name="contact_name" value="{{ x.name }}" placeholder="Tên">
-      <input name="contact_phones" value="{{ x.phones | join(', ') }}" placeholder="SĐT" inputmode="tel">
+      <input name="contact_phones" value="{{ x.phones | join(', ') }}" placeholder="SĐT" inputmode="tel" data-dup-check="phone" data-dup-target="#dup-contacts">
       <input name="contact_note" value="{{ x.note }}" placeholder="Chức vụ, ghi chú">
     </div>
     {% endfor %}
+    <div id="dup-contacts" data-dup-result aria-live="polite"></div>
     {% if not ro %}<button type="button" class="link" data-add-row="#contact-row">+ Thêm người liên hệ</button>{% endif %}
   </div>
 
@@ -81,9 +85,10 @@
 <template id="contact-row">
   <div class="contact">
     <input name="contact_name" placeholder="Tên">
-    <input name="contact_phones" placeholder="SĐT" inputmode="tel">
+    <input name="contact_phones" placeholder="SĐT" inputmode="tel" data-dup-check="phone" data-dup-target="#dup-contacts">
     <input name="contact_note" placeholder="Chức vụ, ghi chú">
   </div>
 </template>
 {% if c.code %}{% include "dia_diem_khach.jinja" %}{% endif %}
+{% if not ro %}<script src="/static/customer-dup.js" defer></script>{% endif %}
 {% endblock %}

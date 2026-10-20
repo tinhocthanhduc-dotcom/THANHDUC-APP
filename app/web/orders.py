@@ -86,10 +86,10 @@ def _active_order(session, quote_id):
                            SalesOrder.status!='DA_HUY')).first()
 
 
-def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action='',refund_form=None):
+def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action='',refund_form=None,customer_code=''):
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
-            customer_code='',contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
+            customer_code=customer_code,contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
             fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days=30,deposit_amount='')
         for line in data['lines']:
             line['unit_price']=money(line['unit_price'])
@@ -246,7 +246,8 @@ def conditions(request: Request,user: User=Depends(order_user),session: Session=
 @router.get('/don-ban/moi')
 def new(request: Request,user: User=Depends(order_user),session: Session=Depends(get_session)):
     _writer(user)
-    return _form(request,session)
+    chosen=session.get(Customer,request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
+    return _form(request,session,customer_code=chosen.code if chosen and chosen.status=='DANG_DUNG' else '')
 
 
 @router.post('/don-ban/moi')
