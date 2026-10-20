@@ -200,3 +200,17 @@ def test_migration_existing_xl_money_defaults_and_down_up(db,lot):
         values=db.execute(text('select amount,vat_rate,vat_amount,total,delivery_id,order_line_no,voided_at from pending_dispositions where id=:id'),dict(id=ident)).one()
         assert tuple(values)==(0,0,0,0,None,None,None)
     db.commit();db.expire_all();assert db.get(PendingDisposition,ident).status=='CHO_DUYET';assert_pending_invariant(db)
+
+
+def test_s3_counter_sale_keeps_normal_revenue_and_pending_receipt(db,liquidation):
+    from app.schemas import SalesCounterSale
+    from app.models import SalesReceipt
+    from app import sales_receipts
+    p,item,first,second=liquidation;o=order(db,p,5,confirm=False)
+    sales_orders.counter_sale(db,p['sales'],o.id,SalesCounterSale(version=o.version,method='TIEN_MAT',amount=1080))
+    gh=sales_orders.deliveries(db,o.id)[0];rows=liq.delivery_rows(db,gh.id)
+    assert len(rows)==2 and sum(r.qty for r in rows)==5 and sum(r.cost_value for r in rows)==500
+    receipt=db.scalar(select(SalesReceipt).where(SalesReceipt.order_id==o.id))
+    assert o.status=='DA_GIAO' and o.receivable==1080 and receipt.status=='CHO_XAC_NHAN' and receipt.amount==1080
+    assert sales_receipts.balance(o)['pending']==1080 and db.query(CashDoc).count()==db.query(FundLedger).count()==0
+    assert_pending_invariant(db)
