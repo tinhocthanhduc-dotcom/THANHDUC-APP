@@ -65,10 +65,11 @@ def service(session, user, t):
     if t.status=='MOI' and dispatcher:return block(form('Giao thợ','service-assign',base+'/assign','Chọn thợ trong form Giao thợ.'))
     if t.status=='DA_GIAO' and can_step:return block(transition('Nhận việc','DA_NHAN'))
     if t.status=='DA_NHAN' and can_step:return block(transition('Hẹn khách để bắt đầu','DA_HEN'))
-    if t.status=='DA_HEN' and can_step:return block(transition('Bắt đầu làm','DANG_LAM'))
+    if t.status=='DA_HEN' and can_step:return block(transition('Đã đến khách','DANG_LAM'),
+        [form('Không gặp khách','service-no-show',base+'/no-show','Ghi người liên hệ, đã gọi chưa và giờ hẹn mới.')])
     if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))
     if t.status=='DANG_LAM' and can_step:
-        secondary=[form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]
+        secondary=[transition('Hẹn quay lại','DA_HEN'),form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]
         if t.billing is None:
             return block(form('Lưu tiền trước khi hoàn thành','service-charges',base+'/tien/luu',
                 'Chọn Có thu tiền hoặc Miễn phí; giá sẽ được khóa khi hoàn thành.'),secondary)

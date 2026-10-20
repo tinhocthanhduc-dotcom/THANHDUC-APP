@@ -9,6 +9,8 @@ from ..db import get_session
 from ..models import User
 from ..schemas import (
     ServiceAssign,
+    ServiceNoShow,
+    ServiceVisitOut,
     ServiceCharges,
     ServiceReason,
     ServiceStatus,
@@ -79,3 +81,15 @@ def transfer_reject(ticket_id: int, body: ServiceReason, user: User = Depends(cu
 def charges(ticket_id: int, body: ServiceCharges, user: User = Depends(current_user), session: Session = Depends(get_session)):
     service_charges.set_charges(session, user, ticket_id, body)
     return svc.load(session, user, ticket_id)
+
+
+@router.get('/{ticket_id}/visits', response_model=list[ServiceVisitOut])
+def visits(ticket_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    from .. import service_visits
+    svc.load(session, user, ticket_id)
+    return service_visits.list_for(session, ticket_id)
+
+
+@router.post('/{ticket_id}/no-show', response_model=ServiceTicketOut)
+def no_show(ticket_id: int, body: ServiceNoShow, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.no_show(session, user, ticket_id, body.version, body.note, body.appointment_at)

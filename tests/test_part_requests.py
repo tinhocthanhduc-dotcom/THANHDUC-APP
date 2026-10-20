@@ -28,6 +28,9 @@ def test_create_number_step_audit_and_dispatcher_without_own_warehouse(db, held)
     assert r.requester_id==p['technician'].id and t.status=='CHO_LINH_KIEN'
     step=db.scalars(select(ServiceStep).where(ServiceStep.ticket_id==t.id).order_by(ServiceStep.id.desc())).first()
     assert step.from_status=='DANG_LAM' and step.to_status=='CHO_LINH_KIEN' and r.number in step.note
+    from app.models import ServiceVisit
+    visit=db.scalar(select(ServiceVisit).where(ServiceVisit.ticket_id==t.id))
+    assert visit.outcome=='CHO_LINH_KIEN' and visit.ended_at is not None and visit.note==step.note
     second=request(db,p,t,who='dispatcher')
     assert second.number.endswith('00002') and second.requester_id==p['dispatcher'].id
     assert db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='part_request.create'))==2

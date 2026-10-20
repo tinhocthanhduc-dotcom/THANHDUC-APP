@@ -353,6 +353,27 @@ class ServiceTransition(BaseModel):
     appointment_at: AwareDatetime | None = None
 
 
+class ServiceNoShow(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int | None = Field(default=None, ge=1)
+    note: str = Field(default='', max_length=2000)
+    appointment_at: AwareDatetime | None = None
+
+
+class ServiceVisitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    ticket_id: int
+    technician_id: int
+    started_at: datetime
+    ended_at: datetime | None
+    outcome: str | None
+    note: str
+    next_appointment_at: datetime | None
+    created_at: datetime
+    version: int
+
+
 class ServiceReason(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 

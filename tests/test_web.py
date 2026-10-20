@@ -1658,7 +1658,7 @@ def test_d7_report_counts_average_and_historical_lateness(client, db, service_pe
     assert response.status_code == 200, response.text
     assert '180.0 phút' in response.text and '33.3%' in response.text
     rows = d7_csv(client)
-    assert rows[1] == ['Dv.Technician', '2', '1', '180.0', '33.3', '0']
+    assert rows[1][:6] == ['Dv.Technician', '2', '1', '180.0', '33.3', '0']
     daily_index = rows.index(['Ngày', 'Đơn nhận', 'Đơn hoàn thành'])
     assert rows[daily_index + 1] == ['2026-10-10', '2', '2']
     # Phiếu hoàn thành không còn due_at; vẫn phát hiện hạn nhận cũ bị vượt ở lịch sử.
@@ -1681,7 +1681,7 @@ def test_d7_csv_headers_and_vietnam_date_defaults(client, service_people, d7_his
     assert 'name="from" value="2026-10-05"' in response.text
     assert 'name="to" value="2026-10-11"' in response.text
     rows = d7_csv(client)
-    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ']
+    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách']
     assert ['Ngày', 'Đơn nhận', 'Đơn hoàn thành'] in rows
     response = client.get('/dieu-phoi/bao-cao.csv?from=2026-10-10&to=2026-10-10')
     assert response.content.startswith(b'\xef\xbb\xbf')
@@ -1701,7 +1701,7 @@ def test_d7_reassignment_uses_latest_assignment_for_completing_technician(client
     ]
     d7_ticket(db, service_people, 'DV-26-00001', events)
     service_login(client, service_people['dispatcher'])
-    assert d7_csv(client)[1] == ['Dv.Tho.B', '1', '0', '60.0', '0.0', '0']
+    assert d7_csv(client)[1][:6] == ['Dv.Tho.B', '1', '0', '60.0', '0.0', '0']
 
 
 def test_d7_missing_audit_not_assumed_on_time_and_bad_dates(client, db, service_people):
@@ -1713,7 +1713,7 @@ def test_d7_missing_audit_not_assumed_on_time_and_bad_dates(client, db, service_
                        actor_id=t.assignee_id, assignee_id=t.assignee_id, at=d7_clock('2026-10-10T12:00:00+07:00')))
     db.commit()
     service_login(client, service_people['dispatcher'])
-    assert d7_csv(client)[1] == ['Dv.Technician', '1', '0', '', '', '1']
+    assert d7_csv(client)[1][:6] == ['Dv.Technician', '1', '0', '', '', '1']
     response = client.get('/dieu-phoi/bao-cao?from=2026-10-11&to=2026-10-10')
     assert response.status_code == 400 and 'Khoảng ngày chưa hợp lệ' in response.text
     assert 'value="2026-10-11"' in response.text
@@ -1753,7 +1753,7 @@ def test_d7_lateness_matches_real_core_audit_transactions(client, db, service_pe
     service_login(client, service_people['dispatcher'])
     rows = d7_csv(client, '')
     assert rows[1][1:3] == ['1', '0']
-    assert rows[1][4:] == ['100.0', '0']
+    assert rows[1][4:6] == ['100.0', '0']
 
 
 def test_d7_reschedule_uses_original_appointment_deadline(client, db, service_people):
@@ -1768,7 +1768,7 @@ def test_d7_reschedule_uses_original_appointment_deadline(client, db, service_pe
     db.commit()
     service_login(client, service_people['dispatcher'])
     # Dời hẹn lúc 10:30 đã trễ hạn hẹn cũ 10:00, dù lịch hẹn cuối được dời sang 12:00.
-    assert d7_csv(client)[1][4:] == ['100.0', '0']
+    assert d7_csv(client)[1][4:6] == ['100.0', '0']
 
 
 @pytest.mark.parametrize('final_status', ['HOAN_THANH', 'DA_DONG', 'DANG_LAM', 'DA_HUY'])
@@ -1786,7 +1786,7 @@ def test_d7_reopened_ticket_not_counted_twice_or_after_cancellation(client, db, 
     rows = d7_csv(client)
     daily_index = rows.index(['Ngày', 'Đơn nhận', 'Đơn hoàn thành'])
     if final_status in ('HOAN_THANH', 'DA_DONG'):
-        assert rows[1] == ['Dv.Technician', '1', '0', '240.0', '0.0', '0']
+        assert rows[1][:6] == ['Dv.Technician', '1', '0', '240.0', '0.0', '0']
         assert rows[daily_index + 1] == ['2026-10-10', '1', '1']
     else:
         assert rows[1] == []

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, service_charges
+from .. import attachments, service_charges, service_visits
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -32,13 +32,13 @@ STATUSES = {
 KINDS = {"SUA_TAI_CHO": "Sửa tại chỗ", "MANG_VE": "Mang về", "BAO_HANH": "Bảo hành", "MUC_DINH_KY": "Mực định kỳ"}
 PRIORITIES = {"KHAN": "Khẩn", "GAP": "Gấp", "THUONG": "Thường"}
 TRANSITIONS = {
-    "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Bắt đầu", "CHO_LINH_KIEN": "Chờ linh kiện",
+    "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Đã đến khách", "CHO_LINH_KIEN": "Chờ linh kiện",
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
-         "reopen": "Mở lại", "close": "Đóng hồ sơ"}
+         "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
 
 
 def local_time(value):
@@ -126,9 +126,14 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         labels["DANG_LAM"] = "Tiếp tục làm"
     if t.status == "HOAN_THANH":
         labels["DANG_LAM"] = "Mở lại"
+    if t.status == "DANG_LAM":
+        labels["DA_HEN"] = "Hẹn quay lại"
     if t.status == "DA_HEN":
         labels["DA_HEN"] = "Dời hẹn"
+    can_no_show = (dispatcher or own) and t.status == "DA_HEN"
     visible_actions = {"transition:" + target for target in targets}
+    if can_no_show:
+        visible_actions.add("no-show")
     if dispatcher and t.status in svc.ASSIGNABLE:
         visible_actions.add("assign")
     if own and t.status in svc.OPEN and not t.transfer_request:
@@ -144,7 +149,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     linked_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.service_ticket_id==t.id)))
     if not has_role(user,'dispatcher','sales','warehouse','finance'):
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
-    return render(request, "dich_vu_chi_tiet.jinja",linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
+    return render(request, "dich_vu_chi_tiet.jinja", visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
                   files=attachments.list_for(session, user, "service_ticket", str(t.id)),
                   next_step=next_steps.service(session,user,t),can_upload=has_role(user, *svc.CREATORS) or own,
                   can_hide=dispatcher, photo_form=photo_form or {},
@@ -231,7 +236,7 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
         if action == "assign":
             body = ServiceAssign(assignee_id=form.get('assignee_id'), version=version, note=form.get('note', ''))
             svc.assign(session, user, ticket_id, body.assignee_id, body.version, body.note)
-        elif action == "transition":
+        elif action in ("transition", "no-show"):
             appointment = str(form.get("appointment_at", "")).strip()
             if appointment:
                 try:
@@ -240,9 +245,12 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
                     raise BusinessError("BAD_APPOINTMENT", "Ngày giờ hẹn chưa hợp lệ.")
                 # datetime-local không có múi giờ: luôn gửi giờ Việt Nam +07:00 tới lõi.
                 appointment = value.replace(tzinfo=TZ).isoformat() if value.tzinfo is None else value.isoformat()
-            body = ServiceTransition(to_status=form.get('to_status'), version=version,
+            body = ServiceTransition(to_status="DA_HEN" if action == "no-show" else form.get('to_status'), version=version,
                                      note=form.get('note', ''), appointment_at=appointment or None, hold_reason=str(form.get("hold_reason", "")))
-            svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason)
+            if action == "no-show":
+                svc.no_show(session, user, ticket_id, body.version, body.note, body.appointment_at)
+            else:
+                svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason)
         elif action in ("transfer-request", "transfer-reject"):
             body = ServiceReason(reason=form.get('reason', ''), version=version)
             fn = svc.request_transfer if action == "transfer-request" else svc.reject_transfer

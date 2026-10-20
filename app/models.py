@@ -385,6 +385,34 @@ class ServiceStep(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+VISIT_OUTCOMES = ('XONG', 'HEN_LAI', 'KHONG_GAP_KHACH', 'CHO_LINH_KIEN', 'TAM_DUNG',
+                  'KHONG_LAM_DUOC', 'CHUYEN_THO', 'HUY')
+
+
+class ServiceVisit(Base):
+    """Một lần đến khách; chỉ được chốt lượt mở một lần, không xóa."""
+    __tablename__ = 'service_visits'
+    __table_args__ = (
+        CheckConstraint(_in('outcome', VISIT_OUTCOMES), name='ck_service_visits_outcome'),
+        CheckConstraint('(ended_at is null) = (outcome is null)', name='ck_service_visits_closed'),
+        CheckConstraint('ended_at is null or ended_at >= started_at', name='ck_service_visits_time'),
+        CheckConstraint("outcome not in ('HEN_LAI','KHONG_GAP_KHACH') or (next_appointment_at is not null and btrim(note) <> '')", name='ck_service_visits_appointment'),
+        Index('uq_service_visits_open_ticket', 'ticket_id', unique=True, postgresql_where=text('ended_at is null')),
+        Index('ix_service_visits_technician_started', 'technician_id', 'started_at'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), index=True)
+    technician_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str | None] = mapped_column(String(24))
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    next_appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+
+
 class Attachment(Base):
     """Tệp đính kèm (D4) gắn vào một chứng từ bất kỳ. File nằm trên máy chủ, bảng chỉ giữ đường dẫn. Không xóa, chỉ ẩn."""
 
