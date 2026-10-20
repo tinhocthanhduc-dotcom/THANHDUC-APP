@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn
+from .models import Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine
 from .security import has_role
 
 LIMIT = 20
@@ -130,9 +130,13 @@ def _specs(user, today, now):
             literal(0).label('amount'), literal(False).label('overdue')).join(t, t.id == PartRequest.ticket_id).join(
                 Customer, Customer.code == t.customer_code).where(PartRequest.status == 'CHO_CAP').order_by(PartRequest.created_at, PartRequest.id)
         add('parts_pending', 'Yêu cầu linh kiện chờ cấp', requests, 'part', '/yeu-cau-linh-kien')
-        returning = select(TechnicianReturn.id, TechnicianReturn.number, TechnicianReturn.status, Customer.name.label('customer'),
-            literal(0).label('amount'), literal(False).label('overdue')).join(t,t.id==TechnicianReturn.ticket_id).join(
+        returning = select(TechnicianReturn.id, TechnicianReturn.number, TechnicianReturn.status, func.coalesce(Customer.name,'Trả kho không gắn phiếu').label('customer'),
+            literal(0).label('amount'), literal(False).label('overdue')).outerjoin(t,t.id==TechnicianReturn.ticket_id).outerjoin(
                 Customer,Customer.code==t.customer_code).where(TechnicianReturn.status=='CHO_NHAN').order_by(TechnicianReturn.created_at,TechnicianReturn.id)
+        damaged=select(TechnicianReturnLine.return_id).where(
+            TechnicianReturnLine.return_id==TechnicianReturn.id,
+            TechnicianReturnLine.condition=='HU_HONG').exists()
+        returning=returning.add_columns(damaged.label('damaged'))
         add('technician_returns','Thợ trả hàng',returning,'technician_return','/viec-cua-toi?nhom=technician_returns')
         orders = docs(PurchaseOrder, Supplier.name).join(Supplier, Supplier.code==PurchaseOrder.supplier_code).where(
             PurchaseOrder.status.in_(('DA_DAT','NHAN_MOT_PHAN'))).order_by(PurchaseOrder.expected_date.asc().nulls_last(), PurchaseOrder.id)
@@ -171,6 +175,14 @@ def _group(session, spec, page=1):
             row['amount'] = int(row['amount'] or 0)
         row['kind'] = kind
         rows.append(row)
+    if spec['kind']=='technician_return' and rows:
+        damaged=list(session.scalars(select(TechnicianReturnLine).where(TechnicianReturnLine.return_id.in_([r['id'] for r in rows]),TechnicianReturnLine.condition=='HU_HONG')))
+        keys=[f'{line.return_id}:{line.line_no}' for line in damaged]
+        photos=list(session.scalars(select(Attachment).where(Attachment.entity=='technician_return_line',Attachment.entity_id.in_(keys),Attachment.hidden.is_(False)).order_by(Attachment.id)))
+        for row in rows:
+            matching=[line for line in damaged if line.return_id==row['id']]
+            row['damage_reason']='; '.join(line.damage_reason for line in matching)
+            row['damage_photos']=[photo.id for photo in photos if photo.entity_id in [f"{row['id']}:{line.line_no}" for line in matching]]
     return dict(key=spec['key'], title=spec['title'], count=count, rows=rows,
         link='/viec-cua-toi?'+urlencode({'nhom':spec['key']}), list_link=spec['link'])
 

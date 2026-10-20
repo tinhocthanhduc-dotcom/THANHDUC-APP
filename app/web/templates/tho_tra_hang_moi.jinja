@@ -1,0 +1,8 @@
+{% extends 'base.jinja' %}{% block title %}Trả kho / Báo hư{% endblock %}{% block main %}
+<h1>Trả kho / Báo hư</h1><p><a href="/hang-toi-giu">← Hàng tôi giữ</a></p>
+{% if error %}<p class="alert bad" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<p>Chọn số lượng hàng đang giữ và tình trạng. Hàng vẫn ở kho của bạn đến khi kho xác nhận nhận.</p>
+<form id="return-create" method="post" enctype="multipart/form-data" class="form" action="/tho-tra-hang/moi">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+{% include 'tra_vat_tu_fields.jinja' %}<button class="primary">Gửi yêu cầu trả kho</button></form>
+<script src="/static/technician-returns.js" defer></script>{% endblock %}

@@ -1333,12 +1333,13 @@ class TechnicianReturn(Base):
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     number: Mapped[str] = mapped_column(String(32), unique=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), index=True)
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'), index=True)
     technician_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
     to_warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
     status: Mapped[str] = mapped_column(String(8), default='CHO_NHAN')
     stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
+    defect_stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
     note: Mapped[str] = mapped_column(Text, default='')
     void_reason: Mapped[str] = mapped_column(Text, default='')
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
@@ -1355,10 +1356,19 @@ class TechnicianReturnLine(Base):
     __table_args__ = (
         CheckConstraint('qty > 0', name='ck_technician_return_lines_qty'),
         CheckConstraint('received_qty is null or (received_qty >= 0 and received_qty <= qty)', name='ck_technician_return_lines_received'),
-        UniqueConstraint('return_id', 'product_code'),
+        UniqueConstraint('return_id', 'product_code', 'condition', name='uq_technician_return_line_condition'),
+        CheckConstraint("condition in ('TOT','HU_HONG')", name='ck_technician_return_condition'),
+        CheckConstraint("(condition = 'TOT' and damage_reason = '') or (condition = 'HU_HONG' and length(btrim(damage_reason)) >= 3)", name='ck_technician_return_damage_reason'),
+        CheckConstraint("received_condition in ('TOT','HU_HONG')", name='ck_technician_return_received_condition'),
+        CheckConstraint("(received_qty is null) = (received_condition is null)", name='ck_technician_return_received_state'),
+        CheckConstraint("(received_condition is distinct from 'HU_HONG' and received_damage_reason = '') or (received_condition = 'HU_HONG' and length(btrim(received_damage_reason)) >= 3)", name='ck_technician_return_received_reason'),
     )
     return_id: Mapped[int] = mapped_column(ForeignKey('technician_returns.id'), primary_key=True)
     line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
     product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
     qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
     received_qty: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    condition: Mapped[str] = mapped_column(String(8), default='TOT', server_default='TOT')
+    damage_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    received_condition: Mapped[str | None] = mapped_column(String(8))
+    received_damage_reason: Mapped[str] = mapped_column(Text, default='', server_default='')

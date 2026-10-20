@@ -16,7 +16,7 @@ from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
 from ..inventory_catalogs import check_writer
-from ..models import Product, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, User, Warehouse
+from ..models import Product, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, TechnicianReturn, TechnicianReturnLine, User, Warehouse
 from ..schemas import StockDocCancel, StockDocIn, StockDocPatch, StockMinLevelIn
 from ..security import has_role
 from ..text import fold
@@ -131,7 +131,7 @@ def pick_tech_warehouse(request: Request,q: str='',user: User=Depends(web_user),
 @router.get('/hang-toi-giu')
 def technician_held(request: Request,tho: int | None=None,user: User=Depends(web_user),session: Session=Depends(get_session)):
     data=technician_stock.held(session,user,tho)
-    return render(request,'hang_toi_giu.jinja',**data,can_manage=has_role(user,'warehouse'))
+    return render(request,'hang_toi_giu.jinja',**data,can_return='technician' in user.roles and (not tho or tho==user.id),return_requests=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.technician_id==(data['holder'].id if data['holder'] else user.id)).order_by(TechnicianReturn.id.desc()))),can_manage=has_role(user,'warehouse'))
 
 
 @router.get('/hang-toi-giu/phieu/{doc_id}')
@@ -239,7 +239,13 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
     rows = list(session.execute(stmt).mappings())
     values=stock_reservations.quantities(session,[(r['warehouse_code'],r['product_code']) for r in rows])
     rows=[{**r,**values.get((r['warehouse_code'],r['product_code']),dict(reserved=0,available=r['qty']))} for r in rows]
-    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', rows=rows, q=q, kho=kho, canh_bao=canh_bao,
+    damage_sources=session.execute(select(TechnicianReturn,TechnicianReturnLine,User.full_name,StockDoc.to_warehouse_code).join(
+        TechnicianReturnLine,TechnicianReturnLine.return_id==TechnicianReturn.id).join(User,User.id==TechnicianReturn.technician_id).join(
+        StockDoc,StockDoc.id==TechnicianReturn.defect_stock_doc_id).where(TechnicianReturn.status=='DA_NHAN',StockDoc.status=='DA_GHI',
+        TechnicianReturnLine.received_condition=='HU_HONG',TechnicianReturnLine.received_qty>0)).all()
+    damage_sources=[r for r in damage_sources if (not kho or r.to_warehouse_code==kho) and (not fold(q) or any(
+        b['product_code']==r.TechnicianReturnLine.product_code and b['warehouse_code']==r.to_warehouse_code for b in rows))]
+    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
                   warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows))
 
 

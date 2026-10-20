@@ -316,7 +316,7 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
             raise BusinessError("NOT_FOUND", "Không tìm thấy thao tác này.", status=404)
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
-        return _detail(request, session, user, ticket_id, form, failed_action, error, code, status, return_form=return_lines(form) if form.getlist("return_product") else None)
+        return _detail(request, session, user, ticket_id, form, failed_action, error, code, status, return_form=return_lines(form, photos=False) if form.getlist("return_product") else None)
     from .technician import after_post
     return after_post(request,session,user,ticket_id,f"/dich-vu/{ticket_id}?da_luu=1")
 
@@ -382,7 +382,17 @@ def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web
                   work_note=last.note if last else "", completed_at=completion.at if completion else None, photos=photos)
 
 
-def return_lines(form):
-    codes = form.getlist('return_product'); quantities = form.getlist('return_qty'); warehouses = form.getlist('return_warehouse')
+def return_lines(form, photos=True):
+    from ..config import get_settings
+    from starlette.datastructures import UploadFile
+    codes=form.getlist('return_product');quantities=form.getlist('return_qty');warehouses=form.getlist('return_warehouse')
     if not len(codes)==len(quantities)==len(warehouses): raise BusinessError('BAD_LINE','Dòng trả kho chưa đủ thông tin.')
-    return [dict(product_code=str(code),qty=str(qty),to_warehouse_code=str(warehouse)) for code,qty,warehouse in zip(codes,quantities,warehouses)]
+    rows=[]
+    for i,(code,qty,warehouse) in enumerate(zip(codes,quantities,warehouses)):
+        row=dict(product_code=str(code),qty=str(qty),to_warehouse_code=str(warehouse),
+            condition=str(form.get(f'return_condition_{i}','TOT')),damage_reason=str(form.get(f'return_damage_reason_{i}','')))
+        upload=form.get(f'return_photo_{i}')
+        if photos and isinstance(upload,UploadFile) and upload.filename:
+            row['photo']=dict(filename=upload.filename,data=upload.file.read(get_settings().max_upload_mb*1024*1024+1))
+        rows.append(row)
+    return rows

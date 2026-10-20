@@ -1,7 +1,7 @@
 {% extends 'base.jinja' %}
 {% macro hidden(action) %}{% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ form.get('version',t.version) if failed_action==action else t.version }}">{% endmacro %}
 {% macro transition(target, primary=false) %}{% set action='transition:' ~ target %}
-<form id="service-{{ target }}" method="post" action="/dich-vu/{{ t.id }}/transition" class="card form">
+<form id="service-{{ target }}" method="post" action="/dich-vu/{{ t.id }}/transition" enctype="multipart/form-data" class="card form">
 {{ hidden(action) }}<input type="hidden" name="to_status" value="{{ target }}"><h2>{{ tech_primary.label if primary else transition_labels[target] }}</h2>
 {% if target=='DA_HEN' %}{% with ap_form=form if failed_action==action else {}, returning=t.status=='DANG_LAM', allow_later=t.status=='DANG_LAM' %}{% include 'hen_khach.jinja' %}{% endwith %}{% if t.status=='DANG_LAM' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}{% endif %}
 {% if target=='KHACH_HEN_SAU' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}
@@ -37,4 +37,4 @@
 <details class="card"><summary>Lịch sử</summary><ol class="service-history">{% for step in t.steps %}<li>{{ step.at|service_time }} · {{ step_labels.get(step.action,step.action) }} · {{ service_statuses[step.to_status] }}{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}</ol>
 <h2>Các lượt đến khách</h2>{% for visit in visits %}<p>{{ visit.started_at|service_time }} · {{ visit_outcomes.get(visit.outcome,'Đang ở khách') }} · {{ visit.note }}</p>{% endfor %}</details>
 <div class="tho-bottom-action">{% if tech_primary %}<button class="primary" type="submit" form="{{ tech_primary.form }}" data-tho-primary {% if t.status=='DANG_LAM' and not completion_ready %}disabled aria-describedby="completion-checks"{% endif %}>{{ tech_primary.label }}</button>{% else %}<a class="btn primary" href="/tho">Về Hôm nay</a>{% endif %}</div>
-</div><script src="/static/appointments.js" defer></script><script src="/static/parts.js" defer></script><script src="/static/services.js" defer></script><script src="/static/recovered-parts.js" defer></script>{% endblock %}
+</div><script src="/static/technician-returns.js" defer></script><script src="/static/appointments.js" defer></script><script src="/static/parts.js" defer></script><script src="/static/services.js" defer></script><script src="/static/recovered-parts.js" defer></script>{% endblock %}

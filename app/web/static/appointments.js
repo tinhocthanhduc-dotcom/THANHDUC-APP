@@ -17,7 +17,8 @@
       if (submit) submit.textContent=value==='LAN_SAU'?'Đóng phiếu · Hẹn lần sau':submit.dataset.label;
       if (returns) {
         returns.hidden=value!=='LAN_SAU';
-        returns.querySelectorAll('input,select').forEach(function(input){input.disabled=value!=='LAN_SAU';});
+        returns.querySelectorAll('input,select,textarea').forEach(function(input){input.disabled=value!=='LAN_SAU';});
+        returns.dispatchEvent(new Event('return-state'));
       }
     }
     picker.addEventListener('change',function(){update(true);});

@@ -382,3 +382,5 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .appointment-buttons label span{display:flex;align-items:center;justify-content:center;min-height:48px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;text-align:center}
 .appointment-buttons input:checked+span{background:#215fc4;color:white}
 .appointment-buttons input:focus-visible+span{outline:3px solid #215fc4;outline-offset:2px}
+
+.return-damage-photo{display:block;max-width:100%;width:200px;max-height:200px;object-fit:contain;border-radius:8px}
