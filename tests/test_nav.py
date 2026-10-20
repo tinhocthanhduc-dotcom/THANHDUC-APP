@@ -29,7 +29,7 @@ EXPECTED = {
 }
 EXPECTED['director'] = set().union(*EXPECTED.values())
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
-         'reception': '/dich-vu', 'technician': '/viec-cua-toi', 'sales': '/viec-cua-toi',
+         'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
          'warehouse': '/viec-cua-toi'}
 
 
@@ -55,8 +55,9 @@ def test_exact_menu_home_and_login_for_each_role(client, make_user, role):
     page = client.get(HOMES[role])
     assert page.status_code == 200
     links = Menu(page.text).links
-    assert {a['href'] for a in links} == EXPECTED[role]
-    assert len(links) == len(EXPECTED[role])  # Không nhân đôi menu desktop/mobile.
+    expected = {'/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi'} if role=='technician' else EXPECTED[role]
+    assert {a['href'] for a in links} == expected
+    assert len(links) == len(expected)  # Không nhân đôi menu desktop/mobile.
     assert nav.ROLE_LABELS[role] in page.text and user.full_name in page.text
     assert 'data-web-menu' in page.text and '>Menu</summary>' in page.text
 
@@ -144,6 +145,7 @@ def test_finance_specific_service_receivables_prefix_and_csv(client, make_user):
 def test_director_every_menu_destination_works(client, make_user):
     service_login(client, make_user('nav.director', 'director'))
     for item in nav.items():
+        if item.get('technician_page'): continue  # Chỉ người có vai trò technician mới vào /tho.
         response = client.get(item['href'])
         assert response.status_code == 200, (item['href'], response.text[:200])
 

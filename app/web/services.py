@@ -110,14 +110,18 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None, custody_shown=None, technician_view=False):
     from .recovered_parts import detail_context as recovered_context
     from .custody import context as custody_context
     from .parts import detail_context as part_context
     from .charges import detail_context
     from .receipts import ticket_context
     t = svc.load(session, user, ticket_id)
-    dispatcher = has_role(user, *svc.DISPATCHERS)
+    technician_view = technician_view or getattr(request.state,'technician_return',False)
+    if technician_view:
+        from .technician import owned
+        owned(session,user,ticket_id)
+    dispatcher = has_role(user, *svc.DISPATCHERS) and not technician_view
     own = "technician" in user.roles and t.assignee_id == user.id and t.status != "HOAN_THANH"
     targets = sorted(svc.FLOW.get(t.status, ()), key=lambda s: list(STATUSES).index(s)) if dispatcher or own else []
     if dispatcher and t.status in svc.CANCELLABLE:
@@ -150,7 +154,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     linked_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.service_ticket_id==t.id)))
     if not has_role(user,'dispatcher','sales','warehouse','finance'):
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
-    return render(request, "dich_vu_chi_tiet.jinja", warranty=service_warranty.info(session,t),
+    ctx = dict(warranty=service_warranty.info(session,t),
                   warranty_children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.warranty_of_id==t.id).order_by(ServiceTicket.id))),
                   warranty_form=warranty_form or {}, can_relink=dispatcher and t.kind=='BAO_HANH' and t.status in svc.OPEN,
                   **recovered_context(session,user,t,recovered_form), visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
@@ -169,8 +173,12 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   saved=request.query_params.get("da_luu") == "1" and not error, status=status,
                   **detail_context(session, user, t, charge_shown),
                   **part_context(session, user, t, part_form),
-                  **custody_context(session,user,t),
+                  **custody_context(session,user,t,custody_shown),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
+    if technician_view:
+        from .technician import detail_context as technician_context
+        ctx.update(technician_context(session,user,t,ctx))
+    return render(request, 'tho_phieu.jinja' if technician_view else 'dich_vu_chi_tiet.jinja', **ctx)
 
 
 # Đường dẫn /moi và các ô tìm/chọn được đăng ký trước /{ticket_id} ở cuối module.
@@ -274,7 +282,8 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         return _detail(request, session, user, ticket_id, form, failed_action, error, code, status)
-    return RedirectResponse(f"/dich-vu/{ticket_id}?da_luu=1", status_code=303)
+    from .technician import after_post
+    return after_post(request,session,user,ticket_id,f"/dich-vu/{ticket_id}?da_luu=1")
 
 
 @router.post("/dich-vu/{ticket_id}/anh/tai")
@@ -298,7 +307,8 @@ async def photo_upload(request: Request, ticket_id: int, form=Depends(checked_fo
     except BusinessError as exc:
         return _detail(request, session, user, ticket_id, error=exc.message, error_code=exc.code,
                        status=exc.status, photo_form={"tag": tag})
-    return RedirectResponse(f"/dich-vu/{ticket_id}?da_luu=1#anh", status_code=303)
+    from .technician import after_post
+    return after_post(request,session,user,ticket_id,f"/dich-vu/{ticket_id}?da_luu=1#anh")
 
 
 @router.post("/dich-vu/{ticket_id}/anh/{attachment_id}/an")
@@ -317,7 +327,8 @@ def photo_hide(request: Request, ticket_id: int, attachment_id: int, form=Depend
         return _detail(request, session, user, ticket_id, error=exc.message, error_code=exc.code, status=exc.status,
                        photo_form={"attachment_id": attachment_id, "reason": str(form.get("reason", "")),
                                    "version": form.get("version", "")})
-    return RedirectResponse(f"/dich-vu/{ticket_id}?da_luu=1#anh", status_code=303)
+    from .technician import after_post
+    return after_post(request,session,user,ticket_id,f"/dich-vu/{ticket_id}?da_luu=1#anh")
 
 
 @router.get("/dich-vu/{ticket_id}/bien-ban")

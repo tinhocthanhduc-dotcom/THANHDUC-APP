@@ -10,7 +10,7 @@
 {% if user %}
 {% set navigation = web_navigation(user, request.url.path, request.query_params) %}
 <header class="top">
-  <a class="brand" href="/">Thành Đức</a>
+  <a class="brand" href="{{ '/tho' if user.roles|unique|list == ['technician'] else '/' }}">Thành Đức</a>
   <details class="menu-shell" data-web-menu>
     <summary class="menu-toggle">Menu</summary>
     <nav aria-label="Menu chính" class="role-nav">

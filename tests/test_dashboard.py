@@ -161,7 +161,7 @@ def test_web_summary_home_redirects_menu_svg_and_role_permissions(client,people)
     for role in ('director','finance','sales','warehouse','technician'):
         service_login(client,p[role])
         root=client.get('/',follow_redirects=False)
-        assert root.status_code==303 and root.headers['location']==('/tong-quan' if role in ('director','finance') else '/viec-cua-toi')
+        assert root.status_code==303 and root.headers['location']==('/tong-quan' if role in ('director','finance') else '/tho' if role=='technician' else '/viec-cua-toi')
         page=client.get('/tong-quan')
         if role in ('director','finance'):
             assert page.status_code==200 and '<svg' in page.text and page.text.count('<rect ')==30

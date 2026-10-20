@@ -114,7 +114,8 @@ def save(request: Request, ticket_id: int, form=Depends(checked_form), session: 
             error, code, status = exc.message, exc.code, exc.status
         return _detail(request, session, request.state.user, ticket_id, error=error, error_code=code,
                        status=status, charge_shown=raw)
-    return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#tien', status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#tien')
 
 
 def _viewer(user: User = Depends(web_user)):

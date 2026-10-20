@@ -1,0 +1,13 @@
+{% extends 'base.jinja' %}
+{% block title %}Hôm nay{% endblock %}
+{% block main %}<div class="tho-screen"><h1>Hôm nay · {{ today.strftime('%d/%m/%Y') }}</h1>
+<p class="hint">{{ jobs|length }} việc đang mở của bạn</p>
+<div class="tho-jobs">{% for job in jobs %}<article class="card tho-job {% if job.overdue %}service-overdue{% endif %}" data-job="{{ job.kind }}:{{ job.id }}">
+<div class="bar"><a href="{{ job.href }}"><strong>{{ job.number }}</strong></a>{% if job.priority %}<span class="badge">{{ service_priorities[job.priority] }}</span>{% endif %}</div>
+<h2>{{ job.customer }}</h2>{% if job.appointment %}<p>{{ 'Quá giờ · ' if job.overdue else '' }}Hẹn {{ job.appointment|service_time }}</p>{% elif job.overdue %}<p>Quá hạn xử lý</p>{% endif %}
+{% if job.address %}<p class="tho-one-line" title="{{ job.address }}">{{ job.address }}</p>{% endif %}
+{% if job.machine or job.serial %}<p class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</p>{% endif %}
+<p class="tho-one-line" title="{{ job.symptom }}">{{ job.symptom }}</p>
+<div class="tho-contact">{% if job.phone %}<a class="btn" href="tel:{{ job.phone }}">Gọi</a>{% endif %}{% if job.maps %}<a class="btn" href="{{ job.maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</div>
+{% if job.action %}<a class="btn primary tho-job-next" href="{{ job.href }}{% if job.action.form %}#{{ job.action.form }}{% endif %}" data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}">{{ job.action.label }}</a>{% endif %}
+</article>{% else %}<p class="card">Bạn không có việc đang mở.</p>{% endfor %}</div></div>{% endblock %}

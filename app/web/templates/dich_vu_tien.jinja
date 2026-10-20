@@ -2,7 +2,7 @@
 {% if not charge_editable %}<p class="alert warn">Tiền đã khóa hoặc phiếu đã đóng, không sửa được. {% if t.status == 'HOAN_THANH' %}Điều phối có thể Mở lại kèm lý do.{% endif %}</p>{% endif %}
 {% if charge_unsaved %}<p class="alert warn">Dữ liệu tiền vừa nhập chưa được lưu.</p>{% endif %}
 <form id="service-charges" method="post" action="/dich-vu/{{ t.id }}/tien/luu" class="form" data-charge-form data-charge-unsaved="{{ '1' if charge_unsaved else '0' }}" data-charge-editable="{{ '1' if can_charge and charge_editable else '0' }}">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ charges.version }}">
+{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ charges.version }}">
 <fieldset {% if not can_charge or not charge_editable %}disabled{% endif %}>
 <fieldset><legend>Cách thu</legend><div class="seg stock-seg">
 <label><input type="radio" name="billing" value="THU_TIEN" {% if t.warranty_basis in ['PHIEU_TRUOC','MAY_CON_HAN'] and t.billing=='MIEN_PHI' and not can_warranty_override %}disabled{% endif %} {% if charges.billing == 'THU_TIEN' %}checked{% endif %} required><span>Có thu tiền</span></label>
