@@ -195,3 +195,10 @@ def test_delivery_from_today_uses_existing_post_and_returns_to_today(client,db,s
     assert form['fields']['return_to']=='tho'
     response=client.post(form['path'],data={**form['fields'],'reason':'KHACH_VANG','note':'Đã gọi khách nhưng không gặp'},follow_redirects=False)
     assert response.status_code==303 and response.headers['location']=='/tho'
+
+
+def test_contact_prefers_contact_phone():
+    from types import SimpleNamespace as NS
+    from app.web.technician import contact
+    customer = NS(address='12 Lê Lợi', phones=[NS(phone='0901 111 111', is_contact=False), NS(phone='0909 999 999', is_contact=True)])
+    assert contact(customer)['phone'] == '0909999999'

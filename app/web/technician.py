@@ -43,7 +43,7 @@ def after_post(request, session, user, ticket_id, fallback):
 
 def contact(customer, site=None, address=None):
     location = (address if address is not None else (site.address if site else '') or customer.address).strip()
-    phones = sorted(customer.phones,key=lambda p:(p.is_contact,p.phone))
+    phones = sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))
     number = (site.contact_phone if site else '') or (phones[0].phone if phones else '')
     number = re.sub(r'[^+0-9]','',number)
     return dict(address=location,phone=number,maps='https://www.google.com/maps/search/?'+urlencode({'api':1,'query':location}) if location else '')
