@@ -25,7 +25,7 @@
     choices.textContent = 'Đang tải địa điểm và máy…';
     fetch('/dich-vu/chon-khach?' + new URLSearchParams({customer_code: customer.value}), {credentials:'same-origin'})
       .then(function(response) { if (!response.ok) throw new Error(); return response.text(); })
-      .then(function(html) { if (current === sequence) choices.innerHTML = html; })
+      .then(function(html) { if (current === sequence) { choices.innerHTML = html; if(window.initPicked)window.initPicked(choices); customer.closest('[data-picked]')._choices=html; } })
       .catch(function() { if (current === sequence) choices.textContent = 'Không tải được địa điểm và máy, hãy chọn khách lại.'; });
   });
 })();

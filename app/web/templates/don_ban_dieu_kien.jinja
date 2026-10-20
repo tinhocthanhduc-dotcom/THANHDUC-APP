@@ -1,7 +1,10 @@
-<section class="form" data-order-terms>
+{% import 'da_chon.jinja' as picked %}
+{% call picked.block(locked=('Không sửa được ở trạng thái này' if editable is defined and (not editable or not can_write) else '')) %}<section class="form" data-order-terms>
 <fieldset><legend>Nhận hàng</legend><div class="seg stock-seg">{% for value,label in fulfillments.items() %}<label><input type="radio" name="fulfillment" value="{{ value }}" {% if d.get('fulfillment','TAI_QUAY')==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
 <fieldset><legend>Thanh toán</legend><div class="seg stock-seg">{% for value,label in payments.items() %}<label><input type="radio" name="payment_term" value="{{ value }}" {% if d.get('payment_term','TRA_NGAY')==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
 <label data-debt-days {% if d.get('payment_term','TRA_NGAY')!='CONG_NO' %}hidden{% endif %}>Số ngày được nợ<input name="due_days" inputmode="numeric" value="{{ d.get('due_days',30) if d.get('payment_term')=='CONG_NO' else 30 }}"></label>
 <label data-deposit-amount {% if d.get('payment_term')!='DAT_COC' %}hidden{% endif %}>Tiền cọc dự kiến<input name="deposit_amount" inputmode="numeric" data-money value="{{ d.get('deposit_amount') or '' }}"></label>
 <p class="hint" data-terms-hint>Chọn cách nhận hàng và thanh toán; số tiền chỉ được ghi khi báo thu.</p>
 </section>
+
+{% endcall %}

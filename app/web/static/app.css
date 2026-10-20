@@ -384,3 +384,15 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .appointment-buttons input:focus-visible+span{outline:3px solid #215fc4;outline-offset:2px}
 
 .return-damage-photo{display:block;max-width:100%;width:200px;max-height:200px;object-fit:contain;border-radius:8px}
+
+/* UX2: progressive summaries; collapsed fields keep their original form names. */
+.picked-block { min-width:0; margin-block:.6rem; }
+[data-picked-summary] { padding:.65rem; border:1px solid #cbd5e1; border-radius:.5rem; display:flex; align-items:center; justify-content:space-between; gap:.5rem; overflow-wrap:anywhere; }
+[data-picked-summary][hidden], [data-picked-detail][hidden] { display:none; }
+[data-picked-summary] button { flex-shrink:0; }
+[data-line-summary] { display:none; width:100%; padding:.6rem; cursor:pointer; border:1px solid #cbd5e1; border-radius:.5rem; text-align:left; overflow-wrap:anywhere; }
+.line-enhanced > [data-line-summary] { display:block; }
+.line-enhanced:not(.line-open) > [data-line-detail] { display:none; }
+.line-error { border:2px solid #b91c1c; }
+[data-last-price-hint] { display:block; color:#475569; }
+[data-line-totals] { padding:.75rem; background:#f1f5f9; overflow-wrap:anywhere; }

@@ -1,6 +1,6 @@
 {% extends "base.jinja" %}
-{% block title %}Nhận đơn dịch vụ<script src="/static/appointments.js" defer></script>
-{% endblock %}
+{% block title %}Nhận đơn dịch vụ{% endblock %}
+{% import 'da_chon.jinja' as picked %}
 {% block main %}
 <div class="bar"><h1>Nhận đơn dịch vụ</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
 {% include 'buoc_tiep.jinja' %}
@@ -8,13 +8,13 @@
 <form id="service-create" method="post" action="/dich-vu/moi" class="card form" data-service-form>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <fieldset {% if not can_create %}disabled{% endif %}>
-<div class="service-picker" data-picker>
+{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>
   <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>
   <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
   <a href="/khach-hang/moi" class="btn">+ Tạo mới khách hàng</a>
-</div>
+</div>{% endcall %}
 <div data-service-choices aria-live="polite">{% include 'dich_vu_chon_may.jinja' %}</div>
-<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
+{% call picked.block(invalid=error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT']) %}<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
 {% for value, label in service_kinds.items() %}<label><input type="radio" name="kind" value="{{ value }}" {% if d.kind == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></fieldset>
 <section data-warranty-section {% if d.kind != 'BAO_HANH' %}hidden{% endif %}>
@@ -26,10 +26,12 @@
 {% for value, label in service_priorities.items() %}<label><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></fieldset>
 {% with ap_form=d, returning=false, allow_later=false %}{% include 'hen_khach.jinja' %}{% endwith %}
+{% endcall %}
 <label>Mô tả lỗi<textarea name="symptom" required minlength="3" maxlength="4000">{{ d.symptom }}</textarea></label>
 </fieldset>
 {% if can_create %}<button class="primary">Nhận đơn</button>{% endif %}
 </form>
+<script src="/static/picked.js" defer></script>
 <script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script>
 <script src="/static/appointments.js" defer></script>
 {% endblock %}

@@ -1,8 +1,11 @@
-<fieldset><legend>Địa điểm của khách (không bắt buộc)</legend><div class="seg stock-seg">
+{% import 'da_chon.jinja' as picked %}
+{% call picked.block(invalid=error_code is defined and error_code=='BAD_SITE') %}<fieldset><legend>Địa điểm của khách (không bắt buộc)</legend><div class="seg stock-seg">
 <label><input type="radio" name="site_id" value="" {% if not d.get('site_id') %}checked{% endif %}><span>Không chọn</span></label>
 {% for site in sites %}<label><input type="radio" name="site_id" value="{{ site.id }}" {% if d.get('site_id')|string == site.id|string %}checked{% endif %}><span>{{ site.name }}</span></label>{% endfor %}
-</div></fieldset>
-<fieldset><legend>Máy của khách (không bắt buộc)</legend><div class="seg stock-seg">
+</div></fieldset>{% endcall %}
+{% call picked.block(invalid=error_code is defined and error_code=='BAD_SERIAL') %}<fieldset><legend>Máy của khách (không bắt buộc)</legend><div class="seg stock-seg">
 <label><input type="radio" name="serial" value="" {% if not d.get('serial') %}checked{% endif %}><span>Không chọn</span></label>
 {% for machine, product_name in machines %}<label><input type="radio" name="serial" value="{{ machine.serial }}" {% if d.get('serial') == machine.serial %}checked{% endif %}><span>{{ machine.serial }} · {{ product_name }}</span></label>{% endfor %}
 </div></fieldset>
+
+{% endcall %}

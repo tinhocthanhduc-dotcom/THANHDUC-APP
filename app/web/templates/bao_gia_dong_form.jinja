@@ -1,9 +1,13 @@
-<fieldset class="card quote-line" data-quote-line>
+{% set line_invalid = index == 'new' or index in line_errors %}
+<fieldset class="card quote-line {{ 'line-open line-error' if line_invalid else 'line-collapsed' }}" data-quote-line data-line-invalid="{{ '1' if line_invalid else '0' }}">
+<div role="button" tabindex="0" data-line-summary aria-expanded="{{ 'true' if line_invalid else 'false' }}">{{ index|int + 1 }} · {{ line.description or product_names.get(line.product_code,'Chọn hàng') }} · {{ line.qty }} × {{ line.unit_price or 'Giá mã hàng' }}{% if line.warehouse_code is defined %} · {{ line.warehouse_code }}{% endif %} · ▾</div>
+<div data-line-detail>
 <div class="bar"><strong>Dòng hàng / dịch vụ</strong>{% if can_write and editable %}<button type="button" data-quote-remove>Xóa dòng</button>{% endif %}</div>
 <div data-picker><label>Hàng (để trống nếu là dòng tự do)<input name="product_code" value="{{ line.product_code or '' }}" autocomplete="off" data-live=".quote-options" data-source="/bao-gia/tim-hang"></label><span class="hint" data-quote-product-name>{{ product_names.get(line.product_code,'') }}</span><div class="quote-options product-options" aria-live="polite"></div></div>
 <label>Mô tả<input name="description" value="{{ line.description }}" maxlength="1000"></label>
 <div class="row2"><label>Số lượng<input name="qty" value="{{ line.qty }}" inputmode="decimal" required></label><label>Đơn vị<input name="unit" value="{{ line.unit }}" maxlength="32"></label></div>
-<label>Đơn giá (đồng)<input name="unit_price" value="{{ line.unit_price if line.unit_price is not none else '' }}" inputmode="numeric" data-money placeholder="Để trống để lấy giá bán của mã hàng"></label>
+<label>Đơn giá (đồng)<input name="unit_price" value="{{ line.unit_price if line.unit_price is not none else '' }}" inputmode="numeric" data-money placeholder="Để trống để lấy giá bán của mã hàng"></label><small data-last-price-hint></small>
 <fieldset><legend>VAT</legend><div class="seg stock-seg">{% for rate in vat_rates %}<label><input type="radio" name="vat_{{ index }}" value="{{ rate }}" data-quote-vat {% if line.vat_rate|string == rate|string %}checked{% endif %} required><span>{{ rate }}%</span></label>{% endfor %}</div></fieldset>
 {% if line.amount is defined %}<p class="hint">Tiền dòng: {{ line.amount|money }} · VAT: {{ line.vat_amount|money }} đồng.</p>{% endif %}
+</div>
 </fieldset>

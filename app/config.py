@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     token_minutes: int = 12 * 60
     search_limit: int = 20
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
+    sales_default_warehouse: str = '58'
     slot_sang: str = '08:00-12:00'
     slot_chieu: str = '13:30-17:30'
 

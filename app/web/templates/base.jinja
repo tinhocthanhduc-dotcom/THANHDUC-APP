@@ -77,6 +77,7 @@ window.bindLive = function(input) {
     var wh = row && row.querySelector('[data-order-warehouse]:checked, [data-charge-warehouse]:checked');
     wh = wh || (form && form.querySelector('[name=warehouse_code]:checked'));
     if (wh) params.set('warehouse', wh.value);
+    if (form && form.matches('[data-order-form], [data-quote-form]') && input.name==='product_code') params.set('customer_code', form.querySelector('[name=customer_code]').value);
     params.set('phan', '1');
     fetch((input.dataset.source || form.action) + '?' + params, {credentials: 'same-origin'})
       .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })

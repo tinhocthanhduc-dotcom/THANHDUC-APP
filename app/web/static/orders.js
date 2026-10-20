@@ -40,7 +40,7 @@
     var button=event.target.closest('[data-order-add]');
     if (button) {
       var row=document.querySelector('#order-line-template').content.firstElementChild.cloneNode(true);
-      form.querySelector('[data-order-lines]').appendChild(row); reindex();
+      form.querySelector('[data-order-lines]').appendChild(row); row.classList.add('line-open'); reindex();
       row.querySelectorAll('[data-live]').forEach(window.bindLive);
       row.querySelectorAll('[data-money]').forEach(window.bindMoney);
       changed(); row.querySelector('[name=product_code]').focus(); return;
@@ -54,12 +54,16 @@
     picker.querySelector('.product-options').replaceChildren();
     if (button.dataset.kind==='customer') {
       form.querySelector('[data-order-customer-name]').textContent=button.dataset.name;
-      form.querySelector('[name=delivery_address]').value=button.dataset.address;
+
     } else {
+      var availability=row.querySelector('[data-availability-summary]');
+      if(button.hasAttribute('data-available')) availability.dataset.available=button.dataset.available; else delete availability.dataset.available;
       row.querySelector('[data-order-product-name]').textContent=button.dataset.name;
       row.querySelector('[name=description]').value=button.dataset.name;
       row.querySelector('[name=unit]').value=button.dataset.unit;
-      row.querySelector('[name=unit_price]').value=button.dataset.price.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+      var price=row.querySelector('[name=unit_price]');
+      if (!price.dataset.userTyped) price.value=(button.dataset.lastPrice || button.dataset.price).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+      row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+button.dataset.lastPrice.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
     }
     changed();
   });

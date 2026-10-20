@@ -20,7 +20,7 @@ from ..schemas import ServiceAssign, ServiceReason, ServiceTicketIn, ServiceTran
 from ..security import has_role
 from . import checked_form, render, templates, web_user, nav
 
-from . import next_steps
+from . import next_steps, picked
 
 router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -209,21 +209,25 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "SUA_TAI_CHO", "priority": "THUONG", "symptom": "", "warranty_of_id": ""}
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     sites, machines = _choices(session, data['customer_code'])
+    if not error:
+        if 'site_id' not in data and len(sites)==1: data['site_id']=str(sites[0].id)
+        if 'serial' not in data and len(machines)==1: data['serial']=machines[0][0].serial
     can_create=has_role(request.state.user, *svc.CREATORS)
-    return render(request, "dich_vu_moi.jinja", appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_name=customer.name if customer else "",
+    return render(request, "dich_vu_moi.jinja", appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
                   can_create=can_create)
 
 
 @router.get("/dich-vu/tim-khach")
 def pick_customer(request: Request, q: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return render(request, "dich_vu_chon_khach.jinja", rows=[c for c in customer_svc.search(session, q[:200]) if c.status == "DANG_DUNG"])
+    rows=[c for c in customer_svc.search(session,q[:200]) if c.status=="DANG_DUNG"]
+    return render(request,"dich_vu_chon_khach.jinja",rows=rows,customer_cards=picked.customer_cards(session,user,rows))
 
 
 @router.get("/dich-vu/chon-khach")
 def pick_choices(request: Request, customer_code: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
     sites, machines = _choices(session, customer_code)
-    return render(request, "dich_vu_chon_may.jinja", sites=sites, machines=machines, d={})
+    return render(request, "dich_vu_chon_may.jinja", sites=sites, machines=machines, d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial=machines[0][0].serial if len(machines)==1 else ''))
 
 
 @router.get("/dich-vu/moi")
