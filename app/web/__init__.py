@@ -101,6 +101,7 @@ async def checked_form(request: Request, user: User = Depends(web_user)):
     request.state.form_submission_key = await run_in_threadpool(
         form_keys.reserve, form.get("form_key"), user.id, request.url.path,
     )
+    request.state.technician_return = form.get('return_to') == 'tho' and 'technician' in user.roles
     return form
 
 
@@ -590,3 +591,6 @@ router.include_router(technician_deliveries_router)
 
 from .recovered_parts import router as recovered_parts_router
 router.include_router(recovered_parts_router)
+
+from .technician import router as technician_router
+router.include_router(technician_router)

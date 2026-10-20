@@ -931,3 +931,11 @@ thành kho bán được.
 - Phiếu còn `CHO_NOP` vẫn hoàn thành được, nhưng `DA_DONG` trả `RECOVERED_PENDING`. Giao lại thợ không đổi người đang giữ linh kiện cũ.
 
 Web có mục Linh kiện thu hồi (lọc thợ/trạng thái), đường vào từ Kho và khối riêng trên Hàng tôi giữ, tách khỏi hàng tốt. D7/CSV thêm **Bị gọi bảo hành**: đếm phiếu `PHIEU_TRUOC` có ngày tạo trong kỳ cho thợ ở bước hoàn thành phiếu gốc trước lúc gọi bảo hành. Cần xử lý cảnh báo dòng `CHO_NOP` quá 3 ngày. Migration `0033` nối `0032`; không thay đổi quỹ, công nợ hay báo thu.
+
+## Màn thợ trên điện thoại (UX1a)
+
+- `GET /tho`: chỉ tài khoản có vai trò `technician`, hiển thị phiếu đang mở và đơn `THO_GIAO` của chính mình. Lịch hẹn hôm nay/quá giờ xếp trước, tiếp đến đang làm/chờ/tạm dừng, rồi các việc chưa đến lịch/chưa hẹn. Giờ Việt Nam; Gọi và Chỉ đường dùng địa điểm trên phiếu, dự phòng thông tin khách. Nút tiếp theo lấy từ `next_steps`.
+- `GET /tho/phieu/{id}`: chỉ thợ được giao; thợ khác trả 403. Hiển thị khối theo bước, ngoại lệ gập trong Việc khác, lịch sử gập và liên kết đến màn chi tiết hiện có. Kho vật tư chỉ hiện kho đang dùng của thợ. Điều kiện Hoàn thành là báo sớm theo dữ liệu đã lưu; máy chủ vẫn kiểm nghiệp vụ như trước.
+- Thợ chỉ có vai trò `technician` đăng nhập/trang đầu `/` về `/tho`, menu gồm Hôm nay, Hàng tôi giữ, Tiền tôi giữ, Thiết bị. Trang đầu/menu của vai trò khác và tài khoản kiêm nhiệm giữ nguyên.
+- Các form tiếp tục gửi tới route POST cũ với CSRF, `form_key` và `version`; thêm `return_to=tho` để quay lại màn phiếu hoặc Hôm nay khi không còn bước cho thợ. Không nhận URL chuyển hướng tùy ý. Lỗi giữ dữ liệu trên màn thợ. Đơn giao mở từ Hôm nay cũng dùng route S4 hiện có và quay lại `/tho` sau khi lưu.
+- Chưa gộp lưu tiền/hoàn thành/báo thu: UX1b làm ở PR riêng sau khi UX1a được gộp. UX1a không thêm bảng/migration và không đổi lõi dịch vụ, tính tiền hay báo thu.

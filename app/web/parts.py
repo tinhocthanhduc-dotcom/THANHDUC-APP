@@ -60,7 +60,8 @@ def create(request: Request, ticket_id: int, form=Depends(checked_form), session
         if code in ('FORBIDDEN', 'NOT_FOUND'):
             return render(request, 'loi.jinja', error=exc, status=status)
         return _detail(request, session, request.state.user, ticket_id, error=message, error_code=code, status=status, part_form=data)
-    return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#linh-kien', status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#linh-kien')
 
 
 @router.post('/dich-vu/{ticket_id}/linh-kien/{ident}/huy')
@@ -77,7 +78,8 @@ def cancel(request: Request, ticket_id: int, ident: int, form=Depends(checked_fo
         message, code, status = _message(exc)
         return _detail(request, session, request.state.user, ticket_id, error=message, error_code=code, status=status,
                        part_form=dict(cancel_id=ident, reason=str(form.get('reason', '')), version=form.get('version', '')))
-    return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#linh-kien', status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#linh-kien')
 
 
 def _queue(request, session, user, error=None, code='', status=200, failed_id=None, data=None):

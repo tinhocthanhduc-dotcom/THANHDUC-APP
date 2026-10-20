@@ -123,7 +123,8 @@ def report_ticket(request: Request,ticket_id: int,form=Depends(checked_form),ses
         from .services import _detail
         message,code,status=_error(exc)
         return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,receipt_form=raw)
-    return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#thu-tien',status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#thu-tien')
 
 
 @router.get('/tien-toi-giu')

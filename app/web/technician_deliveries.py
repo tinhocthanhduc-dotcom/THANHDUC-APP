@@ -35,7 +35,7 @@ def context(session,user,order):
 def page(request,session,user,order,raw=None,error=None,code='',status=200):
     shipments=sales_orders.deliveries(session,order.id)
     photos={gh.id:attachments.list_for(session,user,'sales_delivery',str(gh.id)) for gh in shipments}
-    return render(request,'giao_don.jinja',**context(session,user,order),shipments=shipments,photos=photos,
+    return render(request,'giao_don.jinja',technician_view=('technician' in user.roles and order.delivery_assignee_id==user.id and (request.query_params.get('return_to')=='tho' or getattr(request.state,'technician_return',False))),**context(session,user,order),shipments=shipments,photos=photos,
         raw=raw or {},error=error,error_code=code,status=status)
 
 
@@ -77,4 +77,6 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
         session.rollback()
         message,code,status=_error(exc)
         return page(request,session,user,svc.load(session,user,order_id),raw,message,code,status)
+    if getattr(request.state,'technician_return',False):
+        return RedirectResponse('/tho',status_code=303)
     return RedirectResponse(f'/giao-don/{order_id}?da_luu=1',status_code=303)

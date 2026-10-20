@@ -44,6 +44,9 @@ def context(session,user,t,shown=None):
 
 
 def _page(request,session,user,ticket_id,shown=None,error=None,code='',status=200):
+    if getattr(request.state,'technician_return',False):
+        from .services import _detail
+        return _detail(request,session,user,ticket_id,custody_shown=shown,error=error,error_code=code,status=status)
     t=svc.load(session,user,ticket_id)
     return render(request,'giu_may.jinja',**context(session,user,t,shown),
         custody_customer=session.get(Customer,t.customer_code),error=error,error_code=code,status=status,
@@ -94,7 +97,8 @@ def action(request:Request,ticket_id:int,action:str,form=Depends(checked_form),s
         else:message,code,status='Dữ liệu giữ máy chưa hợp lệ, hãy kiểm tra lại.','BAD_FORM',400
         if status in (403,404):return render(request,'loi.jinja',error=exc,status=status)
         return _page(request,session,user,ticket_id,shown,message,code,status)
-    return RedirectResponse(f'/giu-may/{ticket_id}?da_luu=1#may-khach',status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/giu-may/{ticket_id}?da_luu=1#may-khach')
 
 
 @router.post('/giu-may/{ticket_id}/anh/tai')
@@ -109,7 +113,8 @@ async def photo(request:Request,ticket_id:int,form=Depends(checked_form),session
     except BusinessError as exc:
         if exc.status in (403,404):return render(request,'loi.jinja',error=exc,status=exc.status)
         return _page(request,session,user,ticket_id,error=exc.message,code=exc.code,status=exc.status)
-    return RedirectResponse(f'/giu-may/{ticket_id}?da_luu=1#may-khach',status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/giu-may/{ticket_id}?da_luu=1#may-khach')
 
 
 @router.get('/may-dang-giu')

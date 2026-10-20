@@ -62,7 +62,8 @@ def create(request:Request,ticket_id:int,form=Depends(checked_form),session:Sess
     except (BusinessError,ValidationError) as exc:
         error,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,error=error,error_code=code,status=status,recovered_form=raw)
-    return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1#recovered-parts',status_code=303)
+    from .technician import after_post
+    return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#recovered-parts')
 
 
 @router.post('/linh-kien-thu-hoi/phieu/{ticket_id}/bao-hanh')

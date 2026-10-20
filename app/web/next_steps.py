@@ -91,3 +91,9 @@ def receipt(user, r):
     if r.reported_by==user.id and not has_role(user,'director'):
         return block(reject)
     return block(form('Xác nhận',f'receipt-confirm-{r.id}',f'/bao-thu/{r.id}/confirm',return_work=True),[reject])
+
+
+def delivery(session, user, order):
+    from .. import technician_deliveries
+    state=technician_deliveries.state(session,user,order)
+    return block(link('Giao hàng / Ghi không giao được' if state['held'] else 'Chờ kho bàn giao',f'/giao-don/{order.id}'))

@@ -11,6 +11,7 @@ from ..security import has_role
 GROUPS = (
     {'label': '', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
+        {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
     )},
     {'label': 'Bán hàng', 'items': (
@@ -96,7 +97,7 @@ def matching(path, query=None):
 
 def allowed(user, path, query=None):
     item = matching(path, query)
-    return item is not None and has_role(user, *item['roles'])
+    return item is not None and (not item.get('technician_page') or 'technician' in user.roles) and has_role(user, *item['roles'])
 
 
 def check_access(user, path, query=None):
@@ -104,7 +105,12 @@ def check_access(user, path, query=None):
         raise BusinessError('FORBIDDEN', 'Bạn không có quyền vào trang này', status=403)
 
 
+def pure_technician(user):
+    return set(user.roles)=={'technician'}
+
+
 def home_url(user):
+    if pure_technician(user): return '/tho'
     return next((href for role, href in HOME_PAGES if has_role(user, role)), '/viec-cua-toi')
 
 
@@ -117,8 +123,11 @@ def work_url(user):
 def menu(user, path, query=None):
     current = matching(path, query)
     groups = []
+    if pure_technician(user):
+        links = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
+        groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in links], active=False)]
     for group in GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
