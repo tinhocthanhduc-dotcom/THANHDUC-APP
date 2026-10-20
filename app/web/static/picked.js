@@ -82,6 +82,12 @@
           .forEach(function (b) {
             b.remove();
           });
+        var summary = block.querySelector("[data-picked-summary]");
+        if (!summary.querySelector("small")) {
+          var reason = document.createElement("small");
+          reason.textContent = "Không sửa được ở trạng thái này";
+          summary.appendChild(reason);
+        }
       }
       if (!block.hasAttribute("data-picked-invalid")) collapse(block);
     });
