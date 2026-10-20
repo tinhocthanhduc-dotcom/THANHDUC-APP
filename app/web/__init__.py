@@ -657,3 +657,6 @@ router.include_router(technician_returns_router)
 
 from .users import router as users_router
 router.include_router(users_router)
+
+from .pending_items import router as pending_items_router
+router.include_router(pending_items_router)

@@ -98,7 +98,7 @@ def create(session,user,order_id,body):
                     stmt=select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.active.is_(True))
                     if part.warehouse_code:stmt=stmt.where(Warehouse.code==part.warehouse_code)
                     wh=session.scalar(stmt.order_by(Warehouse.code).limit(1).with_for_update(read=True))
-                    if wh is None:raise BusinessError('NO_DEFECT_WAREHOUSE','Chưa có kho hàng lỗi đang dùng.',status=409)
+                    if wh is None:raise BusinessError('NO_DEFECT_WAREHOUSE','Chưa có Kho Chờ Xử lý đang dùng.',status=409)
                 else:
                     wh=session.scalar(select(Warehouse).where(Warehouse.code==(part.warehouse_code or line.warehouse_code),Warehouse.kind=='KHO',Warehouse.active.is_(True)).with_for_update(read=True))
                     if wh is None:raise BusinessError('BAD_WAREHOUSE','Hàng tốt phải về kho công ty đang dùng.')
@@ -122,7 +122,7 @@ def create(session,user,order_id,body):
             docs.append((doc,parts))
         stock_posting._lock_balances(session,{(l.warehouse_code,originals[l.order_line_no].product_code) for l in row.lines if l.warehouse_code})
         for doc,parts in docs:
-            stock_posting.post_in_tx(session,user,doc.id,doc.version,pn_amounts={i:l.cost_amount for i,l in enumerate(parts,1)})
+            stock_posting.post_in_tx(session,user,doc.id,doc.version,pn_amounts={i:l.cost_amount for i,l in enumerate(parts,1)}, pending_context={i:dict(source='KHACH_TRA',group_code='HANG_LOI',source_ref=row.number,reason=reason) for i,l in enumerate(parts,1)})
             for l in parts:l.stock_doc_id=doc.id
         order.receivable-=row.total
         order.version+=1

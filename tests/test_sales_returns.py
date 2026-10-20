@@ -70,7 +70,7 @@ def test_02_defect_warehouse_not_sale_service_or_technician_transfer(db,sold):
     t=ticket(db,p,'DANG_LAM')
     fail('BAD_WAREHOUSE',service_charges.set_charges,db,p['dispatcher'],t.id,ServiceCharges(version=t.version,billing='THU_TIEN',lines=[dict(kind='VAT_TU',product_code='TD-0001',warehouse_code='K900',qty=1,unit_price=1)]))
     inventory_catalogs.create(db,p['warehouse'],Warehouse,WarehouseIn(code='K501',name='Kho thợ',kind='THO',holder_id=p['technician'].id))
-    fail('BAD_WAREHOUSE',stock_docs.create,db,p['warehouse'],StockDocIn(kind='CK',warehouse_code='K900',to_warehouse_code='K501',doc_date=DAY,lines=[dict(product_code='TD-0001',qty=1)]))
+    fail('CXL_DUNG_LUONG_RIENG',stock_docs.create,db,p['warehouse'],StockDocIn(kind='CK',warehouse_code='K900',to_warehouse_code='K501',doc_date=DAY,lines=[dict(product_code='TD-0001',qty=1)]))
 
 
 def test_03_over_return_no_writes_and_void_gh_rejected(db,sold):

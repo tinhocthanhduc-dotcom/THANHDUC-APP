@@ -85,6 +85,9 @@ def _validate(session: Session, body: StockDocIn, *, _sales_return=False, _recov
             raise BusinessError("BAD_WAREHOUSE", "Kho không tồn tại hoặc đã ngừng sử dụng.", {"code": code})
         if body.kind == 'KK' and wh.kind == 'THO' and not body.reason.strip():
             raise BusinessError('REASON_REQUIRED','Kiểm kê kho thợ phải ghi lý do.')
+    if body.kind in ('PX','CK') and session.get(Warehouse,body.warehouse_code).kind=='LOI':
+        from .pending_items import block_out
+        block_out()
     if body.kind=='CK':
         kinds={code:session.get(Warehouse,code).kind for code in (body.warehouse_code,body.to_warehouse_code)}
         damage_return = _technician_return and kinds[body.warehouse_code]=='THO' and kinds[body.to_warehouse_code]=='LOI'

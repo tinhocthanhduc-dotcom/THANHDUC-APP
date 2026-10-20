@@ -6,10 +6,10 @@ from sqlalchemy import Date, case, cast, exists, func, literal, select, union_al
 
 from . import config, dashboard, day_closings, finance_reports, purchase_reports, sales_reports, service_tickets, stock_reservations
 from .models import (CashDoc, Customer, Product, PurchaseOrder, SalesReceipt, ServiceTicket,
-                     StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse, ServiceRecoveredPart, User)
+                     PendingItem, StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse, ServiceRecoveredPart, User)
 from .security import has_role
 
-LABELS = {'THU_HOI_CHUA_NOP':'Linh kiện hỏng chưa nộp','GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
+LABELS = {'CHO_XU_LY_QUA_HAN':'Hàng chờ xử lý quá hạn','THU_HOI_CHUA_NOP':'Linh kiện hỏng chưa nộp','GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
           'BAO_THU_CHO':'Báo thu chờ xác nhận','KHACH_VUOT_HAN_MUC':'Khách vượt hạn mức',
           'KHACH_NO_QUA_HAN':'Khách nợ quá hạn','NCC_NO_QUA_HAN':'NCC nợ quá hạn',
           'DON_MUA_TRE':'Đơn mua trễ hẹn','CHUA_CHOT_SO':'Ngày chưa chốt sổ',
@@ -50,8 +50,11 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         now=now.replace(tzinfo=dashboard.TZ) if now.tzinfo is None else now.astimezone(dashboard.TZ)
         today=today or now.date()
         counts={k:0 for k in LABELS if k!='CHAM_LUAN_CHUYEN' or has_role(user,'director')}
-        items=[]
-        red_count=0
+        pending=pending_notices(session,user,now=now)
+        counts.pop('CHO_XU_LY_QUA_HAN',None)
+        counts.update(pending.counts)
+        items=[dict(item,_oldest=_stamp(now)) for item in pending]
+        red_count=pending.red_count
         def add(kind,stmt,build):
             # COUNT OVER chạy trước LIMIT, và sau GROUP BY của truy vấn nguồn.
             nonlocal red_count
@@ -164,3 +167,16 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         items.sort(key=lambda r:(0 if r['level']=='DO' else 1,r['kind'],r['_oldest'],r['link']))
         for item in items:del item['_oldest']
         return AlertList(items,counts,red_count)
+
+
+def pending_notices(session,user,now=None):
+    if not has_role(user,'warehouse'):return AlertList([],{},0)
+    from .config import get_settings
+    days=get_settings().pending_alert_days;now=now or dashboard._now()
+    stmt=select(PendingItem.number,PendingItem.source_ref,PendingItem.entered_at,Product.name,func.count().over().label('total_count')).join(Product,Product.code==PendingItem.product_code).where(
+        PendingItem.status=='DANG_CHO',PendingItem.entered_at<now-timedelta(days=days)).order_by(PendingItem.entered_at,PendingItem.id).limit(LIMIT)
+    with session.no_autoflush:rows=session.execute(stmt).all()
+    count=rows[0].total_count if rows else 0
+    items=[dict(level='DO',kind='CHO_XU_LY_QUA_HAN',title=f'{row.number} · {row.name}',
+        detail=f'Hàng chờ xử lý quá {days} ngày · {row.source_ref}',link=f'/cho-xu-ly?min_days={days}') for row in rows]
+    return AlertList(items,{'CHO_XU_LY_QUA_HAN':count},count)

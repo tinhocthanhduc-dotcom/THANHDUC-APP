@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import audit, stock_reservations
 from .errors import BusinessError
 from .inventory_catalogs import check_writer
-from .models import PurchaseReturn, PurchaseReceipt, StockBalance, StockDoc, StockLedger, User
+from .models import PurchaseReturn, PurchaseReceipt, StockBalance, StockDoc, StockLedger, User, Warehouse
 from .stock_docs import _transaction, snapshot
 
 ZERO = Decimal(0)
@@ -157,7 +157,7 @@ def post(session: Session, user: User, doc_id: int, version: int | None) -> Stoc
     return doc
 
 
-def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None, for_order_id: int | None = None) -> StockDoc:
+def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None, for_order_id: int | None = None, pending_context: dict | None = None) -> StockDoc:
     """Ghi sổ trong transaction của nơi gọi (phiếu sinh tự động từ chứng từ khác), không kiểm vai trò."""
     doc = _load_for_update(session, doc_id)
     if doc.status != "NHAP":
@@ -170,6 +170,11 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *
         dup = sorted({c for c in codes if codes.count(c) > 1})
         if dup:
             raise BusinessError("DUPLICATE_LINE", "Phiếu kiểm kê có mã hàng lặp lại.", {"products": dup})
+    from . import pending_items
+    source_kind=session.scalar(select(Warehouse.kind).where(Warehouse.code==doc.warehouse_code))
+    if source_kind=='LOI' and doc.kind in ('PX','CK'):pending_items.block_out()
+    if source_kind=='LOI' and doc.kind=='KK' and 'director' not in user.roles:
+        raise BusinessError('FORBIDDEN','Chỉ giám đốc được ghi sổ kiểm kê Kho Chờ Xử lý.',status=403)
     # M2 truyền tiền nhập đã bù làm tròn, không sửa đơn giá gốc hoặc ghi tồn ngoài lõi.
     if pn_amounts is not None:
         if (doc.kind != 'PN' or set(pn_amounts) != {line.line_no for line in doc.lines}
@@ -184,6 +189,7 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *
     doc.posted_by = user.id
     doc.posted_at = datetime.now(UTC)
     session.flush()
+    pending_items.apply_posted_in_tx(session,user,doc,pending_context)
     audit.record(session, user, "stock_doc.post", "stock_doc", str(doc.id), before, snapshot(doc))
     return doc
 
@@ -223,6 +229,8 @@ def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: 
     before = snapshot(doc)
     rows = list(session.scalars(select(StockLedger).where(StockLedger.doc_id == doc.id).order_by(StockLedger.id.desc())))
     balances = _lock_balances(session, {(r.warehouse_code, r.product_code) for r in rows})
+    from .pending_items import cancel_receipt_in_tx
+    cancel_receipt_in_tx(session,user,doc,rows,reason)
     for r in rows:
         qty = r.qty_out - r.qty_in
         _apply(session, doc, balances[(r.warehouse_code, r.product_code)],

@@ -133,6 +133,10 @@ def update(session: Session, user, model, code, body):
     if model is Warehouse:
         candidate = Warehouse(**{**before, **changes})
         _validate_warehouse(session, candidate)
+        if candidate.kind != row.kind:
+            from .models import PendingItem
+            if session.scalar(select(PendingItem.id).where(PendingItem.warehouse_code==code).limit(1)):
+                raise BusinessError('WAREHOUSE_HAS_PENDING','Kho có lịch sử Chờ xử lý, không đổi được loại kho.',status=409)
         ownership_changed = candidate.kind != row.kind or candidate.holder_id != row.holder_id
         if ownership_changed or (row.kind == 'THO' and not candidate.active):
             if session.scalar(select(StockBalance.product_code).where(StockBalance.warehouse_code == code, StockBalance.qty != 0).limit(1)):

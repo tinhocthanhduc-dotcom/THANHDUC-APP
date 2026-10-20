@@ -247,7 +247,7 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
         TechnicianReturnLine.received_condition=='HU_HONG',TechnicianReturnLine.received_qty>0)).all()
     damage_sources=[r for r in damage_sources if (not kho or r.to_warehouse_code==kho) and (not fold(q) or any(
         b['product_code']==r.TechnicianReturnLine.product_code and b['warehouse_code']==r.to_warehouse_code for b in rows))]
-    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
+    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', can_pending_transfer=has_role(user,'warehouse'),damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
                   warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows))
 
 

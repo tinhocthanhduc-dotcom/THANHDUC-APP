@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .errors import BusinessError
 
 PREFIXES = {
+    "CXL": "Hồ sơ chờ xử lý",
     "PN": "Phiếu nhập kho",
     "PX": "Phiếu xuất kho",
     "CK": "Phiếu chuyển kho",

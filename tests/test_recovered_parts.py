@@ -93,6 +93,8 @@ def test_stock_pn_void_reopens_same_holder_and_receive_again(db,people):
     svc.receive(db,p['warehouse'],row.id,RecoveredPartReceive(version=row.version))
     assert row.stock_doc_id!=old_id and row.status=='DA_NHAN'
     assert db.scalar(select(AuditLog.reason).where(AuditLog.action=='recovered_part.receipt_void'))=='Nhận nhầm số lượng'
+    from test_cxl1_pending_items import assert_pending_invariant
+    assert_pending_invariant(db)
 
 
 def test_complete_allowed_but_close_blocked_until_received_or_cancelled(db,people):

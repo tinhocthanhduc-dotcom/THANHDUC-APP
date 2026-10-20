@@ -71,13 +71,13 @@ def receive(session, user, ident, body):
         stmt = select(Warehouse).where(Warehouse.kind == 'LOI', Warehouse.active.is_(True))
         if body.warehouse_code: stmt = stmt.where(Warehouse.code == body.warehouse_code)
         warehouse = session.scalar(stmt.order_by(Warehouse.code).limit(1).with_for_update(read=True))
-        if warehouse is None: raise BusinessError('NO_DEFECT_WAREHOUSE', 'Chưa có kho hàng lỗi đang dùng.', status=409)
+        if warehouse is None: raise BusinessError('NO_DEFECT_WAREHOUSE', 'Chưa có Kho Chờ Xử lý đang dùng.', status=409)
         before = snapshot(row); stamp = svc._now()
         doc = stock_docs.insert(session, user, StockDocIn(kind='PN', warehouse_code=warehouse.code,
             customer_code=ticket.customer_code, doc_date=stamp.astimezone(svc.service_sla.TZ).date(),
             reason=f'Linh kiện thu hồi {ticket.number} · dòng {row.id}',
             lines=[dict(product_code=row.product_code, qty=row.qty, unit_cost=0)]), _recovered_part=True)
-        stock_posting.post_in_tx(session, user, doc.id, doc.version, pn_amounts={1: 0})
+        stock_posting.post_in_tx(session, user, doc.id, doc.version, pn_amounts={1: 0}, pending_context={1:dict(source='THU_HOI',group_code='THU_HOI',source_ref=ticket.number,reason=row.note)})
         row.status, row.warehouse_code, row.stock_doc_id = 'DA_NHAN', warehouse.code, doc.id
         row.received_by, row.received_at = user.id, stamp
         session.flush()
