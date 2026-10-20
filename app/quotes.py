@@ -171,46 +171,56 @@ def create(session: Session, user, body: QuoteIn):
 def update_lines(session: Session, user, quote_id, body: QuoteUpdate):
     check_writer(user)
     with _transaction(session):
-        row = _load(session, quote_id, lock=True)
-        _version(row, body.version)
-        if row.status != 'NHAP':
-            raise BusinessError('PRICE_LOCKED', 'Báo giá đã gửi hoặc đã đóng, không sửa dòng được.', status=409)
-        before = snapshot(row)
-        customer_code = body.customer_code if body.customer_code is not None else row.customer_code
-        _customer(session, customer_code)
-        lines = _lines(session, body.lines)
-        row.lines.clear()
-        session.flush()  # Xóa dòng cũ trước khi dùng lại khóa (quote_id, line_no).
-        row.lines = lines
-        row.customer_code = customer_code
-        for field in ('contact_name', 'valid_until', 'note'):
-            value = getattr(body, field)
-            if value is not None:
-                setattr(row, field, value)
-        row.version += 1
-        _totals(row)
-        _record(session, user, row, 'update_lines', before)
+        return update_in_tx(session,user,quote_id,body)
+
+
+def update_in_tx(session: Session, user, quote_id, body: QuoteUpdate):
+    check_writer(user)
+    row = _load(session, quote_id, lock=True)
+    _version(row, body.version)
+    if row.status != 'NHAP':
+        raise BusinessError('PRICE_LOCKED', 'Báo giá đã gửi hoặc đã đóng, không sửa dòng được.', status=409)
+    before = snapshot(row)
+    customer_code = body.customer_code if body.customer_code is not None else row.customer_code
+    _customer(session, customer_code)
+    lines = _lines(session, body.lines)
+    row.lines.clear()
+    session.flush()  # Xóa dòng cũ trước khi dùng lại khóa (quote_id, line_no).
+    row.lines = lines
+    row.customer_code = customer_code
+    for field in ('contact_name', 'valid_until', 'note'):
+        value = getattr(body, field)
+        if value is not None:
+            setattr(row, field, value)
+    row.version += 1
+    _totals(row)
+    _record(session, user, row, 'update_lines', before)
     return row
 
 
 def _transition(session, user, quote_id, version, target, allowed, action, reason=''):
     check_writer(user)
     with _transaction(session):
-        row = _load(session, quote_id, lock=True)
-        _version(row, version)
-        _status(row, allowed)
-        if target == 'DA_HUY' and not reason.strip():
-            raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do hủy báo giá.')
-        if target == 'DA_GUI':
-            if not row.lines:
-                raise BusinessError('EMPTY_LINES', 'Báo giá phải có ít nhất một dòng trước khi gửi.')
-            _customer(session, row.customer_code)
-            _lines(session, [QuoteLineIn.model_validate(line, from_attributes=True) for line in row.lines])
-        before = snapshot(row)
-        row.status = target
-        if target == 'DA_HUY':
-            row.cancel_reason = reason.strip()
-        _record(session, user, row, action, before, reason.strip())
+        return transition_in_tx(session,user,quote_id,version,target,allowed,action,reason)
+
+
+def transition_in_tx(session, user, quote_id, version, target, allowed, action, reason=''):
+    check_writer(user)
+    row = _load(session, quote_id, lock=True)
+    _version(row, version)
+    _status(row, allowed)
+    if target == 'DA_HUY' and not reason.strip():
+        raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do hủy báo giá.')
+    if target == 'DA_GUI':
+        if not row.lines:
+            raise BusinessError('EMPTY_LINES', 'Báo giá phải có ít nhất một dòng trước khi gửi.')
+        _customer(session, row.customer_code)
+        _lines(session, [QuoteLineIn.model_validate(line, from_attributes=True) for line in row.lines])
+    before = snapshot(row)
+    row.status = target
+    if target == 'DA_HUY':
+        row.cancel_reason = reason.strip()
+    _record(session, user, row, action, before, reason.strip())
     return row
 
 
@@ -243,3 +253,16 @@ def revise(session: Session, user, quote_id, version):
         old.cancel_reason = 'Thay bằng ' + new.number
         _record(session, user, old, 'revise', before, old.cancel_reason)
     return new
+
+
+def send_in_tx(session,user,quote_id,version):
+    return transition_in_tx(session,user,quote_id,version,'DA_GUI',('NHAP',),'send')
+
+
+def save_and_send(session,user,body,quote_id=None):
+    check_writer(user)
+    with _transaction(session):
+        row = update_in_tx(session,user,quote_id,body) if quote_id is not None else _new(session,user,body)
+        if row.valid_until < _today():
+            raise BusinessError('QUOTE_EXPIRED','Hiệu lực báo giá phải từ hôm nay trở đi.')
+        return send_in_tx(session,user,row.id,row.version)

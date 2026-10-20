@@ -89,6 +89,11 @@ class Page(HTMLParser):
             if 'id' in a:self.forms[a['id']]=self.current
         if tag=='input' and self.current is not None and (a.get('type')=='hidden' or a.get('name','').startswith('deliver_')):
             self.current['fields'][a['name']]=a.get('value','')
+        # UX3 submits the edited lines with the combined main action, as a browser does.
+        if tag=='input' and self.current is not None and self.current.get('id') in ('quote-edit','order-edit') and a.get('type') not in ('hidden','file','submit') and a.get('name'):
+            if a.get('type') not in ('radio','checkbox') or 'checked' in a:
+                fields=self.current['fields'];key=a['name'];value=a.get('value','')
+                fields[key]=([*fields[key],value] if isinstance(fields.get(key),list) else [fields[key],value]) if key in fields else value
         if 'data-next-primary' in a:self.primary=a
         if 'data-work-shortcut' in a:self.shortcuts[a['href']]=a
 
@@ -264,7 +269,7 @@ def test_sales_end_to_end_only_follow_next_actions(client, db, people, configure
     page=client.get('/bao-gia/moi')
     page=next_action(client,page,**{k:v for k,v in b1_form(csrf,qty='1',unit_price='120.000',vat_0=0).items() if k!='csrf'})
     assert page.status_code==200
-    page=next_action(client,page)  # Gửi
+    assert db.query(Quote).one().status=='DA_GUI'  # UX3: Lưu và gửi trong một lần.
     page=next_action(client,page)  # Chấp nhận
     page=next_action(client,page)  # GET chọn kho / tạo từ báo giá
     page=next_action(client,page)  # POST tạo đơn (dòng tự do không cần kho)
@@ -304,9 +309,9 @@ def test_service_end_to_end_existing_core_holds_appointment_price_photo_rules(cl
     page=next_action(client,page);db.expire_all();assert t.status=='HOAN_THANH' and t.priced_at is not None
     assert Page(page.text).primary['data-next-route']==f'/dich-vu/{t.id}/bao-thu'  # KT1: thợ được báo thu phiếu của mình.
     service_login(client,p['dispatcher']);page=client.get(str(page.url))
+    assert Page(page.text).primary['form']=='service-DA_DONG'
+    page=next_action(client,page);db.expire_all();assert t.status=='DA_DONG'  # UX3: còn nợ không chặn đóng.
     page=next_action(client,page,method='TIEN_MAT',amount='500.000',received_at=DAY.isoformat())
-    assert 'Đóng phiếu' in page.text
-    page=next_action(client,page);db.expire_all();assert t.status=='DA_DONG'
     assert Page(page.text).primary is None
     assert groups(db,p,'technician')['service_unreported']['count']==0
 

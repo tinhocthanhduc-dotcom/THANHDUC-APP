@@ -20,7 +20,7 @@ from ..schemas import ServiceAssign, ServiceReason, ServiceTicketIn, ServiceTran
 from ..security import has_role
 from . import checked_form, render, templates, web_user, nav
 
-from . import next_steps, picked
+from . import next_steps, picked, steps
 
 router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -165,7 +165,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
                   ticket_returns=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.ticket_id==t.id))),
-                  completion_form=completion_form or {}, warranty=service_warranty.info(session,t),
+                  receipt_error=receipt_form is not None, completion_form=completion_form or {}, warranty=service_warranty.info(session,t),
                   warranty_children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.warranty_of_id==t.id).order_by(ServiceTicket.id))),
                   warranty_form=warranty_form or {}, can_relink=dispatcher and t.kind=='BAO_HANH' and t.status in svc.OPEN,
                   **recovered_context(session,user,t,recovered_form), visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
@@ -186,6 +186,11 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   **part_context(session, user, t, part_form),
                   **custody_context(session,user,t,custody_shown),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
+    if not technician_view:
+        if dispatcher and t.status=='HOAN_THANH':ctx['next_step']=next_steps.block(next_steps.form('Đóng phiếu','service-DA_DONG',f'/dich-vu/{t.id}/transition'))
+        ctx['workflow']=steps.service(t)
+        ctx['check_heading']='Kiểm' if dispatcher and t.status=='HOAN_THANH' else ''
+        ctx['primary_checks']=steps.service_checks(session,t,ctx['next_step']['primary'] if ctx['next_step'] else None)
     if technician_view:
         from .technician import detail_context as technician_context
         ctx.update(technician_context(session,user,t,ctx))
@@ -215,7 +220,7 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     can_create=has_role(request.state.user, *svc.CREATORS)
     return render(request, "dich_vu_moi.jinja", appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
-                  can_create=can_create)
+                  can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
 
 @router.get("/dich-vu/tim-khach")
@@ -245,12 +250,16 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice")}
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id")}
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice')},
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": data['serial'] or None, "warranty_of_id": data['warranty_of_id'] or None})
-        t = svc.create(session, request.state.user, body)
+        assignee=str(form.get('assignee_id','')).strip()
+        if assignee:
+            if not assignee.isdigit() or len(assignee)>18 or int(assignee)<1: raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
+            t=svc.create_and_assign(session,request.state.user,body,int(assignee))
+        else: t=svc.create(session,request.state.user,body)
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         return _new_form(request, session, data, error, code, status)

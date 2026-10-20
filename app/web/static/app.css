@@ -396,3 +396,32 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .line-error { border:2px solid #b91c1c; }
 [data-last-price-hint] { display:block; color:#475569; }
 [data-line-totals] { padding:.75rem; background:#f1f5f9; overflow-wrap:anywhere; }
+
+/* Shared workflow: one main action, visible steps and collapsible exceptions. */
+.workflow-steps {display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding:.65rem 0;}
+.workflow-steps li {padding:.4rem .6rem;border-radius:.5rem;background:#e2e8f0;color:#475569;}
+.workflow-steps [aria-current=step] {background:#1d4ed8;color:white;font-weight:700;}
+.workflow-action {padding:.75rem 0;}
+.workflow-checks {list-style:none;padding:0;margin:0 0 .5rem;}
+.workflow-checks [data-ok="0"] {color:#b91c1c;}
+.workflow-action button:disabled {opacity:.5;}
+.workflow-other-content {display:grid;gap:.7rem;margin-top:.7rem;}
+.workflow-terminal {background:#e5e7eb;color:#991b1b;}
+.workflow-other summary, [data-order-readonly]>summary {cursor:pointer;overflow-wrap:anywhere;}
+.saved-total {font-weight:600;}
+@media(max-width:600px){
+ body:has([data-workflow-action]) main {padding-bottom:calc(40vh + 1rem);}
+ .workflow-action {position:fixed;bottom:0;left:0;right:0;z-index:30;background:white;border-top:1px solid #cbd5e1;padding:.6rem .75rem;max-height:40vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -2px 8px #0001;}
+ .workflow-action>.next-primary {width:100%;}
+ .workflow-checks {font-size:.85rem;}
+ .workflow-steps {font-size:.85rem;gap:.3rem;}
+}
+
+.workflow-buttons {display:flex;gap:.4rem;}
+.workflow-buttons>* {flex:1;min-width:0;white-space:normal;}
+
+@media(max-width:600px){
+ .workflow-action>[data-workflow-checks] {min-height:0;overflow:auto;}
+ .workflow-action>.workflow-buttons, .workflow-action>h2 {flex-shrink:0;}
+ .workflow-action>[data-primary-missing] {max-height:3rem;overflow:auto;flex-shrink:0;}
+}

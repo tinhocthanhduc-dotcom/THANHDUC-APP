@@ -30,26 +30,25 @@ def ticket_report_label(user, ticket):
 
 def quote(user, q, linked):
     if not permitted(quotes.check_writer, user):return None
-    if q is None:return block(form('Lưu báo giá', 'quote-edit', '/bao-gia/moi'))
+    if q is None:return block(dict(form('Lưu và gửi', 'quote-edit', '/bao-gia/moi'), then='send'))
     base=f'/bao-gia/{q.id}'
-    if q.status=='NHAP':return block(form('Gửi báo giá', 'quote-send', base+'/send'))
-    if q.status=='DA_GUI':return block(form('Khách đồng ý', 'quote-accept', base+'/accept'))
+    if q.status=='NHAP':return block(dict(form('Lưu và gửi', 'quote-edit', base), then='send'))
+    if q.status=='DA_GUI':return block(form('Khách đồng ý', 'quote-accept', base+'/accept'),[form('Khách từ chối','quote-reject',base+'/reject'),form('Tạo bản sửa','quote-revise',base+'/revise')])
     if q.status=='CHAP_NHAN':
-        return block(link('Xem đơn bán' if linked else 'Tạo đơn bán từ báo giá',
+        return block(link('Xem đơn bán '+linked.number if linked else 'Tạo đơn bán',
             f'/don-ban/{linked.id}' if linked else f'/don-ban/tu-bao-gia/{q.id}'))
     return None
 
 
 def order(user, o, available=0, deposit_remaining=0):
     if o is None:
-        return block(form('Lưu đơn bán', 'order-edit', '/don-ban/moi')) if permitted(sales_orders.check_writer,user) else None
+        return block(dict(form('Lưu và chốt', 'order-edit', '/don-ban/moi'), then='confirm')) if permitted(sales_orders.check_writer,user) else None
     base=f'/don-ban/{o.id}'
     if o.status=='NHAP' and permitted(sales_orders.check_writer,user):
-        return block(form('Chốt đơn', 'order-confirm', base+'/confirm', 'Lưu thay đổi và chọn đủ kho trước khi chốt.'))
-    if o.status in ('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO') and deposit_remaining>0 and permitted(sales_orders.check_writer,user):
-        return block(form('Báo thu cọc','receipt-report',base+'/bao-thu','Đã điền sẵn phần cọc còn cần báo. Không chặn giao hàng.'))
+        return block(dict(form('Lưu và chốt', 'order-edit', base), then='confirm'))
     if o.status in ('DA_CHOT','GIAO_MOT_PHAN') and has_role(user,*sales_orders.DELIVERERS):
-        return block(form('Giao hàng', 'order-deliver', base+'/deliver'))
+        if o.fulfillment=='THO_GIAO':return block(link('Giao cho thợ',f'/giao-don/{o.id}'))
+        return block(form('Giao tiếp' if o.status=='GIAO_MOT_PHAN' else 'Giao hàng', 'order-deliver', base+'/deliver'))
     if o.status in ('GIAO_MOT_PHAN','DA_GIAO') and available>0 and permitted(sales_orders.check_writer,user):
         return block(form('Báo thu', 'receipt-report', base+'/bao-thu', 'Kiểm tra số tiền và cách thu trong mục Thu tiền trước khi báo.'))
     return None

@@ -23,7 +23,7 @@ from . import checked_form, money, render, web_user
 from .quotes import _quantity
 from .receipts import order_context, _report_body
 
-from . import next_steps, picked
+from . import next_steps, picked, steps
 
 router = APIRouter()
 FULFILLMENTS = {'TAI_QUAY':'Tại quầy','KHACH_LAY_SAU':'Khách lấy sau','THO_GIAO':'Thợ giao','VAN_CHUYEN':'Gửi vận chuyển'}
@@ -119,7 +119,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     from .technician_deliveries import context as delivery_context
     tech_delivery=delivery_context(session,request.state.user,order) if order and order.fulfillment=='THO_GIAO' else None
     from .sales_returns import order_context as return_context
-    return render(request,'don_ban_form.jinja',returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+    return render(request,'don_ban_form.jinja',workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
@@ -208,6 +208,16 @@ def pick_product(request: Request,q: str='',customer_code: str='',warehouse: str
     return render(request,'don_ban_chon.jinja',kind='product',rows=rows,last_prices=picked.last_prices(session,customer_code,rows),warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
 
 
+@router.get('/don-ban/dieu-kien')
+def conditions(request: Request,user: User=Depends(order_user),session: Session=Depends(get_session)):
+    _writer(user)
+    data=_raw(request.query_params)
+    data['credit_override_reason']=str(request.query_params.get('credit_override_reason',''))
+    customer=session.get(Customer,data['customer_code']) if data['customer_code'] else None
+    stock=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')])
+    return render(request,'dieu_kien.jinja',primary_checks=steps.order_checks(session,user,data,stock,customer))
+
+
 @router.get('/don-ban/moi')
 def new(request: Request,user: User=Depends(order_user),session: Session=Depends(get_session)):
     _writer(user)
@@ -219,10 +229,12 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
     user=request.state.user
     _writer(user)
     raw=_raw(form)
+    raw['credit_override_reason']=str(form.get('credit_override_reason',''))
     try:
         body=_body(raw)
         body['delivery_address']=body['delivery_address'] or None
-        order=svc.create(session,user,SalesOrderIn(customer_code=raw['customer_code'],**body))
+        body=SalesOrderIn(customer_code=raw['customer_code'],**body)
+        order=svc.save_and_confirm(session,user,body,credit_override_reason=SalesOrderConfirm(version=1,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason) if form.get('then')=='confirm' else svc.create(session,user,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _form(request,session,raw,error=message,code=code,status=status)
@@ -278,9 +290,12 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
     _writer(user)
     order=svc.load(session,user,order_id)
     raw=_raw(form)
+    raw['credit_override_reason']=str(form.get('credit_override_reason',''))
     raw['customer_code']=order.customer_code  # B2 không cho đổi khách của đơn đã lập.
     try:
-        svc.update_lines(session,user,order_id,SalesOrderUpdate(version=_version(form),**_body(raw)))
+        body=SalesOrderUpdate(version=_version(form),**_body(raw))
+        if form.get('then')=='confirm': svc.save_and_confirm(session,user,body,order_id,SalesOrderConfirm(version=body.version,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason)
+        else: svc.update_lines(session,user,order_id,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _form(request,session,raw,order=svc.load(session,user,order_id),error=message,code=code,status=status)
