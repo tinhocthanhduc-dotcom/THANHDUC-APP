@@ -33,8 +33,8 @@ def assert_pending_invariant(db):
     assert all(stock_qty.get(key,0)==pending_qty.get(key,0) for key in stock_qty.keys()|pending_qty.keys())
 
 
-def defect(db):
-    row=Warehouse(code='CXL',name='Kho Chờ Xử lý',kind='LOI');db.add(row);db.commit();return row
+def defect(db,recovered_only=False):
+    row=Warehouse(code='CXL',name='Kho Chờ Xử lý',kind='LOI',recovered_only=recovered_only);db.add(row);db.commit();return row
 
 
 def error(code,fn,*args,**kwargs):
@@ -54,18 +54,21 @@ def test_migration_legacy_each_pair_and_down_up(db,people):
     defect(db)
     spec=importlib.util.spec_from_file_location('cxl1_migration',Path(__file__).parents[1]/'migrations/versions/0038_cxl1_ho_so_cho_xu_ly.py')
     migration=importlib.util.module_from_spec(spec);spec.loader.exec_module(migration)
+    newer_spec=importlib.util.spec_from_file_location('cxl2a_migration',Path(__file__).parents[1]/'migrations/versions/0039_cxl2a_xu_ly_noi_bo.py')
+    newer=importlib.util.module_from_spec(newer_spec);newer_spec.loader.exec_module(newer)
     with Operations.context(MigrationContext.configure(db.connection())):
+        newer.downgrade()
         migration.downgrade()
         db.execute(text("insert into stock_balances(warehouse_code,product_code,qty,value,avg_cost) values ('CXL','TD-0001',4,400,100),('CXL','TD-0002',2,600,300)"))
         migration.upgrade()
         rows=db.execute(text('select product_code,qty_in,qty_left,unit_cost,source,group_code from pending_items order by product_code')).all()
         assert [tuple(r) for r in rows]==[('TD-0001',4,4,100,'TON_CU','CHUA_PHAN_LOAI'),('TD-0002',2,2,300,'TON_CU','CHUA_PHAN_LOAI')]
-        migration.downgrade();migration.upgrade()
+        migration.downgrade();migration.upgrade();newer.upgrade()
     db.commit();assert db.query(PendingItem).count()==2;assert_pending_invariant(db)
 
 
 def test_recovered_receipt_zero_cost_and_source(db,people):
-    p=people;defect(db);t=ticket(db,p,'DANG_LAM');row=recover(db,p,t,qty=2)
+    p=people;defect(db,recovered_only=True);t=ticket(db,p,'DANG_LAM');row=recover(db,p,t,qty=2)
     service_recovered_parts.receive(db,p['warehouse'],row.id,RecoveredPartReceive(version=row.version))
     item=db.scalars(select(PendingItem)).one();doc=db.get(StockDoc,row.stock_doc_id)
     assert (item.qty_in,item.unit_cost,item.group_code,item.source,item.source_ref,item.entered_at)==(2,0,'THU_HOI','THU_HOI',t.number,doc.posted_at)
@@ -169,7 +172,7 @@ def test_group_stale_409_and_closed_rejected(db,people):
 @pytest.mark.parametrize('flow',['recovered','technician','customer','manual'])
 def test_failure_open_rolls_back_stock_and_source(db,people,supplied,sold,monkeypatch,flow):
     # One fixture graph; all source rows exist before the failed posting.
-    p=people;defect(db)
+    p=people;defect(db,recovered_only=flow=='recovered')
     if flow=='recovered':
         t=ticket(db,p,'DANG_LAM');row=recover(db,p,t)
         action=lambda:service_recovered_parts.receive(db,p['warehouse'],row.id,RecoveredPartReceive(version=row.version))

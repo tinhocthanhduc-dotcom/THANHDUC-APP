@@ -157,7 +157,7 @@ def post(session: Session, user: User, doc_id: int, version: int | None) -> Stoc
     return doc
 
 
-def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None, for_order_id: int | None = None, pending_context: dict | None = None) -> StockDoc:
+def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *, pn_amounts: dict[int, int] | None = None, for_order_id: int | None = None, pending_context: dict | None = None, _pending_disposition=False) -> StockDoc:
     """Ghi sổ trong transaction của nơi gọi (phiếu sinh tự động từ chứng từ khác), không kiểm vai trò."""
     doc = _load_for_update(session, doc_id)
     if doc.status != "NHAP":
@@ -172,7 +172,15 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *
             raise BusinessError("DUPLICATE_LINE", "Phiếu kiểm kê có mã hàng lặp lại.", {"products": dup})
     from . import pending_items
     source_kind=session.scalar(select(Warehouse.kind).where(Warehouse.code==doc.warehouse_code))
-    if source_kind=='LOI' and doc.kind in ('PX','CK'):pending_items.block_out()
+    if source_kind=='LOI' and doc.kind in ('PX','CK') and not _pending_disposition:pending_items.block_out()
+    target_code=doc.to_warehouse_code if doc.kind=='CK' else doc.warehouse_code
+    if doc.kind in ('PN','CK') and session.scalar(select(Warehouse.recovered_only).where(Warehouse.code==target_code)) and not _pending_disposition:
+        if doc.kind!='PN' or not pending_context or any(pending_context.get(l.line_no,{}).get('source')!='THU_HOI' or l.unit_cost!=0 for l in doc.lines):
+            pending_items.block_out()
+    if doc.kind in ('PN','CK') and session.scalar(select(Warehouse.supplier_hold).where(Warehouse.code==target_code)) and not _pending_disposition:
+        pending_items.block_out()
+    if doc.kind=='KK' and session.scalar(select(Warehouse.recovered_only).where(Warehouse.code==doc.warehouse_code)) and any(l.unit_cost not in (None,0) for l in doc.lines):
+        raise BusinessError('BAD_UNIT_COST','Kho Thu hồi chỉ có giá vốn 0.')
     if source_kind=='LOI' and doc.kind=='KK' and 'director' not in user.roles:
         raise BusinessError('FORBIDDEN','Chỉ giám đốc được ghi sổ kiểm kê Kho Chờ Xử lý.',status=403)
     # M2 truyền tiền nhập đã bù làm tròn, không sửa đơn giá gốc hoặc ghi tồn ngoài lõi.
@@ -189,7 +197,10 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *
     doc.posted_by = user.id
     doc.posted_at = datetime.now(UTC)
     session.flush()
-    pending_items.apply_posted_in_tx(session,user,doc,pending_context)
+    if _pending_disposition:
+        from .pending_dispositions import apply_posted_in_tx
+        apply_posted_in_tx(session,user,doc)
+    else:pending_items.apply_posted_in_tx(session,user,doc,pending_context)
     audit.record(session, user, "stock_doc.post", "stock_doc", str(doc.id), before, snapshot(doc))
     return doc
 
@@ -216,10 +227,13 @@ def void(session: Session, user: User, doc_id: int, reason: str, version: int | 
     return doc
 
 
-def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: int | None) -> StockDoc:
+def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: int | None, *, _pending_disposition=False) -> StockDoc:
     reason = (reason or "").strip()
     if len(reason) < 3:
         raise BusinessError("REASON_REQUIRED", "Hủy phiếu đã ghi sổ phải ghi lý do.")
+    from .models import PendingDisposition
+    if not _pending_disposition and session.scalar(select(PendingDisposition.id).where(PendingDisposition.stock_doc_id==doc_id)):
+        raise BusinessError('SOURCE_LOCKED','Hủy phiếu kho này tại phiếu xử lý Chờ xử lý.',status=409)
     from .service_recovered_parts import lock_for_stock_void, reopen_after_stock_void
     recovered = lock_for_stock_void(session, doc_id)
     doc = _load_for_update(session, doc_id)
@@ -229,8 +243,12 @@ def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: 
     before = snapshot(doc)
     rows = list(session.scalars(select(StockLedger).where(StockLedger.doc_id == doc.id).order_by(StockLedger.id.desc())))
     balances = _lock_balances(session, {(r.warehouse_code, r.product_code) for r in rows})
-    from .pending_items import cancel_receipt_in_tx
-    cancel_receipt_in_tx(session,user,doc,rows,reason)
+    if _pending_disposition:
+        from .pending_dispositions import restore_in_tx
+        restore_in_tx(session,user,doc,reason)
+    else:
+        from .pending_items import cancel_receipt_in_tx
+        cancel_receipt_in_tx(session,user,doc,rows,reason)
     for r in rows:
         qty = r.qty_out - r.qty_in
         _apply(session, doc, balances[(r.warehouse_code, r.product_code)],

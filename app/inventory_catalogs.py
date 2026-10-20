@@ -133,11 +133,11 @@ def update(session: Session, user, model, code, body):
     if model is Warehouse:
         candidate = Warehouse(**{**before, **changes})
         _validate_warehouse(session, candidate)
-        if candidate.kind != row.kind:
+        if candidate.kind != row.kind or candidate.supplier_hold != row.supplier_hold or candidate.recovered_only != row.recovered_only:
             from .models import PendingItem
             if session.scalar(select(PendingItem.id).where(PendingItem.warehouse_code==code).limit(1)):
                 raise BusinessError('WAREHOUSE_HAS_PENDING','Kho có lịch sử Chờ xử lý, không đổi được loại kho.',status=409)
-        ownership_changed = candidate.kind != row.kind or candidate.holder_id != row.holder_id
+        ownership_changed = candidate.kind != row.kind or candidate.holder_id != row.holder_id or candidate.supplier_hold != row.supplier_hold or candidate.recovered_only != row.recovered_only
         if ownership_changed or (row.kind == 'THO' and not candidate.active):
             if session.scalar(select(StockBalance.product_code).where(StockBalance.warehouse_code == code, StockBalance.qty != 0).limit(1)):
                 raise BusinessError('WAREHOUSE_NOT_EMPTY','Kho còn hàng, hãy chuyển hết hàng trước khi ngừng dùng hoặc đổi người giữ.',status=409)
@@ -151,6 +151,8 @@ def update(session: Session, user, model, code, body):
 
 
 def _validate_warehouse(session, row):
+    if row.recovered_only and row.kind!='LOI':raise BusinessError('BAD_WAREHOUSE','Cờ Kho Thu hồi chỉ dành cho loại Kho Chờ Xử lý.')
+    if row.supplier_hold and row.kind!='LOI':raise BusinessError('BAD_WAREHOUSE','Cờ Đang gửi NCC chỉ dành cho Kho Chờ Xử lý.')
     if row.kind in ('KHO','LOI') and row.holder_id is not None:
         raise BusinessError('BAD_HOLDER','Kho công ty không có người giữ riêng.')
     if row.kind == 'THO':

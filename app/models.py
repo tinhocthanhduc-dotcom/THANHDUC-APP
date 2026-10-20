@@ -165,6 +165,8 @@ class Warehouse(Base):
     __tablename__ = "warehouses"
     __table_args__ = (
         CheckConstraint("(kind in ('KHO','LOI') and holder_id is null) or (kind = 'THO' and holder_id is not null)", name="ck_warehouses_holder"),
+        CheckConstraint("not supplier_hold or kind='LOI'", name='ck_warehouses_supplier_hold'),
+        CheckConstraint("not recovered_only or kind='LOI'", name='ck_warehouses_recovered_only'),
         Index("uq_warehouses_active_holder", "holder_id", unique=True, postgresql_where="kind = 'THO' and active"),
     )
 
@@ -174,6 +176,8 @@ class Warehouse(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     kind: Mapped[str] = mapped_column(String(3), default="KHO", server_default="KHO")
     holder_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    supplier_hold: Mapped[bool] = mapped_column(Boolean,default=False,server_default=text('false'))
+    recovered_only: Mapped[bool] = mapped_column(Boolean,default=False,server_default=text('false'))
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     __mapper_args__ = {"version_id_col": version}
@@ -1407,7 +1411,48 @@ class PendingItem(Base):
     supplier_code: Mapped[str | None] = mapped_column(ForeignKey('suppliers.code'))
     reason: Mapped[str] = mapped_column(Text,default='')
     entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     status: Mapped[str] = mapped_column(Text,default='DANG_CHO')
     version: Mapped[int] = mapped_column(Integer,default=1)
     __mapper_args__ = {'version_id_col': version}
+
+
+class PendingDisposition(Base):
+    __tablename__='pending_dispositions'
+    __table_args__=(
+        CheckConstraint("kind in ('SUA_XONG','GUI_NCC','NCC_TRA_VE','NCC_KHONG_NHAN','HUY')",name='ck_pending_dispositions_kind'),
+        CheckConstraint("status in ('CHO_DUYET','DA_GHI','TU_CHOI','DA_HUY')",name='ck_pending_dispositions_status'),
+        CheckConstraint('qty>0',name='ck_pending_dispositions_qty'),
+        CheckConstraint('cost_value>=0',name='ck_pending_dispositions_cost'),
+        Index('ix_pending_dispositions_item_status','item_id','status'),
+    )
+    id: Mapped[int]=mapped_column(BigInteger,primary_key=True)
+    number: Mapped[str]=mapped_column(Text,unique=True)
+    item_id: Mapped[int]=mapped_column(ForeignKey('pending_items.id'))
+    kind: Mapped[str]=mapped_column(Text)
+    qty: Mapped[Decimal]=mapped_column(Numeric(14,3))
+    to_warehouse_code: Mapped[str | None]=mapped_column(ForeignKey('warehouses.code'))
+    supplier_code: Mapped[str | None]=mapped_column(ForeignKey('suppliers.code'))
+    stock_doc_id: Mapped[int | None]=mapped_column(ForeignKey('stock_docs.id'),unique=True)
+    cost_value: Mapped[int]=mapped_column(BigInteger,default=0)
+    status: Mapped[str]=mapped_column(Text,default='CHO_DUYET')
+    reason: Mapped[str]=mapped_column(Text,default='')
+    requested_by: Mapped[int]=mapped_column(ForeignKey('users.id'))
+    requested_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now())
+    decided_by: Mapped[int | None]=mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None]=mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str]=mapped_column(Text,default='')
+    void_reason: Mapped[str]=mapped_column(Text,default='')
+    version: Mapped[int]=mapped_column(Integer,default=1)
+    __mapper_args__={'version_id_col':version}
+
+
+class PendingItemMove(Base):
+    __tablename__='pending_item_moves'
+    __table_args__=(CheckConstraint('qty>0',name='ck_pending_item_moves_qty'),UniqueConstraint('disposition_id','item_id',name='uq_pending_item_moves_disposition_item'),)
+    id: Mapped[int]=mapped_column(BigInteger,primary_key=True)
+    item_id: Mapped[int]=mapped_column(ForeignKey('pending_items.id'))
+    disposition_id: Mapped[int]=mapped_column(ForeignKey('pending_dispositions.id'))
+    stock_doc_id: Mapped[int]=mapped_column(ForeignKey('stock_docs.id'))
+    qty: Mapped[Decimal]=mapped_column(Numeric(14,3))

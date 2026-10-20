@@ -59,7 +59,7 @@ def page(request: Request, user: User = Depends(report_user), session: Session =
             presets=_presets(start, end), query=urlencode({'from': start.isoformat(), 'to': end.isoformat()}),
             funds=svc.funds(session, user), fund_total=svc.fund_total(session, user),
             income=svc.categories(session, user, 'THU', start, end), expense=svc.categories(session, user, 'CHI', start, end),
-            totals=svc.category_totals(session, user, start, end), daily=svc.daily(session, user, start, end),
+            damage_cost=svc.damage_cost(session,user,start,end),totals=svc.category_totals(session, user, start, end), daily=svc.daily(session, user, start, end),
             customers=svc.customers(session, user), debts=svc.debt_totals(session, user), customer=customer,
             customer_query=urlencode({'khach': customer}), detail=svc.customer_docs(session, user, customer) if customer else [],
             as_of=svc._today().isoformat())

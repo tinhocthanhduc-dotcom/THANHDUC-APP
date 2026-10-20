@@ -44,7 +44,8 @@ def visible(data: dict, user) -> dict:
             result.pop(key, None)
         result['alert_counts'].pop('CHAM_LUAN_CHUYEN', None)
         result['alert_counts'].pop('CHO_XU_LY_QUA_HAN', None)
-        result['red_alerts'] = [r for r in result['red_alerts'] if r['kind'] not in ('CHAM_LUAN_CHUYEN','CHO_XU_LY_QUA_HAN')]
+        result['alert_counts'].pop('CHO_NCC_QUA_HAN', None)
+        result['red_alerts'] = [r for r in result['red_alerts'] if r['kind'] not in ('CHAM_LUAN_CHUYEN','CHO_XU_LY_QUA_HAN','CHO_NCC_QUA_HAN')]
     return result
 
 

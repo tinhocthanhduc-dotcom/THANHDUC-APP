@@ -36,7 +36,7 @@ def block_out():raise BusinessError('CXL_DUNG_LUONG_RIENG',OUT_MESSAGE,status=40
 
 def snapshot(row):
     return {key:(str(value) if isinstance(value,Decimal) else value.isoformat() if isinstance(value,datetime) else value)
-        for key in ('number','warehouse_code','product_code','qty_in','qty_left','unit_cost','group_code','source','source_ref','stock_doc_id','supplier_code','reason','entered_at','created_by','status','version') for value in [getattr(row,key)]}
+        for key in ('number','warehouse_code','product_code','qty_in','qty_left','unit_cost','group_code','source','source_ref','stock_doc_id','supplier_code','reason','entered_at','sent_at','created_by','status','version') for value in [getattr(row,key)]}
 
 
 def _record(session,user,row,action,before,reason=''):
@@ -57,7 +57,7 @@ def _group(session,group_code,supplier_code=None):
         raise BusinessError('BAD_SUPPLIER','Nhà cung cấp không tồn tại hoặc đã ngừng dùng.')
 
 
-def open_in_tx(session,user,warehouse_code,product_code,qty,unit_cost,group_code,source,source_ref,stock_doc,reason='',supplier_code=None):
+def open_in_tx(session,user,warehouse_code,product_code,qty,unit_cost,group_code,source,source_ref,stock_doc,reason='',supplier_code=None,*,entered_at=None,sent_at=None):
     qty=quantity(qty);_group(session,group_code,supplier_code)
     wh=session.get(Warehouse,warehouse_code)
     if wh is None or wh.kind!='LOI':raise BusinessError('BAD_WAREHOUSE','Hồ sơ chỉ dành cho Kho Chờ Xử lý.')
@@ -67,7 +67,7 @@ def open_in_tx(session,user,warehouse_code,product_code,qty,unit_cost,group_code
     row=PendingItem(number=doc_numbers.next_number(session,'CXL',stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date()),
         warehouse_code=warehouse_code,product_code=product_code,qty_in=qty,qty_left=qty,unit_cost=unit_cost,group_code=group_code,
         source=source,source_ref=source_ref,stock_doc_id=stock_doc.id,supplier_code=supplier_code,reason=reason,
-        entered_at=stamp,created_by=user.id,status='DANG_CHO')
+        entered_at=entered_at or stamp,sent_at=sent_at,created_by=user.id,status='DANG_CHO')
     session.add(row);_record(session,user,row,'create',None,reason)
     return row
 
@@ -111,7 +111,7 @@ def transfer_in(session,user,from_warehouse_code,lines,group_code,reason,supplie
         if not reason:raise BusinessError('REASON_REQUIRED','Phải ghi lý do chuyển vào Chờ xử lý.')
         source=session.get(Warehouse,from_warehouse_code)
         if source is None or source.kind!='KHO' or not source.active:raise BusinessError('BAD_WAREHOUSE','Kho nguồn phải là kho công ty đang dùng.')
-        stmt=select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.active.is_(True)).order_by(Warehouse.code)
+        stmt=select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.supplier_hold.is_(False),Warehouse.recovered_only.is_(False),Warehouse.active.is_(True)).order_by(Warehouse.code)
         if warehouse_code:stmt=stmt.where(Warehouse.code==warehouse_code)
         choices=list(session.scalars(stmt))
         if not choices:raise BusinessError('NO_DEFECT_WAREHOUSE','Chưa có Kho Chờ Xử lý đang dùng.',status=409)
@@ -156,10 +156,12 @@ def split(session,user,item_id,qty,group_code,version):
     with _transaction(session):
         row=_locked(session,user,item_id,version);qty=quantity(qty);_group(session,group_code)
         if qty>=row.qty_left:raise BusinessError('BAD_QTY','Số tách phải nhỏ hơn số còn chờ xử lý.')
+        from .pending_dispositions import ensure_available
+        ensure_available(session,row,qty)
         if group_code==row.group_code:raise BusinessError('BAD_GROUP','Hãy chọn nhóm khác để tách.')
         before=snapshot(row);row.qty_left-=qty
         stamp=datetime.now(UTC).astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
-        data={key:getattr(row,key) for key in ('warehouse_code','product_code','unit_cost','source','source_ref','stock_doc_id','supplier_code','reason','entered_at')}
+        data={key:getattr(row,key) for key in ('warehouse_code','product_code','unit_cost','source','source_ref','stock_doc_id','supplier_code','reason','entered_at','sent_at')}
         child=PendingItem(**data,number=doc_numbers.next_number(session,'CXL',stamp.date()),qty_in=qty,qty_left=qty,
             group_code=group_code,status='DANG_CHO',created_by=user.id)
         session.add(child);_record(session,user,child,'create',None,f'Tách từ {row.number}')
@@ -167,20 +169,24 @@ def split(session,user,item_id,qty,group_code,version):
     return child
 
 
-def search(session,user,group=None,warehouse=None,min_days=None,q='',status='DANG_CHO'):
+def search(session,user,group=None,warehouse=None,min_days=None,q='',status='DANG_CHO',view=''):
     reader(user)
     if group and group not in GROUPS:raise BusinessError('BAD_GROUP','Nhóm chưa hợp lệ.')
     if status not in ('DANG_CHO','XONG','DA_HUY',''):raise BusinessError('BAD_STATUS','Trạng thái chưa hợp lệ.')
     if min_days is not None and (min_days<0 or min_days>36500):raise BusinessError('BAD_DAYS','Số ngày lọc chưa hợp lệ.')
-    stmt=select(PendingItem,Product.name).join(Product,Product.code==PendingItem.product_code).order_by(PendingItem.entered_at,PendingItem.id)
+    stmt=select(PendingItem,Product.name,Warehouse.supplier_hold).join(Product,Product.code==PendingItem.product_code).join(Warehouse,Warehouse.code==PendingItem.warehouse_code).order_by(PendingItem.entered_at,PendingItem.id)
+    if view=='ncc':stmt=stmt.where(PendingItem.warehouse_code.in_(select(Warehouse.code).where(Warehouse.supplier_hold.is_(True))))
+    elif view=='huy':
+        from .models import PendingDisposition
+        stmt=stmt.where(PendingItem.id.in_(select(PendingDisposition.item_id).where(PendingDisposition.kind=='HUY',PendingDisposition.status=='CHO_DUYET')))
     if group:stmt=stmt.where(PendingItem.group_code==group)
     if warehouse:stmt=stmt.where(PendingItem.warehouse_code==warehouse)
     if status:stmt=stmt.where(PendingItem.status==status)
     now=datetime.now(UTC)
     if min_days is not None:stmt=stmt.where(PendingItem.entered_at<now-timedelta(days=min_days))
     needle=fold(q)
-    return [dict(item=row,name=name,days=max(0,(now-row.entered_at).days),overdue=now-row.entered_at>timedelta(days=get_settings().pending_alert_days))
-        for row,name in session.execute(stmt) if not needle or needle in fold(' '.join((row.number,row.product_code,name,row.source_ref)))]
+    return [dict(item=row,name=name,sent_days=max(0,(now-row.sent_at).days) if row.sent_at else None,days=max(0,(now-row.entered_at).days),overdue=(bool(row.sent_at and now-row.sent_at>timedelta(days=get_settings().supplier_hold_alert_days)) if holding else now-row.entered_at>timedelta(days=get_settings().pending_alert_days)))
+        for row,name,holding in session.execute(stmt) if not needle or needle in fold(' '.join((row.number,row.product_code,name,row.source_ref)))]
 
 
 def totals(session,user,now=None):
@@ -198,7 +204,10 @@ def cancel_receipt_in_tx(session,user,doc,ledgers,reason):
     if not affected:return
     if doc.kind not in ('PN','CK') or any(row.qty_out for row in affected):block_out()
     rows=list(session.scalars(select(PendingItem).where(PendingItem.stock_doc_id==doc.id).order_by(PendingItem.id).with_for_update().execution_options(populate_existing=True)))
-    if not rows or any(row.status!='DANG_CHO' or row.qty_left!=row.qty_in for row in rows):
+    from .pending_dispositions import reserved
+    from .models import PendingItemMove
+    processed=any(reserved(session,row.id) or session.scalar(select(PendingItemMove.id).where(PendingItemMove.item_id==row.id).limit(1)) for row in rows)
+    if not rows or processed or any(row.status!='DANG_CHO' or row.qty_left!=row.qty_in for row in rows):
         raise BusinessError('CXL_DA_XU_LY','Hồ sơ đã tách hoặc đã xử lý một phần, không thể hủy phiếu nhập.',status=409)
     for row in rows:
         before=snapshot(row);row.qty_left=Decimal(0);row.status='DA_HUY'

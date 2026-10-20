@@ -15,6 +15,7 @@
 {{ tile('Nợ nhà cung cấp',s.supplier_debt,'/bao-cao-mua-hang?tab=tuoi-no') }}
 {% if 'inventory_total' in s %}{{ tile('Giá trị tồn kho',s.inventory_total,'/ton-kho',detail='Số lượng × giá vốn bình quân') }}{% endif %}
 {% if s.pending_items is defined %}{{ tile('Hàng chờ xử lý',s.pending_items.value,'/cho-xu-ly',detail=(s.pending_items.overdue|string)+' hồ sơ quá hạn') }}{% endif %}
+{% if s.damage_cost_month is defined %}{{ tile('Chi phí hàng hư hỏng (không dùng tiền)',s.damage_cost_month,'/bao-cao/tai-chinh?'+month_query) }}{% endif %}
 {{ tile('Dịch vụ đang mở',s.services.open,'/dich-vu',false) }}
 {{ tile('Dịch vụ quá hạn',s.services.overdue,'/dich-vu?overdue=1',false) }}
 {{ tile('Báo thu chờ xác nhận',s.pending_receipts.count,'/bao-thu',false) }}
