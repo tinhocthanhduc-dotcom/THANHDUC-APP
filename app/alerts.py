@@ -9,7 +9,7 @@ from .models import (CashDoc, Customer, Product, PurchaseOrder, SalesReceipt, Se
                      PendingItem, StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse, ServiceRecoveredPart, User)
 from .security import has_role
 
-LABELS = {'CHO_XU_LY_QUA_HAN':'Hàng chờ xử lý quá hạn','THU_HOI_CHUA_NOP':'Linh kiện hỏng chưa nộp','GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
+LABELS = {'CHO_NCC_QUA_HAN':'Hàng gửi NCC quá hạn','CHO_XU_LY_QUA_HAN':'Hàng chờ xử lý quá hạn','THU_HOI_CHUA_NOP':'Linh kiện hỏng chưa nộp','GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
           'BAO_THU_CHO':'Báo thu chờ xác nhận','KHACH_VUOT_HAN_MUC':'Khách vượt hạn mức',
           'KHACH_NO_QUA_HAN':'Khách nợ quá hạn','NCC_NO_QUA_HAN':'NCC nợ quá hạn',
           'DON_MUA_TRE':'Đơn mua trễ hẹn','CHUA_CHOT_SO':'Ngày chưa chốt sổ',
@@ -52,6 +52,7 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         counts={k:0 for k in LABELS if k!='CHAM_LUAN_CHUYEN' or has_role(user,'director')}
         pending=pending_notices(session,user,now=now)
         counts.pop('CHO_XU_LY_QUA_HAN',None)
+        counts.pop('CHO_NCC_QUA_HAN',None)
         counts.update(pending.counts)
         items=[dict(item,_oldest=_stamp(now)) for item in pending]
         red_count=pending.red_count
@@ -174,9 +175,15 @@ def pending_notices(session,user,now=None):
     from .config import get_settings
     days=get_settings().pending_alert_days;now=now or dashboard._now()
     stmt=select(PendingItem.number,PendingItem.source_ref,PendingItem.entered_at,Product.name,func.count().over().label('total_count')).join(Product,Product.code==PendingItem.product_code).where(
-        PendingItem.status=='DANG_CHO',PendingItem.entered_at<now-timedelta(days=days)).order_by(PendingItem.entered_at,PendingItem.id).limit(LIMIT)
+        PendingItem.status=='DANG_CHO',PendingItem.warehouse_code.in_(select(Warehouse.code).where(Warehouse.supplier_hold.is_(False))),PendingItem.entered_at<now-timedelta(days=days)).order_by(PendingItem.entered_at,PendingItem.id).limit(LIMIT)
     with session.no_autoflush:rows=session.execute(stmt).all()
     count=rows[0].total_count if rows else 0
     items=[dict(level='DO',kind='CHO_XU_LY_QUA_HAN',title=f'{row.number} · {row.name}',
         detail=f'Hàng chờ xử lý quá {days} ngày · {row.source_ref}',link=f'/cho-xu-ly?min_days={days}') for row in rows]
-    return AlertList(items,{'CHO_XU_LY_QUA_HAN':count},count)
+    hold_days=get_settings().supplier_hold_alert_days
+    with session.no_autoflush:holding=session.execute(select(PendingItem.number,PendingItem.sent_at,Product.name,func.count().over().label('total_count')).join(Product,Product.code==PendingItem.product_code).join(
+        Warehouse,Warehouse.code==PendingItem.warehouse_code).where(Warehouse.supplier_hold.is_(True),PendingItem.status=='DANG_CHO',
+        PendingItem.sent_at<now-timedelta(days=hold_days)).order_by(PendingItem.sent_at,PendingItem.id).limit(LIMIT)).all()
+    hold_count=holding[0].total_count if holding else 0
+    items.extend(dict(level='DO',kind='CHO_NCC_QUA_HAN',title=f'{row.number} · {row.name}',detail=f'Gửi NCC quá {hold_days} ngày',link='/cho-xu-ly?view=ncc') for row in holding)
+    return AlertList(items,{'CHO_XU_LY_QUA_HAN':count,'CHO_NCC_QUA_HAN':hold_count},count+hold_count)

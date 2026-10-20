@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import PendingDisposition, PendingItem, StockBalance, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
@@ -153,6 +153,13 @@ def _specs(user, today, now):
                 t, t.id==SalesReceipt.ticket_id).join(Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code)).where(
                     SalesReceipt.status=='CHO_XAC_NHAN').order_by(SalesReceipt.reported_at, SalesReceipt.id)
         add('receipts_pending', 'Báo thu chờ xác nhận', pending, 'receipt', '/bao-thu')
+    if director:
+        requests=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),
+            (PendingDisposition.qty*func.coalesce(StockBalance.avg_cost,0)).label('amount'),literal(False).label('overdue')).join(
+            PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).outerjoin(
+            StockBalance,(StockBalance.warehouse_code==PendingItem.warehouse_code)&(StockBalance.product_code==PendingItem.product_code)).where(
+            PendingDisposition.kind=='HUY',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)
+        add('pending_destruction','Hủy hàng chờ duyệt',requests,'pending_disposition','/cho-xu-ly/duyet-huy')
     return specs
 
 
@@ -167,8 +174,9 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
+            prefix = {'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if kind=='pending_disposition':row['link']=f"/cho-xu-ly/duyet-huy#xl-{row['id']}"
             if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"

@@ -14,7 +14,7 @@
 {% if row.void_reason %}<p>Lý do hủy: {{ row.void_reason }}</p>{% endif %}
 {% if row.status=='CHO_NOP' and can_receive %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/nhan" class="form">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
-<label>Kho Chờ Xử lý<select name="warehouse_code">{% for w in warehouses %}<option value="{{ w.code }}" {% if failed_id==row.id and form.get('warehouse_code')==w.code %}selected{% endif %}>{{ w.code }} · {{ w.name }}</option>{% else %}<option value="">Chưa có kho LOI đang dùng</option>{% endfor %}</select></label><button>Nhận hàng lỗi</button></form>{% endif %}
+<label>Kho Thu hồi<select name="warehouse_code">{% for w in warehouses %}<option value="{{ w.code }}" {% if failed_id==row.id and form.get('warehouse_code')==w.code %}selected{% endif %}>{{ w.code }} · {{ w.name }}</option>{% else %}<option value="">Chưa có Kho Thu hồi</option>{% endfor %}</select></label><button>Nhận hàng lỗi</button></form>{% endif %}
 {% if row.status=='CHO_NOP' and can_cancel(row) %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/huy" class="form">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
 <label>Lý do hủy<textarea name="reason" maxlength="2000" required>{{ form.get('reason','') if failed_id==row.id else '' }}</textarea></label><button>Hủy dòng thu hồi</button></form>{% endif %}

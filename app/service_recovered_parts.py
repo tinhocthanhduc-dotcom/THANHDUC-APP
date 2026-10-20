@@ -68,10 +68,10 @@ def receive(session, user, ident, body):
     if not has_role(user, 'warehouse'): raise BusinessError('FORBIDDEN', 'Chỉ kho hoặc giám đốc được nhận hàng lỗi.', status=403)
     with _transaction(session):
         ticket, row = _locked(session, user, ident, body.version)
-        stmt = select(Warehouse).where(Warehouse.kind == 'LOI', Warehouse.active.is_(True))
+        stmt = select(Warehouse).where(Warehouse.kind == 'LOI', Warehouse.supplier_hold.is_(False), Warehouse.recovered_only.is_(True), Warehouse.active.is_(True))
         if body.warehouse_code: stmt = stmt.where(Warehouse.code == body.warehouse_code)
         warehouse = session.scalar(stmt.order_by(Warehouse.code).limit(1).with_for_update(read=True))
-        if warehouse is None: raise BusinessError('NO_DEFECT_WAREHOUSE', 'Chưa có Kho Chờ Xử lý đang dùng.', status=409)
+        if warehouse is None: raise BusinessError('NO_DEFECT_WAREHOUSE', 'Chưa có Kho Thu hồi.', status=409)
         before = snapshot(row); stamp = svc._now()
         doc = stock_docs.insert(session, user, StockDocIn(kind='PN', warehouse_code=warehouse.code,
             customer_code=ticket.customer_code, doc_date=stamp.astimezone(svc.service_sla.TZ).date(),

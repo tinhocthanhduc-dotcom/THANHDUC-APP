@@ -128,7 +128,7 @@ def receive(session, user, ident, version, quantities, note='', conditions=None,
             decisions.append((line,qty,condition,reason))
         defect = None
         if any(entries['HU_HONG'].values()):
-            defect = session.scalar(select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.active.is_(True)).order_by(Warehouse.code).with_for_update(read=True))
+            defect = session.scalar(select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.supplier_hold.is_(False),Warehouse.recovered_only.is_(False),Warehouse.active.is_(True)).order_by(Warehouse.code).with_for_update(read=True))
             if defect is None: raise BusinessError('NO_DEFECT_WAREHOUSE','Chưa có Kho Chờ Xử lý đang dùng.',status=409)
         for condition in ('TOT','HU_HONG'):
             lines = [dict(product_code=code,qty=qty) for code,qty in sorted(entries[condition].items()) if qty]

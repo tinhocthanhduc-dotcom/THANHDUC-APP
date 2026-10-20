@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" data-pending-supplier-code="{{ row.code }}" data-pending-supplier-name="{{ row.name }}">{{ row.code }} · {{ row.name }}</button>{% else %}<p>Không có nhà cung cấp phù hợp.</p>{% endfor %}

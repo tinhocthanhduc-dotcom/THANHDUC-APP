@@ -95,7 +95,7 @@ def create(session,user,order_id,body):
             code=None;unit_cost=cost=0
             if line.kind=='HANG':
                 if part.condition=='LOI':
-                    stmt=select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.active.is_(True))
+                    stmt=select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.supplier_hold.is_(False),Warehouse.recovered_only.is_(False),Warehouse.active.is_(True))
                     if part.warehouse_code:stmt=stmt.where(Warehouse.code==part.warehouse_code)
                     wh=session.scalar(stmt.order_by(Warehouse.code).limit(1).with_for_update(read=True))
                     if wh is None:raise BusinessError('NO_DEFECT_WAREHOUSE','Chưa có Kho Chờ Xử lý đang dùng.',status=409)

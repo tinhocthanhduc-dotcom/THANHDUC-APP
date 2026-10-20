@@ -167,6 +167,8 @@ class WarehouseIn(BaseModel):
     address: str = Field(default="", max_length=2000)
     active: bool = True
     kind: Literal['KHO', 'THO', 'LOI'] = 'KHO'
+    supplier_hold: bool = False
+    recovered_only: bool = False
     holder_id: int | None = Field(default=None, ge=1)
 
 
@@ -178,6 +180,8 @@ class WarehousePatch(BaseModel):
     address: str = Field(default="", max_length=2000)
     active: bool = True
     kind: Literal['KHO', 'THO', 'LOI'] = 'KHO'
+    supplier_hold: bool = False
+    recovered_only: bool = False
     holder_id: int | None = Field(default=None, ge=1)
 
 
