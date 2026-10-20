@@ -83,9 +83,9 @@ def test_only_current_step_and_exceptions_are_collapsed(client,db,people):
     assert screen.forms['service-DA_HEN']['other'] and screen.forms['service-no-show']['other']
     service_tickets.transition(db,p['technician'],t.id,'DANG_LAM',t.version)
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
-    assert 'service-HOAN_THANH' in screen.forms and 'service-charges' in screen.forms and 'service-assign' not in screen.forms
+    assert 'service-complete' in screen.forms and 'service-charges' not in screen.forms and 'service-assign' not in screen.forms
     assert screen.forms['service-DA_HEN']['other'] and screen.forms['service-TAM_DUNG']['other'] and screen.forms['part-create']['other']
-    assert all(not f['other'] for key,f in screen.forms.items() if key in ('service-HOAN_THANH','service-charges'))
+    assert all(not f['other'] for key,f in screen.forms.items() if key=='service-complete')
 
 
 def test_only_own_material_warehouse_and_completion_checks(client,db,held):
@@ -146,14 +146,11 @@ def test_completed_reports_then_returns_to_today(client,db,people):
 
 def test_charges_photo_and_completion_post_return_to_mobile(client,db,people):
     p=people;t=ticket(db,p,'DANG_LAM');login(client,p);path=f'/tho/phieu/{t.id}'
-    page=client.get(path);form=Page(page.text).forms['service-charges']
-    response=client.post(form['action'],data={**form['fields'],'billing':'MIEN_PHI','free_reason':'Bảo hành'},follow_redirects=False)
-    assert response.headers['location']==path+'?da_luu=1'
     page=client.get(path);form=Page(page.text).forms['photo-SAU-form']
     response=client.post(form['action'],data={**form['fields']},files={'file':('sau.png',d5_image(),'image/png')},follow_redirects=False)
     assert response.headers['location']==path+'?da_luu=1'
-    form=Page(client.get(path).text).forms['service-HOAN_THANH']
-    response=client.post(form['action'],data=form['fields'],follow_redirects=False)
+    form=Page(client.get(path).text).forms['service-complete']
+    response=client.post(form['action'],data={**form['fields'],'billing':'MIEN_PHI','free_reason':'Bảo hành'},follow_redirects=False)
     assert response.headers['location']=='/tho'
 
 

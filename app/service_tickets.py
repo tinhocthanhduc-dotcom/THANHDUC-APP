@@ -186,93 +186,101 @@ def _transition(session: Session, user: User, ticket_id: int, to_status: str, ve
     with _transaction(session):
         t = _get(session, user, ticket_id, lock=True)
         _check_version(t, version)
-        is_dispatcher = has_role(user, *DISPATCHERS)
-        if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG') and (
-                is_dispatcher or (t.assignee_id == user.id and to_status != 'DA_HUY' and t.status != 'HOAN_THANH')):
-            from .equipment_custody import check_returned
-            check_returned(session,t)
-        if to_status == "DA_HUY":
-            if not is_dispatcher:
-                raise BusinessError("FORBIDDEN", "Chỉ điều phối hoặc giám đốc được hủy phiếu.", status=403)
-            if t.status not in CANCELLABLE:
-                raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không hủy được.", {"status": t.status}, status=409)
-        else:
-            if not is_dispatcher and (t.assignee_id != user.id or t.status == "HOAN_THANH"):
-                raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được cập nhật phiếu này.", status=403)
-            if to_status not in FLOW.get(t.status, ()):
-                raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
-                                    {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
-        if to_status == 'DA_DONG':
-            from .service_recovered_parts import check_received
-            check_received(session, t)
-        returning = t.status == 'DANG_LAM' and to_status == 'DA_HEN'
-        if no_show and t.status != 'DA_HEN':
-            raise BusinessError('BAD_STATUS', 'Chỉ ghi không gặp khách trên phiếu đang hẹn.', status=409)
-        if returning or no_show:
-            if not note:
-                raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do / người liên hệ và đã gọi khách chưa.')
-            if appointment_at is None:
-                raise BusinessError('APPOINTMENT_REQUIRED', 'Phải chọn giờ hẹn mới.')
-            if appointment_at.tzinfo is None or appointment_at <= _now():
-                raise BusinessError('BAD_APPOINTMENT', 'Giờ hẹn mới phải sau hiện tại.')
-        if to_status == "TAM_DUNG":
-            if hold_reason not in HOLD_REASONS:
-                raise BusinessError("HOLD_REASON_REQUIRED", "Phải chọn lý do tạm dừng.")
-            if hold_reason == "KHAC" and not note:
-                raise BusinessError("REASON_REQUIRED", "Tạm dừng vì lý do khác phải ghi chú.")
-        elif hold_reason:
-            raise BusinessError("BAD_HOLD_REASON", "Chỉ gửi lý do tạm dừng khi tạm dừng phiếu.")
-        if to_status == "HOAN_THANH":
-            from .attachments import has_visible  # attachments cũng dùng module này
+        return transition_in_tx(session, user, t, to_status, note, appointment_at, hold_reason, no_show)
 
-            if not has_visible(session, "service_ticket", t.id, "SAU"):
-                raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
-        reopening = t.status == "HOAN_THANH" and to_status in ("DANG_LAM", "DA_HUY")
-        if reopening and session.scalar(select(SalesReceipt.id).where(
-            SalesReceipt.ticket_id==t.id,SalesReceipt.status.in_(('CHO_XAC_NHAN','DA_XAC_NHAN'))).limit(1)) is not None:
-            raise BusinessError('HAS_RECEIPTS','Tài chính phải từ chối hoặc hủy báo thu trước.',status=409)
-        if (to_status in NEEDS_REASON or reopening) and len(note) < 3:
-            raise BusinessError("REASON_REQUIRED", "Phải ghi lý do.")
-        if to_status == "DA_HEN":
-            if appointment_at is None:
-                raise BusinessError("APPOINTMENT_REQUIRED", "Phải chọn giờ hẹn khách.")
-        elif appointment_at is not None:
-            raise BusinessError("BAD_APPOINTMENT", "Chỉ gửi giờ hẹn khi chốt lịch hẹn.")
-        before, from_status = snapshot(t), t.status
-        from . import service_charges  # service_charges cũng dùng module này
 
-        if to_status == "HOAN_THANH":
-            service_charges.complete(session, user, t)
-        elif reopening:
-            service_charges.release(session, user, t, note)
-        stamp = _now()
-        if from_status == 'DANG_LAM':
-            outcome = {'HOAN_THANH': 'XONG', 'DA_HEN': 'HEN_LAI', 'DA_HUY': 'HUY'}.get(to_status, to_status)
-            service_visits.close_visit(session, t, outcome, stamp, note, appointment_at if returning else None)
-        if to_status == 'DANG_LAM':
-            service_visits.open_visit(session, t, stamp)
-        if no_show:
-            service_visits.open_visit(session, t, stamp)
-            service_visits.close_visit(session, t, 'KHONG_GAP_KHACH', stamp, note, appointment_at)
-        if to_status == 'DA_HEN':
-            t.appointment_at = appointment_at
-        t.status = to_status
-        if to_status == "TAM_DUNG":
-            t.hold_reason = hold_reason
-        elif to_status == "DANG_LAM":
-            t.hold_reason = ""
-        if to_status in NEEDS_REASON:
-            t.status_reason = note
-        if to_status in CLOSED:
-            t.transfer_request = ""
-        t.due_at = service_sla.due_at(to_status, t.priority, _now(), t.appointment_at)
-        action = ("cancel" if to_status == "DA_HUY" else "reschedule" if from_status == to_status
-                  else "reopen" if reopening else "close" if to_status == "DA_DONG" else "transition")
-        if no_show:
-            # Một lượt mới vẫn đổi phiên bản khi giờ hẹn tình cờ bằng giờ đã lưu.
-            t.version += 1
-            action = "no_show"
-        _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
+def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: str,
+                     note: str = "", appointment_at: datetime | None = None, hold_reason: str = "",
+                     no_show: bool = False) -> ServiceTicket:
+    """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
+    note = (note or "").strip()
+    is_dispatcher = has_role(user, *DISPATCHERS)
+    if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG') and (
+            is_dispatcher or (t.assignee_id == user.id and to_status != 'DA_HUY' and t.status != 'HOAN_THANH')):
+        from .equipment_custody import check_returned
+        check_returned(session,t)
+    if to_status == "DA_HUY":
+        if not is_dispatcher:
+            raise BusinessError("FORBIDDEN", "Chỉ điều phối hoặc giám đốc được hủy phiếu.", status=403)
+        if t.status not in CANCELLABLE:
+            raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không hủy được.", {"status": t.status}, status=409)
+    else:
+        if not is_dispatcher and (t.assignee_id != user.id or t.status == "HOAN_THANH"):
+            raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được cập nhật phiếu này.", status=403)
+        if to_status not in FLOW.get(t.status, ()):
+            raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
+                                {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
+    if to_status == 'DA_DONG':
+        from .service_recovered_parts import check_received
+        check_received(session, t)
+    returning = t.status == 'DANG_LAM' and to_status == 'DA_HEN'
+    if no_show and t.status != 'DA_HEN':
+        raise BusinessError('BAD_STATUS', 'Chỉ ghi không gặp khách trên phiếu đang hẹn.', status=409)
+    if returning or no_show:
+        if not note:
+            raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do / người liên hệ và đã gọi khách chưa.')
+        if appointment_at is None:
+            raise BusinessError('APPOINTMENT_REQUIRED', 'Phải chọn giờ hẹn mới.')
+        if appointment_at.tzinfo is None or appointment_at <= _now():
+            raise BusinessError('BAD_APPOINTMENT', 'Giờ hẹn mới phải sau hiện tại.')
+    if to_status == "TAM_DUNG":
+        if hold_reason not in HOLD_REASONS:
+            raise BusinessError("HOLD_REASON_REQUIRED", "Phải chọn lý do tạm dừng.")
+        if hold_reason == "KHAC" and not note:
+            raise BusinessError("REASON_REQUIRED", "Tạm dừng vì lý do khác phải ghi chú.")
+    elif hold_reason:
+        raise BusinessError("BAD_HOLD_REASON", "Chỉ gửi lý do tạm dừng khi tạm dừng phiếu.")
+    if to_status == "HOAN_THANH":
+        from .attachments import has_visible  # attachments cũng dùng module này
+
+        if not has_visible(session, "service_ticket", t.id, "SAU"):
+            raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
+    reopening = t.status == "HOAN_THANH" and to_status in ("DANG_LAM", "DA_HUY")
+    if reopening and session.scalar(select(SalesReceipt.id).where(
+        SalesReceipt.ticket_id==t.id,SalesReceipt.status.in_(('CHO_XAC_NHAN','DA_XAC_NHAN'))).limit(1)) is not None:
+        raise BusinessError('HAS_RECEIPTS','Tài chính phải từ chối hoặc hủy báo thu trước.',status=409)
+    if (to_status in NEEDS_REASON or reopening) and len(note) < 3:
+        raise BusinessError("REASON_REQUIRED", "Phải ghi lý do.")
+    if to_status == "DA_HEN":
+        if appointment_at is None:
+            raise BusinessError("APPOINTMENT_REQUIRED", "Phải chọn giờ hẹn khách.")
+    elif appointment_at is not None:
+        raise BusinessError("BAD_APPOINTMENT", "Chỉ gửi giờ hẹn khi chốt lịch hẹn.")
+    before, from_status = snapshot(t), t.status
+    from . import service_charges  # service_charges cũng dùng module này
+
+    if to_status == "HOAN_THANH":
+        service_charges.complete(session, user, t)
+    elif reopening:
+        service_charges.release(session, user, t, note)
+    stamp = _now()
+    if from_status == 'DANG_LAM':
+        outcome = {'HOAN_THANH': 'XONG', 'DA_HEN': 'HEN_LAI', 'DA_HUY': 'HUY'}.get(to_status, to_status)
+        service_visits.close_visit(session, t, outcome, stamp, note, appointment_at if returning else None)
+    if to_status == 'DANG_LAM':
+        service_visits.open_visit(session, t, stamp)
+    if no_show:
+        service_visits.open_visit(session, t, stamp)
+        service_visits.close_visit(session, t, 'KHONG_GAP_KHACH', stamp, note, appointment_at)
+    if to_status == 'DA_HEN':
+        t.appointment_at = appointment_at
+    t.status = to_status
+    if to_status == "TAM_DUNG":
+        t.hold_reason = hold_reason
+    elif to_status == "DANG_LAM":
+        t.hold_reason = ""
+    if to_status in NEEDS_REASON:
+        t.status_reason = note
+    if to_status in CLOSED:
+        t.transfer_request = ""
+    t.due_at = service_sla.due_at(to_status, t.priority, _now(), t.appointment_at)
+    action = ("cancel" if to_status == "DA_HUY" else "reschedule" if from_status == to_status
+              else "reopen" if reopening else "close" if to_status == "DA_DONG" else "transition")
+    if no_show:
+        # Một lượt mới vẫn đổi phiên bản khi giờ hẹn tình cờ bằng giờ đã lưu.
+        t.version += 1
+        action = "no_show"
+    _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
     return t
 
 

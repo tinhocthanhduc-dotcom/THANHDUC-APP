@@ -935,7 +935,17 @@ Web có mục Linh kiện thu hồi (lọc thợ/trạng thái), đường vào 
 ## Màn thợ trên điện thoại (UX1a)
 
 - `GET /tho`: chỉ tài khoản có vai trò `technician`, hiển thị phiếu đang mở và đơn `THO_GIAO` của chính mình. Lịch hẹn hôm nay/quá giờ xếp trước, tiếp đến đang làm/chờ/tạm dừng, rồi các việc chưa đến lịch/chưa hẹn. Giờ Việt Nam; Gọi và Chỉ đường dùng địa điểm trên phiếu, dự phòng thông tin khách. Nút tiếp theo lấy từ `next_steps`.
-- `GET /tho/phieu/{id}`: chỉ thợ được giao; thợ khác trả 403. Hiển thị khối theo bước, ngoại lệ gập trong Việc khác, lịch sử gập và liên kết đến màn chi tiết hiện có. Kho vật tư chỉ hiện kho đang dùng của thợ. Điều kiện Hoàn thành là báo sớm theo dữ liệu đã lưu; máy chủ vẫn kiểm nghiệp vụ như trước.
+- `GET /tho/phieu/{id}`: chỉ thợ được giao; thợ khác trả 403. Hiển thị khối theo bước, ngoại lệ gập trong Việc khác, lịch sử gập và liên kết đến màn chi tiết hiện có. Kho vật tư chỉ hiện kho đang dùng của thợ. Điều kiện Hoàn thành báo sớm trên màn hình; từ UX1b, cách thu và kho được kiểm theo dữ liệu đang nhập, ảnh và trả máy theo dữ liệu đã lưu. Máy chủ vẫn kiểm đầy đủ nghiệp vụ.
 - Thợ chỉ có vai trò `technician` đăng nhập/trang đầu `/` về `/tho`, menu gồm Hôm nay, Hàng tôi giữ, Tiền tôi giữ, Thiết bị. Trang đầu/menu của vai trò khác và tài khoản kiêm nhiệm giữ nguyên.
 - Các form tiếp tục gửi tới route POST cũ với CSRF, `form_key` và `version`; thêm `return_to=tho` để quay lại màn phiếu hoặc Hôm nay khi không còn bước cho thợ. Không nhận URL chuyển hướng tùy ý. Lỗi giữ dữ liệu trên màn thợ. Đơn giao mở từ Hôm nay cũng dùng route S4 hiện có và quay lại `/tho` sau khi lưu.
-- Chưa gộp lưu tiền/hoàn thành/báo thu: UX1b làm ở PR riêng sau khi UX1a được gộp. UX1a không thêm bảng/migration và không đổi lõi dịch vụ, tính tiền hay báo thu.
+- UX1a không thêm bảng/migration và không đổi lõi dịch vụ, tính tiền hay báo thu. Luồng hoàn thành được gộp tiếp ở UX1b bên dưới.
+
+## Hoàn thành gộp trên màn thợ (UX1b)
+
+`POST /tho/phieu/{id}/hoan-thanh` nhận CSRF, `form_key`, `version`, các trường tiền/vật tư giống form Lưu tiền, `note` hoàn thành và hai trường tùy chọn: `amount` đã thu tại chỗ (đồng, chấp nhận dấu chấm hàng nghìn), `method` (`TIEN_MAT` hoặc `CHUYEN_KHOAN`). `amount` bỏ trống hoặc bằng 0 không sinh báo thu.
+
+Chỉ tài khoản có vai trò `technician` và được giao phiếu đang `DANG_LAM` dùng được đường này. Khóa phiếu, kiểm phiên bản đầu vào một lần, rồi lưu các dòng/cách thu, hoàn thành (khóa giá, xuất PX, chốt lượt `XONG`), và báo thu trong cùng transaction. Các hàm `set_charges_in_tx`, `transition_in_tx`, `report_for_ticket_in_tx` nhận phiếu đã khóa/kiểm phiên bản, không tự commit; các đường gọi cũ vẫn giữ giao dịch và kiểm phiên bản của mình.
+
+Thiếu ảnh sau, máy chưa trả, lý do miễn phí thiếu, thiếu tồn hoặc thu vượt đều rollback toàn bộ: phiếu vẫn đang làm, tiền/vật tư/giá/PX/lượt/báo thu không thay đổi. Màn thợ giữ các ô nhập để sửa và gửi lại. Báo thu thành công ở `CHO_XAC_NHAN`; tiền mặt hiện trong Tiền tôi giữ, kế toán xác nhận theo đường hiện có. Gửi lặp `form_key` đã xong chỉ trả lại chuyển hướng cũ.
+
+Màn thợ có một form tiền/vật tư, ghi chú và số đã thu, gửi bằng nút Hoàn thành cố định phía dưới. Không cần lưu tiền riêng. Màn `/dich-vu/{id}` của điều phối vẫn giữ các nút riêng. Không thêm bảng hoặc migration.

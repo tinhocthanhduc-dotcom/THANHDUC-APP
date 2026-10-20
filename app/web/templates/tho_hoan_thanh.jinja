@@ -1,0 +1,13 @@
+<section id="tien" class="card service-action"><h2>Tiền và vật tư</h2>
+<form id="service-complete" method="post" action="/tho/phieu/{{ t.id }}/hoan-thanh" class="form" data-charge-form data-charge-combined data-charge-unsaved="{{ '1' if charge_unsaved else '0' }}" data-charge-editable="1">
+{% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ charges.version }}">
+{% include 'dich_vu_tien_fields.jinja' %}
+<label>Ghi chú hoàn thành<textarea name="note" maxlength="2000">{{ completion_form.get('note','') }}</textarea></label>
+<fieldset><legend>Đã thu tại chỗ</legend>
+<label>Số tiền đã thu (đồng)<input name="amount" inputmode="numeric" data-money value="{{ completion_form.get('amount','') }}" placeholder="Bỏ trống nếu chưa thu"></label>
+<label>Hình thức<select name="method"><option value="TIEN_MAT" {% if completion_form.get('method','TIEN_MAT')=='TIEN_MAT' %}selected{% endif %}>Tiền mặt</option><option value="CHUYEN_KHOAN" {% if completion_form.get('method')=='CHUYEN_KHOAN' %}selected{% endif %}>Chuyển khoản</option></select></label>
+<p class="hint">Bỏ trống hoặc nhập 0 nếu chưa thu. Tiền đã thu sẽ chờ kế toán xác nhận.</p></fieldset>
+<p class="hint">Bấm Hoàn thành để lưu tiền, xuất vật tư và báo số tiền đã thu.</p>
+</form>
+{% include 'dich_vu_tien_templates.jinja' %}
+</section><script src="/static/charges.js" defer></script>

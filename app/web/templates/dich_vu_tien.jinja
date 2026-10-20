@@ -3,22 +3,7 @@
 {% if charge_unsaved %}<p class="alert warn">Dữ liệu tiền vừa nhập chưa được lưu.</p>{% endif %}
 <form id="service-charges" method="post" action="/dich-vu/{{ t.id }}/tien/luu" class="form" data-charge-form data-charge-unsaved="{{ '1' if charge_unsaved else '0' }}" data-charge-editable="{{ '1' if can_charge and charge_editable else '0' }}">
 {% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ charges.version }}">
-<fieldset {% if not can_charge or not charge_editable %}disabled{% endif %}>
-<fieldset><legend>Cách thu</legend><div class="seg stock-seg">
-<label><input type="radio" name="billing" value="THU_TIEN" {% if t.warranty_basis in ['PHIEU_TRUOC','MAY_CON_HAN'] and t.billing=='MIEN_PHI' and not can_warranty_override %}disabled{% endif %} {% if charges.billing == 'THU_TIEN' %}checked{% endif %} required><span>Có thu tiền</span></label>
-<label><input type="radio" name="billing" value="MIEN_PHI" {% if charges.billing == 'MIEN_PHI' %}checked{% endif %} required><span>Miễn phí</span></label>
-</div></fieldset>
-{% if t.warranty_basis in ['PHIEU_TRUOC','MAY_CON_HAN'] and can_warranty_override %}<label>Lý do chuyển bảo hành sang Có thu tiền (chỉ điều phối)<textarea name="billing_reason" maxlength="2000">{{ charges.get('billing_reason','') }}</textarea></label>{% endif %}
-<label>Lý do miễn phí<textarea name="free_reason" maxlength="2000" data-free-reason>{{ charges.free_reason }}</textarea></label>
-<div data-charge-lines>
-{% for line in charges.lines %}{% set index = loop.index0 %}{% include 'dich_vu_tien_dong.jinja' %}{% endfor %}
-</div>
-{% if can_charge and charge_editable %}<div class="stock-actions"><button type="button" data-charge-add="PHI">+ Dòng phí</button><button type="button" data-charge-add="VAT_TU">+ Vật tư</button></div>{% endif %}
-</fieldset>
-<div class="charge-preview" aria-live="polite"><strong>Tổng tạm tính (chưa lưu)</strong><dl>
-<dt>Tiền dòng</dt><dd><output data-charge-subtotal>—</output></dd><dt>VAT</dt><dd><output data-charge-vat-total>—</output></dd><dt>Tổng</dt><dd><output data-charge-total>—</output></dd><dt>Cần thu tạm</dt><dd><output data-charge-receivable>—</output></dd>
-</dl></div>
-<p class="alert warn" data-charge-warning hidden></p>
+{% include 'dich_vu_tien_fields.jinja' %}
 {% if can_charge and charge_editable %}<button class="primary">Lưu tiền</button><p class="hint">Bấm Lưu tiền trước khi Hoàn thành. Số lưu chính thức do lõi tính.</p>{% endif %}
 </form>
 <div class="charge-saved"><strong>{{ 'Số tiền đã chốt' if t.priced_at else 'Tổng các dòng đã lưu (lõi tính)' }}</strong><dl>
@@ -27,6 +12,6 @@
 {% if t.receivable is not none %}<dt>Cần thu</dt><dd>{{ t.receivable|money }} đồng</dd>{% endif %}
 </dl></div>
 {% if charge_docs %}<h3>Phiếu xuất vật tư</h3><ul>{% for doc_id, number in charge_docs %}<li><a href="/phieu-kho/{{ doc_id }}">{{ number }}</a></li>{% endfor %}</ul>{% endif %}
-{% for kind in ['PHI','VAT_TU'] %}<template id="charge-template-{{ kind }}">{% set line = dict(kind=kind, description='', product_code='', warehouse_code=charge_default_warehouse, qty='1', unit_price='0', vat_rate=default_vat_rate) %}{% set index = 'new' %}{% include 'dich_vu_tien_dong.jinja' %}</template>{% endfor %}
+{% include 'dich_vu_tien_templates.jinja' %}
 </section>
 <script src="/static/charges.js" defer></script>
