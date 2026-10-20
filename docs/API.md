@@ -908,3 +908,12 @@ form đề nghị hoàn trên chi tiết đơn; hàng chờ duyệt ở
 lỗi giữ dữ liệu nhập, replay không ghi trùng. Không thêm thư viện JS.
 Migration 0031 nối 0030; downgrade cần xử lý kho LOI trước, không tự biến kho lỗi
 thành kho bán được.
+
+## Lượt đến khách (KT5)
+
+- Mỗi lần vào `DANG_LAM` mở một `service_visits` cho thợ được giao; rời trạng thái này chốt lượt cùng transaction, kể cả yêu cầu linh kiện và giao lại thợ. Nút đến khách ghi là **Đã đến khách**. Chỉ mục có điều kiện bảo đảm mỗi phiếu tối đa một lượt mở.
+- `POST /service-tickets/{id}/transition` với `to_status=DA_HEN` từ `DANG_LAM`: bắt buộc `note` và `appointment_at` có múi giờ, sau hiện tại. Lượt chốt `HEN_LAI`, giữ `next_appointment_at`; tiền, vật tư và giữ máy không thay đổi.
+- `POST /service-tickets/{id}/no-show`: `{version, note, appointment_at}` khi phiếu `DA_HEN`; ghi người liên hệ/đã gọi khách chưa và giờ hẹn mới sau hiện tại. Tạo rồi chốt lượt `KHONG_GAP_KHACH` ngay, dời hẹn và giữ phiếu `DA_HEN`, không ghi bước đã làm. Thợ được giao hoặc điều phối/giám đốc thao tác; người chỉ giữ máy không có quyền này.
+- `GET /service-tickets/{id}/visits`: lịch sử theo giờ đến và ID, gồm thợ, giờ đến/kết thúc, kết quả, ghi chú, hẹn lần sau và phiên bản; dùng quyền xem phiếu hiện có. Lượt mở có `ended_at`/`outcome` rỗng. Trigger chỉ cho chốt một lần, cấm sửa nội dung lượt đã chốt và xóa mọi lượt.
+- D7 và CSV thêm `Số lượt`, `Lượt xong việc`, `Lượt hẹn lại`, `Lượt không gặp khách`, `Tổng giờ ở khách`. Đếm lượt/kết quả theo giờ đến trong kỳ (giờ Việt Nam), độc lập trạng thái phiếu hiện tại. Giờ ở khách lấy phần thời lượng giao với kỳ báo cáo; lượt mở tính đến hiện tại, không gặp khách có thời lượng 0. Phiếu chưa hoàn thành có từ 3 lượt xuất hiện nhãn **Đi nhiều lần** trên bảng điều phối.
+- Migration `0032` nối `0031`, tạo một lượt mở cho mỗi phiếu `DANG_LAM`, lấy giờ từ bước vào `DANG_LAM` gần nhất (bỏ bước ghi chú giữ nguyên trạng thái); dữ liệu thiếu bước dùng ngày tạo phiếu.

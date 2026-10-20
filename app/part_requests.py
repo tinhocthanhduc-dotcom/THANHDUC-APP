@@ -72,6 +72,9 @@ def create(session, user, ticket_id, body):
         session.add(row)
         if ticket.status == 'DANG_LAM':
             before = svc.snapshot(ticket)
+            from . import service_visits
+            service_visits.close_visit(session, ticket, 'CHO_LINH_KIEN', svc._now(),
+                f'Cần linh kiện {row.number}: {row.reason}')
             ticket.status, ticket.due_at = 'CHO_LINH_KIEN', None
             svc._record(session, user, ticket, 'transition', before, 'DANG_LAM', f'Cần linh kiện {row.number}: {row.reason}')
         _audit(session, user, row, 'create')

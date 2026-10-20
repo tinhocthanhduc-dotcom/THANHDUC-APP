@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .. import service_tickets as svc
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import AuditLog, ServiceStep, ServiceTicket, User
+from ..models import AuditLog, ServiceStep, ServiceTicket, ServiceVisit, User
 from ..security import has_role
 from . import render, web_user
 
@@ -66,7 +66,9 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
     from ..models import SalesOrder
     delivery_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))).order_by(SalesOrder.id)))
     delivery_labels={o.id:technician_deliveries.state(session,user,o)['label'] for o in delivery_orders}
-    return render(request, "dieu_phoi.jinja",delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
+    visit_counts = dict(session.execute(select(ServiceVisit.ticket_id, func.count()).where(
+        ServiceVisit.ticket_id.in_([t.id for t in rows])).group_by(ServiceVisit.ticket_id)).all())
+    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
                   count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
                   users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
                   now=now, delay=_delay)
@@ -162,7 +164,26 @@ def _report(session, start, end, since, until):
             row['classified'] += 1
         else:
             row['unknown'] += 1
+    now = _now()
+    # Đếm lượt theo giờ đến trong kỳ; giờ ở khách là phần thời gian giao với kỳ báo cáo.
+    visits = session.scalars(select(ServiceVisit).where(ServiceVisit.started_at < until,
+        or_(ServiceVisit.started_at >= since, ServiceVisit.ended_at > since,
+            and_(ServiceVisit.ended_at.is_(None), ServiceVisit.started_at < now, since < now))))
+    for visit in visits:
+        row = technicians.setdefault(visit.technician_id, dict(user_id=visit.technician_id,
+            name=names.get(visit.technician_id, 'Nhân viên'), completed=0, failed=0, durations=[],
+            late=0, classified=0, unknown=0))
+        for key in ('visits', 'visits_done', 'visits_return', 'visits_no_show', 'visit_hours'):
+            row.setdefault(key, 0)
+        if since <= visit.started_at < until:
+            row['visits'] += 1
+            row['visits_done'] += visit.outcome == 'XONG'
+            row['visits_return'] += visit.outcome == 'HEN_LAI'
+            row['visits_no_show'] += visit.outcome == 'KHONG_GAP_KHACH'
+        row['visit_hours'] += max(0, (min(visit.ended_at or now, until) - max(visit.started_at, since)).total_seconds()) / 3600
     for row in technicians.values():
+        for key in ('visits', 'visits_done', 'visits_return', 'visits_no_show', 'visit_hours'):
+            row.setdefault(key, 0)
         row['avg_minutes'] = sum(row['durations']) / len(row['durations']) if row['durations'] else None
         row['late_rate'] = 100 * row['late'] / row['classified'] if row['classified'] else None
     local_day = func.date(func.timezone("Asia/Ho_Chi_Minh", ServiceTicket.created_at))
@@ -223,11 +244,12 @@ def report_csv(request: Request, user: User = Depends(dispatch_user), session: S
             writer.writerow([row.number, _csv_text(names.get(row.assignee_id,'')), 'Tạm dừng', svc.HOLD_REASONS.get(row.hold_reason,'')])
         return Response("\ufeff" + output.getvalue(), media_type='text/csv; charset=utf-8',
                         headers={'Content-Disposition':'attachment; filename="tam-dung.csv"', 'Cache-Control':'private, no-store'})
-    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ"])
+    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách"])
     for row in technicians:
         writer.writerow([_csv_text(row['name']), row['completed'], row['failed'],
                          f"{row['avg_minutes']:.1f}" if row['avg_minutes'] is not None else "",
-                         f"{row['late_rate']:.1f}" if row['late_rate'] is not None else "", row['unknown']])
+                         f"{row['late_rate']:.1f}" if row['late_rate'] is not None else "", row['unknown'], row['visits'], row['visits_done'],
+                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}"])
     writer.writerow([])
     writer.writerow(["Ngày", "Đơn nhận", "Đơn hoàn thành"])
     writer.writerows([row['day'], row['received'], row['completed']] for row in daily)
