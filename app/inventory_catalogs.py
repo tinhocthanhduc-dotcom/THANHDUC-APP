@@ -85,13 +85,40 @@ def create(session: Session, user, model, body):
     if model is Supplier:
         n = session.execute(text("select nextval('ncc_seq')")).scalar_one()
         data["code"] = f"NCC-{n:04d}"
-    row = model(**data)
-    if model is Warehouse:
-        _validate_warehouse(session, row)
-    if model is Supplier:
-        row.search_text = _search_text(row)
-    session.add(row)
+    row = _insert(session,model,data)
     return _save(session, user, row, None)
+
+
+def _insert(session,model,data):
+    row=model(**data)
+    if model is Warehouse:_validate_warehouse(session,row)
+    if model is Supplier:row.search_text=_search_text(row)
+    session.add(row)
+    return row
+
+
+def technician_warehouse_in_tx(session,admin,holder):
+    """Account lifecycle only; caller owns the user transaction. No inventory permissions granted."""
+    if 'admin' not in admin.roles:
+        raise BusinessError('FORBIDDEN','Chỉ quản trị được tạo kho theo tài khoản.',status=403)
+    rows=list(session.scalars(select(Warehouse).where(Warehouse.kind=='THO',Warehouse.holder_id==holder.id).order_by(Warehouse.active.desc(),Warehouse.code).with_for_update()))
+    if rows:
+        row=rows[0]
+        if not row.active:
+            before=snapshot(row);row.active=True;row.version+=1
+            _validate_warehouse(session,row);session.flush()
+            audit.record(session,admin,'warehouse.update','warehouse',row.code,before,snapshot(row))
+        return row
+    # Existing catalog validation also checks holder role and the unique active warehouse.
+    from .schemas import WarehouseIn
+    stem=500000000+holder.id
+    code=f'K{stem}'
+    while session.get(Warehouse,code) is not None:
+        stem+=1;code=f'K{stem}'
+    body=WarehouseIn(code=code,name='Kho thợ '+holder.full_name,kind='THO',holder_id=holder.id)
+    row=_insert(session,Warehouse,body.model_dump())
+    session.flush();audit.record(session,admin,'warehouse.create','warehouse',row.code,None,snapshot(row))
+    return row
 
 
 def update(session: Session, user, model, code, body):

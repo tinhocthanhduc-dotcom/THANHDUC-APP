@@ -29,7 +29,7 @@
   <form method="post" action="/dang-xuat" class="who">
     <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-    <button class="link">Đăng xuất</button>
+    <a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
   </form>
 </header>
 <script src="/static/nav.js" defer></script>

@@ -138,7 +138,7 @@ class ProductOut(BaseModel):
 class UserIn(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    username: str = Field(pattern=r"^[a-z0-9._-]{3,64}$")
+    username: str = Field(pattern=r"^[a-z0-9._-]{3,32}$")
     full_name: str = Field(min_length=1, max_length=200)
     password: str
     roles: list[str] = Field(min_length=1)

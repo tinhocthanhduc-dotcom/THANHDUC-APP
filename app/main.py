@@ -33,6 +33,7 @@ app.include_router(sales_returns.router)
 app.include_router(web.router)
 app.mount("/static", web.static, name="static")
 app.add_exception_handler(web.LoginRequired, web.login_required_handler)
+app.add_exception_handler(web.PasswordChangeRequired,web.password_change_handler)
 
 
 @app.exception_handler(BusinessError)
