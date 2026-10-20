@@ -155,9 +155,9 @@ def set_group(session,user,item_id,group_code,version,reason='',supplier_code=No
 def split(session,user,item_id,qty,group_code,version):
     with _transaction(session):
         row=_locked(session,user,item_id,version);qty=quantity(qty);_group(session,group_code)
+        if qty>=row.qty_left:raise BusinessError('BAD_QTY','Số tách phải nhỏ hơn số còn chờ xử lý.')
         from .pending_dispositions import ensure_available
         ensure_available(session,row,qty)
-        if qty>=row.qty_left:raise BusinessError('BAD_QTY','Số tách phải nhỏ hơn số còn chờ xử lý.')
         if group_code==row.group_code:raise BusinessError('BAD_GROUP','Hãy chọn nhóm khác để tách.')
         before=snapshot(row);row.qty_left-=qty
         stamp=datetime.now(UTC).astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
