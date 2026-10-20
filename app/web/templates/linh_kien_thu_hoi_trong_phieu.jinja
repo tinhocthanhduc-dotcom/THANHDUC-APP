@@ -1,0 +1,12 @@
+{% if can_view_recovered %}<section class="card service-action" id="recovered-parts"><h2>Linh kiện thu hồi</h2>
+{% for part in recovered_parts %}<article class="card"><strong>{{ part.product_code }} · {{ part.qty }} · {{ recovered_statuses[part.status] }}</strong>
+<p>Thợ giữ: {{ users.get(part.holder_id,'Nhân viên') }}</p><p class="service-text">{{ part.note }}</p>
+{% if part.warehouse_code %}<p>Đã nộp {{ part.warehouse_code }} · {{ part.received_at|service_time }}</p>{% endif %}
+{% if part.void_reason %}<p>Lý do hủy: {{ part.void_reason }}</p>{% endif %}</article>{% else %}<p>Chưa có linh kiện thu hồi.</p>{% endfor %}
+<p><a href="/linh-kien-thu-hoi?ticket_id={{ t.id }}&amp;status=">Xem / nhận / hủy linh kiện thu hồi</a></p>
+{% if can_recover %}<form id="recovered-create" method="post" action="/linh-kien-thu-hoi/phieu/{{ t.id }}/tao" class="form">
+<h3>Thu hồi linh kiện hỏng</h3><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+<div data-picker><label>Mã hàng (tìm và chọn)<input name="product_code" value="{{ recovered_form.get('product_code','') }}" data-live=".recovered-options" data-source="/linh-kien-thu-hoi/tim-hang" required autocomplete="off"></label><div class="product-options recovered-options"></div></div>
+<label>Số lượng<input type="number" min="1" step="1" max="2147483647" name="qty" value="{{ recovered_form.get('qty','1') }}" required></label>
+<label>Tình trạng linh kiện<textarea name="note" maxlength="2000" required>{{ recovered_form.get('note','') }}</textarea></label><button>Thu hồi linh kiện hỏng</button></form>{% endif %}
+</section>{% endif %}

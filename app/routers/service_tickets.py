@@ -9,6 +9,7 @@ from ..db import get_session
 from ..models import User
 from ..schemas import (
     ServiceAssign,
+    ServiceWarrantyLink, RecoveredPartIn, RecoveredPartOut,
     ServiceNoShow,
     ServiceVisitOut,
     ServiceCharges,
@@ -93,3 +94,21 @@ def visits(ticket_id: int, user: User = Depends(current_user), session: Session 
 @router.post('/{ticket_id}/no-show', response_model=ServiceTicketOut)
 def no_show(ticket_id: int, body: ServiceNoShow, user: User = Depends(current_user), session: Session = Depends(get_session)):
     return svc.no_show(session, user, ticket_id, body.version, body.note, body.appointment_at)
+
+
+@router.post('/{ticket_id}/warranty', response_model=ServiceTicketOut)
+def warranty_link(ticket_id: int, body: ServiceWarrantyLink, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    from .. import service_warranty
+    return service_warranty.relink(session, user, ticket_id, body)
+
+
+@router.get('/{ticket_id}/recovered-parts', response_model=list[RecoveredPartOut])
+def recovered_parts(ticket_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    from .. import service_recovered_parts
+    return service_recovered_parts.search(session, user, ticket_id=ticket_id)
+
+
+@router.post('/{ticket_id}/recovered-parts', response_model=RecoveredPartOut, status_code=201)
+def recover_part(ticket_id: int, body: RecoveredPartIn, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    from .. import service_recovered_parts
+    return service_recovered_parts.create(session, user, ticket_id, body)

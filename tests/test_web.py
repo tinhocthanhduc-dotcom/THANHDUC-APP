@@ -1391,7 +1391,8 @@ def test_d6_ui_money_and_vat_are_computed_by_core(client, db, service_people, ch
     assert 'data-live=".charge-options"' in client.get(f'/dich-vu/{charge_work.id}').text or 'charge-template-VAT_TU' in response.text
     picked = client.get('/dich-vu/tim-vat-tu?q=may in').text
     assert 'TD-0001' in picked and 'data-price="120000"' in picked
-    assert 'type="number"' not in response.text
+    money_form = response.text.split('id="service-charges"',1)[1].split('</form>',1)[0]
+    assert 'type="number"' not in money_form
 
 
 def test_d6_ui_billing_and_empty_charges_errors_keep_data(client, db, service_people, charge_work):
@@ -1681,7 +1682,7 @@ def test_d7_csv_headers_and_vietnam_date_defaults(client, service_people, d7_his
     assert 'name="from" value="2026-10-05"' in response.text
     assert 'name="to" value="2026-10-11"' in response.text
     rows = d7_csv(client)
-    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách']
+    assert rows[0] == ['Thợ', 'Đơn hoàn thành', 'Không làm được', 'Thời gian trung bình (phút)', 'Tỷ lệ trễ (%)', 'Chưa xác định trễ', 'Số lượt', 'Lượt xong việc', 'Lượt hẹn lại', 'Lượt không gặp khách', 'Tổng giờ ở khách', 'Bị gọi bảo hành']
     assert ['Ngày', 'Đơn nhận', 'Đơn hoàn thành'] in rows
     response = client.get('/dieu-phoi/bao-cao.csv?from=2026-10-10&to=2026-10-10')
     assert response.content.startswith(b'\xef\xbb\xbf')

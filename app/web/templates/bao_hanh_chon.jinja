@@ -1,0 +1,5 @@
+{% for row in rows %}{% set stamp,tech=completions[row.id] %}
+<button type="button" data-warranty-ticket="{{ row.id }}" data-label="{{ row.number }}">
+{{ row.number }} · {{ row.serial or 'Không serial' }} · {{ users.get(tech,'Chưa giao') }}<br>
+Xong {{ stamp|service_time }} · {{ 'Còn hạn' if stamp and (today - stamp.astimezone(warranty_tz).date()).days <= warranty_days else 'Hết hạn' }}</button>
+{% else %}<p class="hint">Không có phiếu đã hoàn thành phù hợp của khách này.</p>{% endfor %}

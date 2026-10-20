@@ -44,4 +44,6 @@ def held(session, user, holder_id=None):
             for code,number,order_id,qty in session.execute(select(StockReservation.product_code,SalesOrder.number,SalesOrder.id,StockReservation.qty).join(
                 SalesOrder,SalesOrder.id==StockReservation.order_id).where(StockReservation.warehouse_code==warehouse.code,StockReservation.status=='GIU')):
                 reserved.setdefault(code,[]).append(dict(number=number,id=order_id,qty=qty))
-        return dict(warehouse=warehouse, holder=holder, rows=rows, reservations=reserved)
+        from .service_recovered_parts import search
+        recovered = search(session, user, holder_id=holder_id, pending=True)
+        return dict(recovered_parts=recovered, warehouse=warehouse, holder=holder, rows=rows, reservations=reserved)

@@ -45,6 +45,13 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
         free_reason = body.free_reason.strip()
         if body.billing == "MIEN_PHI" and len(free_reason) < 3:
             raise BusinessError("REASON_REQUIRED", "Miễn phí phải ghi lý do.")
+        warranty_override = (t.warranty_basis in ('PHIEU_TRUOC', 'MAY_CON_HAN')
+                             and t.billing == 'MIEN_PHI' and body.billing == 'THU_TIEN')
+        if warranty_override:
+            if not has_role(user, 'dispatcher'):
+                raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc được đổi bảo hành sang Có thu tiền.', status=403)
+            if not body.billing_reason.strip():
+                raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do thu tiền phiếu còn bảo hành.')
         own = technician_stock.restricted_warehouse(session, user, lock=True)
         if own:
             # Mỗi dòng cũ chỉ miễn kiểm một lần; không cho nhân bản dòng kho công ty.
@@ -72,7 +79,7 @@ def set_charges(session: Session, user: User, ticket_id: int, body: ServiceCharg
         # Thay dòng cũng là sửa phiếu, kể cả khi cách thu không thay đổi.
         t.version += 1
         session.flush()
-        audit.record(session, user, "service_ticket.charges", "service_ticket", str(t.id), before, _snapshot(t))
+        audit.record(session, user, "service_ticket.charges", "service_ticket", str(t.id), before, _snapshot(t), body.billing_reason.strip() if warranty_override else "")
     return t
 
 

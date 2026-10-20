@@ -26,7 +26,7 @@ TZ = ZoneInfo('Asia/Ho_Chi_Minh')
 
 
 def detail_context(session, user, ticket, shown=None):
-    saved = dict(billing=ticket.billing or '', free_reason=ticket.free_reason or '', version=ticket.version,
+    saved = dict(billing_reason='', billing=ticket.billing or '', free_reason=ticket.free_reason or '', version=ticket.version,
                  lines=[ServiceLineOut.model_validate(line).model_dump(mode='json') for line in ticket.lines])
     for line in saved['lines']:
         line['unit_price'] = money(line['unit_price'])
@@ -41,7 +41,7 @@ def detail_context(session, user, ticket, shown=None):
                  Product.code.in_([line.get('product_code') for line in data['lines'] if line.get('product_code')]))).all())
     docs = list(session.execute(select(StockDoc.id, StockDoc.number).where(
                 StockDoc.id.in_({line.stock_doc_id for line in ticket.lines if line.stock_doc_id is not None})).order_by(StockDoc.id)))
-    return dict(charges=data, charge_names=names, charge_stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]), charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
+    return dict(can_warranty_override=has_role(user,'dispatcher'), charges=data, charge_names=names, charge_stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]), charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
                 can_charge=has_role(user, 'dispatcher') or ticket.assignee_id == user.id,
                 charge_editable=ticket.status in service_tickets.OPEN,
                 charge_unsaved=shown is not None,
@@ -57,7 +57,7 @@ def _raw(form):
         lines.append(dict(kind=str(kind), description=at('line_description'), product_code=at('line_product') or None,
                           warehouse_code=str(form.get(f'warehouse_{i}', '')) or None, qty=at('line_qty'),
                           unit_price=at('line_price'), vat_rate=str(form.get(f'vat_{i}', str(DEFAULT_VAT_RATE)))))
-    return dict(billing=str(form.get('billing', '')), free_reason=str(form.get('free_reason', '')),
+    return dict(billing_reason=str(form.get('billing_reason','')), billing=str(form.get('billing', '')), free_reason=str(form.get('free_reason', '')),
                 version=str(form.get('version', '')), lines=lines)
 
 
@@ -75,7 +75,7 @@ def _body(raw, version):
             raise BusinessError('BAD_VAT', f'VAT dòng {i} phải là 0, 5, 8 hoặc 10%.')
         lines.append({**line, 'unit_price': int(price.replace('.', '')), 'vat_rate': vat,
                       'qty': str(line['qty']).replace(',', '.')})
-    return ServiceCharges(billing=raw['billing'], free_reason=raw['free_reason'], version=version, lines=lines)
+    return ServiceCharges(billing_reason=raw.get('billing_reason',''), billing=raw['billing'], free_reason=raw['free_reason'], version=version, lines=lines)
 
 
 @router.get('/dich-vu/tim-vat-tu')

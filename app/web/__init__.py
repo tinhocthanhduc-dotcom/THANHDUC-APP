@@ -587,3 +587,6 @@ router.include_router(daily_digest_router)
 
 from .technician_deliveries import router as technician_deliveries_router
 router.include_router(technician_deliveries_router)
+
+from .recovered_parts import router as recovered_parts_router
+router.include_router(recovered_parts_router)

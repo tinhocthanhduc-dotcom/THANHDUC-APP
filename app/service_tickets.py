@@ -131,6 +131,8 @@ def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket
             kind=body.kind, priority=body.priority, symptom=body.symptom, status="MOI",
             due_at=service_sla.due_at("MOI", body.priority, now, None), created_by=user.id,
         )
+        from . import service_warranty
+        service_warranty.apply(session, t, body.warranty_of_id)
         session.add(t)
         session.flush()
         _record(session, user, t, "create", None, None)
@@ -200,6 +202,9 @@ def _transition(session: Session, user: User, ticket_id: int, to_status: str, ve
             if to_status not in FLOW.get(t.status, ()):
                 raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
                                     {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
+        if to_status == 'DA_DONG':
+            from .service_recovered_parts import check_received
+            check_received(session, t)
         returning = t.status == 'DANG_LAM' and to_status == 'DA_HEN'
         if no_show and t.status != 'DA_HEN':
             raise BusinessError('BAD_STATUS', 'Chỉ ghi không gặp khách trên phiếu đang hẹn.', status=409)

@@ -6,10 +6,10 @@ from sqlalchemy import Date, case, cast, exists, func, literal, select, union_al
 
 from . import config, dashboard, day_closings, finance_reports, purchase_reports, sales_reports, service_tickets, stock_reservations
 from .models import (CashDoc, Customer, Product, PurchaseOrder, SalesReceipt, ServiceTicket,
-                     StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse)
+                     StockBalance, StockDoc, StockLedger, StockMinLevel, Warehouse, ServiceRecoveredPart, User)
 from .security import has_role
 
-LABELS = {'GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
+LABELS = {'THU_HOI_CHUA_NOP':'Linh kiện hỏng chưa nộp','GIU_VUOT_TON':'Giữ vượt tồn','DV_QUA_HAN':'Dịch vụ quá hạn','DUOI_TON_TOI_THIEU':'Dưới tồn tối thiểu',
           'BAO_THU_CHO':'Báo thu chờ xác nhận','KHACH_VUOT_HAN_MUC':'Khách vượt hạn mức',
           'KHACH_NO_QUA_HAN':'Khách nợ quá hạn','NCC_NO_QUA_HAN':'NCC nợ quá hạn',
           'DON_MUA_TRE':'Đơn mua trễ hẹn','CHUA_CHOT_SO':'Ngày chưa chốt sổ',
@@ -69,6 +69,14 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         add('DV_QUA_HAN',select(t.id.label('link_key'),t.number,t.due_at.label('oldest'),literal('DO').label('level'))
             .where(t.status.in_(service_tickets.OPEN),t.due_at<now),
             lambda r:(f"{r['number']} quá hạn",f"Hạn xử lý {_stamp(r['oldest']).strftime('%d/%m/%Y %H:%M')}",f"/dich-vu/{r['link_key']}"))
+
+        recovered = ServiceRecoveredPart
+        add('THU_HOI_CHUA_NOP', select(recovered.id.label('link_key'), recovered.ticket_id, t.number,
+            recovered.product_code, recovered.qty, recovered.holder_id, User.full_name, recovered.created_at.label('oldest'),
+            literal('VANG').label('level')).join(t, t.id == recovered.ticket_id).join(User, User.id == recovered.holder_id)
+            .where(recovered.status == 'CHO_NOP', recovered.created_at < now - timedelta(days=3)),
+            lambda r: (f"{r['number']} · linh kiện hỏng chưa nộp", f"{r['full_name']}: {r['product_code']} × {r['qty']}, giữ quá 3 ngày.",
+                '/linh-kien-thu-hoi?tho=' + str(r['holder_id'])))
 
         m=StockMinLevel;b=StockBalance
         qty=func.coalesce(b.qty,0)

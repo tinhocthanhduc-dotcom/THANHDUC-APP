@@ -7,5 +7,6 @@
 {% if supplier or finance_catalog %}<form action="{{ path }}" class="search" role="search">
 <input name="q" value="{{ q }}" placeholder="{{ 'Tìm mã hoặc tên (không dấu cũng được)' if finance_catalog else 'Tìm tên, mã NCC, MST, số điện thoại (không dấu cũng được)' }}" data-live="#rows" autofocus>
 </form>{% endif %}
+{% if path=='/kho' %}<p><a class="btn" href="/linh-kien-thu-hoi">Hàng lỗi chờ nhận</a></p>{% endif %}
 <div id="rows">{% include "danh_muc_dong.jinja" %}</div>
 {% endblock %}

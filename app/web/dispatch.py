@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from .. import service_tickets as svc
 from ..db import get_session
@@ -181,7 +181,19 @@ def _report(session, start, end, since, until):
             row['visits_return'] += visit.outcome == 'HEN_LAI'
             row['visits_no_show'] += visit.outcome == 'KHONG_GAP_KHACH'
         row['visit_hours'] += max(0, (min(visit.ended_at or now, until) - max(visit.started_at, since)).total_seconds()) / 3600
+    warranty, previous = aliased(ServiceTicket), aliased(ServiceTicket)
+    finishing_tech = select(ServiceStep.assignee_id).where(ServiceStep.ticket_id == previous.id,
+        ServiceStep.to_status == 'HOAN_THANH', ServiceStep.from_status.is_distinct_from('HOAN_THANH'),
+        ServiceStep.at <= warranty.created_at).order_by(ServiceStep.at.desc(), ServiceStep.id.desc()).limit(1).correlate(previous, warranty).scalar_subquery()
+    technician = func.coalesce(finishing_tech, previous.assignee_id)
+    for uid, count in session.execute(select(technician, func.count()).select_from(warranty).join(
+            previous, previous.id == warranty.warranty_of_id).where(warranty.warranty_basis == 'PHIEU_TRUOC',
+            warranty.created_at >= since, warranty.created_at < until).group_by(technician)):
+        row = technicians.setdefault(uid, dict(user_id=uid, name=names.get(uid, 'Chưa giao'),
+            completed=0, failed=0, durations=[], late=0, classified=0, unknown=0))
+        row['warranty_calls'] = count
     for row in technicians.values():
+        row.setdefault('warranty_calls', 0)
         for key in ('visits', 'visits_done', 'visits_return', 'visits_no_show', 'visit_hours'):
             row.setdefault(key, 0)
         row['avg_minutes'] = sum(row['durations']) / len(row['durations']) if row['durations'] else None
@@ -244,12 +256,12 @@ def report_csv(request: Request, user: User = Depends(dispatch_user), session: S
             writer.writerow([row.number, _csv_text(names.get(row.assignee_id,'')), 'Tạm dừng', svc.HOLD_REASONS.get(row.hold_reason,'')])
         return Response("\ufeff" + output.getvalue(), media_type='text/csv; charset=utf-8',
                         headers={'Content-Disposition':'attachment; filename="tam-dung.csv"', 'Cache-Control':'private, no-store'})
-    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách"])
+    writer.writerow(["Thợ", "Đơn hoàn thành", "Không làm được", "Thời gian trung bình (phút)", "Tỷ lệ trễ (%)", "Chưa xác định trễ", "Số lượt", "Lượt xong việc", "Lượt hẹn lại", "Lượt không gặp khách", "Tổng giờ ở khách", "Bị gọi bảo hành"])
     for row in technicians:
         writer.writerow([_csv_text(row['name']), row['completed'], row['failed'],
                          f"{row['avg_minutes']:.1f}" if row['avg_minutes'] is not None else "",
                          f"{row['late_rate']:.1f}" if row['late_rate'] is not None else "", row['unknown'], row['visits'], row['visits_done'],
-                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}"])
+                         row['visits_return'], row['visits_no_show'], f"{row['visit_hours']:.2f}", row['warranty_calls']])
     writer.writerow([])
     writer.writerow(["Ngày", "Đơn nhận", "Đơn hoàn thành"])
     writer.writerows([row['day'], row['received'], row['completed']] for row in daily)

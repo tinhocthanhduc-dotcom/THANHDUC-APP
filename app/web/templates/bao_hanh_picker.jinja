@@ -1,0 +1,7 @@
+<div data-warranty-picker data-customer="{{ t.customer_code if t is defined else d.customer_code }}" data-serial="{{ t.serial or '' if t is defined else d.get('serial','') }}">
+<label>Tìm phiếu trước: số DV, serial hoặc tên khách<input data-warranty-query autocomplete="off" value="{{ warranty_selected.number if warranty_selected else '' }}"></label>
+<input type="hidden" name="warranty_of_id" value="{{ warranty_value or '' }}">
+<p class="hint" data-warranty-selected>{{ warranty_selected.number if warranty_selected else ('Phiếu #' ~ warranty_value if warranty_value else 'Chưa chọn phiếu trước') }}</p>
+<button type="button" data-warranty-clear>Không chọn phiếu trước</button>
+<div class="product-options" data-warranty-options aria-live="polite"></div>
+</div>

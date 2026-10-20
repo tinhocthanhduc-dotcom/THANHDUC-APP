@@ -16,6 +16,11 @@
 <fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
 {% for value, label in service_kinds.items() %}<label><input type="radio" name="kind" value="{{ value }}" {% if d.kind == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></fieldset>
+<section data-warranty-section {% if d.kind != 'BAO_HANH' %}hidden{% endif %}>
+<h2>Bảo hành cho phiếu trước</h2>
+{% set warranty_value=d.get('warranty_of_id','') %}{% include 'bao_hanh_picker.jinja' %}
+<p class="hint">Không chọn phiếu trước: kiểm hạn bảo hành của máy. Hết hạn vẫn nhận đơn, không tự miễn phí.</p>
+</section>
 <fieldset><legend>Mức ưu tiên</legend><div class="seg stock-seg">
 {% for value, label in service_priorities.items() %}<label><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></fieldset>
@@ -23,5 +28,5 @@
 </fieldset>
 {% if can_create %}<button class="primary">Nhận đơn</button>{% endif %}
 </form>
-<script src="/static/services.js" defer></script>
+<script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script>
 {% endblock %}

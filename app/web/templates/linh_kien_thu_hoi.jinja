@@ -1,0 +1,21 @@
+{% extends 'base.jinja' %}
+{% block title %}Linh kiện thu hồi{% endblock %}
+{% block main %}<h1>Linh kiện thu hồi</h1><h2>Hàng lỗi chờ nhận</h2>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<form action="/linh-kien-thu-hoi" class="card form">
+<label>Lọc theo thợ<select name="tho"><option value="">Tất cả</option>{% for id,name in users.items() %}<option value="{{ id }}" {% if holder==id %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+<label>Trạng thái<select name="status"><option value="">Tất cả</option>{% for code,label in statuses.items() %}<option value="{{ code }}" {% if selected_status==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+{% if ticket_id %}<input type="hidden" name="ticket_id" value="{{ ticket_id }}">{% endif %}<button>Lọc</button></form>
+<div class="work-rows">{% for row in rows %}<article class="card work-row" id="recovered-{{ row.id }}">
+<h2>{{ row.product_code }} · {{ names.get(row.product_code,'') }}</h2><strong>{{ row.qty }} · {{ statuses[row.status] }}</strong>
+<p>{% if can_ticket %}<a href="/dich-vu/{{ row.ticket_id }}">{{ tickets[row.id].number }}</a>{% else %}{{ tickets[row.id].number }}{% endif %} · Thợ giữ: {{ users.get(row.holder_id,'Nhân viên') }}</p>
+<p class="service-text">{{ row.note }}</p><p>Ghi nhận {{ row.created_at|service_time }}</p>
+{% if row.status=='DA_NHAN' %}<p>Đã nhận tại {{ row.warehouse_code }} · {{ row.received_at|service_time }} · {{ users.get(row.received_by,'Nhân viên') }}</p>{% if can_receive %}<a href="/phieu-kho/{{ row.stock_doc_id }}">Phiếu nhập hàng lỗi</a>{% endif %}{% endif %}
+{% if row.void_reason %}<p>Lý do hủy: {{ row.void_reason }}</p>{% endif %}
+{% if row.status=='CHO_NOP' and can_receive %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/nhan" class="form">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
+<label>Kho hàng lỗi<select name="warehouse_code">{% for w in warehouses %}<option value="{{ w.code }}" {% if failed_id==row.id and form.get('warehouse_code')==w.code %}selected{% endif %}>{{ w.code }} · {{ w.name }}</option>{% else %}<option value="">Chưa có kho LOI đang dùng</option>{% endfor %}</select></label><button>Nhận hàng lỗi</button></form>{% endif %}
+{% if row.status=='CHO_NOP' and can_cancel(row) %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/huy" class="form">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
+<label>Lý do hủy<textarea name="reason" maxlength="2000" required>{{ form.get('reason','') if failed_id==row.id else '' }}</textarea></label><button>Hủy dòng thu hồi</button></form>{% endif %}
+</article>{% else %}<p class="card">Không có linh kiện thu hồi phù hợp.</p>{% endfor %}</div>{% endblock %}
