@@ -152,9 +152,19 @@ def stock_pick(request: Request, q: str = '', user: User = Depends(web_user), se
 def stock_request(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     from .services import _message
     user = request.state.user
-    data = {k: str(form.get(k, '')) for k in ('product_code', 'qty', 'reason')}
+    codes = [str(v).strip() for v in form.getlist('product_code')]
+    qtys = [str(v).strip() for v in form.getlist('qty')]
+    reason = str(form.get('reason', ''))
+    # Thẻ A: nhiều dòng mã + số lượng; dòng trống (ô tìm khi không có JS) bị bỏ qua.
+    pairs = [(c, q) for c, q in zip(codes, qtys) if c] if len(codes) == len(qtys) else []
+    names = {p.code: p.name for p in session.scalars(select(Product).where(Product.code.in_([c for c, _ in pairs])))} if pairs else {}
+    data = dict(lines=[(c, q, names.get(c, '')) for c, q in pairs], reason=reason, qty='1')
     try:
-        svc.create_stock(session, user, PartStockIn(**{**data, 'qty': data['qty'].replace(',', '.')}))
+        if len(codes) != len(qtys):
+            raise BusinessError('BAD_LINES', 'Danh sách linh kiện không hợp lệ, hãy tải lại trang.')
+        bodies = [PartStockIn(product_code=c, qty=q.replace(',', '.'), reason=reason) for c, q in pairs] or \
+            [PartStockIn(product_code='', qty=(qtys[0] if qtys else '1').replace(',', '.'), reason=reason)]
+        svc.create_stock_many(session, user, bodies)
     except (BusinessError, ValidationError) as exc:
         message, code, status = _message(exc)
         if code == 'FORBIDDEN':

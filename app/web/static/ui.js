@@ -102,6 +102,33 @@
   document.querySelectorAll('[data-swipe]').forEach(bindSwipe);
   window.bindSwipe = bindSwipe;
 
+  // ---- Chip điền nhanh lý do (data-fill) và nút mở khung (data-open-details) ----
+  document.addEventListener('click', function (event) {
+    var chip = event.target.closest('[data-fill-value]');
+    if (chip) {
+      var box = chip.closest('[data-fill]'), sel = box.dataset.fillSel || '[name="' + box.dataset.fill + '"]', scope = box, target = null;
+      // Tìm ô cùng tên gần nhất đi ngược lên, để chip đặt ngoài form vẫn điền đúng ô.
+      while (scope && !(target = scope.querySelector(sel))) scope = scope.parentElement;
+      if (target) {
+        target.value = chip.dataset.fillValue;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        box.querySelectorAll('[data-fill-value]').forEach(function (b) { b.classList.toggle('on', b === chip); });
+        buzz(15);
+      }
+      return;
+    }
+    var opener = event.target.closest('[data-open-details]');
+    if (opener) {
+      var details = document.querySelector(opener.getAttribute('href'));
+      if (details && details.tagName === 'DETAILS') {
+        event.preventDefault();
+        details.open = true;
+        details.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        var summary = details.querySelector('summary'); if (summary) summary.focus({ preventScroll: true });
+      }
+    }
+  });
+
   // ---- Nút − / + cho ô số lượng ----
   document.addEventListener('click', function (event) {
     var b = event.target.closest('[data-step]');

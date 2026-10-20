@@ -26,6 +26,32 @@
       copy.querySelector('[name=return_qty]').focus();
     });update();
   });
+  // Thẻ A: tick từng mã cần trả; bỏ tick thì số trả về 0 và ẩn phần chi tiết.
+  function qtyOf(row){var q=row.querySelector('[name=return_qty]');return q?Number(q.value.replace(',','.'))||0:0;}
+  function syncPick(row){
+    var pick=row.querySelector('[data-return-pick]'),detail=row.querySelector('[data-return-detail]');if(!pick)return;
+    pick.checked=qtyOf(row)>0;if(detail)detail.hidden=!pick.checked;
+  }
+  document.querySelectorAll('[data-return-fields]').forEach(function(root){
+    root.querySelectorAll('[data-return-row]').forEach(syncPick);
+    root.addEventListener('change',function(event){
+      var pick=event.target.closest('[data-return-pick]');if(!pick)return;
+      var row=pick.closest('[data-return-row]'),q=row.querySelector('[name=return_qty]');
+      if(pick.checked&&qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';
+      if(!pick.checked)q.value='0';
+      q.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    root.addEventListener('input',function(event){var row=event.target.closest('[data-return-row]');if(row)syncPick(row);});
+    root.addEventListener('click',function(event){
+      if(event.target.closest('[data-return-split]')){setTimeout(function(){root.querySelectorAll('[data-return-row]').forEach(function(row){var d=row.querySelector('[data-return-detail]');if(d)d.hidden=false;});},0);}
+      if(!event.target.closest('[data-return-all]'))return;
+      root.querySelectorAll('[data-return-row]').forEach(function(row){
+        var q=row.querySelector('[name=return_qty]');if(qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';
+        syncPick(row);
+      });
+      root.dispatchEvent(new Event('return-state'));
+    });
+  });
   document.querySelectorAll('[data-receive-condition]').forEach(function(row){
     row.addEventListener('change',function(){condition(row,true);});condition(row,true);
   });

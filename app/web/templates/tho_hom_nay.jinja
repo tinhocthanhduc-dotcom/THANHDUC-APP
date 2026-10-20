@@ -7,7 +7,7 @@
 <h2>{{ job.customer }}</h2>{% if job.appointment %}<p>{{ 'Quá giờ · ' if job.overdue else '' }}Hẹn {{ job.appointment|appointment_label(job.get('appointment_slot')) }}</p>{% elif job.overdue %}<p>Quá hạn xử lý</p>{% endif %}
 {% if job.address %}<p class="tho-one-line" title="{{ job.address }}">{{ job.address }}</p>{% endif %}
 {% if job.machine or job.serial %}<p class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</p>{% endif %}
-<p class="tho-one-line" title="{{ job.symptom }}">{{ job.symptom }}</p>
-<div class="tho-contact">{% if job.phone %}<a class="btn" href="tel:{{ job.phone }}">Gọi</a>{% endif %}{% if job.maps %}<a class="btn" href="{{ job.maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</div>
-{% if job.action %}<a class="btn primary tho-job-next" href="{{ job.href }}{% if job.action.form %}#{{ job.action.form }}{% endif %}" data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}">{{ job.action.label }}</a>{% endif %}
+<p class="tho-one-line tho-symptom" title="{{ job.symptom }}">{{ job.symptom }}</p>
+<div class="tho-contact">{% if job.phone %}<a class="btn btn-info" href="tel:{{ job.phone }}">Gọi</a>{% endif %}{% if job.maps %}<a class="btn btn-ghost" href="{{ job.maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</div>
+{% if job.action %}<a class="btn primary btn-ok tho-job-next" href="{{ job.href }}{% if job.action.form %}#{{ job.action.form }}{% endif %}" data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}">{{ job.action.label }}</a>{% endif %}
 </article>{% else %}<p class="card">Bạn không có việc đang mở.</p>{% endfor %}</div></div>{% endblock %}
