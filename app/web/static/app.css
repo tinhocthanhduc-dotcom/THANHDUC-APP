@@ -460,3 +460,7 @@ main:has([data-receipt-queue]) {max-width:1280px;}
 .tech-photos .bar {margin-bottom:0;}.tech-photos .photo-capture {position:relative;cursor:pointer;}.tech-photos input[type=file] {position:absolute;width:1px;height:1px;opacity:0;}
 .tech-photo-list {display:flex;flex-wrap:wrap;gap:.5rem;}.tech-photo {width:94px;display:flex;flex-direction:column;gap:.2rem;margin-top:.5rem;}.tech-photo img {width:94px;height:94px;object-fit:cover;border-radius:8px;}.tech-photo button {padding:.35rem;min-height:36px;}.tech-photo small {font-size:.8rem;}
 @media(max-width:400px){.tech-material {align-items:flex-start;flex-direction:column;}.tech-stepper {align-self:flex-end;}}
+
+.account-list {display:grid;gap:.6rem;margin-top:1rem;}.account-row {display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:.6rem;align-items:center;overflow-wrap:anywhere;}.account-row h2 {font-size:1.1rem;margin:0;}.account-row>* {min-width:0;}
+.account-actions {display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0;}.account-actions form {margin:0;}.account-roles label {flex:0 1 auto;}.account-secret {font-family:monospace;font-size:1.7rem;letter-spacing:.12em;text-align:center;}.who [data-account-item] {font-size:.9rem;}
+@media(max-width:600px){.account-row {grid-template-columns:1fr 1fr;}.account-row h2,.account-row small {grid-column:1/-1;}.account-actions>* {flex:1 1 100%;}.account-actions button {width:100%;}.who {flex-wrap:wrap;justify-content:flex-end;}}

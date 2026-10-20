@@ -63,6 +63,14 @@ class LoginRequired(Exception):
         self.next_url = next_url
 
 
+class PasswordChangeRequired(Exception):
+    pass
+
+
+async def password_change_handler(request: Request, exc: PasswordChangeRequired) -> Response:
+    return RedirectResponse('/doi-mat-khau',status_code=303)
+
+
 async def login_required_handler(request: Request, exc: LoginRequired) -> Response:
     return RedirectResponse("/dang-nhap?" + urlencode({"next": exc.next_url}), status_code=303)
 
@@ -82,14 +90,17 @@ def web_user(request: Request, session: Session = Depends(get_session)) -> User:
     token = request.cookies.get(COOKIE, "")
     target = request.url.path + ("?" + request.url.query if request.url.query else "")
     try:
-        user_id = int(jwt.decode(token, get_settings().secret_key, algorithms=["HS256"])["sub"])
+        payload=jwt.decode(token,get_settings().secret_key,algorithms=["HS256"])
+        user_id = int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         raise LoginRequired(target)
     user = session.get(User, user_id)
-    if not user or not user.active:
+    if not user or not user.active or type(payload.get("tv")) is not int or payload["tv"]!=user.token_version:
         raise LoginRequired(target)
     request.state.user = user
     request.state.csrf = csrf_token(token)
+    if user.must_change_password and request.url.path not in ("/doi-mat-khau","/dang-xuat"):
+        raise PasswordChangeRequired()
     return user
 
 
@@ -170,7 +181,10 @@ def my_work_page(request: Request, user: User = Depends(web_user), session: Sess
 
 
 @router.get("/dang-nhap")
-def login_page(request: Request, next: str = "/"):
+def login_page(request: Request, next: str = "/", session: Session=Depends(get_session)):
+    if request.cookies.get(COOKIE):
+        try:web_user(request,session)
+        except LoginRequired:pass
     return render(request, "dang_nhap.jinja", next=_safe_next(next), username="", error=None)
 
 
@@ -179,15 +193,17 @@ async def login_submit(request: Request, session: Session = Depends(get_session)
     form = await request.form()
     username = str(form.get("username", "")).strip().lower()
     next_url = _safe_next(str(form.get("next", "")))
-    user = session.scalars(select(User).where(User.username == username)).first()
-    if not user or not user.active or not verify_password(str(form.get("password", "")), user.password_hash):
+    from .. import users as user_service
+    try:user,token=user_service.authenticate(session,username,str(form.get('password','')))
+    except BusinessError:
         return render(request, "dang_nhap.jinja", next=next_url, username=username, error="Sai tên đăng nhập hoặc mật khẩu.", status=401)
     s = get_settings()
     # Quay lại trang đang mở trước khi hết phiên nếu vai trò được vào, không thì về trang đầu theo vai trò.
     target = next_url if next_url != "/" and nav.allowed(user, next_url.split("?")[0]) else nav.home_url(user)
+    if user.must_change_password:target="/doi-mat-khau"
     response = RedirectResponse(target, status_code=303)
     response.set_cookie(
-        COOKIE, issue_token(user), max_age=s.token_minutes * 60, httponly=True, samesite="lax", secure=s.cookie_secure
+        COOKIE, token, max_age=s.token_minutes * 60, httponly=True, samesite="lax", secure=s.cookie_secure
     )
     return response
 
@@ -597,3 +613,6 @@ router.include_router(technician_router)
 
 from .technician_returns import router as technician_returns_router
 router.include_router(technician_returns_router)
+
+from .users import router as users_router
+router.include_router(users_router)

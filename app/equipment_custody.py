@@ -256,6 +256,11 @@ def cycle_starts():
 
 def held(session,user,location='',today=None):
     if not has_role(user,'warehouse','dispatcher'):_forbidden()
+    return held_rows(session,location,today)
+
+
+def held_rows(session,location='',today=None,holder_id=None):
+    """Shared read query; callers enforce their view's permission before calling."""
     now = _now();today = today or now.astimezone(service_sla.TZ).date()
     last = select(EquipmentCustody.serial,func.max(EquipmentCustody.id).label('id')).where(
         EquipmentCustody.status=='DA_NHAN').group_by(EquipmentCustody.serial).subquery()
@@ -263,6 +268,7 @@ def held(session,user,location='',today=None):
     rows = select(Equipment,EquipmentCustody,ServiceTicket,cycle.c.started).join(cycle,cycle.c.serial==Equipment.serial).join(last,last.c.serial==Equipment.serial).join(
         EquipmentCustody,EquipmentCustody.id==last.c.id).join(ServiceTicket,ServiceTicket.id==Equipment.custody_ticket_id).where(Equipment.custody_location!='TAI_KHACH')
     if location:rows=rows.where(Equipment.custody_location==location)
+    if holder_id is not None:rows=rows.where(Equipment.custody_holder_id==holder_id)
     output=[]
     for eq,row,t,started in session.execute(rows.order_by(cycle.c.started,Equipment.serial)):
         days = max(0,(today-started.astimezone(service_sla.TZ).date()).days)

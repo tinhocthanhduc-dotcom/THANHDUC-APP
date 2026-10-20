@@ -35,7 +35,7 @@ def verify_password(password: str, hashed: str) -> bool:
 def issue_token(user: User) -> str:
     s = get_settings()
     now = datetime.now(UTC)
-    payload = {"sub": str(user.id), "iat": now, "exp": now + timedelta(minutes=s.token_minutes)}
+    payload = {"tv": user.token_version, "sub": str(user.id), "iat": now, "exp": now + timedelta(minutes=s.token_minutes)}
     return jwt.encode(payload, s.secret_key, algorithm="HS256")
 
 
@@ -48,8 +48,10 @@ def current_user(token: str | None = Depends(_oauth2), session: Session = Depend
     except (jwt.PyJWTError, KeyError, ValueError):
         raise BusinessError("UNAUTHENTICATED", "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.", status=401)
     user = session.get(User, user_id)
-    if not user or not user.active:
+    if not user or not user.active or type(payload.get("tv")) is not int or payload["tv"] != user.token_version:
         raise BusinessError("UNAUTHENTICATED", "Tài khoản đã bị khóa.", status=401)
+    if user.must_change_password:
+        raise BusinessError("PASSWORD_CHANGE_REQUIRED","Phải đổi mật khẩu trước khi tiếp tục.",status=403)
     return user
 
 

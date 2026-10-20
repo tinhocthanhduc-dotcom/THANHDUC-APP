@@ -58,6 +58,13 @@ GROUPS = (
         {'label': 'Nhà cung cấp', 'href': '/nha-cung-cap', 'prefixes': ('/nha-cung-cap',), 'roles': ('warehouse', 'finance')},
     )},
 )
+# Tài khoản có phạm vi riêng: quyền giám đốc ở menu nghiệp vụ không bao gồm quản trị.
+ACCOUNT_GROUPS = (
+    {'label': 'Quản trị', 'items': (
+        {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
+        {'label': 'Đổi mật khẩu', 'href': '/doi-mat-khau', 'prefixes': ('/doi-mat-khau',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
+    )},
+)
 _BOOL_QUERY = TypeAdapter(bool)
 PUBLIC_PATHS = frozenset(('/', '/dang-nhap', '/dang-xuat'))
 ROLE_LABELS = {'director': 'Giám đốc', 'finance': 'Kế toán', 'dispatcher': 'Điều phối',
@@ -75,7 +82,7 @@ def matching(path, query=None):
     """Đường dẫn cụ thể thắng prefix cha, không dùng phép hợp quyền của cha."""
     query = query or {}
     matches = []
-    for item in items():
+    for item in items() + tuple(item for group in ACCOUNT_GROUPS for item in group['items']):
         for prefix in item['prefixes']:
             base = prefix
             if not (path == base or path.startswith(base + '/') or path == base + '.csv'):
@@ -126,8 +133,8 @@ def menu(user, path, query=None):
     if pure_technician(user):
         links = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
         groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in links], active=False)]
-    for group in GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and has_role(user, *item.get('menu_roles',item['roles']))]
+    for group in GROUPS + ACCOUNT_GROUPS:
+        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and not item.get('account_page') and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)

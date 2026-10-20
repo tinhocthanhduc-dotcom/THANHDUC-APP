@@ -38,6 +38,11 @@ class User(Base):
     roles: Mapped[list[str]] = mapped_column(ARRAY(String(32)), default=list)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    phone: Mapped[str] = mapped_column(Text, default='', server_default='')
+    token_version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Customer(Base):
