@@ -7,7 +7,7 @@ from sqlalchemy import Date, case, cast, func, literal, select, union_all
 
 from . import sales_orders
 from .errors import BusinessError
-from .models import CashCategory, CashDoc, Customer, Fund, FundBalance, FundLedger, SalesOrder, SalesReceipt, ServiceTicket
+from .models import PendingDisposition, CashCategory, CashDoc, Customer, Fund, FundBalance, FundLedger, SalesOrder, SalesReceipt, ServiceTicket
 from .security import has_role
 
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -144,3 +144,11 @@ def customer_docs(session, user, customer_code):
     days = func.greatest(0, literal(_today(), type_=Date) - debts.c.day)
     return _rows(session, select(debts, days.label('days')).where(debts.c.customer_code == customer_code)
                  .order_by(debts.c.day, debts.c.kind, debts.c.id))
+
+
+def damage_cost(session,user,start=None,end=None):
+    check_reader(user);start,end=date_range(start,end)
+    day=cast(func.timezone('Asia/Ho_Chi_Minh',PendingDisposition.decided_at),Date)
+    with session.no_autoflush:
+        return int(session.scalar(select(func.coalesce(func.sum(PendingDisposition.cost_value),0)).where(
+            PendingDisposition.kind=='HUY',PendingDisposition.status=='DA_GHI',day>=start,day<=end)))

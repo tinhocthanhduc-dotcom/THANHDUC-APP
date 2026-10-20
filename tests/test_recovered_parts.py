@@ -22,7 +22,7 @@ def recover(db,p,t,**kw):
 
 
 def defect(db,p):
-    return inventory_catalogs.create(db,p['warehouse'],Warehouse,WarehouseIn(code='K900',name='Kho linh kiện hỏng',kind='LOI'))
+    return inventory_catalogs.create(db,p['warehouse'],Warehouse,WarehouseIn(code='K900',name='Kho linh kiện hỏng',kind='LOI',recovered_only=True))
 
 
 def balances(db):return db.execute(text('select * from stock_balances order by warehouse_code,product_code')).all()

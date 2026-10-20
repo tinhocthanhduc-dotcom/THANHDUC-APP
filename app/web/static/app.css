@@ -539,3 +539,4 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
 .ui-swatches span { display: flex; align-items: flex-end; min-height: 64px; padding: 8px; border-radius: 10px; font-weight: 700; font-size: .85rem; }
 .ui-section { display: grid; gap: 10px; margin-bottom: 16px; }
 .ui-section h2 { font-size: 1.05rem; margin: 0; }
+.disposition-tabs {display:flex;gap:.5rem;flex-wrap:wrap;}.disposition-tabs>details {min-width:0;flex:1 1 110px;}.disposition-tabs>details>summary {cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:.7rem;text-align:center;}.disposition-tabs>details[open] {flex-basis:100%;}.disposition-tabs>details[open]>summary {background:var(--primary,#1c5dba);color:white;}

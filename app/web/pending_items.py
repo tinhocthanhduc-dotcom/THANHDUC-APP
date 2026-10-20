@@ -7,11 +7,11 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments,alerts,pending_items as svc,products,stock_docs
+from .. import attachments,alerts,pending_items as svc,pending_dispositions as dispositions,products,stock_docs
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import AuditLog,PendingItem,Product,SalesReturn,ServiceTicket,StockDoc,Supplier,TechnicianReturn,User,Warehouse
+from ..models import AuditLog,PendingDisposition,PendingItem,Product,SalesReturn,ServiceTicket,StockDoc,Supplier,TechnicianReturn,User,Warehouse
 from ..security import has_role
 from . import checked_form,render,web_user
 
@@ -42,21 +42,21 @@ def _qty(raw):
 
 
 @router.get('/cho-xu-ly')
-def listing(request:Request,group:str='',warehouse:str='',min_days:str='',q:str='',status:str='DANG_CHO',user:User=Depends(web_user),session:Session=Depends(get_session)):
+def listing(request:Request,group:str='',warehouse:str='',min_days:str='',q:str='',status:str='DANG_CHO',view:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
     try:days=int(min_days) if min_days.strip() else None
     except ValueError:raise BusinessError('BAD_DAYS','Số ngày lọc chưa hợp lệ.')
-    rows=svc.search(session,user,group or None,warehouse or None,days,q[:200],status)
+    rows=svc.search(session,user,group or None,warehouse or None,days,q[:200],status,view)
     totals=svc.totals(session,user)
     notices=alerts.pending_notices(session,user)
     return render(request,'cho_xu_ly_ds.jinja',**context(user),rows=rows,totals=totals,source_links=source_links(session,[row['item'] for row in rows]),
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI').order_by(Warehouse.code))),
-        selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days)
+        view=view,supplier_names=dict(session.execute(select(Supplier.code,Supplier.name)).all()),selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days)
 
 
 def transfer_form(request,session,user,data=None,error=None,code='',status=200):
     svc.writer(user);data=data or {}
     return render(request,'cho_xu_ly_chuyen.jinja',**context(user),d=data,error=error,error_code=code,status=status,
-        warehouses=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI'))).order_by(Warehouse.code))),
+        warehouses=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI')),Warehouse.supplier_hold.is_(False),Warehouse.recovered_only.is_(False)).order_by(Warehouse.code))),
         suppliers=list(session.scalars(select(Supplier).where(Supplier.active.is_(True)).order_by(Supplier.code))))
 
 
@@ -97,12 +97,83 @@ def transfer(request:Request,form=Depends(checked_form),user:User=Depends(web_us
 def detail_page(request,session,user,ident,error=None,code='',status=200):
     row=svc.load(session,user,ident)
     history=list(session.scalars(select(AuditLog).where(AuditLog.entity=='pending_item',AuditLog.entity_id==str(row.id)).order_by(AuditLog.id.desc())))
-    return render(request,'cho_xu_ly_chi_tiet.jinja',**context(user),row=row,product=session.get(Product,row.product_code),
+    warehouse=session.get(Warehouse,row.warehouse_code)
+    treatments=list(session.scalars(select(PendingDisposition).where(PendingDisposition.item_id==row.id).order_by(PendingDisposition.id.desc())))
+    disposition_photos={xl.id:attachments.list_for(session,user,'pending_disposition',str(xl.id)) for xl in treatments}
+    return render(request,'cho_xu_ly_chi_tiet.jinja',**context(user),row=row,holding=warehouse.supplier_hold,recovered=warehouse.recovered_only,available=max(0,row.qty_left-dispositions.reserved(session,row.id)),
+        treatments=treatments,disposition_photos=disposition_photos,disposition_kinds=dispositions.KINDS,disposition_statuses=dispositions.STATUSES,can_approve=has_role(user,'director'),
+        destinations=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI'))).order_by(Warehouse.code))),
+        default_warehouse=get_settings().sales_default_warehouse,product=session.get(Product,row.product_code),
         photos=attachments.list_for(session,user,'pending_item',str(ident)),history=history,source_links=source_links(session,[row]),
         suppliers=list(session.scalars(select(Supplier).where(Supplier.active.is_(True)).order_by(Supplier.code))),
         stock_doc=session.get(StockDoc,row.stock_doc_id) if row.stock_doc_id else None,
         creator=session.scalar(select(User.full_name).where(User.id==row.created_by)) if row.created_by else None,
         error=error,error_code=code,status=status)
+
+
+@router.get('/cho-xu-ly/tim-ncc')
+def supplier_picker(request:Request,q:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from .. import inventory_catalogs
+    svc.writer(user)
+    return render(request,'cho_xu_ly_chon_ncc.jinja',rows=[row for row in inventory_catalogs.search(session,Supplier,q[:200]) if row.active][:20])
+
+
+@router.get('/cho-xu-ly/duyet-huy')
+def approvals(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from ..models import StockBalance
+    dispositions.director(user)
+    rows=session.execute(select(PendingDisposition,PendingItem,Product.name,StockBalance.avg_cost).join(PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).outerjoin(
+        StockBalance,(StockBalance.warehouse_code==PendingItem.warehouse_code)&(StockBalance.product_code==PendingItem.product_code)).where(PendingDisposition.kind=='HUY',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)).all()
+    photos={xl.id:attachments.list_for(session,user,'pending_disposition',str(xl.id)) for xl,item,name,cost in rows}
+    return render(request,'cho_xu_ly_duyet_huy.jinja',rows=rows,photos=photos,qty_text=qty_text)
+
+
+@router.post('/cho-xu-ly/{ident}/xu-ly')
+def process(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
+    svc.writer(user);paths=[]
+    try:
+        upload=form.get('photo');photo=None
+        if upload and getattr(upload,'filename',''):
+            photo=upload.file.read(get_settings().max_upload_mb*1024*1024+1)
+            if len(photo)>get_settings().max_upload_mb*1024*1024:raise BusinessError('FILE_TOO_LARGE','Ảnh quá lớn.')
+            if not attachments._prepare(photo)[1].startswith('image/'):raise BusinessError('BAD_FILE_TYPE','Chỉ nhận ảnh JPEG, PNG hoặc WEBP.')
+        with stock_docs._transaction(session):
+            row=dispositions.create(session,user,ident,str(form.get('kind','')),_qty(form.get('qty','')),int(form.get('version','0')),
+                to_warehouse_code=str(form.get('to_warehouse_code','')) or None,supplier_code=(str(form.get('supplier_code','')) if form.get('kind')=='GUI_NCC' else None),
+                reason=str(form.get('reason','')),_in_tx=True)
+            if photo:
+                a=attachments.add(session,user,'pending_disposition',str(row.id),'KHAC',upload.filename,photo,_in_tx=True)
+                paths.append(Path(get_settings().files_dir)/a.path)
+    except Exception as exc:
+        for path in paths:path.unlink(missing_ok=True)
+        if isinstance(exc,ValueError):return detail_page(request,session,user,ident,'Trang đã cũ, hãy tải lại.','VERSION_CONFLICT',409)
+        if isinstance(exc,BusinessError):return detail_page(request,session,user,ident,exc.message,exc.code,exc.status)
+        raise
+    return RedirectResponse(f'/cho-xu-ly/{ident}#xl-{row.id}',status_code=303)
+
+
+@router.post('/cho-xu-ly/xl/{ident}/duyet')
+def approve(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
+    dispositions.director(user)
+    try:dispositions.approve(session,user,ident,int(form.get('version','0')))
+    except ValueError:raise BusinessError('VERSION_CONFLICT','Trang đã cũ, hãy tải lại.',status=409)
+    return RedirectResponse('/cho-xu-ly/duyet-huy',status_code=303)
+
+
+@router.post('/cho-xu-ly/xl/{ident}/tu-choi')
+def reject(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
+    dispositions.director(user)
+    try:dispositions.reject(session,user,ident,int(form.get('version','0')),str(form.get('reason','')))
+    except ValueError:raise BusinessError('VERSION_CONFLICT','Trang đã cũ, hãy tải lại.',status=409)
+    return RedirectResponse('/cho-xu-ly/duyet-huy',status_code=303)
+
+
+@router.post('/cho-xu-ly/xl/{ident}/huy')
+def void_disposition(request:Request,ident:int,form=Depends(checked_form),user:User=Depends(web_user),session:Session=Depends(get_session)):
+    dispositions.director(user)
+    try:row=dispositions.void(session,user,ident,int(form.get('version','0')),str(form.get('reason','')))
+    except ValueError:raise BusinessError('VERSION_CONFLICT','Trang đã cũ, hãy tải lại.',status=409)
+    return RedirectResponse(f'/cho-xu-ly/{row.item_id}#xl-{ident}',status_code=303)
 
 
 @router.get('/cho-xu-ly/{ident}')

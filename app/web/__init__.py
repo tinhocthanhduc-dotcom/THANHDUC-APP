@@ -478,7 +478,7 @@ def _catalog_data(form, supplier):
                     phones=[p.strip() for p in str(form.get("phones", "")).split(",") if p.strip()],
                     note=str(form.get("note", "")))
     else:
-        data.update(kind=str(form.get("kind", "KHO")), holder_id=form.get("holder_id") or None)
+        data.update(kind=str(form.get("kind", "KHO")), holder_id=form.get("holder_id") or None, supplier_hold=form.get("supplier_hold")=="on", recovered_only=form.get("recovered_only")=="on")
     return data
 
 

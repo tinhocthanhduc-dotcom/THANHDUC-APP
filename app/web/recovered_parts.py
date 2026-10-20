@@ -31,7 +31,7 @@ def _page(request, session, user, holder=None, ticket_id=None, selected='CHO_NOP
     tickets={r.id:session.get(ServiceTicket,r.ticket_id) for r in rows}
     return render(request, 'linh_kien_thu_hoi.jinja', rows=rows, tickets=tickets,
         names=dict(session.execute(select(Product.code,Product.name)).all()), users=dict(session.execute(select(User.id,User.full_name)).all()),
-        warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.active.is_(True)).order_by(Warehouse.code))),
+        warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.recovered_only.is_(True),Warehouse.supplier_hold.is_(False),Warehouse.active.is_(True)).order_by(Warehouse.code))),
         holder=holder, selected_status=selected, ticket_id=ticket_id, statuses=svc.STATUSES,
         can_receive=has_role(user,'warehouse'), can_ticket=nav.allowed(user,'/dich-vu'),
         can_cancel=lambda row:has_role(user,'dispatcher') or ('technician' in user.roles and row.holder_id==user.id),

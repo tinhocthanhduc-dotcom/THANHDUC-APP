@@ -82,6 +82,7 @@ def _summary(session,user,today):
         customer_debt=finance_reports.debt_totals(session,user)['remaining'],
         supplier_debt=purchase_reports.aging_totals(session,user,today)['remaining'],services=counts,pending_receipts=pending)
     if has_role(user,'director'):
+        result['damage_cost_month']=finance_reports.damage_cost(session,user,month_start,today)
         result['gross_margin_month']=purchase_reports.gross_margin(session,user,month_start,today)['totals']['profit']
         result['inventory'],result['inventory_total']=_inventory(session)
         from . import pending_items
