@@ -1,0 +1,9 @@
+{% for r in rows %}{% set c = r.customer %}
+<div class="alert warn" data-dup-row>
+  <strong>Đã có khách: {{ c.code }} · {{ c.name }}</strong> ({{ KIND_LABELS.get(c.kind, c.kind) }}, trùng {{ r.by }})<br>
+  {{ c.phones | map(attribute='phone') | join(', ') }}{% if c.address %} · {{ c.address }}{% endif %}
+  <p class="hint">{% if r.blocked %}Sẽ không lưu được, hãy dùng khách đã có.{% else %}Có thể cùng người liên hệ. Nếu đúng là khách khác thì vẫn lưu và ghi lý do.{% endif %}</p>
+  <a class="btn primary" data-use-customer href="{{ (return_to ~ '?customer_code=' ~ (c.code | urlencode)) if return_to else ('/khach-hang/' ~ (c.code | urlencode)) }}">Dùng khách này</a>
+  <a href="/khach-hang/{{ c.code | urlencode }}" target="_blank">Xem</a>
+</div>
+{% endfor %}

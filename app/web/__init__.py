@@ -1,12 +1,13 @@
 """Giao diện web cho nhân viên: đăng nhập, khách hàng, hàng hóa. Mọi quy tắc nằm ở tầng nghiệp vụ, trang web chỉ gọi vào."""
 import hashlib
+import re
 import hmac
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 import jwt
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -269,11 +270,50 @@ def customer_list(
     return render(request, name, rows=rows, q=q, can_write=has_role(user, *CUSTOMER_WRITERS))
 
 
+# Màn đơn mới được quay về sau khi tạo/chọn khách (chỉ các đường dẫn này, chống chuyển hướng ra ngoài).
+RETURN_PATHS = ("/dich-vu/moi", "/bao-gia/moi", "/don-ban/moi")
+
+
+def _return_to(value) -> str:
+    value = str(value or "")
+    return value if value in RETURN_PATHS else ""
+
+
+def _back_url(return_to: str, code: str) -> str:
+    return f"{return_to}?" + urlencode({"customer_code": code})
+
+
+def _prefill_customer(q: str) -> dict:
+    """Chữ đang gõ ở ô tìm khách: giống SĐT thì vào ô SĐT, giống MST thì vào ô MST, còn lại là tên."""
+    q = q.strip()[:300]
+    digits = re.sub(r"[ .()+-]", "", q)
+    if digits.isdigit() and 9 <= len(digits) <= 11 and not (len(digits) == 10 and digits[0] != "0"):
+        return {"phones": [q]}
+    if digits.isdigit() and len(digits) in (10, 13):
+        return {"tax_code": q}
+    return {"name": q} if q else {}
+
+
 @router.get("/khach-hang/moi")
-def customer_new(request: Request, user: User = Depends(web_user)):
+def customer_new(request: Request, quay_ve: str = "", q: str = "", user: User = Depends(web_user)):
     if not has_role(user, *CUSTOMER_WRITERS):
         raise BusinessError("FORBIDDEN", "Tài khoản không có quyền tạo khách.", status=403)
-    return _customer_form(request, user, _blank_customer(), error=None, ask_confirm=None)
+    return _customer_form(request, user, {**_blank_customer(), **_prefill_customer(q)}, error=None, ask_confirm=None, return_to=_return_to(quay_ve))
+
+
+@router.get("/khach-hang/kiem-trung")
+def customer_duplicates(
+    request: Request, phone: str = "", tax: str = "", kind: str = "CA_NHAN", except_code: str = Query("", alias="except"),
+    quay_ve: str = "", user: User = Depends(web_user), session: Session = Depends(get_session),
+):
+    if not has_role(user, *CUSTOMER_WRITERS):
+        raise BusinessError("FORBIDDEN", "Tài khoản không có quyền tạo khách.", status=403)
+    rows = customer_svc.duplicates(session, phone[:500], tax[:50], except_code[:50])
+    for r in rows:
+        c = r["customer"]
+        # Cùng mức như lúc lưu: trùng MST, hoặc trùng SĐT giữa hai khách cá nhân, thì không lưu được.
+        r["blocked"] = r["by"] == "MST" or (c.kind == "CA_NHAN" and kind == "CA_NHAN")
+    return render(request, "khach_trung.jinja", rows=rows, return_to=_return_to(quay_ve))
 
 
 @router.post("/khach-hang/moi")
@@ -282,6 +322,7 @@ def customer_create(request: Request, form=Depends(checked_form), session: Sessi
     if not has_role(user, *CUSTOMER_WRITERS):
         raise BusinessError("FORBIDDEN", "Tài khoản không có quyền tạo khách.", status=403)
     data = _customer_from_form(form)
+    return_to = _return_to(form.get("quay_ve"))
     shown = {**_blank_customer(), **data}
     if not has_role(user, *customer_svc.CREDIT_ROLES):
         data.pop("allow_debt"), data.pop("credit_limit")
@@ -290,11 +331,11 @@ def customer_create(request: Request, form=Depends(checked_form), session: Sessi
         body = CustomerCreate(customer=CustomerIn(**data), confirmation=_confirmation(form))
         c, warnings = customer_svc.create(session, user, body)
     except ValidationError as exc:
-        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400)
+        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400, return_to=return_to)
     except BusinessError as exc:
         ask = exc.details if exc.code == "PHONE_IN_USE" else None
-        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status)
-    return RedirectResponse(_saved_url(c.code, warnings), status_code=303)
+        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status, return_to=return_to)
+    return RedirectResponse(_back_url(return_to, c.code) if return_to else _saved_url(c.code, warnings), status_code=303)
 
 
 @router.get("/khach-hang/{code}")
