@@ -5,6 +5,7 @@ Loại tệp nhận theo nội dung, không tin đuôi file hay khai báo của 
 """
 from contextlib import nullcontext
 
+import re
 import hashlib
 import io
 import os
@@ -59,13 +60,25 @@ def _sales_delivery(session, user, entity_id, write):
         check_assignee(user,order)
 
 
+def _technician_return_line(session, user, entity_id, write):
+    from . import technician_returns
+    from .models import TechnicianReturnLine
+    ident, line_no = (int(value) for value in entity_id.split(':'))
+    row = technician_returns.load(session,user,ident)
+    line = session.get(TechnicianReturnLine,(ident,line_no))
+    if line is None: raise BusinessError('NOT_FOUND','Không tìm thấy dòng trả kho.',status=404)
+    if write and row.status!='CHO_NHAN':
+        raise BusinessError('BAD_STATUS','Chỉ thêm ảnh khi yêu cầu đang chờ kho nhận.',status=409)
+
+
 # Loại chứng từ được đính kèm và cách kiểm quyền xem/ghi của từng loại.
-TARGETS = {"sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
+TARGETS = {"technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
 
 
 def _check(session: Session, user: User, entity: str, entity_id: str, write: bool):
     check = TARGETS.get(entity)
-    if check is None or not str(entity_id).isdigit():
+    valid_id = bool(re.fullmatch(r'[0-9]+:[0-9]+',str(entity_id))) if entity=='technician_return_line' else str(entity_id).isdigit()
+    if check is None or not valid_id:
         raise BusinessError("BAD_ENTITY", "Không đính kèm được vào loại chứng từ này.", {"entity": entity})
     check(session, user, str(entity_id), write)
 
@@ -115,7 +128,7 @@ def add(session: Session, user: User, entity: str, entity_id: str, tag: str, fil
         check_photo(session,user,int(entity_id),write=True,tag=tag)
     _check(session, user, entity, entity_id, write=True)
     content, content_type, ext, width, height = _prepare(data)
-    if tag in ('NHAN_MAY','TRA_MAY','GIAO_HANG') and not content_type.startswith('image/'):
+    if (tag in ('NHAN_MAY','TRA_MAY','GIAO_HANG') or entity=='technician_return_line') and not content_type.startswith('image/'):
         raise BusinessError('BAD_FILE_TYPE','Ảnh nhận và trả máy phải là ảnh JPEG, PNG hoặc WEBP.')
     now = datetime.now(UTC)
     rel = f"{entity}/{now:%Y/%m}/{uuid.uuid4().hex}.{ext}"
