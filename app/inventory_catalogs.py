@@ -120,7 +120,7 @@ def update(session: Session, user, model, code, body):
 
 
 def _validate_warehouse(session, row):
-    if row.kind == 'KHO' and row.holder_id is not None:
+    if row.kind in ('KHO','LOI') and row.holder_id is not None:
         raise BusinessError('BAD_HOLDER','Kho công ty không có người giữ riêng.')
     if row.kind == 'THO':
         holder = session.scalar(select(User).where(User.id == row.holder_id).with_for_update(read=True)) if row.holder_id else None

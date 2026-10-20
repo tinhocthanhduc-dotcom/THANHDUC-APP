@@ -31,7 +31,7 @@ def detail_context(session, user, ticket, shown=None):
     for line in saved['lines']:
         line['unit_price'] = money(line['unit_price'])
     data = shown if shown is not None else saved
-    warehouses = list(session.scalars(select(Warehouse).where(or_(Warehouse.active.is_(True),
+    warehouses = list(session.scalars(select(Warehouse).where(Warehouse.kind!='LOI',or_(Warehouse.active.is_(True),
                       Warehouse.code.in_([line.get('warehouse_code') for line in data['lines'] if line.get('warehouse_code')]))).order_by(Warehouse.code)))
     own = technician_stock.restricted_warehouse(session,user)
     if own:

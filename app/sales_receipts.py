@@ -3,14 +3,14 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, literal, union_all, case
 from sqlalchemy.orm import Session, object_session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
 from . import audit, sales_orders, cash_docs, cash_posting, finance_mappings
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, SalesOrder, SalesReceipt, ServiceTicket, SALES_RECEIPT_METHODS
+from .models import Customer, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, SALES_RECEIPT_METHODS
 from .schemas import CashDocIn, SalesReceiptOut, SalesReceiptReport
 from .security import has_role
 
@@ -55,6 +55,28 @@ def _sums():
             func.coalesce(func.sum(SalesReceipt.amount).filter(SalesReceipt.status == 'CHO_XAC_NHAN'), 0))
 
 
+
+def totals(model=SalesOrder):
+    """Nguồn duy nhất cho đã thu thuần: BT xác nhận trừ HT đã chi; DV giữ cách cũ."""
+    if model is not SalesOrder:
+        paid,pending=_sums()
+        return select(SalesReceipt.ticket_id.label('parent_id'),paid.label('paid'),pending.label('pending'),
+            literal(0).label('refunded')).where(SalesReceipt.ticket_id.is_not(None)).group_by(SalesReceipt.ticket_id).subquery()
+    events=union_all(
+        select(SalesReceipt.order_id.label('parent_id'),
+            case((SalesReceipt.status=='DA_XAC_NHAN',SalesReceipt.amount),else_=0).label('paid'),
+            case((SalesReceipt.status=='CHO_XAC_NHAN',SalesReceipt.amount),else_=0).label('pending'),literal(0).label('refunded'))
+            .where(SalesReceipt.order_id.is_not(None)),
+        select(SalesRefund.order_id,-SalesRefund.amount,literal(0),SalesRefund.amount)
+            .where(SalesRefund.order_id.is_not(None),SalesRefund.status=='DA_CHI')).subquery()
+    return select(events.c.parent_id,*[func.sum(events.c[k]).label(k) for k in ('paid','pending','refunded')]).group_by(events.c.parent_id).subquery()
+
+
+def paid_sql(model=SalesOrder):
+    rows=totals(model)
+    return select(func.coalesce(rows.c.paid,0)).where(rows.c.parent_id==model.id).correlate(model).scalar_subquery()
+
+
 def _balance(receivable, paid, pending):
     return dict(receivable=receivable, paid=int(paid), pending=int(pending), remaining=max(0,(receivable or 0)-int(paid)))
 
@@ -65,9 +87,12 @@ def balance(order: SalesOrder | ServiceTicket):
     if session is None:
         raise ValueError('Đơn cần được load trong session để đọc số dư hiện tại.')
     column = SalesReceipt.ticket_id if isinstance(order,ServiceTicket) else SalesReceipt.order_id
-    paid,pending = session.execute(select(*_sums()).where(column == order.id)).one()
+    rows=totals(type(order))
+    found=session.execute(select(rows.c.paid,rows.c.pending,rows.c.refunded).where(rows.c.parent_id==order.id)).first()
+    paid,pending,refunded=found if found else (0,0,0)
     result = _balance(order.receivable, paid, pending)
     if isinstance(order,SalesOrder):
+        result['refunded'] = int(refunded)
         result['advance'] = max(0,int(paid)-(order.receivable or 0))
         result['available'] = max(0,sales_orders.effective_total(order)-int(paid)-int(pending))
     return result
@@ -218,6 +243,8 @@ def _decide(session, user, receipt_id, version, target, reason=''):
         if target in ('TU_CHOI', 'DA_HUY') and not reason:
             raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do từ chối hoặc hủy báo thu.')
         before = snapshot(receipt)
+        if target=='DA_HUY' and receipt.order_id is not None and balance(parent)['paid']<receipt.amount:
+            raise BusinessError('REFUND_PAID','Đã hoàn tiền, không thể hủy báo thu làm số thu thuần âm.',status=409)
         if target=='DA_XAC_NHAN':
             _post_cash(session,user,parent,receipt)
         elif target=='DA_HUY' and receipt.cash_doc_id is not None:
@@ -260,11 +287,10 @@ def list_pending(session: Session, user, method=None, from_date: date | None=Non
 def receivables(session: Session, user):
     if not has_role(user, 'sales', 'finance'):
         raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh, kế toán hoặc giám đốc được xem đơn cần thu.', status=403)
-    paid,pending = _sums()
-    totals = select(SalesReceipt.order_id,paid.label('paid'),pending.label('pending')).group_by(SalesReceipt.order_id).subquery()
-    stmt = (select(SalesOrder,func.coalesce(totals.c.paid,0),func.coalesce(totals.c.pending,0),sales_orders.first_delivery(),sales_orders.due_date_sql()).options(selectinload(SalesOrder.lines))
-            .outerjoin(totals, totals.c.order_id == SalesOrder.id)
-            .where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable > func.coalesce(totals.c.paid,0))
+    sums = totals()
+    stmt = (select(SalesOrder,func.coalesce(sums.c.paid,0),func.coalesce(sums.c.pending,0),sales_orders.first_delivery(),sales_orders.due_date_sql()).options(selectinload(SalesOrder.lines))
+            .outerjoin(sums, sums.c.parent_id == SalesOrder.id)
+            .where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable > func.coalesce(sums.c.paid,0))
             .order_by(sales_orders.first_delivery(),SalesOrder.id))
     return [dict(order=o,balance=_balance(o.receivable,pay,wait),
                  days=max(0,(_today()-first.astimezone(TZ).date()).days),due_date=due,overdue_days=max(0,(_today()-due).days))

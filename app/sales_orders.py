@@ -15,7 +15,7 @@ from .doc_numbers import lock_counter, next_number
 from .errors import BusinessError
 from decimal import Decimal
 
-from .models import SalesDelivery, SalesDeliveryLine, Customer, SalesOrder, SalesOrderLine, SalesReceipt, SALES_ORDER_STATUSES, Warehouse
+from .models import SalesDelivery, SalesDeliveryLine, SalesReturn, Customer, SalesOrder, SalesOrderLine, SalesReceipt, SALES_ORDER_STATUSES, Warehouse
 from .schemas import (QuoteLineIn, SalesOrderFromQuote, SalesOrderIn, SalesOrderLineIn,
                       SalesOrderOut, SalesOrderUpdate, StockDocIn, StockDocLineIn)
 from .security import has_role
@@ -94,7 +94,8 @@ def search(session: Session, user, q='', status=None, customer_code=None, from_d
     if fulfillment:
         stmt=stmt.where(SalesOrder.fulfillment==fulfillment)
     if overdue:
-        paid=select(func.coalesce(func.sum(SalesReceipt.amount),0)).where(SalesReceipt.order_id==SalesOrder.id,SalesReceipt.status=='DA_XAC_NHAN').correlate(SalesOrder).scalar_subquery()
+        from . import sales_receipts
+        paid=func.coalesce(sales_receipts.paid_sql(),0)
         stmt=stmt.where(SalesOrder.status.in_(('GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable>paid,due_date_sql()<literal(today or _today(),type_=Date))
     needle = fold(q)
     if needle:
@@ -270,6 +271,12 @@ def remaining_lines(session, order):
             remaining=line.qty-line.closed_qty-sums.get(line.line_no, {}).get('qty', Decimal(0))) for line in order.lines}
 
 
+
+def returned_total_sql():
+    return func.coalesce(select(func.sum(SalesReturn.total)).where(SalesReturn.order_id==SalesOrder.id,
+        SalesReturn.status=='DA_NHAN').correlate(SalesOrder).scalar_subquery(),0)
+
+
 def effective_total(order):
     """Trần còn hiệu lực: dòng nguyên giữ giá gốc; dòng đóng giữ đúng tiền các GH.
 
@@ -277,8 +284,10 @@ def effective_total(order):
     tính lại tiền đã giao, kể cả đã chia thành nhiều GH.
     """
     from sqlalchemy.orm import object_session
+    from .models import SalesReturn
+    returned=object_session(order).scalar(select(func.coalesce(func.sum(SalesReturn.total),0)).where(SalesReturn.order_id==order.id,SalesReturn.status=='DA_NHAN'))
     if not any(line.closed_qty for line in order.lines):
-        return order.total
+        return order.total-returned
     sums = delivery_sums(object_session(order), order.id)
     total = 0
     for line in order.lines:
@@ -289,7 +298,7 @@ def effective_total(order):
         remaining = line.qty-line.closed_qty-old['qty']
         amount = quotes._round(remaining*line.unit_price)
         total += old['amount']+old['vat_amount']+amount+quotes._round(Decimal(amount)*line.vat_rate/100)
-    return total
+    return total-returned
 
 
 def _recompute(session, order):
@@ -427,8 +436,9 @@ def close_remaining(session, user, order_id, reason, version):
         reason = (reason or '').strip()
         if not reason:
             raise BusinessError('REASON_REQUIRED','Phải nhập lý do đóng phần còn lại.')
-        paid = session.scalar(select(func.coalesce(func.sum(SalesReceipt.amount),0)).where(SalesReceipt.order_id==order.id,
-            SalesReceipt.status.in_(('DA_XAC_NHAN','CHO_XAC_NHAN'))))
+        from . import sales_receipts
+        current=sales_receipts.balance(order)
+        paid=current['paid']+current['pending']
         if paid > order.receivable:
             raise BusinessError('OVER_PAID','Khách đã trả nhiều hơn phần giao; xử lý hoàn tiền trước',status=409)
         before = snapshot(order)
@@ -453,6 +463,11 @@ def void_delivery(session, user, delivery_id, reason, version):
             SalesDelivery.id==delivery_id).with_for_update().execution_options(populate_existing=True))
         _version(gh,version)
         _status(gh,('DA_GIAO',))
+        if gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date()!=datetime.now(UTC).astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date():
+            raise BusinessError('USE_RETURN','Dùng phiếu trả hàng.',status=409)
+        from .models import SalesReturn, SalesReturnLine
+        if session.scalar(select(SalesReturn.id).join(SalesReturnLine).where(SalesReturnLine.delivery_id==gh.id,SalesReturn.status=='DA_NHAN').limit(1)) is not None:
+            raise BusinessError('HAS_RETURNS','Lần giao đã có phiếu trả còn hiệu lực.',status=409)
         reason=(reason or '').strip()
         if not reason:
             raise BusinessError('REASON_REQUIRED','Phải nhập lý do hủy lần giao.')
@@ -479,7 +494,7 @@ def cancel(session: Session, user, order_id, reason, version):
         if not reason:
             raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do hủy đơn bán.')
         if session.scalar(select(SalesReceipt.id).where(SalesReceipt.order_id == order.id,
-                          SalesReceipt.status.in_(('CHO_XAC_NHAN', 'DA_XAC_NHAN'))).limit(1)) is not None:
+                          SalesReceipt.status=='CHO_XAC_NHAN').limit(1)) is not None:
             raise BusinessError('HAS_RECEIPTS', 'Tài chính phải từ chối hoặc hủy báo thu trước', status=409)
         before = snapshot(order)
         stock_reservations.close_in_tx(session, user, order, reason=reason)
@@ -487,6 +502,8 @@ def cancel(session: Session, user, order_id, reason, version):
         if order.receivable is not None:
             order.receivable = 0
         # Giữ tổng và liên kết PX để xem lại lịch sử sau hủy; không còn số phải thu.
+        from . import sales_refunds
+        sales_refunds.for_cancel_in_tx(session,user,order,reason)
         _record(session, user, order, 'cancel', before, reason)
     return order
 
@@ -596,19 +613,19 @@ def summaries(session, orders, today=None):
     """Một truy vấn cho nhãn tiền/hạn của cả danh sách; không cộng nợ bằng ORM."""
     ids=[o.id for o in orders]
     if not ids:return {}
-    paid=func.coalesce(func.sum(SalesReceipt.amount).filter(SalesReceipt.status=='DA_XAC_NHAN'),0)
-    pending=func.coalesce(func.sum(SalesReceipt.amount).filter(SalesReceipt.status=='CHO_XAC_NHAN'),0)
-    receipts=select(SalesReceipt.order_id,paid.label('paid'),pending.label('pending')).where(SalesReceipt.order_id.in_(ids)).group_by(SalesReceipt.order_id).subquery()
-    rows=session.execute(select(SalesOrder.id,func.coalesce(receipts.c.paid,0),func.coalesce(receipts.c.pending,0),due_date_sql()).outerjoin(
-        receipts,receipts.c.order_id==SalesOrder.id).where(SalesOrder.id.in_(ids))).all()
+    from . import sales_receipts
+    receipts=sales_receipts.totals()
+    has_returns=select(SalesReturn.id).where(SalesReturn.order_id==SalesOrder.id,SalesReturn.status=='DA_NHAN').exists()
+    rows=session.execute(select(SalesOrder.id,func.coalesce(receipts.c.paid,0),func.coalesce(receipts.c.pending,0),func.coalesce(receipts.c.refunded,0),has_returns,due_date_sql()).outerjoin(
+        receipts,receipts.c.parent_id==SalesOrder.id).where(SalesOrder.id.in_(ids))).all()
     state={}
     headers={o.id:o for o in orders}
     today=today or _today()
-    for oid,paid,pending,due in rows:
+    for oid,paid,pending,refunded,has_return,due in rows:
         o=headers[oid]
         remaining=max(0,(o.receivable or 0)-int(paid))
         advance=max(0,int(paid)-(o.receivable or 0))
-        state[oid]=dict(paid=int(paid),pending=int(pending),remaining=remaining,advance=advance,due_date=due,
+        state[oid]=dict(has_returns=has_return,paid=int(paid),pending=int(pending),refunded=int(refunded),remaining=remaining,advance=advance,due_date=due,
             overdue_days=max(0,(today-due).days) if due and remaining else 0,
             delivery_label='Đã giao đủ' if o.status=='DA_GIAO' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Chưa giao',
             money_label='Còn nợ' if remaining else 'Khách ứng trước' if advance else 'Đã thu đủ phần đã giao' if o.status!='NHAP' else 'Chưa phát sinh')

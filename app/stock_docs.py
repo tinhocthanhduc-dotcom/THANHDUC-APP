@@ -68,7 +68,7 @@ def _active(session: Session, model, code):
     return session.scalars(select(model).where(model.code == code, model.active.is_(True)).with_for_update(read=True)).first()
 
 
-def _validate(session: Session, body: StockDocIn):
+def _validate(session: Session, body: StockDocIn, *, _sales_return=False):
     if body.kind == "CK":
         if not body.to_warehouse_code or body.to_warehouse_code == body.warehouse_code:
             raise BusinessError("BAD_TRANSFER", "Phiếu chuyển kho cần kho đích khác kho nguồn.")
@@ -81,15 +81,19 @@ def _validate(session: Session, body: StockDocIn):
             raise BusinessError("BAD_WAREHOUSE", "Kho không tồn tại hoặc đã ngừng sử dụng.", {"code": code})
         if body.kind == 'KK' and wh.kind == 'THO' and not body.reason.strip():
             raise BusinessError('REASON_REQUIRED','Kiểm kê kho thợ phải ghi lý do.')
-    if body.kind == "PN" and not body.supplier_code:
+    if body.kind=='CK':
+        kinds={code:session.get(Warehouse,code).kind for code in (body.warehouse_code,body.to_warehouse_code)}
+        if set(kinds.values())=={'LOI','THO'}:
+            raise BusinessError('BAD_WAREHOUSE','Không chuyển hàng lỗi sang kho thợ.')
+    if body.kind == "PN" and not body.supplier_code and not _sales_return:
         raise BusinessError("BAD_SUPPLIER", "Phiếu nhập cần nhà cung cấp đang sử dụng.")
     if body.supplier_code is not None and not _active(session, Supplier, body.supplier_code):
         raise BusinessError("BAD_SUPPLIER", "Nhà cung cấp không tồn tại hoặc đã ngừng sử dụng.")
     if body.customer_code is not None:
-        if body.kind != "PX" or session.get(Customer, body.customer_code) is None:
+        if (body.kind != "PX" and not (_sales_return and body.kind=="PN" and not body.supplier_code)) or session.get(Customer, body.customer_code) is None:
             raise BusinessError("BAD_CUSTOMER", "Khách hàng phải tồn tại và chỉ dùng cho phiếu xuất.")
     codes = sorted({line.product_code for line in body.lines})
-    valid = set(session.scalars(select(Product.code).where(Product.code.in_(codes), Product.active.is_(True))
+    valid = set(session.scalars(select(Product.code).where(Product.code.in_(codes), (True if _sales_return else Product.active.is_(True)))
                                 .order_by(Product.code).with_for_update(read=True)))
     bad = sorted(set(codes) - valid)
     if bad:
@@ -119,9 +123,9 @@ def create(session: Session, user: User, body: StockDocIn) -> StockDoc:
     return doc
 
 
-def insert(session: Session, user: User, body: StockDocIn) -> StockDoc:
+def insert(session: Session, user: User, body: StockDocIn, *, _sales_return=False) -> StockDoc:
     """Lập phiếu trong transaction của nơi gọi, không kiểm vai trò (nơi gọi đã kiểm). Dùng cho phiếu sinh tự động."""
-    _validate(session, body)
+    _validate(session, body, _sales_return=_sales_return)
     doc = StockDoc(**body.model_dump(exclude={"lines"}), created_by=user.id,
                    number=next_number(session, body.kind, body.doc_date), lines=_lines(body))
     session.add(doc)

@@ -4,9 +4,9 @@ from urllib.parse import quote, urlencode
 
 from sqlalchemy import case, func, literal, or_, select
 
-from . import equipment_custody, sales_receipts, service_sla, service_tickets, stock_min_levels
+from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, ServiceTicket, StockReservation, Warehouse, Supplier
+from .models import Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier
 from .security import has_role
 
 LIMIT = 20
@@ -17,10 +17,9 @@ def _now():
 
 
 def _available(model):
-    column = SalesReceipt.ticket_id if model is ServiceTicket else SalesReceipt.order_id
-    paid, pending = sales_receipts._sums()
-    reported = select(paid+pending).where(column == model.id).correlate(model).scalar_subquery()
-    return func.coalesce(model.receivable, 0)-reported
+    rows=sales_receipts.totals(model)
+    reported=select(rows.c.paid+rows.c.pending).where(rows.c.parent_id==model.id).correlate(model).scalar_subquery()
+    return func.coalesce(model.receivable,0)-func.coalesce(reported,0)
 
 
 def _specs(user, today, now):
@@ -86,7 +85,7 @@ def _specs(user, today, now):
             add('machines_warehouse','Máy chờ nhận vào kho kỹ thuật',incoming.where(EquipmentCustody.location=='KHO_KY_THUAT'),
                 'custody','/may-dang-giu')
 
-    sales_deliveries=docs(SalesOrder,Customer.name,SalesOrder.total-(
+    sales_deliveries=docs(SalesOrder,Customer.name,SalesOrder.total-sales_orders.returned_total_sql()-(
         func.coalesce(SalesOrder.receivable,0)-_available(SalesOrder))).join(Customer,Customer.code==SalesOrder.customer_code).where(
         SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
     tech_holds=select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='THO').exists()
@@ -104,7 +103,7 @@ def _specs(user, today, now):
         add('orders_draft', 'Đơn nháp chưa chốt', orders.where(SalesOrder.status=='NHAP').order_by(SalesOrder.created_at, SalesOrder.id), 'order', '/don-ban')
         add('orders_unreported', 'Đã giao · chưa báo thu đủ', orders.where(SalesOrder.status.in_(('GIAO_MOT_PHAN','DA_GIAO')), _available(SalesOrder)>0)
             .order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
-        deposit_gap=SalesOrder.deposit_amount-(func.coalesce(SalesOrder.receivable,0)-_available(SalesOrder))
+        deposit_gap=func.least(SalesOrder.deposit_amount,SalesOrder.total-sales_orders.returned_total_sql())-(func.coalesce(SalesOrder.receivable,0)-_available(SalesOrder))
         deposits=docs(SalesOrder,Customer.name,deposit_gap).join(Customer,Customer.code==SalesOrder.customer_code).where(
             SalesOrder.payment_term=='DAT_COC',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO')),deposit_gap>0)
         if not director:deposits=deposits.where(SalesOrder.created_by==user.id)
@@ -136,6 +135,9 @@ def _specs(user, today, now):
         add('purchases_waiting', 'Đơn mua chờ nhận hàng', orders, 'purchase', '/don-mua')
         add('stock_low', 'Hàng dưới mức tối thiểu', stock_min_levels.low_stock_query(), 'stock', '/ton-kho?canh-bao=1')
     if has_role(user, 'finance'):
+        refunds=select(SalesRefund.id,SalesRefund.number,SalesRefund.status,Customer.name.label('customer'),SalesRefund.amount,literal(False).label('overdue')).join(
+            SalesOrder,SalesOrder.id==SalesRefund.order_id).join(Customer,Customer.code==SalesOrder.customer_code).where(SalesRefund.status=='CHO_DUYET').order_by(SalesRefund.id)
+        add('refunds_pending','Hoàn tiền chờ duyệt',refunds,'refund','/bao-thu?tab=hoan-tien')
         pending = select(SalesReceipt.id, SalesReceipt.number, SalesReceipt.status, Customer.name.label('customer'),
             SalesReceipt.amount, literal(False).label('overdue')).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(
                 t, t.id==SalesReceipt.ticket_id).join(Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code)).where(
@@ -155,8 +157,9 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don'}[kind]
+            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"

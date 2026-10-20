@@ -11,12 +11,13 @@ KEYS = {
     'THU_CHUYEN_KHOAN':'Thu chuyển khoản',
     'DANH_MUC_BAN_HANG':'Danh mục bán hàng',
     'DANH_MUC_DICH_VU':'Danh mục dịch vụ',
+    'DANH_MUC_HOAN_TIEN_BAN':'Hoàn tiền bán hàng (Chi)',
     'DANH_MUC_MUA_HANG':'Danh mục mua hàng (Chi)',
 }
 
 
 def category_direction(key):
-    return 'CHI' if key=='DANH_MUC_MUA_HANG' else 'THU'
+    return 'CHI' if key in ('DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN') else 'THU'
 
 
 def check_writer(user):

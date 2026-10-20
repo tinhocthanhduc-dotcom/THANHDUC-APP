@@ -65,7 +65,7 @@ def test_mapping_validation_require_and_fixed_keys(db,finance_people):
     thu=category(db,f);chi=category(db,f,'CHI-KHAC','CHI')
     inactive=fund(db,f,'NGUNG',active=False)
     for key,field,code in [('THU_TIEN_MAT','fund_code',bank.code),('THU_CHUYEN_KHOAN','fund_code',cash.code),
-                           ('DANH_MUC_BAN_HANG','category_code',chi.code),('THU_TIEN_MAT','fund_code',inactive.code),
+                           ('DANH_MUC_BAN_HANG','category_code',chi.code),('DANH_MUC_HOAN_TIEN_BAN','category_code',thu.code),('THU_TIEN_MAT','fund_code',inactive.code),
                            ('THU_TIEN_MAT','category_code',thu.code),('DANH_MUC_DICH_VU','fund_code',cash.code),
                            ('THU_TIEN_MAT','fund_code','KHONG-CO')]:
         fails('BAD_MAPPING',mappings.set_mapping,db,d,key,version=1,**{field:code})
@@ -76,7 +76,7 @@ def test_mapping_validation_require_and_fixed_keys(db,finance_people):
         assert mappings.require(db,key)==code and row.version==2 and row.updated_by==d.id
     fails('BAD_MAPPING',mappings.set_mapping,db,d,'KHONG-CO',version=1)
     fails('BAD_MAPPING',mappings.require,db,'KHONG-CO')
-    assert len(mappings.search(db,f))==5
+    assert len(mappings.search(db,f))==6
 
 
 def test_in_use_preserves_mapping_validity_and_unmap(db,finance_people):
@@ -136,7 +136,7 @@ def test_actual_migration_seeds_only_four_empty_mappings_and_downgrades(engine,m
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         migration.upgrade()
         rows=conn.execute(text('select key,fund_code,category_code,updated_by,version from finance_mappings')).all()
-        assert {r.key for r in rows}==set(mappings.KEYS)-{'DANH_MUC_MUA_HANG'} and len(rows)==4
+        assert {r.key for r in rows}==set(mappings.KEYS)-{'DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN'} and len(rows)==4
         assert all(r.fund_code is None and r.category_code is None and r.updated_by is None and r.version==1 for r in rows)
         assert conn.scalar(text('select count(*) from funds'))==0
         assert conn.scalar(text('select count(*) from cash_categories'))==0

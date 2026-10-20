@@ -90,7 +90,7 @@ def _validate_lines(session: Session, body: ServiceCharges):
     if set(codes) - valid:
         raise BusinessError("BAD_PRODUCT", "Mã hàng không tồn tại hoặc đã ngừng bán.", {"invalid_codes": sorted(set(codes) - valid)})
     whs = sorted({x.warehouse_code for x in body.lines if x.kind == "VAT_TU"})
-    valid = set(session.scalars(select(Warehouse.code).where(Warehouse.code.in_(whs), Warehouse.active.is_(True))))
+    valid = set(session.scalars(select(Warehouse.code).where(Warehouse.code.in_(whs), Warehouse.active.is_(True), Warehouse.kind.in_(('KHO','THO')))))
     if set(whs) - valid:
         raise BusinessError("BAD_WAREHOUSE", "Kho không tồn tại hoặc đã ngừng sử dụng.", {"codes": sorted(set(whs) - valid)})
 

@@ -22,7 +22,7 @@
 {% if is_new and not supplier %}<label>Mã kho<input name="code" value="{{ c.code }}" required pattern="[Kk][0-9]+" maxlength="16" placeholder="K58"></label>{% endif %}
 <label>Tên<input name="name" value="{{ c.name }}" required maxlength="300"></label>
 {% if not supplier %}
-<fieldset><legend>Loại kho</legend><div class="seg stock-seg">{% for value,text in [('KHO','Kho công ty'),('THO','Kho của thợ')] %}<label><input type="radio" name="kind" value="{{ value }}" {% if c.kind==value %}checked{% endif %}><span>{{ text }}</span></label>{% endfor %}</div></fieldset>
+<fieldset><legend>Loại kho</legend><div class="seg stock-seg">{% for value,text in [('KHO','Kho công ty'),('THO','Kho của thợ'),('LOI','Kho hàng lỗi')] %}<label><input type="radio" name="kind" value="{{ value }}" {% if c.kind==value %}checked{% endif %}><span>{{ text }}</span></label>{% endfor %}</div></fieldset>
 <div data-picker data-holder-picker><label>Thợ giữ kho (chọn khi là Kho của thợ)<input value="{{ holder_name }}" autocomplete="off" data-live=".holder-options" data-source="/kho/tim-tho"></label><input type="hidden" name="holder_id" data-picked-value value="{{ c.holder_id or '' }}"><div class="holder-options product-options"></div></div>
 {% endif %}
 {% if supplier %}

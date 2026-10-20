@@ -15,7 +15,7 @@ GROUPS = (
     )},
     {'label': 'Bán hàng', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
-        {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban',), 'roles': ('sales', 'warehouse', 'finance')},
+        {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
     )},
     {'label': 'Dịch vụ', 'items': (
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
@@ -37,7 +37,7 @@ GROUPS = (
         {'label': 'Đơn mua', 'href': '/don-mua', 'prefixes': ('/don-mua',), 'roles': ('warehouse', 'finance')},
     )},
     {'label': 'Tài chính', 'items': (
-        {'label': 'Báo thu', 'href': '/bao-thu', 'prefixes': ('/bao-thu', '/dich-vu/can-thu'), 'roles': ('finance',)},
+        {'label': 'Báo thu', 'href': '/bao-thu', 'prefixes': ('/bao-thu', '/hoan-tien', '/dich-vu/can-thu'), 'roles': ('finance',)},
         {'label': 'Thu chi · Sổ quỹ', 'href': '/thu-chi', 'prefixes': ('/thu-chi', '/so-quy'), 'roles': ('finance',)},
         {'label': 'Chốt sổ', 'href': '/chot-so', 'prefixes': ('/chot-so',), 'roles': ('finance',)},
         {'label': 'Điều chỉnh', 'href': '/dieu-chinh', 'prefixes': ('/dieu-chinh',), 'roles': ('finance',)},
