@@ -81,11 +81,44 @@ def create(session, user, ticket_id, body):
     return row
 
 
+def _own_warehouse(session, requester_id):
+    tech = session.get(User, requester_id)
+    warehouse = technician_stock.own_warehouse(session, tech, lock=True) if tech and tech.active and 'technician' in tech.roles else None
+    if warehouse is None:
+        raise BusinessError('NO_TECH_WAREHOUSE', 'Thợ yêu cầu chưa có kho riêng đang dùng.', status=409)
+    return warehouse
+
+
+def create_stock(session, user, body):
+    """Thợ xin hàng mang theo: không gắn phiếu, kho cấp vào kho riêng của chính thợ."""
+    if 'technician' not in user.roles:
+        raise BusinessError('FORBIDDEN', 'Chỉ thợ được xin hàng mang theo.', status=403)
+    with _transaction(session):
+        _own_warehouse(session, user.id)
+        product = session.scalar(select(Product).where(Product.code == body.product_code, Product.active.is_(True)).with_for_update(read=True))
+        if product is None:
+            raise BusinessError('BAD_PRODUCT', 'Mã hàng không tồn tại hoặc đã ngừng bán.')
+        if not body.reason.strip():
+            raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do cần linh kiện.')
+        row = PartRequest(number=next_number(session, 'YC', datetime.now(UTC).astimezone(service_sla.TZ).date()),
+                          ticket_id=None, requester_id=user.id, product_code=product.code, qty=body.qty,
+                          reason=body.reason.strip(), status='CHO_CAP')
+        session.add(row)
+        _audit(session, user, row, 'create')
+    return row
+
+
+def for_requester(session, user, limit=20):
+    """Yêu cầu mang theo (không gắn phiếu) của chính thợ, mới nhất trước."""
+    return list(session.scalars(select(PartRequest).where(PartRequest.requester_id == user.id, PartRequest.ticket_id.is_(None))
+                                .order_by(PartRequest.id.desc()).limit(limit)))
+
+
 def _locked(session, ident, version):
-    ticket_id = session.scalar(select(PartRequest.ticket_id).where(PartRequest.id == ident))
-    if ticket_id is None:
+    found = session.execute(select(PartRequest.id, PartRequest.ticket_id).where(PartRequest.id == ident)).first()
+    if found is None:
         raise BusinessError('NOT_FOUND', 'Không tìm thấy yêu cầu linh kiện.', status=404)
-    ticket = _ticket(session, ticket_id)
+    ticket = _ticket(session, found.ticket_id) if found.ticket_id is not None else None
     row = session.scalar(select(PartRequest).where(PartRequest.id == ident)
                          .with_for_update().execution_options(populate_existing=True))
     if version != row.version:
@@ -99,16 +132,16 @@ def supply(session, user, ident, warehouse_code, version):
     check_supplier(user)
     with _transaction(session):
         ticket, row = _locked(session, ident, version)
-        if ticket.status not in svc.OPEN:
+        if ticket is not None and ticket.status not in svc.OPEN:
             raise BusinessError('BAD_STATUS', 'Phiếu dịch vụ đã đóng, không cấp linh kiện.', status=409)
-        dest = _warehouse(session, ticket)
+        dest = _warehouse(session, ticket) if ticket is not None else _own_warehouse(session, row.requester_id)
         source = session.scalar(select(Warehouse).where(Warehouse.code == warehouse_code, Warehouse.kind == 'KHO', Warehouse.active.is_(True)).with_for_update(read=True))
         if source is None:
             raise BusinessError('BAD_WAREHOUSE', 'Phải chọn kho công ty đang dùng để cấp linh kiện.')
         before = snapshot(row)
         doc = stock_docs.insert(session, user, StockDocIn(kind='CK', warehouse_code=source.code,
             to_warehouse_code=dest.code, doc_date=datetime.now(service_sla.TZ).date(),
-            reason=f'Cấp {row.number}/{ticket.number}', lines=[dict(product_code=row.product_code, qty=row.qty)]))
+            reason=f'Cấp {row.number}/{ticket.number}' if ticket is not None else f'Cấp {row.number} cho thợ mang theo', lines=[dict(product_code=row.product_code, qty=row.qty)]))
         stock_posting.post_in_tx(session, user, doc.id, doc.version)
         row.status, row.from_warehouse_code, row.to_warehouse_code, row.stock_doc_id = 'DA_CAP', source.code, dest.code, doc.id
         row.decided_by, row.decided_at = user.id, datetime.now(UTC)

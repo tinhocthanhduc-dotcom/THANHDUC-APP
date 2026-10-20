@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
-from .. import products, stock_docs, stock_posting, stock_min_levels, technician_stock, stock_reservations
+from .. import part_requests, products, stock_docs, stock_posting, stock_min_levels, technician_stock, stock_reservations
 from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
@@ -131,7 +131,9 @@ def pick_tech_warehouse(request: Request,q: str='',user: User=Depends(web_user),
 @router.get('/hang-toi-giu')
 def technician_held(request: Request,tho: int | None=None,user: User=Depends(web_user),session: Session=Depends(get_session)):
     data=technician_stock.held(session,user,tho)
-    return render(request,'hang_toi_giu.jinja',**data,can_return='technician' in user.roles and (not tho or tho==user.id),return_requests=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.technician_id==(data['holder'].id if data['holder'] else user.id)).order_by(TechnicianReturn.id.desc()))),can_manage=has_role(user,'warehouse'))
+    return render(request,'hang_toi_giu.jinja',**data,can_return='technician' in user.roles and (not tho or tho==user.id),return_requests=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.technician_id==(data['holder'].id if data['holder'] else user.id)).order_by(TechnicianReturn.id.desc()))),can_manage=has_role(user,'warehouse'),
+        stock_requests=part_requests.for_requester(session,user) if 'technician' in user.roles and (not tho or tho==user.id) else [],
+        part_statuses=part_requests.STATUSES,saved=request.query_params.get('da_luu')=='1')
 
 
 @router.get('/hang-toi-giu/phieu/{doc_id}')

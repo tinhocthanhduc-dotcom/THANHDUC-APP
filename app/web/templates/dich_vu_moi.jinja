@@ -11,7 +11,7 @@
 {% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>
   <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>
   <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
-  <a href="/khach-hang/moi" class="btn">+ Tạo mới khách hàng</a>
+  <a href="/khach-hang/moi?quay_ve=/dich-vu/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>
 </div>{% endcall %}
 <div data-service-choices aria-live="polite">{% include 'dich_vu_chon_may.jinja' %}</div>
 {% call picked.block(invalid=error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT']) %}<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">

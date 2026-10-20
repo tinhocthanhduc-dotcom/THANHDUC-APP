@@ -1141,6 +1141,14 @@ class PartRequestIn(BaseModel):
     version: int = Field(ge=1)
 
 
+class PartStockIn(BaseModel):
+    """Thợ xin hàng mang theo, không gắn phiếu."""
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    product_code: str = Field(min_length=1, max_length=16)
+    qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    reason: str = Field(default="", max_length=2000)
+
+
 class PartDecision(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     version: int = Field(ge=1)
@@ -1152,7 +1160,7 @@ class PartRequestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     number: str
-    ticket_id: int
+    ticket_id: int | None
     requester_id: int
     product_code: str
     qty: Decimal

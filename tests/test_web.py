@@ -958,7 +958,7 @@ def test_d3_reception_create_and_customer_choices(client, db, service_people, mo
     monkeypatch.setattr(svc, '_now', lambda: datetime(2026, 10, 17, 6, tzinfo=UTC))
     csrf = service_login(client, make_user('dv.reception', 'reception'))
     page = client.get('/dich-vu/moi').text
-    assert 'data-live=".service-options"' in page and 'href="/khach-hang/moi"' in page
+    assert 'data-live=".service-options"' in page and 'href="/khach-hang/moi?quay_ve=/dich-vu/moi"' in page
     assert '<select' not in page
     choices = client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
     assert 'Văn phòng' in choices and 'AB123' in choices

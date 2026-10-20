@@ -1102,7 +1102,8 @@ class PartRequest(Base):
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     number: Mapped[str] = mapped_column(String(32), unique=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey("service_tickets.id"))
+    # Không gắn phiếu = thợ xin hàng mang theo, cấp vào kho riêng của người yêu cầu.
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey("service_tickets.id"))
     requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     product_code: Mapped[str] = mapped_column(ForeignKey("products.code"))
     qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))

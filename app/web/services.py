@@ -245,6 +245,10 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
         if t.status != 'KHACH_HEN_SAU': raise BusinessError('BAD_STATUS','Chỉ tạo phiếu tiếp từ phiếu Khách hẹn lần sau.',status=409)
         return _new_form(request,session,dict(customer_code=t.customer_code,site_id=t.site_id or '',serial=t.serial or '',
             kind=t.kind,priority=t.priority,symptom=(f'Tiếp theo {t.number}: '+t.symptom)[:4000],warranty_of_id=''))
+    chosen = session.get(Customer, request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
+    if chosen and chosen.status == 'DANG_DUNG':
+        # Quay về từ màn tạo/chọn khách: chọn sẵn khách, để _new_form tự chọn máy/địa điểm duy nhất.
+        return _new_form(request, session, dict(customer_code=chosen.code, kind='SUA_TAI_CHO', priority='THUONG', symptom='', warranty_of_id=''))
     return _new_form(request, session)
 
 

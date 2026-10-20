@@ -1,0 +1,11 @@
+{% extends 'base.jinja' %}{% block title %}Yêu cầu linh kiện{% endblock %}
+{% block main %}<div class="bar"><h1>Yêu cầu linh kiện</h1><a href="/hang-toi-giu">← Hàng tôi giữ</a></div>
+<p class="hint">Xin hàng mang theo, không gắn phiếu. Kho cấp xong thì hàng vào {{ own.code ~ ' · ' ~ own.name if own else 'kho riêng của bạn' }}.</p>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if own %}<form class="card form" method="post" action="/hang-toi-giu/xin-linh-kien"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div data-picker data-part-picker><label>Mã hàng (tìm và chọn)<input name="product_code" value="{{ d.get('product_code','') }}" required autocomplete="off" data-live=".part-options" data-source="/hang-toi-giu/tim-linh-kien"></label><span class="hint" data-part-name></span><div class="part-options product-options" aria-live="polite"></div></div>
+<label>Số lượng<input name="qty" inputmode="decimal" value="{{ d.get('qty','1') }}" required></label>
+<label>Lý do<textarea name="reason" required maxlength="2000" placeholder="Ví dụ: mang sẵn cho các ca thay drum tuần này">{{ d.get('reason','') }}</textarea></label>
+<button class="primary">Gửi yêu cầu</button></form>
+{% else %}<p class="card">Bạn chưa có kho riêng đang dùng, nhờ kho tạo kho thợ trước.</p>{% endif %}
+<script src="/static/parts.js" defer></script>{% endblock %}
