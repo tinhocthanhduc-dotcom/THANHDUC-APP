@@ -4,6 +4,7 @@
 {% macro reason(action) %}<label>Lý do<textarea name="reason" maxlength="2000" required minlength="3">{{ form.get('reason', '') if failed_action == action else '' }}</textarea></label>{% endmacro %}
 {% block title %}{{ t.number }}{% endblock %}
 {% block main %}
+{% for order in linked_orders %}<p><a href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}
 <div class="bar"><h1>{{ t.number }}</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
 {% include 'buoc_tiep.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}

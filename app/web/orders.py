@@ -109,7 +109,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
             receipt_ctx['receipt_report_label']='Báo thu cọc'
             if receipt_form is None:
                 receipt_ctx['receipt_data']['amount']=money(min(deposit_remaining,receipt_ctx['available']))
-    return render(request,'don_ban_form.jinja',fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+    from .technician_deliveries import context as delivery_context
+    tech_delivery=delivery_context(session,request.state.user,order) if order and order.fulfillment=='THO_GIAO' else None
+    return render(request,'don_ban_form.jinja',tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
@@ -120,7 +122,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
                   warehouses=_warehouses(session),can_write=has_role(request.state.user,'sales'),
-                  can_deliver=has_role(request.state.user,'sales','warehouse'),editable=order is None or order.status=='NHAP',
+                  can_deliver=has_role(request.state.user,'sales','warehouse') and not (order and order.delivery_assignee_id),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
                   saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error),**receipt_ctx)
 

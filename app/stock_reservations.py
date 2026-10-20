@@ -104,9 +104,11 @@ def keep_in_tx(session, user, order):
     remaining = remaining_lines(session,order)
     for line in lines:
         old = session.scalar(select(StockReservation).where(StockReservation.order_id == order.id,
-            StockReservation.order_line_id == line.line_no, StockReservation.status == 'GIU'))
+            StockReservation.order_line_id == line.line_no, StockReservation.warehouse_code == line.warehouse_code, StockReservation.status == 'GIU'))
         held = old.qty if old else ZERO
-        more = min(remaining[line.line_no]['remaining']-held, max(ZERO, available(session, line.warehouse_code, line.product_code)))
+        total = session.scalar(select(func.coalesce(func.sum(StockReservation.qty),0)).where(
+            StockReservation.order_id==order.id, StockReservation.order_line_id==line.line_no, StockReservation.status=='GIU'))
+        more = min(remaining[line.line_no]['remaining']-total, max(ZERO, available(session, line.warehouse_code, line.product_code)))
         if more <= 0:
             continue
         if old:
@@ -137,7 +139,7 @@ def for_order(session, order):
         if line.kind != 'HANG':
             continue
         current = next((r for r in reversed(rows) if r.order_line_id == line.line_no and r.status == 'GIU'), None)
-        held = current.qty if current else ZERO
+        held = sum((r.qty for r in rows if r.order_line_id==line.line_no and r.status=='GIU'), ZERO)
         result[line.line_no] = dict(reservation=current, held=held, missing=max(ZERO,remaining[line.line_no]['remaining']-held))
     return result
 
@@ -195,21 +197,41 @@ def picker(session, products, warehouse_code):
     return {p.code: values.get((warehouse_code,p.code), dict(qty=ZERO,reserved=ZERO,available=ZERO)) for p in products}
 
 
-def split_in_tx(session, user, order, line, qty, number):
+def split_in_tx(session, user, order, line, qty, number, warehouse_code=None):
     """Đã khóa dòng tồn; chốt một lần dòng cũ, ghi mới phần xuất và phần còn giữ."""
+    warehouse_code = warehouse_code or line.warehouse_code
     old = session.scalar(select(StockReservation).where(StockReservation.order_id==order.id,
-        StockReservation.order_line_id==line.line_no, StockReservation.status=='GIU'))
+        StockReservation.order_line_id==line.line_no, StockReservation.warehouse_code==warehouse_code, StockReservation.status=='GIU'))
     if old is None:
         return
     held = old.qty
     _close(session,user,old,'DA_NHA',f'Tách khi giao {number}')
-    exported = StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=line.warehouse_code,
+    exported = StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=warehouse_code,
         product_code=line.product_code,qty=min(qty,held),status='DA_XUAT',reason=f'Giao {number}',created_by=user.id,
         closed_by=user.id,closed_at=datetime.now(UTC))
     session.add(exported)
     _record(session,user,exported,'export')
     if held > qty:
-        row = StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=line.warehouse_code,
+        row = StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=warehouse_code,
             product_code=line.product_code,qty=held-qty,status='GIU',reason='',created_by=user.id)
         session.add(row)
         _record(session,user,row,'keep')
+
+
+def transfer_in_tx(session, user, order, line, qty, source, target, reason):
+    """Chuyển GIU; chỉ nơi này ghi giữ hàng. Đơn và tồn đã khóa bởi luồng gọi."""
+    rows = list(session.scalars(select(StockReservation).where(StockReservation.order_id==order.id,
+        StockReservation.order_line_id==line.line_no, StockReservation.status=='GIU',
+        StockReservation.warehouse_code.in_((source,target))).order_by(StockReservation.id)))
+    old = {r.warehouse_code:r for r in rows}
+    if source not in old or old[source].qty < qty:
+        raise BusinessError('OVER_HANDOVER','Số chuyển vượt phần đang giữ ở kho nguồn.',status=409)
+    amounts = {source:old[source].qty-qty, target:qty+(old[target].qty if target in old else ZERO)}
+    for row in rows:
+        _close(session,user,row,'DA_NHA',reason)
+    for wh,amount in amounts.items():
+        if amount > 0:
+            row=StockReservation(order_id=order.id,order_line_id=line.line_no,warehouse_code=wh,
+                product_code=line.product_code,qty=amount,status='GIU',reason='',created_by=user.id)
+            session.add(row)
+            _record(session,user,row,'keep')

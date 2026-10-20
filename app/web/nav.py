@@ -11,7 +11,7 @@ from ..security import has_role
 GROUPS = (
     {'label': '', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
-        {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
+        {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
     )},
     {'label': 'Bán hàng', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},

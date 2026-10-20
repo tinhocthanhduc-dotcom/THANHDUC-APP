@@ -327,11 +327,18 @@ def deliver(session: Session, user, order_id, version, lines=None, receiver_name
         return deliver_in_tx(session,user,order_id,version,lines,receiver_name,note,carrier_name,tracking_code)
 
 
-def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name='', note='', carrier_name='', tracking_code='', *, _stamp=None):
-    if not has_role(user,*DELIVERERS):
+def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name='', note='', carrier_name='', tracking_code='', *, _stamp=None, _technician=False):
+    if not _technician and not has_role(user,*DELIVERERS):
         raise BusinessError('FORBIDDEN','Chỉ kinh doanh, kho hoặc giám đốc được giao đơn bán.',status=403)
     from .schemas import SalesDeliveryIn
     order = _load(session, order_id, lock=True)
+    actual_warehouse = None
+    if _technician:
+        from .technician_deliveries import check_assignee, warehouse
+        check_assignee(user, order)
+        actual_warehouse = warehouse(session, order.delivery_assignee_id).code
+    elif order.delivery_assignee_id is not None:
+        raise BusinessError('TECH_DELIVERY_REQUIRED','Đơn đã giao thợ phải xuất từ kho thợ qua giao đơn.',status=409)
     _version(order, version)
     _status(order, ('DA_CHOT', 'GIAO_MOT_PHAN'))
     body = SalesDeliveryIn(version=version, lines=lines, receiver_name=receiver_name, note=note, carrier_name=carrier_name, tracking_code=tracking_code)
@@ -351,6 +358,16 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
     if not parts:
         raise BusinessError('EMPTY_DELIVERY', 'Phải có ít nhất một dòng giao lớn hơn 0.')
     _lines(session, [SalesOrderLineIn.model_validate(l, from_attributes=True) for l in parts], require_warehouse=True)
+    if _technician:
+        for line in parts:
+            if line.kind == 'HANG':
+                held = session.scalar(select(func.coalesce(func.sum(stock_reservations.StockReservation.qty),0)).where(
+                    stock_reservations.StockReservation.order_id==order.id,
+                    stock_reservations.StockReservation.order_line_id==line.line_no,
+                    stock_reservations.StockReservation.warehouse_code==actual_warehouse,
+                    stock_reservations.StockReservation.status=='GIU'))
+                if quantities[line.line_no] > held:
+                    raise BusinessError('OVER_DELIVERY','Số giao vượt hàng giữ của đơn tại kho thợ.',status=409)
     before = snapshot(order)
     stamp = _stamp or datetime.now(UTC)
     gh = SalesDelivery(number=next_number(session,'GH',stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date()),
@@ -366,12 +383,12 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
         amount = line.amount-old['amount'] if final else quotes._round(qty*line.unit_price)
         vat = line.vat_amount-old['vat_amount'] if final else quotes._round(Decimal(amount)*line.vat_rate/100)
         piece = SalesDeliveryLine(order_id=order.id, order_line_no=line.line_no, qty=qty,
-            amount=amount, vat_amount=vat, warehouse_code=line.warehouse_code)
+            amount=amount, vat_amount=vat, warehouse_code=(actual_warehouse or line.warehouse_code) if line.kind=='HANG' else None)
         gh.lines.append(piece)
         gh.subtotal += amount
         gh.vat_total += vat
         if line.kind == 'HANG':
-            by_wh.setdefault(line.warehouse_code, []).append((line,piece))
+            by_wh.setdefault(actual_warehouse or line.warehouse_code, []).append((line,piece))
     gh.total = gh.subtotal+gh.vat_total
     session.add(gh)
     session.flush()
@@ -385,13 +402,13 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
             reason=f'Giao {gh.number} cho {order.number}', lines=[StockDocLineIn(product_code=l.product_code,
                 qty=p.qty, note=f'{order.number} dòng {l.line_no}; {gh.number}') for l,p in pairs]))
         docs.append((doc,pairs))
-    stock_posting._lock_balances(session, {(l.warehouse_code,l.product_code) for l in parts if l.kind=='HANG'})
+    stock_posting._lock_balances(session, {(actual_warehouse or l.warehouse_code,l.product_code) for l in parts if l.kind=='HANG'})
     for doc,pairs in docs:
         stock_posting.post_in_tx(session,user,doc.id,None,for_order_id=order.id)
         for line,piece in pairs:
             piece.stock_doc_id = doc.id
             line.stock_doc_id = doc.id  # liên kết gần nhất để giữ tương thích API cũ
-            stock_reservations.split_in_tx(session,user,order,line,piece.qty,gh.number)
+            stock_reservations.split_in_tx(session,user,order,line,piece.qty,gh.number,piece.warehouse_code)
     session.flush()
     _recompute(session,order)
     order.receivable = (order.receivable or 0)+gh.total

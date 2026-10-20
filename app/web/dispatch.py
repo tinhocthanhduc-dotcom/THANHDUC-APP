@@ -62,7 +62,11 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         view, title = "overdue", "Đơn quá hạn"
         # Truyền limit theo tổng thực tế: không cắt danh sách ở giới hạn tìm kiếm mặc định.
         rows = svc.search(session, user, overdue=True, limit=count_overdue or 1)
-    return render(request, "dieu_phoi.jinja", rows=rows, view=view, title=title,
+    from .. import technician_deliveries
+    from ..models import SalesOrder
+    delivery_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))).order_by(SalesOrder.id)))
+    delivery_labels={o.id:technician_deliveries.state(session,user,o)['label'] for o in delivery_orders}
+    return render(request, "dieu_phoi.jinja",delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
                   count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
                   users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
                   now=now, delay=_delay)

@@ -6,7 +6,7 @@
 <p>Chỉ gồm báo thu tiền mặt do bạn lập, đang chờ kế toán xác nhận. Chuyển khoản không tính vào tiền đang giữ.</p></section>
 <div class="work-rows">{% for row in held.rows %}<article class="card work-row" data-held-receipt="{{ row.id }}">
 <strong>{{ row.number }}</strong><span>{{ row.customer }}</span>
-{% if row.ticket_id %}<a href="/dich-vu/{{ row.ticket_id }}#thu-tien">{{ row.ticket_number }}</a>{% else %}<span>{{ row.order_number }}</span>{% endif %}
+{% if row.ticket_id %}<a href="/dich-vu/{{ row.ticket_id }}#thu-tien">{{ row.ticket_number }}</a>{% else %}<a href="/giao-don/{{ row.order_id }}">{{ row.order_number }}</a>{% endif %}
 <strong>{{ row.amount|money }} đồng</strong><span>Ngày thu: {{ row.received_at.strftime('%d/%m/%Y') }}</span><span class="tag">Chờ xác nhận</span>
 </article>{% else %}<p class="card">Bạn không có báo thu tiền mặt đang chờ xác nhận.</p>{% endfor %}</div>
 {% endblock %}

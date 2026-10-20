@@ -740,3 +740,83 @@ Mã lỗi mới: `BAD_TERMS`, `BAD_DEPOSIT`, `BAD_FULFILLMENT`, `BAD_COUNTER_SAL
 Migration 0029 sau 0028 đặt mọi đơn cũ TAI_QUAY + CONG_NO + 30 ngày, giữ kết quả cảnh báo 30/60 ngày cũ; đơn tạo mới mặc định TRA_NGAY. Không thay số liệu sổ kho, sổ quỹ hay báo thu cũ.
 
 Bán tại quầy khóa bộ đếm GH rồi PX trước khi chốt giữ tồn, cùng thứ tự với giao hàng/xuất kho thường. `doc_numbers.lock_counter` chỉ khóa (khởi tạo 0 nếu chưa có), không cấp số hay commit; số vẫn do `next_number` cấp trong transaction. Ngày giao được cố định xuyên suốt thao tác để giữ đúng khóa kể cả lúc qua năm mới.
+
+## S4 · Thợ giao đơn bán
+
+Đơn có `fulfillment=THO_GIAO`, trạng thái `DA_CHOT` hoặc `GIAO_MOT_PHAN`.
+`SalesOrderOut` bổ sung `delivery_assignee_id`, `delivery_assigned_at`,
+`service_ticket_id` (có thể null). Mọi thao tác dưới đây nhận `version` hiện tại
+của đơn; `VERSION_CONFLICT` trả HTTP 409 nếu đã có thay đổi.
+
+| POST `/sales-orders/{id}/…` | Người thực hiện | Nội dung |
+| --- | --- | --- |
+| `assign-delivery` | Điều phối, giám đốc | `{"version":4,"assignee_id":7,"service_ticket_id":12}`; bỏ/null phiếu DV nếu không ghép |
+| `handover/transfer` | Kho, giám đốc | `{"version":5,"lines":[{"order_line_no":1,"qty":"4"}]}`; CK từ kho gốc sang kho thợ, chuyển GIU cùng transaction |
+| `handover/use` | Kho, điều phối, giám đốc | Cùng dạng trên; chuyển giữ sang hàng khả dụng ở kho thợ, không lập CK/ghi sổ |
+| `handover/return` | Kho, giám đốc | Cùng dạng trên; CK ngược về kho gốc và chuyển GIU về nguồn |
+| `failed-delivery` | Thợ được giao | `{"version":6,"reason":"HEN_LAI","promised_date":"2026-10-21","note":"Khách hẹn lại"}` |
+| `technician-deliver` | Thợ được giao | Multipart: trường `body` là chuỗi JSON như ví dụ dưới, các file ảnh cùng tên `photos` |
+
+`body` của `technician-deliver`:
+
+```json
+{
+  "version": 6,
+  "lines": [{"order_line_no": 1, "qty": "4"}],
+  "receiver_name": "Khách nhận hàng",
+  "note": "Đã giao",
+  "receipt": {"version": 6, "method": "TIEN_MAT", "amount": 500000}
+}
+```
+
+`receipt` tùy chọn; dùng phiên bản của đơn sau giao ở bên trong cùng transaction.
+Trần báo thu và công thức tiền giữ nguyên S2/S3. Thiếu/sai ảnh hoặc lỗi báo thu
+rollback GH, PX, giữ hàng, ảnh và audit; file đã tạo được dọn. Tối đa 10 ảnh mỗi
+lần, mỗi ảnh theo `TD_MAX_UPLOAD_MB`; chỉ JPEG/PNG/WEBP theo nội dung, không PDF.
+Ảnh mang tag `GIAO_HANG`, entity `sales_delivery`; đọc qua API attachments hiện có.
+Ảnh được bỏ EXIF và chuyển JPEG như ảnh dịch vụ. Thợ khác nhận HTTP 403 khi đọc
+metadata hoặc file ảnh của đơn không thuộc mình.
+
+GET `/sales-orders/{id}/technician-delivery` và kết quả giao/thất bại trả dữ liệu
+gọn cho thợ: khách, địa chỉ, liên hệ, hàng/số lượng/giữ tại kho thợ, phiên bản,
+nhãn giao hàng và `amount_due` (số còn có thể báo thu theo balance hiện có).
+Không trả giá vốn, liên kết phiếu kho hoặc mở quyền đọc danh sách đơn bán cho thợ.
+GH lưu `sales_delivery_lines.warehouse_code` là kho thực xuất; kho gốc của dòng
+đơn không đổi. GIU của một dòng được phép tồn tại ở cả nguồn và kho thợ.
+
+Báo thu riêng vẫn dùng POST `/sales-orders/{id}/receipts`. Thợ chỉ được báo thu
+đơn hiện giao mình; kiểm quyền sau khóa đơn. Tiền mặt `CHO_XAC_NHAN` vào
+“Tiền tôi giữ” của người báo. Thợ không được xác nhận/từ chối/hủy báo thu;
+riêng tự xác nhận BT đơn bán của mình trả `SELF_CONFIRM` HTTP 403. Hành vi cũ
+vẫn giữ: sales-only tự xác nhận là `FORBIDDEN`, sales+finance là `SELF_CONFIRM`,
+thợ xác nhận BT dịch vụ là `FORBIDDEN`; giám đốc theo quyền hiện hành.
+
+Lý do thất bại: `KHACH_VANG`, `KHACH_TU_CHOI`, `SAI_DIA_CHI`, `HEN_LAI`, `KHAC`.
+`HEN_LAI` bắt buộc ngày mới và cập nhật `promised_date`. Lịch sử attempts chỉ
+thêm; trigger PostgreSQL chặn UPDATE/DELETE. Không thay tồn, giữ hoặc tiền.
+Nhãn “Giao không thành” giữ tới lần giao thành công tiếp theo (theo thứ tự audit).
+
+| Mã lỗi | HTTP | Ý nghĩa |
+| --- | --- | --- |
+| `FORBIDDEN` / `SELF_CONFIRM` | 403 | Sai người được giao/sai quyền hoặc tự xác nhận báo thu |
+| `NO_TECH_WAREHOUSE` | 409 | Chưa giao thợ hoặc thợ không hoạt động/không có kho THO đang dùng |
+| `HELD_BY_TECH` | 409 | Phải trả kho phần còn GIU ở thợ trước khi đổi người |
+| `BAD_SERVICE_TICKET` | 400 | DV không tồn tại, khác khách hoặc không còn mở |
+| `OVER_HANDOVER` | 409 | Dòng trùng/không thuộc đơn, số chuyển vượt còn lại hoặc GIU tại nguồn |
+| `RESERVED_STOCK` | 409 | Kho thợ không đủ khả dụng; hàng giữ cho đơn khác không được dùng |
+| `OVER_DELIVERY` | 409 | Số thực nhận vượt còn lại hoặc GIU của đơn tại kho thợ |
+| `TECH_DELIVERY_REQUIRED` | 409 | Endpoint giao thường bị chặn khi đơn đã phân công thợ |
+| `PROMISED_DATE_REQUIRED` | 400 | Hẹn lại thiếu ngày hẹn mới |
+| `PHOTO_REQUIRED` / `BAD_FILE_TYPE` / `EMPTY_FILE` / `FILE_TOO_LARGE` | 400 | Thiếu ảnh/ảnh không hợp lệ/quá giới hạn |
+| `BAD_HANDOVER` / `BAD_FULFILLMENT` / `BAD_FORM` | 400 | Chế độ bàn giao/cách nhận hàng/nội dung multipart sai |
+| `OVER_PAYMENT` / `BAD_STATUS` / `VERSION_CONFLICT` | 409 | Trần báo thu, trạng thái và kiểm phiên bản như trước |
+
+Web riêng `/giao-don/{id}` có các form phân công, bàn giao, dùng hàng sẵn, trả
+kho, giao kèm ảnh, ghi thất bại và báo thu. Mọi POST dùng CSRF + form_key S0;
+replay trả lại kết quả trước và không ghi lặp. Lỗi giữ dữ liệu nhập, ảnh chọn lại.
+Điều phối, Việc của tôi, Hàng tôi giữ, Tiền tôi giữ và phiếu DV ghép cùng chuyến
+có liên kết tới màn hình này; tiền/kho của đơn và DV vẫn độc lập.
+
+Migration `0030` nối `0029`. Khi downgrade về S3, cần trả kho để mỗi dòng chỉ còn
+một GIU trước; migration từ chối downgrade nếu còn GIU đồng thời ở nhiều kho,
+không tự xóa hoặc gộp mất thông tin giữ hàng.

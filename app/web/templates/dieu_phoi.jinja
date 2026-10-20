@@ -1,6 +1,7 @@
 {% extends "base.jinja" %}
 {% block title %}Điều phối{% endblock %}
 {% block main %}
+<section class="card"><h2>Đơn bán chờ giao thợ</h2>{% for order in delivery_orders %}<p><a href="/giao-don/{{ order.id }}">{{ order.number }}</a> · {{ delivery_labels[order.id] }} · {{ order.delivery_address }}</p>{% else %}<p>Không có đơn bán chờ giao thợ.</p>{% endfor %}</section>
 <div class="bar"><h1>Điều phối</h1><a class="btn" href="/dieu-phoi/bao-cao">Báo cáo dịch vụ</a></div>
 <div class="dispatch-tiles">
 <a class="card {% if view == 'open' %}on{% endif %}" href="/dieu-phoi?view=open"><strong>{{ count_open }}</strong><span>Đơn đang mở</span></a>
