@@ -1,7 +1,7 @@
 {% extends 'base.jinja' %}
 {% block title %}Phiếu giao {{ o.number }}{% endblock %}
 {% block main %}
-<div class="bar report-tools"><a href="/don-ban/{{ o.id }}">← Đơn bán</a><button type="button" onclick="window.print()">In / Lưu PDF</button></div>
+<div class="bar report-tools">{% if warehouse_return %}<a class="btn" href="/viec-cua-toi">Về Việc của tôi</a>{% endif %}<a href="/don-ban/{{ o.id }}">← Đơn bán</a><button type="button" onclick="window.print()">In / Lưu PDF</button></div>
 <article class="acceptance-report quote-print">
 <header><h2>{{ company.company_name }}</h2><p>{{ company.company_address }}</p><p>MST: {{ company.company_tax_code }} · Tel: {{ company.company_phone }} · Hotline: {{ company.company_hotline }}</p><h1>PHIẾU GIAO HÀNG</h1><p>Số giao: <strong>{{ gh.number }}</strong> · Số đơn: <strong>{{ o.number }}</strong> · Ngày: {{ issued }}</p></header>
 <p>Đơn vị vận chuyển: {{ gh.carrier_name or '—' }} · Mã vận đơn: {{ gh.tracking_code or '—' }}</p><p>Người nhận: {{ gh.receiver_name or '—' }}</p><p>Trạng thái: {{ statuses[o.status] }}</p><dl><dt>Khách hàng</dt><dd>{{ customer.name }}</dd><dt>Mã khách hàng</dt><dd>{{ customer.code }}</dd><dt>Người liên hệ</dt><dd>{{ o.contact_name or '—' }}</dd><dt>Địa chỉ giao</dt><dd class="service-text">{{ o.delivery_address or '—' }}</dd></dl>

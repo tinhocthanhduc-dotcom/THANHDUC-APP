@@ -120,7 +120,7 @@ def _specs(user, today, now):
     if has_role(user, 'sales', 'warehouse'):
         waiting = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code).where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
         if not director and not has_role(user, 'warehouse'):waiting=waiting.where(SalesOrder.created_by==user.id)
-        add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')
+        add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'warehouse_order' if has_role(user,'warehouse') else 'order', '/don-ban')
         pickups=docs(SalesOrder,Customer.name,overdue=literal(True)).join(Customer,Customer.code==SalesOrder.customer_code).where(
             SalesOrder.fulfillment=='KHACH_LAY_SAU',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')),SalesOrder.promised_date<today)
         if not director and not has_role(user,'warehouse'):pickups=pickups.where(SalesOrder.created_by==user.id)
@@ -165,15 +165,16 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
+            prefix = {'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"
             if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"
             row['amount'] = int(row['amount'] or 0)
-        row['kind'] = kind
+        row['kind'] = 'order' if kind=='warehouse_order' else kind
         rows.append(row)
     if spec['kind']=='technician_return' and rows:
         damaged=list(session.scalars(select(TechnicianReturnLine).where(TechnicianReturnLine.return_id.in_([r['id'] for r in rows]),TechnicianReturnLine.condition=='HU_HONG')))

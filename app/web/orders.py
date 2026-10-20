@@ -174,6 +174,31 @@ def _deposit(value):
     return int(value.replace('.',''))
 
 
+def warehouse_user(user: User=Depends(web_user)):
+    if not has_role(user,'warehouse'):
+        raise BusinessError('FORBIDDEN','Chỉ kho hoặc giám đốc được giao hàng từ màn kho.',status=403)
+    return user
+
+
+def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='',status=200):
+    warehouse_user(user)
+    order=svc.load(session,user,order_id)
+    remaining=svc.remaining_lines(session,order)
+    customer=session.get(Customer,order.customer_code)
+    data=dict(form) if form is not None else dict(version=order.version,receiver_name=order.contact_name,
+        note='',carrier_name='',tracking_code='',**{'deliver_'+str(n):_quantity(v['remaining']) for n,v in remaining.items()})
+    return render(request,'kho_giao.jinja',o=order,customer=customer,
+        phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
+        remaining=remaining,reservations=stock_reservations.for_order(session,order),
+        stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),
+        fulfillments=FULFILLMENTS,d=data,error=error,error_code=code,status=status)
+
+
+@router.get('/kho/giao/{order_id}')
+def warehouse_view(request:Request,order_id:int,user:User=Depends(warehouse_user),session:Session=Depends(get_session)):
+    return warehouse_delivery(request,session,user,order_id)
+
+
 @router.get('/don-ban')
 def listing(request: Request,q: str='',status: str='',phan: int=0,
             from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,fulfillment: str='',overdue: bool=False,
@@ -305,6 +330,7 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
 @router.post('/don-ban/{order_id}/{action}')
 def action(request: Request,order_id: int,action: str,form=Depends(checked_form),session: Session=Depends(get_session)):
     user=request.state.user
+    warehouse_return=action=='deliver' and form.get('return_to')=='kho' and has_role(user,'warehouse')
     if action in ('reserve','release','close-remaining','void-delivery'):
         pass  # quyền theo người lập đơn/kho được kiểm trong module giữ hàng
     elif action=='deliver':
@@ -352,18 +378,21 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác đơn bán.',status=404)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
+        if warehouse_return:return warehouse_delivery(request,session,user,order_id,form,message,code,status)
         return _form(request,session,order=svc.load(session,user,order_id),error=message,code=code,status=status,
                      action_form=dict(form),action=action)
+    if warehouse_return:
+        return RedirectResponse(f'/don-ban/{order_id}/in-giao?return_to=kho',status_code=303)
     return RedirectResponse(f'/don-ban/{order_id}?da_luu=1',status_code=303)
 
 
 @router.get('/don-ban/{order_id}/in-giao')
-def latest_print(order_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
+def latest_print(request:Request,order_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
     order=svc.load(session,user,order_id)
     rows=[g for g in svc.deliveries(session,order.id) if g.status=='DA_GIAO']
     if not rows:
         raise BusinessError('BAD_STATUS','Đơn chưa có lần giao để in.',status=409)
-    return RedirectResponse(f'/don-ban/{order_id}/giao/{rows[-1].id}/in',status_code=303)
+    return RedirectResponse(f'/don-ban/{order_id}/giao/{rows[-1].id}/in'+('?return_to=kho' if request.query_params.get('return_to')=='kho' and has_role(user,'warehouse') else ''),status_code=303)
 
 
 @router.get('/don-ban/{order_id}/giao/{delivery_id}/in')
@@ -377,7 +406,7 @@ def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=De
         description=original[l.order_line_no].description,qty=l.qty,unit=original[l.order_line_no].unit,
         unit_price=original[l.order_line_no].unit_price,vat_rate=original[l.order_line_no].vat_rate,
         amount=l.amount) for l in gh.lines]
-    return render(request,'don_ban_in.jinja',o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
+    return render(request,'don_ban_in.jinja',warehouse_return=request.query_params.get('return_to')=='kho' and has_role(user,'warehouse'),o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
                   company=get_settings(),quantity=_quantity,words=money_words(gh.total),statuses=STATUSES,
                   issued=gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
 

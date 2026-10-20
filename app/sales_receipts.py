@@ -232,33 +232,39 @@ def _decide(session, user, receipt_id, version, target, reason=''):
         if not has_role(user, 'director'):
             raise BusinessError('FORBIDDEN', 'Chỉ giám đốc được hủy báo thu đã xác nhận.', status=403)
     with _transaction(session):
-        parent,receipt = _locked(session, receipt_id)
-        if target != 'DA_HUY':
-            if (target=='DA_XAC_NHAN' and receipt.order_id is not None and receipt.reported_by==user.id
-                    and has_role(user,'technician') and not has_role(user,'director')):
-                raise BusinessError('SELF_CONFIRM','Không được tự xác nhận báo thu do mình lập.',status=403)
-            check_finance(user)
-        _version(receipt, version)
-        expected = 'DA_XAC_NHAN' if target == 'DA_HUY' else 'CHO_XAC_NHAN'
-        if receipt.status != expected:
-            raise BusinessError('BAD_STATUS', 'Không thực hiện được ở trạng thái báo thu hiện tại.',
-                                {'status': receipt.status}, status=409)
-        if target == 'DA_XAC_NHAN' and receipt.reported_by == user.id and not has_role(user, 'director'):
-            raise BusinessError('SELF_CONFIRM', 'Không được tự xác nhận báo thu do mình lập.', status=403)
-        reason = (reason or '').strip()
-        if target in ('TU_CHOI', 'DA_HUY') and not reason:
-            raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do từ chối hoặc hủy báo thu.')
-        before = snapshot(receipt)
-        if target=='DA_HUY' and receipt.order_id is not None and balance(parent)['paid']<receipt.amount:
-            raise BusinessError('REFUND_PAID','Đã hoàn tiền, không thể hủy báo thu làm số thu thuần âm.',status=409)
-        if target=='DA_XAC_NHAN':
-            _post_cash(session,user,parent,receipt)
-        elif target=='DA_HUY' and receipt.cash_doc_id is not None:
-            doc = cash_docs._load(session,receipt.cash_doc_id)
-            cash_posting.void_in_tx(session,user,doc.id,reason,doc.version)
-        receipt.status, receipt.reason = target, reason
-        receipt.decided_by, receipt.decided_at = user.id, datetime.now(UTC)
-        _record(session, user, receipt, {'DA_XAC_NHAN':'confirm', 'TU_CHOI':'reject', 'DA_HUY':'void'}[target], before, reason)
+        return decide_in_tx(session,user,receipt_id,version,target,reason)
+
+
+def decide_in_tx(session,user,receipt_id,version,target,reason=''):
+    if target=='DA_HUY' and not has_role(user,'director'):
+        raise BusinessError('FORBIDDEN','Chỉ giám đốc được hủy báo thu đã xác nhận.',status=403)
+    parent,receipt = _locked(session, receipt_id)
+    if target != 'DA_HUY':
+        if (target=='DA_XAC_NHAN' and receipt.order_id is not None and receipt.reported_by==user.id
+                and has_role(user,'technician') and not has_role(user,'director')):
+            raise BusinessError('SELF_CONFIRM','Không được tự xác nhận báo thu do mình lập.',status=403)
+        check_finance(user)
+    _version(receipt, version)
+    expected = 'DA_XAC_NHAN' if target == 'DA_HUY' else 'CHO_XAC_NHAN'
+    if receipt.status != expected:
+        raise BusinessError('BAD_STATUS', 'Không thực hiện được ở trạng thái báo thu hiện tại.',
+                            {'status': receipt.status}, status=409)
+    if target == 'DA_XAC_NHAN' and receipt.reported_by == user.id and not has_role(user, 'director'):
+        raise BusinessError('SELF_CONFIRM', 'Không được tự xác nhận báo thu do mình lập.', status=403)
+    reason = (reason or '').strip()
+    if target in ('TU_CHOI', 'DA_HUY') and not reason:
+        raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do từ chối hoặc hủy báo thu.')
+    before = snapshot(receipt)
+    if target=='DA_HUY' and receipt.order_id is not None and balance(parent)['paid']<receipt.amount:
+        raise BusinessError('REFUND_PAID','Đã hoàn tiền, không thể hủy báo thu làm số thu thuần âm.',status=409)
+    if target=='DA_XAC_NHAN':
+        _post_cash(session,user,parent,receipt)
+    elif target=='DA_HUY' and receipt.cash_doc_id is not None:
+        doc = cash_docs._load(session,receipt.cash_doc_id)
+        cash_posting.void_in_tx(session,user,doc.id,reason,doc.version)
+    receipt.status, receipt.reason = target, reason
+    receipt.decided_by, receipt.decided_at = user.id, datetime.now(UTC)
+    _record(session, user, receipt, {'DA_XAC_NHAN':'confirm', 'TU_CHOI':'reject', 'DA_HUY':'void'}[target], before, reason)
     return receipt
 
 
@@ -301,3 +307,49 @@ def receivables(session: Session, user):
     return [dict(order=o,balance=_balance(o.receivable,pay,wait),
                  days=max(0,(_today()-first.astimezone(TZ).date()).days),due_date=due,overdue_days=max(0,(_today()-due).days))
             for o,pay,wait,first,due in session.execute(stmt)]
+
+
+def confirm_in_tx(session,user,receipt_id,version):
+    return decide_in_tx(session,user,receipt_id,version,'DA_XAC_NHAN')
+
+
+def confirm_cash_group(session,user,items,counted,reporter_id):
+    """Confirm only the posted snapshot; lock sources before receipts, then post oldest first."""
+    check_finance(user)
+    with _transaction(session):
+        if not items or len({ident for ident,version in items})!=len(items):
+            raise BusinessError('BAD_GROUP','Nhóm phải có báo thu và không được lặp phiếu.')
+        if isinstance(counted,bool) or not isinstance(counted,int) or not 0<=counted<=9_223_372_036_854_775_807:
+            raise BusinessError('BAD_AMOUNT','Số tiền đã đếm phải là số nguyên đồng hợp lệ.')
+        versions=dict(items)
+        rows=list(session.scalars(select(SalesReceipt).where(SalesReceipt.id.in_(versions)).order_by(SalesReceipt.reported_at,SalesReceipt.id)))
+        if len(rows)!=len(items):raise BusinessError('NOT_FOUND','Có báo thu trong nhóm không còn tồn tại.',status=404)
+        # Consistent source lock order also prevents two overlapping groups locking opposite parents.
+        for ident in sorted({row.order_id for row in rows if row.order_id is not None}):
+            sales_orders._load(session,ident,lock=True)
+        for ident in sorted({row.ticket_id for row in rows if row.ticket_id is not None}):
+            _ticket(session,ident)
+        locked=[]
+        for source in rows:
+            try:
+                parent,row=_locked(session,source.id)
+                _version(row,versions[row.id])
+                if row.status!='CHO_XAC_NHAN':raise BusinessError('BAD_STATUS','Báo thu không còn chờ xác nhận.',status=409)
+                if row.method!='TIEN_MAT' or row.reported_by!=reporter_id:
+                    raise BusinessError('BAD_GROUP','Chỉ xác nhận chung tiền mặt của cùng một người nộp.')
+                if row.reported_by==user.id:
+                    raise BusinessError('SELF_CONFIRM','Không được tự xác nhận báo thu trong nhóm.',status=403)
+                locked.append(row)
+            except BusinessError as exc:
+                raise BusinessError(exc.code,source.number+': '+exc.message,{**exc.details,'receipt_id':source.id,'number':source.number},status=exc.status) from exc
+        total=sum(row.amount for row in locked)
+        if counted!=total:
+            difference=counted-total
+            amount=format(abs(difference),',').replace(',','.')
+            raise BusinessError('CASH_COUNT_MISMATCH','Số tiền đã đếm '+('thừa ' if difference>0 else 'thiếu ')+amount+' đồng so với tổng nhóm.',
+                dict(expected=total,counted=counted,difference=difference))
+        for row in locked:
+            try:confirm_in_tx(session,user,row.id,versions[row.id])
+            except BusinessError as exc:
+                raise BusinessError(exc.code,row.number+': '+exc.message,{**exc.details,'receipt_id':row.id,'number':row.number},status=exc.status) from exc
+        return locked
