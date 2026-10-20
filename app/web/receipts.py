@@ -132,7 +132,7 @@ def held(request: Request,user: User=Depends(web_user),session: Session=Depends(
     return render(request,'tien_toi_giu.jinja',held=svc.held_by(session,user))
 
 
-def _queue(request,session,user,filters=None,error=None,code='',status=200,decision=None,failed=None,action='',selected=None):
+def _queue(request,session,user,filters=None,error=None,code='',status=200,decision=None,failed=None,action='',selected=None,group_form=None):
     filters=filters if filters is not None else {k:request.query_params.get(k,'') for k in ('method','from','to')}
     try:
         try:
@@ -150,7 +150,14 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
     receipt_sources={r.id:dict(number=parents[r.id].number,customer_code=parents[r.id].customer_code,
                               url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else f"/dich-vu/{r.ticket_id}#thu-tien") for r in sources}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({p.customer_code for p in parents.values()}))).all())
-    return render(request,'bao_thu_chi_tiet.jinja' if selected else 'bao_thu_ds.jinja',rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
+    cash_groups={}
+    for row in rows:
+        if row.method=='TIEN_MAT':
+            group=cash_groups.setdefault(row.reported_by,dict(reporter_id=row.reported_by,rows=[],eligible=[],total=0))
+            group['rows'].append(row);group['total']+=row.amount
+            if row.reported_by!=user.id:group['eligible'].append(row)
+    totals={method:sum(row.amount for row in rows if row.method==method) for method in METHODS}
+    return render(request,'bao_thu_chi_tiet.jinja' if selected else 'bao_thu_ds.jinja',cash_groups=list(cash_groups.values()),pending_totals=totals,group_form=group_form or {},rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
                   receipt_methods=METHODS,receipt_statuses=STATUSES,can_decide=True,can_void=has_role(user,'director'),
                   receipt_people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({v for r in rows for v in (r.reported_by,r.decided_by) if v}))).all()),
                   receipt_cash_docs=dict(session.execute(select(CashDoc.id,CashDoc.number).where(CashDoc.id.in_({r.cash_doc_id for r in sources if r.cash_doc_id}))).all()),
@@ -165,6 +172,41 @@ def pending(request: Request,user: User=Depends(finance_user),session: Session=D
         from .sales_returns import refund_queue
         return refund_queue(request,session,user)
     return _queue(request,session,user)
+
+
+def _queue_redirect(filters,anchor=''):
+    safe=anchor if re.fullmatch(r'(?:bt|cash-group)-[0-9]+',anchor or '') else 'pending-receipts'
+    return RedirectResponse('/bao-thu?'+urlencode({**filters,'da_luu':'1'})+'#'+safe,status_code=303)
+
+
+@router.post('/bao-thu/xac-nhan-nhom')
+def confirm_group(request:Request,form=Depends(checked_form),session:Session=Depends(get_session)):
+    user=request.state.user
+    svc.check_finance(user)
+    filters={k:str(form.get('filter_'+k,'')) for k in ('method','from','to')}
+    raw=dict(form)
+    try:
+        identifiers=form.getlist('receipt_id')
+        if not identifiers:raise BusinessError('BAD_GROUP','Nhóm chưa có báo thu.')
+        items=[]
+        for value in identifiers:
+            value=str(value)
+            if not value.isdigit() or len(value)>19 or not 0<int(value)<=9_223_372_036_854_775_807:raise BusinessError('BAD_GROUP','Mã báo thu trong nhóm chưa hợp lệ.')
+            ident=int(value);version=_version({'version':form.get('version_'+value)})
+            items.append((ident,version))
+        reporter=str(form.get('reporter_id',''))
+        if not reporter.isdigit() or len(reporter)>19 or not 0<int(reporter)<=9_223_372_036_854_775_807:raise BusinessError('BAD_GROUP','Người nộp chưa hợp lệ.')
+        amount=str(form.get('counted_amount','')).strip()
+        if not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)',amount) or len(amount.replace('.',''))>19:
+            raise BusinessError('BAD_AMOUNT','Phải nhập số tiền đã đếm bằng số nguyên đồng.')
+        svc.confirm_cash_group(session,user,items,int(amount.replace('.','')),int(reporter))
+    except BusinessError as exc:
+        message,code,status=_error(exc)
+        if exc.details.get('number') and not message.startswith(exc.details['number']+':'):
+            message=exc.details['number']+': '+message
+        failed=session.get(SalesReceipt,exc.details['receipt_id']) if exc.details.get('receipt_id') else None
+        return _queue(request,session,user,filters,message,code,status,failed=failed,group_form=raw)
+    return _queue_redirect(filters,'cash-group-'+reporter)
 
 
 @router.get('/bao-thu/{receipt_id}')
@@ -213,7 +255,7 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
         return RedirectResponse(f'/dich-vu/{receipt.ticket_id}?da_luu=1#thu-tien',status_code=303)
     if receipt.order_id and form.get('origin')=='order':
         return RedirectResponse(f'/don-ban/{receipt.order_id}?da_luu=1#thu-tien',status_code=303)
-    return RedirectResponse('/bao-thu?'+urlencode({**filters,'da_luu':'1'}),status_code=303)
+    return _queue_redirect(filters,str(form.get('return_anchor','')))
 
 
 @router.get('/don-ban/can-thu')

@@ -1,0 +1,22 @@
+{% extends 'base.jinja' %}
+{% block title %}Giao {{ o.number }}{% endblock %}
+{% block main %}
+<div class="bar"><h1>{{ o.number }} · Giao hàng</h1><a href="/viec-cua-toi">Về Việc của tôi</a></div>
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<section class="card"><h2>{{ customer.name }}</h2>{% if phone %}<p>SĐT: {{ phone }}</p>{% endif %}<p>{{ fulfillments[o.fulfillment] }} · Hẹn {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'Chưa hẹn' }}</p>{% if o.note %}<p class="service-text">{{ o.note }}</p>{% endif %}<a href="/don-ban/{{ o.id }}">Xem đơn đầy đủ</a></section>
+{% if o.fulfillment=='THO_GIAO' %}<div class="warehouse-bottom"><a class="btn primary" href="/giao-don/{{ o.id }}" data-next-primary>Bàn giao cho thợ</a></div>
+{% elif o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}
+<form id="warehouse-deliver" method="post" action="/don-ban/{{ o.id }}/deliver" class="card form" data-warehouse-deliver>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',o.version) }}"><input type="hidden" name="delivery_form" value="1"><input type="hidden" name="return_to" value="kho">
+{% for line in o.lines if remaining[line.line_no].remaining>0 %}{% set rem=remaining[line.line_no].remaining %}{% set held=reservations[line.line_no].held if line.kind=='HANG' else none %}
+<section class="card {% if held is not none and held<rem %}warehouse-short{% endif %}" data-warehouse-line><h3>{{ line.product_code or 'Dịch vụ' }} · {{ line.description }}</h3><p>Kho {{ line.warehouse_code or '—' }} · Còn phải giao <strong>{{ rem|qty }}</strong> {{ line.unit }}</p>
+{% if held is not none %}<p>Đã giữ {{ held|qty }}/{{ rem|qty }} · Tồn khả dụng {{ stock_values.get((line.warehouse_code,line.product_code),{}).get('available',0)|qty }}</p>{% endif %}
+<label>Số giao<input name="deliver_{{ line.line_no }}" value="{{ d.get('deliver_' ~ line.line_no,rem|qty) }}" data-remaining="{{ rem }}" inputmode="decimal" required></label></section>{% endfor %}
+<label>Người nhận<input name="receiver_name" value="{{ d.get('receiver_name','') }}" maxlength="200"></label>
+{% if o.fulfillment=='VAN_CHUYEN' %}<label>Đơn vị vận chuyển<input name="carrier_name" value="{{ d.get('carrier_name','') }}" maxlength="200"></label><label>Mã vận đơn<input name="tracking_code" value="{{ d.get('tracking_code','') }}" maxlength="100"></label>{% endif %}
+<label>Ghi chú lần giao<textarea name="note" maxlength="4000">{{ d.get('note','') }}</textarea></label>
+</form>
+<div class="warehouse-bottom"><button type="submit" form="warehouse-deliver" class="primary" data-next-primary data-warehouse-submit>Giao đủ và in phiếu giao</button></div>
+{% else %}<p class="card">{{ 'Đã giao đủ.' if o.status=='DA_GIAO' else 'Đơn không ở trạng thái chờ giao.' }}</p>{% endif %}
+<script src="/static/warehouse-delivery.js" defer></script>
+{% endblock %}
