@@ -1,1 +1,1 @@
-{% macro group(open=false) -%}<details class="card workflow-other" data-other-work {% if open %}open{% endif %}><summary>Việc khác</summary><div class="workflow-other-content">{{ caller() }}</div></details>{%- endmacro %}
+{% macro group(open=false) -%}{% set content=caller() %}{% if content|trim %}<details class="card workflow-other" data-other-work {% if open %}open{% endif %}><summary>Việc khác</summary><div class="workflow-other-content">{{ content }}</div></details>{% endif %}{%- endmacro %}
