@@ -52,6 +52,11 @@ def returned(session,delivery_id,line_no):
 
 
 def original_cost(session,piece):
+    from .models import PendingDisposition
+    lots=list(session.scalars(select(PendingDisposition).where(PendingDisposition.delivery_id==piece.delivery_id,PendingDisposition.order_line_no==piece.order_line_no,PendingDisposition.kind=='THANH_LY',PendingDisposition.status=='DA_GHI')))
+    if lots:
+        total=sum(row.cost_value for row in lots)
+        return quotes._round(Decimal(total)/piece.qty),total
     # S2 ghi PX theo thứ tự dòng GH trong từng kho. Một mã có thể xuất nhiều dòng,
     # nên phải lấy đúng dòng sổ, không lấy bình quân hiện tại hoặc chỉ lọc mã hàng.
     siblings=list(session.scalars(select(SalesDeliveryLine).where(SalesDeliveryLine.delivery_id==piece.delivery_id,
@@ -100,7 +105,7 @@ def create(session,user,order_id,body):
                     wh=session.scalar(stmt.order_by(Warehouse.code).limit(1).with_for_update(read=True))
                     if wh is None:raise BusinessError('NO_DEFECT_WAREHOUSE','Chưa có Kho Chờ Xử lý đang dùng.',status=409)
                 else:
-                    wh=session.scalar(select(Warehouse).where(Warehouse.code==(part.warehouse_code or line.warehouse_code),Warehouse.kind=='KHO',Warehouse.active.is_(True)).with_for_update(read=True))
+                    wh=session.scalar(select(Warehouse).where(Warehouse.code==(part.warehouse_code or (sales_orders.get_settings().sales_default_warehouse if session.get(Warehouse,line.warehouse_code).kind=='LOI' else line.warehouse_code)),Warehouse.kind=='KHO',Warehouse.active.is_(True)).with_for_update(read=True))
                     if wh is None:raise BusinessError('BAD_WAREHOUSE','Hàng tốt phải về kho công ty đang dùng.')
                 code=wh.code
                 unit_cost,original_amount=original_cost(session,piece)

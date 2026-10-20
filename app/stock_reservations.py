@@ -6,11 +6,11 @@ Không ghi sổ/tính giá vốn ở đây. Khóa tồn dùng chung với stock_
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import case,func, select, tuple_
 
 from . import audit
 from .errors import BusinessError
-from .models import Customer, SalesOrder, StockBalance, StockReservation
+from .models import Customer, SalesOrder, StockBalance, StockReservation,Warehouse
 from .security import has_role
 
 ZERO = Decimal(0)
@@ -27,8 +27,11 @@ def held_query(exclude_order_id=None):
 def quantities(session, keys=None, exclude_order_id=None):
     held = held_query(exclude_order_id)
     reserved = func.coalesce(held.c.reserved, 0)
+    from .pending_liquidation import supply_query
+    pool=supply_query().subquery()
+    supply=case((Warehouse.kind=='LOI',func.coalesce(pool.c.qty,0)),else_=StockBalance.qty)
     stmt = select(StockBalance.warehouse_code, StockBalance.product_code, StockBalance.qty,
-                  reserved.label('reserved'), (StockBalance.qty-reserved).label('available')).outerjoin(
+                  reserved.label('reserved'), (supply-reserved).label('available')).join(Warehouse,Warehouse.code==StockBalance.warehouse_code).outerjoin(pool,(pool.c.warehouse_code==StockBalance.warehouse_code)&(pool.c.product_code==StockBalance.product_code)).outerjoin(
         held, (held.c.warehouse_code == StockBalance.warehouse_code) & (held.c.product_code == StockBalance.product_code))
     if keys is not None:
         keys = set(keys)
@@ -65,6 +68,7 @@ def check_out(session, balance, qty, for_order_id=None):
         return
     state = quantities(session, [(balance.warehouse_code,balance.product_code)], for_order_id)[(balance.warehouse_code,balance.product_code)]
     held, free = state['reserved'], state['available']
+    if session.get(Warehouse,balance.warehouse_code).kind=='LOI':free=balance.qty-held
     if held > 0 and qty > free:
         rows = held_orders(session, balance.warehouse_code, balance.product_code, for_order_id)
         orders = list(dict.fromkeys(number for _, number, *_ in rows))
@@ -108,6 +112,8 @@ def keep_in_tx(session, user, order):
         held = old.qty if old else ZERO
         total = session.scalar(select(func.coalesce(func.sum(StockReservation.qty),0)).where(
             StockReservation.order_id==order.id, StockReservation.order_line_id==line.line_no, StockReservation.status=='GIU'))
+        if session.get(Warehouse,line.warehouse_code).kind=='LOI' and remaining[line.line_no]['remaining']-total>available(session,line.warehouse_code,line.product_code):
+            raise BusinessError('CXL_NOT_ENOUGH','Hàng thanh lý không đủ số chốt sau khi trừ giữ của đơn khác và phiếu chờ duyệt.',status=409)
         more = min(remaining[line.line_no]['remaining']-total, max(ZERO, available(session, line.warehouse_code, line.product_code)))
         if more <= 0:
             continue

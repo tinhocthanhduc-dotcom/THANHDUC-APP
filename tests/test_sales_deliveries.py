@@ -207,11 +207,15 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     s3=importlib.util.module_from_spec(s3_spec);s3_spec.loader.exec_module(s3)
     s5_spec=importlib.util.spec_from_file_location('s5_migration',file.parent/'0031_s5_tra_hang_hoan_tien.py')
     s5=importlib.util.module_from_spec(s5_spec);s5_spec.loader.exec_module(s5)
+    cxl2b_spec=importlib.util.spec_from_file_location('cxl2b_migration',file.parent/'0040_cxl2b_tra_ncc_thanh_ly.py')
+    cxl2b=importlib.util.module_from_spec(cxl2b_spec);cxl2b_spec.loader.exec_module(cxl2b)
     with engine.begin() as conn:
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s3,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s5,'op',Operations(MigrationContext.configure(conn)))
-        # Hạ lớp S5 phụ thuộc GH trước khi tái hiện schema S1/S2.
+        monkeypatch.setattr(cxl2b,'op',Operations(MigrationContext.configure(conn)))
+        # Hạ các lớp phụ thuộc GH trước khi tái hiện schema S1/S2.
+        cxl2b.downgrade()
         s5.downgrade()
         s3.downgrade()
         migration.downgrade()
@@ -227,6 +231,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         assert tuple(old_bt)==(bt_number,100,'CHO_XAC_NHAN',bt_version)
         s3.upgrade()
         s5.upgrade()
+        cxl2b.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

@@ -77,6 +77,9 @@ def _error(exc):
     return message,'BAD_FORM',400
 
 
+from .. import pending_liquidation
+
+
 def _warehouses(session):
     return list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code)))
 
@@ -103,6 +106,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     codes={l.get('product_code') for l in data['lines'] if l.get('product_code')}
     shipments=svc.deliveries(session,order.id) if order else []
     ids={l.stock_doc_id for g in shipments for l in g.lines if l.stock_doc_id}
+    for g in shipments:ids.update(r.stock_doc_id for r in pending_liquidation.delivery_rows(session,g.id))
     source=quotes.load(session,request.state.user,order.quote_id) if order and order.quote_id and has_role(request.state.user,'sales','finance') else None
     receipt_ctx=order_context(session,request.state.user,order,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action)
     deposit_remaining=0
@@ -129,7 +133,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
-                  warehouses=warehouses,default_warehouse=default_warehouse,can_write=has_role(request.state.user,'sales'),
+                  liquidation_warehouses=pending_liquidation.choices(session,codes),warehouses=warehouses,default_warehouse=default_warehouse,can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse') and not (order and order.delivery_assignee_id),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
                   saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error),**receipt_ctx)
@@ -230,7 +234,7 @@ def pick_customer(request: Request,q: str='',user: User=Depends(order_user),sess
 @router.get('/don-ban/tim-hang')
 def pick_product(request: Request,q: str='',customer_code: str='',warehouse: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
     rows=products.search(session,q[:200],active_only=True,limit=20)
-    return render(request,'don_ban_chon.jinja',kind='product',rows=rows,last_prices=picked.last_prices(session,customer_code,rows),warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
+    return render(request,'don_ban_chon.jinja',kind='product',rows=rows,liquidation_warehouses=pending_liquidation.choices(session,[p.code for p in rows]),last_prices=picked.last_prices(session,customer_code,rows),warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
 
 
 @router.get('/don-ban/dieu-kien')
@@ -272,7 +276,7 @@ def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
     data=data if data is not None else dict(version=quote.version,contact_name=quote.contact_name,
         delivery_address=customer.address,note=quote.note,promised_date='',warehouses={})
     return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,quantity=_quantity,
-                  warehouses=_warehouses(session),linked=_active_order(session,quote.id),
+                  liquidation_warehouses=pending_liquidation.choices(session,[l.product_code for l in quote.lines if l.product_code]),warehouses=_warehouses(session),linked=_active_order(session,quote.id),
                   next_step=next_steps.block(next_steps.form('Tạo đơn bán','order-from-quote',f'/don-ban/tu-bao-gia/{quote.id}')) if quote.status=='CHAP_NHAN' and not _active_order(session,quote.id) else None,
                   error=error,error_code=code,status=status)
 

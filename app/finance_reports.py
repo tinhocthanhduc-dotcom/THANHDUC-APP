@@ -146,6 +146,13 @@ def customer_docs(session, user, customer_code):
                  .order_by(debts.c.day, debts.c.kind, debts.c.id))
 
 
+def pending_return_difference(session,user,start=None,end=None):
+    check_reader(user);start,end=date_range(start,end)
+    day=cast(func.timezone('Asia/Ho_Chi_Minh',PendingDisposition.decided_at),Date)
+    with session.no_autoflush:
+        return int(session.scalar(select(func.coalesce(func.sum(PendingDisposition.amount-PendingDisposition.cost_value),0)).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='DA_GHI',day.between(start,end))))
+
+
 def damage_cost(session,user,start=None,end=None):
     check_reader(user);start,end=date_range(start,end)
     day=cast(func.timezone('Asia/Ho_Chi_Minh',PendingDisposition.decided_at),Date)

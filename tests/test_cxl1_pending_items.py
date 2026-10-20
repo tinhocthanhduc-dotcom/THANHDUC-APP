@@ -56,14 +56,17 @@ def test_migration_legacy_each_pair_and_down_up(db,people):
     migration=importlib.util.module_from_spec(spec);spec.loader.exec_module(migration)
     newer_spec=importlib.util.spec_from_file_location('cxl2a_migration',Path(__file__).parents[1]/'migrations/versions/0039_cxl2a_xu_ly_noi_bo.py')
     newer=importlib.util.module_from_spec(newer_spec);newer_spec.loader.exec_module(newer)
+    latest_spec=importlib.util.spec_from_file_location('cxl2b_migration',Path(__file__).parents[1]/'migrations/versions/0040_cxl2b_tra_ncc_thanh_ly.py')
+    latest=importlib.util.module_from_spec(latest_spec);latest_spec.loader.exec_module(latest)
     with Operations.context(MigrationContext.configure(db.connection())):
+        latest.downgrade()
         newer.downgrade()
         migration.downgrade()
         db.execute(text("insert into stock_balances(warehouse_code,product_code,qty,value,avg_cost) values ('CXL','TD-0001',4,400,100),('CXL','TD-0002',2,600,300)"))
         migration.upgrade()
         rows=db.execute(text('select product_code,qty_in,qty_left,unit_cost,source,group_code from pending_items order by product_code')).all()
         assert [tuple(r) for r in rows]==[('TD-0001',4,4,100,'TON_CU','CHUA_PHAN_LOAI'),('TD-0002',2,2,300,'TON_CU','CHUA_PHAN_LOAI')]
-        migration.downgrade();migration.upgrade();newer.upgrade()
+        migration.downgrade();migration.upgrade();newer.upgrade();latest.upgrade()
     db.commit();assert db.query(PendingItem).count()==2;assert_pending_invariant(db)
 
 

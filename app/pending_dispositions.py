@@ -1,17 +1,19 @@
 """CXL2a: một phiếu xử lý, một phiếu kho, mọi thay đổi trong cùng giao dịch."""
 from contextlib import nullcontext
 from datetime import UTC,datetime
+from decimal import Decimal
+
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func,select
 
-from . import audit,doc_numbers,pending_items as items,stock_docs,stock_posting
+from . import audit,day_closings,quotes,doc_numbers,pending_items as items,stock_docs,stock_posting
 from .errors import BusinessError
-from .models import PendingDisposition,PendingItem,PendingItemMove,StockBalance,StockDoc,StockLedger,Supplier,Warehouse
+from .models import PendingDisposition,PendingItem,PendingItemMove,StockBalance,StockDoc,StockLedger,Supplier,Warehouse,SalesDelivery,SalesOrder
 from .schemas import StockDocIn
 from .security import has_role
 
-KINDS={'SUA_XONG':'Sửa xong','GUI_NCC':'Gửi NCC','NCC_TRA_VE':'NCC trả về','NCC_KHONG_NHAN':'NCC không nhận','HUY':'Hủy'}
+KINDS={'SUA_XONG':'Sửa xong','GUI_NCC':'Gửi NCC','NCC_TRA_VE':'NCC trả về','NCC_KHONG_NHAN':'NCC không nhận','HUY':'Hủy','TRA_NCC':'Trả NCC trừ nợ','THANH_LY':'Thanh lý'}
 STATUSES={'CHO_DUYET':'Chờ duyệt','DA_GHI':'Đã ghi','TU_CHOI':'Từ chối','DA_HUY':'Đã hủy'}
 TZ=ZoneInfo('Asia/Ho_Chi_Minh')
 
@@ -22,7 +24,7 @@ def director(user):
 
 def snapshot(row):
     return {key:(str(value) if key=='qty' else value.isoformat() if isinstance(value,datetime) else value)
-        for key in ('number','item_id','kind','qty','to_warehouse_code','supplier_code','stock_doc_id','cost_value','status','reason','requested_by','requested_at','decided_by','decided_at','decision_note','void_reason','version') for value in [getattr(row,key)]}
+        for key in ('number','item_id','kind','qty','to_warehouse_code','supplier_code','stock_doc_id','cost_value','status','reason','requested_by','requested_at','decided_by','decided_at','decision_note','void_reason','version','amount','vat_rate','vat_amount','total','delivery_id','order_line_no','voided_at') for value in [getattr(row,key)]}
 
 
 def record(session,user,row,action,before=None,reason=''):
@@ -30,14 +32,18 @@ def record(session,user,row,action,before=None,reason=''):
 
 
 def reserved(session,item_id,exclude=None):
-    stmt=select(func.coalesce(func.sum(PendingDisposition.qty),0)).where(PendingDisposition.item_id==item_id,PendingDisposition.status=='CHO_DUYET',PendingDisposition.kind=='HUY')
+    stmt=select(func.coalesce(func.sum(PendingDisposition.qty),0)).where(PendingDisposition.item_id==item_id,PendingDisposition.status=='CHO_DUYET',PendingDisposition.kind.in_(('HUY','TRA_NCC')))
     if exclude is not None:stmt=stmt.where(PendingDisposition.id!=exclude)
     return session.scalar(stmt)
 
 
 def ensure_available(session,item,qty,exclude=None):
     free=item.qty_left-reserved(session,item.id,exclude)
-    if qty>free:raise BusinessError('CXL_QTY_RESERVED',f'Số lượng vượt số còn xử lý được ({free}); đã trừ yêu cầu hủy chờ duyệt.',status=409)
+    from .pending_liquidation import check_available
+    current=session.get(PendingDisposition,exclude) if exclude is not None else None
+    delivery=session.get(SalesDelivery,current.delivery_id) if current and current.delivery_id else None
+    check_available(session,item,qty,exclude_disposition=exclude,exclude_order=delivery.order_id if delivery else None)
+    if qty>free:raise BusinessError('CXL_QTY_RESERVED',f'Số lượng vượt số còn xử lý được ({free}); đã trừ phiếu chờ duyệt.',status=409)
 
 
 def _row(session,ident,version=None):
@@ -50,14 +56,17 @@ def _row(session,ident,version=None):
 def _destination(session,item,kind,to_code,supplier):
     source=session.get(Warehouse,item.warehouse_code)
     if kind not in KINDS:raise BusinessError('BAD_KIND','Cách xử lý chưa hợp lệ.')
-    if source.supplier_hold and kind not in ('NCC_TRA_VE','NCC_KHONG_NHAN','HUY') or not source.supplier_hold and kind in ('NCC_TRA_VE','NCC_KHONG_NHAN'):
+    if source.supplier_hold and kind not in ('NCC_TRA_VE','NCC_KHONG_NHAN','HUY','TRA_NCC') or not source.supplier_hold and kind in ('NCC_TRA_VE','NCC_KHONG_NHAN'):
         raise BusinessError('BAD_KIND','Cách xử lý không phù hợp với kho hiện tại.')
     if source.recovered_only and not source.supplier_hold and kind not in ('GUI_NCC','HUY'):
         raise BusinessError('BAD_KIND','Kho Thu hồi chỉ gửi NCC hoặc hủy; không chuyển sang kho hàng thường.')
-    if kind=='GUI_NCC' and not supplier:raise BusinessError('SUPPLIER_REQUIRED','Chọn nhà cung cấp nhận bảo hành.')
-    if kind=='GUI_NCC' and supplier and not session.scalar(select(Supplier.code).where(Supplier.code==supplier,Supplier.active.is_(True))):
+    if kind in ('GUI_NCC','TRA_NCC') and not supplier:raise BusinessError('SUPPLIER_REQUIRED','Chọn nhà cung cấp.')
+    if kind in ('GUI_NCC','TRA_NCC') and supplier and not session.scalar(select(Supplier.code).where(Supplier.code==supplier,Supplier.active.is_(True))):
         raise BusinessError('BAD_SUPPLIER','Nhà cung cấp không tồn tại hoặc đã ngừng dùng.')
-    if kind=='HUY':return None
+    if kind=='THANH_LY' and (source.supplier_hold or source.recovered_only or item.group_code!='THANH_LY'):
+        raise BusinessError('BAD_KIND','Chỉ thanh lý hồ sơ nhóm Thanh lý tại LOI thường.')
+    if kind=='TRA_NCC' and source.recovered_only:raise BusinessError('BAD_KIND','Kho Thu hồi chỉ gửi NCC hoặc hủy.')
+    if kind in ('HUY','TRA_NCC','THANH_LY'):return None
     target=session.get(Warehouse,to_code) if to_code else None
     expected='KHO' if kind in ('SUA_XONG','NCC_TRA_VE') else 'LOI'
     if target is None or not target.active or target.code==source.code or target.kind!=expected or (expected=='LOI' and target.supplier_hold!=(kind=='GUI_NCC')):
@@ -67,20 +76,26 @@ def _destination(session,item,kind,to_code,supplier):
     return target
 
 
-def create(session,user,item_id,kind,qty,version,*,to_warehouse_code=None,supplier_code=None,reason='',_in_tx=False):
+def create(session,user,item_id,kind,qty,version,*,to_warehouse_code=None,supplier_code=None,reason='',amount=0,vat_rate=0,_in_tx=False):
     items.writer(user)
+    if kind=='THANH_LY':raise BusinessError('BAD_KIND','Thanh lý phải giao qua đơn bán.')
     with (nullcontext() if _in_tx else stock_docs._transaction(session)):
         item=items.load(session,user,item_id);qty=items.quantity(qty);reason=(reason or '').strip()
-        if kind in ('HUY','NCC_KHONG_NHAN') and not reason:raise BusinessError('REASON_REQUIRED','Phải ghi lý do hủy hoặc NCC không nhận.')
+        if kind in ('HUY','NCC_KHONG_NHAN','TRA_NCC') and not reason:raise BusinessError('REASON_REQUIRED','Phải ghi lý do xử lý.')
         if len(reason)>1900:raise BusinessError('BAD_REASON','Lý do tối đa 1.900 ký tự.')
         supplier=item.supplier_code if supplier_code is None else supplier_code
         target=_destination(session,item,kind,to_warehouse_code,supplier)
         stamp=datetime.now(UTC)
+        value=vat=total=rate=0
+        if kind=='TRA_NCC':
+            if isinstance(amount,bool) or not (str(amount).isascii() and str(amount).isdigit()) or int(amount)<=0 or str(vat_rate) not in ('0','5','8','10'):
+                raise BusinessError('BAD_AMOUNT','Nhập tiền NCC chấp nhận trừ nguyên đồng, lớn hơn 0 và VAT 0/5/8/10%.')
+            value=quotes._money_limit(int(amount));rate=int(vat_rate);vat=quotes._money_limit(quotes._round(Decimal(value)*rate/100));total=quotes._money_limit(value+vat)
         row=PendingDisposition(number=doc_numbers.next_number(session,'XL',stamp.astimezone(TZ).date()),item_id=item.id,kind=kind,qty=qty,
             to_warehouse_code=target.code if target else None,supplier_code=supplier,reason=reason,requested_by=user.id,requested_at=stamp,
-            status='CHO_DUYET',cost_value=0,decision_note='',void_reason='')
+            status='CHO_DUYET',cost_value=0,decision_note='',void_reason='',amount=value,vat_rate=rate,vat_amount=vat,total=total)
         # Request holds are checked under the same balance/item locks used by stock posting.
-        if kind=='HUY' and not has_role(user,'director'):
+        if kind=='TRA_NCC' or (kind=='HUY' and not has_role(user,'director')):
             item=items._locked(session,user,item_id,version);ensure_available(session,item,qty)
             session.add(row);record(session,user,row,'request',reason=reason)
         else:
@@ -92,8 +107,12 @@ def create(session,user,item_id,kind,qty,version,*,to_warehouse_code=None,suppli
 def _post(session,user,row,item_version=None):
     item=session.get(PendingItem,row.item_id)
     _destination(session,item,row.kind,row.to_warehouse_code,row.supplier_code)
-    doc=stock_docs.insert(session,user,StockDocIn(kind='PX' if row.kind=='HUY' else 'CK',warehouse_code=item.warehouse_code,
-        to_warehouse_code=row.to_warehouse_code,doc_date=datetime.now(UTC).astimezone(TZ).date(),
+    day=datetime.now(UTC).astimezone(TZ).date()
+    if row.kind=='TRA_NCC':day_closings.check_open(session,day)
+    delivery=session.get(SalesDelivery,row.delivery_id) if row.delivery_id else None
+    doc=stock_docs.insert(session,user,StockDocIn(kind='PX' if row.kind in ('HUY','TRA_NCC','THANH_LY') else 'CK',warehouse_code=item.warehouse_code,
+        to_warehouse_code=row.to_warehouse_code,doc_date=day,
+        supplier_code=row.supplier_code if row.kind=='TRA_NCC' else None,customer_code=(session.get(SalesOrder,delivery.order_id).customer_code if delivery else None),
         reason=f'Hủy hàng · {row.number}' if row.kind=='HUY' else f'{KINDS[row.kind]} · {row.number}',note=row.reason,
         lines=[dict(product_code=item.product_code,qty=row.qty)]),_pending_disposition=True)
     keys={(item.warehouse_code,item.product_code)}
@@ -105,7 +124,7 @@ def _post(session,user,row,item_version=None):
     if fresh.status!='DANG_CHO':raise BusinessError('BAD_STATUS','Hồ sơ không còn chờ xử lý.',status=409)
     ensure_available(session,fresh,row.qty,row.id)
     row.stock_doc_id=doc.id;session.flush()
-    stock_posting.post_in_tx(session,user,doc.id,doc.version,_pending_disposition=True)
+    stock_posting.post_in_tx(session,user,doc.id,doc.version,_pending_disposition=True,for_order_id=delivery.order_id if delivery else None)
     before=snapshot(row);row.status='DA_GHI';row.decided_by=user.id;row.decided_at=doc.posted_at
     record(session,user,row,'post',before)
 
@@ -131,17 +150,24 @@ def apply_posted_in_tx(session,user,doc):
     session.flush()
 
 
+def _decider(session,user,ident):
+    row=session.get(PendingDisposition,ident)
+    if row and row.kind=='TRA_NCC':
+        if not has_role(user,'finance'):raise BusinessError('FORBIDDEN','Chỉ kế toán hoặc giám đốc được xử lý Trả NCC.',status=403)
+    else:director(user)
+
+
 def approve(session,user,ident,version):
-    director(user)
+    _decider(session,user,ident)
     with stock_docs._transaction(session):
         row=_row(session,ident,version)
-        if row.status!='CHO_DUYET' or row.kind!='HUY':raise BusinessError('BAD_STATUS','Chỉ duyệt yêu cầu hủy đang chờ.',status=409)
+        if row.status!='CHO_DUYET' or row.kind not in ('HUY','TRA_NCC'):raise BusinessError('BAD_STATUS','Chỉ duyệt phiếu Hủy hoặc Trả NCC đang chờ.',status=409)
         _post(session,user,row)
     return row
 
 
 def reject(session,user,ident,version,reason):
-    director(user);reason=(reason or '').strip()
+    _decider(session,user,ident);reason=(reason or '').strip()
     if not reason:raise BusinessError('REASON_REQUIRED','Phải ghi lý do từ chối.')
     with stock_docs._transaction(session):
         row=_row(session,ident,version)
@@ -168,12 +194,14 @@ def restore_in_tx(session,user,doc,reason):
 
 
 def void(session,user,ident,version,reason):
-    director(user);reason=(reason or '').strip()
+    _decider(session,user,ident);reason=(reason or '').strip()
     if len(reason)<3:raise BusinessError('REASON_REQUIRED','Ghi lý do hủy ít nhất 3 ký tự.')
     with stock_docs._transaction(session):
         row=_row(session,ident,version)
         if row.status!='DA_GHI':raise BusinessError('BAD_STATUS','Chỉ hủy được phiếu đã ghi.',status=409)
+        if row.kind=='THANH_LY':raise BusinessError('SOURCE_LOCKED','Hủy thanh lý tại lần giao trên đơn bán.',status=409)
+        if row.kind=='TRA_NCC':day_closings.check_days(session,[row.decided_at.astimezone(TZ).date(),datetime.now(UTC).astimezone(TZ).date()])
         stock_posting.void_in_tx(session,user,row.stock_doc_id,reason,None,_pending_disposition=True)
-        before=snapshot(row);row.status='DA_HUY';row.void_reason=reason
+        before=snapshot(row);row.status='DA_HUY';row.void_reason=reason;row.voided_at=datetime.now(UTC)
         record(session,user,row,'void',before,reason)
     return row

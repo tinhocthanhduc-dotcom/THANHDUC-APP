@@ -1421,10 +1421,12 @@ class PendingItem(Base):
 class PendingDisposition(Base):
     __tablename__='pending_dispositions'
     __table_args__=(
-        CheckConstraint("kind in ('SUA_XONG','GUI_NCC','NCC_TRA_VE','NCC_KHONG_NHAN','HUY')",name='ck_pending_dispositions_kind'),
+        CheckConstraint("kind in ('SUA_XONG','GUI_NCC','NCC_TRA_VE','NCC_KHONG_NHAN','HUY','TRA_NCC','THANH_LY')",name='ck_pending_dispositions_kind'),
         CheckConstraint("status in ('CHO_DUYET','DA_GHI','TU_CHOI','DA_HUY')",name='ck_pending_dispositions_status'),
         CheckConstraint('qty>0',name='ck_pending_dispositions_qty'),
         CheckConstraint('cost_value>=0',name='ck_pending_dispositions_cost'),
+        CheckConstraint('amount>=0 and vat_amount>=0 and total=amount+vat_amount and vat_rate in (0,5,8,10)',name='ck_pending_dispositions_money'),
+        CheckConstraint("(kind='THANH_LY') = (delivery_id is not null and order_line_no is not null)",name='ck_pending_dispositions_delivery'),
         Index('ix_pending_dispositions_item_status','item_id','status'),
     )
     id: Mapped[int]=mapped_column(BigInteger,primary_key=True)
@@ -1445,6 +1447,13 @@ class PendingDisposition(Base):
     decision_note: Mapped[str]=mapped_column(Text,default='')
     void_reason: Mapped[str]=mapped_column(Text,default='')
     version: Mapped[int]=mapped_column(Integer,default=1)
+    voided_at: Mapped[datetime | None]=mapped_column(DateTime(timezone=True))
+    amount: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    vat_rate: Mapped[int]=mapped_column(Integer,default=0,server_default='0')
+    vat_amount: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    total: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    delivery_id: Mapped[int | None]=mapped_column(ForeignKey('sales_deliveries.id'),index=True)
+    order_line_no: Mapped[int | None]=mapped_column(Integer)
     __mapper_args__={'version_id_col':version}
 
 

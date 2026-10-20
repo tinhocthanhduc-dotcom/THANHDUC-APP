@@ -160,6 +160,9 @@ def _specs(user, today, now):
             StockBalance,(StockBalance.warehouse_code==PendingItem.warehouse_code)&(StockBalance.product_code==PendingItem.product_code)).where(
             PendingDisposition.kind=='HUY',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)
         add('pending_destruction','Hủy hàng chờ duyệt',requests,'pending_disposition','/cho-xu-ly/duyet-huy')
+    if has_role(user,'finance'):
+        pending_returns=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),PendingDisposition.total.label('amount'),literal(False).label('overdue')).join(PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)
+        add('pending_supplier_returns','Trả hàng lỗi NCC chờ duyệt',pending_returns,'pending_supplier_return','/cho-xu-ly/duyet-tra-ncc')
     return specs
 
 
@@ -174,8 +177,9 @@ def _group(session, spec, page=1):
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
+            prefix = {'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if kind=='pending_supplier_return':row['link']=f"/cho-xu-ly/duyet-tra-ncc#xl-{row['id']}"
             if kind=='pending_disposition':row['link']=f"/cho-xu-ly/duyet-huy#xl-{row['id']}"
             if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
