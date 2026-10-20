@@ -239,8 +239,8 @@ def test_d7_visit_counts_csv_hours_and_repeated_badge(client,db,people,monkeypat
     svc.transition(db,p['technician'],t.id,'HOAN_THANH',t.version,'Xong việc')
     monkeypatch.setattr(dispatch,'_now',lambda:base+timedelta(hours=4))
     rows=list(csv.reader(io.StringIO(client.get('/dieu-phoi/bao-cao.csv?from=2026-10-18&to=2026-10-18').content.decode('utf-8-sig'))))
-    assert rows[0][-5:]==['Số lượt','Lượt xong việc','Lượt hẹn lại','Lượt không gặp khách','Tổng giờ ở khách']
-    assert rows[1][-5:]==['3','1','1','1','3.00']
+    assert rows[0][6:11]==['Số lượt','Lượt xong việc','Lượt hẹn lại','Lượt không gặp khách','Tổng giờ ở khách']
+    assert rows[1][6:11]==['3','1','1','1','3.00']
     assert 'Đi nhiều lần' not in client.get('/dieu-phoi?view=open').text
     page=client.get(f'/dich-vu/{t.id}'); assert page.status_code==200
     assert 'Các lượt đến khách' in page.text and 'Đã gọi cô Lan' in page.text

@@ -192,6 +192,8 @@ def void(session: Session, user: User, doc_id: int, reason: str, version: int | 
     """Hủy phiếu đã ghi sổ: ghi dòng đảo ngược đúng số lượng và giá trị đã ghi, theo thứ tự ngược."""
     check_writer(user)
     with _transaction(session):
+        from .service_recovered_parts import lock_for_stock_void
+        lock_for_stock_void(session, doc_id)
         _load_for_update(session, doc_id)
         if session.scalar(select(PurchaseReceipt.id).where(PurchaseReceipt.stock_doc_id == doc_id, PurchaseReceipt.status == 'DA_GHI')) is not None:
             raise BusinessError('SOURCE_LOCKED', 'Phiếu nhập từ đơn mua phải hủy lần nhận trên đơn mua.', status=409)
@@ -212,6 +214,8 @@ def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: 
     reason = (reason or "").strip()
     if len(reason) < 3:
         raise BusinessError("REASON_REQUIRED", "Hủy phiếu đã ghi sổ phải ghi lý do.")
+    from .service_recovered_parts import lock_for_stock_void, reopen_after_stock_void
+    recovered = lock_for_stock_void(session, doc_id)
     doc = _load_for_update(session, doc_id)
     if doc.status != "DA_GHI":
         raise BusinessError("DOC_NOT_POSTED", "Chỉ hủy theo cách này với phiếu đã ghi sổ.", {"status": doc.status}, status=409)
@@ -227,4 +231,5 @@ def void_in_tx(session: Session, user: User, doc_id: int, reason: str, version: 
     doc.void_reason = reason
     session.flush()
     audit.record(session, user, "stock_doc.void", "stock_doc", str(doc.id), before, snapshot(doc), reason)
+    reopen_after_stock_void(session, user, recovered, reason)
     return doc

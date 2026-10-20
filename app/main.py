@@ -10,6 +10,8 @@ from .routers import sales_returns, equipment_custody, part_requests, purchase_r
 
 app = FastAPI(title="Thành Đức Core", version="0.2.0")
 form_keys.install(app)
+from .routers import recovered_parts
+app.include_router(recovered_parts.router)
 app.include_router(auth.router)
 app.include_router(customers.router)
 app.include_router(products.router)

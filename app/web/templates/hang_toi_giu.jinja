@@ -8,4 +8,6 @@
 {% if r.doc_id %}<a href="{{ '/phieu-kho/' if can_manage else '/hang-toi-giu/phieu/' }}{{ r.doc_id }}">{{ r.number }}</a><span>Lần nhận/trả gần nhất: {{ r.doc_date.strftime('%d/%m/%Y') }}</span>{% endif %}
 </article>{% else %}<p class="card">Kho thợ không còn hàng.</p>{% endfor %}</div>
 {% else %}<p class="card">{{ 'Chọn thợ có kho riêng đang dùng.' if can_manage else 'Bạn chưa có kho riêng đang dùng.' }}</p>{% endif %}
+<section class="card"><h2>Linh kiện hỏng chưa nộp</h2><p><a href="/linh-kien-thu-hoi{% if holder %}?tho={{ holder.id }}{% endif %}">Xem linh kiện thu hồi</a></p>
+{% for part in recovered_parts %}<p>{{ part.product_code }} · {{ part.qty }} · {{ part.note }} · Phiếu #{{ part.ticket_id }}</p>{% else %}<p>Không có linh kiện hỏng đang giữ.</p>{% endfor %}</section>
 <script src="/static/technician-stock.js" defer></script>{% endblock %}

@@ -326,6 +326,8 @@ class ServiceTicket(Base):
         CheckConstraint(_in("priority", SERVICE_PRIORITIES), name="ck_service_tickets_priority"),
         CheckConstraint(_in("status", SERVICE_STATUSES), name="ck_service_tickets_status"),
         CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
+        CheckConstraint("(warranty_of_id is null and warranty_basis is null) or (kind = 'BAO_HANH' and warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'))", name='ck_service_tickets_warranty'),
+        CheckConstraint("warranty_of_id is null or warranty_of_id <> id", name='ck_service_tickets_warranty_self'),
         Index("ix_service_tickets_open", "status", "due_at"),
         CheckConstraint("hold_reason in ('','CHO_KHACH_DUYET','CHO_KY_THUAT_KHAC','CHO_DOI_TAC','HEN_NGAY_KHAC','KHAC')", name="ck_service_tickets_hold_reason"),
         CheckConstraint("billing in ('THU_TIEN','MIEN_PHI')", name="ck_service_tickets_billing"),
@@ -349,6 +351,8 @@ class ServiceTicket(Base):
     status_reason: Mapped[str] = mapped_column(Text, default="")
     # Thợ xin chuyển việc: lý do chờ điều phối duyệt (giao thợ khác) hoặc từ chối.
     transfer_request: Mapped[str] = mapped_column(Text, default="")
+    warranty_of_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id', name='fk_service_tickets_warranty_of'), index=True)
+    warranty_basis: Mapped[str | None] = mapped_column(String(16))
     # Tiền (D6): THU_TIEN hoặc MIEN_PHI kèm lý do. Tổng chỉ ghi khi hoàn thành (khóa giá), null là chưa khóa.
     billing: Mapped[str | None] = mapped_column(String(8))
     free_reason: Mapped[str] = mapped_column(Text, default="")
@@ -408,6 +412,34 @@ class ServiceVisit(Base):
     outcome: Mapped[str | None] = mapped_column(String(24))
     note: Mapped[str] = mapped_column(Text, default='', server_default='')
     next_appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class ServiceRecoveredPart(Base):
+    """Linh kiện hỏng của khách, tách khỏi hàng tốt; giữ nguyên người đang cầm khi giao lại phiếu."""
+    __tablename__ = 'service_recovered_parts'
+    __table_args__ = (
+        CheckConstraint('qty > 0', name='ck_recovered_parts_qty'),
+        CheckConstraint("status in ('CHO_NOP','DA_NHAN','DA_HUY')", name='ck_recovered_parts_status'),
+        CheckConstraint("(status = 'DA_NHAN' and warehouse_code is not null and stock_doc_id is not null and received_by is not null and received_at is not null) or (status <> 'DA_NHAN' and warehouse_code is null and stock_doc_id is null and received_by is null and received_at is null)", name='ck_recovered_parts_receipt'),
+        CheckConstraint("(status = 'DA_HUY') = (btrim(void_reason) <> '')", name='ck_recovered_parts_reason'),
+        Index('ix_recovered_parts_holder_status', 'holder_id', 'status'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), index=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(Text)
+    holder_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    status: Mapped[str] = mapped_column(String(8), default='CHO_NOP')
+    warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
+    stock_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
+    received_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    void_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     __mapper_args__ = {'version_id_col': version}

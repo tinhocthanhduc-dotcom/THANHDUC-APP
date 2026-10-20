@@ -1,0 +1,10 @@
+{% if t.kind=='BAO_HANH' %}<section class="card service-action"><h2>Bảo hành</h2>
+{% if t.warranty_basis=='HET_HAN' %}<p class="alert bad">Hết hạn bảo hành</p>{% endif %}
+{% if warranty.parent %}<p>Bảo hành cho <a href="/dich-vu/{{ warranty.parent.id }}">{{ warranty.parent.number }}</a> (thợ {{ users.get(warranty.technician_id,'Chưa giao') }}, xong {{ warranty.completed_at|service_time }}{% if warranty.days is not none %}, {{ 'còn ' ~ warranty.days ~ ' ngày' if warranty.days >= 0 else 'đã hết hạn' }}{% endif %})</p>
+{% elif t.warranty_basis=='MAY_CON_HAN' %}<p>Bảo hành máy đến {{ warranty.until.strftime('%d/%m/%Y') if warranty.until else '—' }}</p>{% endif %}
+{% if can_relink %}<form method="post" action="/linh-kien-thu-hoi/phieu/{{ t.id }}/bao-hanh" class="form" id="warranty-link">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+{% set warranty_value=warranty_form.get('warranty_of_id',t.warranty_of_id) %}{% set warranty_selected=warranty.parent %}{% include 'bao_hanh_picker.jinja' %}
+<label>Ghi chú đổi liên kết<textarea name="note" maxlength="2000">{{ warranty_form.get('note','') }}</textarea></label><button>Cập nhật phiếu trước</button></form>{% endif %}
+</section>{% endif %}
+{% if warranty_children %}<section class="card service-action"><h2>Đã bị gọi bảo hành</h2>{% for child in warranty_children %}<p><a href="/dich-vu/{{ child.id }}">{{ child.number }}</a> · {{ service_statuses[child.status] }}</p>{% endfor %}</section>{% endif %}

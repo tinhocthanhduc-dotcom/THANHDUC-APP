@@ -9,13 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, service_charges, service_visits
+from .. import attachments, service_charges, service_visits, service_warranty
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, User
+from ..models import Customer, User, ServiceTicket
 from ..schemas import ServiceAssign, ServiceReason, ServiceTicketIn, ServiceTransition
 from ..security import has_role
 from . import checked_form, render, templates, web_user, nav
@@ -110,7 +110,8 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None):
+    from .recovered_parts import detail_context as recovered_context
     from .custody import context as custody_context
     from .parts import detail_context as part_context
     from .charges import detail_context
@@ -149,7 +150,10 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     linked_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.service_ticket_id==t.id)))
     if not has_role(user,'dispatcher','sales','warehouse','finance'):
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
-    return render(request, "dich_vu_chi_tiet.jinja", visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
+    return render(request, "dich_vu_chi_tiet.jinja", warranty=service_warranty.info(session,t),
+                  warranty_children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.warranty_of_id==t.id).order_by(ServiceTicket.id))),
+                  warranty_form=warranty_form or {}, can_relink=dispatcher and t.kind=='BAO_HANH' and t.status in svc.OPEN,
+                  **recovered_context(session,user,t,recovered_form), visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
                   files=attachments.list_for(session, user, "service_ticket", str(t.id)),
                   next_step=next_steps.service(session,user,t),can_upload=has_role(user, *svc.CREATORS) or own,
                   can_hide=dispatcher, photo_form=photo_form or {},
@@ -183,12 +187,12 @@ def _choices(session, customer_code):
 
 
 def _new_form(request, session, data=None, error=None, error_code="", status=200):
-    data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "SUA_TAI_CHO", "priority": "THUONG", "symptom": ""}
+    data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "SUA_TAI_CHO", "priority": "THUONG", "symptom": "", "warranty_of_id": ""}
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     sites, machines = _choices(session, data['customer_code'])
     can_create=has_role(request.state.user, *svc.CREATORS)
     return render(request, "dich_vu_moi.jinja", next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_name=customer.name if customer else "",
-                  sites=sites, machines=machines, error=error, error_code=error_code, status=status,
+                  sites=sites, machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
                   can_create=can_create)
 
 
@@ -210,14 +214,24 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom")}
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id")}
     try:
-        body = ServiceTicketIn(**{**data, "site_id": data['site_id'] or None, "serial": data['serial'] or None})
+        body = ServiceTicketIn(**{**data, "site_id": data['site_id'] or None, "serial": data['serial'] or None, "warranty_of_id": data['warranty_of_id'] or None})
         t = svc.create(session, request.state.user, body)
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         return _new_form(request, session, data, error, code, status)
     return RedirectResponse(f"/dich-vu/{t.id}?da_luu=1", status_code=303)
+
+
+@router.get('/dich-vu/tim-bao-hanh')
+def warranty_suggestions(request: Request, customer_code: str = '', serial: str = '', q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    svc._require(user, svc.CREATORS, 'Chỉ người nhận đơn hoặc điều phối được tìm phiếu bảo hành.')
+    rows = service_warranty.suggestions(session, customer_code, svc._serial(serial), q[:200])
+    return render(request, 'bao_hanh_chon.jinja', rows=rows,
+        completions={t.id: service_warranty.completion(session,t) for t in rows},
+        today=service_warranty.today(), warranty_tz=TZ, warranty_days=get_settings().service_warranty_days,
+        users=_users(session))
 
 
 @router.get("/dich-vu/{ticket_id}")

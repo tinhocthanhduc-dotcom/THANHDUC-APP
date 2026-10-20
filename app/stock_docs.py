@@ -68,7 +68,11 @@ def _active(session: Session, model, code):
     return session.scalars(select(model).where(model.code == code, model.active.is_(True)).with_for_update(read=True)).first()
 
 
-def _validate(session: Session, body: StockDocIn, *, _sales_return=False):
+def _validate(session: Session, body: StockDocIn, *, _sales_return=False, _recovered_part=False):
+    customer_receipt = _sales_return or _recovered_part
+    if _recovered_part and (body.kind != 'PN' or body.supplier_code or
+            not session.scalar(select(Warehouse.code).where(Warehouse.code==body.warehouse_code,Warehouse.kind=='LOI')) or any(line.unit_cost != 0 for line in body.lines)):
+        raise BusinessError('BAD_WAREHOUSE', 'Linh kiện thu hồi chỉ nhập kho LOI với giá vốn 0.')
     if body.kind == "CK":
         if not body.to_warehouse_code or body.to_warehouse_code == body.warehouse_code:
             raise BusinessError("BAD_TRANSFER", "Phiếu chuyển kho cần kho đích khác kho nguồn.")
@@ -85,15 +89,15 @@ def _validate(session: Session, body: StockDocIn, *, _sales_return=False):
         kinds={code:session.get(Warehouse,code).kind for code in (body.warehouse_code,body.to_warehouse_code)}
         if set(kinds.values())=={'LOI','THO'}:
             raise BusinessError('BAD_WAREHOUSE','Không chuyển hàng lỗi sang kho thợ.')
-    if body.kind == "PN" and not body.supplier_code and not _sales_return:
+    if body.kind == "PN" and not body.supplier_code and not customer_receipt:
         raise BusinessError("BAD_SUPPLIER", "Phiếu nhập cần nhà cung cấp đang sử dụng.")
     if body.supplier_code is not None and not _active(session, Supplier, body.supplier_code):
         raise BusinessError("BAD_SUPPLIER", "Nhà cung cấp không tồn tại hoặc đã ngừng sử dụng.")
     if body.customer_code is not None:
-        if (body.kind != "PX" and not (_sales_return and body.kind=="PN" and not body.supplier_code)) or session.get(Customer, body.customer_code) is None:
+        if (body.kind != "PX" and not (customer_receipt and body.kind=="PN" and not body.supplier_code)) or session.get(Customer, body.customer_code) is None:
             raise BusinessError("BAD_CUSTOMER", "Khách hàng phải tồn tại và chỉ dùng cho phiếu xuất.")
     codes = sorted({line.product_code for line in body.lines})
-    valid = set(session.scalars(select(Product.code).where(Product.code.in_(codes), (True if _sales_return else Product.active.is_(True)))
+    valid = set(session.scalars(select(Product.code).where(Product.code.in_(codes), (True if customer_receipt else Product.active.is_(True)))
                                 .order_by(Product.code).with_for_update(read=True)))
     bad = sorted(set(codes) - valid)
     if bad:
@@ -123,9 +127,9 @@ def create(session: Session, user: User, body: StockDocIn) -> StockDoc:
     return doc
 
 
-def insert(session: Session, user: User, body: StockDocIn, *, _sales_return=False) -> StockDoc:
+def insert(session: Session, user: User, body: StockDocIn, *, _sales_return=False, _recovered_part=False) -> StockDoc:
     """Lập phiếu trong transaction của nơi gọi, không kiểm vai trò (nơi gọi đã kiểm). Dùng cho phiếu sinh tự động."""
-    _validate(session, body, _sales_return=_sales_return)
+    _validate(session, body, _sales_return=_sales_return, _recovered_part=_recovered_part)
     doc = StockDoc(**body.model_dump(exclude={"lines"}), created_by=user.id,
                    number=next_number(session, body.kind, body.doc_date), lines=_lines(body))
     session.add(doc)

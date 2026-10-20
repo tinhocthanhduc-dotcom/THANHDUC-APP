@@ -334,6 +334,54 @@ class ServiceTicketIn(BaseModel):
     priority: ServicePriority = "THUONG"
     symptom: str = Field(min_length=3, max_length=4000)
 
+    warranty_of_id: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode='after')
+    def warranty_kind(self):
+        if self.kind != 'BAO_HANH' and self.warranty_of_id is not None:
+            raise ValueError('Chỉ phiếu Bảo hành được chọn phiếu trước.')
+        return self
+
+
+class ServiceWarrantyLink(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    warranty_of_id: int | None = Field(default=None, ge=1)
+    version: int | None = Field(default=None, ge=1)
+    note: str = Field(default='', max_length=2000)
+
+
+class RecoveredPartIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    product_code: str = Field(min_length=1, max_length=16)
+    qty: int = Field(strict=True, gt=0, le=2147483647)
+    note: str = Field(min_length=1, max_length=2000)
+    version: int | None = Field(default=None, ge=1)
+
+
+class RecoveredPartReceive(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    warehouse_code: str | None = Field(default=None, max_length=16)
+    version: int | None = Field(default=None, ge=1)
+
+
+class RecoveredPartOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    ticket_id: int
+    product_code: str
+    qty: int
+    note: str
+    holder_id: int
+    status: str
+    warehouse_code: str | None
+    stock_doc_id: int | None
+    received_by: int | None
+    received_at: datetime | None
+    void_reason: str
+    created_by: int
+    created_at: datetime
+    version: int
+
 
 class ServiceAssign(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -403,6 +451,8 @@ class ServiceTicketOut(BaseModel):
     site_id: int | None
     serial: str | None
     kind: ServiceKind
+    warranty_of_id: int | None
+    warranty_basis: Literal['PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'] | None
     priority: ServicePriority
     symptom: str
     status: ServiceStatus
@@ -450,6 +500,7 @@ class ServiceCharges(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     billing: Literal["THU_TIEN", "MIEN_PHI"]
+    billing_reason: str = Field(default='', max_length=2000)
     free_reason: str = Field(default="", max_length=2000)
     lines: list[ServiceLineIn] = Field(default_factory=list, max_length=200)
     version: int | None = Field(default=None, ge=1)

@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" data-recovered-product="{{ row.code }}">{{ row.code }} · {{ row.name }}</button>{% else %}<p>Không có mã hàng phù hợp.</p>{% endfor %}

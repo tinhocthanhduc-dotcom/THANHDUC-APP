@@ -14,15 +14,15 @@ from test_web import service_people, service_login, d5_image
 
 # Đối chiếu độc lập với bảng vai trò, không sinh kỳ vọng từ cấu hình cần kiểm thử.
 EXPECTED = {
-    'technician': {'/viec-cua-toi', '/dich-vu', '/thiet-bi', '/tien-toi-giu', '/hang-toi-giu'},
-    'dispatcher': {'/may-dang-giu', '/viec-cua-toi', '/dieu-phoi', '/dich-vu', '/thiet-bi', '/khach-hang'},
+    'technician': {'/linh-kien-thu-hoi', '/viec-cua-toi', '/dich-vu', '/thiet-bi', '/tien-toi-giu', '/hang-toi-giu'},
+    'dispatcher': {'/linh-kien-thu-hoi', '/may-dang-giu', '/viec-cua-toi', '/dieu-phoi', '/dich-vu', '/thiet-bi', '/khach-hang'},
     'reception': {'/viec-cua-toi', '/dich-vu', '/thiet-bi', '/khach-hang'},
     'sales': {'/viec-cua-toi', '/thiet-bi', '/khach-hang', '/bao-gia', '/don-ban',
               '/bao-cao/ban-hang', '/hang-hoa', '/ton-kho'},
-    'warehouse': {'/may-dang-giu', '/yeu-cau-linh-kien', '/viec-cua-toi', '/don-ban', '/hang-hoa', '/ton-kho', '/phieu-kho',
+    'warehouse': {'/linh-kien-thu-hoi', '/may-dang-giu', '/yeu-cau-linh-kien', '/viec-cua-toi', '/don-ban', '/hang-hoa', '/ton-kho', '/phieu-kho',
                   '/ton-kho?canh-bao=1', '/ton-dau-ky', '/kho', '/don-mua',
                   '/nha-cung-cap', '/bao-cao-mua-hang'},
-    'finance': {'/viec-cua-toi', '/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
+    'finance': {'/linh-kien-thu-hoi', '/viec-cua-toi', '/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
                 '/hang-hoa', '/ton-kho', '/don-mua', '/nha-cung-cap', '/bao-cao-mua-hang',
                 '/bao-thu', '/thu-chi', '/chot-so', '/dieu-chinh', '/cong-no-ncc',
                 '/bao-cao/tai-chinh', '/ghep-tai-chinh'},
