@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Thành Đức{% endblock %} · Thành Đức</title>
 <link rel="stylesheet" href="/static/app.css">
+<script>
+// Sáng/Tối người dùng chọn trên máy này; đặt trước khi vẽ trang để không nháy màu.
+try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || tdTheme === 'light') document.documentElement.dataset.theme = tdTheme; } catch (e) {}
+</script>
+<script src="/static/ui.js" defer></script>
 </head>
 <body>
 {% if user %}
@@ -29,12 +34,13 @@
   <form method="post" action="/dang-xuat" class="who">
     <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-    <a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
+    <button type="button" class="link" data-theme-toggle>Sáng/Tối</button><a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
   </form>
 </header>
 <script src="/static/nav.js" defer></script>
 <noscript><style>.menu-shell > .menu-toggle { display: list-item; }</style></noscript>
 {% endif %}
+<div class="toast-stack" data-toast-stack aria-live="polite"></div>
 <main>{% block main %}{% endblock %}</main>
 <script>
 // Chặn bấm lại ở trình duyệt; form_key mới là khóa chống trùng ở máy chủ.

@@ -2,15 +2,29 @@
   --bg: #f5f6f8; --surface: #fff; --text: #1d2330; --muted: #5d6676; --line: #dfe3ea;
   --accent: #1f5fbf; --accent-text: #fff; --ok-bg: #e5f4ea; --ok: #1d6b38; --warn-bg: #fff4dc; --warn: #7a5200;
   --bad-bg: #fde8e8; --bad: #a12020; --tag: #eef1f6;
+  /* UI0: màu nút đặc theo nghĩa, dùng chung mọi màn. */
+  --ok-solid: #15803d; --ok-solid-text: #fff; --bad-solid: #b91c1c; --bad-solid-text: #fff;
+  --info-solid: #1d4ed8; --info-solid-text: #fff; --warn-solid: #92400e; --warn-solid-text: #fff;
   color-scheme: light;
 }
+/* Tối theo máy, trừ khi người dùng chọn Sáng; hoặc người dùng chọn Tối. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14171c; --surface: #1d2128; --text: #e7eaf0; --muted: #9aa3b2; --line: #2f3540;
     --accent: #5b9bff; --accent-text: #0b1220; --ok-bg: #173323; --ok: #8fdcaa; --warn-bg: #3a2e12; --warn: #f2cc7a;
     --bad-bg: #3d1a1a; --bad: #ff9d9d; --tag: #2a303a;
+    --ok-solid: #22c55e; --ok-solid-text: #03190a; --bad-solid: #f87171; --bad-solid-text: #2a0606;
+    --info-solid: #60a5fa; --info-solid-text: #041327; --warn-solid: #fbbf24; --warn-solid-text: #2a1b00;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --bg: #14171c; --surface: #1d2128; --text: #e7eaf0; --muted: #9aa3b2; --line: #2f3540;
+    --accent: #5b9bff; --accent-text: #0b1220; --ok-bg: #173323; --ok: #8fdcaa; --warn-bg: #3a2e12; --warn: #f2cc7a;
+    --bad-bg: #3d1a1a; --bad: #ff9d9d; --tag: #2a303a;
+    --ok-solid: #22c55e; --ok-solid-text: #03190a; --bad-solid: #f87171; --bad-solid-text: #2a0606;
+    --info-solid: #60a5fa; --info-solid-text: #041327; --warn-solid: #fbbf24; --warn-solid-text: #2a1b00;
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -467,3 +481,61 @@ main:has([data-receipt-queue]) {max-width:1280px;}
 
 .pending-totals {display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;}.pending-totals>.card {display:flex;flex:1 1 150px;flex-direction:column;gap:.3rem;min-width:0;}.pending-list {display:grid;gap:.6rem;margin-top:1rem;}.pending-row {display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;overflow-wrap:anywhere;}.pending-row h2 {width:100%;font-size:1.05rem;margin:0;}.pending-overdue {color:#a20e16;border:1px solid currentColor;border-radius:6px;padding:.2rem .4rem;}.pending-groups label {flex:0 1 auto;}.pending-photos {display:flex;gap:.5rem;flex-wrap:wrap;}.pending-photos img {width:100px;height:100px;object-fit:cover;}[data-pending-supplier][hidden] {display:none;}
 @media(max-width:400px){.pending-row>span,.pending-row>strong {width:100%;}.pending-totals>.card {flex-basis:130px;}}
+
+/* ===== UI0: quy chuẩn giao diện chung ===== */
+.btn-ok, .btn-danger, .btn-info, .btn-ghost { min-height: 48px; border-radius: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-ok { background: var(--ok-solid); border-color: var(--ok-solid); color: var(--ok-solid-text); }
+.btn-danger { background: var(--bad-solid); border-color: var(--bad-solid); color: var(--bad-solid-text); }
+.btn-info { background: var(--info-solid); border-color: var(--info-solid); color: var(--info-solid-text); }
+.btn-ghost { background: var(--surface); border: 2px solid var(--muted); color: var(--text); }
+.btn-block { width: 100%; }
+button:disabled, .btn[aria-disabled="true"], button[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.why-disabled { font-size: .9rem; font-weight: 600; color: var(--bad); margin: 4px 0 0; }
+@media (max-width: 640px) { .btn-ok, .btn-danger, .btn-info, .btn-ghost { min-height: 56px; font-size: 1.05rem; } }
+/* Vòng xoay trên nút đang gửi (khóa bấm lại ở base.jinja). */
+form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabled::before { content: ""; display: inline-block; width: 1em; height: 1em; margin-right: 8px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: td-spin .8s linear infinite; }
+@keyframes td-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { form[data-submitting] button:disabled::before { animation: none; } }
+/* Thanh nút cố định ở đáy trên điện thoại. */
+.action-bar { display: grid; gap: 10px; margin-top: 16px; }
+@media (max-width: 1023px) {
+  .action-bar { position: sticky; bottom: 0; z-index: 4; margin: 16px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 2px solid var(--line); }
+}
+/* Thông báo nhỏ. */
+.toast-stack { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; display: grid; gap: 8px; justify-items: center; pointer-events: none; }
+.toast { pointer-events: auto; max-width: 520px; width: 100%; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.3); display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.toast.bad { background: var(--bad-solid); color: var(--bad-solid-text); }
+.toast button { background: none; border: 0; color: inherit; font-weight: 800; padding: 4px 8px; }
+/* Vuốt để xác nhận: không JS vẫn là nút submit thường. */
+.swipe { position: relative; margin-inline: 8px; }
+.swipe > button { width: 100%; min-height: 64px; border-radius: 999px; font-weight: 800; }
+.swipe.swipe-on > button { background: var(--tag); border: 2px solid var(--muted); color: var(--text); padding-left: 68px; }
+.swipe-knob { position: absolute; left: 6px; top: 50%; transform: translate(var(--x, 0px), -50%); width: 52px; height: 52px; border-radius: 50%; background: var(--ok-solid); color: var(--ok-solid-text); display: flex; align-items: center; justify-content: center; touch-action: none; cursor: grab; font-size: 1.6rem; font-weight: 800; user-select: none; }
+.swipe[data-tone="danger"] .swipe-knob { background: var(--bad-solid); color: var(--bad-solid-text); }
+.swipe[data-tone="info"] .swipe-knob { background: var(--info-solid); color: var(--info-solid-text); }
+.swipe.swipe-off .swipe-knob { background: var(--muted); color: var(--bg); cursor: not-allowed; }
+/* Chip: input thật, chọn một (radio) hoặc nhiều (checkbox). */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip span { display: inline-flex; align-items: center; min-height: 48px; padding: 0 14px; border: 2px solid var(--muted); border-radius: 12px; cursor: pointer; font-weight: 700; color: var(--text); background: var(--surface); }
+.chip input:checked + span { background: var(--text); border-color: var(--text); color: var(--bg); }
+.chip input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Danh sách tick nhiều mã, mỗi dòng có số lượng. */
+.pick-list { display: grid; gap: 8px; }
+.pick-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid var(--line); border-radius: 14px; background: var(--surface); }
+.pick-row:has(input[type=checkbox]:checked) { border-color: var(--text); }
+.pick-row > label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 48px; cursor: pointer; color: var(--text); }
+.pick-row > label input { width: 26px; height: 26px; flex: none; accent-color: var(--ok-solid); }
+.pick-row small { display: block; color: var(--muted); }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper button { width: 44px; height: 44px; padding: 0; font-size: 1.3rem; font-weight: 800; border-radius: 10px; }
+.stepper input { width: 56px; text-align: center; font-weight: 800; padding: 8px 4px; }
+/* Lỗi đúng ô, giữ nguyên giá trị đã nhập. */
+.field-invalid input, .field-invalid select, .field-invalid textarea, input.field-invalid { border: 2px solid var(--bad); }
+.field-error { display: block; color: var(--bad); font-size: .9rem; font-weight: 600; }
+/* Trang mẫu /ui/quy-chuan. */
+.ui-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.ui-swatches span { display: flex; align-items: flex-end; min-height: 64px; padding: 8px; border-radius: 10px; font-weight: 700; font-size: .85rem; }
+.ui-section { display: grid; gap: 10px; margin-bottom: 16px; }
+.ui-section h2 { font-size: 1.05rem; margin: 0; }

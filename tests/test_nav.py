@@ -27,7 +27,7 @@ EXPECTED = {
                 '/bao-thu', '/thu-chi', '/chot-so', '/dieu-chinh', '/cong-no-ncc',
                 '/bao-cao/tai-chinh', '/ghep-tai-chinh'},
 }
-EXPECTED['director'] = set().union(*EXPECTED.values())
+EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan'}  # UI0: trang mẫu giao diện, chỉ giám đốc
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
          'warehouse': '/viec-cua-toi'}

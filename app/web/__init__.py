@@ -660,3 +660,6 @@ router.include_router(users_router)
 
 from .pending_items import router as pending_items_router
 router.include_router(pending_items_router)
+
+from .ui_guide import router as ui_guide_router
+router.include_router(ui_guide_router)
