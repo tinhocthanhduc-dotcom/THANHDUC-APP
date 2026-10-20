@@ -540,3 +540,22 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
 .ui-section { display: grid; gap: 10px; margin-bottom: 16px; }
 .ui-section h2 { font-size: 1.05rem; margin: 0; }
 .disposition-tabs {display:flex;gap:.5rem;flex-wrap:wrap;}.disposition-tabs>details {min-width:0;flex:1 1 110px;}.disposition-tabs>details>summary {cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:.7rem;text-align:center;}.disposition-tabs>details[open] {flex-basis:100%;}.disposition-tabs>details[open]>summary {background:var(--primary,#1c5dba);color:white;}
+
+/* ===== Thẻ A: màn thợ theo quy chuẩn UI0 ===== */
+.swipe:has(button:disabled) .swipe-knob { background: var(--muted); color: var(--bg); cursor: not-allowed; }
+.chip-btn { min-height: 44px; padding: 0 12px; border: 2px solid var(--muted); border-radius: 12px; background: var(--surface); color: var(--text); font-weight: 700; }
+.chip-btn.on { background: var(--text); border-color: var(--text); color: var(--bg); }
+.fill-chips { margin-bottom: 4px; }
+.tho-screen { padding-bottom: 190px; font-size: 17px; }
+.tho-screen h1, .tho-screen h2 { font-weight: 800; }
+.tho-screen .seg span { min-height: 48px; display: flex; align-items: center; justify-content: center; border-width: 2px; font-weight: 700; }
+.tho-screen .seg input:checked + span { background: var(--text); border-color: var(--text); color: var(--bg); }
+.tho-symptom { display: inline-block; max-width: 100%; background: var(--warn-solid); color: var(--warn-solid-text); font-weight: 800; padding: 4px 10px; border-radius: 8px; }
+.tho-locked { margin: 0 0 6px; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.tho-info { border-style: dashed; }
+.tho-bottom-action { display: grid; gap: 10px; background: var(--bg); border-top: 2px solid var(--line); }
+.tho-bottom-action .row2 { gap: 10px; }
+.tho-bottom-action .row2 .btn { min-height: 52px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.tho-bottom-action .swipe { margin-inline: 8px; }
+.tho-bottom-action > .btn-ok { min-height: 56px; font-size: 1.1rem; }
+.tho-contact .btn-info, .tho-contact .btn-ghost { font-weight: 700; }

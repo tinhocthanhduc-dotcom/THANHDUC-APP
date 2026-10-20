@@ -89,23 +89,41 @@ def _own_warehouse(session, requester_id):
     return warehouse
 
 
+def _stock_row(session, user, body, reason):
+    product = session.scalar(select(Product).where(Product.code == body.product_code, Product.active.is_(True)).with_for_update(read=True))
+    if product is None:
+        raise BusinessError('BAD_PRODUCT', f'Mã hàng {body.product_code} không tồn tại hoặc đã ngừng bán.')
+    row = PartRequest(number=next_number(session, 'YC', datetime.now(UTC).astimezone(service_sla.TZ).date()),
+                      ticket_id=None, requester_id=user.id, product_code=product.code, qty=body.qty,
+                      reason=reason, status='CHO_CAP')
+    session.add(row)
+    _audit(session, user, row, 'create')
+    return row
+
+
 def create_stock(session, user, body):
     """Thợ xin hàng mang theo: không gắn phiếu, kho cấp vào kho riêng của chính thợ."""
+    return create_stock_many(session, user, [body])[0]
+
+
+def create_stock_many(session, user, bodies):
+    """Thẻ A: xin nhiều mã trong một lần gửi; một mã lỗi thì không tạo yêu cầu nào."""
     if 'technician' not in user.roles:
         raise BusinessError('FORBIDDEN', 'Chỉ thợ được xin hàng mang theo.', status=403)
+    if not bodies:
+        raise BusinessError('LINES_REQUIRED', 'Hãy chọn ít nhất một linh kiện.')
+    if len(bodies) > 20:
+        raise BusinessError('TOO_MANY_LINES', 'Mỗi lần xin tối đa 20 mã.')
+    codes = [b.product_code for b in bodies]
+    duplicate = next((c for c in codes if codes.count(c) > 1), None)
+    if duplicate:
+        raise BusinessError('DUPLICATE_PRODUCT', f'Mã {duplicate} được chọn hai lần, hãy gộp thành một dòng.')
+    reason = bodies[0].reason.strip()
     with _transaction(session):
         _own_warehouse(session, user.id)
-        product = session.scalar(select(Product).where(Product.code == body.product_code, Product.active.is_(True)).with_for_update(read=True))
-        if product is None:
-            raise BusinessError('BAD_PRODUCT', 'Mã hàng không tồn tại hoặc đã ngừng bán.')
-        if not body.reason.strip():
+        if not reason:
             raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do cần linh kiện.')
-        row = PartRequest(number=next_number(session, 'YC', datetime.now(UTC).astimezone(service_sla.TZ).date()),
-                          ticket_id=None, requester_id=user.id, product_code=product.code, qty=body.qty,
-                          reason=body.reason.strip(), status='CHO_CAP')
-        session.add(row)
-        _audit(session, user, row, 'create')
-    return row
+        return [_stock_row(session, user, body, reason) for body in bodies]
 
 
 def for_requester(session, user, limit=20):

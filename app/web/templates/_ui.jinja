@@ -2,3 +2,5 @@
 {% macro invalid(errors, name) %}{% if errors and errors.get(name) %} field-invalid{% endif %}{% endmacro %}
 {% macro field_error(errors, name) %}{% if errors and errors.get(name) %}<small class="field-error" id="loi-{{ name }}">{{ errors[name] }}</small>{% endif %}{% endmacro %}
 {% macro described(errors, name) %}{% if errors and errors.get(name) %} aria-invalid="true" aria-describedby="loi-{{ name }}"{% endif %}{% endmacro %}
+{# Chip điền nhanh lý do: bấm một chip thì ô tên `name` gần nhất được điền, vẫn sửa tay được. #}
+{% macro fill_chips(values, name, sel='') %}{% if values %}<div class="chips fill-chips" data-fill="{{ name }}"{% if sel %} data-fill-sel="{{ sel }}"{% endif %}>{% for v in values %}<button type="button" class="chip-btn" data-fill-value="{{ v }}">{{ v }}</button>{% endfor %}</div>{% endif %}{% endmacro %}
