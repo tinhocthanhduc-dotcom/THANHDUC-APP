@@ -11,18 +11,18 @@
 {% block title %}Báo cáo hàng chờ xử lý{% endblock %}
 {% block main %}
 <h1>Báo cáo hàng chờ xử lý</h1><p>Đơn vị: đồng. Ngày và tháng theo giờ Việt Nam.</p>
-<div class="chips">{% for label,value,active in presets %}<a class="{{ 'btn-primary' if active else 'btn-secondary' }}" href="?period={{ value }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}<a class="btn-secondary" href="/bao-cao/cho-xu-ly">6 tháng gần nhất</a></div>
-<form action="/bao-cao/cho-xu-ly" class="form quote-filters"><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ start }}" required{{ ui.described({'from':error} if error else {},'from') }}>{{ ui.field_error({'from':error} if error else {},'from') }}</label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label></div><button class="btn-primary">Lọc</button></form>
+<div class="chips">{% for label,value,active in presets %}<a class="btn {{ 'btn-info' if active else 'btn-ghost' }}" href="?period={{ value }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}<a class="btn btn-ghost" href="/bao-cao/cho-xu-ly">6 tháng gần nhất</a></div>
+<form action="/bao-cao/cho-xu-ly" class="form quote-filters"><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ start }}" required{{ ui.described({'from':error} if error else {},'from') }}>{{ ui.field_error({'from':error} if error else {},'from') }}</label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label></div><button class="btn-info">Lọc</button></form>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% else %}
-<section id="tuoi-hang"><div class="bar"><h2>Tồn theo tuổi</h2><a class="btn-secondary" href="/bao-cao/cho-xu-ly/tuoi-hang.csv?{{ query }}">Tải CSV</a></div>
+<section id="tuoi-hang"><div class="bar"><h2>Tồn theo tuổi</h2><a class="btn btn-ghost" href="/bao-cao/cho-xu-ly/tuoi-hang.csv?{{ query }}">Tải CSV</a></div>
 <p>Tồn hiện tại, không theo kỳ lọc. Tuổi tại kho tính từ ngày nhập; tuổi gửi NCC tính từ ngày gửi. Số lượng bao gồm Kho Thu hồi có giá trị bằng 0.</p>
 {{ aging_table(aging.rows,buckets) }}
 <h3>Đang gửi NCC</h3>{{ aging_table(aging.holding,hold_buckets,true) }}
 <p class="pending-report-total">Tổng toàn bộ: {{ cell(aging.total) }}</p></section>
-<section id="thang"><div class="bar"><h2>Xử lý theo tháng</h2><a class="btn-secondary" href="/bao-cao/cho-xu-ly/thang.csv?{{ query }}">Tải CSV</a></div>
+<section id="thang"><div class="bar"><h2>Xử lý theo tháng</h2><a class="btn btn-ghost" href="/bao-cao/cho-xu-ly/thang.csv?{{ query }}">Tải CSV</a></div>
 <p>Chỉ phiếu đã ghi, loại phiếu đã hủy. Thanh lý: doanh thu chưa VAT trừ các lượt khách trả còn hiệu lực, quy về tháng giao; giá vốn là tổng giá vốn phiếu xử lý thanh lý.</p>
 <div class="pending-report-scroll" role="region" aria-label="Xử lý theo tháng" tabindex="0"><table class="pending-report-table"><thead><tr><th>Tháng</th>{% for key,label in month_columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>{% for r in monthly.rows %}<tr><th>{{ r.month.strftime('%m/%Y') }}</th>{% for key,label in month_columns %}<td>{{ r[key]|qty if key.endswith('_qty') else r[key]|money }}</td>{% endfor %}</tr>{% endfor %}</tbody><tfoot><tr><th>Tổng</th>{% for key,label in month_columns %}<td>{{ monthly.total[key]|qty if key.endswith('_qty') else monthly.total[key]|money }}</td>{% endfor %}</tr></tfoot></table></div></section>
-<section id="ncc"><div class="bar"><h2>Theo NCC</h2><a class="btn-secondary" href="/bao-cao/cho-xu-ly/ncc.csv?{{ query }}">Tải CSV</a></div><p>Đang gửi là tồn hiện tại; các lượt trả về, không nhận và trừ nợ theo kỳ lọc.</p>
+<section id="ncc"><div class="bar"><h2>Theo NCC</h2><a class="btn btn-ghost" href="/bao-cao/cho-xu-ly/ncc.csv?{{ query }}">Tải CSV</a></div><p>Đang gửi là tồn hiện tại; các lượt trả về, không nhận và trừ nợ theo kỳ lọc.</p>
 <div class="pending-report-scroll" role="region" aria-label="Theo nhà cung cấp" tabindex="0"><table class="pending-report-table"><thead><tr><th>NCC</th>{% for key,label in supplier_columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>{% for r in suppliers %}<tr><th><a href="/cho-xu-ly?view=ncc">{{ r.supplier_code or '' }} · {{ r.supplier_name or 'Chưa có NCC' }}</a></th>{% for key,label in supplier_columns %}<td>{% if key=='oldest_sent_at' %}{{ r[key].astimezone(tz).strftime('%d/%m/%Y %H:%M') if r[key] else '—' }}{% elif key.endswith('_qty') %}{{ r[key]|qty }}{% else %}{{ r[key]|money }}{% endif %}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ supplier_columns|length+1 }}">Không có dữ liệu NCC.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
 {% endblock %}
