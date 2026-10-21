@@ -66,7 +66,7 @@ def low_stock_query():
     from sqlalchemy import and_, func, select
     from .models import StockBalance
     qty = func.coalesce(StockBalance.qty, 0)
-    return select(StockMinLevel.warehouse_code, StockMinLevel.product_code, Product.name,
+    return select(StockMinLevel.warehouse_code, StockMinLevel.product_code, Product.name, Product.unit, Product.group_name,
         qty.label('qty'), func.coalesce(StockBalance.value, 0).label('value'),
         func.coalesce(StockBalance.avg_cost, 0).label('avg_cost'), StockMinLevel.min_qty,
         (StockMinLevel.min_qty-qty).label('shortage')).select_from(StockMinLevel).outerjoin(
