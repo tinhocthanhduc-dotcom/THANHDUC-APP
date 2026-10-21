@@ -691,6 +691,16 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .kpi-meter.warn::-webkit-meter-optimum-value,.kpi-meter.warn::-webkit-meter-suboptimum-value{background:#a76a00}
 .kpi-meter.bad::-webkit-meter-optimum-value,.kpi-meter.bad::-webkit-meter-suboptimum-value{background:#b52e2e}
 .kpi-meter.good::-moz-meter-bar{background:#238347}.kpi-meter.warn::-moz-meter-bar{background:#a76a00}.kpi-meter.bad::-moz-meter-bar{background:#b52e2e}
+
+/* NS4: immutable commission summaries, phone-friendly tables and signed adjustments. */
+.commission-scroll{overflow-x:auto;max-width:100%;margin-block:16px;border:1px solid var(--line);border-radius:8px}
+.commission-table{width:100%;min-width:650px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+.commission-table th,.commission-table td{padding:12px;min-width:125px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.commission-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface);min-width:130px;max-width:180px;overflow-wrap:anywhere}
+.commission-negative{color:var(--bad-solid);font-weight:700}.commission-total{font-size:1.4rem;font-weight:700}
+.commission-picker{min-width:0}.commission-people{max-height:240px;overflow-y:auto;padding:8px 0}.commission-people [hidden]{display:none}
+.commission-lock-form>.action-bar{margin-inline:0}.commission-lock-form{min-width:0}
+@media(max-width:600px){.commission-table tr>:first-child{min-width:110px;max-width:130px}}
 /* Hàng tôi giữ / Trả kho / Xin linh kiện: gọn, chữ vừa phải, việc chính lên trước. */
 .tho-app .tho-wh h2 { font-size: 15px; font-weight: 800; color: var(--muted); margin: 4px 0 0; }
 .tho-app .work-rows { gap: 10px; }

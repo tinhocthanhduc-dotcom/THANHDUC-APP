@@ -1615,3 +1615,66 @@ class KpiTarget(Base):
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     __mapper_args__ = {'version_id_col': version}
+
+
+class CommissionRule(Base):
+    __tablename__ = 'commission_rules'
+    __table_args__ = (
+        CheckConstraint("target in ('KINH_DOANH','THO')",name='ck_commission_rule_target'),
+        CheckConstraint('pct between 0 and 50 and fixed_amount >= 0',name='ck_commission_rule_money'),
+        CheckConstraint("target <> 'KINH_DOANH' or (fixed_amount=0 and service_kind is null)",name='ck_commission_rule_sales'),
+        CheckConstraint("length(trim(reason))>0",name='ck_commission_rule_reason'),
+        CheckConstraint(_in('service_kind',SERVICE_KINDS),name='ck_commission_rule_kind'),
+        Index('uq_commission_rule_effective','target',text('coalesce(user_id,0)'),text("coalesce(service_kind,'')"),'effective_from',unique=True,postgresql_where=text('replaced_at is null')),
+    )
+    id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
+    target: Mapped[str] = mapped_column(String(16))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    service_kind: Mapped[str | None] = mapped_column(String(24))
+    pct: Mapped[Decimal] = mapped_column(Numeric(5,2))
+    fixed_amount: Mapped[int] = mapped_column(BigInteger)
+    effective_from: Mapped[date] = mapped_column(Date)
+    reason: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),server_default=func.now())
+    replaces_id: Mapped[int | None] = mapped_column(ForeignKey('commission_rules.id'),unique=True)
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CommissionMonth(Base):
+    __tablename__ = 'commission_months'
+    __table_args__ = (CheckConstraint('extract(day from month)=1',name='ck_commission_month_first'),)
+    month: Mapped[date] = mapped_column(Date,primary_key=True)
+    locked_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    total: Mapped[int] = mapped_column(BigInteger)
+
+
+class CommissionLine(Base):
+    __tablename__ = 'commission_lines'
+    __table_args__ = (
+        CheckConstraint('extract(day from month)=1',name='ck_commission_line_month'),
+        CheckConstraint("(source='DON_BAN' and order_id is not null and ticket_id is null) or (source='PHIEU_DV' and ticket_id is not null and order_id is null) or (source='DIEU_CHINH' and order_id is null and ticket_id is null and length(trim(note))>0)",name='ck_commission_line_source'),
+        CheckConstraint('pct between 0 and 50 and fixed_amount>=0 and paid_ratio between 0 and 1',name='ck_commission_line_values'),
+        CheckConstraint('amount=entitled-previous and amount<>0',name='ck_commission_line_amount'),
+        Index('uq_commission_line_order','month','order_id',unique=True,postgresql_where=text("source='DON_BAN'")),
+        Index('uq_commission_line_ticket','month','ticket_id',unique=True,postgresql_where=text("source='PHIEU_DV'")),
+        Index('ix_commission_line_user_month','user_id','month'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
+    month: Mapped[date] = mapped_column(Date)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    source: Mapped[str] = mapped_column(String(16))
+    order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'))
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    rule_id: Mapped[int | None] = mapped_column(ForeignKey('commission_rules.id'))
+    base: Mapped[int] = mapped_column(BigInteger)
+    pct: Mapped[Decimal] = mapped_column(Numeric(5,2))
+    fixed_amount: Mapped[int] = mapped_column(BigInteger)
+    paid_ratio: Mapped[Decimal] = mapped_column(Numeric(7,6))
+    entitled: Mapped[int] = mapped_column(BigInteger)
+    previous: Mapped[int] = mapped_column(BigInteger)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    note: Mapped[str] = mapped_column(Text,default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),server_default=func.now())

@@ -1,6 +1,6 @@
 """Cấu hình đọc từ biến môi trường (file .env trên máy chủ, không đưa lên GitHub)."""
 from functools import lru_cache
-from datetime import time
+from datetime import date, time
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     search_limit: int = 20
     supplier_hold_alert_days: int = Field(default=30, ge=0, le=36500)
     pending_alert_days: int = Field(default=30, ge=0, le=36500)
+    commission_start: date = date(2027, 1, 1)
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
     work_start: time = time(8, 0)
     work_end: time = time(17, 30)
