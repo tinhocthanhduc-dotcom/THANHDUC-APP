@@ -960,3 +960,24 @@ main:has(> .po-page) { max-width: 1200px; }
   .po-prog td { border: 0; padding: 0; text-align: left; }
   .po-prog td::before { content: attr(data-label); display: block; font-size: .72rem; color: var(--muted); }
 }
+.recv-line.warehouse-short { border-color: var(--warn); background: var(--surface); }
+.recv-bad { background: var(--bad-bg); color: var(--bad); }
+.recv-note { margin: 0; font-size: .9rem; }
+.recv-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.recv-cond { border: 0; padding: 0; margin: 0; }
+.recv-cond legend { font-size: .85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }
+/* Yêu cầu linh kiện: thẻ việc có nút cấp theo kho. */
+.part-grid { display: grid; gap: 10px; }
+@media (min-width: 900px) { .part-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); align-items: start; } }
+.part-req { display: grid; gap: 8px; min-width: 0; }
+.part-need { display: flex; align-items: baseline; gap: 10px; font-size: 1.05rem; }
+.part-need .meta { margin-left: auto; font-size: .8rem; color: var(--muted); }
+.part-supply { display: flex; flex-wrap: wrap; gap: 8px; }
+.part-supply button { flex: 1 1 150px; }
+.part-st-het_hang, .part-st-da_huy { background: var(--bad-bg); color: var(--bad); }
+.part-st-cho_cap { background: var(--warn-bg); color: var(--warn); }
+.po-next > .action-bar, .recv-form.card > .action-bar { margin-inline: 0; }
+.po-next > .action-bar { position: static; margin: 4px 0 0; padding: 0; border: 0; background: none; }
+.po-page > .card h2, .po-page > form.card h2 { font-size: 1.05rem; margin-top: 0; }
+.part-page .stock-actions .btn.on { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
+.recv-name .stock-chip { white-space: nowrap; flex: none; }
