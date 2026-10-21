@@ -41,9 +41,10 @@
       if(!pick.checked)q.value='0';
       q.dispatchEvent(new Event('input',{bubbles:true}));
     });
-    root.addEventListener('input',function(event){var row=event.target.closest('[data-return-row]');if(row)syncPick(row);});
+    // Ô tick tự phát 'input' trước 'change': bỏ qua để không tự bỏ tick trước khi kịp đặt số lượng.
+    root.addEventListener('input',function(event){if(event.target.closest('[data-return-pick]'))return;var row=event.target.closest('[data-return-row]');if(row)syncPick(row);});
     root.addEventListener('click',function(event){
-      if(event.target.closest('[data-return-split]')){setTimeout(function(){root.querySelectorAll('[data-return-row]').forEach(function(row){var d=row.querySelector('[data-return-detail]');if(d)d.hidden=false;});},0);}
+      if(event.target.closest('[data-return-split]')){setTimeout(function(){root.querySelectorAll('[data-return-row]').forEach(function(row){var d=row.querySelector('[data-return-detail]'),pick=row.querySelector('[data-return-pick]');if(d)d.hidden=false;if(pick)pick.checked=true;});},0);}
       if(!event.target.closest('[data-return-all]'))return;
       root.querySelectorAll('[data-return-row]').forEach(function(row){
         var q=row.querySelector('[name=return_qty]');if(qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';
