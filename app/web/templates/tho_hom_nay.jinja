@@ -4,6 +4,7 @@
 {% block title %}Hôm nay{% endblock %}
 {% block main %}<div class="tho-screen tho-list"><h1 class="tho-dup">Hôm nay · {{ today.strftime('%d/%m/%Y') }}</h1>
 <p class="tho-date">{{ weekdays[today.weekday()] }} {{ today.strftime('%d/%m') }} · {{ jobs|length }} việc đang mở</p>
+{% if not_clocked_in %}<p class="alert bad tho-clock" role="status" data-not-clocked-in>Bạn chưa vào ca hôm nay. <a class="btn btn-ok" href="/cham-cong">Vào ca</a></p>{% endif %}
 {% for group,label in [('active','Đang làm'),('upcoming','Sắp tới')] %}{% set rows=jobs|selectattr('group','equalto',group)|list %}{% if rows %}
 <h2 class="tho-grp">{{ label }}</h2>
 <div class="tho-jobs">{% for job in rows %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>

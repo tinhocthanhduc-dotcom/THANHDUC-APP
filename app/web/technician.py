@@ -10,10 +10,10 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments, service_appointments, service_tickets, technician_stock
+from .. import attachments, attendance, service_appointments, service_tickets, technician_stock
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, CustomerSite, Equipment, Product, SalesOrder, ServiceTicket, User
+from ..models import Customer, CustomerSite, Employee, Equipment, Product, SalesOrder, ServiceTicket, User
 from . import checked_form, next_steps, render, web_user
 
 router = APIRouter()
@@ -150,7 +150,10 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
             symptom='Giao đơn bán',appointment=appointment,overdue=bool(order.promised_date and order.promised_date<now.astimezone(service_tickets.service_sla.TZ).date()),
             href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],status='GIAO_DON',created=order.created_at,group='upcoming',sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))
     jobs.sort(key=lambda row:(row['sort'],row['kind'],row['id']))
-    return render(request,'tho_hom_nay.jinja',jobs=jobs,today=now.astimezone(service_tickets.service_sla.TZ).date())
+    day=now.astimezone(service_tickets.service_sla.TZ).date()
+    # Chỉ nhắc, không chặn: thợ có hồ sơ nhân sự mà hôm nay chưa bấm Vào ca.
+    not_clocked_in=session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None and not attendance._punches(session,user.id,day)
+    return render(request,'tho_hom_nay.jinja',jobs=jobs,today=day,not_clocked_in=not_clocked_in)
 
 
 @router.get('/tho/phieu/{ticket_id}')
