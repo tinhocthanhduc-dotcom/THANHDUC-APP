@@ -1,9 +1,2 @@
-<ul class="list service-list">
-{% for t in rows %}
-  <li class="{% if is_overdue(t) %}service-overdue{% endif %}"><a href="/dich-vu/{{ t.id }}">
-    <span class="code">{{ t.number }}</span><strong>{{ customers.get(t.customer_code, t.customer_code) }}</strong>
-    <span>{{ service_statuses[t.status] }}{% if is_overdue(t) %} · Quá hạn{% endif %}</span>
-    <span class="meta">Thợ: {{ users.get(t.assignee_id, 'Chưa giao') }} · Hạn: {{ t.due_at|service_time }}</span>
-  </a></li>
-{% else %}<li class="empty">Không có phiếu phù hợp.</li>{% endfor %}
-</ul>
+<section class="card doc-list svc-list">{% if rows %}<div class="doc-row doc-head" aria-hidden="true"><span>Số phiếu</span><span>Khách hàng</span><span>Trạng thái</span><span>Thợ</span><span>Hạn</span></div>{% endif %}
+{% for t in rows %}<a class="doc-row svc-{{ t.status|lower }}{% if is_overdue(t) %} service-overdue{% endif %}" href="/dich-vu/{{ t.id }}"><b class="code">{{ t.number }}</b><strong class="doc-who">{{ customers.get(t.customer_code, t.customer_code) }}</strong><span class="doc-state"><span class="stock-chip">{{ service_statuses[t.status] }}</span>{% if is_overdue(t) %}<span class="tag doc-bad">Quá hạn</span>{% endif %}</span><span class="meta">Thợ: {{ users.get(t.assignee_id, 'Chưa giao') }}</span><span class="meta">Hạn: {{ t.due_at|service_time }}</span></a>{% else %}<p class="empty">Không có phiếu phù hợp.</p>{% endfor %}</section>

@@ -1162,3 +1162,18 @@ main:has(> .me-page) { max-width: 640px; }
 .tho-trip-group > .tho-job { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .tho-trip { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 52px; padding: 10px 16px; border: 2px solid var(--line); border-top: 1px dashed var(--line); border-radius: 0 0 14px 14px; background: var(--surface); color: inherit; text-decoration: none; }
 .tho-trip:not(:last-child) { border-radius: 0; }
+/* Khuôn 3: danh sách dịch vụ và điều phối. */
+.svc-moi .stock-chip, .svc-da_giao .stock-chip { background: var(--warn-bg); color: var(--warn); }
+.svc-dang_lam .stock-chip, .svc-da_nhan .stock-chip, .svc-da_hen .stock-chip { background: var(--tag); color: var(--accent); }
+.svc-cho_linh_kien .stock-chip, .svc-tam_dung .stock-chip, .svc-khach_hen_sau .stock-chip { background: var(--warn-bg); color: var(--warn); }
+.svc-da_huy, .svc-da_dong { opacity: .65; } .svc-da_huy .stock-chip, .svc-khong_lam_duoc .stock-chip { background: var(--bad-bg); color: var(--bad); }
+.doc-row.service-overdue { box-shadow: inset 3px 0 0 var(--bad); }
+@media (min-width: 1000px) { .svc-list .doc-row, .svc-list .doc-head { grid-template-columns: 130px minmax(0,1.4fr) 170px minmax(0,1fr) minmax(0,1fr); } }
+.dispatch-tiles { grid-template-columns: repeat(5, minmax(0,1fr)); }
+.dispatch-tiles .tile-bad b { color: var(--bad); }
+@media (max-width: 600px) { .dispatch-tiles { grid-template-columns: repeat(3, minmax(0,1fr)); } .dispatch-tiles .stock-tile { padding: 8px; } .dispatch-tiles .stock-tile span { font-size: .72rem; } }
+.dispatch-deliveries h2 { font-size: .95rem; margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.dispatch-deliveries .doc-row { grid-template-columns: 130px minmax(0,1fr) auto; }
+.dispatch-list .doc-row a { color: inherit; text-decoration: none; } .dispatch-list .doc-row a.btn { min-height: 32px; padding: 4px 10px; font-size: .85rem; }
+.doc-linked { margin: 0 0 8px; } .doc-linked .tag { margin: 0; padding: 4px 10px; }
+.dispatch-tiles .stock-tile strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; } .dispatch-tiles .tile-bad strong { color: var(--bad); }

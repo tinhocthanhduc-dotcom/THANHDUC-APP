@@ -16,9 +16,9 @@
 {% endmacro %}
 {% block title %}{{ t.number }}{% endblock %}
 {% import 'viec_khac.jinja' as other %}
-{% block main %}
-{% for order in linked_orders %}<p><a href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}
-<div class="bar"><h1>{{ t.number }}</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
+{% block main %}<div class="doc-detail">
+<div class="recv-head doc-head-bar"><a class="btn" href="/dich-vu" aria-label="Danh sách dịch vụ">←</a><div><h1>{{ t.number }}</h1><p class="hint doc-status svc-{{ t.status|lower }}"><span class="stock-chip">{{ service_statuses[t.status] }}</span> · {{ t.customer_code }}</p></div></div>
+{% for order in linked_orders %}<p class="doc-linked"><a class="tag" href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}
 {% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if retained_fields %}<section class="card form service-action"><h2>Dữ liệu vừa gửi chưa được lưu</h2>
@@ -99,4 +99,4 @@
 {% if collection %}{% if not next_step or next_step.primary.form!='service-DA_DONG' %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}<details class="card" {% if failed_receipt_id %}open{% endif %}><summary>Lịch sử báo thu</summary>{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}</details>{% endif %}
 <script src="/static/workflow.js" defer></script>
 <script src="/static/technician-returns.js" defer></script><script src="/static/appointments.js" defer></script><script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script><script src="/static/recovered-parts.js" defer></script>
-{% endblock %}
+</div>{% endblock %}
