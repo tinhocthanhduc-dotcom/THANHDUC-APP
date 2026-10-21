@@ -13,7 +13,7 @@
 {% if order.contact_name %}<p class="tho-kv"><span>Người liên hệ</span><b>{{ order.contact_name }}</b></p>{% endif %}
 {% if address %}<p class="tho-kv"><span>Địa chỉ</span><b>{{ address }}</b></p>{% endif %}
 <p class="tho-kv"><span>Hẹn giao</span><b>{{ order.promised_date.strftime('%d/%m/%Y') if order.promised_date else 'Chưa hẹn' }}</b></p>
-<p class="tho-kv"><span>Cần thu</span><b class="tho-due">{{ balance.available|money }} đ</b></p>
+<p class="tho-kv"><span>Cần thu</span><b class="tho-due">{{ balance.available|money }} đ</b></p>{% if trip_ticket %}<p class="tho-kv" data-trip-note><span>Cùng chuyến</span><b>Phiếu dịch vụ <a href="/tho/phieu/{{ trip_ticket.id }}">{{ trip_ticket.number }}</a></b></p>{% endif %}
 {% if maps %}<a class="btn btn-ghost" href="{{ maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</section>
 {% if can_deliver %}
 <form id="giao-xong" class="tho-steps-form" method="post" enctype="multipart/form-data" action="/giao-don/{{ order.id }}/deliver" data-tho-delivery data-available="{{ balance.available }}">{{ tokens() }}
@@ -26,6 +26,7 @@
 <section class="card"><h2><span class="tho-stepno">2</span>Thu tiền</h2>
 <div class="seg stock-seg" role="radiogroup" aria-label="Thu tiền"><label><input type="radio" name="collect" value="YES" {% if collect=='YES' %}checked{% endif %}><span>Có thu</span></label><label><input type="radio" name="collect" value="NO" {% if collect=='NO' %}checked{% endif %}><span>Chưa thu (công nợ)</span></label></div>
 <div data-collect-fields {% if collect=='NO' %}hidden{% endif %}>
+{% if trip_ticket %}<div class="tho-trip-money" data-trip-delivery data-ticket="{{ trip_ticket.id }}"><p class="tho-kv"><span>Kèm phiếu dịch vụ</span><b><a href="/tho/phieu/{{ trip_ticket.id }}">{{ trip_ticket.number }}</a></b></p><label>Khách trả tổng cả chuyến (đồng, nếu trả chung)<input inputmode="numeric" data-money data-trip-total autocomplete="off"></label><p class="hint" data-trip-split>Gõ số khách đưa: app lấy cho đơn này trước, phần dư ghi vào phiếu {{ trip_ticket.number }} khi hoàn thành.</p></div>{% endif %}
 <label>Số tiền thu (đồng)<input name="amount" value="{{ raw.get('amount', suggested_amount|money if suggested_amount>0 else '') }}" inputmode="numeric" data-money data-delivery-amount{% if raw.get("amount") %} data-manual{% endif %}></label>
 <p class="hint" data-amount-hint>Tự tính theo số hàng giao, tối đa {{ balance.available|money }} đ. Sửa nếu khách trả khác.</p>
 <div class="chips" role="radiogroup" aria-label="Cách thu">{% for code,title in [('TIEN_MAT','Tiền mặt'),('CHUYEN_KHOAN','Chuyển khoản')] %}<label class="chip"><input type="radio" name="method" value="{{ code }}" {% if raw.get('method','TIEN_MAT')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div></div></section>

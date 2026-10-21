@@ -7,7 +7,7 @@
 {% if not_clocked_in %}<p class="alert bad tho-clock" role="status" data-not-clocked-in>Bạn chưa vào ca hôm nay. <a class="btn btn-ok" href="/cham-cong">Vào ca</a></p>{% endif %}
 {% for group,label in [('active','Đang làm'),('upcoming','Sắp tới')] %}{% set rows=jobs|selectattr('group','equalto',group)|list %}{% if rows %}
 <h2 class="tho-grp">{{ label }}</h2>
-<div class="tho-jobs">{% for job in rows %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>
+<div class="tho-jobs">{% for job in rows %}{% if job.trips %}<div class="tho-trip-group" data-trip-group>{% endif %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>
 <span class="cardtop"><span>{{ job.number }} · {% if job.overdue %}<span class="tho-late">{{ 'Quá giờ · ' if job.appointment else 'Quá hạn xử lý' }}</span>{% endif %}{% if job.appointment %}{{ job.appointment|appointment_label(job.get('appointment_slot')) }}{% elif not job.overdue %}Chưa hẹn{% endif %}</span><span class="tag tone-{{ tones.get(job.status,'mute') }}">{{ 'Giao hàng' if job.status=='GIAO_DON' else service_statuses[job.status] }}</span></span>
 <b>{{ job.customer }}</b>
 {% if job.address %}<span class="mu tho-one-line" title="{{ job.address }}">{{ job.address }}</span>{% endif %}
@@ -15,5 +15,5 @@
 {% if job.machine or job.serial %}<span class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</span>{% endif %}
 {% if job.priority and job.priority!='THUONG' %}<span class="tag tone-bad" style="align-self:flex-start">{{ service_priorities[job.priority] }}</span>{% endif %}
 <span class="tho-foot">{% if job.created %}<span class="tho-created">Tạo {{ job.created|service_time }}</span>{% endif %}{% if job.action %}<span class="tho-next">{{ job.action.label }} ›</span>{% endif %}</span>
-</a>{% endfor %}</div>{% endif %}{% endfor %}
+</a>{% if job.trips %}{% for trip in job.trips %}<a class="tho-trip" href="{{ trip.href }}" data-trip="{{ trip.number }}"><span>🚚 Kèm giao đơn <b>{{ trip.number }}</b></span><span class="tho-next">{{ trip.action.label if trip.action else 'Giao hàng' }} ›</span></a>{% endfor %}</div>{% endif %}{% endfor %}</div>{% endif %}{% endfor %}
 {% if not jobs %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}

@@ -26,6 +26,23 @@
     update();
   });
   form.addEventListener('change', update);
+  // Phiếu dịch vụ cùng chuyến: khách trả tổng thì đơn này lấy trước, phần dư để phiếu ghi khi hoàn thành.
+  var trip = form.querySelector('[data-trip-delivery]');
+  if (trip && amount) {
+    var total = trip.querySelector('[data-trip-total]'), split = trip.querySelector('[data-trip-split]'), rest = null;
+    function money(v) { var raw = String(v || '').replace(/\./g, '').trim(); return /^[0-9]{1,15}$/.test(raw) ? Number(raw) : 0; }
+    total.addEventListener('input', function (event) {
+      event.stopPropagation();
+      if (!total.value.trim()) { rest = null; return; }
+      var paid = money(total.value), own = Math.min(paid, suggest());
+      manual = true; amount.value = own > 0 ? format(own) : '';
+      rest = paid - own;
+      split.textContent = 'Đơn này: ' + format(own) + ' đ · Còn ' + format(rest) + ' đ ghi vào phiếu dịch vụ khi hoàn thành.';
+    });
+    form.addEventListener('submit', function () {
+      try { if (rest !== null) sessionStorage.setItem('trip-ticket-' + trip.dataset.ticket, String(rest)); } catch (e) {}
+    });
+  }
   // Ảnh giao hàng: nút lớn mở máy ảnh, hiện ảnh đã chụp; thiếu ảnh thì nhắc chứ không im lặng.
   var camera = form.querySelector('[data-delivery-camera]'), thumbs = form.querySelector('[data-photo-thumbs]'), count = form.querySelector('[data-photo-count]');
   if (camera) {

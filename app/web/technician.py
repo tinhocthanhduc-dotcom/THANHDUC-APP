@@ -94,6 +94,14 @@ def detail_context(session, user, ticket, ctx):
     materials.sort(key=lambda item:(item['extra'],item['code']))
     ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
     billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
+    # Đơn giao cùng chuyến còn phải thu: để thợ nhập "Khách trả tổng" rồi app tự chia (đơn hàng trước, dư vào phiếu).
+    from .. import sales_receipts
+    trips=[]
+    for order in session.scalars(select(SalesOrder).where(SalesOrder.service_ticket_id==ticket.id,SalesOrder.delivery_assignee_id==user.id,
+            SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO'))).order_by(SalesOrder.id)):
+        due=sales_receipts.balance(order)['available']
+        if due>0:trips.append(dict(id=order.id,number=order.number,due=due,delivered=order.status=='DA_GIAO',href=f'/giao-don/{order.id}?return_to=tho'))
+    ctx['trip_orders']=trips
     from ..models import ServiceDraft
     draft=session.get(ServiceDraft,(ticket.id,user.id)) if ticket.status=='DANG_LAM' and not ctx.get('completion_form') else None
     ctx['tech_draft']=draft.data if draft else None
@@ -142,10 +150,15 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
             group='active' if ticket.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else 'upcoming',
             sort=_schedule(ticket.appointment_at,ticket.status,now),**contact(customer,site)))
     orders=session.scalars(select(SalesOrder).where(SalesOrder.delivery_assignee_id==user.id,SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))))
+    by_ticket={job['id']:job for job in jobs if job['kind']=='service'}
     for order in orders:
+        action=next_steps.delivery(session,user,order)
+        if order.service_ticket_id in by_ticket:
+            # Đơn giao cùng chuyến với phiếu của thợ: gộp vào thẻ phiếu, không thành dòng riêng.
+            by_ticket[order.service_ticket_id].setdefault('trips',[]).append(dict(number=order.number,href=f'/giao-don/{order.id}?return_to=tho',action=action['primary']))
+            continue
         customer=session.get(Customer,order.customer_code)
         appointment=datetime.combine(order.promised_date,time.min,service_tickets.service_sla.TZ) if order.promised_date else None
-        action=next_steps.delivery(session,user,order)
         jobs.append(dict(kind='delivery',id=order.id,number=order.number,priority='',customer=customer.name,machine='',serial='',
             symptom='Giao đơn bán',appointment=appointment,overdue=bool(order.promised_date and order.promised_date<now.astimezone(service_tickets.service_sla.TZ).date()),
             href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],status='GIAO_DON',created=order.created_at,group='upcoming',sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))

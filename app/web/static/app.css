@@ -1157,3 +1157,8 @@ main:has(> .me-page) { max-width: 640px; }
 .overview-page .overview-alerts h2 { font-size: 1.05rem; }
 @media (max-width: 600px) { .overview-main { grid-column: 1 / -1; } }
 @media (max-width: 600px) { .overview-head > div { flex-basis: 100%; } .overview-head > .btn, .overview-head > form { flex: 1 1 0; } .overview-head button { width: 100%; } }
+/* Phiếu dịch vụ kèm đơn giao cùng chuyến: một thẻ, dòng giao hàng gắn ngay dưới. */
+.tho-trip-group { display: grid; gap: 0; }
+.tho-trip-group > .tho-job { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.tho-trip { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 52px; padding: 10px 16px; border: 2px solid var(--line); border-top: 1px dashed var(--line); border-radius: 0 0 14px 14px; background: var(--surface); color: inherit; text-decoration: none; }
+.tho-trip:not(:last-child) { border-radius: 0; }

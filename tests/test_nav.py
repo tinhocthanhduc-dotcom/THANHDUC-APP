@@ -88,6 +88,7 @@ def test_multi_role_union_and_home_priority(client, make_user, roles, home):
     links = Menu(client.get(home).text).links
     expected=set().union(*(EXPECTED[r] for r in roles))
     if 'director' in roles:expected.difference_update(('/kpi','/hoa-hong'))
+    if 'technician' in roles:expected.add('/tho')  # thợ nhiều vai vẫn có lối vào màn thợ
     assert {a['href'] for a in links} == expected
 
 

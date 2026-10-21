@@ -27,6 +27,8 @@ def context(session,user,order):
     state.update(order=order,reason_labels=REASONS,customer=session.get(Customer,order.customer_code),
         technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician'])).order_by(User.full_name))) if has_role(user,'dispatcher') else [],
         service_ticket=session.get(ServiceTicket,order.service_ticket_id) if order.service_ticket_id else None,
+        open_tickets=list(session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code==order.customer_code,
+            ServiceTicket.status.in_(('MOI','DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'))).order_by(ServiceTicket.id.desc()))) if has_role(user,'dispatcher') else [],
         remaining=sales_orders.remaining_lines(session,order),balance=sales_receipts.balance(order),
         is_assignee=order.delivery_assignee_id==user.id and has_role(user,'technician'),
         can_assign=has_role(user,'dispatcher'),can_move=has_role(user,'warehouse'),can_use=has_role(user,'warehouse','dispatcher'))
@@ -57,7 +59,9 @@ def page(request,session,user,order,raw=None,error=None,code='',status=200):
         available=ctx['balance']['available']
         full=all(row['qty']>=row['remaining'] for row in lines)
         suggested=available if full else min(available,round(sum(float(row['qty'])*row['unit_gross'] for row in lines)))
-        return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,
+        st=ctx['service_ticket']
+        trip_ticket=st if st is not None and st.assignee_id==user.id and st.status in ('DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else None
+        return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,trip_ticket=trip_ticket,
             raw=raw or {},error=error,error_code=code,status=status,**contact(ctx['customer'],address=order.delivery_address))
     return render(request,'giao_don.jinja',technician_view=technician_view,**ctx,shipments=shipments,photos=photos,
         raw=raw or {},error=error,error_code=code,status=status)
@@ -80,7 +84,10 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
         lines=[dict(order_line_no=int(k[4:]),qty=str(v).replace(',','.')) for k,v in form.items()
             if re.fullmatch(r'qty_[0-9]+',k) and str(v).strip() and str(v).strip() not in ('0','0,0','0.0')]
         if action=='assign':
-            svc.assign(session,user,order_id,SalesDeliveryAssign(version=version,assignee_id=form.get('assignee_id'),service_ticket_id=form.get('service_ticket_id') or None))
+            choice=str(form.get('service_ticket_id') or '').strip()
+            svc.assign(session,user,order_id,SalesDeliveryAssign(version=version,assignee_id=form.get('assignee_id'),
+                service_ticket_id=choice if choice not in ('','NEW') else None,
+                new_service_symptom=str(form.get('new_service_symptom','')).strip() if choice=='NEW' else None))
         elif action in ('transfer','use','return'):
             svc.move(session,user,order_id,action,SalesDeliveryMove(version=version,lines=lines))
         elif action=='failed':
