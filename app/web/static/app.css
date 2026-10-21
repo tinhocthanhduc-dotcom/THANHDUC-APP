@@ -1139,3 +1139,21 @@ main:has(> .me-page) { max-width: 640px; }
 .doc-hold > article.card { padding: 8px 12px; margin: 0; box-shadow: none; }
 .doc-hold > article.card p { margin: 2px 0 0; }
 .doc-detail section.card > h2, .doc-detail form.card > h2, .doc-detail .card.form h2 { font-size: 1.05rem; margin: 0 0 8px; }
+/* Tổng quan giám đốc: nhóm ô theo chủ đề, ô chính nổi bật, ô bằng 0 mờ đi. */
+.overview-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.overview-head > div { flex: 1 1 200px; } .overview-head h1 { margin: 0; } .overview-head .hint { margin: 0; }
+.overview-head form { margin: 0; } .overview-head .btn, .overview-head button { width: auto; padding: 8px 12px; font-size: .9rem; }
+.overview-label { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
+.overview-page .overview-grid { gap: 8px; }
+.overview-page .overview-tile { min-height: 0; gap: 4px; padding: 10px 12px; }
+.overview-page .overview-tile span { font-size: .85rem; color: var(--muted); font-weight: 600; }
+.overview-page .overview-tile small { font-size: .75rem; }
+.overview-main { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.overview-main strong { font-size: 1.5rem; }
+.overview-small .overview-tile strong { font-size: 1.05rem; }
+.overview-zero strong { color: var(--muted); font-weight: 600; }
+.overview-page > .hint { margin: 6px 0 0; font-size: .8rem; }
+.overview-chart-card h2 { font-size: 1.05rem; margin: 0; } .overview-chart-card > .hint { margin: 2px 0 8px; }
+.overview-page .overview-alerts h2 { font-size: 1.05rem; }
+@media (max-width: 600px) { .overview-main { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .overview-head > div { flex-basis: 100%; } .overview-head > .btn, .overview-head > form { flex: 1 1 0; } .overview-head button { width: 100%; } }
