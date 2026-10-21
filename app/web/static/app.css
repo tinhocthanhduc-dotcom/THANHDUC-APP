@@ -1022,3 +1022,25 @@ main:has(> .me-page) { max-width: 640px; }
 .rq-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .rq-totals { padding: 0 4px; }
 .receipt-row-actions .btn-ghost { min-height: 40px; font-size: .9rem; }
+/* Khuôn 3: danh sách Thu chi. */
+.cash-page .bar { flex-wrap: wrap; }
+.cash-page .stock-tile b { font-size: 1.1rem; }
+.cash-sum { margin: 0 0 10px; }
+.cash-list { padding: 0; overflow: hidden; }
+.cash-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.cash-row:first-child { border-top: 0; }
+.cash-row .meta, .cash-row .cash-desc { grid-column: 1; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.cash-row > span:nth-of-type(3) { grid-column: 2; grid-row: 2; justify-self: end; }
+.cash-amt { grid-column: 2; grid-row: 1; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cash-head { display: none; }
+.cash-da_huy { opacity: .6; } .cash-da_huy .cash-amt { text-decoration: line-through; }
+.cash-nhap .stock-chip { background: var(--warn-bg); color: var(--warn); }
+.cash-da_huy .stock-chip { background: var(--bad-bg); color: var(--bad); }
+.cash-list .empty { padding: 20px 16px; text-align: center; }
+@media (min-width: 1000px) {
+  .cash-row, .cash-head { display: grid; grid-template-columns: 140px 190px minmax(0,1fr) 110px 170px; align-items: center; }
+  .cash-row > *, .cash-row .meta, .cash-row .cash-desc, .cash-row > span:nth-of-type(3), .cash-amt { grid-column: auto; grid-row: auto; justify-self: auto; }
+  .cash-head { font-size: .75rem; font-weight: 700; color: var(--muted); padding-block: 8px; }
+  .cash-head span:last-child { text-align: right; }
+}
+.cash-page .stock-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } .cash-page .stock-tile { padding: 8px 10px; } .cash-page .stock-tile span { font-size: .72rem; }
