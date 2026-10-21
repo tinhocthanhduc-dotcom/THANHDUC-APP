@@ -114,3 +114,20 @@ def test_ui_js_fill_and_open_details():
     from pathlib import Path
     js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'ui.js').read_text()
     assert '[data-fill-value]' in js and '[data-open-details]' in js
+
+
+def test_technician_shell_tabs_and_grouped_cards(client, db, held):
+    # Theo bản mẫu: thanh trên gọn, tab dưới; Hôm nay chia nhóm, cả thẻ là một liên kết mở phiếu.
+    p, a, b = held
+    working = ticket(db, p, 'DANG_LAM'); new = ticket(db, p, 'DA_GIAO')
+    service_login(client, p['technician'])
+    html = client.get('/tho').text
+    assert 'class="tho-app"' in html and 'class="tho-tabs"' in html and 'data-web-menu' not in html
+    assert html.index('>Đang làm</h2>') < html.index(working.number) < html.index('>Sắp tới</h2>') < html.index(new.number)
+    card = re.search(rf'<a class="card tho-job[^"]*" href="/tho/phieu/{new.id}"[^>]*>', html).group(0)
+    assert 'data-next-label="Nhận đơn"' in card
+    page = client.get(f'/tho/phieu/{working.id}').text
+    assert 'class="tho-back" href="/tho"' in page and 'class="tho-tabs"' not in page
+    # Người không phải thợ thuần vẫn dùng khung cũ.
+    service_login(client, p['dispatcher'])
+    assert 'class="tho-tabs"' not in client.get('/dich-vu').text

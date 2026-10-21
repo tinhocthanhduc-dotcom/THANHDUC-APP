@@ -11,9 +11,23 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 </script>
 <script src="/static/ui.js" defer></script>
 </head>
-<body>
+{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
+<body{% if navigation and navigation.technician %} class="tho-app"{% endif %}>
 {% if user %}
-{% set navigation = web_navigation(user, request.url.path, request.query_params) %}
+{% if navigation.technician %}
+{# Khung riêng cho thợ (theo bản mẫu màn thợ): thanh trên gọn, tab dưới cùng. #}
+<header class="tho-top">
+  {% block tho_top %}<h1 class="tho-title">{{ self.title() }}</h1>{% endblock %}
+  <button type="button" class="tho-icb" data-theme-toggle aria-label="Đổi sáng hoặc tối"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"></path></svg></button>
+  <details class="tho-account"><summary class="tho-icb" aria-label="Tài khoản"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg></summary>
+  <form method="post" action="/dang-xuat" class="tho-account-menu">
+    <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+    <a class="btn btn-ghost" href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="btn-ghost">Đăng xuất</button>
+  </form></details>
+</header>
+{% block tho_tabs %}<nav class="tho-tabs" aria-label="Menu chính">{% for item in navigation.groups[0]['items'] %}<a href="{{ item.href }}" data-nav-item{% if item.active %} class="on" aria-current="page"{% endif %}>{{ tab_icons[item.href]|safe }}<span>{{ item.label }}</span></a>{% endfor %}</nav>{% endblock %}
+{% else %}
 <header class="top">
   <a class="brand" href="{{ '/tho' if user.roles|unique|list == ['technician'] else '/' }}">Thành Đức</a>
   <details class="menu-shell" data-web-menu>
@@ -37,6 +51,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
     <button type="button" class="link" data-theme-toggle>Sáng/Tối</button><a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
   </form>
 </header>
+{% endif %}
 <script src="/static/nav.js" defer></script>
 <noscript><style>.menu-shell > .menu-toggle { display: list-item; }</style></noscript>
 {% endif %}
