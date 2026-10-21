@@ -673,3 +673,6 @@ router.include_router(employees_router)
 
 from .attendance import router as attendance_router
 router.include_router(attendance_router)
+
+from .kpi import router as kpi_router
+router.include_router(kpi_router)

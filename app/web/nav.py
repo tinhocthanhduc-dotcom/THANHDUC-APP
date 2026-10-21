@@ -10,6 +10,7 @@ from ..security import has_role
 
 GROUPS = (
     {'label': '', 'items': (
+        {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},
         {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
@@ -64,6 +65,8 @@ GROUPS = (
 # Tài khoản có phạm vi riêng: quyền giám đốc ở menu nghiệp vụ không bao gồm quản trị.
 ACCOUNT_GROUPS = (
     {'label': 'Quản trị', 'items': (
+        {'label': 'KPI tổng', 'href': '/kpi/tong', 'prefixes': ('/kpi/tong',), 'roles': ('director',)},
+        {'label': 'Mục tiêu KPI', 'href': '/kpi/muc-tieu', 'prefixes': ('/kpi/muc-tieu',), 'roles': ('director',)},
         {'label': 'Duyệt chấm công', 'href': '/cham-cong/duyet', 'prefixes': ('/cham-cong/duyet',), 'roles': ('director',)},
         {'label': 'Bảng công', 'href': '/cham-cong/bang', 'prefixes': ('/cham-cong/bang',), 'roles': ('finance',)},
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
@@ -153,7 +156,7 @@ def menu(user, path, query=None):
         links = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
         groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in links], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and not item.get('account_page') and has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and not item.get('account_page') and not (item['href']=='/kpi' and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
