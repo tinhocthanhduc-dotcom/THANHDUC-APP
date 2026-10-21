@@ -3,7 +3,7 @@
 {% block title %}{{ q.number if q else 'Tạo báo giá' }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% import 'viec_khac.jinja' as other %}
-{% block main %}
+{% block main %}<div class="doc-detail">
 <div class="recv-head doc-head-bar"><a class="btn" href="/bao-gia" aria-label="Quay lại Báo giá">←</a><div><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><p class="hint">Báo giá{% if q %} · {{ customer_name or q.customer_code }}{% endif %}</p></div>{% if q %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">In báo giá</a>{% endif %}</div>
 {% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
@@ -38,4 +38,4 @@
 <script src="/static/workflow.js" defer></script>
 <script src="/static/quotes.js" defer></script>
 <script src="/static/picked.js" defer></script>
-{% endblock %}
+</div>{% endblock %}

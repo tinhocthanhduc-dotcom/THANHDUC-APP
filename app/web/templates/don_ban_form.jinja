@@ -3,7 +3,7 @@
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% import 'viec_khac.jinja' as other %}
-{% block main %}
+{% block main %}<div class="doc-detail">
 <div class="recv-head doc-head-bar"><a class="btn" href="/don-ban" aria-label="Quay lại Đơn bán">←</a><div><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><p class="hint">Đơn bán{% if o %} · {{ customer_name or o.customer_code }}{% endif %}</p></div>{% if o and o.status=='DA_GIAO' %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
 {% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
 
@@ -11,8 +11,8 @@
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if o %}<p class="doc-status doc-{{ o.status|lower }}">Trạng thái: <strong class="stock-chip">{{ statuses[o.status] }}</strong></p>{% endif %}
-{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="card form"><h2>Tiến độ giao hàng</h2><p>{{ 'Chưa giao' if o.status=='DA_CHOT' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Đã giao đủ' }}</p>
-{% for line in o.lines %}<article class="card"><strong>Dòng {{ line.line_no }} · {{ line.description }}</strong><dl><dt>Đặt</dt><dd>{{ line.qty|qty }}</dd><dt>Đã giữ</dt><dd>{{ reservations[line.line_no].held|qty if line.kind=='HANG' else '—' }}</dd><dt>Đã giao</dt><dd>{{ delivery_state[line.line_no].delivered|qty }}</dd><dt>Đã đóng</dt><dd>{{ line.closed_qty|qty }}</dd><dt>Còn lại</dt><dd>{{ delivery_state[line.line_no].remaining|qty }}</dd></dl></article>{% endfor %}</section>{% endif %}
+{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="doc-progress"><h2>Tiến độ giao hàng · {{ 'Chưa giao' if o.status=='DA_CHOT' else 'Giao một phần' }}</h2>
+<table class="sales-report-table"><thead><tr><th>Dòng</th><th>Đặt</th><th>Đã giữ</th><th>Đã giao</th><th>Đã đóng</th><th>Còn lại</th></tr></thead><tbody>{% for line in o.lines %}<tr><th data-label="Dòng">{{ line.line_no }} · {{ line.description }}</th><td data-label="Đặt">{{ line.qty|qty }}</td><td data-label="Đã giữ">{{ reservations[line.line_no].held|qty if line.kind=='HANG' else '—' }}</td><td data-label="Đã giao">{{ delivery_state[line.line_no].delivered|qty }}</td><td data-label="Đã đóng">{{ line.closed_qty|qty }}</td><td data-label="Còn lại" class="debt-left">{{ delivery_state[line.line_no].remaining|qty }}</td></tr>{% endfor %}</tbody></table></section>{% endif %}
 {% if collection %}<p class="alert {{ 'warn' if collection.balance.remaining>0 else 'ok' }}">{{ 'Còn nợ: ' ~ (collection.balance.remaining|money) ~ ' đồng' if collection.balance.remaining>0 else 'Khách ứng trước: ' ~ (collection.balance.advance|money) ~ ' đồng' if collection.balance.advance>0 else 'Đã thu đủ phần đã giao' }}</p>{% endif %}
 {% if source %}<p><a href="/bao-gia/{{ source.id }}">Báo giá nguồn: {{ source.number }}</a></p>{% endif %}
 {% if o and o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
@@ -49,9 +49,9 @@
 <p class="alert warn" data-order-warning hidden></p>
 {% if can_write and editable %}<button>Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p>{% endif %}
 </form>{% endif %}
-{% if o %}<section class="card service-action"><h2>Số tiền đã lưu</h2><dl><dt>Tiền hàng</dt><dd>{{ o.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ o.vat_total|money }} đồng</dd><dt>Tổng cộng</dt><dd>{{ o.total|money }} đồng</dd><dt>Phải thu</dt><dd>{{ (o.receivable|money) ~ ' đồng' if o.receivable is not none else 'Chưa chốt' }}</dd></dl></section>{% endif %}
+{% if o %}<section class="stock-tiles debt-tiles doc-money-tiles" aria-label="Số tiền đã lưu"><div class="stock-tile debt-main"><span>Tổng cộng</span><b>{{ o.total|money }} đồng</b></div><div class="stock-tile"><span>Tiền hàng</span><b>{{ o.subtotal|money }}</b></div><div class="stock-tile"><span>VAT</span><b>{{ o.vat_total|money }}</b></div><div class="stock-tile"><span>Phải thu</span><b>{{ (o.receivable|money) if o.receivable is not none else 'Chưa chốt' }}</b></div></section>{% endif %}
 {% if o and o.status!='NHAP' %}<p>Ngày hẹn giao/lấy: {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'Chưa hẹn' }}</p>{% endif %}
-{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="card form"><h2>Hàng đang giữ</h2>
+{% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="card form doc-hold"><h2>Hàng đang giữ</h2>
 {% for line in o.lines if line.kind=='HANG' %}{% set held=reservations[line.line_no] %}<article class="card{% if held.missing>0 %} reservation-short{% endif %}"><strong>{{ line.product_code }} · {{ line.description }} · {{ line.warehouse_code }}</strong><p>Đã giữ {{ held.held|qty }}/{{ line.qty|qty }}{% if held.held==0 %} · Chưa giữ{% endif %}</p>
 {% if held.missing>0 %}<p class="alert warn">Thiếu {{ held.missing|qty }} {{ line.unit }} {{ line.description }} ở kho {{ line.warehouse_code }}</p>{% endif %}
 </article>{% endfor %}
@@ -81,4 +81,4 @@
 <script src="/static/workflow.js" defer></script>
 <script src="/static/orders.js" defer></script>
 <script src="/static/picked.js" defer></script>
-{% endblock %}
+</div>{% endblock %}
