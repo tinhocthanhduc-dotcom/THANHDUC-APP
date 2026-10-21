@@ -59,8 +59,15 @@ def assign(session,user,order_id,body):
             if ticket is None or ticket.customer_code!=order.customer_code or ticket.status not in ('MOI','DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
                 raise BusinessError('BAD_SERVICE_TICKET','Phiếu dịch vụ cùng chuyến phải đang mở và cùng khách.')
         before=sales_orders.snapshot(order)
+        ticket_id=body.service_ticket_id
+        if body.new_service_symptom is not None:
+            # Kèm dịch vụ: tạo và giao phiếu cho cùng thợ trong cùng transaction với việc giao đơn.
+            from . import service_tickets
+            from .schemas import ServiceTicketIn
+            ticket=service_tickets.create_in_tx(session,user,ServiceTicketIn(customer_code=order.customer_code,kind='SUA_TAI_CHO',symptom=body.new_service_symptom))
+            ticket_id=service_tickets.assign_in_tx(session,user,ticket.id,body.assignee_id,ticket.version,'Kèm đơn giao '+order.number).id
         order.delivery_assignee_id,order.delivery_assigned_at=body.assignee_id,datetime.now(UTC)
-        order.service_ticket_id=body.service_ticket_id
+        order.service_ticket_id=ticket_id
         order.version+=1
         sales_orders._record(session,user,order,'assign_delivery',before)
     return order

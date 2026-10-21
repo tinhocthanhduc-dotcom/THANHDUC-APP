@@ -126,6 +126,44 @@
       update();
     });
     document.addEventListener("tech-photo-change", update);
+    // Đơn giao cùng chuyến: "Khách trả tổng" chia cho đơn hàng trước, phần dư vào phiếu này.
+    const trip = screen.querySelector("[data-trip-money]");
+    if (trip) {
+      const totalInput = trip.querySelector("[data-trip-total]"),
+        hint = trip.querySelector("[data-trip-split]"),
+        orderDue = BigInt(trip.dataset.orderDue || "0"),
+        key = "trip-ticket-" + trip.dataset.ticket;
+      function applyTrip(part, note) {
+        const total = actual(),
+          modes = screen.querySelectorAll("[name=collection_mode]");
+        if (part <= 0n) modes.forEach((input) => (input.checked = false));
+        else if (part >= total && total > 0n)
+          screen.querySelector("[name=collection_mode][value=FULL]").checked = true;
+        else {
+          screen.querySelector("[name=collection_mode][value=PARTIAL]").checked = true;
+          form.elements.partial_amount.value = format(part);
+        }
+        const extra = total > 0n && part > total ? part - total : 0n;
+        hint.textContent =
+          note +
+          (extra > 0n ? " Dư " + format(extra) + " đ so với phải thu của phiếu, kiểm tra lại." : "");
+        update();
+      }
+      function fromTotal() {
+        const paid = money(totalInput.value),
+          order = paid < orderDue ? paid : orderDue,
+          part = paid - order;
+        if (!totalInput.value.trim()) return;
+        applyTrip(part, "Đơn hàng: " + format(order) + " đ · Phiếu này: " + format(part) + " đ.");
+      }
+      totalInput.addEventListener("input", fromTotal);
+      form.elements.customer_amount.addEventListener("input", fromTotal);
+      let saved = null;
+      try { saved = sessionStorage.getItem(key); } catch (e) {}
+      if (saved !== null && /^[0-9]+$/.test(saved))
+        applyTrip(BigInt(saved), "Lúc giao đơn đã chia: phiếu này nhận " + format(BigInt(saved)) + " đ.");
+      form.addEventListener("submit", () => { try { sessionStorage.removeItem(key); } catch (e) {} });
+    }
     update();
   }
   document.querySelectorAll("[data-failure-options]").forEach((box) => {

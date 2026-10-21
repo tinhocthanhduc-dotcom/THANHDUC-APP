@@ -1282,6 +1282,14 @@ class SalesCounterSale(SalesReceiptReport):
 class SalesDeliveryAssign(SalesOrderVersion):
     assignee_id: int = Field(gt=0)
     service_ticket_id: int | None = Field(default=None, gt=0)
+    # Kèm dịch vụ: tạo phiếu dịch vụ mới cùng chuyến (cùng khách, cùng thợ) thay vì chọn phiếu có sẵn.
+    new_service_symptom: str | None = Field(default=None, min_length=3, max_length=4000)
+
+    @model_validator(mode='after')
+    def one_ticket_source(self):
+        if self.service_ticket_id is not None and self.new_service_symptom is not None:
+            raise ValueError('Chọn phiếu có sẵn hoặc tạo phiếu mới, không chọn cả hai.')
+        return self
 
 
 class SalesDeliveryMove(SalesOrderVersion):
