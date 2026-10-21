@@ -1071,3 +1071,8 @@ main:has(> .me-page) { max-width: 640px; }
 .cash-book .recv-head > .btn-ok { width: auto; padding: 8px 12px; font-size: .9rem; white-space: nowrap; }
 .cash-book details > dl { margin: 8px 0 0; }
 @media (max-width:600px) { .cash-book .debt-tiles { grid-template-columns: repeat(3, minmax(0,1fr)); } .cash-book .debt-tiles .stock-tile:not(.debt-main) b { font-size: .85rem; } }
+.cash-form-page .recv-head > div { flex: 1; min-width: 0; }
+.cash-form-page .recv-head > .cash-print { width: auto; padding: 8px 12px; font-size: .9rem; white-space: nowrap; }
+.cash-form-page form.card > .action-bar { margin-inline: 0; }
+.cash-form-page .action-bar .hint { margin: 0; font-size: .85rem; color: var(--muted); }
+.cash-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
