@@ -141,6 +141,71 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
+  // ---- UX5a: bộ chọn hàng gọn. Chỉ hiện dòng gợi ý/đã chọn; mã khác tìm bằng ô tìm (không dấu). ----
+  function fold(text) {
+    return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+  }
+  function pickerRows(root) {
+    return Array.prototype.slice.call(root.querySelectorAll('[data-pick-row]'));
+  }
+  function renderPicker(root) {
+    var box = root.querySelector('[data-pick-box]');
+    if (!box) return;
+    var search = box.querySelector('[data-pick-search]'), list = box.querySelector('[data-pick-results]');
+    var hidden = pickerRows(root).filter(function (row) { return row.hidden; });
+    box.hidden = hidden.length === 0;
+    var count = box.querySelector('[data-pick-count]');
+    if (count) count.textContent = hidden.length;
+    var q = fold(search.value).trim(), all = box.dataset.showAll === '1';
+    list.innerHTML = '';
+    if (!q && !all) return;
+    var words = q.split(/\s+/).filter(Boolean);
+    hidden.filter(function (row) {
+      var text = fold(row.dataset.pickText);
+      return words.every(function (w) { return text.indexOf(w) >= 0; });
+    }).slice(0, all && !q ? 200 : 12).forEach(function (row) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'pick-result'; b.dataset.pickTake = '';
+      b.innerHTML = '<b></b><small></small>';
+      b.querySelector('b').textContent = row.dataset.pickName || row.dataset.pickText;
+      b.querySelector('small').textContent = row.dataset.pickMeta || '';
+      b._row = row;
+      list.appendChild(b);
+    });
+    if (!list.children.length) list.innerHTML = '<p class="hint">Không có mã nào khớp.</p>';
+  }
+  document.querySelectorAll('[data-item-picker]').forEach(function (root) {
+    pickerRows(root).forEach(function (row) { if (row.hasAttribute('data-pick-extra')) row.hidden = true; });
+    renderPicker(root);
+    root.addEventListener('input', function (event) { if (event.target.closest('[data-pick-search]')) renderPicker(root); });
+    root.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && event.target.closest('[data-pick-search]')) {
+        event.preventDefault();
+        var first = root.querySelector('[data-pick-take]');
+        if (first) first.click();
+      }
+    });
+    root.addEventListener('click', function (event) {
+      var toggle = event.target.closest('[data-pick-all]');
+      if (toggle) {
+        var box = root.querySelector('[data-pick-box]');
+        box.dataset.showAll = box.dataset.showAll === '1' ? '0' : '1';
+        toggle.textContent = box.dataset.showAll === '1' ? 'Ẩn danh sách' : 'Xem tất cả';
+        renderPicker(root); return;
+      }
+      var take = event.target.closest('[data-pick-take]');
+      if (!take || !take._row) return;
+      var row = take._row;
+      row.hidden = false;
+      root.querySelector('[data-pick-search]').value = '';
+      row.dispatchEvent(new CustomEvent('item-picked', { bubbles: true }));
+      renderPicker(root);
+      var focus = row.querySelector('input:not([type=hidden]):not([type=checkbox])');
+      if (focus) focus.focus();
+    });
+    root.addEventListener('item-picker-refresh', function () { renderPicker(root); });
+  });
+
   // ---- Phím tắt cho người ngồi máy tính ----
   function typing(el) {
     return el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));

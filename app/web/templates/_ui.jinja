@@ -4,3 +4,5 @@
 {% macro described(errors, name) %}{% if errors and errors.get(name) %} aria-invalid="true" aria-describedby="loi-{{ name }}"{% endif %}{% endmacro %}
 {# Chip điền nhanh lý do: bấm một chip thì ô tên `name` gần nhất được điền, vẫn sửa tay được. #}
 {% macro fill_chips(values, name, sel='') %}{% if values %}<div class="chips fill-chips" data-fill="{{ name }}"{% if sel %} data-fill-sel="{{ sel }}"{% endif %}>{% for v in values %}<button type="button" class="chip-btn" data-fill-value="{{ v }}">{{ v }}</button>{% endfor %}</div>{% endif %}{% endmacro %}
+{# UX5a: ô tìm thêm mã khác cho danh sách hàng dài; dòng có data-pick-extra bị ẩn tới khi chọn. #}
+{% macro item_picker(label='Thêm mã khác') %}<div class="pick-box" data-pick-box><div class="pick-head"><span>{{ label }} · còn <b data-pick-count>0</b> mã</span><button type="button" class="link" data-pick-all>Xem tất cả</button></div><input type="search" data-pick-search placeholder="Gõ tên hoặc mã hàng…" autocomplete="off" aria-label="{{ label }}"><div class="pick-results" data-pick-results></div></div>{% endmacro %}

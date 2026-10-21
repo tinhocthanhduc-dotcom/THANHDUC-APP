@@ -97,7 +97,7 @@ def test_only_own_material_warehouse_and_completion_checks(client,db,held):
     p,own,_=held;t=ticket(db,p,'DANG_LAM');login(client,p)
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
     assert not any('data-charge-warehouse' in a for tag,a,_ in screen.tags)
-    assert 'Vật tư đang giữ' in page.text and 'name="line_price"' not in page.text
+    assert 'Vật tư đã dùng' in page.text and 'name="line_price"' not in page.text
     checks={a['data-check']:a['data-ok'] for _,a,_ in screen.tags if 'data-check' in a}
     assert checks['photo']==checks['billing']=='0' and '✗' in page.text
     button=next(a for tag,a,_ in screen.tags if 'data-tho-primary' in a);assert 'disabled' in button
