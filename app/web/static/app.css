@@ -559,3 +559,11 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
 .tho-bottom-action .swipe { margin-inline: 8px; }
 .tho-bottom-action > .btn-ok { min-height: 56px; font-size: 1.1rem; }
 .tho-contact .btn-info, .tho-contact .btn-ghost { font-weight: 700; }
+
+/* CXL3: retain table semantics on narrow screens, scroll within each report. */
+.pending-report-scroll{max-width:100%;overflow:auto;margin:12px 0;border:1px solid var(--line);border-radius:8px}
+.pending-report-table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pending-report-table th,.pending-report-table td{padding:12px;text-align:right;border-bottom:1px solid var(--line)}
+.pending-report-table tr>:first-child{position:sticky;left:0;z-index:1;text-align:left;background:var(--surface,#fff);min-width:125px;max-width:180px;white-space:normal}
+.pending-report-table thead th,.pending-report-table tfoot th,.pending-report-table tfoot td{font-weight:700;background:var(--surface,#fff)}
+.pending-report-table small,.pending-report-total small{display:block;font-weight:400}
