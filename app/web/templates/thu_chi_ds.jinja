@@ -1,13 +1,16 @@
 {% extends 'base.jinja' %}
 {% block title %}Thu chi{% endblock %}
-{% block main %}
-<div class="bar"><h1>Thu chi</h1><a class="btn primary" href="/thu-chi/moi">+ Lập phiếu</a><a href="/quy">Quỹ và sổ quỹ</a></div>
+{% block main %}<div class="stock-page cash-page">
+<div class="bar"><h1>Thu chi</h1><a class="btn btn-ok" href="/thu-chi/moi">+ Lập phiếu</a><a href="/quy">Quỹ và sổ quỹ</a></div>
 {% if error %}<p class="alert bad" data-error-code="{{ error.code }}">{{ error.message }}</p>{% endif %}
-<form class="card form" action="/thu-chi">
-<fieldset><legend>Loại phiếu</legend><div class="seg cash-funds">{% for value,label in [('', 'Tất cả'),('PT','PT · Thu'),('PC','PC · Chi'),('CQ','CQ · Chuyển')] %}<label><input type="radio" name="loai" value="{{ value }}" {% if filters.loai==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
-<fieldset><legend>Quỹ</legend><div class="seg cash-funds"><label><input type="radio" name="quy" value="" {% if not filters.quy %}checked{% endif %}><span>Tất cả</span></label>{% for f in funds %}<label><input type="radio" name="quy" value="{{ f.code }}" {% if filters.quy==f.code %}checked{% endif %}><span>{{ f.code }}</span></label>{% endfor %}</div></fieldset>
-<fieldset><legend>Trạng thái</legend><div class="seg cash-funds"><label><input type="radio" name="trang_thai" value="" {% if not filters.trang_thai %}checked{% endif %}><span>Tất cả</span></label>{% for value,label in states.items() %}<label><input type="radio" name="trang_thai" value="{{ value }}" {% if filters.trang_thai==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
+{% set keep = {'quy': filters.quy, 'trang_thai': filters.trang_thai, 'from': filters['from'], 'to': filters.to} %}
+<nav class="stock-tiles" aria-label="Loại phiếu">{% for value,label in [('', 'Tất cả'),('PT','Thu'),('PC','Chi'),('CQ','Chuyển quỹ')] %}<a class="stock-tile{% if filters.loai==value %} on{% endif %}" href="/thu-chi?{{ dict(keep, loai=value)|urlencode }}"{% if filters.loai==value %} aria-current="page"{% endif %}><b>{{ value or 'Tất cả' }}</b><span>{{ label if value else 'Mọi loại phiếu' }}</span></a>{% endfor %}</nav>
+<form class="card form stock-filter" action="/thu-chi"><input type="hidden" name="loai" value="{{ filters.loai }}">
+<div class="row2"><label>Quỹ<select name="quy" data-autosubmit><option value="">Tất cả quỹ</option>{% for f in funds %}<option value="{{ f.code }}" {% if filters.quy==f.code %}selected{% endif %}>{{ f.code }}</option>{% endfor %}</select></label><label>Trạng thái<select name="trang_thai" data-autosubmit><option value="">Tất cả</option>{% for value,label in states.items() %}<option value="{{ value }}" {% if filters.trang_thai==value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></div>
 <div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ filters['from'] }}"></label><label>Đến ngày<input type="date" name="to" value="{{ filters.to }}"></label></div><button>Lọc</button>
 </form>
-<ul class="list">{% for d in rows %}<li><a href="/thu-chi/{{ d.id }}"><span class="code">{{ d.number }}</span><strong>{{ d.amount|money }} đồng</strong><span class="meta">{{ d.doc_date.strftime('%d/%m/%Y') }} · {{ d.fund_code }}{% if d.to_fund_code %} → {{ d.to_fund_code }}{% endif %} · {{ states[d.status] }}{% if d.is_opening %} · Đầu kỳ{% endif %}</span></a></li>{% else %}<li>Chưa có phiếu trong khoảng này.</li>{% endfor %}</ul>
-{% endblock %}
+{% set posted = rows|selectattr('status','equalto','DA_GHI')|list %}
+<p class="hint cash-sum">{{ rows|length }} phiếu · đã ghi: thu <b>{{ posted|selectattr('kind','equalto','PT')|sum(attribute='amount')|money }}</b> · chi <b>{{ posted|selectattr('kind','equalto','PC')|sum(attribute='amount')|money }}</b> · chuyển <b>{{ posted|selectattr('kind','equalto','CQ')|sum(attribute='amount')|money }}</b> đồng</p>
+<section class="card cash-list">{% if rows %}<div class="cash-row cash-head" aria-hidden="true"><span>Số phiếu</span><span>Ngày · quỹ</span><span>Nội dung</span><span>Trạng thái</span><span>Số tiền</span></div>{% endif %}
+{% for d in rows %}<a class="cash-row cash-{{ d.status|lower }}" href="/thu-chi/{{ d.id }}"><b class="code">{{ d.number }}</b><span class="meta">{{ d.doc_date.strftime('%d/%m/%Y') }} · {{ d.fund_code }}{% if d.to_fund_code %} → {{ d.to_fund_code }}{% endif %}</span><span class="cash-desc">{{ d.partner_name }}{% if d.partner_name and d.description %} · {% endif %}{{ d.description }}{% if d.is_opening %} · Đầu kỳ{% endif %}</span><span><span class="stock-chip">{{ states[d.status] }}</span></span><strong class="cash-amt">{{ '−' if d.kind=='PC' else '' }}{{ d.amount|money }} đồng</strong></a>{% else %}<p class="empty">Chưa có phiếu trong khoảng này.</p>{% endfor %}</section>
+</div>{% endblock %}
