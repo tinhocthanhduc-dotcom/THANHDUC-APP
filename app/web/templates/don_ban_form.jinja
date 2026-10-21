@@ -4,13 +4,13 @@
 {% import 'da_chon.jinja' as picked %}
 {% import 'viec_khac.jinja' as other %}
 {% block main %}
-<div class="bar quote-heading"><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><a href="/don-ban">← Đơn bán</a>{% if o and o.status=='DA_GIAO' %}<a class="btn" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
+<div class="recv-head doc-head-bar"><a class="btn" href="/don-ban" aria-label="Quay lại Đơn bán">←</a><div><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><p class="hint">Đơn bán{% if o %} · {{ customer_name or o.customer_code }}{% endif %}</p></div>{% if o and o.status=='DA_GIAO' %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
 {% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
 
 {% if tech_delivery %}<section class="card"><h2>Giao bằng thợ</h2><p>{{ tech_delivery.label }} · {{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Chưa có thợ' }}</p><p>Đang ở kho thợ: {% for r in tech_delivery.held %}{{ r.product_code }}: {{ r.qty|qty }} {% else %}0{% endfor %}</p><a class="btn" href="/giao-don/{{ o.id }}">Phân công · Bàn giao cho thợ · Dùng hàng thợ đang có · Trả kho</a>{% for a in tech_delivery.attempts %}<p>Giao không thành: {{ tech_delivery.reason_labels[a.reason] }} · {{ a.note }}</p>{% endfor %}</section>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
-{% if o %}<p>Trạng thái: <strong>{{ statuses[o.status] }}</strong></p>{% endif %}
+{% if o %}<p class="doc-status doc-{{ o.status|lower }}">Trạng thái: <strong class="stock-chip">{{ statuses[o.status] }}</strong></p>{% endif %}
 {% if o and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<section class="card form"><h2>Tiến độ giao hàng</h2><p>{{ 'Chưa giao' if o.status=='DA_CHOT' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Đã giao đủ' }}</p>
 {% for line in o.lines %}<article class="card"><strong>Dòng {{ line.line_no }} · {{ line.description }}</strong><dl><dt>Đặt</dt><dd>{{ line.qty|qty }}</dd><dt>Đã giữ</dt><dd>{{ reservations[line.line_no].held|qty if line.kind=='HANG' else '—' }}</dd><dt>Đã giao</dt><dd>{{ delivery_state[line.line_no].delivered|qty }}</dd><dt>Đã đóng</dt><dd>{{ line.closed_qty|qty }}</dd><dt>Còn lại</dt><dd>{{ delivery_state[line.line_no].remaining|qty }}</dd></dl></article>{% endfor %}</section>{% endif %}
 {% if collection %}<p class="alert {{ 'warn' if collection.balance.remaining>0 else 'ok' }}">{{ 'Còn nợ: ' ~ (collection.balance.remaining|money) ~ ' đồng' if collection.balance.remaining>0 else 'Khách ứng trước: ' ~ (collection.balance.advance|money) ~ ' đồng' if collection.balance.advance>0 else 'Đã thu đủ phần đã giao' }}</p>{% endif %}

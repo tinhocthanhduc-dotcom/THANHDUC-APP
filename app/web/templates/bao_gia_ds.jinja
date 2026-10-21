@@ -1,11 +1,11 @@
 {% extends "base.jinja" %}
 {% block title %}Báo giá{% endblock %}
-{% block main %}
-<div class="bar"><h1>Báo giá</h1>{% if can_write %}<a class="btn primary" href="/bao-gia/moi">+ Tạo báo giá</a>{% endif %}</div>
-<form action="/bao-gia" class="form quote-filters" role="search">
-<label>Tìm báo giá<input name="q" value="{{ q }}" placeholder="Số BG hoặc tên khách không dấu" data-live="#quote-rows"></label>
+{% block main %}<div class="stock-page doc-page">
+<div class="bar"><h1>Báo giá</h1>{% if can_write %}<a class="btn btn-ok" href="/bao-gia/moi">+ Tạo báo giá</a>{% endif %}</div>
+<form action="/bao-gia" class="card form doc-filter" role="search">
+<label>Tìm báo giá<input name="q" value="{{ q }}" placeholder="Số BG hoặc tên khách không dấu" data-live="#quote-rows" autocomplete="off"></label>
 <fieldset><legend>Trạng thái</legend><div class="seg stock-seg"><label><input type="radio" name="status" value="" {% if not selected_status %}checked{% endif %}><span>Tất cả</span></label>
-{% for value,label in statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status == value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset><button>Lọc</button>
+{% for value,label in statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status == value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset><noscript><button>Lọc</button></noscript>
 </form>
 <div id="quote-rows">{% include 'bao_gia_dong.jinja' %}</div>
-{% endblock %}
+</div>{% endblock %}

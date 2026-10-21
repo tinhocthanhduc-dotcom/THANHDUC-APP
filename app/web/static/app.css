@@ -1082,3 +1082,49 @@ main:has(> .me-page) { max-width: 640px; }
 .cash-form-page form.card > .action-bar { margin-inline: 0; }
 .cash-form-page .action-bar .hint { margin: 0; font-size: .85rem; color: var(--muted); }
 .cash-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+/* Khuôn 3: danh sách chứng từ bán hàng (đơn bán, báo giá, khách hàng). */
+.doc-page .bar { flex-wrap: wrap; }
+.doc-filter { display: grid; gap: 10px; }
+.doc-filter fieldset { margin: 0; }
+.doc-filter .stock-seg { display: flex; }
+.doc-filter .stock-seg span { min-height: 40px; padding-inline: 14px; }
+.doc-top, .doc-bottom { display: grid; gap: 10px; }
+@media (min-width: 700px) { .doc-top { grid-template-columns: minmax(0,2fr) minmax(0,1fr); align-items: end; } .doc-bottom { grid-template-columns: auto minmax(0,1fr); align-items: start; } }
+.doc-flags { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: end; }
+.doc-more > summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.doc-more[open] > .row2 { margin-top: 6px; }
+.doc-list { padding: 0; overflow: hidden; }
+.doc-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 12px; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; align-items: baseline; }
+.doc-row:first-child { border-top: 0; }
+.doc-row:hover { background: var(--tag); }
+.doc-row .code { grid-column: 1; font-size: .8rem; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.doc-who { grid-column: 1; overflow-wrap: anywhere; }
+.doc-state { grid-column: 2; grid-row: 1; justify-self: end; display: flex; gap: 4px; flex-wrap: wrap; justify-content: end; }
+.doc-amt { grid-column: 2; grid-row: 2; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.doc-row .meta { grid-column: 1 / -1; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.doc-row .meta:empty { display: none; }
+.doc-bad { color: var(--bad); }
+.doc-head { display: none; }
+.doc-nhap .stock-chip, .doc-da_gui .stock-chip { background: var(--warn-bg); color: var(--warn); }
+.doc-da_chot .stock-chip, .doc-giao_mot_phan .stock-chip { background: var(--tag); color: var(--accent); }
+.doc-da_huy, .doc-tu_choi { opacity: .65; }
+.doc-da_huy .stock-chip, .doc-tu_choi .stock-chip { background: var(--bad-bg); color: var(--bad); }
+.doc-row.order-overdue { box-shadow: inset 3px 0 0 var(--bad); }
+.doc-list .empty { padding: 20px 16px; text-align: center; }
+@media (min-width: 1000px) {
+  .doc-row, .doc-head { grid-template-columns: 130px minmax(0,1.3fr) 150px minmax(0,1.2fr) minmax(0,1fr) 150px; align-items: center; }
+  .doc-row > *, .doc-row .code, .doc-who, .doc-state, .doc-amt, .doc-row .meta { grid-column: auto; grid-row: auto; justify-self: auto; justify-content: start; }
+  .doc-row .meta:empty { display: block; }
+  .doc-head { font-size: .75rem; font-weight: 700; color: var(--muted); padding-block: 8px; }
+  .doc-head span:last-child { text-align: right; }
+}
+.doc-page .bar { gap: 8px; } .doc-page .bar h1 { flex: 1 1 auto; margin-right: auto; }
+.doc-page .doc-filter + div, .doc-page .doc-filter + .doc-list { margin-top: 10px; }
+.cust-off { opacity: .7; }
+@media (min-width: 1000px) { .cust-row { grid-template-columns: 130px minmax(0,1.4fr) minmax(0,1.6fr) 160px; } .cust-row .doc-state { order: 4; justify-content: end; } }
+.doc-head-bar { margin-bottom: 10px; } .doc-head-bar > div { flex: 1; min-width: 0; }
+.doc-head-bar > .doc-print { width: auto; padding: 8px 12px; font-size: .9rem; white-space: nowrap; }
+.doc-status .stock-chip { font-size: .85rem; }
+.doc-status.doc-nhap .stock-chip, .doc-status.doc-da_gui .stock-chip { background: var(--warn-bg); color: var(--warn); }
+.doc-status.doc-da_chot .stock-chip, .doc-status.doc-giao_mot_phan .stock-chip { background: var(--tag); color: var(--accent); }
+.doc-status.doc-da_huy .stock-chip, .doc-status.doc-tu_choi .stock-chip { background: var(--bad-bg); color: var(--bad); }
