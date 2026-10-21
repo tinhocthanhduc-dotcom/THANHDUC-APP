@@ -325,6 +325,8 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
                 svc.no_show(session, user, ticket_id, body.version, body.note, body.appointment_at, body.appointment_slot)
             else:
                 svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason, body.appointment_slot)
+                if body.to_status == 'DANG_LAM' and form.get('gps_lat'):
+                    service_visits.record_arrival(session, user, ticket_id, form.get('gps_lat'), form.get('gps_lng'), form.get('gps_accuracy'))
         elif action in ("transfer-request", "transfer-reject"):
             body = ServiceReason(reason=form.get('reason', ''), version=version)
             fn = svc.request_transfer if action == "transfer-request" else svc.reject_transfer

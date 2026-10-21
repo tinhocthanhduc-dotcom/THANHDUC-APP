@@ -367,6 +367,9 @@ class ServiceTicket(Base):
     # Tiền (D6): THU_TIEN hoặc MIEN_PHI kèm lý do. Tổng chỉ ghi khi hoàn thành (khóa giá), null là chưa khóa.
     billing: Mapped[str | None] = mapped_column(String(8))
     free_reason: Mapped[str] = mapped_column(Text, default="")
+    # Thẻ B: thợ ghi lỗi thực tế gặp và cách đã xử lý khi hoàn thành.
+    fault_found: Mapped[str] = mapped_column(Text, default="", server_default="")
+    fix_done: Mapped[str] = mapped_column(Text, default="", server_default="")
     subtotal: Mapped[int | None] = mapped_column(BigInteger)
     vat_total: Mapped[int | None] = mapped_column(BigInteger)
     total: Mapped[int | None] = mapped_column(BigInteger)
@@ -423,9 +426,22 @@ class ServiceVisit(Base):
     outcome: Mapped[str | None] = mapped_column(String(24))
     note: Mapped[str] = mapped_column(Text, default='', server_default='')
     next_appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Thẻ B: vị trí lúc bấm Đã đến khách (trình duyệt cho phép thì có, không thì để trống).
+    arrive_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    arrive_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    arrive_accuracy: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     __mapper_args__ = {'version_id_col': version}
+
+
+class ServiceDraft(Base):
+    """Thẻ B: nháp báo cáo hoàn thành của thợ, lưu lên máy chủ để mất sóng/tắt máy không mất."""
+    __tablename__ = 'service_drafts'
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
+    data: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ServiceRecoveredPart(Base):

@@ -57,6 +57,18 @@
           ? "Đã nhập tiền thu khách hoặc chọn Miễn phí"
           : "Chưa nhập tiền thu khách hoặc chọn Miễn phí";
       }
+      if (check.dataset.check === "report")
+        ok = ["fault_found", "fix_done"].every(
+          (name) =>
+            (document.querySelector(`[name=${name}]`)?.value || "").trim()
+              .length >= 3,
+        );
+      if (check.dataset.check === "bienban")
+        ok =
+          document.querySelector(
+            "[data-photo-tag=BIEN_BAN] [data-saved-photo]",
+          ) !== null &&
+          !document.querySelector("[data-photo-tag=BIEN_BAN] [data-uploading]");
       if (check.dataset.check === "photo")
         ok =
           document.querySelector("[data-photo-tag=SAU] [data-saved-photo]") !==

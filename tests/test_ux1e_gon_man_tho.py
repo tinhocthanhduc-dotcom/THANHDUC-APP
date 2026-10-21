@@ -16,7 +16,7 @@ from test_web import service_login,d5_image
 def data(client,p,t,**changes):
     service_login(client,p['technician']);html=client.get(f'/tho/phieu/{t.id}').text
     fields=Page(html).forms['service-complete']['fields']
-    return fields|dict(customer_amount='540.000',collection_mode='FULL',method='TIEN_MAT',free_reason='',material_product=['TD-0001'],material_qty=['2'],unit_price='1',note='Đã chạy thử')|changes
+    return fields|dict(customer_amount='540.000',collection_mode='FULL',method='TIEN_MAT',free_reason='',material_product=['TD-0001'],material_qty=['2'],unit_price='1',note='Đã chạy thử',fault_found='Kẹt giấy khay 2',fix_done='Thay drum, vệ sinh máy')|changes
 
 
 def post(client,t,form):return client.post(f'/tho/phieu/{t.id}/hoan-thanh',data=form,follow_redirects=False)
@@ -88,6 +88,7 @@ def test_photos_three_auto_upload_hide_own_and_permission(client,db,held):
     csrf=service_login(client,p['technician']);assert client.post(f'/tho/phieu/{t.id}/anh/{rows[0]["id"]}/xoa',data=dict(csrf=csrf,version=1)).status_code==200
     db.expire_all();a=db.get(Attachment,rows[0]['id']);assert a.hidden and a.hidden_reason=='Thợ xóa trước khi hoàn thành'
     assert db.query(Attachment).filter_by(entity_id=str(t.id),hidden=False).count()==2
+    assert client.post(f'/tho/phieu/{t.id}/anh',data=dict(csrf=csrf,tag='BIEN_BAN'),files={'file':('bb.png',d5_image(),'image/png')}).status_code==201
     assert post(client,t,data(client,p,t,material_product=[],material_qty=[])).status_code==303
     csrf=service_login(client,p['technician']);assert client.post(f'/tho/phieu/{t.id}/anh/{rows[1]["id"]}/xoa',data=dict(csrf=csrf,version=1)).status_code==409
 

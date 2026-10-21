@@ -16,6 +16,7 @@ def job(db, held):
     transfer(db, p)
     t = ticket(db, p, 'DANG_LAM')
     attachments.add(db, p['technician'], 'service_ticket', str(t.id), 'SAU', 'sau.png', d5_image())
+    attachments.add(db, p['technician'], 'service_ticket', str(t.id), 'BIEN_BAN', 'bien-ban.png', d5_image())
     return p, own, t
 
 
@@ -27,7 +28,8 @@ def form(client, p, t, who='technician'):
         'line_description': ['Công sửa', 'Drum'], 'line_product': ['', 'TD-0001'],
         'line_qty': ['1', '1'], 'line_price': ['500.000', '100.000'],
         'warehouse_0': '', 'warehouse_1': 'K501', 'vat_0': '8', 'vat_1': '8',
-        'note': 'Đã chạy thử tại khách', 'amount': '300.000', 'method': 'TIEN_MAT'}
+        'note': 'Đã chạy thử tại khách', 'amount': '300.000', 'method': 'TIEN_MAT',
+        'fault_found': 'Kẹt giấy khay 2', 'fix_done': 'Thay drum, vệ sinh máy'}
 
 
 def post(client, t, data):
@@ -78,6 +80,7 @@ def test_success_charges_stock_receipt_visit_and_held_money(client, db, job, met
 
 def test_photo_required_rolls_back_new_charges(client, db, held):
     p, _, _ = held; transfer(db, p); t = ticket(db, p, 'DANG_LAM')
+    attachments.add(db, p['technician'], 'service_ticket', str(t.id), 'BIEN_BAN', 'bien-ban.png', d5_image())
     unchanged_error(client, db, t, form(client, p, t), 'PHOTO_REQUIRED')
 
 

@@ -6,7 +6,7 @@ from .stock_docs import _transaction
 
 
 def complete(session, user, ticket_id: int, charges: ServiceCharges, note: str = '',
-             receipt: SalesReceiptReport | None = None):
+             receipt: SalesReceiptReport | None = None, fault: str = '', fix: str = ''):
     with _transaction(session):
         ticket = service_tickets._get(session, user, ticket_id, lock=True)
         if 'technician' not in user.roles or ticket.assignee_id != user.id:
@@ -15,6 +15,8 @@ def complete(session, user, ticket_id: int, charges: ServiceCharges, note: str =
         service_tickets._check_version(ticket, charges.version)
         if ticket.status != 'DANG_LAM':
             raise BusinessError('BAD_STATUS', 'Chỉ hoàn thành phiếu đang làm.', status=409)
+        from .technician_work import apply_report
+        apply_report(session, ticket, fault, fix)
         service_charges.set_charges_in_tx(session, user, ticket, charges)
         service_tickets.transition_in_tx(session, user, ticket, 'HOAN_THANH', note)
         if receipt is not None:

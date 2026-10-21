@@ -1,0 +1,7 @@
+{# Thẻ B: thợ ghi lỗi thực tế và cách xử lý. Ô nằm ngoài form nên gắn form="service-complete". #}{% from '_ui.jinja' import fill_chips %}{% set rep=completion_form or {} %}
+<section class="card tho-report" id="bao-cao" data-tech-report data-ticket="{{ t.id }}" data-csrf="{{ csrf }}" data-draft='{{ tech_draft|tojson }}'><h2>Báo cáo sửa chữa</h2>
+<div>{{ fill_chips(['Kẹt giấy','Lỗi nguồn','Hết mực','Mòn trục ép','Hỏng drum','Lỗi kết nối','Bản in mờ, sọc'],'fault_found') }}
+<label>Lỗi gặp thực tế<textarea form="service-complete" name="fault_found" rows="2" maxlength="2000" minlength="3" required data-draft>{{ rep.get('fault_found',t.fault_found) }}</textarea></label></div>
+<div>{{ fill_chips(['Vệ sinh máy','Thay drum','Thay trục ép','Nạp mực','Thay gạt mực','Cài lại driver','Chỉnh cài đặt'],'fix_done') }}
+<label>Cách xử lý<textarea form="service-complete" name="fix_done" rows="2" maxlength="2000" minlength="3" required data-draft>{{ rep.get('fix_done',t.fix_done) }}</textarea></label></div>
+<p class="hint" data-draft-status aria-live="polite">Tự lưu nháp khi gõ, mất sóng vẫn không mất.</p></section>

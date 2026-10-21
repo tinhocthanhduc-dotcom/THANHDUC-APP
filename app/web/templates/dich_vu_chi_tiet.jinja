@@ -37,7 +37,7 @@
     <dt>Hạn xử lý</dt><dd>{{ t.due_at|service_time }}</dd><dt>Hẹn khách</dt><dd>{{ t.appointment_at|appointment_label(t.appointment_slot) }}</dd>
   </dl>
   {% if material_cost is not none %}<p>Chi phí vật tư (giá vốn): {{ material_cost|money }} đồng</p>{% endif %}
-  <h3>Mô tả lỗi</h3><p class="service-text">{{ t.symptom }}</p>
+  <h3>Mô tả lỗi</h3><p class="service-text">{{ t.symptom }}</p>{% if t.fault_found %}<h3>Lỗi thợ gặp</h3><p class="service-text" data-fault-found>{{ t.fault_found }}</p>{% endif %}{% if t.fix_done %}<h3>Cách xử lý</h3><p class="service-text" data-fix-done>{{ t.fix_done }}</p>{% endif %}
   {% if t.hold_reason %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
   {% if t.status_reason %}<h3>Lý do</h3><p class="service-text">{{ t.status_reason }}</p>{% endif %}
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
@@ -92,7 +92,7 @@
 <dl><dt>Giờ đến</dt><dd>{{ visit.started_at|service_time }}</dd><dt>Giờ kết thúc</dt><dd>{{ visit.ended_at|service_time }}</dd>
 <dt>Thời lượng</dt><dd>{{ '%.1f phút'|format((visit.ended_at - visit.started_at).total_seconds() / 60) if visit.ended_at else 'Đang mở' }}</dd>
 <dt>Kết quả</dt><dd>{{ visit_outcomes.get(visit.outcome, 'Đang ở khách') }}</dd>
-{% if visit.next_appointment_at %}<dt>Hẹn lần sau</dt><dd>{{ visit.next_appointment_at|service_time }}</dd>{% endif %}</dl>
+{% if visit.arrive_lat is not none %}<dt>Vị trí lúc đến</dt><dd><a href="https://www.google.com/maps?q={{ visit.arrive_lat }},{{ visit.arrive_lng }}" target="_blank" rel="noopener" data-visit-gps>Xem bản đồ</a>{% if visit.arrive_accuracy is not none %} · sai số {{ visit.arrive_accuracy }} m{% endif %}</dd>{% endif %}{% if visit.next_appointment_at %}<dt>Hẹn lần sau</dt><dd>{{ visit.next_appointment_at|service_time }}</dd>{% endif %}</dl>
 {% if visit.note %}<p class="service-text">{{ visit.note }}</p>{% endif %}</li>{% else %}<li>Chưa có lượt đến khách.</li>{% endfor %}</ol></section><section class="card service-action"><h2>Lịch sử bước</h2><ol class="service-history">
 {% for step in t.steps %}<li><strong>{{ step_labels.get(step.action, step.action) }}</strong> · {{ service_statuses.get(step.to_status, step.to_status) }}<br><span class="meta">{{ step.at|service_time }} · {{ users.get(step.actor_id, 'Nhân viên') }}{% if step.assignee_id %} · Giao: {{ users.get(step.assignee_id, 'Nhân viên') }}{% endif %}</span>{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}
 </ol></section></details>
