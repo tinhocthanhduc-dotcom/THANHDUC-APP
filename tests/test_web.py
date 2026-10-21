@@ -2492,6 +2492,7 @@ def test_t1_web_mapping_blank_options_only_valid_and_director_save(client,db,fin
     r=client.get('/ghep-tai-chinh')
     assert r.status_code==200 and r.text.count('Chưa ghép')==7
     assert r.text.count('name="target_code" value=""')==7 and 'QUY-TM' not in r.text
+    assert r.text.count('Danh mục Chi (tìm và chọn)')==3 and r.text.count('Danh mục Thu (tìm và chọn)')==2
     choices=client.get('/ghep-tai-chinh/tim/THU_TIEN_MAT?q=tien+mat').text
     assert 'QUY-TM' in choices and 'TK-ACB' not in choices and 'TM-NGUNG' not in choices
     choices=client.get('/ghep-tai-chinh/tim/THU_CHUYEN_KHOAN').text
