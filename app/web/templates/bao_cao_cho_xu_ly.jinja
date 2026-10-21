@@ -4,8 +4,8 @@
 {% if href %}<a href="{{ href }}">{% endif %}<strong>{{ c.value|money }}</strong><small>{{ c.count }} hồ sơ · {{ c.qty|qty }} cái</small>{% if href %}</a>{% endif %}
 {% endmacro %}
 {% macro aging_table(rows,bs,holding=false) %}
-<div class="pending-report-scroll" role="region" aria-label="{{ 'Tuổi hàng đang gửi NCC' if holding else 'Tuổi hàng tại kho' }}" tabindex="0"><table class="pending-report-table"><thead><tr><th>{{ 'NCC · Nhóm' if holding else 'Nhóm' }}</th>{% for key,label,days in bs %}<th>{{ label }}</th>{% endfor %}<th>Tổng</th></tr></thead><tbody>
-{% for r in rows %}<tr><th>{% if holding %}<a href="/cho-xu-ly?view=ncc">{{ r.supplier_name }}</a><br>{% endif %}{{ r.label }}</th>{% for key,label,days in bs %}<td>{{ cell(r.cells[key],'/cho-xu-ly?group='+r.group_code+('&view=ncc' if holding else '')+('&min_days='+days|string if days is not none else '')) }}</td>{% endfor %}<td>{{ cell(r.total) }}</td></tr>{% else %}<tr><td colspan="{{ bs|length+2 }}">Không có hàng đang gửi NCC.</td></tr>{% endfor %}
+<div class="pending-report-scroll" role="region" aria-label="{{ 'Tuổi hàng đang gửi NCC' if holding else 'Tuổi hàng tại kho' }}" tabindex="0"><table class="pending-report-table"><thead><tr>{% if holding %}<th>NCC</th>{% endif %}<th>Nhóm</th>{% for key,label,days in bs %}<th>{{ label }}</th>{% endfor %}<th>Tổng</th></tr></thead><tbody>
+{% for r in rows %}<tr>{% if holding %}<th><a href="/cho-xu-ly?view=ncc">{{ r.supplier_name }}</a></th>{% endif %}<th>{{ r.label }}</th>{% for key,label,days in bs %}<td>{{ cell(r.cells[key],'/cho-xu-ly?group='+r.group_code+('&view=ncc' if holding else '')+('&min_days='+days|string if days is not none else '')) }}</td>{% endfor %}<td>{{ cell(r.total) }}</td></tr>{% else %}<tr><td colspan="{{ bs|length+(3 if holding else 2) }}">Không có hàng đang gửi NCC.</td></tr>{% endfor %}
 </tbody></table></div>
 {% endmacro %}
 {% block title %}Báo cáo hàng chờ xử lý{% endblock %}
