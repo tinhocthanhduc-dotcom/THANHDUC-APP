@@ -1,0 +1,56 @@
+{% extends 'base.jinja' %}{% from '_ui.jinja' import fill_chips %}
+{# UX5c: thợ giao đơn theo bước. Số lượng và tiền cần thu điền sẵn; thợ chỉ sửa khi khác. #}
+{% macro tokens() %}{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ raw.get('version',order.version) }}">{% endmacro %}
+{% set can_deliver=order.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}
+{% set collect=raw.get('collect','YES' if balance.available>0 else 'NO') %}
+{% block title %}Giao đơn {{ order.number }}{% endblock %}
+{% block tho_top %}<a class="tho-back" href="/tho" aria-label="Về danh sách hôm nay"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Hôm nay</a><h1 class="tho-title">{{ order.number }}</h1>{% endblock %}
+{% block tho_tabs %}{% endblock %}
+{% block main %}<div class="tho-screen tho-delivery">
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }} Nếu có ảnh, hãy chụp lại ảnh.</p>{% endif %}
+{% if request.query_params.get('da_luu') %}<p class="alert ok">Đã lưu.</p>{% endif %}
+<section class="card tho-info"><div class="tho-head"><b>{{ customer.name }}</b><span class="tag tone-info">{{ label }}</span></div>
+{% if order.contact_name %}<p class="tho-kv"><span>Người liên hệ</span><b>{{ order.contact_name }}</b></p>{% endif %}
+{% if address %}<p class="tho-kv"><span>Địa chỉ</span><b>{{ address }}</b></p>{% endif %}
+<p class="tho-kv"><span>Hẹn giao</span><b>{{ order.promised_date.strftime('%d/%m/%Y') if order.promised_date else 'Chưa hẹn' }}</b></p>
+<p class="tho-kv"><span>Cần thu</span><b class="tho-due">{{ balance.available|money }} đ</b></p>
+{% if maps %}<a class="btn btn-ghost" href="{{ maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</section>
+{% if can_deliver %}
+<form id="giao-xong" class="tho-steps-form" method="post" enctype="multipart/form-data" action="/giao-don/{{ order.id }}/deliver" data-tho-delivery data-available="{{ balance.available }}">{{ tokens() }}
+<section class="card"><h2><span class="tho-stepno">1</span>Hàng giao</h2>
+{% for line in lines %}<div class="tho-dline" data-dline data-gross="{{ line.unit_gross }}" data-remaining="{{ line.remaining|qty|replace(',','.') }}">
+<span><b>{{ line.name }}</b><small>{{ line.code }}{{ ' · ' if line.code }}Còn giao {{ line.remaining|qty }} · Thợ đang giữ {{ line.held|qty }}</small></span>
+<div class="stepper"><button type="button" data-step="-1" aria-label="Bớt">−</button><input name="qty_{{ line.line_no }}" value="{{ raw.get('qty_' ~ line.line_no, line.qty|qty|replace(',','.')) }}" inputmode="decimal" min="0" max="{{ line.held|qty|replace(',','.') }}" aria-label="Số giao {{ line.name }}"><button type="button" data-step="1" aria-label="Thêm">+</button></div></div>
+{% else %}<p>Không còn hàng cần giao.</p>{% endfor %}
+{% if lines and lines|selectattr('held','equalto',0)|list %}<p class="hint">Dòng thợ chưa giữ hàng: báo kho bàn giao trước khi giao.</p>{% endif %}</section>
+<section class="card"><h2><span class="tho-stepno">2</span>Thu tiền</h2>
+<div class="seg stock-seg" role="radiogroup" aria-label="Thu tiền"><label><input type="radio" name="collect" value="YES" {% if collect=='YES' %}checked{% endif %}><span>Có thu</span></label><label><input type="radio" name="collect" value="NO" {% if collect=='NO' %}checked{% endif %}><span>Chưa thu (công nợ)</span></label></div>
+<div data-collect-fields {% if collect=='NO' %}hidden{% endif %}>
+<label>Số tiền thu (đồng)<input name="amount" value="{{ raw.get('amount', suggested_amount|money if suggested_amount>0 else '') }}" inputmode="numeric" data-money data-delivery-amount{% if raw.get("amount") %} data-manual{% endif %}></label>
+<p class="hint" data-amount-hint>Tự tính theo số hàng giao, tối đa {{ balance.available|money }} đ. Sửa nếu khách trả khác.</p>
+<div class="chips" role="radiogroup" aria-label="Cách thu">{% for code,title in [('TIEN_MAT','Tiền mặt'),('CHUYEN_KHOAN','Chuyển khoản')] %}<label class="chip"><input type="radio" name="method" value="{{ code }}" {% if raw.get('method','TIEN_MAT')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div></div></section>
+<section class="card"><h2><span class="tho-stepno">3</span>Xác nhận giao</h2>
+<label>Ảnh giao hàng (bắt buộc)<input type="file" name="photos" accept="image/*" capture="environment" multiple required></label>
+<label>Người nhận<input name="receiver_name" value="{{ raw.get('receiver_name', order.contact_name or '') }}" maxlength="200"></label>
+<label>Ghi chú<textarea name="note" maxlength="4000" rows="2">{{ raw.get('note','') }}</textarea></label></section>
+</form>
+<details class="card tho-other" id="viec-khac" {% if raw.get('reason') %}open{% endif %}><summary>Không giao được</summary>
+<form method="post" action="/giao-don/{{ order.id }}/failed" class="form">{{ tokens() }}
+<div class="chips" role="radiogroup" aria-label="Lý do">{% for code,title in reason_labels.items() %}<label class="chip"><input type="radio" name="reason" value="{{ code }}" required {% if raw.get('reason')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div>
+<label>Ngày hẹn mới (nếu có)<input type="date" name="promised_date" value="{{ raw.get('promised_date','') }}"></label>
+{{ fill_chips(['Gọi không nghe máy','Khách đi vắng','Khách hẹn chiều'],'note') }}<label>Ghi chú<textarea name="note" rows="2">{{ raw.get('note','') if raw.get('reason') else '' }}</textarea></label>
+<div class="swipe" data-swipe data-tone="danger"><button type="submit">Vuốt để ghi Không giao được</button></div></form></details>
+{% elif order.status=='DA_GIAO' and balance.available>0 %}
+<form id="bao-thu" class="card form" method="post" action="/giao-don/{{ order.id }}/report">{{ tokens() }}<h2>Báo thu</h2>
+<label>Số tiền thu (đồng)<input name="amount" value="{{ raw.get('amount', balance.available|money) }}" inputmode="numeric" data-money required></label>
+<div class="chips" role="radiogroup" aria-label="Cách thu">{% for code,title in [('TIEN_MAT','Tiền mặt'),('CHUYEN_KHOAN','Chuyển khoản')] %}<label class="chip"><input type="radio" name="method" value="{{ code }}" {% if raw.get('method','TIEN_MAT')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div>
+<input type="hidden" name="received_at" value=""><label>Ghi chú<textarea name="note" rows="2">{{ raw.get('note','') }}</textarea></label></form>
+{% else %}<section class="card"><h2>{{ label if can_deliver else 'Đã giao xong' }}</h2><p>Cần thu còn {{ balance.available|money }} đ · Chờ kế toán xác nhận {{ balance.pending|money }} đ.</p></section>{% endif %}
+{% if attempts or shipments %}<details class="card tho-hist"><summary>Lịch sử giao</summary>
+{% for a in attempts %}<p>{{ a.created_at|service_time }} · Không giao được: {{ reason_labels[a.reason] }}{{ ' · ' ~ a.note if a.note }}</p>{% endfor %}
+{% for gh in shipments %}<p>{{ gh.number }} · {{ gh.receiver_name }}{{ ' · ' ~ gh.note if gh.note }}</p><p>{% for a in photos[gh.id] %}<a href="/attachments/{{ a.id }}/file" target="_blank" rel="noopener"><img src="/attachments/{{ a.id }}/file" alt="Ảnh giao hàng" loading="lazy" style="max-width:96px;max-height:96px"></a>{% endfor %}</p>{% endfor %}</details>{% endif %}
+<div class="tho-bottom-action">{% if phone or can_deliver %}<div class="row2 tho-quick">{% if phone %}<a class="btn btn-info" href="tel:{{ phone }}">Gọi khách</a>{% endif %}{% if can_deliver %}<a class="btn btn-ghost" href="#viec-khac" data-open-details>Không giao được</a>{% endif %}</div>{% endif %}
+{% if can_deliver and lines %}<div class="swipe" data-swipe data-tone="ok"><button class="primary" type="submit" form="giao-xong" data-tho-primary>Vuốt để Giao xong</button></div>
+{% elif order.status=='DA_GIAO' and balance.available>0 %}<button class="primary btn-ok" type="submit" form="bao-thu">Báo thu · chờ kế toán xác nhận</button>
+{% else %}<a class="btn primary" href="/tho">Về Hôm nay</a>{% endif %}</div>
+</div><script src="/static/technician-delivery.js" defer></script>{% endblock %}

@@ -13,7 +13,6 @@
 <span class="tho-one-line tho-symptom" title="{{ job.symptom }}">{{ job.symptom }}</span>
 {% if job.machine or job.serial %}<span class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</span>{% endif %}
 {% if job.priority and job.priority!='THUONG' %}<span class="tag tone-bad" style="align-self:flex-start">{{ service_priorities[job.priority] }}</span>{% endif %}
-{% if job.created %}<span class="tho-created">Tạo {{ job.created|service_time }}</span>{% endif %}
-{% if job.action %}<span class="tho-next">Bấm để: {{ job.action.label }} ›</span>{% endif %}
+<span class="tho-foot">{% if job.created %}<span class="tho-created">Tạo {{ job.created|service_time }}</span>{% endif %}{% if job.action %}<span class="tho-next">{{ job.action.label }} ›</span>{% endif %}</span>
 </a>{% endfor %}</div>{% endif %}{% endfor %}
 {% if not jobs %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}

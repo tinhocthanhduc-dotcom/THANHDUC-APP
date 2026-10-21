@@ -3,10 +3,7 @@
 {% block main %}
 <h1 class="tho-dup">Tiền tôi giữ</h1>
 <section class="card"><h2>Tổng tiền mặt chờ xác nhận</h2><strong class="tho-money" data-held-total>{{ held.total|money }} đồng</strong>
-<p>Chỉ gồm báo thu tiền mặt do bạn lập, đang chờ kế toán xác nhận. Chuyển khoản không tính vào tiền đang giữ.</p></section>
-<div class="work-rows">{% for row in held.rows %}<article class="card work-row" data-held-receipt="{{ row.id }}">
-<strong>{{ row.number }}</strong><span>{{ row.customer }}</span>
-{% if row.ticket_id %}<a href="/dich-vu/{{ row.ticket_id }}#thu-tien">{{ row.ticket_number }}</a>{% else %}<a href="/giao-don/{{ row.order_id }}">{{ row.order_number }}</a>{% endif %}
-<strong>{{ row.amount|money }} đồng</strong><span>Ngày thu: {{ row.received_at.strftime('%d/%m/%Y') }}</span><span class="tag">Chờ xác nhận</span>
-</article>{% else %}<p class="card">Bạn không có báo thu tiền mặt đang chờ xác nhận.</p>{% endfor %}</div>
+<p class="hint">{{ held.rows|length }} báo thu tiền mặt chờ kế toán xác nhận. Chuyển khoản không tính vào đây.</p></section>
+{% set tho='technician' in user.roles %}<div class="tho-money-rows">{% for row in held.rows %}<a class="card tho-money-row" data-held-receipt="{{ row.id }}" href="{% if row.ticket_id %}{{ '/tho/phieu/' ~ row.ticket_id if tho else '/dich-vu/' ~ row.ticket_id ~ '#thu-tien' }}{% else %}/giao-don/{{ row.order_id }}{{ '?return_to=tho' if tho }}{% endif %}">
+<span><b>{{ row.customer }}</b><small>{{ row.ticket_number if row.ticket_id else row.order_number }} · {{ row.received_at.strftime('%d/%m') }} · {{ row.number }}</small></span><strong>{{ row.amount|money }}</strong></a>{% else %}<p class="card">Bạn không có báo thu tiền mặt đang chờ xác nhận.</p>{% endfor %}</div>
 {% endblock %}
