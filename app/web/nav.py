@@ -50,6 +50,7 @@ GROUPS = (
     {'label': 'Báo cáo', 'items': (
         {'label': 'Báo cáo bán hàng', 'href': '/bao-cao/ban-hang', 'prefixes': ('/bao-cao/ban-hang',), 'roles': ('sales', 'finance')},
         {'label': 'Báo cáo mua hàng', 'href': '/bao-cao-mua-hang', 'prefixes': ('/bao-cao-mua-hang',), 'roles': ('warehouse', 'finance')},
+        {'label': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',)},
         {'label': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
     )},
     {'label': 'Danh mục', 'items': (
