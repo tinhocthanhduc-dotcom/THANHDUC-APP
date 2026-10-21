@@ -1067,3 +1067,7 @@ main:has(> .me-page) { max-width: 640px; }
 .debt-left { font-weight: 700; }
 .debt-page details > summary { cursor: pointer; font-weight: 600; }
 @media (max-width:600px) { .debt-tiles .debt-main { grid-column: 1 / -1; } .debt-tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.cash-book .recv-head > div { flex: 1; min-width: 0; }
+.cash-book .recv-head > .btn-ok { width: auto; padding: 8px 12px; font-size: .9rem; white-space: nowrap; }
+.cash-book details > dl { margin: 8px 0 0; }
+@media (max-width:600px) { .cash-book .debt-tiles { grid-template-columns: repeat(3, minmax(0,1fr)); } .cash-book .debt-tiles .stock-tile:not(.debt-main) b { font-size: .85rem; } }
