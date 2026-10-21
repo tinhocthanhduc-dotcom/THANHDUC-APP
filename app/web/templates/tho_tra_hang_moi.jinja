@@ -1,8 +1,10 @@
-{% extends 'base.jinja' %}{% block title %}Trả kho / Báo hư{% endblock %}{% block main %}
-<h1>Trả kho / Báo hư</h1><p><a href="/hang-toi-giu">← Hàng tôi giữ</a></p>
+{% extends 'base.jinja' %}{% block title %}Trả kho / Báo hư{% endblock %}
+{% block tho_top %}<a class="tho-back" href="/hang-toi-giu" aria-label="Về Hàng tôi giữ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Hàng</a><h1 class="tho-title">Trả kho / Báo hư</h1>{% endblock %}
+{% block tho_tabs %}{% endblock %}
+{% block main %}
+<h1 class="tho-dup">Trả kho / Báo hư</h1><p class="tho-dup-link"><a href="/hang-toi-giu">← Hàng tôi giữ</a></p>
 {% if error %}<p class="alert bad" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-<p>Chọn số lượng hàng đang giữ và tình trạng. Hàng vẫn ở kho của bạn đến khi kho xác nhận nhận.</p>
 <form id="return-create" method="post" enctype="multipart/form-data" class="form" action="/tho-tra-hang/moi">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-{% include 'tra_vat_tu_fields.jinja' %}<button class="primary">Gửi yêu cầu trả kho</button></form>
+{% include 'tra_vat_tu_fields.jinja' %}<div class="tho-bottom-action"><button class="primary btn-ok">Gửi yêu cầu trả kho</button></div></form>
 <script src="/static/technician-returns.js" defer></script>{% endblock %}
