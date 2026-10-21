@@ -1,5 +1,7 @@
 {% extends 'base.jinja' %}{% block title %}Yêu cầu linh kiện{% endblock %}
-{% block main %}<div class="bar"><h1>Yêu cầu linh kiện</h1><a href="/hang-toi-giu">← Hàng tôi giữ</a></div>
+{% block tho_top %}<a class="tho-back" href="/hang-toi-giu" aria-label="Về Hàng tôi giữ"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Hàng</a><h1 class="tho-title">Yêu cầu linh kiện</h1>{% endblock %}
+{% block tho_tabs %}{% endblock %}
+{% block main %}<div class="bar tho-dup-bar"><h1>Yêu cầu linh kiện</h1><a href="/hang-toi-giu">← Hàng tôi giữ</a></div>
 <p class="hint">Xin hàng mang theo, không gắn phiếu. Kho cấp xong thì hàng vào {{ own.code ~ ' · ' ~ own.name if own else 'kho riêng của bạn' }}.</p>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if own %}<form class="card form" method="post" action="/hang-toi-giu/xin-linh-kien" data-part-multi><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
@@ -9,6 +11,6 @@
 <label data-single-qty>Số lượng<input name="qty" inputmode="decimal" value="{{ d.get('qty','1') }}"></label>
 {% from '_ui.jinja' import fill_chips %}{{ fill_chips(['Mang sẵn cho ca tuần này','Hết hàng mang theo','Khách đặt trước'],'reason') }}
 <label>Lý do<textarea name="reason" required maxlength="2000" placeholder="Ví dụ: mang sẵn cho các ca thay drum tuần này">{{ d.get('reason','') }}</textarea></label>
-<button class="primary btn-ok">Gửi yêu cầu</button></form>
+<div class="tho-bottom-action"><button class="primary btn-ok">Gửi yêu cầu</button></div></form>
 {% else %}<p class="card">Bạn chưa có kho riêng đang dùng, nhờ kho tạo kho thợ trước.</p>{% endif %}
 <script src="/static/parts.js" defer></script>{% endblock %}

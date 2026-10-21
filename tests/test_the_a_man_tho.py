@@ -69,6 +69,12 @@ def test_return_screen_is_tick_list(client, db, held):
     qty = re.search(r'<input name="return_qty"[^>]*>', html).group(0)
     assert 'min="0"' in qty
     assert 'data-fill-sel="[data-damage-reason]"' in html
+    # Số lượng hiện "3" (không phải "3.000" dễ đọc nhầm thành ba nghìn).
+    assert 'data-held="3"' in html and 'Đang giữ 3<' in html
+    # Ô tick phát 'input' trước 'change': phải bỏ qua, nếu không tick sẽ tự bật lại thành bỏ tick.
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'technician-returns.js').read_text()
+    assert "if(event.target.closest('[data-return-pick]'))return;" in js
 
 
 def test_many_parts_in_one_submit(client, db, held):

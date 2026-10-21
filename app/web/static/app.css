@@ -701,3 +701,52 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .commission-picker{min-width:0}.commission-people{max-height:240px;overflow-y:auto;padding:8px 0}.commission-people [hidden]{display:none}
 .commission-lock-form>.action-bar{margin-inline:0}.commission-lock-form{min-width:0}
 @media(max-width:600px){.commission-table tr>:first-child{min-width:110px;max-width:130px}}
+/* Hàng tôi giữ / Trả kho / Xin linh kiện: gọn, chữ vừa phải, việc chính lên trước. */
+.tho-app .tho-wh h2 { font-size: 15px; font-weight: 800; color: var(--muted); margin: 4px 0 0; }
+.tho-app .work-rows { gap: 10px; }
+.tho-app .work-row { padding: 12px 14px; gap: 2px; }
+.tho-meta { font-size: 13px; color: var(--muted); }
+.tho-meta a { color: var(--muted); }
+.tho-hist { padding: 0; }
+.tho-hist > summary { min-height: 52px; padding: 12px 14px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.tho-hist > summary b { color: var(--warn); }
+.tho-hist > :not(summary) { margin: 0 14px; }
+.tho-hist > :last-child { margin-bottom: 12px; }
+.tho-hist .work-row { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.tho-hist .work-row p, .tho-hist > p { margin: 0; font-size: 15px; }
+.tho-hist .work-row form { margin: 0; }
+.tho-app h1.tho-dup + .tho-dup-link, .tho-app .tho-dup-bar { display: none; }
+.tho-return h3 { margin: 0; font-size: 17px; }
+.tho-return-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tho-return-head .btn-ghost { min-height: 40px; padding: 0 14px; }
+.tho-return .hint { margin: 4px 0 8px; font-size: 14px; }
+[data-return-rows] { display: grid; gap: 10px; }
+.tho-ret { margin: 0; padding: 10px 12px; border: 2px solid var(--line); border-radius: 14px; background: var(--surface); min-width: 0; display: grid; gap: 8px; }
+.tho-ret:has([data-return-pick]:checked) { border-color: var(--text); }
+.tho-ret-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tho-ret-pick { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; cursor: pointer; }
+.tho-ret-pick input { width: 26px; height: 26px; flex: none; accent-color: var(--ok-solid); margin: 0; }
+.tho-ret-pick span { display: flex; flex-direction: column; min-width: 0; }
+.tho-ret-pick b { font-size: 16px; line-height: 1.25; }
+.tho-ret-pick small { font-size: 13px; color: var(--muted); }
+.tho-ret .stepper { flex: none; }
+.tho-ret .stepper button { width: 40px; height: 40px; min-height: 40px; padding: 0; font-size: 20px; }
+.tho-ret .stepper input { width: 52px; min-height: 40px; text-align: center; font-size: 17px; font-weight: 800; padding: 0 4px; }
+.tho-ret-detail { display: grid; gap: 8px; }
+.tho-ret-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tho-ret-line select { flex: 1 1 140px; min-width: 0; min-height: 40px; font-size: 15px; }
+.tho-ret-cond { gap: 6px; flex-wrap: nowrap; }
+.tho-ret-cond .chip span { min-height: 40px; padding: 0 12px; font-size: 15px; }
+.tho-ret .fill-chips { gap: 6px; }
+.tho-ret .fill-chips .chip-btn { min-height: 38px; padding: 0 10px; font-size: 14px; border-radius: 10px; }
+.tho-ret label { font-size: 14px; }
+.tho-ret textarea { min-height: 0; font-size: 15px; }
+.tho-ret-photo input { font-size: 14px; }
+.tho-ret [data-return-split] { justify-self: start; font-size: 14px; min-height: 36px; padding: 0; }
+.tho-app #return-create .tho-bottom-action, .tho-app [data-part-multi] .tho-bottom-action { max-width: 560px; }
+.tho-app main h2 { font-size: 18px; }
+.tho-app main h1 { font-size: 20px; }
+.tho-app .card h2 { margin: 0 0 8px; }
+.form label.tho-ret-pick { display: flex; flex-direction: row; color: var(--text); font-size: 16px; }
+.form .tho-ret-cond label.chip { display: inline-block; }
+.tho-app .tho-hang-actions .btn { font-size: 16px; }
