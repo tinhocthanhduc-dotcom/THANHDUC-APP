@@ -180,3 +180,20 @@ def test_ux5a_return_rows_hidden_until_picked(client, db, held):
     ui = (static / 'ui.js').read_text()
     assert '[data-item-picker]' in ui and "normalize('NFD')" in ui
     assert "addEventListener('item-picked'" in (static / 'technician-returns.js').read_text()
+
+
+def test_today_reminds_technician_to_clock_in_without_blocking(client, db, held, monkeypatch):
+    from app import attendance, employees, service_tickets
+    p, a, b = held
+    tech = p['technician']
+    ticket(db, p, 'DA_GIAO')
+    service_login(client, tech)
+    # Chưa có hồ sơ nhân sự: không nhắc (chưa chấm công được).
+    assert 'data-not-clocked-in' not in client.get('/tho').text
+    employees.create(db, p['director'], tech.id, dict(position='Kỹ thuật', start_date='2026-01-01'))
+    html = client.get('/tho').text
+    # Chỉ nhắc: vẫn thấy việc và vẫn có nút Nhận đơn.
+    assert 'data-not-clocked-in' in html and 'href="/cham-cong"' in html and 'Nhận đơn' in html
+    monkeypatch.setattr(attendance, '_now', service_tickets._now)
+    attendance.punch(db, tech, 'IN')
+    assert 'data-not-clocked-in' not in client.get('/tho').text
