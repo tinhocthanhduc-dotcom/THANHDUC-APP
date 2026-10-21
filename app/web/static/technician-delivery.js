@@ -26,5 +26,20 @@
     update();
   });
   form.addEventListener('change', update);
+  // Ảnh giao hàng: nút lớn mở máy ảnh, hiện ảnh đã chụp; thiếu ảnh thì nhắc chứ không im lặng.
+  var camera = form.querySelector('[data-delivery-camera]'), thumbs = form.querySelector('[data-photo-thumbs]'), count = form.querySelector('[data-photo-count]');
+  if (camera) {
+    camera.addEventListener('change', function () {
+      thumbs.innerHTML = '';
+      Array.prototype.forEach.call(camera.files, function (file) {
+        var img = document.createElement('img'); img.alt = 'Ảnh giao hàng'; img.src = URL.createObjectURL(file); thumbs.appendChild(img);
+      });
+      count.textContent = camera.files.length ? 'Đã chụp ' + camera.files.length + ' ảnh. Bấm nút để chụp lại.' : 'Chưa có ảnh. Bấm nút trên để mở máy ảnh.';
+    });
+    camera.addEventListener('invalid', function () {
+      if (window.tdToast) window.tdToast('Chụp ảnh giao hàng trước khi giao', 'bad');
+      camera.closest('[data-delivery-photos]').scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }
   update();
 })();

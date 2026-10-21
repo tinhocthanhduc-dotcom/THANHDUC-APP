@@ -1017,6 +1017,12 @@ main:has(> .me-page) { max-width: 640px; }
 @media (max-width: 640px) {
   .top .who [data-theme-toggle], .top .who > button:not([type=button]) { display: none; }
 }
+/* Giao đơn của thợ: nút chụp ảnh lớn, ô file ẩn nhưng vẫn bấm qua nhãn. */
+.tho-delivery .delivery-capture { position: relative; display: flex; align-items: center; justify-content: center; min-height: 56px; width: 100%; font-weight: 700; cursor: pointer; }
+.tho-delivery .delivery-capture input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.tho-delivery .delivery-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tho-delivery .delivery-thumbs img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.tho-delivery { padding-bottom: 170px; }
 .rq-tabs { flex-wrap: nowrap; overflow-x: auto; margin: 0; }
 .rq-tabs .btn { white-space: nowrap; }
 .rq-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }

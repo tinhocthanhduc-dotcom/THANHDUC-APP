@@ -63,3 +63,12 @@ def test_error_keeps_typed_amount_and_money_list_links_to_technician_screens(db,
     assert client.post(f'/giao-don/{o.id}/deliver', data=form, files={'photos': ('g.png', d5_image(), 'image/png')}, follow_redirects=False).status_code == 303
     money = client.get('/tien-toi-giu').text
     assert f'href="/giao-don/{o.id}?return_to=tho"' in money and 'tho-money-row' in money and '300' in money
+
+
+def test_photo_is_big_camera_button(db, setup, client):
+    p = setup; o = assigned(db, p); move(db, p, o, 2)
+    service_login(client, p['technician'])
+    page, _ = deliver_form(client, o)
+    # Ô chọn ảnh phủ kín nút lớn để bấm trên điện thoại mở thẳng máy ảnh; vẫn bắt buộc.
+    assert re.search(r'<label class="btn photo-capture delivery-capture">[^<]*<input type="file" name="photos" accept="image/\*" capture="environment" multiple required data-delivery-camera>', page.text)
+    assert 'data-photo-thumbs' in page.text
