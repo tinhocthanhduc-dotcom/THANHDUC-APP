@@ -1044,3 +1044,26 @@ main:has(> .me-page) { max-width: 640px; }
   .cash-head span:last-child { text-align: right; }
 }
 .cash-page .stock-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } .cash-page .stock-tile { padding: 8px 10px; } .cash-page .stock-tile span { font-size: .72rem; }
+/* Khuôn 7: bảng báo cáo. Máy tính: kẻ ngang, số thẳng cột. Điện thoại: mỗi dòng một thẻ gọn 2 cột. */
+.sales-report-table { border: 1px solid var(--line); border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; font-variant-numeric: tabular-nums; }
+.sales-report-table th, .sales-report-table td { border: 0; border-top: 1px solid var(--line); }
+.sales-report-table thead th { border-top: 0; font-size: .78rem; color: var(--muted); background: var(--bg); position: sticky; top: 0; }
+.sales-report-table tbody tr:hover { background: var(--tag); }
+@media (max-width:600px) {
+  .sales-report-table { border: 0; background: none; }
+  .sales-report-table tr { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .sales-report-table td, .sales-report-table th { display: block; padding: 0; border: 0; }
+  .sales-report-table tr > :first-child { grid-column: 1 / -1; font-weight: 600; }
+  .sales-report-table [data-label]::before { display: block; font-size: .72rem; font-weight: 400; color: var(--muted); }
+  .sales-report-table tr > :first-child[data-label]::before { display: none; }
+  .sales-report-table td[colspan] { grid-column: 1 / -1; }
+}
+.debt-page > h1 { margin: 0; }
+.debt-page > .hint { margin: 0; }
+.debt-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.debt-tiles .stock-tile b { font-size: 1.05rem; }
+.debt-tiles .debt-main { border-color: var(--accent); }
+.debt-tiles .debt-main b { font-size: 1.3rem; }
+.debt-left { font-weight: 700; }
+.debt-page details > summary { cursor: pointer; font-weight: 600; }
+@media (max-width:600px) { .debt-tiles .debt-main { grid-column: 1 / -1; } .debt-tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } }
