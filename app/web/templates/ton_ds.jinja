@@ -1,12 +1,13 @@
 {% extends "base.jinja" %}
 {% block title %}Tồn kho{% endblock %}
-{% block main %}<h1>Tồn kho</h1>
-<form action="/ton-kho" class="form card">
-<fieldset><legend>Hiển thị</legend><div class="seg stock-seg">
-<label><input type="radio" name="canh-bao" value="0" {% if not canh_bao %}checked{% endif %}><span>Tất cả</span></label>
-<label><input type="radio" name="canh-bao" value="1" {% if canh_bao %}checked{% endif %}><span>Sắp hết</span></label>
-</div></fieldset>
-<fieldset><legend>Kho</legend><div class="seg stock-seg"><label><input type="radio" name="kho" value="" {% if not kho %}checked{% endif %}><span>Tất cả</span></label>
-{% for w in warehouses %}<label><input type="radio" name="kho" value="{{ w.code }}" {% if kho == w.code %}checked{% endif %}><span>{{ w.code }}{{ ' · Kho Chờ Xử lý' if w.kind=='LOI' else '' }}</span></label>{% endfor %}</div></fieldset>
-<label>Tìm mã hoặc tên hàng<input name="q" value="{{ q }}" data-live="#stock-results" placeholder="Ví dụ: muc in"></label><button>Xem tồn</button>
-</form><div id="stock-results">{% include 'ton_dong.jinja' %}</div>{% endblock %}
+{% block main %}<div class="stock-page">
+<div class="bar"><h1>{{ 'Hàng sắp hết' if canh_bao else 'Tồn kho' }}</h1></div>
+{# Khuôn 3: tìm + ô chọn Kho / Nhóm hàng / Sắp xếp; đổi ô chọn là lọc ngay, bộ lọc nằm trên đường dẫn. #}
+<form action="/ton-kho" class="card stock-filter" role="search">
+{% if canh_bao %}<input type="hidden" name="canh-bao" value="1">{% endif %}{% if tt %}<input type="hidden" name="tt" value="{{ tt }}">{% endif %}
+<label class="stock-q">Tìm hàng<input type="search" name="q" value="{{ q }}" data-live="#stock-results" placeholder="Mã, tên hàng · gõ không dấu được ( / )" autocomplete="off"></label>
+<label>Kho<select name="kho" data-autosubmit{% if kho %} class="on"{% endif %}><option value="">Tất cả kho</option>{% for w in warehouses %}<option value="{{ w.code }}"{% if kho == w.code %} selected{% endif %}>{{ w.code }}{{ ' · ' ~ w.name if w.name and w.name != w.code else '' }}{{ ' · Kho Chờ Xử lý' if w.kind=='LOI' else '' }}</option>{% endfor %}</select></label>
+{% if groups %}<label>Nhóm hàng<select name="nhom" data-autosubmit{% if nhom %} class="on"{% endif %}><option value="">Tất cả nhóm</option>{% for g in groups %}<option value="{{ g }}"{% if nhom == g %} selected{% endif %}>{{ g }}</option>{% endfor %}</select></label>{% endif %}
+<label>Sắp xếp<select name="xep" data-autosubmit>{% for key,label in sorts.items() %}<option value="{{ key }}"{% if xep == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<noscript><button>Lọc</button></noscript>
+</form><div id="stock-results">{% include 'ton_dong.jinja' %}</div></div>{% endblock %}

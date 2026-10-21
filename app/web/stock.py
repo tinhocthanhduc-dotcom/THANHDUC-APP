@@ -1,7 +1,7 @@
 """Màn hình kho: gọi nghiệp vụ hiện có; tồn và thẻ kho chỉ đọc."""
 from datetime import date
 from decimal import Decimal
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 import re
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -221,34 +221,65 @@ def void(request: Request, doc_id: int, form=Depends(checked_form), session: Ses
     return _cancel(request, session, form, doc_id, True)
 
 
+TON_SORTS = {'': 'Kho · mã hàng', 'it': 'Có thể dùng ít → nhiều', 'gia-tri': 'Giá trị tồn cao → thấp'}
+TON_STATES = {'con': 'Còn hàng', 'het': 'Hết hàng'}
+
+
 @router.get('/ton-kho')
-def balances(request: Request, kho: str = '', q: str = '', phan: int = 0,
+def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: str = '', xep: str = '', tt: str = '',
              canh_bao: bool = Query(default=False, alias='canh-bao'),
              user: User = Depends(web_user), session: Session = Depends(get_session)):
-    if canh_bao:
-        stmt = stock_min_levels.low_stock_query()
-        warehouse_column = StockMinLevel.warehouse_code
-    else:
-        stmt = select(StockBalance.warehouse_code, StockBalance.product_code, StockBalance.qty,
-                      StockBalance.value, StockBalance.avg_cost, Product.name, Warehouse.kind.label('warehouse_kind')).join(Warehouse,Warehouse.code==StockBalance.warehouse_code).join(
-            Product, Product.code == StockBalance.product_code
-        ).order_by(StockBalance.warehouse_code, StockBalance.product_code)
-        warehouse_column = StockBalance.warehouse_code
-    if kho:
-        stmt = stmt.where(warehouse_column == kho)
-    if fold(q):
-        stmt = stmt.where(or_(Product.search_text.like(like_pattern(fold(q))), Product.code.ilike(like_pattern(q))))
-    rows = list(session.execute(stmt).mappings())
+    from . import nav
+    # Khuôn 3: chỉ người được xem Sắp hết mới thấy mức tối thiểu và ô Sắp hết.
+    can_alert = nav.allowed(user, '/ton-kho', {'canh-bao': '1'})
+    xep, tt = (xep if xep in TON_SORTS else ''), ('' if canh_bao or tt not in TON_STATES else tt)
+    normal = select(StockBalance.warehouse_code, StockBalance.product_code, StockBalance.qty,
+                  StockBalance.value, StockBalance.avg_cost, Product.name, Product.unit, Product.group_name,
+                  Warehouse.kind.label('warehouse_kind'), func.coalesce(StockMinLevel.min_qty, 0).label('min_qty')).join(
+        Warehouse,Warehouse.code==StockBalance.warehouse_code).join(
+        Product, Product.code == StockBalance.product_code).outerjoin(StockMinLevel, (StockMinLevel.warehouse_code == StockBalance.warehouse_code)
+        & (StockMinLevel.product_code == StockBalance.product_code)).order_by(StockBalance.warehouse_code, StockBalance.product_code)
+    stmt, warehouse_column = (stock_min_levels.low_stock_query(), StockMinLevel.warehouse_code) if canh_bao else (normal, StockBalance.warehouse_code)
+    def narrow(stmt, column):
+        if kho:
+            stmt = stmt.where(column == kho)
+        if nhom:
+            stmt = stmt.where(Product.group_name == nhom)
+        if fold(q):
+            stmt = stmt.where(or_(Product.search_text.like(like_pattern(fold(q))), Product.code.ilike(like_pattern(q))))
+        return stmt
+    rows = list(session.execute(narrow(stmt, warehouse_column)).mappings())
     values=stock_reservations.quantities(session,[(r['warehouse_code'],r['product_code']) for r in rows])
     rows=[{**r,**values.get((r['warehouse_code'],r['product_code']),dict(reserved=0,available=r['qty']))} for r in rows]
+    for r in rows:
+        low = can_alert and r.get('warehouse_kind', 'KHO') == 'KHO' and r['min_qty'] > 0 and r['qty'] <= r['min_qty']
+        r['state'] = 'het' if r['qty'] <= 0 else 'sap' if low else 'con'
+    # Ô đếm luôn tính trên tồn thường (cùng kho/nhóm/tìm), để bấm qua lại giữa các ô không đổi số.
+    totals = [r.qty for r in session.execute(narrow(normal, StockBalance.warehouse_code))] if canh_bao else [r['qty'] for r in rows]
+    counts = dict(all=len(totals), con=sum(x > 0 for x in totals), het=sum(x <= 0 for x in totals))
+    if can_alert:
+        counts['sap'] = len(rows) if canh_bao else int(session.scalar(select(func.count()).select_from(
+            narrow(stock_min_levels.low_stock_query(), StockMinLevel.warehouse_code).order_by(None).subquery())))
+    if tt:
+        rows = [r for r in rows if (r['qty'] > 0) == (tt == 'con')]
+    if xep == 'it':
+        rows.sort(key=lambda r: r['available'])
+    elif xep == 'gia-tri':
+        rows.sort(key=lambda r: -r['value'])
     damage_sources=session.execute(select(TechnicianReturn,TechnicianReturnLine,User.full_name,StockDoc.to_warehouse_code).join(
         TechnicianReturnLine,TechnicianReturnLine.return_id==TechnicianReturn.id).join(User,User.id==TechnicianReturn.technician_id).join(
         StockDoc,StockDoc.id==TechnicianReturn.defect_stock_doc_id).where(TechnicianReturn.status=='DA_NHAN',StockDoc.status=='DA_GHI',
         TechnicianReturnLine.received_condition=='HU_HONG',TechnicianReturnLine.received_qty>0)).all()
     damage_sources=[r for r in damage_sources if (not kho or r.to_warehouse_code==kho) and (not fold(q) or any(
         b['product_code']==r.TechnicianReturnLine.product_code and b['warehouse_code']==r.to_warehouse_code for b in rows))]
+    current = {'kho': kho, 'q': q, 'nhom': nhom, 'xep': xep, 'tt': tt, 'canh-bao': '1' if canh_bao else ''}
+    def link(**changes):
+        merged = {**current, **{k.replace('_', '-'): v for k, v in changes.items()}}
+        return '/ton-kho?' + urlencode({k: v for k, v in merged.items() if v})
+    groups = [g for g in session.scalars(select(Product.group_name).where(Product.group_name != '').distinct().order_by(Product.group_name))]
     return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', can_pending_transfer=has_role(user,'warehouse'),damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
-                  warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows))
+                  warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows),
+                  nhom=nhom, xep=xep, tt=tt, sorts=TON_SORTS, groups=groups, counts=counts, can_alert=can_alert, link=link)
 
 
 def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False):

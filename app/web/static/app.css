@@ -839,3 +839,55 @@ a.tho-money-row { display: flex; justify-content: space-between; align-items: ce
 /* Thẻ B: chip báo cáo trượt ngang cho gọn trên điện thoại. */
 .tho-report .fill-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .tho-report .fill-chips .chip-btn{flex:none}
+
+/* Khuôn 3 · Tồn kho: ô đếm bấm để lọc, ô chọn lọc ngay, nhãn lọc bỏ từng cái.
+   Mỗi dòng hàng là thẻ trên điện thoại, thành hàng bảng trên máy tính (cùng markup, dt ẩn đi). */
+main:has(> .stock-page) { max-width: 1280px; }
+.stock-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.stock-filter label { display: grid; gap: 4px; font-size: .8rem; font-weight: 700; color: var(--muted); flex: 1 1 160px; min-width: 150px; }
+.stock-filter .stock-q { flex: 3 1 300px; }
+.stock-filter input, .stock-filter select { min-height: 44px; font-weight: 500; color: var(--text); }
+.stock-filter select.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.stock-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 12px 0 8px; }
+.stock-tile { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); text-decoration: none; }
+.stock-tile span { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.stock-tile b { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.stock-tile.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tile-ok b { color: var(--ok); } .tile-warn b { color: var(--warn); } .tile-bad b { color: var(--bad); }
+.stock-tags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; }
+.stock-tag { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px 0 12px; border-radius: 999px; background: var(--tag); color: var(--accent); font-size: .85rem; font-weight: 600; text-decoration: none; }
+.stock-clear { font-size: .85rem; font-weight: 600; }
+.stock-empty { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.stock-table .stock-th { display: none; }
+.stock-table .stock-balance { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
+.stock-table .stock-name { display: grid; color: var(--text); text-decoration: none; grid-column: 1 / -1; }
+.stock-table .stock-name small, .stock-unit, .stock-wh { color: var(--muted); font-size: .85rem; }
+.stock-table dl { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0; }
+.stock-table .kv { display: grid; gap: 0; min-width: 56px; }
+.stock-table dt { color: var(--muted); font-size: .75rem; } .stock-table dd { margin: 0; text-align: left; font-variant-numeric: tabular-nums; font-weight: 600; }
+.stock-table .stock-free { font-weight: 800; font-size: 1.15rem; }
+.stock-table .kv-money { min-width: 90px; } .stock-table .kv-money dd { font-weight: 500; color: var(--muted); }
+.stock-table .stock-name, .stock-table .stock-unit, .stock-table .stock-wh { grid-column: auto; }
+.stock-table .stock-name { grid-column: 1 / -1; }
+.stock-act { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.stock-move { font-size: .85rem; }
+.stock-chip { font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--ok-bg); color: var(--ok); }
+.stock-sap .stock-chip { background: var(--warn-bg); color: var(--warn); }
+.stock-het .stock-chip { background: var(--bad-bg); color: var(--bad); }
+@media (min-width: 1000px) {
+  .stock-table { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .stock-table .stock-th, .stock-table .stock-balance { display: grid; grid-template-columns: var(--stock-cols); gap: 10px; align-items: center; padding: 10px 12px; }
+  .stock-table .stock-th { position: sticky; top: 0; background: var(--surface); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .stock-table .stock-balance { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
+  .stock-table .stock-th + .stock-balance { border-top: 0; }
+  .stock-table .stock-name, .stock-table dl, .stock-act { grid-column: auto; }
+  .stock-table dl, .stock-table .kv { display: contents; }
+  .stock-table .kv-money dd { color: var(--text); }
+  .stock-table .stock-free { font-size: 1rem; }
+  .stock-table dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .stock-table dd, .stock-table .num { margin: 0; text-align: right; }
+  .stock-table .stock-unit, .stock-table .stock-wh { color: var(--text); font-size: .9rem; }
+  .stock-act { justify-content: flex-end; gap: 6px; }
+  .stock-act { flex-wrap: wrap; white-space: nowrap; }
+  .stock-move { font-size: .8rem; color: var(--muted); }
+}

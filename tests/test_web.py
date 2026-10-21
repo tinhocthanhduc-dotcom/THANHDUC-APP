@@ -261,7 +261,7 @@ def test_k6_post_saves_draft_then_updates_balance_and_card(client, web_login, st
     bal = db.get(StockBalance, ('K58', 'TD-0001'))
     assert bal.qty == 3 and bal.value == 360000
     page = client.get('/ton-kho').text
-    assert '3.000' in page and '360.000' in page and '120.000' in page
+    assert '<dt>Số lượng</dt><dd>3</dd>' in page and '360.000' in page and '120.000' in page
     page = client.get('/the-kho/K58/TD-0001').text
     assert page.count('class="card stock-ledger-row"') == 1
     assert f'href="/phieu-kho/{doc_id}"' in page
@@ -512,8 +512,8 @@ def test_k7_low_stock_shortage(client, web_login, stock_catalog):
     assert set_min_level(client, csrf).status_code == 303
     page = client.get('/ton-kho?canh-bao=1').text
     assert 'TD-0001' in page and 'Mực in' in page
-    assert '<dt>Số thiếu</dt><dd>2.000</dd>' in page
-    assert '<dt>Mức tối thiểu</dt><dd>5.000</dd>' in page
+    assert '<dt>Số thiếu</dt><dd>2</dd>' in page
+    assert '<dt>Mức tối thiểu</dt><dd>5</dd>' in page
 
 
 def test_k7_stock_above_minimum_not_alerted(client, web_login, stock_catalog):
@@ -532,7 +532,7 @@ def test_k7_never_received_zero_stock_first(client, web_login, stock_catalog, db
     assert set_min_level(client, csrf, code='TD-0002', qty='2').status_code == 303
     page = client.get('/ton-kho?canh-bao=1').text
     assert page.index('TD-0002') < page.index('TD-0001')
-    assert '<dt>Số thiếu</dt><dd>2.000</dd>' in page
+    assert '<dt>Số thiếu</dt><dd>2</dd>' in page
     assert db.get(StockBalance, ('K58', 'TD-0002')) is None
     # Đọc cảnh báo không tạo dòng tồn giả cho mã chưa nhập.
     assert 'TD-0002' not in client.get('/ton-kho').text
@@ -604,7 +604,7 @@ def test_k7_filter_warehouse_search_and_threshold_equality(client, web_login, st
     assert set_min_level(client, csrf, warehouse='K145', code='TD-0002', qty='2').status_code == 303
     page = client.get('/ton-kho?canh-bao=1&kho=K58&q=muc+in&phan=1').text
     assert 'TD-0001' in page and 'TD-0002' not in page
-    assert '<dt>Số thiếu</dt><dd>0.000</dd>' in page and '<html' not in page
+    assert '<dt>Số thiếu</dt><dd>0</dd>' in page and '<html' not in page
     page = client.get('/ton-kho?canh-bao=1&kho=K145').text
     assert 'TD-0002' in page and 'TD-0001' not in page
 

@@ -206,6 +206,16 @@
     root.addEventListener('item-picker-refresh', function () { renderPicker(root); });
   });
 
+  // ---- Bộ lọc: đổi ô chọn là lọc ngay (dùng tìm trực tiếp nếu form có, không thì gửi form) ----
+  document.addEventListener('change', function (event) {
+    var el = event.target.closest && event.target.closest('[data-autosubmit]');
+    if (!el || !el.form) return;
+    var live = el.form.querySelector('[data-live]');
+    if (live) live.dispatchEvent(new Event('input'));
+    else if (el.form.requestSubmit) el.form.requestSubmit();
+    else el.form.submit();
+  });
+
   // ---- Phím tắt cho người ngồi máy tính ----
   function typing(el) {
     return el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
