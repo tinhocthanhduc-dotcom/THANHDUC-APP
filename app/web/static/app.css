@@ -662,3 +662,16 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .employee-info{overflow-wrap:anywhere}.employee-info dt{font-weight:700;margin-top:12px}.employee-info dd{margin:4px 0 12px}
 .employee-option{width:100%;text-align:left;justify-content:flex-start;margin-top:8px;padding:8px;overflow-wrap:anywhere}
 .employee-replace{margin-top:12px}.employee-salary-form{margin-top:16px}
+
+/* NS2: one ordinary tap for punches; wide month board scrolls inside the page. */
+.attendance-section{margin-top:20px;min-width:0;overflow-wrap:anywhere}
+.attendance-today{margin-top:16px}.attendance-punch-panel{min-height:28vh;display:flex;flex-direction:column;justify-content:flex-end}
+.attendance-main{width:100%;min-height:96px;font-size:1.6rem}.attendance-days>a{display:flex;gap:8px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)}
+.attendance-days>a>strong{min-width:50px}.attendance-request{border-top:1px solid var(--line);padding:12px 0}
+.attendance-board-scroll{max-width:100%;overflow:auto;margin:16px 0;border:1px solid var(--line);border-radius:10px}
+.attendance-board{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeric:tabular-nums;white-space:nowrap}
+.attendance-board th,.attendance-board td{padding:12px;border-bottom:1px solid var(--line);text-align:center}
+.attendance-board tr>:first-child{position:sticky;left:0;z-index:1;min-width:135px;max-width:180px;text-align:left;white-space:normal;background:var(--surface)}
+.attendance-board td>a{display:block;min-width:24px;min-height:24px}
+
+.attendance-punch-panel>.action-bar,.attendance-lock-form>.action-bar{margin-left:0;margin-right:0}

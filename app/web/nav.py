@@ -10,6 +10,7 @@ from ..security import has_role
 
 GROUPS = (
     {'label': '', 'items': (
+        {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
@@ -63,6 +64,9 @@ GROUPS = (
 # Tài khoản có phạm vi riêng: quyền giám đốc ở menu nghiệp vụ không bao gồm quản trị.
 ACCOUNT_GROUPS = (
     {'label': 'Quản trị', 'items': (
+        {'label': 'Duyệt chấm công', 'href': '/cham-cong/duyet', 'prefixes': ('/cham-cong/duyet',), 'roles': ('director',)},
+        {'label': 'Bảng công', 'href': '/cham-cong/bang', 'prefixes': ('/cham-cong/bang',), 'roles': ('finance',)},
+        {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
         {'label': 'Nhân sự', 'href': '/nhan-su', 'prefixes': ('/nhan-su',), 'roles': ('admin','director')},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
