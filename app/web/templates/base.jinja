@@ -46,9 +46,9 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
     </nav>
   </details>
   <form method="post" action="/dang-xuat" class="who">
-    <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
+    <a class="identity me-link" href="/ca-nhan" data-account-item><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></a>
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-    <button type="button" class="link" data-theme-toggle>Sáng/Tối</button>{% if request.state.payroll_account|default(false) %}<a href="/phieu-luong" data-account-item>Phiếu lương</a><a href="/tam-ung" data-account-item>Tạm ứng</a>{% endif %}<a href="/ho-so-cua-toi" data-account-item>Hồ sơ của tôi</a><a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
+    <button type="button" class="link" data-theme-toggle>Sáng/Tối</button><a href="/ca-nhan" data-account-item>Cá nhân</a><button class="link">Đăng xuất</button>
   </form>
 </header>
 {% endif %}

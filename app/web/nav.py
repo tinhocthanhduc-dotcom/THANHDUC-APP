@@ -80,6 +80,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
         {'label': 'Phiếu lương', 'href': '/phieu-luong', 'prefixes': ('/phieu-luong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},
         {'label': 'Tạm ứng', 'href': '/tam-ung', 'prefixes': ('/tam-ung',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},
+        {'label': 'Cá nhân', 'href': '/ca-nhan', 'prefixes': ('/ca-nhan',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
         {'label': 'Hồ sơ của tôi', 'href': '/ho-so-cua-toi', 'prefixes': ('/ho-so-cua-toi',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
         {'label': 'Đổi mật khẩu', 'href': '/doi-mat-khau', 'prefixes': ('/doi-mat-khau',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
     )},

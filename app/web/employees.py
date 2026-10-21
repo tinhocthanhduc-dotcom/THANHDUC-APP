@@ -11,7 +11,7 @@ from ..db import get_session
 from ..errors import BusinessError
 from ..models import Employee, User
 from ..security import has_role
-from . import checked_form, render, web_user
+from . import checked_form, nav, render, web_user
 from .money_input import parse_money
 
 router=APIRouter()
@@ -123,6 +123,20 @@ def add_salary(request:Request,employee_id:int,form=Depends(checked_form),user:U
         svc.add_salary(session,user,employee_id,values)
     except BusinessError as exc:return _detail(request,session,user,employee_id,salary_form=data,**_error(exc))
     return RedirectResponse(f'/nhan-su/{employee_id}?da_luu=1#luong',status_code=303)
+
+
+# Khuôn 8: trang Cá nhân gom việc của riêng mỗi người (chấm công, lương, KPI, tài khoản).
+PERSONAL = (('/cham-cong','Chấm công','Vào ca, ra ca, xin nghỉ hoặc bổ sung công.'),
+            ('/phieu-luong','Phiếu lương','Lương từng tháng đã duyệt.'),
+            ('/tam-ung','Tạm ứng','Xin tạm ứng và xem khoản đã chi.'),
+            ('/kpi','KPI của tôi','Chỉ số tháng này, tạm tính.'),
+            ('/hoa-hong','Hoa hồng của tôi','Hoa hồng theo quy tắc của vị trí.'))
+
+
+@router.get('/ca-nhan')
+def personal(request:Request,user:User=Depends(web_user)):
+    links=[dict(href=h,label=l,hint=t) for h,l,t in PERSONAL if nav.allowed(user,h) and (h not in ('/phieu-luong','/tam-ung') or request.state.payroll_account)]
+    return _render(request,'ca_nhan.jinja',links=links)
 
 
 @router.get('/ho-so-cua-toi')

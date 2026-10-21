@@ -981,3 +981,24 @@ main:has(> .po-page) { max-width: 1200px; }
 .po-page > .card h2, .po-page > form.card h2 { font-size: 1.05rem; margin-top: 0; }
 .part-page .stock-actions .btn.on { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
 .recv-name .stock-chip { white-space: nowrap; flex: none; }
+/* Khuôn 8: trang Cá nhân. */
+main:has(> .me-page) { max-width: 640px; }
+.me-page { display: grid; gap: 12px; }
+.me-page .recv-head > div { flex: 1; }
+.me-theme { min-height: 44px; }
+.me-list { padding: 0; overflow: hidden; }
+.me-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; min-height: 56px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; margin: 0; }
+.me-item:first-child { border-top: 0; }
+.me-item > span:first-child { flex: 1; min-width: 0; }
+.me-item small { display: block; color: var(--muted); font-size: .85rem; }
+.me-item > span:last-child { color: var(--muted); font-size: 1.2rem; }
+.me-logout { color: var(--bad); font-weight: 600; padding: 0; }
+.me-note { text-align: center; font-size: .8rem; }
+.top .who .me-link { font-weight: 600; }
+.top .who a.identity { color: var(--text); text-decoration: none; }
+.me-item button.link.me-logout { color: var(--bad); }
+.me-page .recv-head .me-theme { width: auto; padding: 8px 12px; white-space: nowrap; font-size: .9rem; flex: none; }
+/* Điện thoại: thanh đầu chỉ giữ tên + Cá nhân; Sáng/Tối và Đăng xuất ở trang Cá nhân. */
+@media (max-width: 640px) {
+  .top .who [data-theme-toggle], .top .who > button:not([type=button]) { display: none; }
+}
