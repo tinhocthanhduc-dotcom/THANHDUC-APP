@@ -86,6 +86,7 @@ def void_in_tx(session,user,doc_id,reason,version,*,_correction_permit=None):
     check_version(doc,version)
     if _correction_permit is not None and (_correction_permit is not _CORRECTION_PERMIT or not has_role(user,'director')):
         raise BusinessError('FORBIDDEN','Chỉ duyệt điều chỉnh được bỏ qua ngày gốc đã chốt.',status=403)
+    if doc.source_type in ('PAYROLL_LINE','SALARY_ADVANCE'):docs.check_source(doc)
     reversal_day=docs.today()
     day_closings.check_days(session,[reversal_day] if _correction_permit is _CORRECTION_PERMIT else [doc.doc_date,reversal_day])
     if doc.status!='DA_GHI':

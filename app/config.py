@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     search_limit: int = 20
     supplier_hold_alert_days: int = Field(default=30, ge=0, le=36500)
     pending_alert_days: int = Field(default=30, ge=0, le=36500)
+    advance_max_pct: int = Field(default=50, ge=0, le=100)
     commission_start: date = date(2027, 1, 1)
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
     work_start: time = time(8, 0)

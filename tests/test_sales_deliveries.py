@@ -209,12 +209,17 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     s5=importlib.util.module_from_spec(s5_spec);s5_spec.loader.exec_module(s5)
     cxl2b_spec=importlib.util.spec_from_file_location('cxl2b_migration',file.parent/'0040_cxl2b_tra_ncc_thanh_ly.py')
     cxl2b=importlib.util.module_from_spec(cxl2b_spec);cxl2b_spec.loader.exec_module(cxl2b)
+    ns5_spec=importlib.util.spec_from_file_location('ns5_migration',file.parent/'0045_ns5_bang_luong.py')
+    ns5=importlib.util.module_from_spec(ns5_spec);ns5_spec.loader.exec_module(ns5)
     with engine.begin() as conn:
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s3,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s5,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(cxl2b,'op',Operations(MigrationContext.configure(conn)))
+        monkeypatch.setattr(ns5,'op',Operations(MigrationContext.configure(conn)))
         # Hạ các lớp phụ thuộc GH trước khi tái hiện schema S1/S2.
+        # NS5 mở rộng ràng buộc khóa ghép tài chính mà S5 dựng lại khi hạ.
+        ns5.downgrade()
         cxl2b.downgrade()
         s5.downgrade()
         s3.downgrade()
@@ -232,6 +237,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         s3.upgrade()
         s5.upgrade()
         cxl2b.upgrade()
+        ns5.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

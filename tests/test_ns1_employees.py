@@ -268,14 +268,21 @@ def test_migration_down_up_retains_accounts_and_restores_guards(db,engine,p,empl
     spec=importlib.util.spec_from_file_location('ns1_migration',path)
     migration=importlib.util.module_from_spec(spec);spec.loader.exec_module(migration)
     assert migration.revision=='0041' and migration.down_revision=='0040'
+    # NS5 snapshots reference salary versions: remove/reapply the dependent revision first.
+    payroll_path=Path(__file__).parents[1]/'migrations/versions/0045_ns5_bang_luong.py'
+    payroll_spec=importlib.util.spec_from_file_location('ns5_dependency',payroll_path)
+    payroll_migration=importlib.util.module_from_spec(payroll_spec);payroll_spec.loader.exec_module(payroll_migration)
     account_id=p['technician'].id;db.rollback();db.expunge(employee)
     with engine.begin() as conn:
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
+        monkeypatch.setattr(payroll_migration,'op',Operations(MigrationContext.configure(conn)))
+        payroll_migration.downgrade()
         migration.downgrade()
         assert conn.scalar(text("select to_regclass('employees')")) is None
         assert conn.scalar(text('select id from users where id=:id'),dict(id=account_id))==account_id
         migration.upgrade()
         assert conn.scalar(text("select to_regclass('employee_salary_versions')"))=='employee_salary_versions'
         assert conn.scalar(text("select count(*) from pg_trigger where tgname='employee_salary_immutable'"))==1
+        payroll_migration.upgrade()
     db.expire_all();fresh=svc.create(db,p['admin'],account_id,body())
     assert fresh.code=='NV-0001'

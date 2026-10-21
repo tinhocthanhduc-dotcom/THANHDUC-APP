@@ -1,7 +1,7 @@
 """U2: chỉ đọc nhóm việc và dẫn tới chứng từ có sẵn."""
 from fastapi import Request
 
-from .. import attendance, alerts, my_work, quotes, service_tickets
+from .. import payroll, attendance, alerts, my_work, quotes, service_tickets
 from ..security import has_role
 from ..errors import BusinessError
 from . import render, nav
@@ -31,4 +31,4 @@ def page(request: Request, user, session):
         ('Nhận đơn dịch vụ','/dich-vu/moi',service_tickets.CREATORS),
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
     return render(request, 'viec_cua_toi.jinja', groups=groups, labels=LABELS, shortcuts=shortcuts,
-        attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number, notice=NOTICES.get(request.query_params.get('xong', ''), ''))
+        advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number, notice=NOTICES.get(request.query_params.get('xong', ''), ''))

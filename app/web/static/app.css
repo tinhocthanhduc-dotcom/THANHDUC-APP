@@ -750,6 +750,17 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .form label.tho-ret-pick { display: flex; flex-direction: row; color: var(--text); font-size: 16px; }
 .form .tho-ret-cond label.chip { display: inline-block; }
 .tho-app .tho-hang-actions .btn { font-size: 16px; }
+
+/* NS5: salary grids stay inside their own phone scroll frame. */
+.payroll-scroll{max-width:100%;overflow-x:auto;margin-block:16px;border:1px solid var(--line);border-radius:8px}
+.payroll-table{border-collapse:separate;border-spacing:0;min-width:1100px;width:100%;font-variant-numeric:tabular-nums}
+.payroll-table th,.payroll-table td{padding:12px;min-width:120px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+.payroll-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface);min-width:150px;max-width:190px;overflow-wrap:anywhere}
+.payroll-table input:not([type=hidden]):not([type=checkbox]),.payroll-table textarea{min-width:130px;width:100%}
+.payroll-total{font-size:1.4rem;font-weight:700}.payroll-form,.payroll-approve-form{min-width:0}.payroll-form>.action-bar,.payroll-approve-form>.action-bar{margin-inline:0}
+.payslip dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.payslip dd{margin:0;text-align:right}.payslip dt,.payslip dd{overflow-wrap:anywhere}
+@media(max-width:600px){.payroll-table tr>:first-child{min-width:115px;max-width:140px}}
+@media print{body:has(.payslip) header,body:has(.payslip) nav,body:has(.payslip) button{display:none!important}.payslip{border:0;box-shadow:none;background:white;color:black}}
 /* UX5a: bộ chọn hàng gọn */
 .pick-box{display:grid;gap:8px;margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:12px}
 .pick-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;color:var(--muted)}

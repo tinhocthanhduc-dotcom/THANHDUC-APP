@@ -331,7 +331,14 @@ def month_days(session,user_id,month):
         return [_day(data,user_id,day) for day in _days(start,end)]
 
 
-def month_summary(session,user_id,month):return _total(month_days(session,user_id,month))
+def month_summary(session,user_id,month):
+    """Same day/total calculation; collections load one shared dataset for payroll."""
+    if isinstance(user_id,(list,tuple,set)):
+        start=month_day(_date(month));end=month_end(start)
+        with session.no_autoflush:
+            data=_dataset(session,user_id,start,end)
+            return {ident:_total([_day(data,ident,day) for day in _days(start,end)]) for ident in user_id}
+    return _total(month_days(session,user_id,month))
 
 
 def board(session,user,month):
