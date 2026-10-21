@@ -1,8 +1,8 @@
 {% extends 'base.jinja' %}
 {% block title %}Tiền tôi giữ{% endblock %}
 {% block main %}
-<h1>Tiền tôi giữ</h1>
-<section class="card"><h2>Tổng tiền mặt chờ xác nhận</h2><strong data-held-total>{{ held.total|money }} đồng</strong>
+<h1 class="tho-dup">Tiền tôi giữ</h1>
+<section class="card"><h2>Tổng tiền mặt chờ xác nhận</h2><strong class="tho-money" data-held-total>{{ held.total|money }} đồng</strong>
 <p>Chỉ gồm báo thu tiền mặt do bạn lập, đang chờ kế toán xác nhận. Chuyển khoản không tính vào tiền đang giữ.</p></section>
 <div class="work-rows">{% for row in held.rows %}<article class="card work-row" data-held-receipt="{{ row.id }}">
 <strong>{{ row.number }}</strong><span>{{ row.customer }}</span>

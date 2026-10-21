@@ -1,13 +1,19 @@
 {% extends 'base.jinja' %}
+{% set tones={'DA_GIAO':'info','DANG_LAM':'warn','CHO_LINH_KIEN':'warn','TAM_DUNG':'warn','HOAN_THANH':'ok','GIAO_DON':'info'} %}
+{% set weekdays=['Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy','Chủ Nhật'] %}
 {% block title %}Hôm nay{% endblock %}
-{% block main %}<div class="tho-screen"><h1>Hôm nay · {{ today.strftime('%d/%m/%Y') }}</h1>
-<p class="hint">{{ jobs|length }} việc đang mở của bạn</p>
-<div class="tho-jobs">{% for job in jobs %}<article class="card tho-job {% if job.overdue %}service-overdue{% endif %}" data-job="{{ job.kind }}:{{ job.id }}">
-<div class="bar"><a href="{{ job.href }}"><strong>{{ job.number }}</strong></a>{% if job.priority %}<span class="badge">{{ service_priorities[job.priority] }}</span>{% endif %}</div>
-<h2>{{ job.customer }}</h2>{% if job.appointment %}<p>{{ 'Quá giờ · ' if job.overdue else '' }}Hẹn {{ job.appointment|appointment_label(job.get('appointment_slot')) }}</p>{% elif job.overdue %}<p>Quá hạn xử lý</p>{% endif %}
-{% if job.address %}<p class="tho-one-line" title="{{ job.address }}">{{ job.address }}</p>{% endif %}
-{% if job.machine or job.serial %}<p class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</p>{% endif %}
-<p class="tho-one-line tho-symptom" title="{{ job.symptom }}">{{ job.symptom }}</p>
-<div class="tho-contact">{% if job.phone %}<a class="btn btn-info" href="tel:{{ job.phone }}">Gọi</a>{% endif %}{% if job.maps %}<a class="btn btn-ghost" href="{{ job.maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</div>
-{% if job.action %}<a class="btn primary btn-ok tho-job-next" href="{{ job.href }}{% if job.action.form %}#{{ job.action.form }}{% endif %}" data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}">{{ job.action.label }}</a>{% endif %}
-</article>{% else %}<p class="card">Bạn không có việc đang mở.</p>{% endfor %}</div></div>{% endblock %}
+{% block main %}<div class="tho-screen tho-list"><h1 class="tho-dup">Hôm nay · {{ today.strftime('%d/%m/%Y') }}</h1>
+<p class="tho-date">{{ weekdays[today.weekday()] }} {{ today.strftime('%d/%m') }} · {{ jobs|length }} việc đang mở</p>
+{% for group,label in [('active','Đang làm'),('upcoming','Sắp tới')] %}{% set rows=jobs|selectattr('group','equalto',group)|list %}{% if rows %}
+<h2 class="tho-grp">{{ label }}</h2>
+<div class="tho-jobs">{% for job in rows %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>
+<span class="cardtop"><span>{{ job.number }} · {% if job.overdue %}<span class="tho-late">{{ 'Quá giờ · ' if job.appointment else 'Quá hạn xử lý' }}</span>{% endif %}{% if job.appointment %}{{ job.appointment|appointment_label(job.get('appointment_slot')) }}{% elif not job.overdue %}Chưa hẹn{% endif %}</span><span class="tag tone-{{ tones.get(job.status,'mute') }}">{{ 'Giao hàng' if job.status=='GIAO_DON' else service_statuses[job.status] }}</span></span>
+<b>{{ job.customer }}</b>
+{% if job.address %}<span class="mu tho-one-line" title="{{ job.address }}">{{ job.address }}</span>{% endif %}
+<span class="tho-one-line tho-symptom" title="{{ job.symptom }}">{{ job.symptom }}</span>
+{% if job.machine or job.serial %}<span class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</span>{% endif %}
+{% if job.priority and job.priority!='THUONG' %}<span class="tag tone-bad" style="align-self:flex-start">{{ service_priorities[job.priority] }}</span>{% endif %}
+{% if job.created %}<span class="tho-created">Tạo {{ job.created|service_time }}</span>{% endif %}
+{% if job.action %}<span class="tho-next">Bấm để: {{ job.action.label }} ›</span>{% endif %}
+</a>{% endfor %}</div>{% endif %}{% endfor %}
+{% if not jobs %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}

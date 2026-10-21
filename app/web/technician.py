@@ -121,7 +121,8 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
         jobs.append(dict(kind='service',id=ticket.id,number=ticket.number,priority=ticket.priority,customer=customer.name,
             machine=machine or '',serial=ticket.serial or '',symptom=ticket.symptom,appointment=ticket.appointment_at,
             appointment_slot=ticket.appointment_slot, overdue=(ticket.status in ('DA_HEN','DA_NHAN') and ticket.appointment_at is not None and service_appointments.end(ticket.appointment_at,ticket.appointment_slot)<now) or (ticket.due_at is not None and ticket.due_at<now),
-            href=f'/tho/phieu/{ticket.id}',action=action['primary'] if action else None,
+            href=f'/tho/phieu/{ticket.id}',action=action['primary'] if action else None,status=ticket.status,created=ticket.created_at,
+            group='active' if ticket.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else 'upcoming',
             sort=_schedule(ticket.appointment_at,ticket.status,now),**contact(customer,site)))
     orders=session.scalars(select(SalesOrder).where(SalesOrder.delivery_assignee_id==user.id,SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))))
     for order in orders:
@@ -130,7 +131,7 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
         action=next_steps.delivery(session,user,order)
         jobs.append(dict(kind='delivery',id=order.id,number=order.number,priority='',customer=customer.name,machine='',serial='',
             symptom='Giao đơn bán',appointment=appointment,overdue=bool(order.promised_date and order.promised_date<now.astimezone(service_tickets.service_sla.TZ).date()),
-            href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))
+            href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],status='GIAO_DON',created=order.created_at,group='upcoming',sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))
     jobs.sort(key=lambda row:(row['sort'],row['kind'],row['id']))
     return render(request,'tho_hom_nay.jinja',jobs=jobs,today=now.astimezone(service_tickets.service_sla.TZ).date())
 

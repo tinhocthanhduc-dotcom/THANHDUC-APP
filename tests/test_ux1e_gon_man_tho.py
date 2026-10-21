@@ -96,7 +96,9 @@ def test_fee_suggestions_and_no_cost_in_technician_screens(client,db,job):
     p,_,t=job;db.add(Product(code='TD-9001',name='Vệ sinh máy',group_name='Dịch vụ',sale_price=540000));db.commit();service_login(client,p['technician'])
     html=client.get(f'/tho/phieu/{t.id}').text;assert 'data-fee-suggestion="540000"' in html and 'Vệ sinh máy' in html
     assert 'Chi phí vật tư' not in html and 'giá vốn' not in html and 'line_price' not in html and 'name="vat_' not in html
-    assert html.index('data-tech-collection')>html.index('Lịch sử')
+    # Thu tiền gom một chỗ, trước mục Trước khi hoàn thành (theo bản mẫu).
+    assert html.index('data-tech-collection')<html.index('id="completion-checks"')
+    assert 'form="service-complete" name="customer_amount"' in html
     assert 'form="service-complete" type="radio" name="collection_mode"' in html
     assert 'giá vốn' not in client.get('/tho').text
 

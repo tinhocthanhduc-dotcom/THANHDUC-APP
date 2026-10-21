@@ -55,7 +55,8 @@ def test_home_brand_and_minimal_menu(client,people):
     assert client.get('/',follow_redirects=False).headers['location']=='/tho'
     page=client.get('/tho');links=[a['href'] for tag,a,_ in Screen(page.text).tags if tag=='a' and 'data-nav-item' in a]
     assert links==['/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi']
-    assert next(a['href'] for tag,a,_ in Screen(page.text).tags if a.get('class')=='brand')=='/tho'
+    # Khung thợ: tab dưới thay cho logo; tab Hôm nay đang chọn.
+    assert 'class="tho-tabs"' in page.text and next(a['href'] for tag,a,_ in Screen(page.text).tags if a.get('aria-current')=='page')=='/tho'
     login(client,p,'dispatcher');assert client.get('/',follow_redirects=False).headers['location']=='/dieu-phoi'
 
 
@@ -63,7 +64,8 @@ def test_vietnam_appointment_order_overdue_and_unappointed_last(client,db,people
     p=people;late=ticket(db,p,'DA_HEN',appointment=NOW.replace(hour=14));early=ticket(db,p,'DA_HEN',appointment=NOW.replace(hour=9))
     working=ticket(db,p,'DANG_LAM');unscheduled=ticket(db,p,'DA_GIAO')
     login(client,p);page=client.get('/tho')
-    assert page.text.index(early.number)<page.text.index(late.number)<page.text.index(working.number)<page.text.index(unscheduled.number)
+    # Nhóm Đang làm lên đầu (theo bản mẫu), rồi Sắp tới theo giờ hẹn, chưa hẹn cuối.
+    assert page.text.index(working.number)<page.text.index(early.number)<page.text.index(late.number)<page.text.index(unscheduled.number)
     a=next(a for tag,a,_ in Screen(page.text).tags if a.get('data-job')==f'service:{early.id}')
     assert 'service-overdue' in a['class']
     assert '18/10/2026 09:00' in page.text
@@ -127,12 +129,13 @@ def test_contacts_maps_site_overrides_and_missing_hidden(client,db,people):
     p=people;customer=db.get(Customer,'KTD-000001');customer.address='58 Mã Lò, Hồ Chí Minh';customer.phones=[CustomerPhone(phone='0901234567')]
     site=CustomerSite(customer_code=customer.code,name='Văn phòng',address='12 Nguyễn Văn A, Q.1',contact_phone='+84 912 345 678',created_by=p['dispatcher'].id)
     db.add(site);db.commit();t=ticket(db,p,'DA_GIAO');t.site_id=site.id;db.commit()
-    login(client,p);page=client.get('/tho');links=[a.get('href','') for tag,a,_ in Screen(page.text).tags if tag=='a']
+    # Gọi / Chỉ đường nằm trong màn phiếu (thẻ ở Hôm nay bấm cả khối để mở phiếu).
+    login(client,p);page=client.get(f'/tho/phieu/{t.id}');links=[a.get('href','') for tag,a,_ in Screen(page.text).tags if tag=='a']
     assert 'tel:+84912345678' in links
     maps=next(href for href in links if href.startswith('https://www.google.com/maps/search/'))
     assert parse_qs(urlsplit(maps).query)=={'api':['1'],'query':[site.address]}
     t.site_id=None;customer.address='';customer.phones=[];db.commit()
-    page=client.get('/tho');links=[a.get('href','') for tag,a,_ in Screen(page.text).tags if tag=='a']
+    page=client.get(f'/tho/phieu/{t.id}');links=[a.get('href','') for tag,a,_ in Screen(page.text).tags if tag=='a']
     assert not any(link.startswith(('tel:','https://www.google.com/maps/')) for link in links)
 
 

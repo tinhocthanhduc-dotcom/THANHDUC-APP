@@ -130,6 +130,16 @@ def work_url(user):
                                        ('warehouse', '/phieu-kho')) if has_role(user, role)), '/viec-cua-toi')
 
 
+_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{}</svg>'
+# Biểu tượng tab dưới của màn thợ (SVG nét, không emoji).
+TAB_ICONS = {
+    '/tho': _ICON.format('<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path>'),
+    '/hang-toi-giu': _ICON.format('<path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10"></path>'),
+    '/tien-toi-giu': _ICON.format('<path d="M3 7h18v12H3zM3 11h18M16 15h2"></path>'),
+    '/thiet-bi': _ICON.format('<rect x="5" y="3" width="14" height="7" rx="1"></rect><path d="M3 10h18v8h-3M6 18H3v-8M7 14h10v7H7z"></path>'),
+}
+
+
 def menu(user, path, query=None):
     current = matching(path, query)
     groups = []
@@ -141,4 +151,4 @@ def menu(user, path, query=None):
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
-    return dict(groups=groups, roles=roles)
+    return dict(groups=groups, roles=roles, technician=pure_technician(user))

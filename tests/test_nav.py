@@ -59,7 +59,10 @@ def test_exact_menu_home_and_login_for_each_role(client, make_user, role):
     assert {a['href'] for a in links} == expected
     assert len(links) == len(expected)  # Không nhân đôi menu desktop/mobile.
     assert nav.ROLE_LABELS[role] in page.text and user.full_name in page.text
-    assert 'data-web-menu' in page.text and '>Menu</summary>' in page.text
+    if role == 'technician':  # Khung thợ: tab dưới, không có Menu thả xuống.
+        assert 'class="tho-tabs"' in page.text and 'data-web-menu' not in page.text
+    else:
+        assert 'data-web-menu' in page.text and '>Menu</summary>' in page.text
 
 
 @pytest.mark.parametrize('roles,home', [

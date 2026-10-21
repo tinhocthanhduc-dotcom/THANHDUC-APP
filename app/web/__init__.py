@@ -55,6 +55,7 @@ templates.env.filters['qty'] = quantity
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals["web_navigation"] = nav.menu
+templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
