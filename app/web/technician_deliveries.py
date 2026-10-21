@@ -1,5 +1,6 @@
 """S4: màn hình giao đơn riêng; không mở menu đơn bán cho thợ."""
 import re
+from decimal import Decimal
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
@@ -32,10 +33,33 @@ def context(session,user,order):
     return state
 
 
+def tho_lines(order,ctx):
+    # UX5c: thợ giao từng dòng; số mặc định = min(còn giao, đang giữ cho dòng), giá đã gồm VAT để tự tính tiền cần thu.
+    rows=[]
+    for line in order.lines:
+        remaining=ctx['remaining'][line.line_no]['remaining']
+        held=sum((r.qty for r in ctx['held'] if r.order_line_id==line.line_no),Decimal(0))
+        if remaining<=0:continue
+        gross=(line.amount+line.vat_amount)/line.qty if line.qty else 0
+        rows.append(dict(line_no=line.line_no,code=line.product_code or '',name=line.description,unit=line.unit,remaining=remaining,held=held,
+            qty=min(remaining,held),unit_gross=float(gross)))
+    return rows
+
+
 def page(request,session,user,order,raw=None,error=None,code='',status=200):
     shipments=sales_orders.deliveries(session,order.id)
     photos={gh.id:attachments.list_for(session,user,'sales_delivery',str(gh.id)) for gh in shipments}
-    return render(request,'giao_don.jinja',technician_view=('technician' in user.roles and order.delivery_assignee_id==user.id and (request.query_params.get('return_to')=='tho' or getattr(request.state,'technician_return',False))),**context(session,user,order),shipments=shipments,photos=photos,
+    technician_view=('technician' in user.roles and order.delivery_assignee_id==user.id and (request.query_params.get('return_to')=='tho' or getattr(request.state,'technician_return',False)))
+    ctx=context(session,user,order)
+    if technician_view and ctx['is_assignee']:
+        from .technician import contact
+        lines=tho_lines(order,ctx)
+        available=ctx['balance']['available']
+        full=all(row['qty']>=row['remaining'] for row in lines)
+        suggested=available if full else min(available,round(sum(float(row['qty'])*row['unit_gross'] for row in lines)))
+        return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,
+            raw=raw or {},error=error,error_code=code,status=status,**contact(ctx['customer'],address=order.delivery_address))
+    return render(request,'giao_don.jinja',technician_view=technician_view,**ctx,shipments=shipments,photos=photos,
         raw=raw or {},error=error,error_code=code,status=status)
 
 
@@ -64,7 +88,8 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
         elif action=='report':
             sales_receipts.report(session,user,order_id,_report_body(form,raw))
         elif action=='deliver':
-            receipt=_report_body(form,raw) if str(form.get('amount','')).strip() else None
+            # UX5c: thợ chọn Chưa thu thì bỏ qua số tiền điền sẵn.
+            receipt=_report_body(form,raw) if str(form.get('amount','')).strip() and form.get('collect')!='NO' else None
             body=TechnicianDeliveryIn(version=version,lines=lines,receiver_name=form.get('receiver_name',''),note=form.get('note',''),receipt=receipt)
             uploads=[p for p in form.getlist('photos') if getattr(p,'filename',None)]
             if len(uploads)>10:raise BusinessError('FILE_TOO_LARGE','Mỗi lần giao tối đa 10 ảnh.')
