@@ -1,20 +1,11 @@
 {% extends "base.jinja" %}
 {% block title %}Điều phối{% endblock %}
-{% block main %}
-<section class="card"><h2>Đơn bán chờ giao thợ</h2>{% for order in delivery_orders %}<p><a href="/giao-don/{{ order.id }}">{{ order.number }}</a> · {{ delivery_labels[order.id] }} · {{ order.delivery_address }}</p>{% else %}<p>Không có đơn bán chờ giao thợ.</p>{% endfor %}</section>
+{% block main %}<div class="stock-page doc-page">
 <div class="bar"><h1>Điều phối</h1><a class="btn" href="/dieu-phoi/bao-cao">Báo cáo dịch vụ</a></div>
-<div class="dispatch-tiles"><a class="card" href="/dieu-phoi?view=deferred"><strong>{{ count_deferred }}</strong><span>Khách hẹn lần sau</span></a>
-<a class="card {% if view == 'open' %}on{% endif %}" href="/dieu-phoi?view=open"><strong>{{ count_open }}</strong><span>Đơn đang mở</span></a>
-<a class="card {% if view == 'overdue' %}on{% endif %}" href="/dieu-phoi?view=overdue"><strong>{{ count_overdue }}</strong><span>Đơn quá hạn</span></a>
-<a class="card {% if view == 'parts' %}on{% endif %}" href="/dieu-phoi?view=parts"><strong>{{ count_parts }}</strong><span>Chờ linh kiện</span></a>
-<a class="card {% if view == 'paused' %}on{% endif %}" href="/dieu-phoi?view=paused"><strong>{{ count_paused }}</strong><span>Tạm dừng</span></a>
-</div>
-<h2>{{ title }}</h2>
-<ul class="list service-list">
-{% for t in rows %}<li {% if t.due_at and t.due_at < now %}class="service-overdue"{% endif %}><a href="/dich-vu/{{ t.id }}">
-  <span class="code">{{ t.number }}</span><strong>{{ service_statuses[t.status] }}</strong>{% if visit_counts.get(t.id,0) >= 3 and t.status not in ['HOAN_THANH','DA_DONG','KHACH_HEN_SAU'] %}<span class="badge">Đi nhiều lần</span>{% endif %}{% if t.hold_reason %}<span>Lý do: {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</span>{% endif %}
-  <span>{{ users.get(t.assignee_id, 'Chưa giao') }}{% if t.assignee_id %} · {{ open_counts.get(t.assignee_id, 0) }} việc đang mở{% endif %}</span>
-  <span class="meta">{% if t.appointment_at %}Hẹn: {{ t.appointment_at|appointment_label(t.appointment_slot) }} · {% endif %}{% if t.due_at and t.due_at < now %}{{ delay(t.due_at, now) }} · {% endif %}Hạn: {{ t.due_at|service_time }}</span>
-</a>{% if t.status=='KHACH_HEN_SAU' %}<a class="btn" href="/dich-vu/moi?tiep_theo={{ t.id }}">Tạo phiếu tiếp</a>{% endif %}</li>{% else %}<li class="empty">Không có đơn phù hợp.</li>{% endfor %}
-</ul>
-{% endblock %}
+<nav class="stock-tiles dispatch-tiles" aria-label="Nhóm đơn">{% for key,count,label in [('open',count_open,'Đơn đang mở'),('overdue',count_overdue,'Đơn quá hạn'),('parts',count_parts,'Chờ linh kiện'),('paused',count_paused,'Tạm dừng'),('deferred',count_deferred,'Khách hẹn lần sau')] %}<a class="stock-tile{% if view == key %} on{% endif %}{% if key=='overdue' and count %} tile-bad{% endif %}" href="/dieu-phoi?view={{ key }}"{% if view == key %} aria-current="page"{% endif %}><strong>{{ count }}</strong><span>{{ label }}</span></a>{% endfor %}</nav>
+{% if delivery_orders %}<section class="card doc-list dispatch-deliveries"><h2>Đơn bán chờ giao thợ · {{ delivery_orders|length }}</h2>{% for order in delivery_orders %}<a class="doc-row" href="/giao-don/{{ order.id }}"><b class="code">{{ order.number }}</b><strong class="doc-who">{{ order.delivery_address or 'Chưa có địa chỉ giao' }}</strong><span class="doc-state"><span class="stock-chip">{{ delivery_labels[order.id] }}</span></span></a>{% endfor %}</section>{% else %}<p class="hint">Đơn bán chờ giao thợ: không có.</p>{% endif %}
+<h2 class="overview-label">{{ title }}</h2>
+<section class="card doc-list svc-list dispatch-list">
+{% for t in rows %}{% set late = t.due_at and t.due_at < now %}<div class="doc-row svc-{{ t.status|lower }}{% if late %} service-overdue{% endif %}"><a href="/dich-vu/{{ t.id }}" class="code">{{ t.number }}</a><strong class="doc-who"><a href="/dich-vu/{{ t.id }}">{{ users.get(t.assignee_id, 'Chưa giao') }}</a>{% if t.assignee_id %} <small class="hint">· {{ open_counts.get(t.assignee_id, 0) }} việc đang mở</small>{% endif %}</strong><span class="doc-state"><span class="stock-chip">{{ service_statuses[t.status] }}</span>{% if visit_counts.get(t.id,0) >= 3 and t.status not in ['HOAN_THANH','DA_DONG','KHACH_HEN_SAU'] %}<span class="badge">Đi nhiều lần</span>{% endif %}</span><span class="meta">{% if t.appointment_at %}Hẹn: {{ t.appointment_at|appointment_label(t.appointment_slot) }} · {% endif %}{% if late %}<b class="doc-bad">{{ delay(t.due_at, now) }}</b> · {% endif %}Hạn: {{ t.due_at|service_time }}</span><span class="meta">{% if t.hold_reason %}Lý do: {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}{% endif %}{% if t.status=='KHACH_HEN_SAU' %} <a class="btn btn-ghost" href="/dich-vu/moi?tiep_theo={{ t.id }}">Tạo phiếu tiếp</a>{% endif %}</span></div>{% else %}<p class="empty">Không có đơn phù hợp.</p>{% endfor %}
+</section>
+</div>{% endblock %}
