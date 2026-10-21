@@ -1,6 +1,6 @@
 """B4/T3: báo thu DB/DV; khóa chứng từ nguồn trước BT, ghi PT/đảo trong cùng transaction."""
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, literal, union_all, case
@@ -56,19 +56,22 @@ def _sums():
 
 
 
-def totals(model=SalesOrder):
+def totals(model=SalesOrder, *, as_of=None):
     """Nguồn duy nhất cho đã thu thuần: BT xác nhận trừ HT đã chi; DV giữ cách cũ."""
+    receipt_window = () if as_of is None else (SalesReceipt.decided_at < as_of,
+        SalesReceipt.received_at < as_of.astimezone(TZ).date() if as_of.astimezone(TZ).time() == time.min else SalesReceipt.received_at <= as_of.astimezone(TZ).date())
+    refund_window = () if as_of is None else (SalesRefund.decided_at < as_of,)
     if model is not SalesOrder:
         paid,pending=_sums()
         return select(SalesReceipt.ticket_id.label('parent_id'),paid.label('paid'),pending.label('pending'),
-            literal(0).label('refunded')).where(SalesReceipt.ticket_id.is_not(None)).group_by(SalesReceipt.ticket_id).subquery()
+            literal(0).label('refunded')).where(SalesReceipt.ticket_id.is_not(None), *receipt_window).group_by(SalesReceipt.ticket_id).subquery()
     events=union_all(
         select(SalesReceipt.order_id.label('parent_id'),
             case((SalesReceipt.status=='DA_XAC_NHAN',SalesReceipt.amount),else_=0).label('paid'),
             case((SalesReceipt.status=='CHO_XAC_NHAN',SalesReceipt.amount),else_=0).label('pending'),literal(0).label('refunded'))
-            .where(SalesReceipt.order_id.is_not(None)),
+            .where(SalesReceipt.order_id.is_not(None), *receipt_window),
         select(SalesRefund.order_id,-SalesRefund.amount,literal(0),SalesRefund.amount)
-            .where(SalesRefund.order_id.is_not(None),SalesRefund.status=='DA_CHI')).subquery()
+            .where(SalesRefund.order_id.is_not(None),SalesRefund.status=='DA_CHI', *refund_window)).subquery()
     return select(events.c.parent_id,*[func.sum(events.c[k]).label(k) for k in ('paid','pending','refunded')]).group_by(events.c.parent_id).subquery()
 
 

@@ -127,17 +127,12 @@ def _sources(month, keys=None):
         where r.status='DA_NHAN' and coalesce(l.received_condition,l.condition)='HU_HONG'
         and r.received_at>=:lo and r.received_at<:hi group by r.id""")
     # Reuse the exact sales/returns and ledger-cost projection used by gross_margin.
-    docs,cost=purchase_reports._margin_sources(month,min(end,params['last']))
     sql=lambda q:str(q.compile(dialect=postgresql.dialect(),compile_kwargs={'literal_binds':True}))
-    documents=sql(select(docs)); costs=sql(select(cost.c.kind,cost.c.id,func.sum(cost.c.cost).label('cost')).group_by(cost.c.kind,cost.c.id))
-    margin_from=f"""from ({documents}) d
-        left join sales_deliveries g on d.kind='GH' and g.id=d.id
-        left join sales_returns r on d.kind='TH' and r.id=d.id
-        join sales_orders o on o.id=coalesce(g.order_id,r.order_id)
-        where d.kind in ('GH','TH') and o.status<>'DA_HUY' and coalesce(g.delivered_at,r.returned_at)<:hi and :hi>:lo"""
-    add('kd_doanh_thu','o.created_by','d.number',"d.day::timestamp at time zone 'Asia/Ho_Chi_Minh'",'d.revenue',margin_from)
-    add('kd_lai_gop','o.created_by','d.number',"d.day::timestamp at time zone 'Asia/Ho_Chi_Minh'",'d.revenue-coalesce(c.cost,0)',
-        margin_from.replace("where d.kind",f"left join ({costs}) c on c.kind=d.kind and c.id=d.id where d.kind"))
+    revenue=sql(sales_margin_sources(month,min(end,params['last']),as_of=hi,financial=False))
+    margin=sql(sales_margin_sources(month,min(end,params['last']),as_of=hi))
+    for key,query,column in (('kd_doanh_thu',revenue,'revenue'),('kd_lai_gop',margin,'profit')):
+        add(key,'d.owner','d.number',"d.day::timestamp at time zone 'Asia/Ho_Chi_Minh'",'d.'+column,
+            'from ('+query+') d where :hi>:lo')
     add('kd_bao_gia_thanh_don','q.created_by','q.number','a.sent_at',
         "case when q.status='CHAP_NHAN' or exists(select 1 from sales_orders o where o.quote_id=q.id and o.status<>'DA_HUY') then 1 else 0 end",
         """from quotes q join (select entity_id,min(at) sent_at from audit_log where entity='quote' and action='quote.send' group by entity_id) a on a.entity_id=q.id::text
@@ -277,3 +272,26 @@ def save_targets(session,user,month,changes,*,copy=False):
             audit.record(session,user,'kpi.target','kpi_target',str(row.id),before,
                 dict(month=month.isoformat(),user_id=uid,metric_key=key,target=str(value),version=row.version))
     return targets(session,month)
+
+
+def sales_margin_sources(start, end, *, as_of=None, financial=True):
+    """Shared sales document projection for KPI/commission, using gross_margin's ledger links.
+
+    financial=False does not query cost columns at all (self-service sales KPI).
+    """
+    from sqlalchemy import and_, case
+    from .models import SalesDelivery, SalesOrder, SalesReturn
+    documents,costs=purchase_reports._margin_sources(start,end)
+    columns=[documents.c.kind,documents.c.id,documents.c.number,documents.c.day,
+             SalesOrder.id.label('order_id'),SalesOrder.created_by.label('owner'),documents.c.revenue,
+             case((documents.c.kind=='GH',SalesDelivery.total),else_=-SalesReturn.total).label('receivable')]
+    query=select(*columns).select_from(documents).outerjoin(SalesDelivery,and_(documents.c.kind=='GH',documents.c.id==SalesDelivery.id))\
+        .outerjoin(SalesReturn,and_(documents.c.kind=='TH',documents.c.id==SalesReturn.id))\
+        .join(SalesOrder,SalesOrder.id==func.coalesce(SalesDelivery.order_id,SalesReturn.order_id))\
+        .where(documents.c.kind.in_(('GH','TH')),SalesOrder.status!='DA_HUY')
+    if as_of is not None:query=query.where(func.coalesce(SalesDelivery.delivered_at,SalesReturn.returned_at)<as_of)
+    if financial:
+        cost=select(costs.c.kind,costs.c.id,func.sum(costs.c.cost).label('cost')).group_by(costs.c.kind,costs.c.id).subquery()
+        query=query.outerjoin(cost,and_(cost.c.kind==documents.c.kind,cost.c.id==documents.c.id))
+        query=query.add_columns(func.coalesce(cost.c.cost,0).label('cost'),(documents.c.revenue-func.coalesce(cost.c.cost,0)).label('profit'))
+    return query

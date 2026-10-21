@@ -1,0 +1,2 @@
+{% extends 'base.jinja' %}{% from '_commissions.jinja' import month_filter,documents %}
+{% block title %}Hoa hồng của tôi{% endblock %}{% block main %}<h1>Hoa hồng của tôi</h1>{{ month_filter(month) }}<p><strong>{{ 'Đã khóa' if locked else 'Nháp' }} · {{ month.strftime('%m/%Y') }}</strong></p><p class="commission-total">Tổng tháng: {{ total|money }} đồng</p><p>Chỉ tính phần khách đã trả và kế toán đã xác nhận. Số nháp có thể thay đổi cho tới khi khóa tháng.</p>{{ documents(rows) }}{% endblock %}

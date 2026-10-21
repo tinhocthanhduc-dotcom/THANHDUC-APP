@@ -31,8 +31,11 @@ for entries in EXPECTED.values():
     entries.add('/cham-cong')
 for role in ('technician','sales','dispatcher','warehouse','finance'):
     EXPECTED[role].add('/kpi')
-EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan-su','/cham-cong/duyet','/cham-cong/ngay-le','/kpi/tong','/kpi/muc-tieu'}  # UI0: trang mẫu giao diện, chỉ giám đốc
-EXPECTED['director'].discard('/kpi')
+for role in ('sales','technician'):
+    EXPECTED[role].add('/hoa-hong')
+EXPECTED['finance'].add('/hoa-hong/thang')
+EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan-su','/cham-cong/duyet','/cham-cong/ngay-le','/kpi/tong','/kpi/muc-tieu','/hoa-hong/thang','/hoa-hong/quy-tac'}  # UI0: trang mẫu giao diện, chỉ giám đốc
+EXPECTED['director'].difference_update(('/kpi','/hoa-hong'))
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
          'warehouse': '/viec-cua-toi'}
@@ -84,7 +87,7 @@ def test_multi_role_union_and_home_priority(client, make_user, roles, home):
     assert client.get('/', follow_redirects=False).headers['location'] == home
     links = Menu(client.get(home).text).links
     expected=set().union(*(EXPECTED[r] for r in roles))
-    if 'director' in roles:expected.discard('/kpi')
+    if 'director' in roles:expected.difference_update(('/kpi','/hoa-hong'))
     assert {a['href'] for a in links} == expected
 
 
