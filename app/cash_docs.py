@@ -100,6 +100,8 @@ def _draft(doc):
 
 
 def check_source(doc):
+    if doc.source_type in ('PAYROLL_LINE','SALARY_ADVANCE'):
+        raise BusinessError('SOURCE_LOCKED','Phiếu chi lương/tạm ứng gắn hồ sơ bất biến, không sửa hoặc hủy riêng. Điều chỉnh ở kỳ sau.',status=409)
     if doc.source_type=='SALES_REFUND':
         raise BusinessError('SOURCE_LOCKED','Phiếu chi hoàn tiền gắn đề nghị hoàn, không được sửa hoặc hủy riêng.',status=409)
     if doc.source_type=='SUPPLIER_PAYMENT':
@@ -163,6 +165,8 @@ def insert(session,user,body: CashDocIn):
 
 def create(session,user,body: CashDocIn):
     check_writer(user)
+    if body.source_type in ('PAYROLL_LINE','SALARY_ADVANCE'):
+        raise BusinessError('SOURCE_LOCKED','Phiếu chi lương/tạm ứng phải tạo từ hồ sơ nguồn.',status=409)
     if body.source_type=='SALES_REFUND':
         raise BusinessError('SOURCE_LOCKED','Hoàn tiền phải được duyệt từ đề nghị hoàn.',status=409)
     with _transaction(session):

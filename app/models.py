@@ -780,9 +780,9 @@ class CashCategory(Base):
 class FinanceMapping(Base):
     __tablename__ = 'finance_mappings'
     __table_args__ = (
-        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN')", name='ck_finance_mappings_key'),
+        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG')", name='ck_finance_mappings_key'),
         CheckConstraint("(key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN') and category_code is null) or "
-                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN') and fund_code is null)", name='ck_finance_mappings_target'),
+                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG') and fund_code is null)", name='ck_finance_mappings_target'),
     )
     key: Mapped[str] = mapped_column(String(32), primary_key=True)
     fund_code: Mapped[str | None] = mapped_column(ForeignKey('funds.code'))
@@ -1678,3 +1678,87 @@ class CommissionLine(Base):
     note: Mapped[str] = mapped_column(Text,default='')
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),server_default=func.now())
+
+
+class PayrollInput(Base):
+    __tablename__='payroll_inputs'
+    __table_args__=(CheckConstraint('extract(day from month)=1',name='ck_payroll_input_month'),
+        CheckConstraint('bonus>=0 and social_insurance>=0 and income_tax>=0 and other_deduction>=0',name='ck_payroll_input_values'))
+    month: Mapped[date]=mapped_column(Date,primary_key=True)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'),primary_key=True)
+    bonus: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    social_insurance: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    income_tax: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    other_deduction: Mapped[int]=mapped_column(BigInteger,default=0,server_default='0')
+    note: Mapped[str]=mapped_column(Text,default='',server_default='')
+    version: Mapped[int]=mapped_column(Integer,default=1,server_default='1')
+    updated_by: Mapped[int]=mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    __mapper_args__={'version_id_col':version}
+
+
+class PayrollMonth(Base):
+    __tablename__='payroll_months'
+    __table_args__=(CheckConstraint('extract(day from month)=1',name='ck_payroll_month_first'),)
+    month: Mapped[date]=mapped_column(Date,primary_key=True)
+    approved_by: Mapped[int]=mapped_column(ForeignKey('users.id'))
+    approved_at: Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    total_net: Mapped[int]=mapped_column(BigInteger)
+
+
+class PayrollLine(Base):
+    __tablename__='payroll_lines'
+    __table_args__=(UniqueConstraint('month','employee_id',name='uq_payroll_line_employee'),
+        CheckConstraint('extract(day from month)=1',name='ck_payroll_line_month'),
+        CheckConstraint('net>=0 and cong>=0',name='ck_payroll_line_values'),
+        CheckConstraint('gross=base_pay+allowances+commission+bonus',name='ck_payroll_line_gross'),
+        CheckConstraint('net=gross-advance-social_insurance-income_tax-other_deduction',name='ck_payroll_line_net'),
+        CheckConstraint("(paid_at is null and paid_by is null and cash_doc_id is null) or (paid_at is not null and paid_by is not null and ((net=0 and cash_doc_id is null) or (net>0 and cash_doc_id is not null)))",name='ck_payroll_line_paid'))
+    id: Mapped[int]=mapped_column(BigInteger,primary_key=True)
+    month: Mapped[date]=mapped_column(Date)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'))
+    user_id: Mapped[int]=mapped_column(ForeignKey('users.id'))
+    salary_version_id: Mapped[int]=mapped_column(ForeignKey('employee_salary_versions.id'))
+    base_salary: Mapped[int]=mapped_column(BigInteger)
+    standard_days: Mapped[Decimal]=mapped_column(Numeric(4,1))
+    cong: Mapped[Decimal]=mapped_column(Numeric(5,1))
+    base_pay: Mapped[int]=mapped_column(BigInteger)
+    allowances: Mapped[int]=mapped_column(BigInteger)
+    commission: Mapped[int]=mapped_column(BigInteger)
+    bonus: Mapped[int]=mapped_column(BigInteger)
+    advance: Mapped[int]=mapped_column(BigInteger)
+    social_insurance: Mapped[int]=mapped_column(BigInteger)
+    income_tax: Mapped[int]=mapped_column(BigInteger)
+    other_deduction: Mapped[int]=mapped_column(BigInteger)
+    gross: Mapped[int]=mapped_column(BigInteger)
+    net: Mapped[int]=mapped_column(BigInteger)
+    note: Mapped[str]=mapped_column(Text,default='')
+    paid_at: Mapped[datetime | None]=mapped_column(DateTime(timezone=True))
+    paid_by: Mapped[int | None]=mapped_column(ForeignKey('users.id'))
+    cash_doc_id: Mapped[int | None]=mapped_column(ForeignKey('cash_docs.id'),unique=True)
+
+
+class SalaryAdvance(Base):
+    __tablename__='salary_advances'
+    __table_args__=(CheckConstraint('amount>0',name='ck_salary_advance_amount'),
+        CheckConstraint("status in ('CHO_DUYET','DA_DUYET','TU_CHOI','DA_HUY','DA_CHI')",name='ck_salary_advance_status'),
+        CheckConstraint("length(trim(reason))>0",name='ck_salary_advance_reason'),
+        CheckConstraint("(status='DA_CHI' and cash_doc_id is not null and paid_at is not null and paid_by is not null) or (status<>'DA_CHI' and cash_doc_id is null and paid_at is null and paid_by is null and payroll_line_id is null)",name='ck_salary_advance_paid'),
+        Index('ix_salary_advance_user_status','user_id','status'))
+    id: Mapped[int]=mapped_column(BigInteger,primary_key=True)
+    number: Mapped[str]=mapped_column(String(32),unique=True)
+    user_id: Mapped[int]=mapped_column(ForeignKey('users.id'))
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'))
+    amount: Mapped[int]=mapped_column(BigInteger)
+    reason: Mapped[str]=mapped_column(Text)
+    status: Mapped[str]=mapped_column(String(16),default='CHO_DUYET')
+    requested_at: Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[int | None]=mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None]=mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str]=mapped_column(Text,default='')
+    paid_by: Mapped[int | None]=mapped_column(ForeignKey('users.id'))
+    paid_at: Mapped[datetime | None]=mapped_column(DateTime(timezone=True))
+    cash_doc_id: Mapped[int | None]=mapped_column(ForeignKey('cash_docs.id'),unique=True)
+    payroll_line_id: Mapped[int | None]=mapped_column(ForeignKey('payroll_lines.id'))
+    version: Mapped[int]=mapped_column(Integer,default=1,server_default='1')
+    __mapper_args__={'version_id_col':version}

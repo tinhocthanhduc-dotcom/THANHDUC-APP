@@ -33,8 +33,8 @@ for role in ('technician','sales','dispatcher','warehouse','finance'):
     EXPECTED[role].add('/kpi')
 for role in ('sales','technician'):
     EXPECTED[role].add('/hoa-hong')
-EXPECTED['finance'].add('/hoa-hong/thang')
-EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan-su','/cham-cong/duyet','/cham-cong/ngay-le','/kpi/tong','/kpi/muc-tieu','/hoa-hong/thang','/hoa-hong/quy-tac'}  # UI0: trang mẫu giao diện, chỉ giám đốc
+EXPECTED['finance'].update(('/hoa-hong/thang','/luong/chi'))
+EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan-su','/cham-cong/duyet','/cham-cong/ngay-le','/kpi/tong','/kpi/muc-tieu','/hoa-hong/thang','/hoa-hong/quy-tac','/luong','/luong/chi'}  # UI0: trang mẫu giao diện, chỉ giám đốc
 EXPECTED['director'].difference_update(('/kpi','/hoa-hong'))
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',

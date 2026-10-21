@@ -186,6 +186,11 @@ def add_salary(session,actor,employee_id,data):
 
 def salary_on(session,employee_id,day):
     """Internal payroll lookup (NS5). Never expose through a public route/context."""
+    if isinstance(employee_id,(list,tuple,set)):
+        with session.no_autoflush:
+            return {r.employee_id:r for r in session.scalars(select(Salary).where(Salary.employee_id.in_(employee_id),
+                Salary.replaced_at.is_(None),Salary.effective_from<=day).distinct(Salary.employee_id)
+                .order_by(Salary.employee_id,Salary.effective_from.desc(),Salary.id.desc()))}
     with session.no_autoflush:
         return session.scalar(select(Salary).where(Salary.employee_id==employee_id,Salary.replaced_at.is_(None),Salary.effective_from<=day)
                               .order_by(Salary.effective_from.desc(),Salary.id.desc()).limit(1))

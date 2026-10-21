@@ -99,6 +99,8 @@ def web_user(request: Request, session: Session = Depends(get_session)) -> User:
     user = session.get(User, user_id)
     if not user or not user.active or type(payload.get("tv")) is not int or payload["tv"]!=user.token_version:
         raise LoginRequired(target)
+    from ..models import Employee
+    request.state.payroll_account = not ('admin' in user.roles and 'director' not in user.roles) and session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None
     request.state.user = user
     request.state.csrf = csrf_token(token)
     if user.must_change_password and request.url.path not in ("/doi-mat-khau","/dang-xuat"):
@@ -679,3 +681,6 @@ router.include_router(kpi_router)
 
 from .commissions import router as commissions_router
 router.include_router(commissions_router)
+
+from .payroll import router as payroll_router
+router.include_router(payroll_router)

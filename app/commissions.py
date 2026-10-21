@@ -229,6 +229,10 @@ def lock(session,user,month):
 
 def month_total(session,user_id,month):
     month=_period(month)[0]
+    if isinstance(user_id,(list,tuple,set)):
+        values=dict(session.execute(select(Line.user_id,func.sum(Line.amount)).join(Month,Month.month==Line.month)
+            .where(Line.user_id.in_(user_id),Line.month==month).group_by(Line.user_id)).all())
+        return {ident:int(values.get(ident,0)) for ident in user_id}
     return int(session.scalar(select(func.coalesce(func.sum(Line.amount),0)).join(Month,Month.month==Line.month)
                               .where(Line.user_id==user_id,Line.month==month)))
 

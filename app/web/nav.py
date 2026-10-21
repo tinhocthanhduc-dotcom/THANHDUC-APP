@@ -66,6 +66,8 @@ GROUPS = (
 # Tài khoản có phạm vi riêng: quyền giám đốc ở menu nghiệp vụ không bao gồm quản trị.
 ACCOUNT_GROUPS = (
     {'label': 'Quản trị', 'items': (
+        {'label': 'Bảng lương', 'href': '/luong', 'prefixes': ('/luong',), 'roles': ('director',), 'payroll_page': True},
+        {'label': 'Chi lương', 'href': '/luong/chi', 'prefixes': ('/luong/chi',), 'roles': ('finance',), 'payroll_page': True},
         {'label': 'Hoa hồng tháng', 'href': '/hoa-hong/thang', 'prefixes': ('/hoa-hong/thang',), 'roles': ('finance',)},
         {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
         {'label': 'KPI tổng', 'href': '/kpi/tong', 'prefixes': ('/kpi/tong',), 'roles': ('director',)},
@@ -76,6 +78,8 @@ ACCOUNT_GROUPS = (
         {'label': 'Nhân sự', 'href': '/nhan-su', 'prefixes': ('/nhan-su',), 'roles': ('admin','director')},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
+        {'label': 'Phiếu lương', 'href': '/phieu-luong', 'prefixes': ('/phieu-luong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},
+        {'label': 'Tạm ứng', 'href': '/tam-ung', 'prefixes': ('/tam-ung',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},
         {'label': 'Hồ sơ của tôi', 'href': '/ho-so-cua-toi', 'prefixes': ('/ho-so-cua-toi',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
         {'label': 'Đổi mật khẩu', 'href': '/doi-mat-khau', 'prefixes': ('/doi-mat-khau',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
     )},
@@ -119,6 +123,7 @@ def matching(path, query=None):
 
 def allowed(user, path, query=None):
     item = matching(path, query)
+    if item and item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles:return False
     return item is not None and (not item.get('technician_page') or 'technician' in user.roles) and has_role(user, *item['roles'])
 
 
@@ -159,7 +164,7 @@ def menu(user, path, query=None):
         links = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
         groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in links], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and not item.get('account_page') and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
