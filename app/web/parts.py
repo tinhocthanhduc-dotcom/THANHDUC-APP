@@ -53,8 +53,19 @@ def pick(request: Request, ticket_id: int, q: str = '', user: User = Depends(web
 def create(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
     from .services import _detail, _message, _version
     data = {k: str(form.get(k, '')) for k in ('version', 'product_code', 'qty', 'reason')}
+    codes = [str(v).strip() for v in form.getlist('product_code')]
+    qtys = [str(v).strip() for v in form.getlist('qty')]
+    # UX5b: nhiều dòng mã + số lượng; dòng trống (ô tìm khi không có JS) bị bỏ qua.
+    pairs = [(c, q) for c, q in zip(codes, qtys) if c] if len(codes) == len(qtys) else []
+    names = {p.code: p.name for p in session.scalars(select(Product).where(Product.code.in_([c for c, _ in pairs])))} if pairs else {}
+    data['lines'] = [(c, q, names.get(c, '')) for c, q in pairs]
     try:
-        svc.create(session, request.state.user, ticket_id, PartRequestIn(**{**data, 'version': _version(form), 'qty': data['qty'].replace(',', '.')}))
+        if len(codes) != len(qtys):
+            raise BusinessError('BAD_LINES', 'Danh sách linh kiện không hợp lệ, hãy tải lại trang.')
+        version = _version(form)
+        bodies = [PartRequestIn(version=version, product_code=c, qty=q.replace(',', '.'), reason=data['reason']) for c, q in pairs] or \
+            [PartRequestIn(version=version, product_code=data['product_code'], qty=data['qty'].replace(',', '.'), reason=data['reason'])]
+        svc.create_many(session, request.state.user, ticket_id, version, bodies)
     except (BusinessError, ValidationError) as exc:
         message, code, status = _message(exc)
         if code in ('FORBIDDEN', 'NOT_FOUND'):
