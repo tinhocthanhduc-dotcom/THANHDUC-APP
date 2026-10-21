@@ -31,3 +31,24 @@
   var order=document.querySelector('[data-purchase-order]');
   if (order) order.addEventListener('submit',function(event){if(dirty){event.preventDefault();var warning=form.querySelector('[data-purchase-warning]');warning.hidden=false;warning.textContent='Có thay đổi chưa lưu. Bấm Lưu đơn mua trước khi Đặt hàng.';warning.scrollIntoView({block:'center'});}});
 })();
+// Khuôn 5: màn nhận hàng. Nhận đủ / về 0 và dòng tóm tắt trên nút ghi sổ.
+(function() {
+  var form=document.querySelector('[data-purchase-receive]'); if (!form) return;
+  var inputs=Array.prototype.slice.call(form.querySelectorAll('[data-recv-left]')), summary=form.querySelector('[data-recv-summary]');
+  function num(text){ return Number(String(text||'').replace(',','.')); }
+  function update() {
+    var lines=0, over=0;
+    inputs.forEach(function(input){
+      var v=num(input.value), bad=isNaN(v)||v<0||v>num(input.dataset.recvLeft);
+      input.closest('[data-recv-line]').classList.toggle('field-invalid',bad);
+      if (bad) over++; else if (v>0) lines++;
+    });
+    if (summary) summary.textContent=over?over+' dòng có số lượng sai hoặc vượt số còn lại.':(lines?'Ghi sổ phiếu nhập cho '+lines+' dòng.':'Chưa nhập số lượng nào.');
+  }
+  form.addEventListener('input',update);
+  form.addEventListener('click',function(event){
+    var fill=event.target.closest('[data-recv-fill]'), zero=event.target.closest('[data-recv-zero]'); if (!fill&&!zero) return;
+    inputs.forEach(function(input){ input.value=fill?input.dataset.recvLeft:'0'; });update();
+  });
+  update();
+})();
