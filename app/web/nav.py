@@ -158,15 +158,28 @@ TAB_ICONS = {
 }
 
 
+TECH_LINKS = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
+TECH_PATHS = ('/tho', '/hang-toi-giu', '/tien-toi-giu')
+
+
+def technician_shell(user, path, query=None):
+    """Khung màn thợ: thợ thuần luôn dùng; người vừa là thợ vừa vai khác dùng khi đang ở trang của thợ."""
+    if pure_technician(user): return True
+    if 'technician' not in user.roles: return False
+    if any(path == p or path.startswith(p + '/') for p in TECH_PATHS): return True
+    return (path.startswith('/giao-don/') or path.startswith('/tho-tra-hang')) and (query or {}).get('return_to') == 'tho'
+
+
 def menu(user, path, query=None):
     current = matching(path, query)
     groups = []
-    if pure_technician(user):
-        links = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
-        groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in links], active=False)]
+    shell = technician_shell(user, path, query)
+    if shell:
+        groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in TECH_LINKS], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and not item.get('technician_page') and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
-    return dict(groups=groups, roles=roles, technician=pure_technician(user))
+    # Người nhiều vai trong khung thợ: tab dưới là nhóm đầu, menu đầy đủ mở từ nút tài khoản.
+    return dict(groups=groups, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user))
