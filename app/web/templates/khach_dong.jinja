@@ -1,17 +1,14 @@
 {% if rows %}
-<ul class="list">
+<section class="card doc-list cust-list">
   {% for c in rows %}
-  <li><a href="/khach-hang/{{ c.code }}">
-    <span class="code">{{ c.code }}</span>
-    <strong>{{ c.name }}</strong>
-    <span class="meta">
-      {{ KIND_LABELS[c.kind] }}{% if c.phones %} · {{ c.phones | join(", ") }}{% endif %}{% if c.tax_code %} · MST {{ c.tax_code }}{% endif %}
-      {% if c.status != "DANG_DUNG" %}<span class="tag">{{ STATUS_LABELS[c.status] }}</span>{% endif %}
-      {% if c.is_test %}<span class="tag">Dữ liệu thử</span>{% endif %}
-    </span>
-  </a></li>
+  <a class="doc-row cust-row{% if c.status != 'DANG_DUNG' %} cust-off{% endif %}" href="/khach-hang/{{ c.code }}">
+    <b class="code">{{ c.code }}</b>
+    <strong class="doc-who">{{ c.name }}</strong>
+    <span class="doc-state">{% if c.status != "DANG_DUNG" %}<span class="tag">{{ STATUS_LABELS[c.status] }}</span>{% endif %}{% if c.is_test %}<span class="tag">Dữ liệu thử</span>{% endif %}</span>
+    <span class="meta">{{ KIND_LABELS[c.kind] }}{% if c.phones %} · {{ c.phones | join(", ") }}{% endif %}{% if c.tax_code %} · MST {{ c.tax_code }}{% endif %}</span>
+  </a>
   {% endfor %}
-</ul>
+</section>
 {% if rows | length >= 20 %}<p class="hint">Chỉ hiện 20 khách gần nhất. Gõ thêm để tìm đúng khách.</p>{% endif %}
 {% else %}
 <p class="empty">{% if q %}Không có khách nào khớp "{{ q }}".{% else %}Chưa có khách nào.{% endif %}</p>

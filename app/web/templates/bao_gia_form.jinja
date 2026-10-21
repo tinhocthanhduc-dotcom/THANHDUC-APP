@@ -4,11 +4,11 @@
 {% import 'da_chon.jinja' as picked %}
 {% import 'viec_khac.jinja' as other %}
 {% block main %}
-<div class="bar quote-heading"><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><a href="/bao-gia">← Báo giá</a>{% if q %}<a class="btn" href="/bao-gia/{{ q.id }}/in">In báo giá</a>{% endif %}</div>
+<div class="recv-head doc-head-bar"><a class="btn" href="/bao-gia" aria-label="Quay lại Báo giá">←</a><div><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><p class="hint">Báo giá{% if q %} · {{ customer_name or q.customer_code }}{% endif %}</p></div>{% if q %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">In báo giá</a>{% endif %}</div>
 {% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
-{% if q %}<p>Trạng thái: <strong>{{ statuses[q.status] }}</strong></p>{% endif %}
+{% if q %}<p class="doc-status doc-{{ q.status|lower }}">Trạng thái: <strong class="stock-chip">{{ statuses[q.status] }}</strong></p>{% endif %}
 {% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
 {% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
 {% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
