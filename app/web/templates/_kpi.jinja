@@ -1,0 +1,3 @@
+{% macro month_filter(month) %}<form method="get" class="form"><label>Tháng<input type="month" name="thang" value="{{ month.strftime('%Y-%m') }}" required></label><button class="btn-info">Xem</button></form>{% endmacro %}
+{% macro value(v, unit) %}{% if v is none %}Chưa có dữ liệu{% elif unit == 'đồng' %}{{ v|money }}{% else %}{{ v|round(2)|qty }}{% endif %}{% endmacro %}
+{% macro percent(c) %}{% if c.pct is not none %}<strong>{{ c.pct|round(2)|qty }}%</strong><meter class="kpi-meter {{ c.color }}" min="0" max="200" value="{{ c.pct }}" aria-label="Phần trăm đạt mục tiêu">{{ c.pct|round(2)|qty }}%</meter>{% elif c.target is none %}<span>Chưa đặt mục tiêu</span>{% else %}<span>Chưa có dữ liệu để tính %</span>{% endif %}{% endmacro %}

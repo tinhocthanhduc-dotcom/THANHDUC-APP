@@ -675,3 +675,19 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .attendance-board td>a{display:block;min-width:24px;min-height:24px}
 
 .attendance-punch-panel>.action-bar,.attendance-lock-form>.action-bar{margin-left:0;margin-right:0}
+
+/* NS3: scoped KPI cards and horizontally scrollable, sticky-name matrices. */
+.kpi-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-block:16px}
+.kpi-card{min-width:0;overflow-wrap:anywhere}.kpi-value{font-size:1.8rem;font-weight:700}.kpi-value small{font-size:1rem;font-weight:400}
+.kpi-meter{display:block;width:100%;height:18px;accent-color:#238347}.kpi-meter.warn{accent-color:#a76a00}.kpi-meter.bad{accent-color:#b52e2e}
+.kpi-good{background:#e6f5eb;color:#163d25}.kpi-warn{background:#fff3cf;color:#593b00}.kpi-bad{background:#fce8e8;color:#751c1c}.kpi-improved{color:#18703a}
+.kpi-scroll{overflow-x:auto;max-width:100%;margin-block:16px;border:1px solid var(--line);border-radius:8px}
+.kpi-table{width:100%;min-width:650px;margin:0;border-collapse:separate;border-spacing:0}.kpi-table th,.kpi-table td{min-width:150px;vertical-align:top;padding:12px;text-align:left;border-bottom:1px solid var(--line)}
+.kpi-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface,#fff);min-width:130px;max-width:180px;overflow-wrap:anywhere}
+.kpi-table input:not([type=hidden]){min-width:140px;width:100%}.kpi-target-form{min-width:0}.kpi-target-form>.action-bar{margin-inline:0}
+@media(max-width:600px){.kpi-cards{grid-template-columns:1fr}.kpi-table tr>:first-child{min-width:110px;max-width:130px}}
+
+.kpi-meter.good::-webkit-meter-optimum-value,.kpi-meter.good::-webkit-meter-suboptimum-value{background:#238347}
+.kpi-meter.warn::-webkit-meter-optimum-value,.kpi-meter.warn::-webkit-meter-suboptimum-value{background:#a76a00}
+.kpi-meter.bad::-webkit-meter-optimum-value,.kpi-meter.bad::-webkit-meter-suboptimum-value{background:#b52e2e}
+.kpi-meter.good::-moz-meter-bar{background:#238347}.kpi-meter.warn::-moz-meter-bar{background:#a76a00}.kpi-meter.bad::-moz-meter-bar{background:#b52e2e}

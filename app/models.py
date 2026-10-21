@@ -1596,3 +1596,22 @@ class AttendanceMonthLock(Base):
     unlocked_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     unlocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     unlock_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+
+
+class KpiTarget(Base):
+    __tablename__ = 'kpi_targets'
+    __table_args__ = (
+        CheckConstraint('extract(day from month) = 1', name='ck_kpi_target_month'),
+        CheckConstraint('target >= 0', name='ck_kpi_target_value'),
+        Index('uq_kpi_target_person', 'month', 'user_id', 'metric_key', unique=True, postgresql_where=text('user_id is not null')),
+        Index('uq_kpi_target_common', 'month', 'metric_key', unique=True, postgresql_where=text('user_id is null')),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    month: Mapped[date] = mapped_column(Date)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    metric_key: Mapped[str] = mapped_column(String(48))
+    target: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    set_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
