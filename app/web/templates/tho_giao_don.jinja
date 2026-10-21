@@ -30,7 +30,7 @@
 <p class="hint" data-amount-hint>Tự tính theo số hàng giao, tối đa {{ balance.available|money }} đ. Sửa nếu khách trả khác.</p>
 <div class="chips" role="radiogroup" aria-label="Cách thu">{% for code,title in [('TIEN_MAT','Tiền mặt'),('CHUYEN_KHOAN','Chuyển khoản')] %}<label class="chip"><input type="radio" name="method" value="{{ code }}" {% if raw.get('method','TIEN_MAT')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div></div></section>
 <section class="card"><h2><span class="tho-stepno">3</span>Xác nhận giao</h2>
-<label>Ảnh giao hàng (bắt buộc)<input type="file" name="photos" accept="image/*" capture="environment" multiple required></label>
+<div class="tho-delivery-photos" data-delivery-photos><label class="btn photo-capture delivery-capture">📷 Chụp ảnh giao hàng (bắt buộc)<input type="file" name="photos" accept="image/*" capture="environment" multiple required data-delivery-camera></label><p class="hint" data-photo-count>Chưa có ảnh. Bấm nút trên để mở máy ảnh.</p><div class="delivery-thumbs" data-photo-thumbs></div></div>
 <label>Người nhận<input name="receiver_name" value="{{ raw.get('receiver_name', order.contact_name or '') }}" maxlength="200"></label>
 <label>Ghi chú<textarea name="note" maxlength="4000" rows="2">{{ raw.get('note','') }}</textarea></label></section>
 </form>
