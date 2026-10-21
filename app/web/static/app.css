@@ -891,3 +891,93 @@ main:has(> .stock-page) { max-width: 1280px; }
   .stock-act { flex-wrap: wrap; white-space: nowrap; }
   .stock-move { font-size: .8rem; color: var(--muted); }
 }
+/* Khuôn 5: Nhận hàng mua (màn gọn cho thủ kho). */
+main:has(> .recv-page) { max-width: 720px; }
+.recv-page { display: grid; gap: 12px; }
+.recv-head { display: flex; gap: 10px; align-items: center; }
+.recv-head > .btn { width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex: none; }
+.recv-head h1 { margin: 0; font-size: 1.2rem; line-height: 1.25; }
+.recv-head .hint { margin: 0; }
+.recv-form { display: grid; gap: 10px; }
+.recv-info { display: grid; gap: 6px; }
+.recv-kv { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.recv-kv > span { color: var(--muted); font-size: .9rem; }
+.recv-kv input { width: auto; max-width: 60%; }
+.recv-info .hint, .recv-page > .hint { margin: 0; font-size: .85rem; }
+.recv-bar { display: flex; align-items: center; gap: 12px; }
+.recv-bar h2 { margin: 0; font-size: 1rem; flex: 1; }
+.recv-bar .link { font-weight: 600; min-height: 44px; }
+.recv-line { display: grid; gap: 8px; padding: 12px 14px; }
+.recv-line.field-invalid { border: 2px solid var(--bad); }
+.recv-name { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.recv-name > div { min-width: 0; overflow-wrap: anywhere; }
+.recv-name small { display: block; color: var(--muted); font-size: .82rem; }
+.recv-part { flex: none; background: var(--warn-bg); color: var(--warn); }
+.recv-qty { display: flex; align-items: center; gap: 10px; }
+.recv-qty > span { flex: 1; font-size: .92rem; }
+.recv-qty .stepper input { width: 64px; font-size: 1.1rem; }
+.recv-form .action-bar .hint { margin: 0; font-size: .85rem; color: var(--muted); }
+.recv-history summary, .po-lines summary, .po-danger summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.recv-history p { margin: 8px 0 0; font-size: .9rem; }
+/* Khuôn 4: chi tiết đơn mua. */
+main:has(> .po-page) { max-width: 1200px; }
+.po-page { display: grid; gap: 14px; }
+.po-page > .card, .po-page > details { min-width: 0; }
+.po-head .bar { flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
+.po-head h1 { margin: 0; }
+.po-gap { flex: 1; }
+.po-kv { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.po-kv > div { display: grid; }
+.po-kv span { font-size: .8rem; color: var(--muted); }
+.po-st-da_dat, .po-st-nhap { background: var(--tag); color: var(--text); }
+.po-st-nhan_mot_phan { background: var(--warn-bg); color: var(--warn); }
+.po-st-da_huy { background: var(--bad-bg); color: var(--bad); }
+.po-next { display: grid; gap: 6px; border: 2px solid var(--accent); }
+.po-next-k { font-size: .75rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+.po-next b { font-size: 1.05rem; }
+.po-next .hint { margin: 0; }
+.po-next .btn-ok { justify-self: start; min-height: 48px; display: inline-flex; align-items: center; }
+.po-lines[open] summary { margin-bottom: 10px; }
+.po-progress h2, .po-receipts h2 { margin-top: 0; font-size: 1.05rem; }
+.po-progress .sales-report-table { width: 100%; }
+.po-danger { margin-top: 10px; }
+.po-danger[open] { padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.po-danger .alert { margin: 8px 0; font-weight: 600; }
+@media (max-width: 640px) { .po-next .btn-ok { justify-self: stretch; justify-content: center; } }
+.po-page > .sales-report-section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.po-page > .sales-report-section h2 { margin-top: 0; font-size: 1.05rem; }
+.po-prog { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.po-prog th, .po-prog td { padding: 8px 10px; border-top: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.po-prog thead th { border-top: 0; font-size: .78rem; color: var(--muted); }
+.po-prog th:first-child { text-align: left; }
+.po-prog tbody th { font-weight: 600; }
+.po-prog small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+.po-prog .po-done { color: var(--ok); }
+@media (max-width: 640px) {
+  .po-prog thead { display: none; }
+  .po-prog tr { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); padding: 8px 0; }
+  .po-prog tbody th { grid-column: 1 / -1; border: 0; padding: 0 0 4px; }
+  .po-prog td { border: 0; padding: 0; text-align: left; }
+  .po-prog td::before { content: attr(data-label); display: block; font-size: .72rem; color: var(--muted); }
+}
+.recv-line.warehouse-short { border-color: var(--warn); background: var(--surface); }
+.recv-bad { background: var(--bad-bg); color: var(--bad); }
+.recv-note { margin: 0; font-size: .9rem; }
+.recv-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.recv-cond { border: 0; padding: 0; margin: 0; }
+.recv-cond legend { font-size: .85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }
+/* Yêu cầu linh kiện: thẻ việc có nút cấp theo kho. */
+.part-grid { display: grid; gap: 10px; }
+@media (min-width: 900px) { .part-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); align-items: start; } }
+.part-req { display: grid; gap: 8px; min-width: 0; }
+.part-need { display: flex; align-items: baseline; gap: 10px; font-size: 1.05rem; }
+.part-need .meta { margin-left: auto; font-size: .8rem; color: var(--muted); }
+.part-supply { display: flex; flex-wrap: wrap; gap: 8px; }
+.part-supply button { flex: 1 1 150px; }
+.part-st-het_hang, .part-st-da_huy { background: var(--bad-bg); color: var(--bad); }
+.part-st-cho_cap { background: var(--warn-bg); color: var(--warn); }
+.po-next > .action-bar, .recv-form.card > .action-bar { margin-inline: 0; }
+.po-next > .action-bar { position: static; margin: 4px 0 0; padding: 0; border: 0; background: none; }
+.po-page > .card h2, .po-page > form.card h2 { font-size: 1.05rem; margin-top: 0; }
+.part-page .stock-actions .btn.on { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
+.recv-name .stock-chip { white-space: nowrap; flex: none; }

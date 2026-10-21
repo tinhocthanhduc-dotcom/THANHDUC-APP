@@ -134,10 +134,12 @@
     var b = event.target.closest('[data-step]');
     if (!b) return;
     var input = b.closest('.stepper').querySelector('input');
-    var min = Number(input.min || 0), max = input.max ? Number(input.max) : Infinity;
-    var v = Math.max(min, Math.min(max, (Number(input.value) || 0) + Number(b.dataset.step)));
-    if (Number(b.dataset.step) > 0 && v === Number(input.value)) window.tdToast('Tối đa ' + max, 'bad');
-    input.value = v;
+    // Số lẻ viết dấu phẩy (2,5) như ô nhập số lượng của server.
+    function num(text) { return Number(String(text || '').replace(',', '.')); }
+    var min = num(input.min) || 0, max = input.max ? num(input.max) : Infinity, cur = num(input.value) || 0;
+    var v = Math.max(min, Math.min(max, Math.round((cur + Number(b.dataset.step)) * 1000) / 1000));
+    if (Number(b.dataset.step) > 0 && v === cur) window.tdToast('Tối đa ' + input.max, 'bad');
+    input.value = String(v).replace('.', ',');
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 

@@ -1,0 +1,19 @@
+{# Khuôn 5: màn nhận hàng gọn cho thủ kho. Chỉ nhập số lượng; giá vốn và VAT lấy từ đơn mua. #}
+<div class="recv-page" id="nhan-hang">
+<div class="recv-head"><a class="btn" href="/don-mua/{{ o.id }}" aria-label="Quay lại đơn mua">←</a><div><h1>Nhận hàng · {{ o.number }}</h1><p class="hint">Đơn mua › {{ statuses[o.status] }}</p></div></div>
+{% if error %}<p class="alert bad" data-error-code="{{ error_code }}" role="alert">{{ error }}</p>{% endif %}
+{% if o.close_reason %}<p class="alert warn">Đã đóng phần còn lại: {{ o.close_reason }}</p>{% endif %}
+<form method="post" action="/don-mua/{{ o.id }}/nhan" class="recv-form" data-purchase-receive><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ receive_data.version }}">
+<section class="card recv-info"><div class="recv-kv"><span>Nhà cung cấp</span><b>{{ supplier_name or o.supplier_code }}</b></div><div class="recv-kv"><span>Nhận vào</span><b>{{ o.lines|map(attribute='warehouse_code')|unique|join(', ') }} · theo đơn</b></div><label class="recv-kv"><span>Ngày nhận</span><input type="date" name="receipt_date" value="{{ receive_data.receipt_date }}" required></label><p class="hint">Chỉ nhập số lượng. Giá vốn và VAT lấy từ đơn mua. Nhập 0 để bỏ qua dòng.</p></section>
+{% set ns = namespace(open=0, done=0) %}{% for l in o.lines %}{% if l.received_qty<l.qty or receive_data.quantities.get(l.id|string) %}{% set ns.open = ns.open + 1 %}{% else %}{% set ns.done = ns.done + 1 %}{% endif %}{% endfor %}
+<div class="recv-bar"><h2>Hàng còn chờ nhận · {{ ns.open }} dòng</h2>{% if ns.open %}<button type="button" class="link" data-recv-fill>Nhận đủ tất cả</button><button type="button" class="link" data-recv-zero>Về 0</button>{% endif %}</div>
+{% for l in o.lines %}{% if l.received_qty<l.qty or receive_data.quantities.get(l.id|string) %}{% set left = l.qty-l.received_qty %}
+<article class="card recv-line" data-recv-line><div class="recv-name"><div><b>{{ product_names.get(l.product_code,'') or l.product_code }}</b><small>{{ l.product_code }} · Kho {{ l.warehouse_code }} · đặt {{ quantity(l.qty) }} · Đã nhận {{ quantity(l.received_qty) }}</small></div>{% if l.received_qty %}<span class="stock-chip recv-part">Nhận một phần</span>{% endif %}</div>
+<div class="recv-qty"><span>Còn lại <b>{{ quantity(left) }}</b> {{ product_units.get(l.product_code,'') }}</span><label class="stepper"><button type="button" data-step="-1" aria-label="Bớt">−</button><input name="qty_{{ l.id }}" value="{{ receive_data.quantities.get(l.id|string,'0') }}" inputmode="decimal" required min="0" max="{{ quantity(left) }}" data-recv-left="{{ quantity(left) }}" aria-label="Số nhận lần này"><button type="button" data-step="1" aria-label="Thêm">+</button></label></div></article>
+{% endif %}{% endfor %}
+{% if ns.done %}<p class="hint">{{ ns.done }} dòng đã nhận đủ, không hiện ở đây.</p>{% endif %}
+{% if can_write and o.status in ['DA_DAT','NHAN_MOT_PHAN'] %}<div class="action-bar"><p class="hint" data-recv-summary></p><button class="btn-ok btn-block">Nhận và ghi sổ PN</button></div>{% endif %}
+</form>
+<script src="/static/purchases.js" defer></script>
+{% if history %}<details class="card recv-history"><summary>Các lần nhận trước · {{ history|length }}</summary>{% for r in history %}<p><a href="/phieu-kho/{{ r.stock_doc_id }}">{{ stock_numbers[r.stock_doc_id] }}</a> · {{ r.receipt_date.strftime('%d/%m/%Y') }} · {{ r.warehouse_code }} · {{ 'Đã ghi' if r.status=='DA_GHI' else 'Đã hủy' }}</p>{% endfor %}</details>{% endif %}
+</div>

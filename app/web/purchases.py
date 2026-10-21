@@ -45,6 +45,7 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
             for l in t.lines:
                 ident=receipt_line_orders[l.receipt_line_id]
                 returned_qty[ident]=returned_qty.get(ident,0)+l.qty
+    products=session.execute(select(Product.code,Product.name,Product.unit).where(Product.code.in_(codes))).all()
     if receive_data is None and row:
         receive_data=dict(receipt_date=quotes._today().isoformat(),version=row.version,quantities={str(l.id):_quantity(l.qty-l.received_qty) for l in row.lines if l.received_qty<l.qty})
     return render(request, 'don_mua_form.jinja', o=row, d=data, statuses=STATUSES, vat_rates=VAT_RATES,
@@ -53,7 +54,7 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
         receiving=receiving,receive_data=receive_data or {},quantity=_quantity,receipt_action=receipt_action,failed_receipt=failed_receipt,
         payable=receipts.payable_by_order(session,request.state.user,row.id) if row else 0,
         supplier_name=supplier.name if supplier else '',
-        product_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(codes))).all()),
+        product_names={code:name for code,name,_ in products},product_units={code:unit for code,_,unit in products},
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code))),
         can_write=has_role(request.state.user, *svc.WRITERS), editable=row is None or row.status=='NHAP',
         error=error, error_code=code, status=status, reason=reason, saved=request.query_params.get('da_luu')=='1' and not error)
