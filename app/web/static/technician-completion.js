@@ -107,6 +107,12 @@
           .forEach((input) => (input.checked = false));
       update();
     });
+    // UX5a: mã vừa tìm thêm bắt đầu với số 1.
+    screen.addEventListener("item-picked", (e) => {
+      const input = e.target.querySelector("[name=material_qty]");
+      if (input && !(Number(input.value.replace(",", ".")) > 0)) input.value = "1";
+      update();
+    });
     document.addEventListener("tech-photo-change", update);
     update();
   }

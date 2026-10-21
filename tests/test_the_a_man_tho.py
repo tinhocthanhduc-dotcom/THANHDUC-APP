@@ -137,3 +137,46 @@ def test_technician_shell_tabs_and_grouped_cards(client, db, held):
     # Người không phải thợ thuần vẫn dùng khung cũ.
     service_login(client, p['dispatcher'])
     assert 'class="tho-tabs"' not in client.get('/dich-vu').text
+
+
+def test_ux5a_completion_shows_only_issued_or_chosen_materials(client, db, held):
+    # Thợ giữ nhiều mã: chỉ mã đã cấp cho phiếu hiện sẵn, mã khác ẩn sau ô tìm.
+    from app import stock_docs, stock_posting
+    from app.schemas import PartRequestIn, StockDocIn
+    from test_my_work import DAY
+    p, a, b = held
+    doc = stock_docs.create(db, p['warehouse'], StockDocIn(kind='PN', warehouse_code='K58', supplier_code='NCC-0001', doc_date=DAY,
+        lines=[dict(product_code='TD-0002', qty=5, unit_cost=1000)]))
+    stock_posting.post(db, p['warehouse'], doc.id, doc.version)
+    transfer(db, p)
+    d = stock_docs.create(db, p['warehouse'], StockDocIn(kind='CK', warehouse_code='K58', to_warehouse_code='K501', doc_date=DAY,
+        lines=[dict(product_code='TD-0002', qty=2)]))
+    stock_posting.post(db, p['warehouse'], d.id, d.version)
+    t = ticket(db, p, 'DANG_LAM')
+    r = svc.create(db, p['technician'], t.id, PartRequestIn(version=t.version, product_code='TD-0001', qty=1, reason='Thay drum'))
+    svc.supply(db, p['warehouse'], r.id, 'K58', r.version)
+    db.refresh(t); t.status = 'DANG_LAM'; db.commit()  # thợ đã nhận linh kiện, làm tiếp
+    service_login(client, p['technician'])
+    html = client.get(f'/tho/phieu/{t.id}').text
+    rows = dict(re.findall(r'(<div class="tech-material"[^>]*>)<input type="hidden" name="material_product" value="([^"]+)"', html))
+    rows = {code: tag for tag, code in rows.items()}
+    assert 'data-pick-extra' not in rows['TD-0001'] and 'data-pick-extra' in rows['TD-0002']
+    assert 'Đã cấp cho phiếu 1' in html and 'data-item-picker' in html and 'data-pick-search' in html
+    # Mã đã cấp vẫn bắt đầu với 0: thợ tự xác nhận số đã lắp, không tự trừ kho.
+    assert re.search(r'value="TD-0001"><span>.*?name="material_qty" value="0"', html)
+    # Mã đã cấp đứng trước mã tìm thêm.
+    assert html.index('value="TD-0001"') < html.index('value="TD-0002"')
+
+
+def test_ux5a_return_rows_hidden_until_picked(client, db, held):
+    p, a, b = held
+    transfer(db, p)
+    service_login(client, p['technician'])
+    html = client.get('/tho-tra-hang/moi').text
+    row = re.search(r'<fieldset class="tho-ret"[^>]*>', html).group(0)
+    assert 'data-pick-row' in row and 'data-pick-extra' in row and 'Thêm mã cần trả' in html
+    from pathlib import Path
+    static = Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static'
+    ui = (static / 'ui.js').read_text()
+    assert '[data-item-picker]' in ui and "normalize('NFD')" in ui
+    assert "addEventListener('item-picked'" in (static / 'technician-returns.js').read_text()
