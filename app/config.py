@@ -1,7 +1,8 @@
 """Cấu hình đọc từ biến môi trường (file .env trên máy chủ, không đưa lên GitHub)."""
 from functools import lru_cache
+from datetime import time
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +24,21 @@ class Settings(BaseSettings):
     supplier_hold_alert_days: int = Field(default=30, ge=0, le=36500)
     pending_alert_days: int = Field(default=30, ge=0, le=36500)
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
+    work_start: time = time(8, 0)
+    work_end: time = time(17, 30)
+    work_days: tuple[int, ...] = (0, 1, 2, 3, 4, 5)  # TD_WORK_DAYS='[0,1,2,3,4,5]', Monday=0
+    late_grace_minutes: int = Field(default=10, ge=0, le=120)
+    off_hours_start: time = time(6, 0)
+    off_hours_end: time = time(21, 0)
+
+    @model_validator(mode='after')
+    def valid_work_schedule(self):
+        if self.work_start >= self.work_end or self.off_hours_start >= self.off_hours_end:
+            raise ValueError('Giờ bắt đầu phải trước giờ kết thúc')
+        if not self.work_days or any(d < 0 or d > 6 for d in self.work_days):
+            raise ValueError('Ngày làm việc từ 0 (thứ 2) đến 6 (Chủ nhật)')
+        return self
+
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'
     slot_sang: str = '08:00-12:00'

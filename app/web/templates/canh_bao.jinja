@@ -1,5 +1,5 @@
-<section class="sales-report-section card overview-alerts" aria-labelledby="alerts-title"><h2 id="alerts-title">Cần xử lý</h2>
+<section class="sales-report-section card overview-alerts" aria-labelledby="alerts-title"><h2 id="alerts-title">Cần xử lý</h2>{% if attendance_pending %}<p><a href="/cham-cong/duyet">Chấm công chờ duyệt · {{ attendance_pending }} yêu cầu</a></p>{% endif %}
 {% for kind,rows in alert_groups.items() %}<details class="alert-group" data-alert-kind="{{ kind }}" {% if loop.first %}open{% endif %}><summary>{{ alert_labels[kind] }} <span class="tag">{{ alert_counts[kind] }}</span></summary><ul>
 {% for a in rows %}<li><a href="{{ a.link }}" data-alert-level="{{ a.level }}"><span class="alert-dot {{ 'alert-dot-red' if a.level=='DO' else 'alert-dot-yellow' }}" aria-label="{{ 'Đỏ' if a.level=='DO' else 'Vàng' }}"></span><span><strong>{{ a.title }}</strong><span class="alert-detail">{{ a.detail }}</span></span></a></li>{% endfor %}
 </ul>{% if alert_counts[kind]>rows|length %}<p class="alert-more">và {{ alert_counts[kind]-rows|length }} mục khác</p>{% endif %}</details>
-{% else %}<p>Không có việc cần xử lý</p>{% endfor %}</section>
+{% else %}{% if not attendance_pending %}<p>Không có việc cần xử lý</p>{% endif %}{% endfor %}</section>

@@ -670,3 +670,6 @@ router.include_router(pending_reports_router)
 
 from .employees import router as employees_router
 router.include_router(employees_router)
+
+from .attendance import router as attendance_router
+router.include_router(attendance_router)

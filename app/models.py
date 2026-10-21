@@ -1529,3 +1529,70 @@ class EmployeeSalaryVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     replaces_id: Mapped[int | None] = mapped_column(ForeignKey('employee_salary_versions.id'))
     replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AttendanceRequest(Base):
+    __tablename__ = 'attendance_requests'
+    __table_args__ = (
+        CheckConstraint("kind in ('BO_SUNG_VAO','BO_SUNG_RA','NGHI_PHEP','NGHI_KHONG_LUONG')", name='ck_attendance_request_kind'),
+        CheckConstraint("status in ('CHO_DUYET','DA_DUYET','TU_CHOI','DA_HUY')", name='ck_attendance_request_status'),
+        CheckConstraint("part in ('CA_NGAY','SANG','CHIEU')", name='ck_attendance_request_part'),
+        CheckConstraint("(kind in ('BO_SUNG_VAO','BO_SUNG_RA') and punch_at is not null and from_date is null and to_date is null) or (kind in ('NGHI_PHEP','NGHI_KHONG_LUONG') and punch_at is null and from_date is not null and to_date is not null and from_date <= to_date and (part='CA_NGAY' or from_date=to_date))", name='ck_attendance_request_dates'),
+        CheckConstraint('length(trim(reason)) > 0', name='ck_attendance_request_reason'),
+        Index('ix_attendance_request_queue', 'status', 'created_at'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    kind: Mapped[str] = mapped_column(Text)
+    punch_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    from_date: Mapped[date | None] = mapped_column(Date)
+    to_date: Mapped[date | None] = mapped_column(Date)
+    part: Mapped[str] = mapped_column(Text, default='CA_NGAY', server_default='CA_NGAY')
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, default='CHO_DUYET', server_default='CHO_DUYET')
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __mapper_args__ = {'version_id_col': version}
+
+
+class AttendancePunch(Base):
+    __tablename__ = 'attendance_punches'
+    __table_args__ = (
+        CheckConstraint("kind in ('IN','OUT')", name='ck_attendance_punch_kind'),
+        CheckConstraint("source in ('APP','BO_SUNG') and ((source='APP' and request_id is null) or (source='BO_SUNG' and request_id is not null))", name='ck_attendance_punch_source'),
+        CheckConstraint('(lat is null and lng is null) or (lat is not null and lng is not null and lat between -90 and 90 and lng between -180 and 180)', name='ck_attendance_punch_location'),
+        CheckConstraint('accuracy_m is null or accuracy_m >= 0', name='ck_attendance_punch_accuracy'),
+        Index('ix_attendance_punch_user_at','user_id','at'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    kind: Mapped[str] = mapped_column(Text)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    lat: Mapped[Decimal | None] = mapped_column(Numeric(10,7))
+    lng: Mapped[Decimal | None] = mapped_column(Numeric(10,7))
+    accuracy_m: Mapped[int | None] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(Text)
+    request_id: Mapped[int | None] = mapped_column(ForeignKey('attendance_requests.id'), unique=True)
+    off_hours: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AttendanceHoliday(Base):
+    __tablename__ = 'attendance_holidays'
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+
+
+class AttendanceMonthLock(Base):
+    __tablename__ = 'attendance_month_locks'
+    __table_args__ = (CheckConstraint('extract(day from month) = 1', name='ck_attendance_lock_month'),)
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    locked_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    unlocked_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    unlocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unlock_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
