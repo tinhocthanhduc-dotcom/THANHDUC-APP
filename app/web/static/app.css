@@ -1128,3 +1128,14 @@ main:has(> .me-page) { max-width: 640px; }
 .doc-status.doc-nhap .stock-chip, .doc-status.doc-da_gui .stock-chip { background: var(--warn-bg); color: var(--warn); }
 .doc-status.doc-da_chot .stock-chip, .doc-status.doc-giao_mot_phan .stock-chip { background: var(--tag); color: var(--accent); }
 .doc-status.doc-da_huy .stock-chip, .doc-status.doc-tu_choi .stock-chip { background: var(--bad-bg); color: var(--bad); }
+.due-list .doc-amt { grid-row: 1; }
+@media (min-width: 1000px) { .due-list .doc-amt { grid-row: auto; } }
+@media (min-width: 1000px) { .due-list .doc-row { grid-template-columns: 130px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.7fr) minmax(0,1.5fr) 150px; } }
+.doc-progress { margin: 12px 0; } .doc-progress h2 { font-size: 1rem; margin: 0 0 6px; }
+.doc-money-tiles { grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); }
+@media (max-width:600px) { .doc-money-tiles { grid-template-columns: repeat(3, minmax(0,1fr)); } .doc-money-tiles .stock-tile:not(.debt-main) b { font-size: .85rem; } }
+@media (max-width:600px) { .doc-progress .sales-report-table tr { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+.doc-hold h2 { font-size: 1rem; margin: 0; }
+.doc-hold > article.card { padding: 8px 12px; margin: 0; box-shadow: none; }
+.doc-hold > article.card p { margin: 2px 0 0; }
+.doc-detail section.card > h2, .doc-detail form.card > h2, .doc-detail .card.form h2 { font-size: 1.05rem; margin: 0 0 8px; }
