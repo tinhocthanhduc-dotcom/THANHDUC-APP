@@ -112,7 +112,7 @@ def test_no_own_profile_and_account_link_create_then_detail(client,db,p,employee
     web_login(client,p['admin'])
     page=client.get(f'/tai-khoan/{p["sales"].id}');assert f'/nhan-su/moi?user_id={p["sales"].id}' in page.text
     page=client.get(f'/tai-khoan/{p["technician"].id}');assert f'/nhan-su/{employee.id}' in page.text and 'Hồ sơ nhân sự' in page.text
-    assert '/ho-so-cua-toi' in page.text
+    assert 'href="/ca-nhan"' in page.text and 'href="/ho-so-cua-toi"' in client.get('/ca-nhan').text
 
 
 def test_user_unique_id_number_validation_and_empty_ids(db,p,employee):
@@ -286,3 +286,11 @@ def test_migration_down_up_retains_accounts_and_restores_guards(db,engine,p,empl
         payroll_migration.upgrade()
     db.expire_all();fresh=svc.create(db,p['admin'],account_id,body())
     assert fresh.code=='NV-0001'
+
+
+def test_ca_nhan_lists_only_allowed_personal_pages(client,db,p,employee):
+    web_login(client,p['admin']);html=client.get('/ca-nhan').text
+    assert 'href="/ho-so-cua-toi"' in html and 'href="/doi-mat-khau"' in html and 'action="/dang-xuat"' in html
+    assert 'href="/phieu-luong"' not in html and 'href="/kpi"' not in html
+    web_login(client,p['technician']);html=client.get('/ca-nhan').text
+    assert 'href="/cham-cong"' in html and 'href="/phieu-luong"' in html and 'href="/kpi"' in html
