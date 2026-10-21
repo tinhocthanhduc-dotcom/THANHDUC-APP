@@ -55,14 +55,28 @@ def charges(session,user,ticket,version,total,mode,reason,materials):
     return ServiceCharges(version=version,billing='MIEN_PHI' if free else 'THU_TIEN',free_reason=reason if free else '',lines=lines),net+tax
 
 
-def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note=''):
+def apply_report(session,t,fault,fix):
+    """Thẻ B: báo cáo thợ phải có lỗi gặp, cách xử lý và ảnh biên bản có chữ ký khách; gọi trong transaction hoàn thành."""
+    from .attachments import has_visible
+    fault,fix=(fault or '').strip(),(fix or '').strip()
+    if len(fault)<3:raise BusinessError('FAULT_REQUIRED','Phải ghi lỗi gặp thực tế (ít nhất 3 ký tự).')
+    if len(fix)<3:raise BusinessError('FIX_REQUIRED','Phải ghi cách đã xử lý (ít nhất 3 ký tự).')
+    if len(fault)>2000 or len(fix)>2000:raise BusinessError('TEXT_TOO_LONG','Lỗi gặp và cách xử lý tối đa 2000 ký tự.')
+    if not has_visible(session,'service_ticket',t.id,'BIEN_BAN'):
+        raise BusinessError('REPORT_PHOTO_REQUIRED','Phải chụp ảnh biên bản có chữ ký khách trước khi hoàn thành.')
+    t.fault_found,t.fix_done=fault,fix
+
+
+def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix=''):
     from .stock_docs import _transaction
+    from .models import ServiceDraft
     with _transaction(session):
         t=service_tickets._get(session,user,ticket_id,lock=True)
         if 'technician' not in user.roles or t.assignee_id!=user.id:
             raise BusinessError('FORBIDDEN','Chỉ thợ được giao được hoàn thành phiếu.',status=403)
         service_tickets._check_version(t,version)
         if t.status!='DANG_LAM':raise BusinessError('BAD_STATUS','Chỉ hoàn thành phiếu đang làm.',status=409)
+        apply_report(session,t,fault,fix)
         body,actual=charges(session,user,t,version,total,mode,reason,materials)
         received=0
         if mode=='FULL':received=actual
@@ -74,7 +88,33 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
         if received:
             from . import sales_receipts
             sales_receipts.report_for_ticket_in_tx(session,user,t,SalesReceiptReport(version=t.version,amount=received,method=method,note=note))
+        draft=session.get(ServiceDraft,(t.id,user.id))
+        if draft is not None:session.delete(draft)
     return t
+
+
+DRAFT_LIMIT=16000
+
+
+def save_draft(session,user,ticket_id,data):
+    """Thẻ B: lưu nháp báo cáo của thợ (chỉ chữ, tối đa ~16KB); ghi đè nháp cũ."""
+    import json
+    from datetime import UTC, datetime
+    from .models import ServiceDraft
+    from .stock_docs import _transaction
+    if not isinstance(data,dict) or not all(isinstance(k,str) and (isinstance(v,str) or (isinstance(v,list) and all(isinstance(x,str) for x in v))) for k,v in data.items()):
+        raise BusinessError('BAD_DRAFT','Nháp không hợp lệ.')
+    if len(json.dumps(data,ensure_ascii=False))>DRAFT_LIMIT:raise BusinessError('DRAFT_TOO_LARGE','Nháp quá dài.')
+    with _transaction(session):
+        t=service_tickets._get(session,user,ticket_id)
+        if 'technician' not in user.roles or t.assignee_id!=user.id:
+            raise BusinessError('FORBIDDEN','Chỉ thợ được giao được lưu nháp phiếu.',status=403)
+        if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Phiếu đã đóng, không lưu nháp.',status=409)
+        from sqlalchemy.dialects.postgresql import insert
+        # Hai lần tự lưu chạy cùng lúc: ghi đè theo khóa chính, không lỗi trùng.
+        stmt=insert(ServiceDraft).values(ticket_id=t.id,user_id=user.id,data=data,updated_at=datetime.now(UTC))
+        session.execute(stmt.on_conflict_do_update(index_elements=['ticket_id','user_id'],set_={'data':stmt.excluded.data,'updated_at':stmt.excluded.updated_at}))
+    return True
 
 
 def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entries=None):

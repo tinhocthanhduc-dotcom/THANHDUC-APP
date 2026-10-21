@@ -94,7 +94,13 @@ def detail_context(session, user, ticket, ctx):
     materials.sort(key=lambda item:(item['extra'],item['code']))
     ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
     billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
-    checks = [dict(key='photo' ,label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
+    from ..models import ServiceDraft
+    draft=session.get(ServiceDraft,(ticket.id,user.id)) if ticket.status=='DANG_LAM' and not ctx.get('completion_form') else None
+    ctx['tech_draft']=draft.data if draft else None
+    report_ok=len(shown.get('fault_found',ticket.fault_found).strip())>=3 and len(shown.get('fix_done',ticket.fix_done).strip())>=3
+    checks = [dict(key='report',label='Đã ghi lỗi gặp và cách xử lý',ok=report_ok),
+        dict(key='photo' ,label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
+        dict(key='bienban',label='Có ảnh biên bản có chữ ký khách',ok=attachments.has_visible(session,'service_ticket',ticket.id,'BIEN_BAN')),
         dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]
     if ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH'):
         checks.append(dict(key='machine',label='Máy đã trả khách',ok=not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
@@ -167,17 +173,17 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
     request.state.technician_return = True
     if 'customer_amount' in form:
         from .. import technician_work
-        shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note')}
+        shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note','fault_found','fix_done')}
         shown['materials']=[dict(product_code=str(code),qty=str(qty)) for code,qty in zip(form.getlist('material_product'),form.getlist('material_qty'))]
         try:
             if len(form.getlist('material_product'))!=len(form.getlist('material_qty')):raise BusinessError('BAD_FORM','Dòng vật tư chưa đủ dữ liệu.')
-            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],shown['free_reason'],shown['materials'],shown['partial_amount'],shown['method'],shown['note'])
+            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],shown['free_reason'],shown['materials'],shown['partial_amount'],shown['method'],shown['note'],shown['fault_found'],shown['fix_done'])
         except (BusinessError,ValidationError) as exc:
             message,code,status=_message(exc)
             return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)
         return after_post(request,session,user,ticket_id,'/tho')
     raw = _raw(form)
-    shown = {key: str(form.get(key, '')) for key in ('note', 'amount', 'method')}
+    shown = {key: str(form.get(key, '')) for key in ('note', 'amount', 'method', 'fault_found', 'fix_done')}
     try:
         version = _version(form)
         charges = _body(raw, version)
@@ -197,7 +203,7 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
         if len(digits) > 19:
             raise BusinessError('BAD_AMOUNT', 'Số tiền vượt giới hạn lưu trữ.')
         receipt = SalesReceiptReport(version=version, method=shown['method'], amount=int(digits), note=note) if int(digits) else None
-        service_completion.complete(session, user, ticket_id, charges, note, receipt)
+        service_completion.complete(session, user, ticket_id, charges, note, receipt, shown['fault_found'], shown['fix_done'])
     except (BusinessError, ValidationError) as exc:
         message, code, status = _message(exc)
         return _detail(request, session, user, ticket_id, error=message, error_code=code, status=status,
@@ -230,7 +236,7 @@ async def upload_photo(request:Request,ticket_id:int,form=Depends(checked_form),
     t=owned(session,user,ticket_id)
     t=service_tickets._get(session,user,ticket_id,lock=True)
     if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Phiếu đã hoàn thành hoặc đóng.',status=409)
-    tag='TRUOC' if form.get('tag')=='TRUOC' else 'SAU'
+    tag=form.get('tag') if form.get('tag') in ('TRUOC','BIEN_BAN') else 'SAU'
     upload=form.get('file')
     try:
         if not isinstance(upload,UploadFile):raise BusinessError('EMPTY_FILE','Chọn ảnh cần tải.')
@@ -256,3 +262,22 @@ def delete_photo(request:Request,ticket_id:int,attachment_id:int,form=Depends(ch
     if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Không xóa ảnh sau khi hoàn thành.',status=409)
     attachments.hide(session,user,a.id,'Thợ xóa trước khi hoàn thành',_version(form))
     return JSONResponse(dict(hidden=True))
+
+
+@router.post('/tho/phieu/{ticket_id}/nhap')
+async def save_draft(request:Request,ticket_id:int,user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """Thẻ B: tự lưu nháp báo cáo. Lưu lại cùng nội dung không sao nên không cần mã gửi một lần."""
+    import hmac, json
+    from fastapi.responses import JSONResponse
+    from .. import technician_work
+    form=await request.form()
+    if not hmac.compare_digest(str(form.get('csrf','')),request.state.csrf):
+        return JSONResponse(dict(error='Trang đã cũ, hãy tải lại rồi thử lại.',code='BAD_CSRF'),status_code=403)
+    try:
+        owned(session,user,ticket_id)
+        try:data=json.loads(str(form.get('data','')))
+        except ValueError:raise BusinessError('BAD_DRAFT','Nháp không hợp lệ.')
+        technician_work.save_draft(session,user,ticket_id,data)
+    except BusinessError as exc:
+        return JSONResponse(dict(error=exc.message,code=exc.code),status_code=exc.status)
+    return JSONResponse(dict(ok=True))

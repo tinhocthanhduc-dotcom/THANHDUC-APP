@@ -805,3 +805,7 @@ a.tho-money-row { display: flex; justify-content: space-between; align-items: ce
 .tho-part-qty { font-weight: 800; }
 .tho-part-cancel { flex-basis: 100%; }
 .tho-part-cancel summary { color: var(--muted); font-size: 14px; cursor: pointer; }
+
+/* Thẻ B: chip báo cáo trượt ngang cho gọn trên điện thoại. */
+.tho-report .fill-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.tho-report .fill-chips .chip-btn{flex:none}

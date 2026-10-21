@@ -102,6 +102,8 @@ def test_only_own_material_warehouse_and_completion_checks(client,db,held):
     assert checks['photo']==checks['billing']=='0' and '✗' in page.text
     button=next(a for tag,a,_ in screen.tags if 'data-tho-primary' in a);assert 'disabled' in button
     attachments.add(db,p['technician'],'service_ticket',str(t.id),'SAU','sau.png',d5_image())
+    attachments.add(db,p['technician'],'service_ticket',str(t.id),'BIEN_BAN','bien-ban.png',d5_image())
+    t.fault_found,t.fix_done='Kẹt giấy','Thay drum';db.commit()
     service_charges.set_charges(db,p['technician'],t.id,ServiceCharges(version=t.version,billing='MIEN_PHI',free_reason='Bảo hành'))
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
     assert all(a['data-ok']=='1' for _,a,_ in screen.tags if 'data-check' in a)
@@ -157,7 +159,8 @@ def test_charges_photo_and_completion_post_return_to_mobile(client,db,people):
     response=client.post(path+'/anh',data={'csrf':photo['data-csrf']},files={'file':('sau.png',d5_image(),'image/png')},follow_redirects=False)
     assert response.status_code==201 and response.json()['id']
     form=Page(client.get(path).text).forms['service-complete']
-    response=client.post(form['action'],data={**form['fields'],'billing':'MIEN_PHI','free_reason':'Bảo hành'},follow_redirects=False)
+    attachments.add(db,p['technician'],'service_ticket',str(t.id),'BIEN_BAN','bien-ban.png',d5_image())
+    response=client.post(form['action'],data={**form['fields'],'billing':'MIEN_PHI','free_reason':'Bảo hành','fault_found':'Kẹt giấy','fix_done':'Thay drum'},follow_redirects=False)
     assert response.headers['location']=='/tho'
 
 
