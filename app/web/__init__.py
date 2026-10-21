@@ -667,3 +667,6 @@ router.include_router(ui_guide_router)
 
 from .pending_reports import router as pending_reports_router
 router.include_router(pending_reports_router)
+
+from .employees import router as employees_router
+router.include_router(employees_router)

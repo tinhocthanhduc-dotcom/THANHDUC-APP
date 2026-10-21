@@ -1465,3 +1465,67 @@ class PendingItemMove(Base):
     disposition_id: Mapped[int]=mapped_column(ForeignKey('pending_dispositions.id'))
     stock_doc_id: Mapped[int]=mapped_column(ForeignKey('stock_docs.id'))
     qty: Mapped[Decimal]=mapped_column(Numeric(14,3))
+
+
+class Employee(Base):
+    __tablename__ = 'employees'
+    __table_args__ = (
+        CheckConstraint("position in ('Kỹ thuật','Kinh doanh','Kho','Kế toán','Điều phối','Lễ tân','Quản lý','Khác')", name='ck_employees_position'),
+        CheckConstraint('end_date is null or end_date >= start_date', name='ck_employees_dates'),
+        CheckConstraint("id_number = '' or id_number ~ '^([0-9]{9}|[0-9]{12})$'", name='ck_employees_id_number'),
+        Index('uq_employees_id_number', 'id_number', unique=True, postgresql_where=text("id_number <> ''")),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), unique=True, nullable=False)
+    position: Mapped[str] = mapped_column(Text)
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    birth_date: Mapped[date | None] = mapped_column(Date)
+    id_number: Mapped[str] = mapped_column(Text, default='', server_default='')
+    id_issued_on: Mapped[date | None] = mapped_column(Date)
+    address: Mapped[str] = mapped_column(Text, default='', server_default='')
+    emergency_name: Mapped[str] = mapped_column(Text, default='', server_default='')
+    emergency_phone: Mapped[str] = mapped_column(Text, default='', server_default='')
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    __mapper_args__ = {'version_id_col': version}
+
+
+class EmployeePay(Base):
+    __tablename__ = 'employee_pay'
+    __table_args__ = (CheckConstraint("bank_account = '' or bank_account ~ '^[0-9]{6,20}$'", name='ck_employee_pay_bank_account'),)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id'), primary_key=True)
+    bank_name: Mapped[str] = mapped_column(Text, default='', server_default='')
+    bank_account: Mapped[str] = mapped_column(Text, default='', server_default='')
+    bank_holder: Mapped[str] = mapped_column(Text, default='', server_default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __mapper_args__ = {'version_id_col': version}
+
+
+class EmployeeSalaryVersion(Base):
+    __tablename__ = 'employee_salary_versions'
+    __table_args__ = (
+        CheckConstraint('base_salary between 0 and 1000000000000 and meal_allowance between 0 and 1000000000000 and fuel_allowance between 0 and 1000000000000 and phone_allowance between 0 and 1000000000000 and other_allowance between 0 and 1000000000000', name='ck_employee_salary_money'),
+        CheckConstraint('standard_days between 1 and 31', name='ck_employee_salary_days'),
+        CheckConstraint("length(trim(reason)) > 0", name='ck_employee_salary_reason'),
+        Index('uq_employee_salary_effective', 'employee_id', 'effective_from', unique=True, postgresql_where=text('replaced_at is null')),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id'))
+    effective_from: Mapped[date] = mapped_column(Date)
+    base_salary: Mapped[int] = mapped_column(BigInteger)
+    meal_allowance: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    fuel_allowance: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    phone_allowance: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    other_allowance: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    standard_days: Mapped[Decimal] = mapped_column(Numeric(4,1), default=26, server_default='26')
+    reason: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    replaces_id: Mapped[int | None] = mapped_column(ForeignKey('employee_salary_versions.id'))
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

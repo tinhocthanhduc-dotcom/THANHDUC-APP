@@ -23,7 +23,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
   <form method="post" action="/dang-xuat" class="tho-account-menu">
     <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-    <a class="btn btn-ghost" href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="btn-ghost">Đăng xuất</button>
+    <a class="btn btn-ghost" href="/ho-so-cua-toi" data-account-item>Hồ sơ của tôi</a><a class="btn btn-ghost" href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="btn-ghost">Đăng xuất</button>
   </form></details>
 </header>
 {% block tho_tabs %}<nav class="tho-tabs" aria-label="Menu chính">{% for item in navigation.groups[0]['items'] %}<a href="{{ item.href }}" data-nav-item{% if item.active %} class="on" aria-current="page"{% endif %}>{{ tab_icons[item.href]|safe }}<span>{{ item.label }}</span></a>{% endfor %}</nav>{% endblock %}
@@ -48,7 +48,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
   <form method="post" action="/dang-xuat" class="who">
     <span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span>
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-    <button type="button" class="link" data-theme-toggle>Sáng/Tối</button><a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
+    <button type="button" class="link" data-theme-toggle>Sáng/Tối</button><a href="/ho-so-cua-toi" data-account-item>Hồ sơ của tôi</a><a href="/doi-mat-khau" data-account-item>Đổi mật khẩu</a><button class="link">Đăng xuất</button>
   </form>
 </header>
 {% endif %}

@@ -1,0 +1,20 @@
+{% import '_ui.jinja' as ui %}
+{% macro common_fields(d,positions,errors={}) %}
+<fieldset><legend>Vị trí</legend><div class="chips">{% for p in positions %}<label class="chip"><input type="radio" name="position" value="{{ p }}" required {% if d.get('position')==p %}checked{% endif %}><span>{{ p }}</span></label>{% endfor %}</div>{{ ui.field_error(errors,'position') }}</fieldset>
+<div class="row2">{% for key,label in [('start_date','Ngày vào làm'),('end_date','Ngày nghỉ việc'),('birth_date','Ngày sinh'),('id_issued_on','Ngày cấp CCCD')] %}<label>{{ label }}<input type="date" name="{{ key }}" value="{{ d.get(key) or '' }}" class="{{ ui.invalid(errors,key) }}" {{ ui.described(errors,key) }} {% if key=='start_date' %}required{% endif %}>{{ ui.field_error(errors,key) }}</label>{% endfor %}</div>
+<label>CCCD<input name="id_number" value="{{ d.get('id_number','') }}" inputmode="numeric" maxlength="12" pattern="[0-9]{9}|[0-9]{12}" class="{{ ui.invalid(errors,'id_number') }}" {{ ui.described(errors,'id_number') }}>{{ ui.field_error(errors,'id_number') }}</label>
+<label>Địa chỉ<textarea name="address" maxlength="2000">{{ d.get('address','') }}</textarea></label>
+<div class="row2"><label>Người liên hệ khẩn cấp<input name="emergency_name" maxlength="200" value="{{ d.get('emergency_name','') }}"></label><label>SĐT khẩn cấp<input name="emergency_phone" type="tel" maxlength="200" value="{{ d.get('emergency_phone','') }}"></label></div>
+<label>Ghi chú<textarea name="note" maxlength="4000">{{ d.get('note','') }}</textarea></label>
+{% endmacro %}
+{% macro common_read(profile) %}
+<dl class="employee-info">{% for label,key in [('Mã nhân viên','code'),('Họ tên','full_name'),('SĐT','phone'),('Vị trí','position'),('Ngày vào làm','start_date'),('Ngày nghỉ việc','end_date'),('Ngày sinh','birth_date'),('CCCD','id_number'),('Ngày cấp CCCD','id_issued_on'),('Địa chỉ','address'),('Liên hệ khẩn cấp','emergency_name'),('SĐT khẩn cấp','emergency_phone'),('Ghi chú','note')] %}<dt>{{ label }}</dt><dd>{{ profile[key] or '—' }}</dd>{% endfor %}</dl>
+{% endmacro %}
+{% macro salary_form(employee_id,money_fields,data,csrf,replaces='',errors={}) %}
+<form method="post" action="/nhan-su/{{ employee_id }}/luong" class="form employee-salary-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="replaces_id" value="{{ replaces }}">
+<label>Ngày hiệu lực<input type="date" name="effective_from" value="{{ data.get('effective_from','') }}" required {{ ui.described(errors,'effective_from') }}>{{ ui.field_error(errors,'effective_from') }}</label>
+<div class="row2">{% for key,label in money_fields %}<label>{{ label }}<input name="{{ key }}" inputmode="numeric" data-money value="{{ data.get(key,0) if data.get(key,0) is string else data.get(key,0)|money }}" required {{ ui.described(errors,key) }}>{{ ui.field_error(errors,key) }}</label>{% endfor %}
+<label>Công chuẩn<input type="number" name="standard_days" value="{{ data.get('standard_days',26) }}" min="1" max="31" step="0.1" required {{ ui.described(errors,'standard_days') }}>{{ ui.field_error(errors,'standard_days') }}</label></div>
+<label>Lý do<textarea name="reason" required maxlength="4000" {{ ui.described(errors,'reason') }}>{{ data.get('reason','') }}</textarea>{{ ui.field_error(errors,'reason') }}</label>
+<div class="action-bar"><button class="btn-ok">{{ 'Lưu bản thay thế' if replaces else 'Lưu thay đổi lương' }}</button></div></form>
+{% endmacro %}
