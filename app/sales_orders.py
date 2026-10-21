@@ -439,7 +439,7 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
         doc = stock_docs.insert(session,user,StockDocIn(kind='PX', warehouse_code=wh,
             doc_date=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date(), customer_code=order.customer_code,
             reason=f'Giao {gh.number} cho {order.number}', lines=[StockDocLineIn(product_code=l.product_code,
-                qty=p.qty, note=f'{order.number} dòng {l.line_no}; {gh.number}') for l,p in pairs]))
+                qty=p.qty, note=f'{order.number} dòng {l.line_no}; {gh.number}') for l,p in pairs]), source_kind='SALES_DELIVERY')
         docs.append((doc,pairs))
     stock_posting._lock_balances(session, {(actual_warehouse or l.warehouse_code,l.product_code) for l in parts if l.kind=='HANG'})
     for doc,pairs in docs:

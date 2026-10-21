@@ -108,7 +108,7 @@ def receive(session, user, order_id, version, receipt_date, lines):
             doc=stock_docs.insert(session,user,StockDocIn(kind='PN',warehouse_code=warehouse,doc_date=receipt_date,
                 supplier_code=order.supplier_code,reason=f'Nhận hàng {order.number}',
                 lines=[StockDocLineIn(product_code=line.product_code,qty=qty,unit_cost=line.unit_cost,
-                        note=f'{order.number} dòng {line.line_no}') for line,qty,amount,vat in rows]))
+                        note=f'{order.number} dòng {line.line_no}') for line,qty,amount,vat in rows]), source_kind='PURCHASE_RECEIPT')
             stock_posting.post_in_tx(session,user,doc.id,doc.version,
                                     pn_amounts={n:amount for n,(_,_,amount,_) in enumerate(rows,1)})
             receipt=PurchaseReceipt(order_id=order.id,stock_doc_id=doc.id,warehouse_code=warehouse,

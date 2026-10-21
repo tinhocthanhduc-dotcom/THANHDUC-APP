@@ -114,7 +114,7 @@ def _post(session,user,row,item_version=None):
         to_warehouse_code=row.to_warehouse_code,doc_date=day,
         supplier_code=row.supplier_code if row.kind=='TRA_NCC' else None,customer_code=(session.get(SalesOrder,delivery.order_id).customer_code if delivery else None),
         reason=f'Hủy hàng · {row.number}' if row.kind=='HUY' else f'{KINDS[row.kind]} · {row.number}',note=row.reason,
-        lines=[dict(product_code=item.product_code,qty=row.qty)]),_pending_disposition=True)
+        lines=[dict(product_code=item.product_code,qty=row.qty)]),_pending_disposition=True, source_kind='PENDING_DISPOSITION')
     keys={(item.warehouse_code,item.product_code)}
     if row.to_warehouse_code:keys.add((row.to_warehouse_code,item.product_code))
     stock_posting._lock_balances(session,keys)

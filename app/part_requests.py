@@ -179,7 +179,7 @@ def supply(session, user, ident, warehouse_code, version):
         before = snapshot(row)
         doc = stock_docs.insert(session, user, StockDocIn(kind='CK', warehouse_code=source.code,
             to_warehouse_code=dest.code, doc_date=datetime.now(service_sla.TZ).date(),
-            reason=f'Cấp {row.number}/{ticket.number}' if ticket is not None else f'Cấp {row.number} cho thợ mang theo', lines=[dict(product_code=row.product_code, qty=row.qty)]))
+            reason=f'Cấp {row.number}/{ticket.number}' if ticket is not None else f'Cấp {row.number} cho thợ mang theo', lines=[dict(product_code=row.product_code, qty=row.qty)]), source_kind='PART_REQUEST')
         stock_posting.post_in_tx(session, user, doc.id, doc.version)
         row.status, row.from_warehouse_code, row.to_warehouse_code, row.stock_doc_id = 'DA_CAP', source.code, dest.code, doc.id
         row.decided_by, row.decided_at = user.id, datetime.now(UTC)

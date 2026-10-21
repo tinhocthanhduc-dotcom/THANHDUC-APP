@@ -129,17 +129,17 @@ def _record(session, user, doc, action, before, reason=""):
     audit.record(session, user, "stock_doc." + action, "stock_doc", str(doc.id), before, snapshot(doc), reason)
 
 
-def create(session: Session, user: User, body: StockDocIn) -> StockDoc:
+def create(session: Session, user: User, body: StockDocIn, *, source_kind=None) -> StockDoc:
     check_writer(user)
     with _transaction(session):
-        doc = insert(session, user, body)
+        doc = insert(session, user, body, source_kind=source_kind)
     return doc
 
 
-def insert(session: Session, user: User, body: StockDocIn, *, _sales_return=False, _recovered_part=False, _technician_return=False, _pending_disposition=False) -> StockDoc:
+def insert(session: Session, user: User, body: StockDocIn, *, source_kind=None, _sales_return=False, _recovered_part=False, _technician_return=False, _pending_disposition=False) -> StockDoc:
     """Lập phiếu trong transaction của nơi gọi, không kiểm vai trò (nơi gọi đã kiểm). Dùng cho phiếu sinh tự động."""
     _validate(session, body, _sales_return=_sales_return, _recovered_part=_recovered_part, _technician_return=_technician_return, _pending_disposition=_pending_disposition)
-    doc = StockDoc(**body.model_dump(exclude={"lines"}), created_by=user.id,
+    doc = StockDoc(**body.model_dump(exclude={"lines"}), source_kind=source_kind, created_by=user.id,
                    number=next_number(session, body.kind, body.doc_date), lines=_lines(body))
     session.add(doc)
     _record(session, user, doc, "create", None)

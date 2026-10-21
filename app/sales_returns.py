@@ -123,7 +123,7 @@ def create(session,user,order_id,body):
             parts=[l for l in row.lines if l.warehouse_code==code]
             doc=stock_docs.insert(session,user,StockDocIn(kind='PN',warehouse_code=code,doc_date=stamp.astimezone(TZ).date(),
                 customer_code=order.customer_code,reason=f'Trả hàng {row.number} của {order.number}',
-                lines=[StockDocLineIn(product_code=originals[l.order_line_no].product_code,qty=l.qty,unit_cost=l.unit_cost) for l in parts]),_sales_return=True)
+                lines=[StockDocLineIn(product_code=originals[l.order_line_no].product_code,qty=l.qty,unit_cost=l.unit_cost) for l in parts]),_sales_return=True, source_kind='SALES_RETURN')
             docs.append((doc,parts))
         stock_posting._lock_balances(session,{(l.warehouse_code,originals[l.order_line_no].product_code) for l in row.lines if l.warehouse_code})
         for doc,parts in docs:

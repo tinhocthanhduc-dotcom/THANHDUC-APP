@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from app import stock_opening, stock_posting
+from app import stock_docs, stock_opening, stock_posting
+from app.schemas import StockDocIn
 from app.errors import BusinessError
 from app.models import Product, StockBalance, StockDoc, User, Warehouse
 from app.security import hash_password
@@ -89,7 +90,11 @@ def test_chay_lai_khong_nhan_doi(db, setup):
 
 
 def test_kho_da_co_phat_sinh_thi_khong_nhap_dau_ky(db, setup):
-    [doc] = stock_opening.create_opening(db, setup, "K58", D, ROWS)
+    # Test the original invariant with a manual movement: LG1 locks generated opening docs.
+    lines, errors = stock_opening.parse(ROWS)
+    assert not errors
+    doc = stock_docs.create(db, setup, StockDocIn(kind='KK', warehouse_code='K58', doc_date=D,
+        reason='Kiểm kê thủ công', lines=lines))
     stock_posting.post(db, setup, doc.id, None)
     stock_posting.void(db, setup, doc.id, "Nhập sai file", None)
     with pytest.raises(BusinessError) as e:

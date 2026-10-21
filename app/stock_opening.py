@@ -87,5 +87,5 @@ def create_opening(session: Session, user: User, warehouse_code: str, doc_date: 
         body = StockDocIn(kind="KK", warehouse_code=warehouse_code, doc_date=doc_date, reason=OPENING_REASON, note=note, lines=chunk)
         # stock_docs.create commit từng phiếu; khóa advisory hết hiệu lực sau phiếu đầu,
         # nhưng phiếu đầu đã lưu nên lần chạy song song sẽ thấy OPENING_EXISTS.
-        docs.append(stock_docs.create(session, user, body))
+        docs.append(stock_docs.create(session, user, body, source_kind='STOCK_OPENING'))
     return docs

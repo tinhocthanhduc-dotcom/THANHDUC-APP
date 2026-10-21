@@ -76,7 +76,7 @@ def receive(session, user, ident, body):
         doc = stock_docs.insert(session, user, StockDocIn(kind='PN', warehouse_code=warehouse.code,
             customer_code=ticket.customer_code, doc_date=stamp.astimezone(svc.service_sla.TZ).date(),
             reason=f'Linh kiện thu hồi {ticket.number} · dòng {row.id}',
-            lines=[dict(product_code=row.product_code, qty=row.qty, unit_cost=0)]), _recovered_part=True)
+            lines=[dict(product_code=row.product_code, qty=row.qty, unit_cost=0)]), _recovered_part=True, source_kind='RECOVERED_PART')
         stock_posting.post_in_tx(session, user, doc.id, doc.version, pn_amounts={1: 0}, pending_context={1:dict(source='THU_HOI',group_code='THU_HOI',source_ref=ticket.number,reason=row.note)})
         row.status, row.warehouse_code, row.stock_doc_id = 'DA_NHAN', warehouse.code, doc.id
         row.received_by, row.received_at = user.id, stamp

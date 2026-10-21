@@ -92,7 +92,7 @@ def create(session, user, receipt_id, version, return_date, reason, lines):
         doc=stock_docs.insert(session,user,StockDocIn(kind='PX',warehouse_code=receipt.warehouse_code,
             supplier_code=order.supplier_code,doc_date=body.return_date,reason=f'Trả NCC {number} ({order.number})',note=reason,
             lines=[StockDocLineIn(product_code=order_lines[l.order_line_id].product_code,qty=qty,
-                note=f'{number} · {order.number} dòng {order_lines[l.order_line_id].line_no}') for l,qty,_,_ in parts]))
+                note=f'{number} · {order.number} dòng {order_lines[l.order_line_id].line_no}') for l,qty,_,_ in parts]), source_kind='PURCHASE_RETURN')
         stock_posting.post_in_tx(session,user,doc.id,doc.version)
         row=PurchaseReturn(number=number,receipt_id=receipt.id,order_id=order.id,supplier_code=order.supplier_code,
             warehouse_code=receipt.warehouse_code,stock_doc_id=doc.id,return_date=body.return_date,reason=reason,created_by=user.id,
