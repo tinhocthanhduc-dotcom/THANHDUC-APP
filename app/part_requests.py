@@ -53,32 +53,52 @@ def _audit(session, user, row, action, before=None):
 
 
 def create(session, user, ticket_id, body):
+    return create_many(session, user, ticket_id, body.version, [body])[0]
+
+
+def create_many(session, user, ticket_id, version, bodies):
+    """UX5b: xin nhiều mã cho một phiếu trong một lần gửi; một mã lỗi thì không tạo yêu cầu nào."""
+    if not bodies:
+        raise BusinessError('LINES_REQUIRED', 'Hãy chọn ít nhất một linh kiện.')
+    if len(bodies) > 20:
+        raise BusinessError('TOO_MANY_LINES', 'Mỗi lần xin tối đa 20 mã.')
+    codes = [b.product_code for b in bodies]
+    duplicate = next((c for c in codes if codes.count(c) > 1), None)
+    if duplicate:
+        raise BusinessError('DUPLICATE_PRODUCT', f'Mã {duplicate} được chọn hai lần, hãy gộp thành một dòng.')
     with _transaction(session):
         ticket = _ticket(session, ticket_id)
         check_requester(user, ticket)
-        svc._check_version(ticket, body.version)
+        svc._check_version(ticket, version)
         if ticket.status not in ('DANG_LAM', 'CHO_LINH_KIEN'):
             raise BusinessError('BAD_STATUS', 'Chỉ yêu cầu linh kiện khi đang làm hoặc chờ linh kiện.', status=409)
         _warehouse(session, ticket)
-        product = session.scalar(select(Product).where(Product.code == body.product_code, Product.active.is_(True)).with_for_update(read=True))
-        if product is None:
-            raise BusinessError('BAD_PRODUCT', 'Mã hàng không tồn tại hoặc đã ngừng bán.')
-        if not body.reason.strip():
-            raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do cần linh kiện.')
+        reason = bodies[0].reason.strip()
+        rows = []
         now = datetime.now(UTC)
-        row = PartRequest(number=next_number(session, 'YC', now.astimezone(service_sla.TZ).date()),
-                          ticket_id=ticket.id, requester_id=user.id, product_code=product.code, qty=body.qty,
-                          reason=body.reason.strip(), status='CHO_CAP')
-        session.add(row)
+        for body in bodies:
+            product = session.scalar(select(Product).where(Product.code == body.product_code, Product.active.is_(True)).with_for_update(read=True))
+            if product is None:
+                raise BusinessError('BAD_PRODUCT', 'Mã hàng không tồn tại hoặc đã ngừng bán.' if len(bodies) == 1 else
+                                    f'Mã hàng {body.product_code} không tồn tại hoặc đã ngừng bán.')
+            if not reason:
+                raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do cần linh kiện.')
+            row = PartRequest(number=next_number(session, 'YC', now.astimezone(service_sla.TZ).date()),
+                              ticket_id=ticket.id, requester_id=user.id, product_code=product.code, qty=body.qty,
+                              reason=reason, status='CHO_CAP')
+            session.add(row)
+            rows.append(row)
+        numbers = ', '.join(r.number for r in rows)
         if ticket.status == 'DANG_LAM':
             before = svc.snapshot(ticket)
             from . import service_visits
             service_visits.close_visit(session, ticket, 'CHO_LINH_KIEN', svc._now(),
-                f'Cần linh kiện {row.number}: {row.reason}')
+                f'Cần linh kiện {numbers}: {reason}')
             ticket.status, ticket.due_at = 'CHO_LINH_KIEN', None
-            svc._record(session, user, ticket, 'transition', before, 'DANG_LAM', f'Cần linh kiện {row.number}: {row.reason}')
-        _audit(session, user, row, 'create')
-    return row
+            svc._record(session, user, ticket, 'transition', before, 'DANG_LAM', f'Cần linh kiện {numbers}: {reason}')
+        for row in rows:
+            _audit(session, user, row, 'create')
+    return rows
 
 
 def _own_warehouse(session, requester_id):
