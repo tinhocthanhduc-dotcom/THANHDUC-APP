@@ -1,0 +1,1 @@
+{% for a in accounts %}<button type="button" class="btn-ghost employee-option" data-employee-user="{{ a.id }}" data-employee-name="{{ a.full_name }} · {{ a.username }}">{{ a.full_name }} · {{ a.username }}{% if a.phone %} · {{ a.phone }}{% endif %}</button>{% else %}<p>Không có tài khoản phù hợp chưa có hồ sơ.</p>{% endfor %}

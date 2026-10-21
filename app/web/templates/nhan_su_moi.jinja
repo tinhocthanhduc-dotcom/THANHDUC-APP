@@ -1,0 +1,13 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}{% import '_nhan_su.jinja' as hr %}
+{% block title %}Thêm hồ sơ nhân viên{% endblock %}
+{% block main %}
+<div class="bar"><h1>Thêm hồ sơ nhân viên</h1><a class="btn btn-ghost" href="/nhan-su">Danh sách nhân sự</a></div>
+{% if error %}<p class="alert bad" data-error-code="{{ error_code }}" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/nhan-su/moi" class="form card"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div data-picker data-employee-picker><label>Tìm tài khoản<input name="account_query" type="search" value="{{ selected.full_name if selected else '' }}" data-live=".employee-options" data-source="/nhan-su/tim-tai-khoan" autocomplete="off" placeholder="Tên, tài khoản hoặc SĐT"></label>
+<input type="hidden" name="user_id" value="{{ d.get('user_id','') }}"><p data-employee-selected role="status">{{ (selected.full_name+' · '+selected.username) if selected else 'Chưa chọn tài khoản' }}</p>
+<noscript><label>Tài khoản<select name="user_id" required><option value="">Chọn tài khoản</option>{% for a in accounts %}<option value="{{ a.id }}" {% if d.get('user_id')|string==a.id|string %}selected{% endif %}>{{ a.full_name }} · {{ a.username }}</option>{% endfor %}</select></label></noscript>
+<div class="employee-options picker-options">{% include 'nhan_su_chon.jinja' %}</div>{{ ui.field_error(errors|default({}),'user_id') }}</div>
+{{ hr.common_fields(d,positions,errors|default({})) }}<div class="action-bar"><button class="btn-ok">Tạo hồ sơ</button></div></form>
+<script src="/static/employees.js" defer></script>
+{% endblock %}

@@ -1,0 +1,3 @@
+{% extends 'base.jinja' %}{% import '_nhan_su.jinja' as hr %}
+{% block title %}Hồ sơ của tôi{% endblock %}
+{% block main %}{% if not navigation.technician %}<h1>Hồ sơ của tôi</h1>{% endif %}{% if profile %}<section class="card employee-section"><h2>Thông tin chung</h2>{{ hr.common_read(profile) }}</section>{% else %}<p>Chưa có hồ sơ, liên hệ quản lý</p>{% endif %}{% endblock %}

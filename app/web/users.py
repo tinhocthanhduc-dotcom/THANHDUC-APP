@@ -10,7 +10,7 @@ from .. import users as svc, form_keys
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import User,AuditLog
+from ..models import Employee,User,AuditLog
 from . import COOKIE,checked_form,nav,render,web_user
 
 router=APIRouter()
@@ -73,7 +73,8 @@ def detail(request:Request,user_id:int,user:User=Depends(admin_user),session:Ses
     employee=_load(session,user_id)
     history=list(session.scalars(select(AuditLog).where(AuditLog.entity=='user',AuditLog.entity_id==str(user_id)).order_by(AuditLog.id.desc())))
     actors=dict(session.execute(select(User.id,User.full_name)).all())
-    return _render(request,'tai_khoan_chi_tiet.jinja',employee=employee,history=history,actors=actors)
+    profile_id=session.scalar(select(Employee.id).where(Employee.user_id==user_id))
+    return _render(request,'tai_khoan_chi_tiet.jinja',employee=employee,history=history,actors=actors,profile_id=profile_id)
 
 
 @router.get('/tai-khoan/{user_id}/sua')
