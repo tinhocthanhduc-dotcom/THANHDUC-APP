@@ -750,3 +750,13 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .form label.tho-ret-pick { display: flex; flex-direction: row; color: var(--text); font-size: 16px; }
 .form .tho-ret-cond label.chip { display: inline-block; }
 .tho-app .tho-hang-actions .btn { font-size: 16px; }
+/* UX5a: bộ chọn hàng gọn */
+.pick-box{display:grid;gap:8px;margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:12px}
+.pick-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.pick-head .link{padding:4px 0;min-height:0}
+.pick-box input[type=search]{width:100%}
+.pick-results{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+.pick-results:empty{display:none}
+.pick-result{flex:none;height:auto;line-height:1.3;white-space:normal;width:100%;font-weight:400;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;min-height:48px}
+.pick-result small{color:var(--muted);font-weight:400}
+.pick-results .hint{margin:4px 0}

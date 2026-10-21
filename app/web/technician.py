@@ -1,5 +1,7 @@
 """Màn công việc và hoàn thành gộp cho kỹ thuật viên."""
 import re
+from collections import defaultdict
+from decimal import Decimal
 from datetime import datetime, time
 from urllib.parse import urlencode
 
@@ -63,7 +65,7 @@ def detail_context(session, user, ticket, ctx):
     shown=ctx.get('completion_form') or {}
     fee=sum(line.amount+line.vat_amount for line in ticket.lines)
     if ctx.get('charge_unsaved'):
-        from decimal import Decimal,InvalidOperation
+        from decimal import InvalidOperation
         from ..service_charges import _round
         try:
             fee=sum(_round(Decimal(str(line['qty']).replace(',','.'))*int(str(line['unit_price']).replace('.','')))+_round(Decimal(_round(Decimal(str(line['qty']).replace(',','.'))*int(str(line['unit_price']).replace('.',''))))*int(line['vat_rate'])/100) for line in ctx['charges']['lines'])
@@ -81,7 +83,16 @@ def detail_context(session, user, ticket, ctx):
     for code,value in selected.items():
         try:selected[code]=quantity(str(value).replace(',','.'))
         except (ValueError,ArithmeticError):pass
-    ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0')) for p,qty in held],fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
+    # UX5a: chỉ hiện sẵn mã đã cấp cho phiếu này hoặc đã chọn; mã khác thợ tìm thêm.
+    from ..models import PartRequest
+    issued=defaultdict(Decimal)
+    for code,qty in session.execute(select(PartRequest.product_code,PartRequest.qty).where(PartRequest.ticket_id==ticket.id,PartRequest.status=='DA_CAP',PartRequest.to_warehouse_code==warehouse.code if warehouse else False)):issued[code]+=qty
+    def chosen(value):
+        try:return Decimal(str(value).replace(',','.') or '0')>0
+        except ArithmeticError:return True
+    materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0'),issued=issued.get(p.code,0),extra=not issued.get(p.code) and not chosen(selected.get(p.code,'0'))) for p,qty in held]
+    materials.sort(key=lambda item:(item['extra'],item['code']))
+    ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
     billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
     checks = [dict(key='photo' ,label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
         dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]

@@ -47,11 +47,16 @@
       if(event.target.closest('[data-return-split]')){setTimeout(function(){root.querySelectorAll('[data-return-row]').forEach(function(row){var d=row.querySelector('[data-return-detail]'),pick=row.querySelector('[data-return-pick]');if(d)d.hidden=false;if(pick)pick.checked=true;});},0);}
       if(!event.target.closest('[data-return-all]'))return;
       root.querySelectorAll('[data-return-row]').forEach(function(row){
-        var q=row.querySelector('[name=return_qty]');if(qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';
+        row.hidden=false;var q=row.querySelector('[name=return_qty]');if(qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';
         syncPick(row);
       });
-      root.dispatchEvent(new Event('return-state'));
+      root.dispatchEvent(new Event('return-state'));root.dispatchEvent(new Event('item-picker-refresh'));
     });
+  });
+  // UX5a: mã tìm thêm thì tick sẵn; Chọn hết thì hiện cả các mã đang ẩn.
+  document.addEventListener('item-picked',function(event){
+    var pick=event.target.querySelector('[data-return-pick]');if(!pick||pick.checked)return;
+    pick.checked=true;pick.dispatchEvent(new Event('change',{bubbles:true}));
   });
   document.querySelectorAll('[data-receive-condition]').forEach(function(row){
     row.addEventListener('change',function(){condition(row,true);});condition(row,true);
