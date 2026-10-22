@@ -182,6 +182,25 @@ def test_any_non_null_source_is_locked(db, held, source_kind):
     assert state(db) == before
 
 
+@pytest.mark.parametrize('kind',['opening','pending'])
+def test_opening_and_cxl_transfer_still_void_publicly(client, db, held, kind):
+    p, _, _ = held; doc = make_case(db, p, kind)
+    assert doc.source_kind == KINDS[kind]
+    service_login(client, p['warehouse'])
+    page = client.get(f'/phieu-kho/{doc.id}').text
+    assert 'data-stock-source' in page and f'action="/phieu-kho/{doc.id}/void"' in page
+    response = client.post(f'/stock-docs/{doc.id}/void', headers={'Authorization':'Bearer '+issue_token(p['warehouse'])},
+        json=dict(reason='Nhập nhầm, làm lại', version=doc.version))
+    assert response.status_code == 200, response.text
+    db.expire_all()
+    assert db.get(StockDoc, doc.id).status == 'DA_HUY'
+    if kind == 'opening':
+        assert balance(db, 'NEW') == 0
+    else:
+        item = db.scalar(select(PendingItem).where(PendingItem.stock_doc_id==doc.id))
+        assert item.status == 'DA_HUY' and item.qty_left == 0 and balance(db, 'CXL') == 0
+
+
 def test_service_reopen_uses_internal_void(db, held):
     p, own, _ = held; doc = make_case(db, p, 'service')
     t = db.scalar(select(ServiceTicket).where(ServiceTicket.status=='HOAN_THANH'))
@@ -232,7 +251,7 @@ def test_backfill_voided_recovered_receipt_from_immutable_audit(db, engine, held
     before = state(db); db.rollback()
     from alembic import command
     from alembic.config import Config
-    cfg=Config('alembic.ini');cfg.attributes['database_url']=str(engine.url)
+    cfg=Config('alembic.ini');cfg.attributes['database_url']=engine.url.render_as_string(hide_password=False)
     command.downgrade(cfg,'0046');command.upgrade(cfg,'head')
     assert db.get(StockDoc,ident,populate_existing=True).source_kind == 'RECOVERED_PART'
     assert state(db) == before
@@ -250,6 +269,6 @@ def test_manual_lookalike_and_manual_cxl_receipt_are_not_backfilled(db, engine, 
     ids=[manual.id,manual_cxl.id];db.rollback()
     from alembic import command
     from alembic.config import Config
-    cfg=Config('alembic.ini');cfg.attributes['database_url']=str(engine.url)
+    cfg=Config('alembic.ini');cfg.attributes['database_url']=engine.url.render_as_string(hide_password=False)
     command.downgrade(cfg,'0046');command.upgrade(cfg,'head')
     assert all(db.get(StockDoc,ident,populate_existing=True).source_kind is None for ident in ids)

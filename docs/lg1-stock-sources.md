@@ -25,6 +25,11 @@ này. `StockDocOut` và snapshot audit có trường nguồn để đọc và tr
 nguồn cũ → `void_in_tx`. Phiếu tự sinh báo `SOURCE_LOCKED` 409, kèm mô tả và URL nguồn.
 Các kiểm cũ vẫn bảo vệ phiếu có quan hệ nguồn dù `source_kind` chưa có/để null.
 
+Ngoại lệ `PUBLIC_VOID` (`STOCK_OPENING`, `PENDING_ITEM`): vẫn hủy được ở phiếu kho và
+vẫn hiện nút Hủy. KK tồn đầu kỳ chưa có đường sửa sai nào khác; CK chuyển tay vào CXL
+được `cancel_receipt_in_tx` đóng hồ sơ trong cùng transaction (đã tách/xử lý thì
+`CXL_DA_XU_LY`), nên không có nguồn bị lệch.
+
 PN thu hồi giữ ngoại lệ CXL1 khi còn liên kết thu hồi thật: `lock_for_stock_void`,
 `cancel_receipt_in_tx`, đảo sổ và mở lại người giữ cùng transaction. Đã tách/xử lý
 vẫn `CXL_DA_XU_LY`. Không thêm kiểm mã nguồn vào `void_in_tx`; mở lại DV và hủy qua

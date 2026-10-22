@@ -54,6 +54,11 @@ LOOKUPS = {
 }
 
 
+# Nguồn không có trạng thái phía trên bị lệch khi đảo sổ: hủy phiếu kho vẫn là đường sửa sai.
+# KK tồn đầu kỳ chưa có đường hủy khác; chuyển tay vào CXL đóng hồ sơ trong void_in_tx (CXL1).
+PUBLIC_VOID = {'STOCK_OPENING', 'PENDING_ITEM'}
+
+
 def describe(session, doc):
     if doc.source_kind is None:
         return None
@@ -68,11 +73,13 @@ def describe(session, doc):
             href = detail.format(id=row['id'])
             if row['number']:
                 label += ' ' + row['number']
-    return dict(label=label, href=href)
+    return dict(label=label, href=href, voidable=doc.source_kind in PUBLIC_VOID)
 
 
 def check_public_void(session, doc, recovered):
     # CXL1 permits this PN only through the existing locked recovery transaction.
+    if doc.source_kind in PUBLIC_VOID:
+        return
     if doc.source_kind is not None and not (doc.source_kind == 'RECOVERED_PART' and doc.kind == 'PN' and recovered is not None):
         source = describe(session, doc)
         raise BusinessError('SOURCE_LOCKED',
