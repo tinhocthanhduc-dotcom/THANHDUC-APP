@@ -32,7 +32,7 @@ def service(t):
              'HOAN_THANH':len(labels)-2,'DA_DONG':len(labels)-1}.get(t.status,0)
     # With an appointment already set, DA_HEN is ready for arrival.
     if t.status=='DA_HEN' and t.appointment_at:current=labels.index('Đến khách')
-    return flow(labels,current,{'DA_HUY':'Đã hủy','KHONG_LAM_DUOC':'Không làm được','KHACH_HEN_SAU':'Khách hẹn lần sau'}.get(t.status,''))
+    return flow(labels,current,{'DA_HUY':'Đã hủy','KHONG_LAM_DUOC':'Không làm được'}.get(t.status,''))
 
 
 def check(key,label,ok,blocking=True,**extra):

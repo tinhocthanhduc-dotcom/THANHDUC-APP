@@ -14,4 +14,4 @@
 {% if charge_docs %}<h3>Phiếu xuất vật tư</h3><ul>{% for doc_id, number in charge_docs %}<li><a href="/phieu-kho/{{ doc_id }}">{{ number }}</a></li>{% endfor %}</ul>{% endif %}
 {% include 'dich_vu_tien_templates.jinja' %}
 </section>
-<script src="/static/charges.js" defer></script>
+<script src="{{ asset('charges.js') }}" defer></script>

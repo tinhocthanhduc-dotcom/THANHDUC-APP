@@ -54,4 +54,4 @@
 {% if can_deliver and lines %}<div class="swipe" data-swipe data-tone="ok"><button class="primary" type="submit" form="giao-xong" data-tho-primary>Vuốt để Giao xong</button></div>
 {% elif order.status=='DA_GIAO' and balance.available>0 %}<button class="primary btn-ok" type="submit" form="bao-thu">Báo thu · chờ kế toán xác nhận</button>
 {% else %}<a class="btn primary" href="/tho">Về Hôm nay</a>{% endif %}</div>
-</div><script src="/static/technician-delivery.js" defer></script>{% endblock %}
+</div><script src="{{ asset('technician-delivery.js') }}" defer></script>{% endblock %}

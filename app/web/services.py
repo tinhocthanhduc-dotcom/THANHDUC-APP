@@ -27,13 +27,13 @@ TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 STATUSES = {
     "MOI": "Mới", "DA_GIAO": "Đã giao", "DA_NHAN": "Đã nhận", "DA_HEN": "Đã hẹn",
     "DANG_LAM": "Đang làm", "CHO_LINH_KIEN": "Chờ linh kiện", "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành",
-    "DA_DONG": "Đã đóng", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Đã hủy", "KHACH_HEN_SAU": "Khách hẹn lần sau",
+    "DA_DONG": "Đã đóng", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Đã hủy",
 }
 KINDS = {"SUA_TAI_CHO": "Sửa tại chỗ", "MANG_VE": "Mang về", "BAO_HANH": "Bảo hành", "MUC_DINH_KY": "Mực định kỳ"}
 PRIORITIES = {"KHAN": "Khẩn", "GAP": "Gấp", "THUONG": "Thường"}
 TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Đã đến khách", "CHO_LINH_KIEN": "Chờ linh kiện",
-    "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy", "KHACH_HEN_SAU": "Khách hẹn lần sau",
+    "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy",
@@ -127,10 +127,11 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     targets = sorted(svc.FLOW.get(t.status, ()), key=lambda s: list(STATUSES).index(s)) if dispatcher or own else []
     targets=[target for target in targets if target!='DA_DONG']
     if dispatcher and t.status in svc.CANCELLABLE:
-        targets.append("DA_HUY")
+        if "DA_HUY" not in targets: targets.append("DA_HUY")
     if t.status == 'DA_NHAN' and t.appointment_at and (dispatcher or own):
         targets = [x for x in targets if x != 'DA_HEN'] + ['DANG_LAM']
     labels = dict(TRANSITIONS)
+    labels["DA_HUY"] = "Hủy đơn"
     if t.status in ("CHO_LINH_KIEN", "TAM_DUNG"):
         labels["DANG_LAM"] = "Tiếp tục làm"
     if t.status in ('HOAN_THANH','DA_DONG'):
@@ -161,7 +162,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
     returning = technician_returns.proposal(session,t) if t.status in svc.OPEN else dict(rows=[],warehouses=[],warehouse=None)
     return_rows = return_form if return_form is not None else returning['rows']
-    ctx = dict(can_followup=has_role(user,*svc.CREATORS),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
+    ctx = dict(technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
@@ -239,14 +240,8 @@ def pick_choices(request: Request, customer_code: str = "", user: User = Depends
 
 @router.get("/dich-vu/moi")
 def new(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    previous = request.query_params.get('tiep_theo','')
-    if previous:
-        if not previous.isdigit(): raise BusinessError('NOT_FOUND','Không tìm thấy phiếu trước.',status=404)
-        t = svc.load(session,user,int(previous))
-        svc._require(user,svc.CREATORS,'Chỉ người nhận đơn được tạo phiếu tiếp.')
-        if t.status != 'KHACH_HEN_SAU': raise BusinessError('BAD_STATUS','Chỉ tạo phiếu tiếp từ phiếu Khách hẹn lần sau.',status=409)
-        return _new_form(request,session,dict(customer_code=t.customer_code,site_id=t.site_id or '',serial=t.serial or '',
-            kind=t.kind,priority=t.priority,symptom=(f'Tiếp theo {t.number}: '+t.symptom)[:4000],warranty_of_id=''))
+    if 'tiep_theo' in request.query_params:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy trang này.', status=404)
     chosen = session.get(Customer, request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
     if chosen and chosen.status == 'DANG_DUNG':
         # Quay về từ màn tạo/chọn khách: chọn sẵn khách, để _new_form tự chọn máy/địa điểm duy nhất.
@@ -290,13 +285,15 @@ def detail(request: Request, ticket_id: int, user: User = Depends(web_user), ses
 @router.post("/dich-vu/{ticket_id}/{action}")
 def action(request: Request, ticket_id: int, action: str, form=Depends(checked_form), session: Session = Depends(get_session)):
     user = request.state.user
-    if ('technician' in user.roles and (form.get('appointment_choice') or form.get('to_status')=='KHACH_HEN_SAU')):
+    if ('technician' in user.roles and (form.get('appointment_choice') or (form.get('to_status')=='DA_HUY' and not has_role(user,*svc.DISPATCHERS)))):
         from .technician import owned
         owned(session,user,ticket_id)
     # Người chỉ nhận giữ máy bị 403 khi sửa phiếu; thợ ngoài cuộc vẫn 404.
     svc._get(session, user, ticket_id, lock=True)
     failed_action = "transition:" + str(form.get("to_status", "")) if action == "transition" else action
     try:
+        if form.get("appointment_choice") == "LAN_SAU":
+            raise BusinessError("BAD_APPOINTMENT", "Khung hẹn chưa hợp lệ.")
         version = _version(form)
         if action == "assign":
             body = ServiceAssign(assignee_id=form.get('assignee_id'), version=version, note=form.get('note', ''))
@@ -305,8 +302,8 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
             appointment, slot = service_appointments.parse(form,svc._now())
             svc.reschedule(session,user,ticket_id,version,appointment,slot,str(form.get('note','')))
         elif action in ("transition", "no-show"):
-            if action=='transition' and (form.get('appointment_choice') == 'LAN_SAU' or form.get('to_status') == 'KHACH_HEN_SAU'):
-                technician_returns.close_ticket(session,user,ticket_id,version,str(form.get('note','')),return_lines(form))
+            if action=='transition' and form.get('to_status')=='DA_HUY' and not has_role(user,*svc.DISPATCHERS):
+                technician_returns.cancel_by_technician(session,user,ticket_id,version,str(form.get('note','')),return_lines(form) if form.getlist('return_product') else None)
                 from .technician import after_post
                 return after_post(request,session,user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1')
             slot = None

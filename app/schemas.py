@@ -326,7 +326,7 @@ class StockMinLevelIn(BaseModel):
 
 ServiceKind = Literal["SUA_TAI_CHO", "MANG_VE", "BAO_HANH", "MUC_DINH_KY"]
 ServicePriority = Literal["KHAN", "GAP", "THUONG"]
-ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY", "KHACH_HEN_SAU"]
+ServiceStatus = Literal["MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG", "HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY"]
 
 
 AppointmentSlot = Literal["SANG", "CHIEU", "GIO"]
@@ -405,6 +405,14 @@ class ServiceTransition(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     to_status: ServiceStatus
+
+    @field_validator('to_status', mode='before')
+    @classmethod
+    def reject_removed_status(cls, value):
+        if value == 'KHACH_HEN_SAU':
+            from .errors import BusinessError
+            raise BusinessError('BAD_TRANSITION', 'Trạng thái này không còn được sử dụng.', status=409)
+        return value
     hold_reason: str = Field(default="", max_length=24)
     version: int | None = Field(default=None, ge=1)
     note: str = Field(default="", max_length=2000)

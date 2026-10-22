@@ -29,4 +29,4 @@
 {% if history %}<section class="card po-money"><h2>Chứng từ liên quan</h2>{% for r in history %}<a href="/phieu-kho/{{ r.stock_doc_id }}">{{ stock_numbers[r.stock_doc_id] }} · Phiếu nhập</a>{% endfor %}{% for t in returns %}<a href="/phieu-kho/{{ t.stock_doc_id }}">{{ stock_numbers[t.stock_doc_id] }} · Trả NCC</a>{% endfor %}</section>{% endif %}
 </aside>{% endif %}</div>
 <template id="purchase-line-template">{% set line=dict(product_code='',warehouse_code='',qty='1',unit_cost='',vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_mua_dong_form.jinja' %}</template>
-<script src="/static/purchases.js" defer></script></div>{% endif %}{% endblock %}
+<script src="{{ asset('purchases.js') }}" defer></script></div>{% endif %}{% endblock %}

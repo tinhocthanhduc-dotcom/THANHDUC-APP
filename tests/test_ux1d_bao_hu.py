@@ -31,7 +31,7 @@ def split(reason='rơi vỡ'):
 
 
 def closed(db,setup):
-    p,own,t=setup;svc.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau',split())
+    p,own,t=setup;svc.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',split())
     return p,own,t,db.scalars(select(TechnicianReturn)).one()
 
 
@@ -54,7 +54,7 @@ def test_split_receipt_two_ck_and_defect_keeps_existing_cost(db,supplied):
 @pytest.mark.parametrize('reason',['','x','  '])
 def test_missing_damage_reason_changes_nothing(db,supplied,reason):
     p,own,t=supplied;before=state(db,t)
-    error('DAMAGE_REASON_REQUIRED',svc.close_ticket,db,p['technician'],t.id,t.version,'Khách hẹn lần sau',split(reason))
+    error('DAMAGE_REASON_REQUIRED',svc.cancel_by_technician,db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',split(reason))
     assert state(db,t)==before and balance(db,own.code)==2
 
 
@@ -108,7 +108,7 @@ def test_receive_correction_to_good_needs_note_and_preserves_report(db,supplied)
 
 def test_receive_correction_to_damaged_requires_reason_and_note(db,supplied):
     bad=defect(db);p,own,t=supplied
-    svc.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau',split()[:1]);row=db.scalars(select(TechnicianReturn)).one();line=row.lines[0]
+    svc.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',split()[:1]);row=db.scalars(select(TechnicianReturn)).one();line=row.lines[0]
     error('REASON_REQUIRED',svc.receive,db,p['warehouse'],row.id,row.version,{},'',{line.line_no:'HU_HONG'},{line.line_no:'vỡ hộp'})
     svc.receive(db,p['warehouse'],row.id,row.version,{},'Kho phát hiện vỡ hộp',{line.line_no:'HU_HONG'},{line.line_no:'vỡ hộp'})
     assert line.condition=='TOT' and line.received_condition=='HU_HONG' and line.received_damage_reason=='vỡ hộp'
@@ -164,14 +164,14 @@ def test_photo_rollback_removes_files_and_records(db,supplied,monkeypatch):
     def after_photos(*args,**kwargs):
         create(*args,**kwargs);raise BusinessError('TEST_FAILURE','Lỗi sau ảnh')
     monkeypatch.setattr(svc,'create_requests',after_photos)
-    error('TEST_FAILURE',svc.close_ticket,db,p['technician'],t.id,t.version,'Khách hẹn lần sau',entries)
+    error('TEST_FAILURE',svc.cancel_by_technician,db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',entries)
     assert state(db,t)==before and db.query(Attachment).count()==0
     assert {path for path in root.rglob('*') if path.is_file()}=={path for path in paths if path.is_file()}
 
 
 @pytest.mark.parametrize('received',[False,True])
 def test_migration_legacy_tot_and_receives_normally(db,supplied,received):
-    p,own,t=supplied;svc.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
+    p,own,t=supplied;svc.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
     row=db.scalars(select(TechnicianReturn)).one()
     if received:svc.receive(db,p['warehouse'],row.id,row.version,{})
     spec=importlib.util.spec_from_file_location('ux1d_migration',Path('migrations/versions/0035_ux1d_bao_hang_hu.py'))
@@ -187,7 +187,7 @@ def test_migration_legacy_tot_and_receives_normally(db,supplied,received):
 
 
 def test_db_damage_constraints_and_default(db,supplied):
-    p,_,t=supplied;svc.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau');row=db.scalars(select(TechnicianReturn)).one()
+    p,_,t=supplied;svc.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa');row=db.scalars(select(TechnicianReturn)).one()
     assert row.lines[0].condition=='TOT' and row.lines[0].damage_reason==''
     for sql in ("update technician_return_lines set condition='HU_HONG',damage_reason=''", "update technician_return_lines set damage_reason='hỏng' where condition='TOT'"):
         with pytest.raises(DBAPIError),db.begin_nested():db.execute(text(sql))

@@ -10,16 +10,7 @@
         var parts=value.split(':'), day=parts[1].split('-');
         text=(parts[0]==='SANG'?'Sáng ':'Chiều ')+day[2]+'/'+day[1];
       } else if (value==='GIO' && time.value) text=time.value.replace('T',' ');
-      else if (value==='LAN_SAU') text='Lần sau (chưa có giờ)';
       if (collapse && text) { summary.hidden=false;options.hidden=true;summary.querySelector('strong').textContent=text; }
-      var returns=picker.form ? picker.form.querySelector('[data-return-fields]') : picker.closest('form').querySelector('[data-return-fields]');
-      var submit=picker.closest('form').querySelector('[data-appointment-submit]');
-      if (submit) submit.textContent=value==='LAN_SAU'?'Đóng phiếu · Hẹn lần sau':submit.dataset.label;
-      if (returns) {
-        returns.hidden=value!=='LAN_SAU';
-        returns.querySelectorAll('input,select,textarea').forEach(function(input){input.disabled=value!=='LAN_SAU';});
-        returns.dispatchEvent(new Event('return-state'));
-      }
     }
     picker.addEventListener('change',function(){update(true);});
     picker.querySelector('[data-appointment-edit]').addEventListener('click',function(){summary.hidden=true;options.hidden=false;});

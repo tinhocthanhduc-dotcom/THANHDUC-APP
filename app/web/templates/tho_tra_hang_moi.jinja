@@ -7,4 +7,4 @@
 <form id="return-create" method="post" enctype="multipart/form-data" class="form" action="/tho-tra-hang/moi">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 {% include 'tra_vat_tu_fields.jinja' %}<div class="tho-bottom-action"><button class="primary btn-ok">Gửi yêu cầu trả kho</button></div></form>
-<script src="/static/technician-returns.js" defer></script>{% endblock %}
+<script src="{{ asset('technician-returns.js') }}" defer></script>{% endblock %}

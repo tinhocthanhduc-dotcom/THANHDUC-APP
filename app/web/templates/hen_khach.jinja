@@ -6,7 +6,6 @@
 <div class="appointment-buttons">
 {% for item in (appointment_return_choices if returning else appointment_choices) %}<label><input type="radio" name="appointment_choice" value="{{ item.value }}" data-appointment-label="{{ item.label }}" {% if choice==item.value %}checked{% endif %} required><span>{{ item.label }}</span></label>{% endfor %}
 <label><input type="radio" name="appointment_choice" value="GIO" {% if choice=='GIO' or (not choice and entered) %}checked{% endif %} required><span>Chọn giờ</span></label>
-{% if allow_later %}<label><input type="radio" name="appointment_choice" value="LAN_SAU" {% if choice=='LAN_SAU' %}checked{% endif %} required><span>Lần sau (chưa có giờ)</span></label>{% endif %}
 </div>
 <label data-appointment-time>Ngày giờ hẹn (giờ Việt Nam)<input type="datetime-local" name="appointment_at" value="{{ entered }}" {% if choice and choice!='GIO' %}disabled{% endif %} required></label>
 </div>

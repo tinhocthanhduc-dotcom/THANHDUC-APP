@@ -1,5 +1,5 @@
 {% extends "base.jinja" %}
-{% block title %}{{ d.number or 'Lập phiếu kho' }}<script src="/static/technician-stock.js" defer></script>
+{% block title %}{{ d.number or 'Lập phiếu kho' }}<script src="{{ asset('technician-stock.js') }}" defer></script>
 {% endblock %}
 {% block main %}
 <div class="bar"><h1>{{ d.number or 'Lập phiếu kho' }} · {{ states[d.status] }}</h1><a href="/phieu-kho">← Phiếu kho</a></div>
@@ -42,6 +42,6 @@
 <button>{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</button>
 </form>{% endif %}
 <template id="stock-line-template">{% set line = {'product_code':'', 'qty':'1', 'unit_cost':'', 'serial':'', 'note':''} %}{% include 'phieu_dong.jinja' %}</template>
-<script src="/static/stock.js" defer></script>
-<script src="/static/technician-stock.js" defer></script>
+<script src="{{ asset('stock.js') }}" defer></script>
+<script src="{{ asset('technician-stock.js') }}" defer></script>
 {% endblock %}
