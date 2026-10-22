@@ -25,3 +25,16 @@
     input.addEventListener('input', function () { picker.querySelector('[data-picked-value]').value = ''; if (picker.hasAttribute('data-tech-destination')) { document.querySelector('[name=to_warehouse_code]').value=''; document.querySelectorAll('[name=to_regular_warehouse]').forEach(function(r){r.checked=false;}); } });
   });
 })();
+// Hàng tôi giữ: ô tìm khi giữ nhiều mã; so khớp không dấu.
+(function () {
+  var box = document.querySelector('[data-row-search]');
+  if (!box) return;
+  function fold(v) { return String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd'); }
+  box.addEventListener('input', function () {
+    var q = fold(box.value).trim(), shown = 0;
+    document.querySelectorAll('[data-search]').forEach(function (row) {
+      var on = !q || row.dataset.search.indexOf(q) >= 0; row.hidden = !on; if (on) shown++;
+    });
+    document.querySelector('[data-row-empty]').hidden = shown > 0;
+  });
+})();

@@ -1,5 +1,6 @@
 """Màn hình kho: gọi nghiệp vụ hiện có; tồn và thẻ kho chỉ đọc."""
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from urllib.parse import quote, urlencode
 import re
@@ -22,6 +23,7 @@ from ..security import has_role
 from ..text import fold
 
 router = APIRouter(include_in_schema=False)
+VN = ZoneInfo('Asia/Ho_Chi_Minh')
 KINDS = {"PN": "Nhập", "PX": "Xuất", "CK": "Chuyển", "KK": "Kiểm kê"}
 STATES = {"NHAP": "Nháp", "DA_GHI": "Đã ghi", "DA_HUY": "Đã hủy"}
 
@@ -129,12 +131,58 @@ def pick_tech_warehouse(request: Request,q: str='',user: User=Depends(web_user),
     return render(request,'phieu_chon_kho_tho.jinja',rows=rows)
 
 
+HIST_DAYS,HIST_RECENT,HIST_PAGE=7,5,20
+RETURN_STATUSES={'CHO_NHAN':'Chờ nhận','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'}
+
+
+def _recent(rows,open_status):
+    # Màn chính chỉ giữ việc đang chờ + vài phiếu xong gần đây; phần còn lại ở trang lịch sử.
+    since=datetime.now(timezone.utc)-timedelta(days=HIST_DAYS)
+    done=[r for r in rows if r.status!=open_status and r.created_at>=since][:HIST_RECENT]
+    return [r for r in rows if r.status==open_status]+done
+
+
 @router.get('/hang-toi-giu')
 def technician_held(request: Request,tho: int | None=None,user: User=Depends(web_user),session: Session=Depends(get_session)):
     data=technician_stock.held(session,user,tho)
-    return render(request,'hang_toi_giu.jinja',**data,can_return='technician' in user.roles and (not tho or tho==user.id),return_requests=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.technician_id==(data['holder'].id if data['holder'] else user.id)).order_by(TechnicianReturn.id.desc()))),can_manage=has_role(user,'warehouse'),
-        stock_requests=part_requests.for_requester(session,user) if 'technician' in user.roles and (not tho or tho==user.id) else [],
-        part_statuses=part_requests.STATUSES,saved=request.query_params.get('da_luu')=='1')
+    own='technician' in user.roles and (not tho or tho==user.id)
+    tech_id=data['holder'].id if data['holder'] else user.id
+    returns=_recent(list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.technician_id==tech_id,or_(
+        TechnicianReturn.status=='CHO_NHAN',TechnicianReturn.created_at>=datetime.now(timezone.utc)-timedelta(days=HIST_DAYS))).order_by(TechnicianReturn.id.desc()))),'CHO_NHAN')
+    requests=_recent(part_requests.for_requester(session,user,limit=None,since_days=HIST_DAYS),'CHO_CAP') if own else []
+    return render(request,'hang_toi_giu.jinja',**data,can_return=own,return_requests=returns,can_manage=has_role(user,'warehouse'),
+        return_total=session.scalar(select(func.count()).select_from(TechnicianReturn).where(TechnicianReturn.technician_id==tech_id)),
+        request_total=part_requests.count_for_requester(session,user) if own else 0,return_statuses=RETURN_STATUSES,
+        stock_requests=requests,part_statuses=part_requests.STATUSES,saved=request.query_params.get('da_luu')=='1',
+        search_rows=[fold(f'{r.product_code} {r.name}') for r in data.get('rows',[])])
+
+
+@router.get('/hang-toi-giu/lich-su')
+def technician_history(request: Request,loai: str='yeu-cau',thang: str='',trang: int=1,tho: int | None=None,user: User=Depends(web_user),session: Session=Depends(get_session)):
+    data=technician_stock.held(session,user,tho)
+    if loai not in ('yeu-cau','tra-kho'):loai='yeu-cau'
+    if loai=='yeu-cau' and tho and tho!=user.id:loai='tra-kho'  # yêu cầu mang theo chỉ chính thợ xem
+    tech_id=data['holder'].id if data['holder'] else user.id
+    month=re.fullmatch(r'(\d{4})-(\d{2})',thang or '')
+    if loai=='tra-kho':
+        model,stmt=TechnicianReturn,select(TechnicianReturn).where(TechnicianReturn.technician_id==tech_id)
+    else:
+        from ..models import PartRequest
+        model,stmt=PartRequest,select(PartRequest).where(PartRequest.requester_id==user.id,PartRequest.ticket_id.is_(None))
+    if month and 1<=int(month.group(2))<=12:
+        y,m=int(month.group(1)),int(month.group(2))
+        start=datetime(y,m,1,tzinfo=VN);end=datetime(y+(m==12),m%12+1,1,tzinfo=VN)
+        stmt=stmt.where(model.created_at>=start,model.created_at<end)
+    else:
+        thang=''
+    total=session.scalar(select(func.count()).select_from(stmt.subquery()))
+    pages=max(1,-(-total//HIST_PAGE));trang=min(max(1,trang),pages)
+    rows=list(session.scalars(stmt.order_by(model.id.desc()).offset((trang-1)*HIST_PAGE).limit(HIST_PAGE)))
+    today=datetime.now(VN).date()
+    months=[(today.year-(today.month-i<=0),(today.month-i-1)%12+1) for i in range(6)]
+    return render(request,'hang_lich_su.jinja',loai=loai,thang=thang,trang=trang,pages=pages,total=total,rows=rows,
+        months=[f'{y}-{m:02d}' for y,m in months],holder=data['holder'],tho=tho,
+        own='technician' in user.roles and (not tho or tho==user.id),part_statuses=part_requests.STATUSES,return_statuses=RETURN_STATUSES)
 
 
 @router.get('/hang-toi-giu/phieu/{doc_id}')

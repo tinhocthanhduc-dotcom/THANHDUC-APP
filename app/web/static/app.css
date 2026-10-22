@@ -1298,3 +1298,13 @@ main:has(> .me-page) { max-width: 640px; }
 }
 .tho-trip b, .tho-meta a { white-space: nowrap; }
 .tho-app .tech-onsite .group-label, .recv-cond .group-label { margin-bottom: 0; }
+.tho-hist-more { display: block; margin-top: 8px; font-weight: 700; }
+.tho-row-search { margin: 0 0 10px; }
+.tho-hist-tabs { margin: 0 0 10px; }
+.tho-hist-tabs .btn.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.tho-hist-months { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 8px; }
+.tho-hist-months .chip-btn { flex: none; display: inline-flex; align-items: center; text-decoration: none; }
+.tho-hist-list p { margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.tho-hist-list p:last-child { border-bottom: 0; }
+.tho-pager { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin: 12px 0; }
+.tho-pager a:last-child { justify-self: end; }

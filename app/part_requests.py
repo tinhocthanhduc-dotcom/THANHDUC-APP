@@ -2,9 +2,9 @@
 
 Luôn khóa phiếu dịch vụ trước yêu cầu; kho vẫn ghi sổ bằng stock_posting.
 """
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from . import audit, service_sla, service_tickets as svc, stock_docs, stock_posting, technician_stock
 from .doc_numbers import next_number
@@ -146,10 +146,16 @@ def create_stock_many(session, user, bodies):
         return [_stock_row(session, user, body, reason) for body in bodies]
 
 
-def for_requester(session, user, limit=20):
-    """Yêu cầu mang theo (không gắn phiếu) của chính thợ, mới nhất trước."""
-    return list(session.scalars(select(PartRequest).where(PartRequest.requester_id == user.id, PartRequest.ticket_id.is_(None))
-                                .order_by(PartRequest.id.desc()).limit(limit)))
+def for_requester(session, user, limit=20, since_days=None):
+    """Yêu cầu mang theo (không gắn phiếu) của chính thợ, mới nhất trước; since_days: chỉ việc chờ cấp + phiếu gần đây."""
+    stmt = select(PartRequest).where(PartRequest.requester_id == user.id, PartRequest.ticket_id.is_(None))
+    if since_days is not None:
+        stmt = stmt.where(or_(PartRequest.status == 'CHO_CAP', PartRequest.created_at >= func.now() - timedelta(days=since_days)))
+    return list(session.scalars(stmt.order_by(PartRequest.id.desc()).limit(limit)))
+
+
+def count_for_requester(session, user):
+    return session.scalar(select(func.count()).select_from(PartRequest).where(PartRequest.requester_id == user.id, PartRequest.ticket_id.is_(None)))
 
 
 def _locked(session, ident, version):
