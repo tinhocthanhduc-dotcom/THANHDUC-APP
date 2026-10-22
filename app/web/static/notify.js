@@ -1,9 +1,9 @@
-// Thông báo theo vị trí: mỗi 30 giây (khi trang đang hiện) hỏi danh sách việc người khác vừa đẩy tới mình.
+// Thông báo theo vị trí: mỗi 15 giây (khi trang đang hiện) hỏi danh sách việc người khác vừa đẩy tới mình.
 // Chuông đếm số thông báo CHƯA XEM; bấm một dòng, mở đúng trang đó hoặc "Đã xem hết" thì thành đã xem (lưu ở máy chủ).
 (function () {
   var bell = document.querySelector('[data-notify]');
   if (!bell || !window.fetch) return;
-  var url = bell.dataset.notify, store = 'td-seen-' + bell.dataset.notifyUser, EVERY = 30000, busy = false;
+  var url = bell.dataset.notify, store = 'td-seen-' + bell.dataset.notifyUser, EVERY = 15000, busy = false;
   var badge = bell.querySelector('[data-notify-count]'), list = bell.querySelector('[data-notify-list]');
   var title = bell.querySelector('[data-notify-title]'), readAll = bell.querySelector('[data-notify-readall]');
   var seen = null, current = [];
