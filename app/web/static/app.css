@@ -1178,3 +1178,15 @@ main:has(> .me-page) { max-width: 640px; }
 .dispatch-list .doc-row a { color: inherit; text-decoration: none; } .dispatch-list .doc-row a.btn { min-height: 32px; padding: 4px 10px; font-size: .85rem; }
 .doc-linked { margin: 0 0 8px; } .doc-linked .tag { margin: 0; padding: 4px 10px; }
 .dispatch-tiles .stock-tile strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; } .dispatch-tiles .tile-bad strong { color: var(--bad); }
+
+/* Thông báo theo vị trí: chuông + số việc mới; danh sách xổ xuống, bấm là tới chứng từ. */
+.notify { position: relative; flex: none; }
+.notify-btn { position: relative; width: 44px; height: 44px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; list-style: none; }
+.notify-btn::-webkit-details-marker { display: none; }
+.notify-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--bad-solid); color: var(--bad-solid-text); font-size: 12px; font-weight: 800; line-height: 20px; text-align: center; }
+.notify-panel { position: absolute; right: 0; top: 52px; z-index: 30; width: min(340px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; display: grid; gap: 4px; padding: 8px; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); color: var(--text); }
+.notify-panel a { display: grid; gap: 2px; padding: 10px; border-radius: 10px; color: var(--text); text-decoration: none; }
+.notify-panel a:hover, .notify-panel a.new { background: var(--tag); }
+.notify-panel a small { color: var(--muted); }
+.notify-panel p { margin: 6px; }
+.toast a { color: inherit; }

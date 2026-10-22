@@ -139,6 +139,14 @@ def personal(request:Request,user:User=Depends(web_user)):
     return _render(request,'ca_nhan.jinja',links=links)
 
 
+@router.get('/ca-nhan/thong-bao')
+def notices(user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from fastapi.responses import JSONResponse
+    from .. import notifications
+    rows=notifications.items(session,user)
+    return JSONResponse(dict(items=rows,count=len(rows)),headers={'Cache-Control':'no-store'})
+
+
 @router.get('/ho-so-cua-toi')
 def own(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
     # Even directors see only their common profile on this route.
