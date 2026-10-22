@@ -1266,7 +1266,7 @@ class SalesDeliveryAttempt(Base):
     __tablename__ = 'sales_delivery_attempts'
     __table_args__ = (
         CheckConstraint("result = 'KHONG_GIAO_DUOC'", name='ck_sales_delivery_attempts_result'),
-        CheckConstraint("reason in ('KHACH_VANG','KHACH_TU_CHOI','SAI_DIA_CHI','HEN_LAI','KHAC')", name='ck_sales_delivery_attempts_reason'),
+        CheckConstraint("reason in ('KHACH_VANG','KHACH_TU_CHOI','SAI_DIA_CHI','HEN_LAI','KHAC','DE_NGHI_HUY')", name='ck_sales_delivery_attempts_reason'),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'), index=True)

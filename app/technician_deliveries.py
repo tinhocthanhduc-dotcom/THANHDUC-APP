@@ -140,15 +140,29 @@ def failed(session,user,order_id,body):
         sales_orders._status(order,('DA_CHOT','GIAO_MOT_PHAN'))
         if body.reason=='HEN_LAI' and body.promised_date is None:
             raise BusinessError('PROMISED_DATE_REQUIRED','Hẹn lại phải có ngày hẹn mới.')
+        note,address=body.note.strip(),body.new_address.strip()
+        if body.reason=='SAI_DIA_CHI' and not address:
+            raise BusinessError('ADDRESS_REQUIRED','Nhập địa chỉ giao mới.')
+        if body.reason=='DE_NGHI_HUY':
+            # Thợ chỉ đề nghị; bán hàng hủy đơn ở màn đơn bán (tiền ứng, hàng thợ giữ xử lý ở đó).
+            if order.status!='DA_CHOT':
+                raise BusinessError('CANCEL_PARTIAL','Đơn đã giao một phần, gọi bán hàng để xử lý phần còn lại.',status=409)
+            if len(note)<3:
+                raise BusinessError('REASON_REQUIRED','Ghi lý do đề nghị hủy đơn.')
         before=sales_orders.snapshot(order)
-        attempt=SalesDeliveryAttempt(order_id=order.id,assignee_id=user.id,reason=body.reason,note=body.note)
+        if address:
+            note=('Địa chỉ mới: '+address+('; '+note if note else ''))[:4000]
+        attempt=SalesDeliveryAttempt(order_id=order.id,assignee_id=user.id,reason=body.reason,note=note)
         session.add(attempt)
         if body.reason=='HEN_LAI':order.promised_date=body.promised_date
+        if body.reason=='SAI_DIA_CHI':
+            order.delivery_address=address
+            if body.promised_date:order.promised_date=body.promised_date
         order.version+=1
         session.flush()
         audit.record(session,user,'sales_delivery_attempt.create','sales_delivery_attempt',str(attempt.id),None,
             dict(order_id=order.id,assignee_id=user.id,result=attempt.result,reason=attempt.reason,note=attempt.note))
-        sales_orders._record(session,user,order,'failed_delivery',before,body.note)
+        sales_orders._record(session,user,order,'failed_delivery',before,note)
     return order
 
 

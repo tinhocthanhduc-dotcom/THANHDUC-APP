@@ -33,14 +33,17 @@
 <section class="card"><h2><span class="tho-stepno">3</span>Xác nhận giao</h2>
 <div class="tho-delivery-photos" data-delivery-photos><label class="btn photo-capture delivery-capture">📷 Chụp ảnh giao hàng (bắt buộc)<input type="file" name="photos" accept="image/*" capture="environment" multiple required data-delivery-camera></label><p class="hint" data-photo-count>Chưa có ảnh. Bấm nút trên để mở máy ảnh.</p><div class="delivery-thumbs" data-photo-thumbs></div></div>
 <label>Người nhận<input name="receiver_name" value="{{ raw.get('receiver_name', order.contact_name or '') }}" maxlength="200"></label>
-<label>Ghi chú<textarea name="note" maxlength="4000" rows="2">{{ raw.get('note','') }}</textarea></label></section>
+</section>
 </form>
 <details class="card tho-other" id="viec-khac" {% if raw.get('reason') %}open{% endif %}><summary>Không giao được</summary>
-<form method="post" action="/giao-don/{{ order.id }}/failed" class="form">{{ tokens() }}
-<div class="chips" role="radiogroup" aria-label="Lý do">{% for code,title in reason_labels.items() %}<label class="chip"><input type="radio" name="reason" value="{{ code }}" required {% if raw.get('reason')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div>
-<label>Ngày hẹn mới (nếu có)<input type="date" name="promised_date" value="{{ raw.get('promised_date','') }}"></label>
-{{ fill_chips(['Gọi không nghe máy','Khách đi vắng','Khách hẹn chiều'],'note') }}<label>Ghi chú<textarea name="note" rows="2">{{ raw.get('note','') if raw.get('reason') else '' }}</textarea></label>
-<div class="swipe" data-swipe data-tone="danger"><button type="submit">Vuốt để ghi Không giao được</button></div></form></details>
+<form method="post" action="/giao-don/{{ order.id }}/failed" class="form" data-fail-form>{{ tokens() }}
+<div class="seg seg-wrap tho-fail-reasons" role="radiogroup" aria-label="Lý do">{% for code,title in tho_reasons.items() if code!='DE_NGHI_HUY' or order.status=='DA_CHOT' %}<label><input type="radio" name="reason" value="{{ code }}" required {% if raw.get('reason')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div>
+<div class="field-group" data-reason-panel="HEN_LAI"><p class="group-label">Ngày hẹn</p><div class="chips">{% for label,d in quick_dates %}<button type="button" class="chip-btn" data-set-date="{{ d.isoformat() }}">{{ label }}</button>{% endfor %}</div>
+<input type="date" name="promised_date" value="{{ raw.get('promised_date','') }}" aria-label="Ngày hẹn" data-need="HEN_LAI">
+<p class="group-label">Buổi <small>(nếu khách nói)</small></p><div class="chips">{% for code,title in slots.items() %}<label class="chip"><input type="radio" name="slot" value="{{ code }}" {% if raw.get('slot')==code %}checked{% endif %}><span>{{ title|capitalize }}</span></label>{% endfor %}</div></div>
+<div class="field-group" data-reason-panel="SAI_DIA_CHI"><label>Địa chỉ giao mới<textarea name="new_address" rows="2" maxlength="500" data-need="SAI_DIA_CHI" placeholder="Số nhà, đường, phường…">{{ raw.get('new_address','') }}</textarea></label>{% if order.delivery_address %}<p class="hint">Địa chỉ cũ: {{ order.delivery_address }}</p>{% endif %}</div>
+<div class="field-group" data-reason-panel="DE_NGHI_HUY"><p class="group-label">Lý do hủy</p>{{ fill_chips(['Liên hệ nhiều lần không được','Khách không mua nữa','Khách đổi ý'],'note') }}<textarea name="note" rows="2" maxlength="4000" aria-label="Lý do hủy" data-need="DE_NGHI_HUY">{{ raw.get('note','') if raw.get('reason')=='DE_NGHI_HUY' else '' }}</textarea><p class="hint">Bán hàng sẽ nhận đề nghị và hủy đơn, xử lý tiền ứng và hàng anh đang giữ.</p></div>
+<div class="swipe" data-swipe data-tone="danger"><button type="submit">Vuốt để xác nhận</button></div></form></details>
 {% elif order.status=='DA_GIAO' and balance.available>0 %}
 <form id="bao-thu" class="card form" method="post" action="/giao-don/{{ order.id }}/report">{{ tokens() }}<h2>Báo thu</h2>
 <label>Số tiền thu (đồng)<input name="amount" value="{{ raw.get('amount', balance.available|money) }}" inputmode="numeric" data-money required></label>
