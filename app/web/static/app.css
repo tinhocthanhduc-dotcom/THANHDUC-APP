@@ -1175,9 +1175,9 @@ main:has(> .me-page) { max-width: 640px; }
 .tho-bottom-action .swipe > button { min-height: 56px; }
 .tho-bottom-action .swipe-knob { width: 46px; height: 46px; }
 /* Báo cáo sửa chữa gọn: chip chọn nhiều, xuống dòng. */
-.tho-report fieldset { border: 0; padding: 0; margin: 0 0 10px; }
-.tho-report legend { font-weight: 700; margin-bottom: 6px; }
-.tho-report legend small, .tho-report label small { font-weight: 400; color: var(--muted); }
+.tho-report-group { margin: 0 0 10px; min-width: 0; }
+.tho-report .tho-report-label { display: block; margin: 0 0 6px; font-weight: 700; white-space: normal; writing-mode: horizontal-tb; }
+.tho-report .tho-report-label small, .tho-report label small { font-weight: 400; color: var(--muted); }
 .tho-report .seg-wrap { flex-wrap: wrap; }
 .tho-report .seg-wrap label { flex: 0 0 auto; }
 .tho-screen .tho-report .seg-wrap span { min-height: 40px; padding: 6px 12px; font-weight: 600; border-width: 1px; }
