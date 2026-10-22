@@ -203,7 +203,7 @@ def test_opening_and_cxl_transfer_still_void_publicly(client, db, held, kind):
 
 def test_service_reopen_uses_internal_void(db, held):
     p, own, _ = held; doc = make_case(db, p, 'service')
-    t = db.scalar(select(ServiceTicket).where(ServiceTicket.status=='HOAN_THANH'))
+    t = db.scalar(select(ServiceTicket).where(ServiceTicket.status=='DA_DONG'))
     assert balance(db,own.code) == 1
     service_tickets.transition(db,p['dispatcher'],t.id,'DANG_LAM',t.version,'Sửa lại theo yêu cầu khách')
     assert db.get(StockDoc,doc.id,populate_existing=True).status == 'DA_HUY'

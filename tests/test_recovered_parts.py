@@ -105,7 +105,6 @@ def test_complete_allowed_but_close_blocked_until_received_or_cancelled(db,peopl
     fail('RECOVERED_PENDING',service_tickets.transition,db,p['dispatcher'],t.id,'DA_DONG',t.version)
     defect(db,p);svc.receive(db,p['warehouse'],a.id,RecoveredPartReceive(version=a.version))
     svc.cancel(db,p['dispatcher'],b.id,b.version,'Khách giữ lại')
-    service_tickets.transition(db,p['dispatcher'],t.id,'DA_DONG',t.version)
     assert t.status=='DA_DONG'
 
 

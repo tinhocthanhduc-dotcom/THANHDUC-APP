@@ -4,7 +4,7 @@
 <div class="bar report-tools"><a href="/dich-vu/{{ t.id }}">← Phiếu dịch vụ</a><button type="button" onclick="window.print()">In biên bản</button></div>
 <article class="acceptance-report">
 <header><p>THÀNH ĐỨC</p><h1>BIÊN BẢN NGHIỆM THU DỊCH VỤ</h1><p>Số phiếu: <strong>{{ t.number }}</strong></p></header>
-{% if t.status != 'HOAN_THANH' %}<p class="alert warn">Phiếu chưa hoàn thành — bản xem trước.</p>{% endif %}
+{% if t.status not in ['HOAN_THANH','DA_DONG'] %}<p class="alert warn">Phiếu chưa hoàn thành — bản xem trước.</p>{% endif %}
 <dl>
   <dt>Khách hàng</dt><dd>{{ customer.name }} ({{ t.customer_code }})</dd>
   <dt>Địa điểm</dt><dd>{{ site.name if site else 'Không chọn' }}{% if site and site.address %} — {{ site.address }}{% endif %}</dd>

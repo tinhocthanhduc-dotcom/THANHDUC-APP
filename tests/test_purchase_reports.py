@@ -156,7 +156,7 @@ def test_service_margin_parts_fees_closed_paid_in_full_and_free(db,report_people
     finance_mappings.set_mapping(db,p['director'],'DANH_MUC_DICH_VU',category_code='THU-BH',version=1)
     receipt=sales_receipts.report_for_ticket(db,p['director'],ticket.id,SalesReceiptReport(version=ticket.version,method='TIEN_MAT',amount=ticket.receivable,received_at=DAY))
     sales_receipts.confirm(db,p['finance'],receipt.id,receipt.version)
-    service_tickets.transition(db,p['director'],ticket.id,'DA_DONG',ticket.version)
+    assert ticket.status=='DA_DONG'
     data=svc.gross_margin(db,p['director'],DAY,DAY)
     rows={r['id']:r for r in data['documents']}
     assert len(rows)==2 and (rows[ticket.id]['revenue'],rows[ticket.id]['cost'],rows[ticket.id]['profit'])==(500000,100000,400000)

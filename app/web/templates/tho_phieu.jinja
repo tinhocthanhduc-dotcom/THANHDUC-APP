@@ -15,6 +15,7 @@
 {% block tho_top %}<a class="tho-back" href="/tho" aria-label="Về danh sách hôm nay"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Hôm nay</a><h1 class="tho-title">{{ t.number }}</h1>{% endblock %}
 {% block tho_tabs %}{% endblock %}
 {% block main %}<div class="tho-screen" data-technician-ticket="{{ t.id }}">
+{% include 'tu_dong_dong_phieu.jinja' %}
 <ol class="tho-progress tho-steps" aria-label="Bước dịch vụ">{% for label in (['Nhận','Đến khách','Xong'] if t.appointment_at else ['Nhận','Hẹn','Đến khách','Xong']) %}<li class="{{ 'done' if loop.index0<step_index or t.status in ['HOAN_THANH','DA_DONG'] else '' }}" {% if loop.index0==step_index %}aria-current="step"{% endif %}>{{ label }}</li>{% endfor %}</ol>
 <section class="card tho-info"><p class="tho-locked"><span>Thông tin phiếu · lấy từ hệ thống, thợ không sửa</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg></p>
 <div class="tho-head"><b>{{ customer.name }}</b><span class="tag tone-{{ tones.get(t.status,'mute') }}">{{ service_statuses[t.status] }}</span></div>

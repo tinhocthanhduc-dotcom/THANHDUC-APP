@@ -45,7 +45,7 @@ def test_report_saved_and_shown_to_dispatcher(client, db, job):
     assert 'Ảnh biên bản có chữ ký khách' in html and html.index('id="bao-cao"') < html.index('id="completion-checks"')
     assert post(client, t, data(client, p, t, fault_found=' Kẹt giấy khay 2 ')).status_code == 303
     db.expire_all(); t = db.get(ServiceTicket, t.id)
-    assert (t.status, t.fault_found, t.fix_done) == ('HOAN_THANH', 'Kẹt giấy khay 2', 'Thay drum, vệ sinh máy')
+    assert (t.status, t.fault_found, t.fix_done) == ('DA_DONG', 'Kẹt giấy khay 2', 'Thay drum, vệ sinh máy')
     service_login(client, p['dispatcher']); page = client.get(f'/dich-vu/{t.id}').text
     assert 'data-fault-found>Kẹt giấy khay 2' in page and 'data-fix-done>Thay drum, vệ sinh máy' in page
 

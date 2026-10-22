@@ -81,7 +81,6 @@ def service(session, user, t):
         available=balance['remaining']-balance['pending'] if balance else 0
         if t.priced_at and available>0 and permitted(sales_receipts.check_ticket_reporter,user,t):
             return block(form(ticket_report_label(user,t),'receipt-report',base+'/bao-thu','Kiểm tra số tiền và cách thu trong mục Thu tiền trước khi báo.'))
-        if dispatcher and t.status=='HOAN_THANH':return block(transition('Đóng phiếu','DA_DONG'))
     return None
 
 

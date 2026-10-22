@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import PendingDisposition, PendingItem, StockBalance, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import PendingDisposition, PendingItem, StockBalance, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
@@ -62,8 +62,13 @@ def _specs(user, today, now):
     if has_role(user, 'dispatcher'):
         recent=select(ServiceStep.ticket_id).join(User,User.id==ServiceStep.actor_id).where(ServiceStep.action=='reassign',ServiceStep.at>=now-timedelta(days=7),User.roles.contains(['technician']),ServiceStep.note.startswith('Thợ '))
         add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent)), 'service','/dich-vu')
-        add('service_close', 'Dịch vụ chờ đóng phiếu', service.where(t.status=='HOAN_THANH',
-            or_(t.billing=='MIEN_PHI', (t.priced_at.is_not(None)) & (_available(t)<=0))), 'service', '/dich-vu')
+        recovered_count=select(func.count()).where(ServiceRecoveredPart.ticket_id==t.id,
+            ServiceRecoveredPart.status=='CHO_NOP').correlate(t).scalar_subquery()
+        recovered_holders=select(func.string_agg(func.distinct(User.full_name),', ')).join(
+            ServiceRecoveredPart,ServiceRecoveredPart.holder_id==User.id).where(
+            ServiceRecoveredPart.ticket_id==t.id,ServiceRecoveredPart.status=='CHO_NOP').correlate(t).scalar_subquery()
+        add('service_close', 'Dịch vụ chờ nộp linh kiện thu hồi', service.where(t.status=='HOAN_THANH',recovered_count>0)
+            .add_columns(recovered_count.label('recovered_pending'),recovered_holders.label('recovered_holders')), 'service', '/linh-kien-thu-hoi')
 
     if has_role(user,'technician'):
         eq=Equipment
@@ -184,6 +189,7 @@ def _group(session, spec, page=1):
             if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
+            if spec['key']=='service_close':row['link']=f"/linh-kien-thu-hoi?ticket_id={row['id']}"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"
             if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"

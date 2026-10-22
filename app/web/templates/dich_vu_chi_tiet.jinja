@@ -10,8 +10,8 @@
   {% if target == 'DA_HEN' %}{% with ap_form=form if failed_action==action else {}, returning=t.status=='DANG_LAM', allow_later=t.status=='DANG_LAM' %}{% include 'hen_khach.jinja' %}{% endwith %}{% if t.status=='DANG_LAM' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}{% endif %}
 {% if target=='KHACH_HEN_SAU' %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}
   {% if target == 'TAM_DUNG' %}<fieldset><legend>Lý do tạm dừng</legend><div class="seg stock-seg">{% for code,label in hold_reasons.items() %}<label><input type="radio" name="hold_reason" value="{{ code }}" {% if failed_action == action and form.get('hold_reason') == code %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset><p class="hint">Chọn Khác thì phải ghi chú bên dưới.</p>{% endif %}
-  {{ note(action, 'Lý do' if (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status == 'HOAN_THANH' and target == 'DANG_LAM')) else 'Ghi chú', (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status == 'HOAN_THANH' and target == 'DANG_LAM'))) }}
-  {% if not next_step or next_step.primary.form!='service-' ~ target %}<button {% if target=='DA_HEN' %}data-appointment-submit data-label="{{ transition_labels[target] }}"{% endif %} {% if target == 'DA_HUY' %}data-service-confirm="Hủy phiếu dịch vụ này?"{% endif %}>{{ transition_labels[target] }}</button>{% endif %}
+  {{ note(action, 'Lý do' if (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status in ['HOAN_THANH','DA_DONG'] and target == 'DANG_LAM')) else 'Ghi chú', (target in ['KHONG_LAM_DUOC', 'DA_HUY', 'KHACH_HEN_SAU'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status in ['HOAN_THANH','DA_DONG'] and target == 'DANG_LAM'))) }}
+  {% if not next_step or next_step.primary.form!='service-' ~ target %}<button {% if target=='DANG_LAM' and t.status in ['HOAN_THANH','DA_DONG'] %}class="btn btn-secondary"{% endif %} {% if target=='DA_HEN' %}data-appointment-submit data-label="{{ transition_labels[target] }}"{% endif %} {% if target == 'DA_HUY' %}data-service-confirm="Hủy phiếu dịch vụ này?"{% endif %}>{{ transition_labels[target] }}</button>{% endif %}
 </form>
 {% endmacro %}
 {% block title %}{{ t.number }}{% endblock %}
@@ -20,6 +20,7 @@
 <div class="recv-head doc-head-bar"><a class="btn" href="/dich-vu" aria-label="Danh sách dịch vụ">←</a><div><h1>{{ t.number }}</h1><p class="hint doc-status svc-{{ t.status|lower }}"><span class="stock-chip">{{ service_statuses[t.status] }}</span> · {{ t.customer_code }}</p></div></div>
 {% for order in linked_orders %}<p class="doc-linked"><a class="tag" href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}{% if can_add_sale %}<p class="doc-linked"><a class="btn btn-ghost" href="/don-ban/moi?service_ticket={{ t.id }}" data-add-sale>+ Kèm hàng bán</a></p>{% endif %}
 {% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
+{% include 'tu_dong_dong_phieu.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if retained_fields %}<section class="card form service-action"><h2>Dữ liệu vừa gửi chưa được lưu</h2>
 <p>Trạng thái phiếu đã thay đổi. <a href="/dich-vu/{{ t.id }}">Tải lại phiếu</a> trước khi tiếp tục.</p>

@@ -123,8 +123,9 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         from .technician import owned
         owned(session,user,ticket_id)
     dispatcher = has_role(user, *svc.DISPATCHERS) and not technician_view
-    own = "technician" in user.roles and t.assignee_id == user.id and t.status != "HOAN_THANH"
+    own = "technician" in user.roles and t.assignee_id == user.id and t.status not in ('HOAN_THANH','DA_DONG')
     targets = sorted(svc.FLOW.get(t.status, ()), key=lambda s: list(STATUSES).index(s)) if dispatcher or own else []
+    targets=[target for target in targets if target!='DA_DONG']
     if dispatcher and t.status in svc.CANCELLABLE:
         targets.append("DA_HUY")
     if t.status == 'DA_NHAN' and t.appointment_at and (dispatcher or own):
@@ -132,7 +133,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     labels = dict(TRANSITIONS)
     if t.status in ("CHO_LINH_KIEN", "TAM_DUNG"):
         labels["DANG_LAM"] = "Tiếp tục làm"
-    if t.status == "HOAN_THANH":
+    if t.status in ('HOAN_THANH','DA_DONG'):
         labels["DANG_LAM"] = "Mở lại"
     if t.status == "DANG_LAM":
         labels["DA_HEN"] = "Khách hẹn lại"
@@ -187,10 +188,11 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   **custody_context(session,user,t,custody_shown),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
     if not technician_view:
-        if dispatcher and t.status=='HOAN_THANH':ctx['next_step']=next_steps.block(next_steps.form('Đóng phiếu','service-DA_DONG',f'/dich-vu/{t.id}/transition'))
         ctx['workflow']=steps.service(t)
-        ctx['check_heading']='Kiểm' if dispatcher and t.status=='HOAN_THANH' else ''
+        ctx['check_heading']=''
         ctx['primary_checks']=steps.service_checks(session,t,ctx['next_step']['primary'] if ctx['next_step'] else None)
+        if t.status=='HOAN_THANH':ctx['primary_checks']=[]  # waiting to close never blocks reporting receipts
+    ctx['auto_close_checks']=steps.service_checks(session,t,None) if t.status=='HOAN_THANH' else []
     if technician_view:
         from .technician import detail_context as technician_context
         ctx.update(technician_context(session,user,t,ctx))
@@ -398,7 +400,8 @@ def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web
     return render(request, "dich_vu_bien_ban.jinja", t=t, customer=session.get(Customer, t.customer_code),
                   site=session.get(CustomerSite, t.site_id) if t.site_id else None, product=product,
                   technician=session.get(User, t.assignee_id) if t.assignee_id else None,
-                  work_note=last.note if last else "", completed_at=completion.at if completion else None, photos=photos)
+                  work_note=completion.note if completion and t.status in ('HOAN_THANH','DA_DONG') else last.note if last else "",
+                  completed_at=completion.at if completion else None, photos=photos)
 
 
 def return_lines(form, photos=True):
