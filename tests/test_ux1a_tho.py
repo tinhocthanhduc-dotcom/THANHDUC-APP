@@ -104,7 +104,7 @@ def test_only_own_material_warehouse_and_completion_checks(client,db,held):
     button=next(a for tag,a,_ in screen.tags if 'data-tho-primary' in a);assert 'disabled' in button
     attachments.add(db,p['technician'],'service_ticket',str(t.id),'SAU','sau.png',d5_image())
     attachments.add(db,p['technician'],'service_ticket',str(t.id),'BIEN_BAN','bien-ban.png',d5_image())
-    t.fault_found,t.fix_done='Kẹt giấy','Thay drum';db.commit()
+    t.fault_found,t.fix_done='Kẹt giấy','Đã sửa xong: Thay drum';db.commit()
     service_charges.set_charges(db,p['technician'],t.id,ServiceCharges(version=t.version,billing='MIEN_PHI',free_reason='Bảo hành'))
     page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
     assert all(a['data-ok']=='1' for _,a,_ in screen.tags if 'data-check' in a)

@@ -14,40 +14,44 @@ from test_web import service_login
 
 
 @pytest.mark.parametrize('changes,code', [
-    (dict(fault_found=''), 'FAULT_REQUIRED'),
-    (dict(fault_found='  a '), 'FAULT_REQUIRED'),
-    (dict(fix_done=''), 'FIX_REQUIRED'),
+    (dict(fault_found='Kẹt giấy', fix_done=''), 'FIX_REQUIRED'),
     (dict(fix_done='x' * 2001), 'TEXT_TOO_LONG'),
+    (dict(repair_result='', work=['Thay drum']), 'FIX_REQUIRED'),
+    (dict(repair_result='LAI', work=['Thay drum']), 'FIX_REQUIRED'),
 ])
-def test_report_text_required_rolls_back(client, db, job, changes, code):
+def test_report_result_required_rolls_back(client, db, job, changes, code):
     p, own, t = job
     form = data(client, p, t, **changes); before = snapshot(db, t); stock = balance(db, own.code)
     r = post(client, t, form)
     assert r.status_code == 400 and f'data-error-code="{code}"' in r.text and snapshot(db, t) == before and balance(db, own.code) == stock
-    if code == 'FAULT_REQUIRED':assert 'Thay drum, vệ sinh máy' in r.text  # thợ không mất chữ đã gõ
+    if 'work' in changes: assert 'value="Thay drum" checked' in r.text  # thợ không mất lựa chọn
 
 
-def test_report_photo_required_rolls_back(client, db, job):
-    p, own, t = job
+def test_bien_ban_photo_no_longer_required(client, db, job):
+    # TUẤN 22/10: chỉ cần ảnh nghiệm thu, bỏ ảnh biên bản có chữ ký khách.
+    p, _, t = job
     for a in db.scalars(select(Attachment).where(Attachment.entity_id == str(t.id), Attachment.tag == 'BIEN_BAN')):
         attachments.hide(db, p['technician'], a.id, 'Chụp lại', a.version)
-    form = data(client, p, t); before = snapshot(db, t); stock = balance(db, own.code)
-    assert 'data-check="bienban" data-label="Có ảnh biên bản có chữ ký khách" data-ok="0"' in client.get(f'/tho/phieu/{t.id}').text
-    r = post(client, t, form)
-    assert r.status_code == 400 and 'data-error-code="REPORT_PHOTO_REQUIRED"' in r.text
-    assert snapshot(db, t) == before and balance(db, own.code) == stock
+    form = data(client, p, t, fault_found='', fix_done='')
+    html = client.get(f'/tho/phieu/{t.id}').text
+    assert 'data-check="bienban"' not in html and 'data-photo-tag="BIEN_BAN"' not in html and 'Ghi chú hoàn thành' not in html
+    r = post(client, t, form | dict(repair_result='MOT_PHAN', fault=['Kẹt giấy', 'Không có'], work=['Thay drum', 'Vệ sinh máy'], fix_extra='Hẹn thay trục lần sau'))
+    assert r.status_code == 303
+    db.expire_all(); t = db.get(ServiceTicket, t.id)
+    assert t.status in ('HOAN_THANH', 'DA_DONG') and (t.fault_found, t.fix_done) == ('Kẹt giấy', 'Xong một phần: Thay drum, Vệ sinh máy, Hẹn thay trục lần sau')
 
 
 def test_report_saved_and_shown_to_dispatcher(client, db, job):
     p, _, t = job
     service_login(client, p['technician']); html = client.get(f'/tho/phieu/{t.id}').text
-    assert 'name="fault_found"' in html and 'name="fix_done"' in html and 'data-photo-tag="BIEN_BAN"' in html
-    assert 'Ảnh biên bản có chữ ký khách' in html and html.index('id="bao-cao"') < html.index('id="completion-checks"')
-    assert post(client, t, data(client, p, t, fault_found=' Kẹt giấy khay 2 ')).status_code == 303
+    assert 'name="repair_result" value="XONG"' in html and 'name="fault" value="Kẹt giấy"' in html and 'name="work" value="Thay drum"' in html
+    assert 'Ảnh nghiệm thu' in html and html.index('id="bao-cao"') < html.index('id="completion-checks"')
+    assert 'name="fault_found"' not in html and 'name="fix_done"' not in html
+    assert post(client, t, data(client, p, t, fault_found='', fix_done='', repair_result='XONG', fault=['Kẹt giấy'], work=['Thay drum'])).status_code == 303
     db.expire_all(); t = db.get(ServiceTicket, t.id)
-    assert (t.status, t.fault_found, t.fix_done) == ('DA_DONG', 'Kẹt giấy khay 2', 'Thay drum, vệ sinh máy')
+    assert t.status in ('HOAN_THANH', 'DA_DONG') and (t.fault_found, t.fix_done) == ('Kẹt giấy', 'Đã sửa xong: Thay drum')
     service_login(client, p['dispatcher']); page = client.get(f'/dich-vu/{t.id}').text
-    assert 'data-fault-found>Kẹt giấy khay 2' in page and 'data-fix-done>Thay drum, vệ sinh máy' in page
+    assert 'data-fault-found>Kẹt giấy' in page and 'data-fix-done>Đã sửa xong: Thay drum' in page
 
 
 def test_upload_bien_ban_tag(client, db, held):

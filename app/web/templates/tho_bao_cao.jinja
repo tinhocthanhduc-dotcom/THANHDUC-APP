@@ -1,7 +1,7 @@
-{# Thẻ B: thợ ghi lỗi thực tế và cách xử lý. Ô nằm ngoài form nên gắn form="service-complete". #}{% from '_ui.jinja' import fill_chips %}{% set rep=completion_form or {} %}
+{# Báo cáo sửa chữa gọn: chọn kết quả (bắt buộc), lỗi gặp / việc đã làm bấm chọn nếu có. Ô nằm ngoài form nên gắn form="service-complete". #}{% set rep=completion_form or {} %}{% set rep_fault=rep.get('fault',[]) %}{% set rep_work=rep.get('work',[]) %}
 <section class="card tho-report" id="bao-cao" data-tech-report data-ticket="{{ t.id }}" data-csrf="{{ csrf }}" data-draft='{{ tech_draft|tojson }}'><h2>Báo cáo sửa chữa</h2>
-<div>{{ fill_chips(['Kẹt giấy','Lỗi nguồn','Hết mực','Mòn trục ép','Hỏng drum','Lỗi kết nối','Bản in mờ, sọc'],'fault_found') }}
-<label>Lỗi gặp thực tế<textarea form="service-complete" name="fault_found" rows="2" maxlength="2000" minlength="3" required data-draft>{{ rep.get('fault_found',t.fault_found) }}</textarea></label></div>
-<div>{{ fill_chips(['Vệ sinh máy','Thay drum','Thay trục ép','Nạp mực','Thay gạt mực','Cài lại driver','Chỉnh cài đặt'],'fix_done') }}
-<label>Cách xử lý<textarea form="service-complete" name="fix_done" rows="2" maxlength="2000" minlength="3" required data-draft>{{ rep.get('fix_done',t.fix_done) }}</textarea></label></div>
-<p class="hint" data-draft-status aria-live="polite">Tự lưu nháp khi gõ, mất sóng vẫn không mất.</p></section>
+<fieldset><legend>Kết quả</legend><div class="seg">{% for value,label in repair_results.items() %}<label><input form="service-complete" type="radio" name="repair_result" value="{{ value }}" required {% if rep.get('repair_result')==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset>
+<fieldset><legend>Lỗi gặp <small>(chọn nếu có)</small></legend><div class="seg seg-wrap">{% for value in fault_chips %}<label><input form="service-complete" type="checkbox" name="fault" value="{{ value }}" {% if value in rep_fault %}checked{% endif %}><span>{{ value }}</span></label>{% endfor %}</div></fieldset>
+<fieldset><legend>Đã làm <small>(chọn nếu có)</small></legend><div class="seg seg-wrap">{% for value in work_chips %}<label><input form="service-complete" type="checkbox" name="work" value="{{ value }}" {% if value in rep_work %}checked{% endif %}><span>{{ value }}</span></label>{% endfor %}</div></fieldset>
+<label>Ghi thêm <small>(nếu cần)</small><input form="service-complete" name="fix_extra" maxlength="300" value="{{ rep.get('fix_extra','') }}" autocomplete="off"></label>
+<p class="hint" data-draft-status aria-live="polite">Tự lưu nháp, mất sóng vẫn không mất.</p></section>

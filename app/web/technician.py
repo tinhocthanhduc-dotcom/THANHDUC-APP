@@ -18,6 +18,25 @@ from . import checked_form, next_steps, render, watch_response, web_user
 
 router = APIRouter()
 
+# Báo cáo sửa chữa gọn: thợ chọn kết quả, lỗi gặp và việc đã làm bằng nút; server ghép thành chữ cho phiếu.
+REPAIR_RESULTS={'XONG':'Đã sửa xong','MOT_PHAN':'Xong một phần'}
+FAULT_CHIPS=('Kẹt giấy','Lỗi nguồn','Hết mực','Mòn trục ép','Hỏng drum','Lỗi kết nối','Bản in mờ, sọc')
+WORK_CHIPS=('Vệ sinh máy','Thay drum','Thay trục ép','Nạp mực','Thay gạt mực','Cài lại driver','Chỉnh cài đặt')
+
+
+def report_fields(form):
+    """Trả (lỗi gặp, cách xử lý, dữ liệu vẽ lại form). Form cũ gửi thẳng fault_found/fix_done vẫn nhận."""
+    result=str(form.get('repair_result','')).strip()
+    faults=[v for v in form.getlist('fault') if v in FAULT_CHIPS]
+    work=[v for v in form.getlist('work') if v in WORK_CHIPS]
+    extra=str(form.get('fix_extra','')).strip()
+    shown=dict(repair_result=result,fault=faults,work=work,fix_extra=extra)
+    if not result and not faults and not work and not extra:
+        return str(form.get('fault_found','')),str(form.get('fix_done','')),shown
+    if result not in REPAIR_RESULTS:return ', '.join(faults),'',shown  # lõi báo FIX_REQUIRED, form giữ lựa chọn
+    done=', '.join(work+([extra] if extra else []))
+    return ', '.join(faults),REPAIR_RESULTS[result]+(': '+done if done else ''),shown
+
 
 def technician_user(user: User = Depends(web_user)):
     if 'technician' not in user.roles:
@@ -105,10 +124,14 @@ def detail_context(session, user, ticket, ctx):
     from ..models import ServiceDraft
     draft=session.get(ServiceDraft,(ticket.id,user.id)) if ticket.status=='DANG_LAM' and not ctx.get('completion_form') else None
     ctx['tech_draft']=draft.data if draft else None
-    report_ok=len(shown.get('fault_found',ticket.fault_found).strip())>=3 and len(shown.get('fix_done',ticket.fix_done).strip())>=3
-    checks = [dict(key='report',label='Đã ghi lỗi gặp và cách xử lý',ok=report_ok),
-        dict(key='photo' ,label='Có ảnh sau sửa',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
-        dict(key='bienban',label='Có ảnh biên bản có chữ ký khách',ok=attachments.has_visible(session,'service_ticket',ticket.id,'BIEN_BAN')),
+    # Kết quả đã chọn (form vừa gửi) hoặc đã lưu trên phiếu (chữ bắt đầu bằng nhãn kết quả).
+    result=shown.get('repair_result') or next((k for k,v in REPAIR_RESULTS.items() if (ticket.fix_done or '').startswith(v)),'')
+    shown=dict(shown,repair_result=result)
+    ctx['completion_form']=dict(ctx.get('completion_form') or {},repair_result=result)
+    report_ok=result in REPAIR_RESULTS
+    ctx.update(repair_results=REPAIR_RESULTS,fault_chips=FAULT_CHIPS,work_chips=WORK_CHIPS)
+    checks = [dict(key='report',label='Đã chọn kết quả sửa',ok=report_ok),
+        dict(key='photo' ,label='Có ảnh nghiệm thu',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
         dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]
     if ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH'):
         checks.append(dict(key='machine',label='Máy đã trả khách',ok=not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
@@ -200,6 +223,7 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
         shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note','fault_found','fix_done')}
         shown['materials']=[dict(product_code=str(code),qty=str(qty)) for code,qty in zip(form.getlist('material_product'),form.getlist('material_qty'))]
         try:
+            shown['fault_found'],shown['fix_done'],report=report_fields(form);shown.update(report)
             if len(form.getlist('material_product'))!=len(form.getlist('material_qty')):raise BusinessError('BAD_FORM','Dòng vật tư chưa đủ dữ liệu.')
             technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],shown['free_reason'],shown['materials'],shown['partial_amount'],shown['method'],shown['note'],shown['fault_found'],shown['fix_done'])
         except (BusinessError,ValidationError) as exc:
@@ -209,6 +233,7 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
     raw = _raw(form)
     shown = {key: str(form.get(key, '')) for key in ('note', 'amount', 'method', 'fault_found', 'fix_done')}
     try:
+        shown['fault_found'], shown['fix_done'], report = report_fields(form); shown.update(report)
         version = _version(form)
         charges = _body(raw, version)
         normalized=[]
