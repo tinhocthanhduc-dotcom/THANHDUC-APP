@@ -1,20 +1,21 @@
 <section id="dia-diem" class="form device-sites">
 <h2>Địa điểm</h2>
+<p class="hint">Địa chỉ chính: <strong>{{ c.address or 'chưa nhập' }}</strong> — phiếu dịch vụ không chọn địa điểm sẽ dùng địa chỉ này. Chỉ thêm địa điểm khác khi khách có chi nhánh, kho hay văn phòng ở chỗ khác.</p>
 {% if site_error %}<p class="alert bad" role="alert">{{ site_error }}</p>{% endif %}
 {% for s in sites %}
 {% set d = site_shown if site_shown and site_target == s.id else s %}
-<form method="post" action="/khach-hang/{{ c.code }}/dia-diem/{{ s.id }}" class="card form">
-<h3>{{ s.name }}{% if not s.active %} · Ngừng dùng{% endif %}</h3>
+<details class="card" {% if site_error and site_target == s.id %}open{% endif %}><summary>{{ s.name }}{% if s.address %} · {{ s.address }}{% endif %}{% if not s.active %} · Ngừng dùng{% endif %}</summary>
+<form method="post" action="/khach-hang/{{ c.code }}/dia-diem/{{ s.id }}" class="form">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 {% include 'dia_diem_fields.jinja' %}
 {% if can_site_write %}<button class="primary">Lưu địa điểm</button>{% endif %}
-</form>
-{% else %}<p class="hint">Chưa có địa điểm.</p>{% endfor %}
+</form></details>
+{% endfor %}
 {% if can_site_write %}
-<h3>Thêm địa điểm</h3>
-<form method="post" action="/khach-hang/{{ c.code }}/dia-diem/moi" class="card form">
+<details class="card" {% if site_error and site_target is none %}open{% endif %}><summary>+ Thêm địa điểm khác</summary>
+<form method="post" action="/khach-hang/{{ c.code }}/dia-diem/moi" class="form">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 {% set d = site_shown if site_shown and site_target is none else {'name':'', 'address':'', 'contact_name':'', 'contact_phone':'', 'note':'', 'active':true} %}
 {% include 'dia_diem_fields.jinja' %}<button class="primary">Thêm địa điểm</button>
-</form>{% endif %}
+</form></details>{% endif %}
 </section>

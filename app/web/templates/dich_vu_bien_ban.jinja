@@ -7,7 +7,7 @@
 {% if t.status not in ['HOAN_THANH','DA_DONG'] %}<p class="alert warn">Phiếu chưa hoàn thành — bản xem trước.</p>{% endif %}
 <dl>
   <dt>Khách hàng</dt><dd>{{ customer.name }} ({{ t.customer_code }})</dd>
-  <dt>Địa điểm</dt><dd>{{ site.name if site else 'Không chọn' }}{% if site and site.address %} — {{ site.address }}{% endif %}</dd>
+  <dt>Địa điểm</dt><dd>{% if site %}{{ site.name }}{% if site.address %} — {{ site.address }}{% endif %}{% else %}{{ customer.address or 'Địa chỉ chính' }}{% endif %}</dd>
   <dt>Máy</dt><dd>{{ product.name if product else 'Không có trong danh mục' }}</dd>
   <dt>Serial</dt><dd>{{ t.serial or 'Không chọn' }}</dd>
   <dt>Kỹ thuật viên</dt><dd>{{ technician.full_name if technician else 'Chưa giao' }}</dd>

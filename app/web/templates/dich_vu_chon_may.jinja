@@ -1,6 +1,6 @@
 {% import 'da_chon.jinja' as picked %}
-{% call picked.block(invalid=error_code is defined and error_code=='BAD_SITE') %}<fieldset><legend>Địa điểm của khách (không bắt buộc)</legend><div class="seg stock-seg">
-<label><input type="radio" name="site_id" value="" {% if not d.get('site_id') %}checked{% endif %}><span>Không chọn</span></label>
+{% call picked.block(invalid=error_code is defined and error_code=='BAD_SITE') %}<fieldset><legend>Địa điểm làm việc</legend><div class="seg stock-seg">
+<label><input type="radio" name="site_id" value="" {% if not d.get('site_id') %}checked{% endif %}><span>Địa chỉ chính</span></label>
 {% for site in sites %}<label><input type="radio" name="site_id" value="{{ site.id }}" {% if d.get('site_id')|string == site.id|string %}checked{% endif %}><span>{{ site.name }}</span></label>{% endfor %}
 </div></fieldset>{% endcall %}
 {% call picked.block(invalid=error_code is defined and error_code=='BAD_SERIAL') %}<fieldset><legend>Máy của khách (không bắt buộc)</legend><div class="seg stock-seg">
