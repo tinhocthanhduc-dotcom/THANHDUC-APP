@@ -73,7 +73,7 @@ def test_subscribe_then_only_new_work_is_pushed(client, db, people):
     assert web_push.run_once(db, fake) == 0
     mine = ticket(db, p, 'DA_GIAO')
     assert web_push.run_once(db, fake) == 1
-    assert sent == [(p['technician'].id, dict(title='Mới giao · chờ nhận', body=f'{mine.number} · Minh Phát', url=f'/dich-vu/{mine.id}', tag=f'service_assigned:{mine.id}'))]
+    assert sent == [(p['technician'].id, dict(title='Mới giao · chờ nhận', body=f'{mine.number} · Minh Phát', url=f'/tho/phieu/{mine.id}', tag=f'service_assigned:{mine.id}'))]
     assert web_push.run_once(db, fake) == 0  # đã báo thì không báo lại
     # Máy cùng endpoint đăng nhập người khác: chuyển sang người mới, quên lịch sử.
     csrf = service_login(client, p['other_tech'])

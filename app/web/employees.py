@@ -143,8 +143,20 @@ def personal(request:Request,user:User=Depends(web_user)):
 def notices(user:User=Depends(web_user),session:Session=Depends(get_session)):
     from fastapi.responses import JSONResponse
     from .. import notifications
-    rows=notifications.items(session,user)
-    return JSONResponse(dict(items=rows,count=len(rows)),headers={'Cache-Control':'no-store'})
+    rows=notifications.with_reads(session,user,notifications.items(session,user))
+    return JSONResponse(dict(items=rows,count=len(rows),unread=sum(1 for r in rows if not r['read'])),headers={'Cache-Control':'no-store'})
+
+
+@router.post('/ca-nhan/thong-bao/da-xem')
+async def notices_read(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from fastapi.responses import JSONResponse
+    from starlette.concurrency import run_in_threadpool
+    from .. import notifications
+    form=await _push_form(request)
+    ids=form.getlist('id')
+    if form.get('all'):ids=[r['id'] for r in notifications.items(session,user)]
+    await run_in_threadpool(notifications.mark_read,session,user,ids)
+    return JSONResponse(dict(ok=True))
 
 
 async def _push_form(request:Request):
