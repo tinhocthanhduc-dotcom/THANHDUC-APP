@@ -296,6 +296,7 @@ class StockDocOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    source_kind: str | None = None
     number: str
     kind: StockKind
     warehouse_code: str

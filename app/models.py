@@ -222,6 +222,7 @@ class StockDoc(Base):
     customer_code: Mapped[str | None] = mapped_column(ForeignKey("customers.code"))
     reason: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")
+    source_kind: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(8), default="NHAP")
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

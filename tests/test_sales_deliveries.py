@@ -321,10 +321,10 @@ def test_delivery_and_other_px_use_counter_before_stock_lock(db,engine,people,mo
     oid,version,uid=o.id,o.version,p['warehouse'].id
     counter_locked,delivery_insert=Event(),Event()
     original=stock_docs.insert
-    def insert(session,user,body):
+    def insert(session,user,body,**kwargs):
         if body.reason.startswith('Giao GH-'):
             delivery_insert.set()
-        return original(session,user,body)
+        return original(session,user,body,**kwargs)
     monkeypatch.setattr(stock_docs,'insert',insert)
     def other_px():
         with Session(engine,expire_on_commit=False) as s:

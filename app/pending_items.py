@@ -120,7 +120,7 @@ def transfer_in(session,user,from_warehouse_code,lines,group_code,reason,supplie
         try:body=StockDocIn(kind='CK',warehouse_code=source.code,to_warehouse_code=choices[0].code,doc_date=today,reason=reason,lines=lines)
         except ValidationError as exc:
             raise BusinessError('BAD_FORM','Hãy chọn hàng từ kết quả tìm kiếm, nhập số lượng hợp lệ và lý do tối đa 2.000 ký tự.') from exc
-        doc=stock_docs.insert(session,user,body)
+        doc=stock_docs.insert(session,user,body, source_kind='PENDING_ITEM')
         context={line.line_no:dict(group_code=group_code,source='CHUYEN_TAY',source_ref=doc.number,reason=reason,supplier_code=supplier_code) for line in doc.lines}
         stock_posting.post_in_tx(session,user,doc.id,doc.version,pending_context=context)
         return list(session.scalars(select(PendingItem).where(PendingItem.stock_doc_id==doc.id).order_by(PendingItem.id)))

@@ -47,6 +47,15 @@ def manual(db,p,qty=3,group='HANG_LOI'):
     return svc.transfer_in(db,p['warehouse'],'K58',[dict(product_code='TD-0001',qty=qty)],group,'Trống in bị trầy')[0]
 
 
+def manual_receipt(db,p,qty=3):
+    # LG1 locks transfer_in's generated CK; these tests exercise manual receipts.
+    doc=stock_docs.create(db,p['warehouse'],StockDocIn(kind='CK',warehouse_code='K58',to_warehouse_code='CXL',
+        doc_date=datetime.now(UTC).date(),reason='Chuyển tay vào CXL',lines=[dict(product_code='TD-0001',qty=qty)]))
+    stock_posting.post(db,p['warehouse'],doc.id,doc.version)
+    assert doc.source_kind is None
+    return db.scalar(select(PendingItem).where(PendingItem.stock_doc_id==doc.id))
+
+
 def counts(db):return tuple(db.query(model).count() for model in (StockDoc,StockLedger,PendingItem,AuditLog,FundLedger))
 
 
@@ -156,7 +165,7 @@ def test_inventory_only_director_and_no_changes(db,people):
 
 
 def test_split_preserves_source_date_cost_and_prevents_void(db,people):
-    p=people;defect(db);stock(db,p,10);item=manual(db,p,10);doc=db.get(StockDoc,item.stock_doc_id)
+    p=people;defect(db);stock(db,p,10);item=manual_receipt(db,p,10);doc=db.get(StockDoc,item.stock_doc_id)
     child=svc.split(db,p['warehouse'],item.id,3,'CHO_BH_NCC',item.version)
     assert item.qty_left==7 and child.qty_left==3
     assert (child.source,child.source_ref,child.entered_at,child.unit_cost)==(item.source,item.source_ref,item.entered_at,item.unit_cost)
@@ -198,7 +207,7 @@ def test_failure_open_rolls_back_stock_and_source(db,people,supplied,sold,monkey
 
 
 def test_void_untouched_receipt_closes_pending_cancelled(db,people):
-    p=people;defect(db);stock(db,p,3);item=manual(db,p);doc=db.get(StockDoc,item.stock_doc_id)
+    p=people;defect(db);stock(db,p,3);item=manual_receipt(db,p);doc=db.get(StockDoc,item.stock_doc_id)
     stock_posting.void(db,p['warehouse'],doc.id,'Nhập nhầm',doc.version)
     assert item.status=='DA_HUY' and item.qty_left==0 and doc.status=='DA_HUY'
     assert db.scalar(select(AuditLog.reason).where(AuditLog.action=='pending_item.cancel'))=='Nhập nhầm';assert_pending_invariant(db)
@@ -250,7 +259,7 @@ def test_pending_photos_readers_and_writer_permissions(db,people):
 
 
 def test_partial_inventory_prevents_receipt_void(db,people):
-    p=people;defect(db);stock(db,p,3);item=manual(db,p);doc=db.get(StockDoc,item.stock_doc_id)
+    p=people;defect(db);stock(db,p,3);item=manual_receipt(db,p);doc=db.get(StockDoc,item.stock_doc_id)
     inventory(db,p,2);before=counts(db)
     error('CXL_DA_XU_LY',stock_posting.void,db,p['warehouse'],doc.id,'Nhập nhầm',doc.version)
     assert item.qty_left==2 and counts(db)==before and doc.status=='DA_GHI';assert_pending_invariant(db)

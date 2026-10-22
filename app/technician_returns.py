@@ -136,7 +136,7 @@ def receive(session, user, ident, version, quantities, note='', conditions=None,
             destination = defect.code if condition=='HU_HONG' else row.to_warehouse_code
             doc = stock_docs.insert(session,user,StockDocIn(kind='CK',warehouse_code=row.warehouse_code,to_warehouse_code=destination,
                 doc_date=svc._now().astimezone(service_sla.TZ).date(),reason=f'Trả {row.number}' + (' · Thợ báo hư' if condition=='HU_HONG' else ''),lines=lines),
-                _technician_return=condition=='HU_HONG')
+                _technician_return=condition=='HU_HONG', source_kind='TECHNICIAN_RETURN')
             stock_posting.post_in_tx(session,user,doc.id,doc.version,pending_context={
                 l.line_no:dict(source='THO_BAO_HU',group_code='HANG_LOI',source_ref=row.number,reason='; '.join(reason for original,qty,decided,reason in decisions if original.product_code==l.product_code and decided=='HU_HONG' and qty))
                 for l in doc.lines} if condition=='HU_HONG' else None)

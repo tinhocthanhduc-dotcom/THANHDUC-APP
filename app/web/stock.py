@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
-from .. import part_requests, products, stock_docs, stock_posting, stock_min_levels, technician_stock, stock_reservations
+from .. import part_requests, products, stock_docs, stock_posting, stock_min_levels, technician_stock, stock_reservations, stock_sources
 from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
@@ -83,13 +83,14 @@ def _body(data):
     return StockDocIn(**{**data, 'lines': lines})
 
 
-def _form(request, session, doc, error=None, status=200, action_reason='', saved=False):
+def _form(request, session, doc, error=None, status=200, action_reason='', saved=False, error_code=''):
     # Chỉ các bảng danh mục được đọc để gợi ý; không sửa tồn hoặc sổ ở tầng web.
     warehouses = list(session.scalars(select(Warehouse).order_by(Warehouse.code)))
     suppliers = list(session.scalars(select(Supplier).where(or_(Supplier.active.is_(True), Supplier.code == doc.get('supplier_code'))).order_by(Supplier.name)))
     selected_dest = session.get(Warehouse,doc.get('to_warehouse_code')) if doc.get('to_warehouse_code') else None
     return render(request, 'phieu_form.jinja', d=doc, kinds=KINDS, states=STATES, tech_destination=selected_dest.name if selected_dest and selected_dest.kind == 'THO' else '',
-                  warehouses=warehouses, suppliers=suppliers, error=error, status=status,
+                  warehouses=warehouses, suppliers=suppliers, error=error, error_code=error_code, status=status,
+                  source=stock_sources.describe(session, stock_docs.load(session, doc['id'])) if doc.get('id') else None,
                   stock_values=stock_reservations.quantities(session,[(doc['warehouse_code'],r['product_code']) for r in doc['lines'] if r['product_code'] and doc['warehouse_code']]),
                   action_reason=action_reason, saved=saved,
                   product_names={code: name for code, name in session.execute(
@@ -207,7 +208,7 @@ def _cancel(request, session, form, doc_id, posted):
         else:
             stock_docs.cancel(session, request.state.user, doc_id, StockDocCancel(reason=reason, version=version))
     except (BusinessError, ValidationError) as exc:
-        return _form(request, session, shown, error=_error(exc), status=getattr(exc, 'status', 400), action_reason=reason)
+        return _form(request, session, shown, error=_error(exc), error_code=getattr(exc, 'code', ''), status=getattr(exc, 'status', 400), action_reason=reason)
     return RedirectResponse(f'/phieu-kho/{doc_id}?da_luu=1', status_code=303)
 
 

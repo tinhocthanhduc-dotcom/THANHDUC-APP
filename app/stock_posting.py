@@ -210,8 +210,10 @@ def void(session: Session, user: User, doc_id: int, reason: str, version: int | 
     check_writer(user)
     with _transaction(session):
         from .service_recovered_parts import lock_for_stock_void
-        lock_for_stock_void(session, doc_id)
-        _load_for_update(session, doc_id)
+        recovered = lock_for_stock_void(session, doc_id)
+        doc = _load_for_update(session, doc_id)
+        from .stock_sources import check_public_void
+        check_public_void(session, doc, recovered)
         if session.scalar(select(PurchaseReceipt.id).where(PurchaseReceipt.stock_doc_id == doc_id, PurchaseReceipt.status == 'DA_GHI')) is not None:
             raise BusinessError('SOURCE_LOCKED', 'Phiếu nhập từ đơn mua phải hủy lần nhận trên đơn mua.', status=409)
         if session.scalar(select(PurchaseReturn.id).where(PurchaseReturn.stock_doc_id == doc_id, PurchaseReturn.status == 'DA_GHI')) is not None:

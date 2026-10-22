@@ -107,7 +107,7 @@ def move(session,user,order_id,mode,body):
             for (source,target),parts in sorted(groups.items()):
                 doc=stock_docs.insert(session,user,StockDocIn(kind='CK',warehouse_code=source,to_warehouse_code=target,
                     doc_date=sales_orders._today(),reason=f'{order.number}: bàn giao cho thợ' if mode=='transfer' else f'{order.number}: thợ trả kho',
-                    lines=[StockDocLineIn(product_code=l.product_code,qty=qty) for l,qty in parts]))
+                    lines=[StockDocLineIn(product_code=l.product_code,qty=qty) for l,qty in parts]), source_kind='TECHNICIAN_DELIVERY')
                 docs.append((doc,parts))
         stock_posting._lock_balances(session,{(code,originals[n].product_code) for n in selected for code in (wh.code,originals[n].warehouse_code)})
         if mode=='use':

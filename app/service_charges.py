@@ -125,7 +125,7 @@ def complete(session: Session, user: User, t: ServiceTicket) -> None:
         body = StockDocIn(kind="PX", warehouse_code=wh, doc_date=today, customer_code=t.customer_code,
                           reason=f"Vật tư phiếu dịch vụ {t.number}",
                           lines=[StockDocLineIn(product_code=x.product_code, qty=x.qty, note=f"{t.number} dòng {x.line_no}") for x in parts])
-        doc = stock_docs.insert(session, user, body)
+        doc = stock_docs.insert(session, user, body, source_kind='SERVICE_TICKET')
         costs = {}
         for code in sorted({x.product_code for x in parts}):
             bal=session.scalar(select(StockBalance).where(StockBalance.warehouse_code==wh,StockBalance.product_code==code).with_for_update().execution_options(populate_existing=True))
