@@ -33,7 +33,7 @@
 <section class="card"><h2><span class="tho-stepno">3</span>Xác nhận giao</h2>
 <div class="tho-delivery-photos" data-delivery-photos><label class="btn photo-capture delivery-capture">📷 Chụp ảnh giao hàng (bắt buộc)<input type="file" name="photos" accept="image/*" capture="environment" multiple required data-delivery-camera></label><p class="hint" data-photo-count>Chưa có ảnh. Bấm nút trên để mở máy ảnh.</p><div class="delivery-thumbs" data-photo-thumbs></div></div>
 <label>Người nhận<input name="receiver_name" value="{{ raw.get('receiver_name', order.contact_name or '') }}" maxlength="200"></label>
-<label>Ghi chú<textarea name="note" maxlength="4000" rows="2">{{ raw.get('note','') }}</textarea></label></section>
+</section>
 </form>
 <details class="card tho-other" id="viec-khac" {% if raw.get('reason') %}open{% endif %}><summary>Không giao được</summary>
 <form method="post" action="/giao-don/{{ order.id }}/failed" class="form">{{ tokens() }}

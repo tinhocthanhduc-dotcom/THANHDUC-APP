@@ -236,9 +236,9 @@ def test_ui_work_stock_and_cash_links_and_errors_keep_input(db,setup,client):
         assert f'/giao-don/{o.id}' in response.text
     page=client.get(f'/giao-don/{o.id}')
     form=next(f for f in Forms(page.text,page.url).forms if f['path'].endswith('/deliver'))['fields']
-    form.update(qty_1='3',receiver_name='Khách vẫn giữ',note='Ghi chú cần giữ',amount='',method='TIEN_MAT',received_at='')
+    form.update(qty_1='3',receiver_name='Khách vẫn giữ',amount='',method='TIEN_MAT',received_at='')
     r=client.post(f'/giao-don/{o.id}/deliver',data=form,files={'photos':('anh.png',d5_image(),'image/png')})
-    assert r.status_code==409 and 'OVER_DELIVERY' in r.text and 'Khách vẫn giữ' in r.text and 'Ghi chú cần giữ' in r.text
+    assert r.status_code==409 and 'OVER_DELIVERY' in r.text and 'Khách vẫn giữ' in r.text
     assert 'value="3"' in r.text and db.query(SalesDelivery).count()==0
     form=next(f for f in Forms(r.text,r.url).forms if f['path'].endswith('/report'))['fields']
     form.update(amount='500',method='TIEN_MAT',received_at='',note='Khách ứng')
