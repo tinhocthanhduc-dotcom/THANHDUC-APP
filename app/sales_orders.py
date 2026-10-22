@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from zoneinfo import ZoneInfo
 from datetime import UTC, date, datetime, time, timedelta
 
-from sqlalchemy import or_, select, func, Date, cast, case, literal
+from sqlalchemy import or_, select, func, Date, cast, case, literal, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
@@ -163,7 +163,9 @@ def _record(session, user, order, action, before, reason=''):
 def _new(session, user, body, quote_id=None, action='create'):
     from .pending_liquidation import check_fulfillment
     check_fulfillment(session,body)
-    customer = quotes._customer(session, body.customer_code)
+    # Save-and-confirm must take the exclusive customer lock from the start;
+    # upgrading two concurrent FOR SHARE locks later would deadlock.
+    customer = quotes._customer(session, body.customer_code, for_update=body.payment_term=='CONG_NO')
     lines = _lines(session, body.lines)
     order = SalesOrder(number=next_number(session, 'DB', _today()), customer_code=body.customer_code,
                        quote_id=quote_id, contact_name=body.contact_name, promised_date=body.promised_date,
@@ -227,7 +229,8 @@ def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
     _version(order, body.version)
     if order.status != 'NHAP':
         raise BusinessError('PRICE_LOCKED', 'Đơn bán đã chốt hoặc đã hủy, không sửa dòng được.', status=409)
-    quotes._customer(session, order.customer_code)
+    quotes._customer(session, order.customer_code,
+                     for_update=(body.payment_term if 'payment_term' in body.model_fields_set else order.payment_term)=='CONG_NO')
     lines = _lines(session, body.lines)
     before = snapshot(order)
     order.lines.clear()
@@ -261,7 +264,7 @@ def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
     _status(order, ('NHAP',))
     if not order.lines:
         raise BusinessError('EMPTY_LINES', 'Đơn bán phải có ít nhất một dòng trước khi chốt.')
-    quotes._customer(session, order.customer_code)
+    quotes._customer(session, order.customer_code, for_update=order.payment_term=='CONG_NO')
     from .pending_liquidation import check_fulfillment
     check_fulfillment(session,order)
     _lines(session, [SalesOrderLineIn.model_validate(line, from_attributes=True) for line in order.lines], require_warehouse=True)
@@ -590,16 +593,22 @@ def _apply_terms(order, body, partial=False):
 def _check_credit(session,user,order,reason):
     if order.payment_term!='CONG_NO':
         return
-    customer=quotes._customer(session,order.customer_code)
-    state=credit_state(session,customer,order.total)
+    customer=quotes._customer(session,order.customer_code,for_update=True)
+    state=credit_state(session,customer,order.total,exclude_order_id=order.id)
     remaining=state['remaining']
     if state['allowed']:return
-    details=dict(remaining=remaining,total=order.total,credit_limit=customer.credit_limit,allow_debt=customer.allow_debt)
+    details=dict(remaining=remaining,actual_debt=state['actual_debt'],committed=state['committed'],
+                 total=order.total,credit_limit=customer.credit_limit,allow_debt=customer.allow_debt)
+    def money(value):
+        return format(value,',').replace(',','.')
+    breakdown=(f"Nợ thực tế: {money(state['actual_debt'])}; đơn chốt chưa giao: {money(state['committed'])}; "
+               f'đơn này: {money(order.total)}; hạn mức: {money(customer.credit_limit)}.')
     if not has_role(user,'director'):
-        raise BusinessError('CREDIT_LIMIT','Khách chưa được nợ hoặc vượt hạn mức. Cần giám đốc chốt.',details,status=409)
+        message=f'Khách chưa được nợ hoặc vượt hạn mức. {breakdown} Cần giám đốc chốt.'
+        raise BusinessError('CREDIT_LIMIT',message,details,status=409)
     reason=(reason or '').strip()
     if not reason:
-        raise BusinessError('REASON_REQUIRED','Giám đốc phải nhập lý do chốt vượt hạn mức.')
+        raise BusinessError('REASON_REQUIRED',f'Giám đốc phải nhập lý do chốt vượt hạn mức. {breakdown}',details)
     order.credit_override_by,order.credit_override_reason=user.id,reason
 
 
@@ -685,8 +694,58 @@ def save_and_confirm(session,user,body,order_id=None,credit_override_reason=''):
         return confirm_in_tx(session,user,order.id,order.version,credit_override_reason)
 
 
-def credit_state(session,customer,total):
+def _credit_commitments(customer_codes, exclude_order_id=None):
+    """Unshipped credit orders, net of confirmed advances, grouped in SQL.
+
+    Use original delivery amounts (including VAT) so partial-delivery rounding
+    and returns do not charge the delivered portion twice. A closed line keeps
+    only the rounded value of its still deliverable quantity, as effective_total.
+    """
+    from . import sales_receipts
+    delivered=(select(SalesDeliveryLine.order_id,SalesDeliveryLine.order_line_no,
+        func.sum(SalesDeliveryLine.qty).label('qty'),
+        func.sum(SalesDeliveryLine.amount+SalesDeliveryLine.vat_amount).label('total'))
+        .join(SalesDelivery,SalesDelivery.id==SalesDeliveryLine.delivery_id)
+        .where(SalesDelivery.status=='DA_GIAO')
+        .group_by(SalesDeliveryLine.order_id,SalesDeliveryLine.order_line_no).subquery())
+    line=SalesOrderLine
+    qty=func.greatest(0,line.qty-line.closed_qty-func.coalesce(delivered.c.qty,0))
+    amount=func.round(qty*line.unit_price)
+    unshipped=case((line.closed_qty>0,amount+func.round(amount*line.vat_rate/100)),
+                  else_=line.amount+line.vat_amount-func.coalesce(delivered.c.total,0))
+    orders=(select(SalesOrder.id,SalesOrder.customer_code,SalesOrder.receivable,
+        func.sum(func.greatest(0,unshipped)).label('unshipped'))
+        .join(line,line.order_id==SalesOrder.id)
+        .outerjoin(delivered,(delivered.c.order_id==line.order_id)&(delivered.c.order_line_no==line.line_no))
+        .where(SalesOrder.customer_code.in_(customer_codes),SalesOrder.payment_term=='CONG_NO',
+               SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
+        .group_by(SalesOrder.id))
+    if exclude_order_id is not None:
+        orders=orders.where(SalesOrder.id!=exclude_order_id)
+    orders=orders.subquery()
+    receipts=sales_receipts.totals()
+    advance=func.greatest(0,func.coalesce(receipts.c.paid,0)-func.coalesce(orders.c.receivable,0))
+    return (select(orders.c.customer_code,func.sum(func.greatest(0,orders.c.unshipped-advance)).label('committed'))
+        .outerjoin(receipts,receipts.c.parent_id==orders.c.id).group_by(orders.c.customer_code))
+
+
+def credit_exposure(session,customer_codes,*,exclude_order_id=None):
+    """Shared, batched read for the credit check and customer cards."""
     from . import finance_reports
     debts=finance_reports._debts()
-    remaining=int(session.scalar(select(func.coalesce(func.sum(debts.c.remaining),0)).where(debts.c.customer_code==customer.code)))
-    return dict(remaining=remaining,allowed=customer.allow_debt and remaining+total<=customer.credit_limit)
+    actual=(select(debts.c.customer_code,func.sum(debts.c.remaining).label('actual_debt'),literal(0).label('committed'))
+        .where(debts.c.customer_code.in_(customer_codes)).group_by(debts.c.customer_code))
+    committed=_credit_commitments(customer_codes,exclude_order_id).subquery()
+    rows=union_all(actual,select(committed.c.customer_code,literal(0),committed.c.committed)).subquery()
+    # One statement/snapshot: a concurrent delivery moves exposure from the
+    # commitment to actual debt without falling between two separate reads.
+    found={code:dict(actual_debt=int(debt),committed=int(commitment)) for code,debt,commitment in
+        session.execute(select(rows.c.customer_code,func.sum(rows.c.actual_debt),func.sum(rows.c.committed))
+            .group_by(rows.c.customer_code))}
+    return {code:found.get(code,dict(actual_debt=0,committed=0)) for code in customer_codes}
+
+
+def credit_state(session,customer,total,*,exclude_order_id=None):
+    state=credit_exposure(session,[customer.code],exclude_order_id=exclude_order_id)[customer.code]
+    remaining=state['actual_debt']+state['committed']
+    return dict(**state,remaining=remaining,allowed=customer.allow_debt and remaining+total<=customer.credit_limit)

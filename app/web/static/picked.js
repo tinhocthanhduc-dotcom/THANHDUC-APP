@@ -143,6 +143,8 @@
           (button.dataset.phone || "") + " · " + (button.dataset.address || "");
         var debt = card.querySelector("[data-card-debt]");
         if (debt) debt.remove();
+        var committed = card.querySelector("[data-card-committed]");
+        if (committed) committed.remove();
         if (button.hasAttribute("data-debt")) {
           debt = document.createElement("div");
           debt.dataset.cardDebt = "";
@@ -152,6 +154,11 @@
             " · Hạn mức " +
             money(button.dataset.limit);
           card.appendChild(debt);
+          committed = document.createElement("div");
+          committed.dataset.cardCommitted = "";
+          committed.textContent =
+            "Đơn chốt chưa giao " + money(button.dataset.committed || "0");
+          card.appendChild(committed);
         }
         var form = block.closest("form"),
           contact = form.querySelector("[name=contact_name]");

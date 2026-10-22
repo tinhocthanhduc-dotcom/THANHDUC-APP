@@ -94,8 +94,8 @@ def _status(row, allowed):
         raise BusinessError('BAD_STATUS', 'Không thực hiện được ở trạng thái báo giá hiện tại.', {'status': row.status}, status=409)
 
 
-def _customer(session, code):
-    customer = session.scalar(select(Customer).where(Customer.code == code).with_for_update(read=True)
+def _customer(session, code, *, for_update=False):
+    customer = session.scalar(select(Customer).where(Customer.code == code).with_for_update(read=not for_update)
                               .execution_options(populate_existing=True))
     if customer is None or customer.status != 'DANG_DUNG':
         raise BusinessError('BAD_CUSTOMER', 'Khách hàng không tồn tại hoặc đã ngừng/gộp.')
