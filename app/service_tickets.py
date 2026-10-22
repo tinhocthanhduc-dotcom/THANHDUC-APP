@@ -285,9 +285,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         service_visits.open_visit(session, t, stamp)
         service_visits.close_visit(session, t, 'KHONG_GAP_KHACH', stamp, note, appointment_at)
     if to_status == 'DA_HEN':
-        if appointment_slot is not None:
-            from .service_appointments import validate
-            validate(appointment_at, appointment_slot, _now())
+        from .service_appointments import validate
+        validate(appointment_at, appointment_slot, _now())
         t.appointment_at = appointment_at
         t.appointment_slot = appointment_slot
     t.status = to_status

@@ -60,7 +60,7 @@ def completed(db,p,billing='THU_TIEN',qty=1,price=300000):
     t=service_tickets.create(db,p['sales'],ServiceTicketIn(customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Kẹt giấy'))
     service_tickets.assign(db,u,t.id,tech.id,t.version)
     service_tickets.transition(db,tech,t.id,'DA_NHAN',t.version)
-    service_tickets.transition(db,tech,t.id,'DA_HEN',t.version,appointment_at=datetime.now(UTC))
+    service_tickets.transition(db,tech,t.id,'DA_HEN',t.version,appointment_at=service_tickets._now()+timedelta(days=1))
     service_tickets.transition(db,tech,t.id,'DANG_LAM',t.version)
     attachments.add(db,tech,'service_ticket',str(t.id),'SAU','sau.pdf',b'%PDF-1.4')
     service_charges.set_charges(db,tech,t.id,ServiceCharges(version=t.version,billing=billing,

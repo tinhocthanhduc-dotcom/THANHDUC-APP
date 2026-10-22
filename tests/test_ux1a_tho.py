@@ -1,4 +1,5 @@
 """UX1a: màn thợ dùng route cũ, không thay đổi nghiệp vụ."""
+from datetime import timedelta
 from html.parser import HTMLParser
 from urllib.parse import parse_qs,urlsplit
 
@@ -123,7 +124,7 @@ def test_safe_return_to_transition_replay_and_error_keeps_screen(client,db,peopl
     error=client.post(form['action'],data={**form['fields'],'appointment_at':'','note':'Giữ lại ghi chú'})
     assert error.status_code==400 and 'data-technician-ticket' in error.text and 'Giữ lại ghi chú' in error.text
     form=Page(error.text).forms['service-DA_HEN']
-    response=client.post(form['action'],data={**form['fields'],'appointment_at':NOW.isoformat(),'return_to':'https://x.com'},follow_redirects=False)
+    response=client.post(form['action'],data={**form['fields'],'appointment_at':(service_tickets._now()+timedelta(days=1)).isoformat(),'return_to':'https://x.com'},follow_redirects=False)
     assert response.status_code==303 and response.headers['location']==f'/dich-vu/{t.id}?da_luu=1'
 
 
