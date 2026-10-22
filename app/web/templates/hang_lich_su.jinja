@@ -1,0 +1,11 @@
+{% extends 'base.jinja' %}
+{% block title %}Lịch sử {{ 'yêu cầu linh kiện' if loai=='yeu-cau' else 'trả kho' }}{% endblock %}
+{% block main %}{% set base='/hang-toi-giu/lich-su?loai=' ~ loai ~ ('&tho=' ~ tho if tho else '') %}
+<p><a class="tho-back" href="/hang-toi-giu{{ '?tho=' ~ tho if tho }}">‹ Hàng tôi giữ</a></p>
+<h1>Lịch sử {{ 'yêu cầu linh kiện' if loai=='yeu-cau' else 'trả kho' }}{% if holder and not own %} · {{ holder.full_name }}{% endif %}</h1>
+{% if own %}<div class="seg tho-hist-tabs">{% for code,title in [('yeu-cau','Yêu cầu linh kiện'),('tra-kho','Trả kho')] %}<a class="btn{{ ' on' if loai==code }}" href="/hang-toi-giu/lich-su?loai={{ code }}">{{ title }}</a>{% endfor %}</div>{% endif %}
+<div class="chips tho-hist-months"><a class="chip-btn{{ ' on' if not thang }}" href="{{ base }}">Tất cả</a>{% for m in months %}<a class="chip-btn{{ ' on' if thang==m }}" href="{{ base }}&amp;thang={{ m }}">Th {{ m[5:]|int }}/{{ m[2:4] }}</a>{% endfor %}</div>
+<p class="hint">{{ total }} phiếu{% if thang %} trong tháng {{ thang[5:] }}/{{ thang[:4] }}{% endif %}.</p>
+<div class="card tho-hist-list">{% for r in rows %}{% if loai=='yeu-cau' %}<p><strong>{{ r.number }}</strong> · {{ r.product_code }} · {{ r.qty|qty }} · {{ part_statuses[r.status] }} <small class="tho-meta">{{ r.created_at|service_time }}</small></p>{% else %}<p><a href="/tho-tra-hang/{{ r.id }}">{{ r.number }}</a> · {{ return_statuses[r.status] }} <small class="tho-meta">{{ r.created_at|service_time }}</small></p>{% endif %}{% else %}<p>Không có phiếu.</p>{% endfor %}</div>
+{% if pages>1 %}<nav class="tho-pager">{% if trang>1 %}<a class="btn btn-ghost" href="{{ base }}{{ '&thang=' ~ thang if thang }}&amp;trang={{ trang-1 }}">‹ Trước</a>{% else %}<span></span>{% endif %}<span>Trang {{ trang }}/{{ pages }}</span>{% if trang<pages %}<a class="btn btn-ghost" href="{{ base }}{{ '&thang=' ~ thang if thang }}&amp;trang={{ trang+1 }}">Sau ›</a>{% else %}<span></span>{% endif %}</nav>{% endif %}
+{% endblock %}
