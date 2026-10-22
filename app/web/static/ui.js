@@ -227,7 +227,7 @@
     if (event.key === 'Escape') {
       var dialog = document.querySelector('dialog[open]');
       if (dialog) { dialog.close(); return; }
-      var open = Array.prototype.slice.call(document.querySelectorAll('details[open]:not([data-web-menu])')).pop();
+      var open = Array.prototype.slice.call(document.querySelectorAll('details[open]:not([data-web-menu]):not([data-nav-group])')).pop();
       if (open) { open.open = false; var s = open.querySelector('summary'); if (s) s.focus(); }
       return;
     }
