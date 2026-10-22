@@ -95,4 +95,5 @@ def receipt(user, r):
 def delivery(session, user, order):
     from .. import technician_deliveries
     state=technician_deliveries.state(session,user,order)
-    return block(link('Giao hàng / Ghi không giao được' if state['held'] else 'Chờ kho bàn giao',f'/giao-don/{order.id}'))
+    label='Đã đề nghị hủy · chờ bán hàng' if state['cancel_requested'] else 'Giao hàng / Ghi không giao được' if state['held'] else 'Chờ kho bàn giao'
+    return block(link(label,f'/giao-don/{order.id}'))

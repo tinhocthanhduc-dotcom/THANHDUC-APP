@@ -76,6 +76,9 @@ def test_cancel_request_goes_to_sales_and_clears_after_cancel(db, setup, client)
     sales = groups(db, p['sales'])['orders_cancel_requested']
     assert sales['count'] == 1 and sales['rows'][0]['id'] == o.id
     assert any(i['id'] == f'orders_cancel_requested:{o.id}' for i in notifications.items(db, p['sales']))
+    today = client.get('/tho').text
+    assert '>Chờ hủy</span>' in today and 'Đã đề nghị hủy · chờ bán hàng' in today and 'Chờ bán hàng hủy đơn' in today
+    assert 'Chờ bán hàng hủy đơn' in client.get(f'/giao-don/{o.id}').text
     tech = groups(db, p['technician'])['technician_deliveries']['rows'][0]
     assert tech['next_label'] == 'Đã đề nghị hủy · chờ bán hàng'
     sales_orders.cancel(db, p['sales'], o.id, 'Thợ báo khách không mua', row.version)

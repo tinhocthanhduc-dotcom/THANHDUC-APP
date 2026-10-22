@@ -1,5 +1,5 @@
 {% extends 'base.jinja' %}
-{% set tones={'DA_GIAO':'info','DANG_LAM':'warn','CHO_LINH_KIEN':'warn','TAM_DUNG':'warn','HOAN_THANH':'ok','GIAO_DON':'info'} %}
+{% set tones={'DA_GIAO':'info','DANG_LAM':'warn','CHO_LINH_KIEN':'warn','TAM_DUNG':'warn','HOAN_THANH':'ok','GIAO_DON':'info','CHO_HUY':'bad'} %}
 {% set weekdays=['Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy','Chủ Nhật'] %}
 {% block title %}Hôm nay{% endblock %}
 {% block main %}<div class="tho-screen tho-list"><h1 class="tho-dup">Hôm nay · {{ today.strftime('%d/%m/%Y') }}</h1>
@@ -8,7 +8,7 @@
 {% for group,label in [('active','Đang làm'),('upcoming','Sắp tới')] %}{% set rows=jobs|selectattr('group','equalto',group)|list %}{% if rows %}
 <h2 class="tho-grp">{{ label }}</h2>
 <div class="tho-jobs">{% for job in rows %}{% if job.trips %}<div class="tho-trip-group" data-trip-group>{% endif %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>
-<span class="cardtop"><span>{{ job.number }} · {% if job.overdue %}<span class="tho-late">{{ 'Quá giờ · ' if job.appointment else 'Quá hạn xử lý' }}</span>{% endif %}{% if job.appointment %}{{ job.appointment|appointment_label(job.get('appointment_slot')) }}{% elif not job.overdue %}Chưa hẹn{% endif %}</span><span class="tag tone-{{ tones.get(job.status,'mute') }}">{{ 'Giao hàng' if job.status=='GIAO_DON' else service_statuses[job.status] }}</span></span>
+<span class="cardtop"><span>{{ job.number }} · {% if job.overdue %}<span class="tho-late">{{ 'Quá giờ · ' if job.appointment else 'Quá hạn xử lý' }}</span>{% endif %}{% if job.appointment %}{{ job.appointment|appointment_label(job.get('appointment_slot')) }}{% elif not job.overdue %}Chưa hẹn{% endif %}</span><span class="tag tone-{{ tones.get(job.status,'mute') }}">{{ 'Giao hàng' if job.status=='GIAO_DON' else 'Chờ hủy' if job.status=='CHO_HUY' else service_statuses[job.status] }}</span></span>
 <b>{{ job.customer }}</b>
 {% if job.address %}<span class="mu tho-one-line" title="{{ job.address }}">{{ job.address }}</span>{% endif %}
 <span class="tho-one-line tho-symptom" title="{{ job.symptom }}">{{ job.symptom }}</span>
