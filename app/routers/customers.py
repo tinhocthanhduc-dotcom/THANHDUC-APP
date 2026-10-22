@@ -3,10 +3,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import customers as svc
+from ..api_read import require_web_read
 from ..db import get_session
 from ..models import AuditLog, User
 from ..schemas import CustomerCreate, CustomerOut, CustomerPatch, CustomerResult
-from ..security import current_user, require
+from ..security import require
 
 router = APIRouter(prefix="/customers", tags=["Khách hàng"])
 WRITERS = ("sales", "reception", "dispatcher", "finance")
@@ -16,14 +17,14 @@ WRITERS = ("sales", "reception", "dispatcher", "finance")
 def search(
     q: str = Query(default="", max_length=200),
     include_test: bool = True,
-    _: User = Depends(current_user),
+    _: User = Depends(require_web_read('/khach-hang')),
     session: Session = Depends(get_session),
 ):
     return [svc.to_out(c) for c in svc.search(session, q, include_test)]
 
 
 @router.get("/{code}", response_model=CustomerOut)
-def get(code: str, _: User = Depends(current_user), session: Session = Depends(get_session)):
+def get(code: str, _: User = Depends(require_web_read('/khach-hang')), session: Session = Depends(get_session)):
     return svc.to_out(svc.load(session, code))
 
 

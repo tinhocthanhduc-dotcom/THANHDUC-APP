@@ -211,8 +211,9 @@ def test_roles_read_only(client, login, catalog, role):
     doc = create(client, h)
     h = login('reader', role)
     url = '/stock-docs/' + str(doc['id'])
-    assert client.get('/stock-docs', headers=h).status_code == 200
-    assert client.get(url, headers=h).status_code == 200
+    expected = 200 if role == 'finance' else 403
+    assert client.get('/stock-docs', headers=h).status_code == expected
+    assert client.get(url, headers=h).status_code == expected
     assert client.post('/stock-docs', json=draft(), headers=h).status_code == 403
     assert client.patch(url, json={'version': 1, 'note': 'Sai'}, headers=h).status_code == 403
     assert client.post(url + '/cancel', json={'reason': 'Sai'}, headers=h).status_code == 403

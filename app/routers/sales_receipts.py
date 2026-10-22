@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from .. import sales_orders, sales_receipts as svc
+from ..api_read import require_web_read
 from ..db import get_session
 from ..models import User
 from ..schemas import (SalesOrderReceipts, SalesReceiptDecision, SalesReceiptOut,
@@ -50,7 +51,7 @@ def void(receipt_id: int,body: SalesReceiptDecision,user: User=Depends(current_u
 
 
 @router.get('/service-tickets/{ticket_id}/receipts',response_model=SalesOrderReceipts)
-def for_ticket(ticket_id: int,user: User=Depends(current_user),session: Session=Depends(get_session)):
+def for_ticket(ticket_id: int,user: User=Depends(require_web_read('/dich-vu')),session: Session=Depends(get_session)):
     return svc.for_ticket(session,user,ticket_id)
 
 
