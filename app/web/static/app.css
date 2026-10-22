@@ -44,6 +44,8 @@ button.link { border: 0; background: none; padding: 4px 0; color: var(--accent);
 input, select, textarea { font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; min-width: 0; }
+.field-group { display: grid; gap: 12px; min-width: 0; }
+.group-label { margin: 0; font-weight: 600; }
 fieldset:disabled input, fieldset:disabled select, fieldset:disabled textarea { background: var(--bg); }
 .form { display: grid; gap: 12px; }
 .form label, .login label { display: grid; gap: 4px; font-size: .9rem; color: var(--muted); }
@@ -655,7 +657,7 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
 .tho-info .tho-symptom { align-self: flex-start; }
 .tho-plain-primary { display: none; }
 .tho-app .tho-other:not([open]) { display: none; }
-.tho-app .tech-onsite legend { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+.tho-app .tech-onsite legend, .tho-app .tech-onsite .group-label { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
 .tho-kv span.tho-symptom { color: var(--warn-solid-text); font-size: 17px; font-weight: 800; }
 /* CXL3: retain table semantics on narrow screens, scroll within each report. */
 .pending-report-scroll{max-width:100%;overflow:auto;margin:12px 0;border:1px solid var(--line);border-radius:8px}
@@ -946,7 +948,7 @@ main:has(> .po-page) { max-width: 1200px; }
 .recv-note { margin: 0; font-size: .9rem; }
 .recv-photos { display: flex; flex-wrap: wrap; gap: 6px; }
 .recv-cond { border: 0; padding: 0; margin: 0; }
-.recv-cond legend { font-size: .85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.recv-cond legend, .recv-cond .group-label { font-size: .85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }
 /* Yêu cầu linh kiện: thẻ việc có nút cấp theo kho. */
 .part-grid { display: grid; gap: 10px; }
 @media (min-width: 900px) { .part-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); align-items: start; } }
@@ -1292,3 +1294,5 @@ main:has(> .me-page) { max-width: 640px; }
   body.web-app .workflow-action, body.web-app .warehouse-bottom { bottom: calc(64px + env(safe-area-inset-bottom)); }
   .notify-panel { top: 64px; }
 }
+.tho-trip b, .tho-meta a { white-space: nowrap; }
+.tho-app .tech-onsite .group-label, .recv-cond .group-label { margin-bottom: 0; }
