@@ -54,3 +54,54 @@
   setInterval(check, EVERY);
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
 })();
+
+// Web Push: thông báo cả khi đã tắt màn hình/đóng app. Mỗi máy tự bật một lần trong chuông.
+(function () {
+  var bell = document.querySelector('[data-notify]');
+  if (!bell) return;
+  var button = bell.querySelector('[data-push-toggle]'), hint = bell.querySelector('[data-push-hint]');
+  function say(text) { hint.textContent = text; hint.hidden = !text; }
+  function post(path, fields) {
+    var body = new FormData(); body.append('csrf', bell.dataset.csrf);
+    Object.keys(fields).forEach(function (k) { body.append(k, fields[k]); });
+    return fetch(path, { method: 'POST', body: body, credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(); });
+  }
+  function key(b64) {
+    var raw = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+  }
+  var ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.isSecureContext) {
+    if (ios) say('iPhone: bấm nút Chia sẻ → "Thêm vào MH chính", mở app từ biểu tượng Thành Đức rồi bật thông báo tại đây.');
+    return;
+  }
+  navigator.serviceWorker.register('/sw.js').then(function (reg) {
+    return reg.pushManager.getSubscription().then(function (sub) {
+      if (sub && Notification.permission === 'granted') {
+        // Gửi lại mỗi lần mở để máy luôn gắn đúng người đang đăng nhập.
+        post('/ca-nhan/thong-bao/dang-ky', { subscription: JSON.stringify(sub) }).catch(function () {});
+        say('Máy này đã bật thông báo khi tắt màn hình.');
+        return;
+      }
+      if (Notification.permission === 'denied') { say('Máy đã chặn thông báo. Mở cài đặt trình duyệt, cho phép thông báo cho trang này.'); return; }
+      button.hidden = false;
+      button.addEventListener('click', function () {
+        button.disabled = true;
+        Notification.requestPermission().then(function (perm) {
+          if (perm !== 'granted') throw new Error('denied');
+          return fetch('/ca-nhan/thong-bao/khoa', { credentials: 'same-origin' }).then(function (r) { return r.json(); });
+        }).then(function (data) {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key(data.public_key) });
+        }).then(function (sub) {
+          return post('/ca-nhan/thong-bao/dang-ky', { subscription: JSON.stringify(sub) });
+        }).then(function () {
+          button.hidden = true; say('Đã bật. Việc mới sẽ báo cả khi tắt màn hình.');
+          if (window.tdToast) window.tdToast('Đã bật thông báo trên máy này');
+        }).catch(function (e) {
+          button.disabled = false;
+          say(e && e.message === 'denied' ? 'Bạn chưa cho phép thông báo.' : 'Chưa bật được, thử lại sau.');
+        });
+      });
+    });
+  }).catch(function () {});
+})();

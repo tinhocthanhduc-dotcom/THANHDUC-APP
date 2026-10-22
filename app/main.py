@@ -44,6 +44,23 @@ async def business_error(request: Request, exc: BusinessError):
     return await business_error_handler(request, exc)
 
 
+@app.on_event("startup")
+def start_push():
+    from .config import get_settings
+    if get_settings().push_loop:
+        from . import web_push
+        web_push.start()
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    # Service worker phải nằm ở gốc để nhận thông báo cho mọi trang.
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+    return FileResponse(Path(__file__).parent / "web" / "static" / "sw.js", media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/health", tags=["Hệ thống"])
 def health(session: Session = Depends(get_session)):
     session.execute(text("select 1"))

@@ -1190,3 +1190,5 @@ main:has(> .me-page) { max-width: 640px; }
 .notify-panel a small { color: var(--muted); }
 .notify-panel p { margin: 6px; }
 .toast a { color: inherit; }
+.notify-push { width: 100%; min-height: 44px; margin-bottom: 4px; }
+.notify-push-hint { margin: 4px 6px 8px; font-size: .85rem; }

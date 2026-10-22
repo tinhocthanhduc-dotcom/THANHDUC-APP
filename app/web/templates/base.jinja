@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Thành Đức{% endblock %} · Thành Đức</title>
 <link rel="stylesheet" href="/static/app.css">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<meta name="theme-color" content="#1d4ed8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Thành Đức">
 <script>
 // Sáng/Tối người dùng chọn trên máy này; đặt trước khi vẽ trang để không nháy màu.
 try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || tdTheme === 'light') document.documentElement.dataset.theme = tdTheme; } catch (e) {}
 </script>
 <script src="/static/ui.js" defer></script>
 </head>
-{% if user %}{% macro notify_bell(cls) %}<details class="notify {{ cls }}" data-notify="/ca-nhan/thong-bao" data-notify-user="{{ user.id }}"><summary class="notify-btn" aria-label="Thông báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="notify-badge" data-notify-count hidden></span></summary><div class="notify-panel" data-notify-list><p class="mu">Đang tải thông báo…</p></div></details>{% endmacro %}
+{% if user %}{% macro notify_bell(cls) %}<details class="notify {{ cls }}" data-notify="/ca-nhan/thong-bao" data-notify-user="{{ user.id }}" data-csrf="{{ csrf }}"><summary class="notify-btn" aria-label="Thông báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="notify-badge" data-notify-count hidden></span></summary><div class="notify-panel"><button type="button" class="btn btn-info notify-push" data-push-toggle hidden>Bật thông báo khi tắt màn hình</button><p class="hint notify-push-hint" data-push-hint hidden></p><div data-notify-list><p class="mu">Đang tải thông báo…</p></div></div></details>{% endmacro %}
 {% endif %}{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
 <body{% if navigation and navigation.technician %} class="tho-app"{% endif %}>
 {% if user %}
