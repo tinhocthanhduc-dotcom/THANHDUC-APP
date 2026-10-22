@@ -43,6 +43,8 @@ class User(Base):
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Kho phụ trách: chỉ lọc Việc của tôi/chuông của thủ kho, không chặn quyền. Rỗng = mọi kho.
+    warehouse_codes: Mapped[list[str]] = mapped_column(ARRAY(String(16)), default=list, server_default='{}')
 
 
 class Customer(Base):

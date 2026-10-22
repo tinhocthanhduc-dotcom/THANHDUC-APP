@@ -240,6 +240,27 @@ def test_warehouse_waiting_and_same_low_stock_query(db, people):
     assert [(r['warehouse_code'],r['product_code']) for r in found['stock_low']['rows']]==[(r['warehouse_code'],r['product_code']) for r in reference]
 
 
+def test_warehouse_scope_filters_queue_only(db, people):
+    p=people
+    order(db,p,'DA_CHOT','other_sales')
+    a=purchase_orders.create(db,p['warehouse'],PurchaseOrderIn(supplier_code='NCC-0001',order_date=DAY,
+        lines=[dict(product_code='TD-0001',warehouse_code='K58',qty=2,unit_cost=1)]))
+    purchase_orders.order(db,p['warehouse'],a.id,a.version)
+    b=purchase_orders.create(db,p['warehouse'],PurchaseOrderIn(supplier_code='NCC-0001',order_date=DAY,
+        lines=[dict(product_code='TD-0001',warehouse_code='K145',qty=2,unit_cost=1)]))
+    purchase_orders.order(db,p['warehouse'],b.id,b.version)
+    stock_min_levels.set_level(db,p['warehouse'],'K58','TD-0001',StockMinLevelIn(min_qty=2,version=0))
+    stock_min_levels.set_level(db,p['warehouse'],'K145','TD-0002',StockMinLevelIn(min_qty=3,version=0))
+    p['warehouse'].warehouse_codes=['K145'];db.commit()
+    found=groups(db,p,'warehouse')
+    assert [r['id'] for r in found['purchases_waiting']['rows']]==[b.id]
+    assert [r['warehouse_code'] for r in found['stock_low']['rows']]==['K145']
+    assert found['orders_waiting']['count']==1  # đơn không có dòng lấy kho: mọi thủ kho đều thấy
+    p['warehouse'].warehouse_codes=[];db.commit()
+    assert groups(db,p,'warehouse')['purchases_waiting']['count']==2
+    assert groups(db,p)['purchases_waiting']['count']==2
+
+
 def test_true_counts_twenty_rows_filtered_pages_and_role_guard(client, db, people):
     p=people
     for i in range(25):order(db,p)
