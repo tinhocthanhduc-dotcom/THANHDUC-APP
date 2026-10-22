@@ -122,7 +122,7 @@ def test_free_warranty_materials_still_issue_technician_px(db,held):
     p,wh,_=held;transfer(db,p);parent=previous(db,p);t=warranty(db,p,parent)
     tickets.assign(db,p['dispatcher'],t.id,p['technician'].id,t.version)
     for status in ('DA_NHAN','DA_HEN','DANG_LAM'):
-        tickets.transition(db,p['technician'],t.id,status,t.version,appointment_at=NOW if status=='DA_HEN' else None)
+        tickets.transition(db,p['technician'],t.id,status,t.version,appointment_at=tickets._now()+timedelta(days=1) if status=='DA_HEN' else None)
     service_charges.set_charges(db,p['technician'],t.id,ServiceCharges(version=t.version,billing='MIEN_PHI',free_reason=t.free_reason,
         lines=[dict(kind='VAT_TU',product_code='TD-0001',warehouse_code=wh.code,qty=1,unit_price=2000)]))
     attachments.add(db,p['technician'],'service_ticket',str(t.id),'SAU','sau.png',d5_image())

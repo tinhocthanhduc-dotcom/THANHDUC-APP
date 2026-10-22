@@ -993,9 +993,11 @@ def test_d3_dispatcher_assignment_open_counts(client, db, service_people):
 
 def test_d3_technician_flow_and_photo_required(client, db, service_people, tmp_path, monkeypatch):
     import io
+    from datetime import UTC, datetime
     from PIL import Image
     from app import attachments, service_tickets as svc
     from app.config import get_settings
+    monkeypatch.setattr(svc, '_now', lambda: datetime(2026, 10, 17, 6, tzinfo=UTC))
     monkeypatch.setattr(get_settings(), 'files_dir', str(tmp_path))
     tech = service_people['technician']
     ticket = new_service(db, service_people)
@@ -1182,7 +1184,7 @@ def test_d3_closed_after_loading_keeps_attempted_form(client, db, service_people
 
 @pytest.fixture
 def d5_ticket(db, service_people):
-    from datetime import UTC, datetime
+    from datetime import timedelta
     from app import service_tickets as svc
     from app.models import CustomerSite
     from app.schemas import ServiceTicketIn
@@ -1192,7 +1194,7 @@ def d5_ticket(db, service_people):
     tech = service_people['technician']
     svc.assign(db, service_people['dispatcher'], t.id, tech.id, t.version)
     svc.transition(db, tech, t.id, 'DA_NHAN', t.version)
-    svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=datetime(2026, 10, 20, 2, 30, tzinfo=UTC))
+    svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=svc._now()+timedelta(days=1))
     t = svc.transition(db, tech, t.id, 'DANG_LAM', t.version, 'Đang kiểm tra máy')
     # D6: chọn cách thu trước để các test hoàn thành chỉ còn kiểm ảnh.
     from app import service_charges
@@ -1345,13 +1347,13 @@ def test_d5_cannot_hide_attachment_from_other_ticket(client, db, service_people,
 # D6 UI — ghi tiền qua service_charges, ghi/xuất/trả tồn qua lõi hiện có.
 @pytest.fixture
 def charge_work(db, service_people):
-    from datetime import UTC, datetime
+    from datetime import timedelta
     from app import attachments, service_tickets as svc
     t = new_service(db, service_people)
     tech = service_people['technician']
     svc.assign(db, service_people['dispatcher'], t.id, tech.id, t.version)
     svc.transition(db, tech, t.id, 'DA_NHAN', t.version)
-    svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=datetime.now(UTC))
+    svc.transition(db, tech, t.id, 'DA_HEN', t.version, appointment_at=svc._now()+timedelta(days=1))
     svc.transition(db, tech, t.id, 'DANG_LAM', t.version)
     attachments.add(db, tech, 'service_ticket', str(t.id), 'SAU', 'sau.png', d5_image())
     return t
@@ -1473,11 +1475,11 @@ def test_d6_ui_receivables_roles_dates_total_and_csv(client, db, make_user, serv
     svc.assign(db, service_people['dispatcher'], free.id, service_people['technician'].id, free.version)
     svc.transition(db, service_people['technician'], free.id, 'DA_NHAN', free.version)
     save_charge(client, free, charge_form(csrf, free, billing='MIEN_PHI', free_reason='Bảo hành miễn phí'))
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
     from zoneinfo import ZoneInfo
     from app import attachments
     db.refresh(free)
-    svc.transition(db, service_people['technician'], free.id, 'DA_HEN', free.version, appointment_at=datetime.now(UTC))
+    svc.transition(db, service_people['technician'], free.id, 'DA_HEN', free.version, appointment_at=svc._now()+timedelta(days=1))
     svc.transition(db, service_people['technician'], free.id, 'DANG_LAM', free.version)
     attachments.add(db, service_people['technician'], 'service_ticket', str(free.id), 'SAU', 'sau.png', d5_image())
     svc.transition(db, service_people['technician'], free.id, 'HOAN_THANH', free.version)

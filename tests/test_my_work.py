@@ -55,7 +55,14 @@ def ticket(db, p, status='MOI', who='technician', priority='THUONG', appointment
     if status == 'DA_GIAO':return row
     service_tickets.transition(db, tech, row.id, 'DA_NHAN', row.version)
     if status == 'DA_NHAN':return row
-    service_tickets.transition(db, tech, row.id, 'DA_HEN', row.version, appointment_at=appointment)
+    future=appointment if appointment>service_tickets._now() else service_tickets._now()+timedelta(days=1)
+    service_tickets.transition(db, tech, row.id, 'DA_HEN', row.version, appointment_at=future)
+    if future!=appointment:
+        # Historical/overdue fixtures age the saved appointment, not the transition.
+        db.execute(text('UPDATE service_tickets SET appointment_at=:appointment, due_at=:due WHERE id=:id'),
+            dict(id=row.id,appointment=appointment,due=service_sla.due_at('DA_HEN',row.priority,service_tickets._now(),appointment)))
+        db.commit()
+        db.refresh(row)
     if status == 'DA_HEN':return row
     service_tickets.transition(db, tech, row.id, 'DANG_LAM', row.version)
     if status == 'DANG_LAM':return row

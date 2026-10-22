@@ -35,7 +35,7 @@ def ticket(db,p,serial='AB123',who='technician',status='DANG_LAM'):
     service_tickets.assign(db,p['dispatcher'],t.id,p[who].id,t.version)
     if status=='DA_GIAO':return t
     service_tickets.transition(db,p[who],t.id,'DA_NHAN',t.version)
-    service_tickets.transition(db,p[who],t.id,'DA_HEN',t.version,appointment_at=NOW)
+    service_tickets.transition(db,p[who],t.id,'DA_HEN',t.version,appointment_at=service_tickets._now()+timedelta(days=1))
     return service_tickets.transition(db,p[who],t.id,'DANG_LAM',t.version)
 
 

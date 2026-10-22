@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -48,7 +48,7 @@ def _working(db, p):
     t = svc.create(db, p["kd"], ServiceTicketIn(customer_code="KTD-000001", kind="SUA_TAI_CHO", symptom="Kẹt giấy"))
     t = svc.assign(db, p["dp"], t.id, p["t1"].id, None)
     t = svc.transition(db, p["t1"], t.id, "DA_NHAN", None)
-    t = svc.transition(db, p["t1"], t.id, "DA_HEN", None, "", datetime.now(UTC))
+    t = svc.transition(db, p["t1"], t.id, "DA_HEN", None, "", svc._now()+timedelta(days=1))
     t = svc.transition(db, p["t1"], t.id, "DANG_LAM", None)
     attachments.add(db, p["t1"], "service_ticket", str(t.id), "SAU", "sau.pdf", b"%PDF-1.4")
     return t
