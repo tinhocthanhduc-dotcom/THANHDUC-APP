@@ -1,4 +1,4 @@
-"""UX1c: đóng hẹn lần sau và yêu cầu trả kho; kho nhận mới ghi CK."""
+"""Thợ hủy đơn và yêu cầu trả kho; kho nhận mới ghi CK."""
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -67,28 +67,35 @@ def record(session, user, row, action, before=None):
     audit.record(session, user, 'technician_return.'+action, 'technician_return', str(row.id), before, snapshot(row), row.void_reason or row.note)
 
 
-def close_ticket(session, user, ticket_id, version, reason, lines=None):
+def cancel_by_technician(session, user, ticket_id, version, reason, lines=None):
     with photo_transaction(session):
         ticket = part_requests._ticket(session, ticket_id)
-        part_requests.check_requester(user, ticket)
+        if 'technician' not in user.roles or ticket.assignee_id != user.id:
+            raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao được tự hủy đơn.', status=403)
         svc._check_version(ticket, version)
-        if ticket.status not in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
-            raise BusinessError('BAD_STATUS', 'Chỉ đóng hẹn lần sau khi đang làm, chờ linh kiện hoặc tạm dừng.', status=409)
-        if session.scalar(select(SalesReceipt.id).where(SalesReceipt.ticket_id==ticket.id).limit(1)):
-            raise BusinessError('HAS_RECEIPTS', 'Phiếu đã báo thu, không đóng hẹn lần sau.', status=409)
-        data = proposal(session, ticket, lock=True)
-        entries = data['rows'] if lines is None else lines
-        grouped = prepare(session, data['warehouse'], entries)
-        svc.transition_in_tx(session, user, ticket, 'KHACH_HEN_SAU', reason)
-        # Yêu cầu chưa cấp không còn được thực hiện sau khi kết thúc phiếu.
-        pending = session.scalars(select(PartRequest).where(PartRequest.ticket_id==ticket.id,PartRequest.status=='CHO_CAP').with_for_update())
-        for request in pending:
-            before = part_requests.snapshot(request)
-            request.status='DA_HUY';request.decision_note='Khách hẹn lần sau: '+reason.strip()
-            request.decided_by=user.id;request.decided_at=datetime.now(UTC)
-            part_requests._audit(session,user,request,'cancel',before)
-        create_requests(session, user, ticket.assignee_id, data['warehouse'], ticket.id, grouped)
+        svc.transition_in_tx(session, user, ticket, 'DA_HUY', reason, return_lines=lines)
     return ticket
+
+
+def prepare_cancel(session, ticket, lines):
+    """Caller đã kiểm quyền/lý do và khóa phiếu; chưa thay dữ liệu nguồn."""
+    if session.scalar(select(SalesReceipt.id).where(SalesReceipt.ticket_id==ticket.id).limit(1)):
+        raise BusinessError('HAS_RECEIPTS', 'Phiếu đã báo thu, không được tự hủy đơn.', status=409)
+    data = proposal(session, ticket, lock=True)
+    grouped = prepare(session, data['warehouse'], data['rows'] if lines is None else lines)
+    return data['warehouse'], grouped
+
+
+def finish_cancel(session, user, ticket, reason, cancellation):
+    pending = session.scalars(select(PartRequest).where(PartRequest.ticket_id==ticket.id,
+        PartRequest.status=='CHO_CAP').order_by(PartRequest.id).with_for_update())
+    for request in pending:
+        before = part_requests.snapshot(request)
+        request.status='DA_HUY';request.decision_note='Hủy đơn: '+reason
+        request.decided_by=user.id;request.decided_at=datetime.now(UTC)
+        part_requests._audit(session,user,request,'cancel',before)
+    warehouse, grouped = cancellation
+    create_requests(session, user, ticket.assignee_id, warehouse, ticket.id, grouped)
 
 
 def load(session, user, ident, lock=False):

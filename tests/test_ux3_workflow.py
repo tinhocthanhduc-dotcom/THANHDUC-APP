@@ -122,7 +122,7 @@ def test_steps_current_delivery_collection_and_appointment(db,stocked):
     from types import SimpleNamespace
     t=SimpleNamespace(status='DA_HEN',appointment_at=service_tickets._now())
     assert 'Hẹn' not in steps.service(t)['labels']
-    t.status='KHACH_HEN_SAU';assert not steps.service(t)['labels']
+    t.status='DA_HUY';assert not steps.service(t)['labels']
 
 
 def test_service_scheduled_has_only_current_form(client,db,service_people):

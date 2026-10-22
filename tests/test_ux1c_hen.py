@@ -1,4 +1,4 @@
-"""UX1c: khung hẹn và đóng hẹn lần sau/trả kho trên PostgreSQL thật."""
+"""UX1c: khung hẹn và hủy đơn/trả kho trên PostgreSQL thật."""
 from datetime import datetime, timedelta
 from decimal import Decimal
 import csv, io
@@ -146,14 +146,14 @@ def test_no_show_on_new_scheduled_accepted_ticket(client,db,people):
 def test_defer_and_warehouse_receives_only_then_changes_stock(client,db,supplied):
     p,own,t=supplied;lines=[l.id for l in t.lines]
     assert returns.proposal(db,t)['rows'][0]['qty']==2
-    returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
-    assert t.status=='KHACH_HEN_SAU' and t.receivable==0 and t.priced_at is None
+    returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
+    assert t.status=='DA_HUY' and t.receivable==0 and t.priced_at is None
     assert [l.id for l in t.lines]==lines and db.query(StockDoc).filter_by(kind='PX').count()==0
     row=db.scalars(select(TechnicianReturn)).one()
     assert row.status=='CHO_NHAN' and row.to_warehouse_code=='K58' and row.lines[0].qty==2
     assert balance(db,own.code)==2 and balance(db,'K58')==8
     visit=db.scalars(select(ServiceVisit).where(ServiceVisit.ticket_id==t.id).order_by(ServiceVisit.id.desc())).first()
-    assert visit.outcome=='HEN_LAI' and visit.next_appointment_at is None and visit.ended_at
+    assert visit.outcome=='HUY' and visit.next_appointment_at is None and visit.ended_at
     work={g['key']:g for g in my_work.collect(db,p['warehouse'])}
     assert work['technician_returns']['count']==1 and work['technician_returns']['rows'][0]['link']==f'/tho-tra-hang/{row.id}'
     service_login(client,p['warehouse']);assert 'Thợ trả hàng' in client.get('/viec-cua-toi').text
@@ -164,10 +164,10 @@ def test_defer_and_warehouse_receives_only_then_changes_stock(client,db,supplied
     error('BAD_STATUS',sales_receipts.report_for_ticket,db,p['technician'],t.id,SalesReceiptReport(version=t.version,method='TIEN_MAT',amount=1))
 
 
-@pytest.mark.parametrize('reason,qty,code',[('',2,'REASON_REQUIRED'),('Khách hẹn lần sau',3,'BAD_RETURN_QTY')])
+@pytest.mark.parametrize('reason,qty,code',[('',2,'REASON_REQUIRED'),('Khách không muốn sửa nữa',3,'BAD_RETURN_QTY')])
 def test_invalid_close_rolls_back(db,supplied,reason,qty,code):
     p,own,t=supplied;before=state(db,t)
-    error(code,returns.close_ticket,db,p['technician'],t.id,t.version,reason,[dict(product_code='TD-0001',qty=qty,to_warehouse_code='K58')])
+    error(code,returns.cancel_by_technician,db,p['technician'],t.id,t.version,reason,[dict(product_code='TD-0001',qty=qty,to_warehouse_code='K58')])
     assert state(db,t)==before and balance(db,own.code)==2
 
 
@@ -176,12 +176,12 @@ def test_mid_transaction_failure_rolls_back_close_and_request(db,supplied,monkey
     def fail(*args,**kwargs):
         record(*args,**kwargs);raise BusinessError('INJECTED_FAILURE','Lỗi sau khi tạo yêu cầu')
     monkeypatch.setattr(returns,'record',fail)
-    error('INJECTED_FAILURE',returns.close_ticket,db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
+    error('INJECTED_FAILURE',returns.cancel_by_technician,db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
     assert state(db,t)==before and balance(db,own.code)==2
 
 
 def test_shortage_at_receive_and_partial_note(db,supplied):
-    p,own,t=supplied;returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
+    p,own,t=supplied;returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
     row=db.scalars(select(TechnicianReturn)).one()
     doc=stock_docs.create(db,p['warehouse'],StockDocIn(kind='PX',warehouse_code=own.code,customer_code=t.customer_code,doc_date=DAY,
         lines=[dict(product_code='TD-0001',qty=1)]));stock_posting.post(db,p['warehouse'],doc.id,doc.version)
@@ -195,7 +195,7 @@ def test_shortage_at_receive_and_partial_note(db,supplied):
 
 
 def test_receive_permission_replay_and_cancel_no_delete(client,db,supplied):
-    p,_,t=supplied;returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau');row=db.scalars(select(TechnicianReturn)).one()
+    p,_,t=supplied;returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa');row=db.scalars(select(TechnicianReturn)).one()
     error('FORBIDDEN',returns.receive,db,p['technician'],row.id,row.version,{'TD-0001':'2'})
     service_login(client,p['technician']);assert 'return-receive' not in Page(client.get(f'/tho-tra-hang/{row.id}').text).forms
     service_login(client,p['other_tech']);assert client.get(f'/tho-tra-hang/{row.id}').status_code==403
@@ -209,7 +209,7 @@ def test_receive_permission_replay_and_cancel_no_delete(client,db,supplied):
 
 
 def test_cancel_requires_reason_and_preserves_stock(db,supplied):
-    p,own,t=supplied;returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau');row=db.scalars(select(TechnicianReturn)).one()
+    p,own,t=supplied;returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa');row=db.scalars(select(TechnicianReturn)).one()
     error('REASON_REQUIRED',returns.cancel,db,p['technician'],row.id,row.version,'')
     returns.cancel(db,p['technician'],row.id,row.version,'Khách nhận lại hàng')
     assert row.status=='DA_HUY' and row.void_reason and balance(db,own.code)==2
@@ -220,27 +220,23 @@ def test_machine_not_returned_and_completed_ticket_blocked(db,people):
     t.kind='MANG_VE';t.serial=eq.serial;db.commit()
     attachments.add(db,p['technician'],'equipment_custody',str(t.id),'NHAN_MAY','may.png',d5_image())
     equipment_custody.receive(db,p['technician'],t.id,CustodyIntake(version=eq.version,accessories=[],condition_note='Vỏ xước'))
-    before=state(db,t);error('MACHINE_NOT_RETURNED',returns.close_ticket,db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
+    before=state(db,t);error('MACHINE_NOT_RETURNED',returns.cancel_by_technician,db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
     assert state(db,t)==before
-    completed=ticket(db,p,'HOAN_THANH');error('BAD_STATUS',returns.close_ticket,db,p['technician'],completed.id,completed.version,'Khách hẹn lần sau')
+    completed=ticket(db,p,'HOAN_THANH');error('FORBIDDEN',returns.cancel_by_technician,db,p['technician'],completed.id,completed.version,'Khách không muốn sửa nữa')
 
 
-def test_followup_prefilled_and_independent_and_d7(client,db,supplied):
-    p,_,t=supplied;returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
-    csrf=service_login(client,p['dispatcher'])
-    page=client.get(f'/dich-vu/moi?tiep_theo={t.id}')
-    assert page.status_code==200 and 'Tiếp theo '+t.number in page.text and t.symptom in page.text
-    choice='CHIEU:'+(NOW.date()+timedelta(days=1)).isoformat()
-    response=client.post('/dich-vu/moi',data=new_data(csrf,appointment_choice=choice),follow_redirects=False)
-    assert response.status_code==303
-    db.expire_all();db.refresh(t);assert t.status=='KHACH_HEN_SAU' and db.query(ServiceTicket).count()==2
-    dashboard=client.get('/dieu-phoi?view=deferred');assert t.number in dashboard.text and 'Tạo phiếu tiếp' in dashboard.text
-    step=db.scalar(select(ServiceStep).where(ServiceStep.ticket_id==t.id,ServiceStep.to_status=='KHACH_HEN_SAU'))
-    date=step.at.astimezone(svc.service_sla.TZ).date();since=datetime.combine(date,datetime.min.time(),svc.service_sla.TZ)
+def test_cancel_has_no_followup_or_deferred_column_and_d7(client,db,supplied):
+    p,_,t=supplied;returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
+    service_login(client,p['dispatcher'])
+    assert client.get(f'/dich-vu/moi?tiep_theo={t.id}').status_code==404
+    assert client.get('/dieu-phoi?view=deferred').status_code==404
+    assert db.query(ServiceTicket).count()==1
+    step=db.scalar(select(ServiceStep).where(ServiceStep.ticket_id==t.id,ServiceStep.to_status=='DA_HUY'))
+    date=NOW.date();since=datetime.combine(date,datetime.min.time(),svc.service_sla.TZ)
     rows,_=dispatch._report(db,date,date,since,since+timedelta(days=1));found=next(r for r in rows if r['user_id']==p['technician'].id)
-    assert found['deferred']==1 and found['failed']==0
+    assert 'deferred' not in found and found['completed']==found['failed']==0 and found['revenue']==0
     data=client.get(f'/dieu-phoi/bao-cao.csv?from={date}&to={date}').text
-    header=next(csv.reader(io.StringIO(data.lstrip('\ufeff'))));assert 'Khách hẹn lần sau' in header
+    header=next(csv.reader(io.StringIO(data.lstrip('\ufeff'))));assert 'Khách hẹn lần sau' not in header
 
 
 def test_configurable_slots_and_validation(monkeypatch):
@@ -252,26 +248,22 @@ def test_configurable_slots_and_validation(monkeypatch):
 
 def test_other_technician_cannot_close_and_original_form_preserved(client,db,supplied):
     p,_,t=supplied;before=state(db,t)
-    assert error('FORBIDDEN',returns.close_ticket,db,p['other_tech'],t.id,t.version,'Khách hẹn lần sau').status==403
+    assert error('FORBIDDEN',returns.cancel_by_technician,db,p['other_tech'],t.id,t.version,'Khách không muốn sửa nữa').status==403
     csrf=service_login(client,p['other_tech'])
-    response=client.post(f'/dich-vu/{t.id}/transition',data=dict(csrf=csrf,version=t.version,to_status='DA_HEN',appointment_choice='LAN_SAU',note='Khách hẹn lần sau'))
+    response=client.post(f'/dich-vu/{t.id}/transition',data=dict(csrf=csrf,version=t.version,to_status='DA_HEN',appointment_choice='LAN_SAU',note='Khách không muốn sửa nữa'))
     assert response.status_code==403 and state(db,t)==before
 
 
-def test_followup_keeps_machine_site_kind_and_does_not_reopen(client,db,people):
+def test_cancel_keeps_machine_site_kind_and_has_no_followup(client,db,people):
     p=people;eq=equipment.create(db,p['dispatcher'],EquipmentIn(serial='UX1C-FOLLOW',product_code='TD-0001',customer_code='KTD-000001'))
     site=CustomerSite(customer_code='KTD-000001',name='Chi nhánh',address='58 Mã Lò',created_by=p['dispatcher'].id);db.add(site);db.commit()
     t=ticket(db,p,'DANG_LAM');t.serial=eq.serial;t.site_id=site.id;t.kind='MANG_VE';db.commit()
-    returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau',[])
-    csrf=service_login(client,p['dispatcher']);page=client.get(f'/dich-vu/moi?tiep_theo={t.id}')
-    assert f'value="{site.id}" checked' in page.text and f'value="{eq.serial}" checked' in page.text
-    assert 'value="MANG_VE" checked' in page.text and 'Tiếp theo '+t.number in page.text
-    response=client.post('/dich-vu/moi',data={**new_data(csrf,appointment_choice='CHIEU:2026-10-19'),
-        'site_id':str(site.id),'serial':eq.serial,'kind':'MANG_VE','symptom':f'Tiếp theo {t.number}: {t.symptom}'},follow_redirects=False)
-    assert response.status_code==303
-    db.expire_all();db.refresh(t);assert t.status=='KHACH_HEN_SAU'
-    following=db.scalars(select(ServiceTicket).where(ServiceTicket.id!=t.id)).one()
-    assert following.site_id==site.id and following.serial==eq.serial and following.id!=t.id
+    returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',[])
+    service_login(client,p['dispatcher'])
+    assert client.get(f'/dich-vu/moi?tiep_theo={t.id}').status_code==404
+    db.expire_all();db.refresh(t)
+    assert t.status=='DA_HUY' and t.site_id==site.id and t.serial==eq.serial and t.kind=='MANG_VE'
+    assert db.query(ServiceTicket).count()==1
     error('BAD_TRANSITION',svc.transition,db,p['dispatcher'],t.id,'DANG_LAM',t.version,'Mở lại')
 
 
@@ -279,8 +271,8 @@ def test_followup_keeps_machine_site_kind_and_does_not_reopen(client,db,people):
 def test_defer_from_waiting_without_open_visit(db,supplied,status):
     p,own,t=supplied
     svc.transition(db,p['technician'],t.id,status,t.version,note='Đợi khách phản hồi',hold_reason='KHAC' if status=='TAM_DUNG' else '')
-    returns.close_ticket(db,p['dispatcher'],t.id,t.version,'Khách hẹn lần sau')
-    assert t.status=='KHACH_HEN_SAU' and balance(db,own.code)==2
+    returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
+    assert t.status=='DA_HUY' and balance(db,own.code)==2
     assert db.query(ServiceVisit).filter_by(ticket_id=t.id,ended_at=None).count()==0
     assert db.query(TechnicianReturn).count()==1
 
@@ -288,8 +280,8 @@ def test_defer_from_waiting_without_open_visit(db,supplied,status):
 def test_pending_part_request_cancelled_when_ticket_ends(db,held):
     p,_,_=held;t=ticket(db,p,'DANG_LAM')
     row=part_requests.create(db,p['technician'],t.id,PartRequestIn(version=t.version,product_code='TD-0001',qty=1,reason='Cần drum'))
-    returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau',[])
-    assert row.status=='DA_HUY' and 'Khách hẹn lần sau' in row.decision_note
+    returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',[])
+    assert row.status=='DA_HUY' and row.decision_note=='Hủy đơn: Khách không muốn sửa nữa'
     assert {g['key']:g for g in my_work.collect(db,p['warehouse'])}['parts_pending']['count']==0
 
 
@@ -298,7 +290,7 @@ def test_reported_ticket_cannot_defer(db,supplied):
     # Dữ liệu tích hợp có báo thu trước khi kết thúc: cũng không được bỏ qua.
     db.add(SalesReceipt(number='BT-26-00999',ticket_id=t.id,method='TIEN_MAT',amount=1000,
         received_at=DAY,status='CHO_XAC_NHAN',reported_by=p['technician'].id,note='',reason=''));db.commit()
-    before=state(db,t);error('HAS_RECEIPTS',returns.close_ticket,db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
+    before=state(db,t);error('HAS_RECEIPTS',returns.cancel_by_technician,db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
     assert state(db,t)==before
 
 
@@ -327,7 +319,7 @@ def test_return_can_include_other_held_product_and_received_cap(db,supplied):
         lines=[dict(product_code='TD-0999',qty=2,unit_cost=1000)]));stock_posting.post(db,p['warehouse'],pn.id,pn.version)
     suggested={r['product_code']:r for r in returns.proposal(db,t)['rows']}
     assert suggested['TD-0001']['qty']==2 and suggested['TD-0999']['qty']==0 and suggested['TD-0999']['held']==2
-    returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau',[
+    returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa',[
         dict(product_code='TD-0001',qty=2,to_warehouse_code='K58'),dict(product_code='TD-0999',qty=1,to_warehouse_code='K58')])
     row=db.scalars(select(TechnicianReturn)).one();assert len(row.lines)==2
     before=state(db,t)
@@ -345,7 +337,7 @@ def test_return_groups_each_supply_source(db,supplied):
         lines=[dict(product_code='TD-0001',qty=1,unit_cost=1000)]));stock_posting.post(db,p['warehouse'],pn.id,pn.version)
     r=part_requests.create(db,p['technician'],t.id,PartRequestIn(version=t.version,product_code='TD-0001',qty=1,reason='Cấp thêm drum'))
     part_requests.supply(db,p['warehouse'],r.id,'K59',r.version)
-    returns.close_ticket(db,p['technician'],t.id,t.version,'Khách hẹn lần sau')
+    returns.cancel_by_technician(db,p['technician'],t.id,t.version,'Khách không muốn sửa nữa')
     rows=list(db.scalars(select(TechnicianReturn)))
     assert {r.to_warehouse_code:r.lines[0].qty for r in rows}=={'K58':2,'K59':1}
     assert balance(db,own.code)==3

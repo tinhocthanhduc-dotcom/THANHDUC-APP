@@ -145,7 +145,7 @@ def _sources(month, keys=None):
     state="""from service_tickets t left join lateral (select to_status from service_steps where ticket_id=t.id and at<:hi order by at desc,id desc limit 1) s on true
         left join lateral (select max(at) at from service_steps where ticket_id=t.id and to_status='HOAN_THANH' and at<:hi) c on true"""
     add('dp_tre_hen','null','t.number','t.due_at','1',state+" where t.status<>'DA_HUY' and t.due_at>=:lo and t.due_at<:hi and (coalesce(s.to_status,t.status) not in ('HOAN_THANH','DA_DONG') or c.at is null or c.at>t.due_at)")
-    add('dp_ton_dong','null','t.number','t.created_at','1',state+" where t.status<>'DA_HUY' and t.created_at<:hi-interval '3 days' and coalesce(s.to_status,t.status) not in ('HOAN_THANH','DA_DONG','DA_HUY','KHONG_LAM_DUOC','KHACH_HEN_SAU')")
+    add('dp_ton_dong','null','t.number','t.created_at','1',state+" where t.status<>'DA_HUY' and t.created_at<:hi-interval '3 days' and coalesce(s.to_status,t.status) not in ('HOAN_THANH','DA_DONG','DA_HUY','KHONG_LAM_DUOC')")
     add('kho_cap_linh_kien','p.decided_by','p.number','p.decided_at','extract(epoch from (p.decided_at-p.created_at))/3600',
         "from part_requests p where p.status='DA_CAP' and p.decided_at>=:lo and p.decided_at<:hi")
     add('kho_chenh_kiem_ke','null','d.number','d.posted_at','sum(abs(l.amount))',
