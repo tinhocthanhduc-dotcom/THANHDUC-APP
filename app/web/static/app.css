@@ -1184,9 +1184,15 @@ main:has(> .me-page) { max-width: 640px; }
 .notify-btn { position: relative; width: 44px; height: 44px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; list-style: none; }
 .notify-btn::-webkit-details-marker { display: none; }
 .notify-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--bad-solid); color: var(--bad-solid-text); font-size: 12px; font-weight: 800; line-height: 20px; text-align: center; }
-.notify-panel { position: absolute; right: 0; top: 52px; z-index: 30; width: min(340px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; display: grid; gap: 4px; padding: 8px; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); color: var(--text); }
+.notify-panel { position: fixed; top: 72px; left: 16px; right: 16px; margin-left: auto; z-index: 30; max-width: 420px; max-height: calc(100vh - 160px); overflow: auto; display: grid; gap: 6px; padding: 10px; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); color: var(--text); }
 .notify-panel a { display: grid; gap: 2px; padding: 10px; border-radius: 10px; color: var(--text); text-decoration: none; }
-.notify-panel a:hover, .notify-panel a.new { background: var(--tag); }
+.notify-panel a:hover { background: var(--tag); }
+.notify-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 6px; border-bottom: 1px solid var(--line); }
+.notify-head .btn { min-height: 40px; padding: 6px 12px; }
+.notify-list { display: grid; gap: 4px; }
+.notify-panel a.unread { background: var(--tag); border-left: 4px solid var(--info-solid); }
+.notify-panel a.read strong { font-weight: 600; color: var(--muted); }
+.notify-new { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 6px; background: var(--info-solid); color: var(--info-solid-text); font-size: 11px; font-weight: 800; vertical-align: 2px; }
 .notify-panel a small { color: var(--muted); }
 .notify-panel p { margin: 6px; }
 .toast a { color: inherit; }

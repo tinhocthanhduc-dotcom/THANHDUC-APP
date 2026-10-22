@@ -1800,3 +1800,13 @@ class PushSubscription(Base):
     auth: Mapped[str] = mapped_column(Text)
     seen: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NotificationRead(Base):
+    """Người dùng đã xem thông báo nào (mã việc dạng nhóm:id); chỉ để đánh dấu Mới/Đã xem, không đụng nghiệp vụ."""
+    __tablename__ = 'notification_reads'
+    __table_args__ = (UniqueConstraint('user_id', 'item_id', name='uq_notification_reads_user_item'),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    item_id: Mapped[str] = mapped_column(Text)
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

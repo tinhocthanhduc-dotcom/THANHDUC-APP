@@ -133,14 +133,14 @@ def run_once(session, sender=send) -> int:
         if user is None or not user.active:
             continue
         if user.id not in cache:
-            cache[user.id] = notifications.items(session, user)
+            cache[user.id] = notifications.with_reads(session, user, notifications.items(session, user))
         items = cache[user.id]
         ids = [item['id'] for item in items]
         if sub.seen is None:
             sub.seen = json.dumps(ids)
             continue
         known = set(json.loads(sub.seen))
-        fresh = [item for item in items if item['id'] not in known]
+        fresh = [item for item in items if item['id'] not in known and not item['read']]
         gone = False
         for item in fresh[:MAX_PER_ROUND]:
             status = sender(sub, key_row, dict(title=item['title'], body=item['text'], url=item['link'], tag=item['id']))
