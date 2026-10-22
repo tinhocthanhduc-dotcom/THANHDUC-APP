@@ -1198,3 +1198,13 @@ main:has(> .me-page) { max-width: 640px; }
 .toast a { color: inherit; }
 .notify-push { width: 100%; min-height: 44px; margin-bottom: 4px; }
 .notify-push-hint { margin: 4px 6px 8px; font-size: .85rem; }
+
+/* Việc đã làm xong: thẻ trạng thái thay cho form vừa bấm; muốn làm lại thì mở nút phụ (vd Giao thợ khác). */
+.done-state { display: grid; gap: 6px; border: 2px solid var(--ok); }
+.done-k { font-size: .75rem; font-weight: 700; color: var(--ok); text-transform: uppercase; letter-spacing: .04em; }
+.done-state > b { font-size: 1.05rem; }
+.done-state > .hint { margin: 0; }
+.done-state > details { margin-top: 4px; }
+.done-state > details > summary.btn { display: inline-flex; align-items: center; min-height: 44px; list-style: none; cursor: pointer; }
+.done-state > details > summary.btn::-webkit-details-marker { display: none; }
+.done-state > details[open] > summary.btn { margin-bottom: 8px; }

@@ -193,7 +193,9 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
     customer=session.get(Customer,order.customer_code)
     data=dict(form) if form is not None else dict(version=order.version,receiver_name=order.contact_name,
         note='',carrier_name='',tracking_code='',**{'deliver_'+str(n):_quantity(v['remaining']) for n,v in remaining.items()})
-    return render(request,'kho_giao.jinja',o=order,customer=customer,
+    from .technician_deliveries import context as delivery_context
+    tech_delivery=delivery_context(session,user,order) if order.fulfillment=='THO_GIAO' else None
+    return render(request,'kho_giao.jinja',o=order,customer=customer,tech_delivery=tech_delivery,
         phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
         remaining=remaining,reservations=stock_reservations.for_order(session,order),
         stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),

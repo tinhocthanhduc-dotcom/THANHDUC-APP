@@ -56,7 +56,11 @@ def test_warehouse_partial_then_excess_keeps_input_and_state(client,db,stocked):
 def test_technician_delivery_handover_no_warehouse_form(client,db,stocked):
     order=warehouse_order(db,stocked,fulfillment='THO_GIAO');service_login(client,stocked['warehouse'])
     html=client.get(f'/kho/giao/{order.id}').text
-    assert 'Bàn giao cho thợ' in html and f'href="/giao-don/{order.id}"' in html and 'id="warehouse-deliver"' not in html
+    # Chưa có thợ: kho thấy đang chờ điều phối, không có nút bàn giao.
+    assert 'data-tech-wait' in html and 'data-next-primary' not in html and f'href="/giao-don/{order.id}"' in html and 'id="warehouse-deliver"' not in html
+    order.delivery_assignee_id=stocked['technician'].id;db.commit()
+    html=client.get(f'/kho/giao/{order.id}').text
+    assert 'Bàn giao cho thợ' in html and 'data-next-primary' in html and 'id="warehouse-deliver"' not in html
 
 
 def reports(db,p):
