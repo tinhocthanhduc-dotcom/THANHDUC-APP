@@ -1,9 +1,9 @@
-// Tự biết có việc mới: hỏi máy chủ dấu hàng việc mỗi 30 giây khi trang đang mở trên màn hình.
-// Dấu khác lúc tải trang -> hiện thanh "Có việc mới", rung nhẹ; người dùng không thao tác thì tự tải lại.
+// Tự biết có việc mới: hỏi máy chủ dấu hàng việc mỗi 15 giây khi trang đang mở trên màn hình.
+// Dấu khác lúc tải trang -> tự tải lại ngay (giữ vị trí cuộn); chỉ khi đang gõ/mở ô chọn mới hiện thanh "Tải lại" và chờ gõ xong.
 (function () {
   var box = document.querySelector('[data-watch]');
   if (!box || !window.fetch) return;
-  var url = box.dataset.watch, stamp = box.dataset.stamp, EVERY = 30000, IDLE = 45000;
+  var url = box.dataset.watch, stamp = box.dataset.stamp, EVERY = 15000, IDLE = 3000, KEY = 'td-watch-scroll';
   var lastTouch = Date.now(), changed = false, banner = null, busy = false;
   ['pointerdown', 'keydown', 'input', 'scroll'].forEach(function (name) {
     document.addEventListener(name, function () { lastTouch = Date.now(); }, { passive: true, capture: true });
@@ -15,7 +15,18 @@
     return !!document.querySelector('dialog[open], main details[open], form[data-submitting]');
   }
   function idle() { return !typing() && Date.now() - lastTouch >= IDLE; }
-  function reload() { window.location.reload(); }
+  function reload() {
+    try { sessionStorage.setItem(KEY, JSON.stringify({ path: location.pathname + location.search, y: window.scrollY })); } catch (e) {}
+    window.location.reload();
+  }
+  // Vừa tự tải lại: về đúng chỗ đang xem và báo nhẹ.
+  try {
+    var back = JSON.parse(sessionStorage.getItem(KEY) || 'null'); sessionStorage.removeItem(KEY);
+    if (back && back.path === location.pathname + location.search) {
+      window.scrollTo(0, back.y || 0);
+      if (window.tdToast) window.tdToast('Đã cập nhật việc mới');
+    }
+  } catch (e) {}
   function show() {
     if (banner) return;
     banner = document.createElement('div');
@@ -44,6 +55,8 @@
       .then(function () { busy = false; });
   }
   setInterval(check, EVERY);
-  // Mở lại điện thoại / quay lại tab: hỏi ngay, không chờ đủ 30 giây.
+  // Gõ xong (rời ô nhập) mà đang có thay đổi: tải lại luôn.
+  document.addEventListener('focusout', function () { if (changed) setTimeout(function () { if (idle()) reload(); }, IDLE + 100); });
+  // Mở lại điện thoại / quay lại tab: hỏi ngay, không chờ đủ 15 giây.
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
 })();
