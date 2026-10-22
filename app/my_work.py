@@ -210,6 +210,7 @@ def _group(session, spec, page=1):
             if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
+            if spec['key']=='orders_cancel_requested':row['link']=f"/don-ban/{row['id']}#de-nghi-huy"
             if spec['key']=='service_close':row['link']=f"/linh-kien-thu-hoi?ticket_id={row['id']}"
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"

@@ -88,3 +88,18 @@ def test_cancel_request_only_before_any_delivery(db, setup):
     db.expire_all(); o = db.get(SalesOrder, o.id)
     assert o.status == 'GIAO_MOT_PHAN'
     fail('CANCEL_PARTIAL', svc.failed, db, p['technician'], o.id, SalesDeliveryFailed(version=o.version, reason='DE_NGHI_HUY', note='Khách không lấy nữa'))
+
+
+def test_sales_page_shows_request_and_cancels(db, setup, client):
+    p = setup; o = assigned(db, p); move(db, p, o, 4)
+    svc.failed(db, p['technician'], o.id, SalesDeliveryFailed(version=o.version, reason='DE_NGHI_HUY', note='Khách không mua nữa'))
+    assert groups(db, p['sales'])['orders_cancel_requested']['rows'][0]['link'] == f'/don-ban/{o.id}#de-nghi-huy'
+    service_login(client, p['sales'])
+    page = client.get(f'/don-ban/{o.id}')
+    assert page.status_code == 200 and 'id="de-nghi-huy"' in page.text and 'Khách không mua nữa' in page.text
+    form = next(f for f in Forms(page.text, page.url).forms if f['path'].endswith('/cancel'))['fields']
+    assert '>Thợ đề nghị: Khách không mua nữa</textarea>' in page.text
+    form['reason'] = 'Thợ đề nghị: Khách không mua nữa'
+    assert client.post(f'/don-ban/{o.id}/cancel', data=form, follow_redirects=False).status_code == 303
+    db.expire_all(); assert db.get(SalesOrder, o.id).status == 'DA_HUY'
+    assert 'id="de-nghi-huy"' not in client.get(f'/don-ban/{o.id}').text
