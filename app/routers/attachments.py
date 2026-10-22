@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from .. import attachments as svc
+from ..api_read import check_attachment_read
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/attachments", tags=["Tệp đính kèm"])
 @router.get("", response_model=list[AttachmentOut])
 def list_for(entity: str, entity_id: str, include_hidden: bool = False,
              user: User = Depends(current_user), session: Session = Depends(get_session)):
+    check_attachment_read(user, entity)
     return svc.list_for(session, user, entity, entity_id, include_hidden)
 
 
@@ -43,6 +45,8 @@ def file_user(request: Request, token=Depends(OAuth2PasswordBearer(tokenUrl="/au
 
 @router.get("/{attachment_id}/file")
 def download(attachment_id: int, user: User = Depends(file_user), session: Session = Depends(get_session)):
+    attachment = svc._get(session, user, attachment_id)
+    check_attachment_read(user, attachment.entity)
     path, a = svc.open_file(session, user, attachment_id)
     return FileResponse(path, media_type=a.content_type, filename=a.filename, content_disposition_type="inline",
                         headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})

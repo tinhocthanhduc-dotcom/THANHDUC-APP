@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from .. import sales_returns as svc, sales_refunds
 from ..db import get_session
+from ..api_read import require_cost_read
 from ..models import User
 from ..schemas import SalesReturnIn, SalesRefundIn, SalesOrderCancel, SalesOrderVersion
 from ..security import current_user
@@ -16,12 +17,12 @@ def create(order_id: int,body: SalesReturnIn,user: User=Depends(current_user),se
 
 
 @router.get('/sales-orders/{order_id}/returns')
-def for_order(order_id: int,user: User=Depends(current_user),session: Session=Depends(get_session)):
+def for_order(order_id: int,user: User=Depends(require_cost_read),session: Session=Depends(get_session)):
     return [svc.snapshot(r) for r in svc.for_order(session,user,order_id)]
 
 
 @router.get('/sales-returns/{return_id}')
-def load(return_id: int,user: User=Depends(current_user),session: Session=Depends(get_session)):
+def load(return_id: int,user: User=Depends(require_cost_read),session: Session=Depends(get_session)):
     return svc.snapshot(svc.load(session,user,return_id))
 
 

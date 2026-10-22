@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from .. import part_requests as svc
 from ..db import get_session
+from ..api_read import require_web_read
 from ..models import User
 from ..schemas import PartDecision, PartRequestIn, PartRequestOut
 from ..security import current_user
@@ -21,7 +22,7 @@ def listing(status: str = 'CHO_CAP', user: User = Depends(current_user), session
 
 
 @router.get('/service-tickets/{ticket_id}/part-requests', response_model=list[PartRequestOut])
-def for_ticket(ticket_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+def for_ticket(ticket_id: int, user: User = Depends(require_web_read('/dich-vu')), session: Session = Depends(get_session)):
     return svc.for_ticket(session, user, ticket_id)
 
 

@@ -47,8 +47,9 @@ def test_other_roles_read_only(client, login, path, data, role):
     writer = login('kho', 'warehouse')
     row = client.post(path, json=data, headers=writer).json()
     reader = login('nguoidoc', role)
-    assert client.get(path, headers=reader).status_code == 200
-    assert client.get(path + '/' + row['code'], headers=reader).status_code == 200
+    expected = 200 if path == '/suppliers' and role == 'finance' else 403
+    assert client.get(path, headers=reader).status_code == expected
+    assert client.get(path + '/' + row['code'], headers=reader).status_code == expected
     assert client.post(path, json=data, headers=reader).status_code == 403
     assert client.patch(path + '/' + row['code'], json={'version': 1, 'name': 'Khác'}, headers=reader).status_code == 403
 

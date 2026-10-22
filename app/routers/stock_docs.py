@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 
 from .. import stock_docs as svc
 from .. import stock_posting
+from ..api_read import require_web_read
 from ..db import get_session
 from ..models import User
 from ..schemas import StockDocCancel, StockDocIn, StockDocOut, StockDocPatch, StockDocPost, StockKind, StockStatus
-from ..security import current_user, require
+from ..security import require
 
 router = APIRouter(prefix="/stock-docs", tags=["Phiếu kho"])
 
@@ -20,14 +21,14 @@ def search(
     status: StockStatus | None = None,
     from_date: date | None = Query(default=None, alias="from"),
     to_date: date | None = Query(default=None, alias="to"),
-    _: User = Depends(current_user),
+    _: User = Depends(require_web_read('/phieu-kho')),
     session: Session = Depends(get_session),
 ):
     return svc.search(session, kind, warehouse, status, from_date, to_date)
 
 
 @router.get("/{doc_id}", response_model=StockDocOut)
-def get(doc_id: int, _: User = Depends(current_user), session: Session = Depends(get_session)):
+def get(doc_id: int, _: User = Depends(require_web_read('/phieu-kho')), session: Session = Depends(get_session)):
     return svc.load(session, doc_id)
 
 

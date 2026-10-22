@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import service_charges
 from .. import service_tickets as svc
+from ..api_read import require_web_read
 from ..db import get_session
 from ..models import User
 from ..schemas import (
@@ -32,7 +33,7 @@ def search(
     assignee_id: int | None = None,
     overdue: bool = False,
     q: str | None = None,
-    user: User = Depends(current_user),
+    user: User = Depends(require_web_read('/dich-vu')),
     session: Session = Depends(get_session),
 ):
     return svc.search(session, user, status, assignee_id, overdue, q)
@@ -49,7 +50,7 @@ def receivables(
 
 
 @router.get("/{ticket_id}", response_model=ServiceTicketDetail)
-def get(ticket_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+def get(ticket_id: int, user: User = Depends(require_web_read('/dich-vu')), session: Session = Depends(get_session)):
     return svc.load(session, user, ticket_id)
 
 
@@ -85,7 +86,7 @@ def charges(ticket_id: int, body: ServiceCharges, user: User = Depends(current_u
 
 
 @router.get('/{ticket_id}/visits', response_model=list[ServiceVisitOut])
-def visits(ticket_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+def visits(ticket_id: int, user: User = Depends(require_web_read('/dich-vu')), session: Session = Depends(get_session)):
     from .. import service_visits
     svc.load(session, user, ticket_id)
     return service_visits.list_for(session, ticket_id)

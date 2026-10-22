@@ -2,21 +2,22 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from .. import inventory_catalogs as svc
+from ..api_read import require_web_read
 from ..db import get_session
 from ..models import Warehouse, User
 from ..schemas import WarehouseIn, WarehouseOut, WarehousePatch
-from ..security import current_user, require
+from ..security import require
 
 router = APIRouter(prefix="/warehouses", tags=["Kho"])
 
 
 @router.get("", response_model=list[WarehouseOut])
-def search(q: str = Query(default="", max_length=200), _: User = Depends(current_user), session: Session = Depends(get_session)):
+def search(q: str = Query(default="", max_length=200), _: User = Depends(require_web_read('/kho')), session: Session = Depends(get_session)):
     return svc.search(session, Warehouse, q)
 
 
 @router.get("/{code}", response_model=WarehouseOut)
-def get(code: str, _: User = Depends(current_user), session: Session = Depends(get_session)):
+def get(code: str, _: User = Depends(require_web_read('/kho')), session: Session = Depends(get_session)):
     return svc.load(session, Warehouse, code)
 
 
