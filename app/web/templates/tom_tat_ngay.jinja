@@ -17,5 +17,5 @@
 {% if 'inventory' in s %}<section class="sales-report-section"><h2>Giá trị tồn theo kho</h2><div class="overview-grid">{% for w in s.inventory %}<div class="overview-tile"><span>{{ w.warehouse_code }} · {{ w.name }}</span><strong>{{ w.value|money }}</strong></div>{% else %}<p>Chưa có kho.</p>{% endfor %}</div></section>{% endif %}
 <section class="sales-report-section"><h2>Cảnh báo tại lúc lưu</h2><dl class="digest-numbers">{% for kind,count in s.alert_counts.items() %}<dt>{{ alert_labels.get(kind,kind) }}</dt><dd>{{ count }}</dd>{% endfor %}</dl>
 {% for a in s.red_alerts %}<p class="card"><a href="{{ a.link }}">{{ a.title }}</a><br>{{ a.detail }}</p>{% else %}<p>Không có cảnh báo đỏ.</p>{% endfor %}</section>
-<script src="/static/daily_digest.js" defer></script>
+<script src="{{ asset('daily_digest.js') }}" defer></script>
 {% endblock %}

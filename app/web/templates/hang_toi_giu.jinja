@@ -15,4 +15,4 @@
 {% if return_requests %}{% set pending_returns=return_requests|selectattr('status','equalto','CHO_NHAN')|list %}<details class="card tho-hist" {% if pending_returns %}open{% endif %}><summary>Yêu cầu trả kho · {{ return_requests|length }}{% if pending_returns %} · <b>{{ pending_returns|length }} chờ kho nhận</b>{% endif %}</summary>{% for r in return_requests %}<p><a href="/tho-tra-hang/{{ r.id }}">{{ r.number }}</a> · {{ {'CHO_NHAN':'Chờ nhận','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'}[r.status] }}</p>{% endfor %}</details>{% endif %}
 <details class="card tho-hist" {% if recovered_parts %}open{% endif %}><summary>Linh kiện hỏng chưa nộp · {{ recovered_parts|length }}</summary><p><a href="/linh-kien-thu-hoi{% if holder %}?tho={{ holder.id }}{% endif %}">Xem linh kiện thu hồi</a></p>
 {% for part in recovered_parts %}<p>{{ part.product_code }} · {{ part.qty }} · {{ part.note }} · Phiếu #{{ part.ticket_id }}</p>{% else %}<p>Không có linh kiện hỏng đang giữ.</p>{% endfor %}</details>
-<script src="/static/technician-stock.js" defer></script>{% endblock %}
+<script src="{{ asset('technician-stock.js') }}" defer></script>{% endblock %}

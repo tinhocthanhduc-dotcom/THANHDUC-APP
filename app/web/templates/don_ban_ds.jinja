@@ -9,5 +9,5 @@
 <div class="doc-bottom"><div class="doc-flags"><label class="check"><input type="checkbox" name="overdue" value="1" {% if overdue %}checked{% endif %}>Quá hạn thanh toán</label><label class="check"><input type="checkbox" name="holding" value="1" {% if holding %}checked{% endif %}>Đang giữ hàng</label></div>
 <details class="doc-more"{% if from_date or to_date %} open{% endif %}><summary>Lọc theo ngày</summary><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ from_date }}"></label><label>Đến ngày<input type="date" name="to" value="{{ to_date }}"></label></div><button>Lọc</button></details></div>
 </form><div id="order-rows">{% include 'don_ban_dong.jinja' %}</div>
-<script src="/static/orders.js" defer></script>
+<script src="{{ asset('orders.js') }}" defer></script>
 </div>{% endblock %}

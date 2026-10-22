@@ -13,4 +13,4 @@
 <label>Lý do<textarea name="reason" required maxlength="2000" placeholder="Ví dụ: mang sẵn cho các ca thay drum tuần này">{{ d.get('reason','') }}</textarea></label>
 <div class="tho-bottom-action"><button class="primary btn-ok">Gửi yêu cầu</button></div></form>
 {% else %}<p class="card">Bạn chưa có kho riêng đang dùng, nhờ kho tạo kho thợ trước.</p>{% endif %}
-<script src="/static/parts.js" defer></script>{% endblock %}
+<script src="{{ asset('parts.js') }}" defer></script>{% endblock %}

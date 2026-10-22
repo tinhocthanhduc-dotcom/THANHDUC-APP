@@ -9,5 +9,5 @@
 <noscript><label>Tài khoản<select name="user_id" required><option value="">Chọn tài khoản</option>{% for a in accounts %}<option value="{{ a.id }}" {% if d.get('user_id')|string==a.id|string %}selected{% endif %}>{{ a.full_name }} · {{ a.username }}</option>{% endfor %}</select></label></noscript>
 <div class="employee-options picker-options">{% include 'nhan_su_chon.jinja' %}</div>{{ ui.field_error(errors|default({}),'user_id') }}</div>
 {{ hr.common_fields(d,positions,errors|default({})) }}<div class="action-bar"><button class="btn-ok">Tạo hồ sơ</button></div></form>
-<script src="/static/employees.js" defer></script>
+<script src="{{ asset('employees.js') }}" defer></script>
 {% endblock %}

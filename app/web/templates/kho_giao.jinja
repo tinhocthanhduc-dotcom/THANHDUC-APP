@@ -23,5 +23,5 @@
 </form>
 {% else %}<p class="card">{{ 'Đã giao đủ.' if o.status=='DA_GIAO' else 'Đơn không ở trạng thái chờ giao.' }}</p>{% endif %}
 </div>
-<script src="/static/warehouse-delivery.js" defer></script>
+<script src="{{ asset('warehouse-delivery.js') }}" defer></script>
 {% endblock %}

@@ -44,6 +44,14 @@ class _Static(StaticFiles):
 
 
 static = _Static(directory=HERE / "static")
+_ASSET_VERSIONS = {}
+
+
+def asset(name):
+    """Đường dẫn CSS/JS kèm dấu nội dung: bản mới là URL mới, trình duyệt và Cloudflare không giữ bản cũ."""
+    if name not in _ASSET_VERSIONS:
+        _ASSET_VERSIONS[name] = hashlib.sha256((HERE / "static" / name).read_bytes()).hexdigest()[:10]
+    return f"/static/{name}?v={_ASSET_VERSIONS[name]}"
 templates = Jinja2Templates(directory=HERE / "templates")
 
 KIND_LABELS = {"CA_NHAN": "Cá nhân", "CONG_TY": "Công ty"}
@@ -66,6 +74,7 @@ templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key
+templates.env.globals["asset"] = asset
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 

@@ -14,6 +14,6 @@
 {% if ns.done %}<p class="hint">{{ ns.done }} dòng đã nhận đủ, không hiện ở đây.</p>{% endif %}
 {% if can_write and o.status in ['DA_DAT','NHAN_MOT_PHAN'] %}<div class="action-bar"><p class="hint" data-recv-summary></p><button class="btn-ok btn-block">Nhận và ghi sổ PN</button></div>{% endif %}
 </form>
-<script src="/static/purchases.js" defer></script>
+<script src="{{ asset('purchases.js') }}" defer></script>
 {% if history %}<details class="card recv-history"><summary>Các lần nhận trước · {{ history|length }}</summary>{% for r in history %}<p><a href="/phieu-kho/{{ r.stock_doc_id }}">{{ stock_numbers[r.stock_doc_id] }}</a> · {{ r.receipt_date.strftime('%d/%m/%Y') }} · {{ r.warehouse_code }} · {{ 'Đã ghi' if r.status=='DA_GHI' else 'Đã hủy' }}</p>{% endfor %}</details>{% endif %}
 </div>

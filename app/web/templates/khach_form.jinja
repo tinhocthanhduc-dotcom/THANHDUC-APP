@@ -90,5 +90,5 @@
   </div>
 </template>
 {% if c.code %}{% include "dia_diem_khach.jinja" %}{% endif %}
-{% if not ro %}<script src="/static/customer-dup.js" defer></script>{% endif %}
+{% if not ro %}<script src="{{ asset('customer-dup.js') }}" defer></script>{% endif %}
 {% endblock %}

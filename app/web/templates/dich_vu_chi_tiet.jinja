@@ -100,6 +100,6 @@
 {% for step in t.steps %}<li><strong>{{ step_labels.get(step.action, step.action) }}</strong> · {{ service_statuses.get(step.to_status, step.to_status) }}<br><span class="meta">{{ step.at|service_time }} · {{ users.get(step.actor_id, 'Nhân viên') }}{% if step.assignee_id %} · Giao: {{ users.get(step.assignee_id, 'Nhân viên') }}{% endif %}</span>{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}
 </ol></section></details>
 {% if collection %}{% if not next_step or next_step.primary.form!='service-DA_DONG' %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}<details class="card" {% if failed_receipt_id %}open{% endif %}><summary>Lịch sử báo thu</summary>{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}</details>{% endif %}
-<script src="/static/workflow.js" defer></script>
-<script src="/static/technician-returns.js" defer></script><script src="/static/appointments.js" defer></script><script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script><script src="/static/recovered-parts.js" defer></script>
+<script src="{{ asset('workflow.js') }}" defer></script>
+<script src="{{ asset('technician-returns.js') }}" defer></script><script src="{{ asset('appointments.js') }}" defer></script><script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script><script src="{{ asset('recovered-parts.js') }}" defer></script>
 </div>{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.jinja" %}
-{% block title %}{{ c.name or label }}{% if not supplier and not finance_catalog %}<script src="/static/technician-stock.js" defer></script>{% endif %}
+{% block title %}{{ c.name or label }}{% if not supplier and not finance_catalog %}<script src="{{ asset('technician-stock.js') }}" defer></script>{% endif %}
 {% endblock %}
 {% block main %}
 {% if finance_catalog %}<nav class="seg finance-nav"><a class="btn" href="/quy">Quỹ</a><a class="btn" href="/danh-muc-thu-chi">Danh mục thu chi</a><a class="btn" href="/ghep-tai-chinh">Bảng ghép</a></nav>{% endif %}
@@ -38,5 +38,5 @@
 </fieldset>
 {% if can_write %}<button class="primary">Lưu</button>{% else %}<p class="hint">Chỉ Kho hoặc giám đốc được sửa danh mục này.</p>{% endif %}
 </form>
-{% if not supplier and not finance_catalog %}<script src="/static/technician-stock.js" defer></script>{% endif %}
+{% if not supplier and not finance_catalog %}<script src="{{ asset('technician-stock.js') }}" defer></script>{% endif %}
 {% endblock %}
