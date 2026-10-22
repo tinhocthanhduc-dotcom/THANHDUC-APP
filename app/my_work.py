@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import PendingDisposition, PendingItem, StockBalance, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesDeliveryAttempt, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
@@ -24,6 +24,8 @@ def _available(model):
 
 def _specs(user, today, now):
     director = has_role(user, 'director')
+    # Kho phụ trách chỉ lọc hàng đợi của thủ kho; quyền thao tác không đổi.
+    kho = list(user.warehouse_codes or []) if has_role(user, 'warehouse') and not director else []
     specs = {}
     def add(key, title, stmt, kind, link):
         specs[key] = dict(key=key, title=title, statement=stmt, kind=kind, link=link)
@@ -102,7 +104,7 @@ def _specs(user, today, now):
         add('technician_deliveries','Đơn bán cần giao',sales_deliveries.where(SalesOrder.delivery_assignee_id==user.id).add_columns(
             SalesOrder.delivery_address.label('address'),case((last_fail=='DE_NGHI_HUY','Đã đề nghị hủy · chờ bán hàng'),(tech_holds,'Giao hàng / Ghi không giao được'),else_='Chờ kho bàn giao').label('next_label')).order_by(SalesOrder.promised_date,SalesOrder.id),'delivery','/viec-cua-toi?nhom=technician_deliveries')
     if has_role(user,'warehouse'):
-        add('delivery_handover','Đơn chờ bàn giao cho thợ',sales_deliveries.where(SalesOrder.delivery_assignee_id.is_not(None),select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='KHO').exists()).order_by(SalesOrder.id),'delivery','/viec-cua-toi?nhom=delivery_handover')
+        add('delivery_handover','Đơn chờ bàn giao cho thợ',sales_deliveries.where(SalesOrder.delivery_assignee_id.is_not(None),select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='KHO',*([StockReservation.warehouse_code.in_(kho)] if kho else [])).exists()).order_by(SalesOrder.id),'delivery','/viec-cua-toi?nhom=delivery_handover')
     if has_role(user, 'sales'):
         q = docs(Quote, Customer.name).join(Customer, Customer.code==Quote.customer_code).where(Quote.status.in_(('NHAP','DA_GUI')))
         if not director:q=q.where(Quote.created_by==user.id)
@@ -129,17 +131,27 @@ def _specs(user, today, now):
         if not director:rejected=rejected.where(SalesReceipt.reported_by==user.id)
         add('receipts_rejected', 'Báo thu bị từ chối · cần làm lại', rejected.order_by(SalesReceipt.reported_at, SalesReceipt.id), 'receipt', '/bao-thu')
     if has_role(user, 'sales', 'warehouse'):
+        line_kho=lambda *codes:select(SalesOrderLine.order_id).where(SalesOrderLine.order_id==SalesOrder.id,SalesOrderLine.warehouse_code.is_not(None),*codes).exists()
+        # Đơn chỉ có dòng không lấy hàng kho vẫn hiện cho mọi thủ kho.
+        in_kho=or_(line_kho(SalesOrderLine.warehouse_code.in_(kho)),~line_kho())
         waiting = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code).where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
         if not director and not has_role(user, 'warehouse'):waiting=waiting.where(SalesOrder.created_by==user.id)
+        if kho:waiting=waiting.where(or_(SalesOrder.created_by==user.id,in_kho))
         add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'warehouse_order' if has_role(user,'warehouse') else 'order', '/don-ban')
         pickups=docs(SalesOrder,Customer.name,overdue=literal(True)).join(Customer,Customer.code==SalesOrder.customer_code).where(
             SalesOrder.fulfillment=='KHACH_LAY_SAU',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')),SalesOrder.promised_date<today)
         if not director and not has_role(user,'warehouse'):pickups=pickups.where(SalesOrder.created_by==user.id)
+        if kho:pickups=pickups.where(or_(SalesOrder.created_by==user.id,in_kho))
         add('orders_pickup_late','Khách hẹn lấy quá ngày',pickups.order_by(SalesOrder.promised_date,SalesOrder.id),'order','/don-ban')
     if has_role(user, 'warehouse'):
         requests = select(PartRequest.id, PartRequest.number, PartRequest.status, func.coalesce(Customer.name, 'Thợ xin mang theo').label('customer'),
             literal(0).label('amount'), literal(False).label('overdue')).outerjoin(t, t.id == PartRequest.ticket_id).outerjoin(
                 Customer, Customer.code == t.customer_code).where(PartRequest.status == 'CHO_CAP').order_by(PartRequest.created_at, PartRequest.id)
+        if kho:
+            # Chờ cấp chưa gắn kho: hiện cho kho đang còn hàng; không kho nào còn thì hiện cho mọi thủ kho.
+            stocked=lambda codes:select(StockBalance.product_code).join(Warehouse,Warehouse.code==StockBalance.warehouse_code).where(
+                StockBalance.product_code==PartRequest.product_code,StockBalance.qty>0,Warehouse.kind=='KHO',*codes).exists()
+            requests=requests.where(or_(stocked([StockBalance.warehouse_code.in_(kho)]),~stocked([])))
         add('parts_pending', 'Yêu cầu linh kiện chờ cấp', requests, 'part', '/yeu-cau-linh-kien')
         returning = select(TechnicianReturn.id, TechnicianReturn.number, TechnicianReturn.status, func.coalesce(Customer.name,'Trả kho không gắn phiếu').label('customer'),
             literal(0).label('amount'), literal(False).label('overdue')).outerjoin(t,t.id==TechnicianReturn.ticket_id).outerjoin(
@@ -148,11 +160,16 @@ def _specs(user, today, now):
             TechnicianReturnLine.return_id==TechnicianReturn.id,
             TechnicianReturnLine.condition=='HU_HONG').exists()
         returning=returning.add_columns(damaged.label('damaged'))
+        if kho:returning=returning.where(TechnicianReturn.to_warehouse_code.in_(kho))
         add('technician_returns','Thợ trả hàng',returning,'technician_return','/viec-cua-toi?nhom=technician_returns')
         orders = docs(PurchaseOrder, Supplier.name).join(Supplier, Supplier.code==PurchaseOrder.supplier_code).where(
             PurchaseOrder.status.in_(('DA_DAT','NHAN_MOT_PHAN'))).order_by(PurchaseOrder.expected_date.asc().nulls_last(), PurchaseOrder.id)
+        low=stock_min_levels.low_stock_query()
+        if kho:
+            orders=orders.where(select(PurchaseOrderLine.order_id).where(PurchaseOrderLine.order_id==PurchaseOrder.id,PurchaseOrderLine.warehouse_code.in_(kho)).exists())
+            low=low.where(StockMinLevel.warehouse_code.in_(kho))
         add('purchases_waiting', 'Đơn mua chờ nhận hàng', orders, 'purchase', '/don-mua')
-        add('stock_low', 'Hàng dưới mức tối thiểu', stock_min_levels.low_stock_query(), 'stock', '/ton-kho?canh-bao=1')
+        add('stock_low', 'Hàng dưới mức tối thiểu', low, 'stock', '/ton-kho?canh-bao=1')
     if has_role(user, 'finance'):
         refunds=select(SalesRefund.id,SalesRefund.number,SalesRefund.status,Customer.name.label('customer'),SalesRefund.amount,literal(False).label('overdue')).join(
             SalesOrder,SalesOrder.id==SalesRefund.order_id).join(Customer,Customer.code==SalesOrder.customer_code).where(SalesRefund.status=='CHO_DUYET').order_by(SalesRefund.id)

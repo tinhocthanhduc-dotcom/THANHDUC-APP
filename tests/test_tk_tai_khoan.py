@@ -230,3 +230,16 @@ def test_no_username_changes_and_stale_web_version(client,db,staff):
     r=client.post(f'/tai-khoan/{target.id}/sua',data=dict(csrf=csrf,username='renamed',full_name='Tên mới',phone='',roles=['sales'],version=version));assert r.status_code==400 and 'USERNAME_IMMUTABLE' in r.text and target.username=='tk.sales'
     users.update_roles(db,admin,target.id,['finance'],version)
     r=client.post(f'/tai-khoan/{target.id}/sua',data=dict(csrf=csrf,username=target.username,full_name='Tên cũ',phone='',roles=['sales'],version=version));assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
+
+
+def test_warehouse_scope_saved_validated_and_audited(db,staff):
+    db.add_all([Warehouse(code='K58',name='Kho 58'),Warehouse(code='K145',name='Kho 145')]);db.commit()
+    target=staff['sales']
+    fail('UNKNOWN_WAREHOUSE',users.update,db,staff['admin'],target.id,['sales','warehouse'],users.marker(target),warehouse_codes=['K999'])
+    db.refresh(target);assert target.warehouse_codes==[] and target.roles==['sales']
+    users.update(db,staff['admin'],target.id,['sales','warehouse'],users.marker(target),warehouse_codes=['K58','K58'])
+    db.refresh(target);assert target.warehouse_codes==['K58']
+    row=db.scalar(select(AuditLog).where(AuditLog.entity=='user',AuditLog.entity_id==str(target.id)).order_by(AuditLog.id.desc()))
+    assert row.before['warehouse_codes']==[] and row.after['warehouse_codes']==['K58']
+    users.update(db,staff['admin'],target.id,['sales','warehouse'],users.marker(target))
+    db.refresh(target);assert target.warehouse_codes==['K58']

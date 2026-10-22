@@ -24,7 +24,7 @@ def temporary_password():
 
 
 def snapshot(user):
-    return dict(username=user.username,full_name=user.full_name,phone=user.phone,roles=list(user.roles),active=user.active,
+    return dict(username=user.username,full_name=user.full_name,phone=user.phone,roles=list(user.roles),warehouse_codes=list(user.warehouse_codes or []),active=user.active,
         must_change_password=user.must_change_password,token_version=user.token_version,
         updated_at=user.updated_at.isoformat() if user.updated_at else None)
 
@@ -58,6 +58,18 @@ def _roles(roles):
     bad=[role for role in roles if role not in ROLES]
     if bad:raise BusinessError('UNKNOWN_ROLE','Vai trò không tồn tại.',{'roles':bad})
     return [role for role in ROLES if role in roles]
+
+
+def warehouse_choices(session):
+    return list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO',Warehouse.active.is_(True)).order_by(Warehouse.code)))
+
+
+def _warehouse_codes(session,codes):
+    codes=[str(code) for code in (codes or [])]
+    known={w.code for w in warehouse_choices(session)}
+    bad=[code for code in codes if code not in known]
+    if bad:raise BusinessError('UNKNOWN_WAREHOUSE','Kho phụ trách không tồn tại hoặc đã ngừng.',{'warehouse_codes':bad})
+    return sorted(set(codes))
 
 
 def _profile(full_name,phone):
@@ -100,7 +112,7 @@ def _admin_tx(session,actor):
         yield _admin(session,actor)
 
 
-def create(session,admin,username,full_name,phone,roles,*,password=None):
+def create(session,admin,username,full_name,phone,roles,*,password=None,warehouse_codes=None):
     """API may supply its existing initial-password field; web creation generates a temporary one."""
     try:
         with _admin_tx(session,admin) as actor:
@@ -110,7 +122,7 @@ def create(session,admin,username,full_name,phone,roles,*,password=None):
             if session.scalar(select(User.id).where(User.username==username)):
                 raise BusinessError('USERNAME_TAKEN','Tên đăng nhập đã có.',status=409)
             temp=temporary_password() if password is None else password
-            user=User(username=username,full_name=name,phone=phone,roles=roles,password_hash=hash_password(temp),must_change_password=True)
+            user=User(username=username,full_name=name,phone=phone,roles=roles,warehouse_codes=_warehouse_codes(session,warehouse_codes),password_hash=hash_password(temp),must_change_password=True)
             session.add(user);session.flush()
             if 'technician' in roles:inventory_catalogs.technician_warehouse_in_tx(session,actor,user)
             _record(session,actor,user,'create',None)
@@ -125,7 +137,7 @@ def update_roles(session,admin,user_id,roles,version):
     return update(session,admin,user_id,roles,version)
 
 
-def update(session,admin,user_id,roles,version,full_name=None,phone=None):
+def update(session,admin,user_id,roles,version,full_name=None,phone=None,warehouse_codes=None):
     with _admin_tx(session,admin) as actor:
         user,warehouses=_load(session,user_id);_version(user,version)
         roles=_roles(roles);_last_admin(session,user,roles=roles)
@@ -141,6 +153,7 @@ def update(session,admin,user_id,roles,version,full_name=None,phone=None):
                     old=inventory_catalogs.snapshot(warehouse);warehouse.active=False;warehouse.version+=1
                     session.flush();audit.record(session,actor,'warehouse.update','warehouse',warehouse.code,old,inventory_catalogs.snapshot(warehouse))
         user.roles=roles
+        if warehouse_codes is not None:user.warehouse_codes=_warehouse_codes(session,warehouse_codes)
         if full_name is not None or phone is not None:
             user.full_name,user.phone=_profile(full_name if full_name is not None else user.full_name,phone if phone is not None else user.phone)
         session.flush()

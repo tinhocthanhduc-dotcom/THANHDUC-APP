@@ -37,9 +37,9 @@ def _render(request,template,**context):
     return response
 
 
-def _edit(request,user=None,form=None,error=None,code='',status=200):
-    data=dict(form) if form is not None else dict(full_name=user.full_name if user else '',username=user.username if user else '',phone=user.phone if user else '',roles=user.roles if user else [],version=svc.marker(user) if user else '')
-    return _render(request,'tai_khoan_sua.jinja',employee=user,d=data,error=error,error_code=code,status=status)
+def _edit(request,session,user=None,form=None,error=None,code='',status=200):
+    data=dict(form) if form is not None else dict(full_name=user.full_name if user else '',username=user.username if user else '',phone=user.phone if user else '',roles=user.roles if user else [],warehouse_codes=user.warehouse_codes if user else [],version=svc.marker(user) if user else '')
+    return _render(request,'tai_khoan_sua.jinja',employee=user,d=data,warehouses=svc.warehouse_choices(session),error=error,error_code=code,status=status)
 
 
 def _secret(request,user,password):
@@ -55,16 +55,16 @@ def listing(request:Request,q:str='',status:str='',user:User=Depends(admin_user)
 
 
 @router.get('/tai-khoan/moi')
-def new(request:Request,user:User=Depends(admin_user)):
-    return _edit(request)
+def new(request:Request,user:User=Depends(admin_user),session:Session=Depends(get_session)):
+    return _edit(request,session)
 
 
 @router.post('/tai-khoan/moi')
 def create(request:Request,form=Depends(checked_form),user:User=Depends(admin_user),session:Session=Depends(get_session)):
-    data={key:str(form.get(key,'')) for key in ('username','full_name','phone')};data['roles']=[str(role) for role in form.getlist('roles')]
+    data={key:str(form.get(key,'')) for key in ('username','full_name','phone')};data['roles']=[str(role) for role in form.getlist('roles')];data['warehouse_codes']=[str(code) for code in form.getlist('warehouse_codes')]
     try:
         employee,temp=svc.create(session,user,**data)
-    except BusinessError as exc:return _edit(request,form=data,error=exc.message,code=exc.code,status=exc.status)
+    except BusinessError as exc:return _edit(request,session,form=data,error=exc.message,code=exc.code,status=exc.status)
     return _secret(request,employee,temp)
 
 
@@ -79,17 +79,17 @@ def detail(request:Request,user_id:int,user:User=Depends(admin_user),session:Ses
 
 @router.get('/tai-khoan/{user_id}/sua')
 def edit(request:Request,user_id:int,user:User=Depends(admin_user),session:Session=Depends(get_session)):
-    return _edit(request,_load(session,user_id))
+    return _edit(request,session,_load(session,user_id))
 
 
 @router.post('/tai-khoan/{user_id}/sua')
 def save(request:Request,user_id:int,form=Depends(checked_form),user:User=Depends(admin_user),session:Session=Depends(get_session)):
     employee=_load(session,user_id)
-    data={key:str(form.get(key,'')) for key in ('username','full_name','phone','version')};data['roles']=[str(role) for role in form.getlist('roles')]
+    data={key:str(form.get(key,'')) for key in ('username','full_name','phone','version')};data['roles']=[str(role) for role in form.getlist('roles')];data['warehouse_codes']=[str(code) for code in form.getlist('warehouse_codes')]
     try:
         if data['username']!=employee.username:raise BusinessError('USERNAME_IMMUTABLE','Không đổi tên đăng nhập sau khi tạo.')
-        svc.update(session,user,user_id,data['roles'],data['version'],data['full_name'],data['phone'])
-    except BusinessError as exc:return _edit(request,employee,data,exc.message,exc.code,exc.status)
+        svc.update(session,user,user_id,data['roles'],data['version'],data['full_name'],data['phone'],data['warehouse_codes'])
+    except BusinessError as exc:return _edit(request,session,employee,data,exc.message,exc.code,exc.status)
     target=f'/tai-khoan/{user_id}?da_luu=1' if 'admin' in user.roles else nav.home_url(user)
     return RedirectResponse(target,status_code=303)
 
