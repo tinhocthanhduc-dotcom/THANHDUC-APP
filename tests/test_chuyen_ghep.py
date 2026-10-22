@@ -83,3 +83,32 @@ def test_ticket_and_delivery_screens_offer_trip_total(db, setup, client):
     assert 'data-trip-money' in html and due and int(due.group(1)) > 0 and o.number in html
     page = client.get(f'/giao-don/{o.id}?return_to=tho').text
     assert f'data-trip-delivery data-ticket="{t.id}"' in page and 'data-trip-total' in page and t.number in page
+
+
+def test_add_sale_from_ticket_links_order_and_defaults_technician(db, setup, client, make_user):
+    p = setup; t = ticket(db, p, 'DA_HEN')
+    boss = make_user('trip.boss', 'dispatcher', 'sales')
+    service_login(client, boss)
+    assert f'href="/don-ban/moi?service_ticket={t.id}"' in client.get(f'/dich-vu/{t.id}').text
+    page = client.get(f'/don-ban/moi?service_ticket={t.id}')
+    assert page.status_code == 200 and 'data-trip-ticket-note' in page.text and t.number in page.text
+    form = next(f for f in Forms(page.text, page.url).forms if f['path'] == '/don-ban/moi')['fields']
+    assert form['service_ticket_id'] == str(t.id) and form['customer_code'] == t.customer_code
+    form.update(fulfillment='THO_GIAO', product_code=['TD-0001'], description=['Máy in'], qty=['1'], unit=['Cái'], unit_price=['200'],
+                kind_0='HANG', warehouse_0='K58', vat_0='8')
+    r = client.post('/don-ban/moi', data=form, follow_redirects=False)
+    assert r.status_code == 303, r.text[:2000]
+    o = db.scalar(select(SalesOrder).order_by(SalesOrder.id.desc()))
+    assert o.service_ticket_id == t.id and o.fulfillment == 'THO_GIAO'
+    # Điều phối mở giao đơn: phiếu và thợ của phiếu được chọn sẵn.
+    o.status = 'DA_CHOT'; db.commit()
+    html = client.get(f'/giao-don/{o.id}').text
+    assert f'<option value="{t.id}" selected' in html and f'<option value="{p["technician"].id}" selected' in html
+
+
+def test_add_sale_rejects_closed_ticket(db, setup):
+    p = setup; t = ticket(db, p, 'HOAN_THANH')
+    from app.schemas import SalesOrderIn
+    with pytest.raises(BusinessError) as exc:
+        sales_orders.create(db, p['sales'], SalesOrderIn(customer_code='KTD-000001', service_ticket_id=t.id))
+    assert exc.value.code == 'BAD_SERVICE_TICKET'

@@ -173,6 +173,12 @@ def _new(session, user, body, quote_id=None, action='create'):
     _apply_terms(order,body)
     from .pending_liquidation import check_fulfillment
     check_fulfillment(session,order)
+    if getattr(body,'service_ticket_id',None) is not None:
+        from .models import ServiceTicket
+        ticket=session.scalar(select(ServiceTicket).where(ServiceTicket.id==body.service_ticket_id).with_for_update(read=True))
+        if ticket is None or ticket.customer_code!=order.customer_code or ticket.status not in ('MOI','DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+            raise BusinessError('BAD_SERVICE_TICKET','Phiếu dịch vụ cùng chuyến phải đang mở và cùng khách.')
+        order.service_ticket_id=ticket.id
     session.add(order)
     _record(session, user, order, action, None)
     return order

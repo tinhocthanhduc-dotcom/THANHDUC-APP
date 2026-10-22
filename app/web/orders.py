@@ -15,7 +15,7 @@ from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
+from ..models import Customer, Product, ServiceTicket, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
 from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
 from ..security import has_role
@@ -123,7 +123,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     from .technician_deliveries import context as delivery_context
     tech_delivery=delivery_context(session,request.state.user,order) if order and order.fulfillment=='THO_GIAO' else None
     from .sales_returns import order_context as return_context
-    return render(request,'don_ban_form.jinja',workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+    trip_id=str(data.get('service_ticket_id') or '')
+    trip_ticket=session.get(ServiceTicket,int(trip_id)) if not order and trip_id.isdigit() else (session.get(ServiceTicket,order.service_ticket_id) if order and order.service_ticket_id else None)
+    return render(request,'don_ban_form.jinja',trip_ticket=trip_ticket,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
@@ -251,6 +253,13 @@ def conditions(request: Request,user: User=Depends(order_user),session: Session=
 def new(request: Request,user: User=Depends(order_user),session: Session=Depends(get_session)):
     _writer(user)
     chosen=session.get(Customer,request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
+    ticket_id=request.query_params.get('service_ticket','')
+    ticket=session.get(ServiceTicket,int(ticket_id)) if ticket_id.isdigit() and len(ticket_id)<12 else None
+    if ticket is not None and ticket.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+        # Kèm hàng bán từ phiếu dịch vụ: khách lấy theo phiếu, mặc định thợ giao, đơn nối sẵn với phiếu.
+        data=dict(customer_code=ticket.customer_code,contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
+            fulfillment='THO_GIAO',payment_term='TRA_NGAY',due_days=30,deposit_amount='',service_ticket_id=str(ticket.id))
+        return _form(request,session,data)
     return _form(request,session,customer_code=chosen.code if chosen and chosen.status=='DANG_DUNG' else '')
 
 
@@ -260,13 +269,15 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
     _writer(user)
     raw=_raw(form)
     raw['credit_override_reason']=str(form.get('credit_override_reason',''))
+    trip=str(form.get('service_ticket_id','')).strip()
     try:
         body=_body(raw)
         body['delivery_address']=body['delivery_address'] or None
-        body=SalesOrderIn(customer_code=raw['customer_code'],**body)
+        body=SalesOrderIn(customer_code=raw['customer_code'],service_ticket_id=trip or None,**body)
         order=svc.save_and_confirm(session,user,body,credit_override_reason=SalesOrderConfirm(version=1,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason) if form.get('then')=='confirm' else svc.create(session,user,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
+        raw['service_ticket_id']=trip
         return _form(request,session,raw,error=message,code=code,status=status)
     return RedirectResponse(f'/don-ban/{order.id}?da_luu=1',status_code=303)
 

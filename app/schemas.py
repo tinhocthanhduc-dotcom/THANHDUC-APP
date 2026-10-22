@@ -716,6 +716,8 @@ class SalesOrderIn(SalesOrderTerms):
     delivery_address: str | None = Field(default=None, max_length=2000)
     note: str = Field(default='', max_length=4000)
     lines: list[SalesOrderLineIn] = Field(default_factory=list, max_length=200)
+    # Kèm hàng bán từ phiếu dịch vụ: nối sẵn đơn với phiếu cùng chuyến.
+    service_ticket_id: int | None = Field(default=None, gt=0)
 
 
 class SalesOrderVersion(QuoteVersion):

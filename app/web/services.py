@@ -168,7 +168,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   receipt_error=receipt_form is not None, completion_form=completion_form or {}, warranty=service_warranty.info(session,t),
                   warranty_children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.warranty_of_id==t.id).order_by(ServiceTicket.id))),
                   warranty_form=warranty_form or {}, can_relink=dispatcher and t.kind=='BAO_HANH' and t.status in svc.OPEN,
-                  **recovered_context(session,user,t,recovered_form), visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, t=t, customer=session.get(Customer, t.customer_code), site=site,
+                  **recovered_context(session,user,t,recovered_form), visits=service_visits.list_for(session,t.id), visit_outcomes=service_visits.OUTCOMES, can_no_show=can_no_show, linked_orders=linked_orders, can_add_sale=has_role(user,'sales') and t.status in svc.OPEN, t=t, customer=session.get(Customer, t.customer_code), site=site,
                   files=attachments.list_for(session, user, "service_ticket", str(t.id)),
                   next_step=next_steps.service(session,user,t),can_upload=has_role(user, *svc.CREATORS) or own,
                   can_hide=dispatcher, photo_form=photo_form or {},
