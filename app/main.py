@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, Request
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -34,6 +35,7 @@ app.include_router(web.router)
 app.mount("/static", web.static, name="static")
 app.add_exception_handler(web.LoginRequired, web.login_required_handler)
 app.add_exception_handler(web.PasswordChangeRequired,web.password_change_handler)
+app.add_exception_handler(StarletteHTTPException,web.get_on_post_url)
 
 
 @app.exception_handler(BusinessError)

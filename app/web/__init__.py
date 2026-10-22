@@ -4,10 +4,11 @@ import re
 import hmac
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 import jwt
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -90,7 +91,7 @@ def web_user(request: Request, session: Session = Depends(get_session)) -> User:
     """Người đang đăng nhập theo cookie. Chưa đăng nhập thì chuyển về trang đăng nhập."""
     request.state.web = True
     token = request.cookies.get(COOKIE, "")
-    target = request.url.path + ("?" + request.url.query if request.url.query else "")
+    target = request.url.path + ("?" + request.url.query if request.url.query else "") if request.method == "GET" else form_page(request)
     try:
         payload=jwt.decode(token,get_settings().secret_key,algorithms=["HS256"])
         user_id = int(payload["sub"])
@@ -139,6 +140,22 @@ def watch_response(stamp: str) -> JSONResponse:
 def _digits(value) -> int:
     s = "".join(ch for ch in str(value or "") if ch.isdigit())
     return int(s) if s else 0
+
+
+def form_page(request: Request) -> str:
+    """Trang chứa form vừa gửi: địa chỉ POST (vd /giao-don/5/deliver) không mở bằng GET được."""
+    referer = urlsplit(request.headers.get("referer", ""))
+    if referer.netloc == request.url.netloc and referer.path.startswith("/"):
+        return referer.path + ("?" + referer.query if referer.query else "")
+    parent = request.url.path.rstrip("/").rsplit("/", 1)[0] or "/"
+    return parent + ("?return_to=tho" if parent.startswith(("/giao-don/", "/tho-tra-hang")) else "")
+
+
+async def get_on_post_url(request: Request, exc) -> Response:
+    """Mở lại địa chỉ chỉ nhận POST (tải lại trang lỗi, đăng nhập lại sau hết phiên): về trang của form thay vì trang JSON 405."""
+    if exc.status_code == 405 and request.method == "GET" and "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(_safe_next(form_page(request)), status_code=303)
+    return await http_exception_handler(request, exc)
 
 
 def _safe_next(value: str | None) -> str:
