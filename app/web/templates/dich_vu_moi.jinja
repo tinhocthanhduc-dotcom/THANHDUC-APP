@@ -32,7 +32,7 @@
 </fieldset>
 {% if can_create %}<button class="primary">Nhận đơn</button>{% endif %}
 </form>
-<script src="/static/picked.js" defer></script>
-<script src="/static/services.js" defer></script><script src="/static/warranty.js" defer></script>
-<script src="/static/appointments.js" defer></script>
+<script src="{{ asset('picked.js') }}" defer></script>
+<script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script>
+<script src="{{ asset('appointments.js') }}" defer></script>
 {% endblock %}

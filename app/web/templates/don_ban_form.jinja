@@ -78,7 +78,7 @@
 {% if o %}<details class="card" {% if failed_action=='void-delivery' or failed_receipt_id %}open{% endif %}><summary>Lịch sử</summary>{% include 'don_ban_lan_giao.jinja' %}{% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
 {% if collection %}{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}{% endif %}</details>{% endif %}
 <template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code=default_warehouse,description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
-<script src="/static/workflow.js" defer></script>
-<script src="/static/orders.js" defer></script>
-<script src="/static/picked.js" defer></script>
+<script src="{{ asset('workflow.js') }}" defer></script>
+<script src="{{ asset('orders.js') }}" defer></script>
+<script src="{{ asset('picked.js') }}" defer></script>
 </div>{% endblock %}

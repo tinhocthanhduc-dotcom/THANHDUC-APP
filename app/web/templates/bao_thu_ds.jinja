@@ -24,5 +24,5 @@
 {% set bank = rows|selectattr('method','equalto','CHUYEN_KHOAN')|list %}
 {% if bank %}<section class="card cash-group" id="bank-receipts"><div class="cash-group-head"><h2>Chuyển khoản · xác nhận từng giao dịch</h2><span class="stock-chip">{{ bank|length }} khoản</span></div>{% for r in bank %}{{ compact.row(r) }}{% endfor %}</section>{% endif %}
 {% if not rows %}<p class="empty card">Không có báo thu chờ xác nhận phù hợp.</p>{% endif %}
-</section></div><script src="/static/receipt-queue.js" defer></script>
+</section></div><script src="{{ asset('receipt-queue.js') }}" defer></script>
 {% endblock %}

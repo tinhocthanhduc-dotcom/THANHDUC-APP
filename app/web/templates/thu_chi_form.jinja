@@ -29,5 +29,5 @@
 {% if d.source_type=='SALES_RECEIPT' %}<p class="alert warn">Phiếu thu này được tạo từ báo thu. Phải hủy báo thu để ghi đảo phiếu thu.</p>{% endif %}
 {% if doc and doc.status!='DA_HUY' and not closed and can_write and d.source_type not in ['SALES_RECEIPT','SUPPLIER_PAYMENT'] %}<details class="po-danger"><summary>Hủy phiếu</summary><p class="hint">Hậu quả: {% if doc.status=='NHAP' %}nháp bị hủy, không ảnh hưởng số dư quỹ.{% else %}tạo dòng đảo trong sổ quỹ với ngày hủy; số dư quỹ phải đủ để đảo.{% endif %}</p><form method="post" action="/thu-chi/{{ doc.id }}/cancel" class="card form cash-cancel" onsubmit="return confirm('Hủy phiếu này? Phiếu đã ghi sẽ tạo dòng đảo và kiểm tra số dư quỹ.');"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}"><label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ reason }}</textarea></label><button>Hủy {{ 'nháp' if doc.status=='NHAP' else 'phiếu đã ghi' }}</button></form></details>{% endif %}
 {% if can_correct %}{% include 'dieu_chinh_form.jinja' %}{% endif %}
-<script src="/static/cash.js" defer></script>
+<script src="{{ asset('cash.js') }}" defer></script>
 </div>{% endblock %}

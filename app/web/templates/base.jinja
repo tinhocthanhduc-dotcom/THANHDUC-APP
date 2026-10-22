@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Thành Đức{% endblock %} · Thành Đức</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="{{ asset('app.css') }}">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-180.png">
 <meta name="theme-color" content="#1d4ed8">
@@ -14,7 +14,7 @@
 // Sáng/Tối người dùng chọn trên máy này; đặt trước khi vẽ trang để không nháy màu.
 try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || tdTheme === 'light') document.documentElement.dataset.theme = tdTheme; if (localStorage.getItem('td-nav-mini') === '1') document.documentElement.classList.add('nav-mini'); } catch (e) {}
 </script>
-<script src="/static/ui.js" defer></script>
+<script src="{{ asset('ui.js') }}" defer></script>
 </head>
 {% if user %}{% macro notify_bell(cls) %}<details class="notify {{ cls }}" data-notify="/ca-nhan/thong-bao" data-notify-user="{{ user.id }}" data-csrf="{{ csrf }}"><summary class="notify-btn" aria-label="Thông báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="notify-badge" data-notify-count hidden></span></summary><div class="notify-panel"><div class="notify-head"><strong data-notify-title>Thông báo</strong><button type="button" class="btn btn-ghost" data-notify-readall hidden>Đã xem hết</button></div><div class="notify-list" data-notify-list><p class="mu">Đang tải thông báo…</p></div><button type="button" class="btn btn-info notify-push" data-push-toggle hidden>Bật thông báo khi tắt màn hình</button><p class="hint notify-push-hint" data-push-hint hidden></p></div></details>{% endmacro %}
 {% endif %}{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
@@ -80,13 +80,13 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
   </form>
 </header>
 {% endif %}
-<script src="/static/nav.js" defer></script>
-<script src="/static/notify.js" defer></script>
+<script src="{{ asset('nav.js') }}" defer></script>
+<script src="{{ asset('notify.js') }}" defer></script>
 <noscript><style>.menu-shell > .menu-toggle { display: flex; }</style></noscript>
 {% endif %}
 <div class="toast-stack" data-toast-stack aria-live="polite"></div>
 <main>{% block main %}{% endblock %}</main>
-{% if watch %}<div hidden data-watch="{{ watch.url }}" data-stamp="{{ watch.stamp }}"></div><script src="/static/work-watch.js" defer></script>{% endif %}
+{% if watch %}<div hidden data-watch="{{ watch.url }}" data-stamp="{{ watch.stamp }}"></div><script src="{{ asset('work-watch.js') }}" defer></script>{% endif %}
 <script>
 // Chặn bấm lại ở trình duyệt; form_key mới là khóa chống trùng ở máy chủ.
 // Lắng nghe ở document sau các kiểm tra/confirm của từng form.

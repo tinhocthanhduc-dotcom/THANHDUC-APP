@@ -35,7 +35,7 @@
 {% call other.group(open=failed_action=='cancel') %}{% if q.status in ['NHAP','DA_GUI'] %}<form method="post" action="/bao-gia/{{ q.id }}/cancel" class="card form service-action">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action == 'cancel' else '' }}</textarea></label><button>Hủy báo giá</button></form>{% endif %}{% endcall %}
 {% endif %}
 <template id="quote-line-template">{% set line=dict(product_code='',description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'bao_gia_dong_form.jinja' %}</template>
-<script src="/static/workflow.js" defer></script>
-<script src="/static/quotes.js" defer></script>
-<script src="/static/picked.js" defer></script>
+<script src="{{ asset('workflow.js') }}" defer></script>
+<script src="{{ asset('quotes.js') }}" defer></script>
+<script src="{{ asset('picked.js') }}" defer></script>
 </div>{% endblock %}
