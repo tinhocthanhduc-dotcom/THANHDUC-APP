@@ -10,12 +10,12 @@ from ..security import has_role
 
 GROUPS = (
     {'label': '', 'items': (
-        {'label': 'Hoa hồng của tôi', 'href': '/hoa-hong', 'prefixes': ('/hoa-hong',), 'roles': ('sales','technician')},
-        {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},
-        {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
-        {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
-        {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
+        {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
+        {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
+        {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
+        {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},
+        {'label': 'Hoa hồng của tôi', 'href': '/hoa-hong', 'prefixes': ('/hoa-hong',), 'roles': ('sales','technician')},
     )},
     {'label': 'Bán hàng', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
@@ -158,6 +158,29 @@ TAB_ICONS = {
 }
 
 
+_NAV_ICON = '<svg class="nav-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{}"></path></svg>'
+# Biểu tượng thanh menu bên trái: theo nhóm, và theo trang cho nhóm "Của tôi".
+NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
+    'Bán hàng': 'M3 4h2l2.4 11h11l2-8H6.2M10 20h.01M17 20h.01',
+    'Dịch vụ': 'M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z',
+    'Kho': 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+    'Mua hàng': 'M6 2l-3 4v14h18V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0',
+    'Tài chính': 'M3 6h18v12H3zM3 10h18M7 15h3',
+    'Báo cáo': 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+    'Danh mục': 'M4 5h16v14H4zM8 9h8M8 13h8M8 17h5',
+    'Quản trị': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
+    '/viec-cua-toi': 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+    '/tong-quan': 'M3 12l9-8 9 8M5 10v10h14V10',
+    '/cham-cong': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
+    '/kpi': 'M4 20V10M10 20V4M16 20v-7',
+    '/hoa-hong': 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
+    '/tho': 'M3 5h18v15H3zM3 10h18M8 3v4M16 3v4',
+}.items()}
+# Thanh dưới trên điện thoại: tối đa 3 lối tắt theo thứ tự này, ô thứ tư là Menu.
+PHONE_TABS = (('/viec-cua-toi', 'Việc'), ('/tong-quan', 'Tổng quan'), ('/dieu-phoi', 'Điều phối'), ('/dich-vu', 'Dịch vụ'),
+              ('/don-ban', 'Đơn bán'), ('/ton-kho', 'Tồn kho'), ('/bao-thu', 'Báo thu'), ('/cham-cong', 'Chấm công'))
+
+
 TECH_LINKS = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
 TECH_PATHS = ('/tho', '/hang-toi-giu', '/tien-toi-giu')
 
@@ -179,7 +202,11 @@ def menu(user, path, query=None):
     for group in GROUPS + ACCOUNT_GROUPS:
         visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
-            groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible)))
+            for item in visible: item['icon'] = NAV_ICONS.get(item['href'], NAV_ICONS.get(group['label'], ''))
+            groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible), icon=NAV_ICONS.get(group['label'], '')))
+    shown = {item['href']: item for group in groups for item in group['items']}
+    tabs = [dict(href=href, label=label, icon=shown[href]['icon'], active=shown[href]['active']) for href, label in PHONE_TABS if href in shown][:3]
+    crumb = next(((group['label'] or 'Của tôi', item['label']) for group in groups for item in group['items'] if item['active']), None)
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
     # Người nhiều vai trong khung thợ: tab dưới là nhóm đầu, menu đầy đủ mở từ nút tài khoản.
-    return dict(groups=groups, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user))
+    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user))
