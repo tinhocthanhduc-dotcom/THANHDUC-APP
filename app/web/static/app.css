@@ -551,6 +551,7 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
 .toast { pointer-events: auto; max-width: 520px; width: 100%; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.3); display: flex; gap: 12px; align-items: center; justify-content: space-between; }
 .toast.bad { background: var(--bad-solid); color: var(--bad-solid-text); }
 .toast button { background: none; border: 0; color: inherit; font-weight: 800; padding: 4px 8px; }
+.toast.work-watch { background: var(--info-solid); color: var(--info-solid-text); }
 /* Vuốt để xác nhận: không JS vẫn là nút submit thường. */
 .swipe { position: relative; margin-inline: 8px; }
 .swipe > button { width: 100%; min-height: 64px; border-radius: 999px; font-weight: 800; }

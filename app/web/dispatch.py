@@ -10,12 +10,12 @@ from fastapi.responses import Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from .. import service_tickets as svc
+from .. import service_tickets as svc, work_watch
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog, ServiceStep, ServiceTicket, ServiceVisit, User
 from ..security import has_role
-from . import render, web_user
+from . import render, watch_response, web_user
 
 router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -74,7 +74,12 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
     return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
                   count_deferred=session.scalar(select(func.count()).select_from(ServiceTicket).where(ServiceTicket.status=='KHACH_HEN_SAU')),count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
                   users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
-                  now=now, delay=_delay)
+                  now=now, delay=_delay, watch=dict(url='/dieu-phoi/moi', stamp=work_watch.dispatch(session)))
+
+
+@router.get("/dieu-phoi/moi")
+def dashboard_stamp(user: User = Depends(dispatch_user), session: Session = Depends(get_session)):
+    return watch_response(work_watch.dispatch(session))
 
 
 def _date_range(request):
