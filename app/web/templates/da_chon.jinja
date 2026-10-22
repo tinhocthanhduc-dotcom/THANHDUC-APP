@@ -8,8 +8,8 @@
 {% call block(locked=locked) %}{{ caller() }}{% endcall %}
 {%- endmacro %}
 {% macro card(c) -%}
-<div data-customer-card data-address="{{ c.address if c else '' }}" {% if not c %}hidden{% endif %}>{% if c %}<strong data-card-title>{{ c.code }} · {{ c.name }}</strong><div data-card-address>{{ c.phone }} · {{ c.address }}</div>{% if c.can_debt %}<div data-card-debt>Còn nợ {{ c.debt|money }} · Hạn mức {{ c.limit|money }}</div>{% endif %}{% else %}<strong data-card-title></strong><div data-card-address></div>{% endif %}</div>
+<div data-customer-card data-address="{{ c.address if c else '' }}" {% if not c %}hidden{% endif %}>{% if c %}<strong data-card-title>{{ c.code }} · {{ c.name }}</strong><div data-card-address>{{ c.phone }} · {{ c.address }}</div>{% if c.can_debt %}<div data-card-debt>Còn nợ {{ c.debt|money }} · Hạn mức {{ c.limit|money }}</div><div data-card-committed>Đơn chốt chưa giao {{ c.committed|money }}</div>{% endif %}{% else %}<strong data-card-title></strong><div data-card-address></div>{% endif %}</div>
 {%- endmacro %}
 {% macro attributes(c) -%}
-data-phone="{{ c.phone }}" data-address="{{ c.address }}" data-contact="{{ c.contact }}" {% if c.can_debt %}data-debt="{{ c.debt }}" data-limit="{{ c.limit }}"{% endif %}
+data-phone="{{ c.phone }}" data-address="{{ c.address }}" data-contact="{{ c.contact }}" {% if c.can_debt %}data-debt="{{ c.debt }}" data-limit="{{ c.limit }}" data-committed="{{ c.committed }}"{% endif %}
 {%- endmacro %}

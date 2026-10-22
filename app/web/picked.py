@@ -1,23 +1,23 @@
 """Read-only display data for the three entry forms."""
 from zoneinfo import ZoneInfo
-from sqlalchemy import select, func
+from sqlalchemy import select
 from ..models import SalesOrder, SalesOrderLine
 from ..security import has_role
 
 
 def customer_cards(session, user, customers):
     customers = [c for c in customers if c]
-    debts = {}
+    exposure = {}
     permitted = has_role(user, 'finance')
     if customers and permitted:
-        from ..finance_reports import _debts
-        query = _debts()
-        debts = dict(session.execute(select(query.c.customer_code, func.sum(query.c.remaining))
-            .where(query.c.customer_code.in_([c.code for c in customers])).group_by(query.c.customer_code)).all())
+        from ..sales_orders import credit_exposure
+        exposure = credit_exposure(session, [c.code for c in customers])
     return {c.code: dict(code=c.code, name=c.name, address=c.address,
         phone=' · '.join(p.phone for p in c.phones),
         contact=c.contacts[0].name if c.contacts else '',
-        debt=int(debts.get(c.code, 0)), limit=c.credit_limit, can_debt=permitted) for c in customers}
+        debt=exposure.get(c.code, {}).get('actual_debt', 0),
+        committed=exposure.get(c.code, {}).get('committed', 0),
+        limit=c.credit_limit, can_debt=permitted) for c in customers}
 
 
 def last_prices(session, customer_code, products):
