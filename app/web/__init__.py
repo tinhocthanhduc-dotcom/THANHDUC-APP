@@ -8,7 +8,7 @@ from urllib.parse import quote, urlencode
 
 import jwt
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
@@ -131,6 +131,11 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
     return templates.TemplateResponse(request, name, ctx, status_code=status)
 
 
+def watch_response(stamp: str) -> JSONResponse:
+    """Dấu hàng việc cho work-watch.js; không cache để lần hỏi sau luôn thấy việc mới."""
+    return JSONResponse(dict(stamp=stamp), headers={"Cache-Control": "no-store"})
+
+
 def _digits(value) -> int:
     s = "".join(ch for ch in str(value or "") if ch.isdigit())
     return int(s) if s else 0
@@ -182,6 +187,12 @@ def home(request: Request, session: Session = Depends(get_session)):
 def my_work_page(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
     from .work import page
     return page(request, user, session)
+
+
+@router.get("/viec-cua-toi/moi")
+def my_work_stamp(user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import work_watch
+    return watch_response(work_watch.my_queue(session, user))
 
 
 @router.get("/dang-nhap")

@@ -57,6 +57,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 {% endif %}
 <div class="toast-stack" data-toast-stack aria-live="polite"></div>
 <main>{% block main %}{% endblock %}</main>
+{% if watch %}<div hidden data-watch="{{ watch.url }}" data-stamp="{{ watch.stamp }}"></div><script src="/static/work-watch.js" defer></script>{% endif %}
 <script>
 // Chặn bấm lại ở trình duyệt; form_key mới là khóa chống trùng ở máy chủ.
 // Lắng nghe ở document sau các kiểm tra/confirm của từng form.
