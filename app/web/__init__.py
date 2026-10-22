@@ -35,7 +35,15 @@ from . import nav
 HERE = Path(__file__).parent
 COOKIE = "td_session"
 router = APIRouter(include_in_schema=False)
-static = StaticFiles(directory=HERE / "static")
+class _Static(StaticFiles):
+    """CSS/JS luôn hỏi lại máy chủ (ETag, 304 nếu chưa đổi): cập nhật app là điện thoại thấy giao diện mới ngay."""
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+static = _Static(directory=HERE / "static")
 templates = Jinja2Templates(directory=HERE / "templates")
 
 KIND_LABELS = {"CA_NHAN": "Cá nhân", "CONG_TY": "Công ty"}

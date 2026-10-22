@@ -1210,7 +1210,7 @@ main:has(> .me-page) { max-width: 640px; }
 .done-state > details[open] > summary.btn { margin-bottom: 8px; }
 /* Thanh dưới màn thợ tối đa 2 dòng: Gọi khách + Việc khác chung 1 hàng (cả trên điện thoại), rồi nút chính. */
 .tho-bottom-action { gap: 8px; padding-top: 8px; }
-.tho-bottom-action .row2.tho-quick { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.tho-bottom-action .row2.tho-quick { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .tho-bottom-action .row2.tho-quick .btn { min-height: 44px; padding: 6px 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tho-bottom-action > .btn-ok, .tho-bottom-action > .btn.primary { min-height: 52px; }
 .tho-bottom-action .swipe > button { min-height: 56px; }
