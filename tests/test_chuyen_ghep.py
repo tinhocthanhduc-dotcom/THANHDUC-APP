@@ -75,14 +75,16 @@ def test_today_groups_trip_into_one_card(db, setup, client):
     assert 'data-trip-group' in html and f'data-trip="{o.number}"' in html and f'/giao-don/{o.id}?return_to=tho' in html
 
 
-def test_ticket_and_delivery_screens_offer_trip_total(db, setup, client):
+def test_ticket_shows_trip_total_delivery_keeps_order_amount(db, setup, client):
     p = setup; t, o = linked(db, p)
     service_login(client, p['technician'])
     html = client.get(f'/tho/phieu/{t.id}').text
     due = re.search(r'data-order-due="(\d+)"', html)
     assert 'data-trip-money' in html and due and int(due.group(1)) > 0 and o.number in html
+    # TUẤN 22/10: bỏ ô "Khách trả tổng"; dưới tiền phiếu hiện tổng thu thực tế cả chuyến.
+    assert 'data-trip-total-sum' in html and 'Tổng thu thực tế cả chuyến' in html and 'data-trip-total ' not in html and 'data-trip-total>' not in html
     page = client.get(f'/giao-don/{o.id}?return_to=tho').text
-    assert f'data-trip-delivery data-ticket="{t.id}"' in page and 'data-trip-total' in page and t.number in page
+    assert f'data-trip-delivery data-ticket="{t.id}"' in page and 'data-trip-total' not in page and t.number in page
 
 
 def test_add_sale_from_ticket_links_order_and_defaults_technician(db, setup, client, make_user):

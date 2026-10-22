@@ -56,14 +56,10 @@ def charges(session,user,ticket,version,total,mode,reason,materials):
 
 
 def apply_report(session,t,fault,fix):
-    """Thẻ B: báo cáo thợ phải có lỗi gặp, cách xử lý và ảnh biên bản có chữ ký khách; gọi trong transaction hoàn thành."""
-    from .attachments import has_visible
+    """Báo cáo thợ: bắt buộc kết quả/cách xử lý; lỗi gặp và ảnh biên bản không bắt buộc (TUẤN 22/10, chỉ cần ảnh nghiệm thu)."""
     fault,fix=(fault or '').strip(),(fix or '').strip()
-    if len(fault)<3:raise BusinessError('FAULT_REQUIRED','Phải ghi lỗi gặp thực tế (ít nhất 3 ký tự).')
-    if len(fix)<3:raise BusinessError('FIX_REQUIRED','Phải ghi cách đã xử lý (ít nhất 3 ký tự).')
+    if len(fix)<3:raise BusinessError('FIX_REQUIRED','Chọn kết quả sửa: Đã sửa xong hoặc Xong một phần.')
     if len(fault)>2000 or len(fix)>2000:raise BusinessError('TEXT_TOO_LONG','Lỗi gặp và cách xử lý tối đa 2000 ký tự.')
-    if not has_visible(session,'service_ticket',t.id,'BIEN_BAN'):
-        raise BusinessError('REPORT_PHOTO_REQUIRED','Phải chụp ảnh biên bản có chữ ký khách trước khi hoàn thành.')
     t.fault_found,t.fix_done=fault,fix
 
 

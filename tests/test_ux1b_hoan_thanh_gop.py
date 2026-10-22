@@ -54,7 +54,8 @@ def unchanged_error(client, db, t, data, code):
     from decimal import Decimal
     from app.service_charges import _round
     total=sum(_round(Decimal(qty)*int(price.replace('.','')))+_round(Decimal(_round(Decimal(qty)*int(price.replace('.',''))))*int(data[f'vat_{i}'])/100) for i,(qty,price) in enumerate(zip(data['line_qty'],data['line_price'])))
-    assert 'Đã chạy thử tại khách' in response.text and f'{total:,}'.replace(',','.') in response.text
+    # TUẤN 22/10: bỏ ô ghi chú hoàn thành trên màn thợ, chỉ kiểm số tiền vẫn giữ.
+    assert f'{total:,}'.replace(',','.') in response.text
     assert snapshot(db, t) == before
     return response
 

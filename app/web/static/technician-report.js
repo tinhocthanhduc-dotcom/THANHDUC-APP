@@ -28,7 +28,8 @@
       } else if (el.type === 'radio') {
         if (el.checked) data[el.name] = el.value;
         else if (!(el.name in data)) data[el.name] = '';
-      } else data[el.name] = el.value;
+      } else if (el.type === 'checkbox') data[el.name + ':' + el.value] = el.checked ? '1' : '';
+      else data[el.name] = el.value;
     });
     return data;
   }
@@ -39,6 +40,8 @@
         if (v === undefined) return;
         el.value = v;
         if (Number(String(v).replace(',', '.')) > 0) row.hidden = false;
+      } else if (el.type === 'checkbox') {
+        if ((el.name + ':' + el.value) in data) el.checked = data[el.name + ':' + el.value] === '1';
       } else if (el.name in data) {
         if (el.type === 'radio') el.checked = data[el.name] === el.value;
         else el.value = data[el.name];
