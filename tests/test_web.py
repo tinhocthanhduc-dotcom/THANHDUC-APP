@@ -695,7 +695,7 @@ def test_d1_two_sites_on_customer_page(client, web_login, d1_catalog, db):
         r = client.post('/khach-hang/KTD-000001/dia-diem/moi', data=data, follow_redirects=False)
         assert r.status_code == 303, r.text
     page = client.get('/khach-hang/KTD-000001').text
-    assert '<h2>Địa điểm</h2>' in page and '<h3>Chi nhánh 58' in page and '<h3>Chi nhánh 145' in page
+    assert '<h2>Địa điểm</h2>' in page and '<summary>Chi nhánh 58' in page and '<summary>Chi nhánh 145' in page and '+ Thêm địa điểm khác' in page
     assert 'Chi nhánh 58' not in client.get('/khach-hang/KTD-000002').text
     assert db.query(CustomerSite).count() == 2
 
