@@ -327,9 +327,9 @@ def test_finance_same_vietnam_day_across_utc_midnight_and_month(db,p):
     assert svc.compute(db,MONTH)[p['finance'].id]['kt_xac_nhan_trong_ngay']==100
 
 
-def test_closed_customer_reschedule_is_not_open_backlog_and_reads_never_write(db,p):
-    t=ticket(db,p,status='KHACH_HEN_SAU',at='2026-11-01T08:00')
-    step(db,p,t,'KHACH_HEN_SAU','2026-11-02T08:00');db.commit()
+def test_cancelled_ticket_is_not_open_backlog_and_reads_never_write(db,p):
+    t=ticket(db,p,status='DA_HUY',at='2026-11-01T08:00')
+    step(db,p,t,'DA_HUY','2026-11-02T08:00');db.commit()
     statements=[]
     def capture(*args):statements.append(args[2].strip().lower())
     event.listen(db.bind,'before_cursor_execute',capture)

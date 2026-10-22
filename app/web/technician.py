@@ -119,7 +119,9 @@ def detail_context(session, user, ticket, ctx):
     labels={'DA_GIAO':'Nhận đơn','DA_NHAN':'Hẹn khách','DA_HEN':'Đã đến khách','DANG_LAM':'Hoàn thành','CHO_LINH_KIEN':'Tiếp tục làm','TAM_DUNG':'Tiếp tục làm'}
     if ticket.status=='DA_NHAN' and ticket.appointment_at: labels['DA_NHAN']='Đã đến khách'
     primary = dict(form='service-complete' if ticket.status=='DANG_LAM' else 'service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
-    exceptions=[s for s in ctx['transitions'] if s!=target and s in (('DA_HEN','TAM_DUNG','KHONG_LAM_DUOC') if ticket.status=='DANG_LAM' else ('KHACH_HEN_SAU','KHONG_LAM_DUOC') if ticket.status in ('CHO_LINH_KIEN','TAM_DUNG') else ()) and not (s=='KHACH_HEN_SAU' and ticket.status=='DANG_LAM')]
+    exceptions=[s for s in ctx['transitions'] if s!=target and s in (
+        ('DA_HEN','TAM_DUNG','KHONG_LAM_DUOC','DA_HUY') if ticket.status=='DANG_LAM'
+        else ('DA_HUY','KHONG_LAM_DUOC') if ticket.status in ('CHO_LINH_KIEN','TAM_DUNG') else ())]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
     return dict(technician_view=True,checks=checks,completion_ready=all(c['ok'] for c in checks),
