@@ -1,5 +1,6 @@
 """S4: màn hình giao đơn riêng; không mở menu đơn bán cho thợ."""
 import re
+from datetime import timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -7,7 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments, sales_orders, sales_receipts, technician_deliveries as svc
+from .. import attachments, attendance, sales_orders, sales_receipts, technician_deliveries as svc
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -19,12 +20,17 @@ from .orders import _error, _version
 from .receipts import _report_body
 
 router=APIRouter()
-REASONS={'KHACH_VANG':'Khách vắng','KHACH_TU_CHOI':'Khách từ chối','SAI_DIA_CHI':'Sai địa chỉ','HEN_LAI':'Hẹn lại','KHAC':'Khác'}
+REASONS={'KHACH_VANG':'Khách vắng','KHACH_TU_CHOI':'Khách từ chối','SAI_DIA_CHI':'Sai địa chỉ','HEN_LAI':'Hẹn lại','KHAC':'Khác','DE_NGHI_HUY':'Thợ đề nghị hủy đơn'}
+# Màn thợ chỉ còn 3 lựa chọn (TUẤN 2026-10-23); các mã cũ vẫn nhận để giữ lịch sử và màn bàn giấy.
+THO_REASONS={'HEN_LAI':'Khách hẹn lại','SAI_DIA_CHI':'Sai địa chỉ giao','DE_NGHI_HUY':'Hủy đơn'}
+SLOTS={'SANG':'buổi sáng','CHIEU':'buổi chiều','TOI':'buổi tối'}
 
 
 def context(session,user,order):
     state=svc.state(session,user,order)
-    state.update(order=order,reason_labels=REASONS,customer=session.get(Customer,order.customer_code),
+    d0=attendance.today()
+    state.update(order=order,reason_labels=REASONS,tho_reasons=THO_REASONS,slots=SLOTS,
+        quick_dates=[('Hôm nay',d0),('Ngày mai',d0+timedelta(days=1)),('Ngày kia',d0+timedelta(days=2))],customer=session.get(Customer,order.customer_code),
         technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician'])).order_by(User.full_name))) if has_role(user,'dispatcher') else [],
         service_ticket=session.get(ServiceTicket,order.service_ticket_id) if order.service_ticket_id else None,
         open_tickets=list(session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code==order.customer_code,
@@ -91,7 +97,11 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
         elif action in ('transfer','use','return'):
             svc.move(session,user,order_id,action,SalesDeliveryMove(version=version,lines=lines))
         elif action=='failed':
-            svc.failed(session,user,order_id,SalesDeliveryFailed(version=version,reason=form.get('reason'),note=form.get('note',''),promised_date=form.get('promised_date') or None))
+            reason=form.get('reason');note=str(form.get('note','')).strip()
+            slot=str(form.get('slot','')).strip() if reason=='HEN_LAI' else ''
+            if slot in SLOTS:note='Hẹn '+SLOTS[slot]+('; '+note if note else '')
+            svc.failed(session,user,order_id,SalesDeliveryFailed(version=version,reason=reason,note=note,
+                promised_date=form.get('promised_date') or None,new_address=str(form.get('new_address','')).strip()))
         elif action=='report':
             sales_receipts.report(session,user,order_id,_report_body(form,raw))
         elif action=='deliver':

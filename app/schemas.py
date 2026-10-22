@@ -1308,9 +1308,10 @@ class SalesDeliveryMove(SalesOrderVersion):
 
 
 class SalesDeliveryFailed(SalesOrderVersion):
-    reason: Literal['KHACH_VANG','KHACH_TU_CHOI','SAI_DIA_CHI','HEN_LAI','KHAC']
+    reason: Literal['KHACH_VANG','KHACH_TU_CHOI','SAI_DIA_CHI','HEN_LAI','KHAC','DE_NGHI_HUY']
     note: str = Field(default='', max_length=4000)
     promised_date: date | None = None
+    new_address: str = Field(default='', max_length=500)
 
 
 class TechnicianDeliveryIn(SalesDeliveryIn):

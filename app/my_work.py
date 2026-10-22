@@ -6,7 +6,7 @@ from sqlalchemy import case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
 from .errors import BusinessError
-from .models import PendingDisposition, PendingItem, StockBalance, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import PendingDisposition, PendingItem, StockBalance, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, Quote, SalesDeliveryAttempt, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
@@ -95,10 +95,12 @@ def _specs(user, today, now):
     sales_deliveries=docs(SalesOrder,Customer.name,SalesOrder.total-sales_orders.returned_total_sql()-(
         func.coalesce(SalesOrder.receivable,0)-_available(SalesOrder))).join(Customer,Customer.code==SalesOrder.customer_code).where(
         SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
+    last_fail=select(SalesDeliveryAttempt.reason).where(SalesDeliveryAttempt.order_id==SalesOrder.id).order_by(
+        SalesDeliveryAttempt.id.desc()).limit(1).correlate(SalesOrder).scalar_subquery()
     tech_holds=select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='THO').exists()
     if has_role(user,'technician'):
         add('technician_deliveries','Đơn bán cần giao',sales_deliveries.where(SalesOrder.delivery_assignee_id==user.id).add_columns(
-            SalesOrder.delivery_address.label('address'),case((tech_holds,'Giao hàng / Ghi không giao được'),else_='Chờ kho bàn giao').label('next_label')).order_by(SalesOrder.promised_date,SalesOrder.id),'delivery','/viec-cua-toi?nhom=technician_deliveries')
+            SalesOrder.delivery_address.label('address'),case((last_fail=='DE_NGHI_HUY','Đã đề nghị hủy · chờ bán hàng'),(tech_holds,'Giao hàng / Ghi không giao được'),else_='Chờ kho bàn giao').label('next_label')).order_by(SalesOrder.promised_date,SalesOrder.id),'delivery','/viec-cua-toi?nhom=technician_deliveries')
     if has_role(user,'warehouse'):
         add('delivery_handover','Đơn chờ bàn giao cho thợ',sales_deliveries.where(SalesOrder.delivery_assignee_id.is_not(None),select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='KHO').exists()).order_by(SalesOrder.id),'delivery','/viec-cua-toi?nhom=delivery_handover')
     if has_role(user, 'sales'):
@@ -107,6 +109,8 @@ def _specs(user, today, now):
         add('quotes_open', 'Báo giá chờ kết quả', q.order_by(Quote.created_at, Quote.id), 'quote', '/bao-gia')
         orders = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code)
         if not director:orders=orders.where(SalesOrder.created_by==user.id)
+        add('orders_cancel_requested', 'Thợ đề nghị hủy đơn', orders.where(SalesOrder.status=='DA_CHOT',last_fail=='DE_NGHI_HUY')
+            .order_by(SalesOrder.id), 'order', '/don-ban')
         add('orders_draft', 'Đơn nháp chưa chốt', orders.where(SalesOrder.status=='NHAP').order_by(SalesOrder.created_at, SalesOrder.id), 'order', '/don-ban')
         add('orders_unreported', 'Đã giao · chưa báo thu đủ', orders.where(SalesOrder.status.in_(('GIAO_MOT_PHAN','DA_GIAO')), _available(SalesOrder)>0)
             .order_by(SalesOrder.confirmed_at, SalesOrder.id), 'order', '/don-ban')

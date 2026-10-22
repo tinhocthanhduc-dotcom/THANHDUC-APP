@@ -27,7 +27,8 @@ def test_prefilled_qty_and_amount_follow_held_stock(db, setup, client):
     assert 'data-gross="200.0"' in page.text and 'class="tho-tabs"' not in page.text and 'class="tho-back" href="/tho"' in page.text
     assert re.search(r'data-swipe data-tone="ok"><button[^>]*form="giao-xong"', page.text)
     # Không giao được nằm trong khung riêng, lý do là chip.
-    assert 'id="viec-khac"' in page.text and re.search(r'<label class="chip"><input type="radio" name="reason" value="KHACH_VANG" required', page.text)
+    # TUẤN 2026-10-23: chỉ còn 3 lựa chọn Khách hẹn lại / Sai địa chỉ giao / Hủy đơn.
+    assert 'id="viec-khac"' in page.text and re.findall(r'name="reason" value="(\w+)"', page.text) == ['HEN_LAI', 'SAI_DIA_CHI', 'DE_NGHI_HUY']
 
 
 def test_full_delivery_collects_remaining_balance(db, setup, client):

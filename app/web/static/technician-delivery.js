@@ -43,3 +43,27 @@
   }
   update();
 })();
+// Không giao được: 3 lựa chọn, chỉ hiện và bắt buộc ô của lựa chọn đang chọn.
+(function () {
+  var form = document.querySelector('[data-fail-form]');
+  if (!form) return;
+  function sync() {
+    var picked = form.querySelector('[name=reason]:checked'), code = picked ? picked.value : '';
+    form.querySelectorAll('[data-reason-panel]').forEach(function (panel) {
+      var on = panel.dataset.reasonPanel === code;
+      panel.hidden = !on;
+      panel.querySelectorAll('input,textarea,button').forEach(function (el) {
+        el.disabled = !on;
+        if (el.dataset.need) el.required = on;
+      });
+    });
+  }
+  form.addEventListener('change', sync);
+  form.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-set-date]');
+    if (!btn) return;
+    form.querySelector('[name=promised_date]').value = btn.dataset.setDate;
+    form.querySelectorAll('[data-set-date]').forEach(function (b) { b.classList.toggle('on', b === btn); });
+  });
+  sync();
+})();
