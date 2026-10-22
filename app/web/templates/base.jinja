@@ -5,19 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Thành Đức{% endblock %} · Thành Đức</title>
 <link rel="stylesheet" href="/static/app.css">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<meta name="theme-color" content="#1d4ed8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Thành Đức">
 <script>
 // Sáng/Tối người dùng chọn trên máy này; đặt trước khi vẽ trang để không nháy màu.
 try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || tdTheme === 'light') document.documentElement.dataset.theme = tdTheme; } catch (e) {}
 </script>
 <script src="/static/ui.js" defer></script>
 </head>
-{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
+{% if user %}{% macro notify_bell(cls) %}<details class="notify {{ cls }}" data-notify="/ca-nhan/thong-bao" data-notify-user="{{ user.id }}" data-csrf="{{ csrf }}"><summary class="notify-btn" aria-label="Thông báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="notify-badge" data-notify-count hidden></span></summary><div class="notify-panel"><button type="button" class="btn btn-info notify-push" data-push-toggle hidden>Bật thông báo khi tắt màn hình</button><p class="hint notify-push-hint" data-push-hint hidden></p><div data-notify-list><p class="mu">Đang tải thông báo…</p></div></div></details>{% endmacro %}
+{% endif %}{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
 <body{% if navigation and navigation.technician %} class="tho-app"{% endif %}>
 {% if user %}
 {% if navigation.technician %}
 {# Khung riêng cho thợ (theo bản mẫu màn thợ): thanh trên gọn, tab dưới cùng. #}
 <header class="tho-top">
   {% block tho_top %}<h1 class="tho-title">{{ self.title() }}</h1>{% endblock %}
+  {{ notify_bell('tho-notify') }}
   <button type="button" class="tho-icb" data-theme-toggle aria-label="Đổi sáng hoặc tối"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"></path></svg></button>
   <details class="tho-account"><summary class="tho-icb" aria-label="Tài khoản"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg></summary>
   <form method="post" action="/dang-xuat" class="tho-account-menu">
@@ -46,6 +53,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
     </nav>
   </details>
   <form method="post" action="/dang-xuat" class="who">
+    {{ notify_bell('top-notify') }}
     <a class="identity me-link" href="/ca-nhan" data-account-item><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></a>
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
     <button type="button" class="link" data-theme-toggle>Sáng/Tối</button><a href="/ca-nhan" data-account-item>Cá nhân</a><button class="link">Đăng xuất</button>
@@ -53,6 +61,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 </header>
 {% endif %}
 <script src="/static/nav.js" defer></script>
+<script src="/static/notify.js" defer></script>
 <noscript><style>.menu-shell > .menu-toggle { display: list-item; }</style></noscript>
 {% endif %}
 <div class="toast-stack" data-toast-stack aria-live="polite"></div>

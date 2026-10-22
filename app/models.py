@@ -1779,3 +1779,24 @@ class SalaryAdvance(Base):
     payroll_line_id: Mapped[int | None]=mapped_column(ForeignKey('payroll_lines.id'))
     version: Mapped[int]=mapped_column(Integer,default=1,server_default='1')
     __mapper_args__={'version_id_col':version}
+
+
+class PushKey(Base):
+    """Khóa VAPID của máy chủ cho Web Push; tự tạo một lần, sao lưu cùng database."""
+    __tablename__ = 'push_keys'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    public_key: Mapped[str] = mapped_column(Text)
+    private_pem: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PushSubscription(Base):
+    """Một trình duyệt/điện thoại đã bật thông báo; seen là các việc đã báo (JSON), null = chưa ghi nhớ lần nào."""
+    __tablename__ = 'push_subscriptions'
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(Text)
+    auth: Mapped[str] = mapped_column(Text)
+    seen: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

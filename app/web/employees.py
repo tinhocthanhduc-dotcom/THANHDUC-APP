@@ -139,6 +139,53 @@ def personal(request:Request,user:User=Depends(web_user)):
     return _render(request,'ca_nhan.jinja',links=links)
 
 
+@router.get('/ca-nhan/thong-bao')
+def notices(user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from fastapi.responses import JSONResponse
+    from .. import notifications
+    rows=notifications.items(session,user)
+    return JSONResponse(dict(items=rows,count=len(rows)),headers={'Cache-Control':'no-store'})
+
+
+async def _push_form(request:Request):
+    # Bật/tắt thông báo là thao tác lặp lại được (ghi đè theo endpoint) nên chỉ kiểm csrf, không cần form_key.
+    import hmac
+    form=await request.form()
+    if not hmac.compare_digest(str(form.get('csrf','')),request.state.csrf):
+        raise BusinessError('BAD_CSRF','Trang đã cũ, hãy tải lại rồi thử lại.',status=403)
+    return form
+
+
+@router.get('/ca-nhan/thong-bao/khoa')
+def push_key(user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from fastapi.responses import JSONResponse
+    from .. import web_push
+    return JSONResponse(dict(public_key=web_push.keys(session).public_key),headers={'Cache-Control':'no-store'})
+
+
+@router.post('/ca-nhan/thong-bao/dang-ky')
+async def push_subscribe(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
+    import json
+    from fastapi.responses import JSONResponse
+    from starlette.concurrency import run_in_threadpool
+    from .. import web_push
+    form=await _push_form(request)
+    try:data=json.loads(str(form.get('subscription','')))
+    except ValueError:data=None
+    await run_in_threadpool(web_push.subscribe,session,user,data)
+    return JSONResponse(dict(ok=True))
+
+
+@router.post('/ca-nhan/thong-bao/huy')
+async def push_unsubscribe(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from fastapi.responses import JSONResponse
+    from starlette.concurrency import run_in_threadpool
+    from .. import web_push
+    form=await _push_form(request)
+    await run_in_threadpool(web_push.unsubscribe,session,user,str(form.get('endpoint','')))
+    return JSONResponse(dict(ok=True))
+
+
 @router.get('/ho-so-cua-toi')
 def own(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
     # Even directors see only their common profile on this route.

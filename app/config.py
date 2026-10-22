@@ -59,6 +59,8 @@ class Settings(BaseSettings):
 
     # Bật trên máy chủ thật (HTTPS) để trình duyệt chỉ gửi cookie đăng nhập qua kết nối mã hóa.
     cookie_secure: bool = False
+    # Vòng gửi Web Push (thông báo khi tắt màn hình). Test tắt để không chạy luồng nền.
+    push_loop: bool = True
     # Thư mục lưu tệp đính kèm (ảnh nghiệm thu, biên bản). Sao lưu cùng database.
     files_dir: str = "data/files"
     max_upload_mb: int = 15
