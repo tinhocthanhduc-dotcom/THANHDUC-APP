@@ -84,10 +84,11 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
             received=money(partial)
             if not 0<received<actual:raise BusinessError('BAD_PARTIAL_AMOUNT','Thu một phần phải lớn hơn 0 và nhỏ hơn tổng phải thu.')
         service_charges.set_charges_in_tx(session,user,t,body)
-        service_tickets.transition_in_tx(session,user,t,'HOAN_THANH',note)
+        service_tickets.transition_in_tx(session,user,t,'HOAN_THANH',note,auto_close=False)
         if received:
             from . import sales_receipts
             sales_receipts.report_for_ticket_in_tx(session,user,t,SalesReceiptReport(version=t.version,amount=received,method=method,note=note))
+        service_tickets.auto_close_in_tx(session,user,t)
         draft=session.get(ServiceDraft,(t.id,user.id))
         if draft is not None:session.delete(draft)
     return t

@@ -72,8 +72,14 @@ def ticket(db, p, status='MOI', who='technician', priority='THUONG', appointment
     service_charges.set_charges(db, tech, row.id, ServiceCharges(version=row.version,
         billing='MIEN_PHI' if free else 'THU_TIEN', free_reason='Bảo hành' if free else '',
         lines=[] if free else [dict(kind='PHI', description='Công sửa', qty=1, unit_price=500000, vat_rate=0)]))
+    if status=='HOAN_THANH':
+        # AD1: tests needing the intermediate state must have a pending recovery.
+        from app.models import ServiceRecoveredPart
+        db.add(ServiceRecoveredPart(ticket_id=row.id,product_code='TD-0001',qty=1,
+            note='Chưa nộp (dữ liệu test)',holder_id=tech.id,created_by=tech.id,status='CHO_NOP'))
+        db.commit()
     service_tickets.transition(db, tech, row.id, 'HOAN_THANH', row.version)
-    if status == 'DA_DONG':service_tickets.transition(db, p['dispatcher'], row.id, status, row.version)
+    if status == 'DA_DONG' and row.status!='DA_DONG':service_tickets.transition(db, p['dispatcher'], row.id, status, row.version)
     return row
 
 
@@ -187,7 +193,7 @@ def test_service_states_appointment_vietnam_boundaries_priority_and_overdue(db, 
     report(db,p,completed,500000)
     report(db,p,closed,500000)
     assert groups(db,p,'technician')['service_unreported']['count']==0
-    assert groups(db,p,'dispatcher')['service_close']['count']==2  # miễn phí + đã báo đủ
+    assert groups(db,p,'dispatcher')['service_close']['count']==2  # cả hai phiếu vẫn chờ nộp thu hồi, không theo tiền
 
 
 def test_sales_groups_states_net_pending_and_rejected_redo(db, people, configured_finance):
@@ -313,11 +319,11 @@ def test_service_end_to_end_existing_core_holds_appointment_price_photo_rules(cl
     parsed=Page(page.text);assert parsed.primary['form']=='photo-SAU-form'
     photo=parsed.forms[parsed.primary['form']]
     page=client.post(photo['action'],data=photo['fields'],files={'file':('sau.png',d5_image(),'image/png')})
-    page=next_action(client,page);db.expire_all();assert t.status=='HOAN_THANH' and t.priced_at is not None
+    page=next_action(client,page);db.expire_all();assert t.status=='DA_DONG' and t.priced_at is not None
     assert Page(page.text).primary['data-next-route']==f'/dich-vu/{t.id}/bao-thu'  # KT1: thợ được báo thu phiếu của mình.
     service_login(client,p['dispatcher']);page=client.get(str(page.url))
-    assert Page(page.text).primary['form']=='service-DA_DONG'
-    page=next_action(client,page);db.expire_all();assert t.status=='DA_DONG'  # UX3: còn nợ không chặn đóng.
+    assert Page(page.text).primary['form']=='receipt-report'
+    assert 'service-DA_DONG' not in Page(page.text).forms
     page=next_action(client,page,method='TIEN_MAT',amount='500.000',received_at=DAY.isoformat())
     assert Page(page.text).primary is None
     assert groups(db,p,'technician')['service_unreported']['count']==0
@@ -349,9 +355,12 @@ def test_service_next_step_matches_existing_transition_form(client, db, people, 
     t=ticket(db,people,state,free=True)
     service_login(client,people['dispatcher'] if state=='HOAN_THANH' else people['technician'])
     page=Page(client.get(f'/dich-vu/{t.id}').text)
-    assert page.primary['form']=='service-'+target
-    assert page.forms[page.primary['form']]['fields']['to_status']==target
-    assert page.primary['data-next-route']==f'/dich-vu/{t.id}/transition'
+    if state=='HOAN_THANH':
+        assert page.primary is None and 'service-DA_DONG' not in page.forms
+    else:
+        assert page.primary['form']=='service-'+target
+        assert page.forms[page.primary['form']]['fields']['to_status']==target
+        assert page.primary['data-next-route']==f'/dich-vu/{t.id}/transition'
     service_login(client,people['reception'])
     assert Page(client.get(f'/dich-vu/{t.id}').text).primary is None
 

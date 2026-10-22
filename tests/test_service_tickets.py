@@ -115,18 +115,18 @@ def test_luong_chinh_cua_tho(db, people):
     assert _code(svc.transition, db, t1, t.id, "HOAN_THANH", None) == "BILLING_REQUIRED"
     service_charges.set_charges(db, t1, t.id, ServiceCharges(billing="MIEN_PHI", free_reason="Bảo hành"))
     t = svc.transition(db, t1, t.id, "HOAN_THANH", None)
-    assert t.status == "HOAN_THANH" and t.due_at is None
+    assert t.status == 'DA_DONG' and t.due_at is None
     steps = svc.load(db, people["dp"], t.id).steps
     assert [(s.action, s.from_status, s.to_status) for s in steps] == [
         ("create", None, "MOI"), ("assign", "MOI", "DA_GIAO"), ("transition", "DA_GIAO", "DA_NHAN"),
         ("transition", "DA_NHAN", "DA_HEN"), ("reschedule", "DA_HEN", "DA_HEN"), ("transition", "DA_HEN", "DANG_LAM"),
         ("transition", "DANG_LAM", "CHO_LINH_KIEN"), ("transition", "CHO_LINH_KIEN", "DANG_LAM"),
-        ("transition", "DANG_LAM", "HOAN_THANH"),
+        ("transition", "DANG_LAM", "HOAN_THANH"), ("close", "HOAN_THANH", "DA_DONG"),
     ]
     assert all(s.actor_id == t1.id for s in steps[2:])
     assert _code(svc.transition, db, t1, t.id, "DA_DONG", None) == "FORBIDDEN"
-    t = svc.transition(db, people["dp"], t.id, "DA_DONG", None, "Đã đối soát")
-    assert _code(svc.transition, db, people["dp"], t.id, "DA_HUY", None, "Khách hủy") == "BAD_STATUS"
+    t = svc.transition(db, people["dp"], t.id, "DA_HUY", None, "Khách hủy")
+    assert t.status == 'DA_HUY'
     assert _code(svc.transition, db, people["dp"], t.id, "DANG_LAM", None, "Mở lại") == "BAD_TRANSITION"
 
 

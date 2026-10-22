@@ -17,6 +17,7 @@
 <div class="work-rows">{% for row in group.rows %}<a class="work-row{% if row.overdue %} work-overdue{% endif %}" href="{{ row.link }}">
 <span class="work-id"><strong>{{ row.number }}</strong><span class="tag">{{ labels[row.kind].get(row.status,row.status) }}</span>{% if row.overdue %}<span class="chip-bad">Quá hạn / cần xử lý ngay</span>{% endif %}</span>
 <span class="work-body"><span class="work-who">{{ row.customer }}</span>
+{% if row.recovered_pending %}<span class="work-sub">Còn {{ row.recovered_pending }} linh kiện thu hồi chưa nộp · thợ {{ row.recovered_holders }}</span>{% endif %}
 {% if row.kind=='stock' %}<span class="work-sub">{{ row.warehouse_code }} · Tồn {{ row.qty }} · Mức tối thiểu {{ row.min_qty }}</span>{% elif row.kind in ['quote','order','purchase','receipt','delivery','refund','pending_disposition','pending_supplier_return'] %}<strong class="work-money">{{ row.amount|money }} đồng</strong>{% endif %}
 {% if row.address %}<span class="work-sub">{{ row.address }}</span>{% endif %}{% if row.reason %}<span class="work-sub">{{ row.reason }}</span>{% endif %}
 {% if row.damaged %}<span class="chip-bad">Hư hỏng · Thợ báo hư</span><span class="work-sub">{{ row.damage_reason }}</span>{% if row.damage_photos %}<span class="work-photos">{% for photo_id in row.damage_photos %}<img class="return-damage-photo" src="/attachments/{{ photo_id }}/file" alt="Ảnh hàng hư {{ row.number }}">{% endfor %}</span>{% endif %}{% endif %}</span>

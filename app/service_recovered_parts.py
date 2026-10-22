@@ -82,6 +82,7 @@ def receive(session, user, ident, body):
         row.received_by, row.received_at = user.id, stamp
         session.flush()
         audit.record(session, user, 'recovered_part.receive', 'service_recovered_part', str(row.id), before, snapshot(row))
+        svc.auto_close_in_tx(session,user,ticket)
     return row
 
 
@@ -89,7 +90,7 @@ def cancel(session, user, ident, version, reason):
     if not has_role(user, 'dispatcher') and 'technician' not in user.roles:
         raise BusinessError('FORBIDDEN', 'Chỉ thợ giữ hoặc điều phối được hủy dòng thu hồi.', status=403)
     with _transaction(session):
-        _, row = _locked(session, user, ident, version)
+        ticket, row = _locked(session, user, ident, version)
         if not has_role(user, 'dispatcher') and not ('technician' in user.roles and row.holder_id == user.id):
             raise BusinessError('FORBIDDEN', 'Chỉ thợ giữ hoặc điều phối được hủy dòng thu hồi.', status=403)
         reason = (reason or '').strip()
@@ -98,6 +99,7 @@ def cancel(session, user, ident, version, reason):
         row.status, row.void_reason = 'DA_HUY', reason
         session.flush()
         audit.record(session, user, 'recovered_part.cancel', 'service_recovered_part', str(row.id), before, snapshot(row), reason)
+        svc.auto_close_in_tx(session,user,ticket)
     return row
 
 

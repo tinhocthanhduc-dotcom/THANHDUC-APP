@@ -18,7 +18,7 @@ VERBS = dict(parts_pending='Cấp linh kiện', delivery_handover='Bàn giao cho
     technician_returns='Nhận trả', purchases_waiting='Nhận hàng', machines_warehouse='Nhận máy', machines_pending='Nhận máy', machines_held='Xem máy',
     stock_low='Xem thẻ kho', receipts_pending='Xác nhận', refunds_pending='Duyệt hoàn tiền', pending_destruction='Duyệt hủy',
     pending_supplier_returns='Duyệt trả NCC', receipts_rejected='Làm lại báo thu', quotes_open='Mở báo giá', orders_draft='Mở đơn',
-    orders_unreported='Báo thu', orders_deposit='Thu cọc', service_unassigned='Giao thợ', service_close='Đóng phiếu', service_unreported='Báo thu')
+    orders_unreported='Báo thu', orders_deposit='Thu cọc', service_unassigned='Giao thợ', service_close='Xem', service_unreported='Báo thu')
 NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhận báo thu.', 'rejected':'Đã từ chối báo thu.'}
 
 

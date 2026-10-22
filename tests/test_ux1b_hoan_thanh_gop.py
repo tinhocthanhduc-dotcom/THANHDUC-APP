@@ -66,7 +66,7 @@ def test_success_charges_stock_receipt_visit_and_held_money(client, db, job, met
     response = post(client, t, data)
     assert response.status_code == 303
     db.expire_all(); db.refresh(t)
-    assert t.status == 'HOAN_THANH' and t.priced_at
+    assert t.status == 'DA_DONG' and t.priced_at
     assert (t.subtotal, t.vat_total, t.total, t.receivable) == (600000, 48000, 648000, 648000)
     assert balance(db, own.code) == 2
     receipt = db.scalars(select(SalesReceipt).where(SalesReceipt.ticket_id==t.id)).one()
@@ -100,7 +100,7 @@ def test_free_with_reason_without_receipt(client, db, job, amount):
     p, _, t = job; data = form(client, p, t); data.update(billing='MIEN_PHI', free_reason='Bảo hành drum', amount=amount)
     assert post(client, t, data).status_code == 303
     db.expire_all(); db.refresh(t)
-    assert t.status == 'HOAN_THANH' and t.receivable == 0
+    assert t.status == 'DA_DONG' and t.receivable == 0
     assert db.query(SalesReceipt).count() == 0
 
 
@@ -193,5 +193,5 @@ def test_paid_job_without_onsite_collection(client, db, job, amount):
     p, _, t = job; data = form(client, p, t); data['amount'] = amount
     assert post(client, t, data).status_code == 303
     db.expire_all(); db.refresh(t)
-    assert t.status == 'HOAN_THANH' and t.receivable == 648000
+    assert t.status == 'DA_DONG' and t.receivable == 648000
     assert db.query(SalesReceipt).count() == 0

@@ -160,9 +160,9 @@ def test_machine_blocks_all_end_states_then_return_allows_valid_transition(db,ma
         service_charges.set_charges(db,p['dispatcher'],t.id,ServiceCharges(version=t.version,billing='MIEN_PHI',free_reason='Bảo hành'))
         attachments.add(db,p['technician'],'service_ticket',str(t.id),'SAU','sau.png',d5_image())
         service_tickets.transition(db,p['technician'],t.id,'HOAN_THANH',t.version)
-        if target=='DA_DONG':service_tickets.transition(db,p['dispatcher'],t.id,target,t.version)
+        if target=='DA_DONG' and t.status!='DA_DONG':service_tickets.transition(db,p['dispatcher'],t.id,target,t.version)
     else:service_tickets.transition(db,p['dispatcher'],t.id,target,t.version,'Không sửa, trả máy')
-    assert t.status==target
+    assert t.status==('DA_DONG' if target=='HOAN_THANH' else target)
 
 
 def test_custody_pages_work_groups_age_and_access(client,db,machine,monkeypatch):
@@ -320,7 +320,7 @@ def test_receive_and_complete_cannot_leave_closed_ticket_holding_machine(engine,
     with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(run,['receive','complete']))
     assert results.count('OK')==1 and set(results)-{'OK'} <= {'MACHINE_NOT_RETURNED','BAD_STATUS'}
     db.refresh(t);db.refresh(eq)
-    assert (t.status,eq.custody_location) in [('DANG_LAM','THO_GIU'),('HOAN_THANH','TAI_KHACH')]
+    assert (t.status,eq.custody_location) in [('DANG_LAM','THO_GIU'),('DA_DONG','TAI_KHACH')]
 
 
 def test_handover_declares_accessories_for_recipient_and_compares_original_at_return(client,db,machine):

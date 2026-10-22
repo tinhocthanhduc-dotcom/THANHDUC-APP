@@ -1035,7 +1035,7 @@ def test_d3_technician_flow_and_photo_required(client, db, service_people, tmp_p
     response = service_action(client, ticket, csrf, to_status='HOAN_THANH', note='Đã sửa xong máy')
     assert response.status_code == 200, response.text
     db.refresh(ticket)
-    assert ticket.status == 'HOAN_THANH' and ticket.due_at is None
+    assert ticket.status == 'DA_DONG' and ticket.due_at is None
     assert 'Chờ linh kiện thay thế' in response.text and 'Khách hẹn buổi sáng' in response.text
     assert '/transition' not in response.text and '/assign' not in response.text
 
@@ -1236,7 +1236,7 @@ def test_d5_upload_after_photo_then_complete(client, db, service_people, d5_tick
     response = service_action(client, d5_ticket, csrf, to_status='HOAN_THANH', note='Đã thay bánh kéo giấy')
     assert response.status_code == 200, response.text
     db.refresh(d5_ticket)
-    assert d5_ticket.status == 'HOAN_THANH'
+    assert d5_ticket.status == 'DA_DONG'
 
 
 def test_d5_other_technician_cannot_upload_or_print(client, db, service_people, d5_ticket):
@@ -1452,7 +1452,7 @@ def test_d6_ui_complete_shows_generated_px_and_reopen_returns_stock(client, db, 
     assert 'value="999.000"' in response.text
     csrf = service_login(client, service_people['dispatcher'])
     page = client.get(f'/dich-vu/{charge_work.id}').text
-    assert '>Mở lại</button>' in page and '>Đóng phiếu</button>' in page
+    assert '>Mở lại</button>' in page and '>Đóng phiếu</button>' not in page
     response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='')
     assert response.status_code == 400 and 'Phải ghi lý do' in response.text
     response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='Khách yêu cầu kiểm tra thêm')
@@ -1539,13 +1539,17 @@ def test_d6_ui_dispatcher_closes_completed_ticket(client, db, service_people, ch
     db.refresh(charge_work)
     service_action(client, charge_work, csrf, to_status='HOAN_THANH')
     db.refresh(charge_work)
+    # Keep coverage of the retained manual endpoint with a legacy completed ticket.
+    from sqlalchemy import text
+    db.execute(text("update service_tickets set status='HOAN_THANH' where id=:id"),dict(id=charge_work.id))
+    db.commit();db.refresh(charge_work)
     assert service_action(client, charge_work, csrf, to_status='DA_DONG').status_code == 403
     csrf = service_login(client, service_people['dispatcher'])
     response = service_action(client, charge_work, csrf, to_status='DA_DONG')
     assert response.status_code == 200, response.text
     db.refresh(charge_work)
     assert charge_work.status == 'DA_DONG' and '>Lưu tiền</button>' not in response.text
-    assert '/transition' not in response.text
+    assert 'service-DA_DONG' not in response.text and '>Mở lại</button>' in response.text
 
 
 def test_d6_ui_mixed_lines_keep_per_row_vat_and_warehouse(client, db, service_people, charge_work, charge_stock):

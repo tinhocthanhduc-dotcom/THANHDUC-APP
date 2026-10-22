@@ -1,0 +1,3 @@
+{% if t.status=='HOAN_THANH' %}<section class="card" data-auto-close-checks><h2>Tự đóng khi đủ:</h2>
+{% for c in auto_close_checks %}<p data-condition="{{ c.key }}"><strong>{{ c.label }}</strong></p>{% endfor %}
+</section>{% endif %}

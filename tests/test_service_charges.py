@@ -143,7 +143,7 @@ def test_mo_lai_nghiem_thu_tra_vat_tu_ve_kho(db, ctx):
     t = svc.transition(db, ctx["t1"], t.id, "HOAN_THANH", None)
     assert t.total == 385_000 + 216_000
     assert _bal(db, "K58", "TD-0001") == (Decimal("4.000"), 400_000)
-    assert [s.action for s in svc.load(db, ctx["dp"], t.id).steps][-2:] == ["reopen", "transition"]
+    assert [s.action for s in svc.load(db, ctx["dp"], t.id).steps][-3:] == ["reopen", "transition", "close"]
 
 
 def test_huy_phieu_da_hoan_thanh_tra_vat_tu(db, ctx):

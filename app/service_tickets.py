@@ -35,9 +35,10 @@ FLOW = {
     "CHO_LINH_KIEN": {"DANG_LAM", "KHONG_LAM_DUOC", "KHACH_HEN_SAU"},
     "TAM_DUNG": {"DANG_LAM", "KHONG_LAM_DUOC", "KHACH_HEN_SAU"},
     "HOAN_THANH": {"DANG_LAM", "DA_DONG"},  # chỉ điều phối: mở lại nghiệm thu (có lý do) hoặc đóng hồ sơ
+    "DA_DONG": {"DANG_LAM"},
 }
 # Phiếu đã hoàn thành chỉ điều phối được mở lại, hủy hoặc đóng; hủy lúc đó trả vật tư về kho.
-CANCELLABLE = OPEN + ("HOAN_THANH",)
+CANCELLABLE = OPEN + ("HOAN_THANH", "DA_DONG")
 HOLD_REASONS = {"CHO_KHACH_DUYET": "Chờ khách duyệt", "CHO_KY_THUAT_KHAC": "Chờ kỹ thuật khác",
                 "CHO_DOI_TAC": "Chờ đối tác", "HEN_NGAY_KHAC": "Hẹn ngày khác", "KHAC": "Khác"}
 NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY", "KHACH_HEN_SAU")
@@ -212,12 +213,12 @@ def _transition(session: Session, user: User, ticket_id: int, to_status: str, ve
 
 def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: str,
                      note: str = "", appointment_at: datetime | None = None, hold_reason: str = "",
-                     no_show: bool = False, appointment_slot: str | None = None) -> ServiceTicket:
+                     no_show: bool = False, appointment_slot: str | None = None, *, auto_close: bool = True) -> ServiceTicket:
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
     note = (note or "").strip()
     is_dispatcher = has_role(user, *DISPATCHERS)
     if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG','KHACH_HEN_SAU') and (
-            is_dispatcher or (t.assignee_id == user.id and to_status != 'DA_HUY' and t.status != 'HOAN_THANH')):
+            is_dispatcher or (t.assignee_id == user.id and to_status != 'DA_HUY' and t.status not in ('HOAN_THANH','DA_DONG'))):
         from .equipment_custody import check_returned
         check_returned(session,t)
     if to_status == "DA_HUY":
@@ -226,7 +227,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         if t.status not in CANCELLABLE:
             raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không hủy được.", {"status": t.status}, status=409)
     else:
-        if not is_dispatcher and (t.assignee_id != user.id or t.status == "HOAN_THANH"):
+        if not is_dispatcher and (t.assignee_id != user.id or t.status in ('HOAN_THANH','DA_DONG')):
             raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được cập nhật phiếu này.", status=403)
         direct_arrival = t.status == "DA_NHAN" and to_status == "DANG_LAM" and t.appointment_at is not None
         if not direct_arrival and to_status not in FLOW.get(t.status, ()):
@@ -257,7 +258,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
 
         if not has_visible(session, "service_ticket", t.id, "SAU"):
             raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
-    reopening = t.status == "HOAN_THANH" and to_status in ("DANG_LAM", "DA_HUY")
+    reopening = t.status in ('HOAN_THANH','DA_DONG') and to_status in ("DANG_LAM", "DA_HUY")
     if reopening and session.scalar(select(SalesReceipt.id).where(
         SalesReceipt.ticket_id==t.id,SalesReceipt.status.in_(('CHO_XAC_NHAN','DA_XAC_NHAN'))).limit(1)) is not None:
         raise BusinessError('HAS_RECEIPTS','Tài chính phải từ chối hoặc hủy báo thu trước.',status=409)
@@ -309,7 +310,27 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         t.version += 1
         action = "no_show"
     _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
+    if to_status=='HOAN_THANH' and auto_close:
+        auto_close_in_tx(session,user,t)
     return t
+
+
+def auto_close_in_tx(session: Session, user: User, t: ServiceTicket) -> bool:
+    """Caller holds the ticket lock; never commit or require dispatcher rights."""
+    if t.status!='HOAN_THANH':return False
+    from .equipment_custody import check_returned
+    from .service_recovered_parts import check_received
+    try:
+        check_received(session,t)
+        check_returned(session,t)
+    except BusinessError:
+        return False
+    before=snapshot(t)
+    t.status='DA_DONG'
+    t.transfer_request=''
+    t.due_at=service_sla.due_at('DA_DONG',t.priority,_now(),t.appointment_at,t.appointment_slot)
+    _record(session,user,t,'close',before,'HOAN_THANH','Tự đóng: đủ điều kiện')
+    return True
 
 
 def request_transfer(session: Session, user: User, ticket_id: int, reason: str, version: int | None) -> ServiceTicket:

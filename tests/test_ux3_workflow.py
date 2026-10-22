@@ -138,7 +138,8 @@ def test_service_scheduled_has_only_current_form(client,db,service_people):
 
 def test_service_check_custody_blocks_then_allows_close(client,db,service_people):
     from app import attachments, service_charges
-    from app.models import Equipment
+    from app.models import Equipment, ServiceRecoveredPart
+    from app import service_recovered_parts
     from app.schemas import ServiceTicketIn, ServiceCharges
     from test_web import d5_image
     p=service_people
@@ -148,14 +149,19 @@ def test_service_check_custody_blocks_then_allows_close(client,db,service_people
     service_tickets.transition(db,p['dispatcher'],t.id,'DANG_LAM',t.version)
     attachments.add(db,p['dispatcher'],'service_ticket',str(t.id),'SAU','sau.png',d5_image())
     service_charges.set_charges(db,p['dispatcher'],t.id,ServiceCharges(version=t.version,billing='MIEN_PHI',free_reason='Bảo hành'))
+    recovery=ServiceRecoveredPart(ticket_id=t.id,product_code='TD-0001',qty=1,note='Chờ nộp',
+        holder_id=p['technician'].id,created_by=p['technician'].id,status='CHO_NOP')
+    db.add(recovery);db.commit()
     service_tickets.transition(db,p['dispatcher'],t.id,'HOAN_THANH',t.version)
     eq=db.get(Equipment,'AB123');eq.custody_location='KHO_KY_THUAT';db.commit()
     service_login(client,p['dispatcher']);html=client.get(f'/dich-vu/{t.id}').text
-    assert '✗ Máy khách đã trả' in html and 'disabled' in Page(html).primary
+    assert '<strong>Máy khách đã trả</strong>' in html and Page(html).primary is None
     eq.custody_location='TAI_KHACH';db.commit()
     html=client.get(f'/dich-vu/{t.id}').text
-    assert '✓ Máy khách đã trả' in html and 'disabled' not in Page(html).primary
-    assert Page(html).primary['form']=='service-DA_DONG'
+    assert '<strong>Máy khách đã trả</strong>' not in html and Page(html).primary is None
+    assert '<strong>Linh kiện thu hồi đã nộp</strong>' in html
+    service_recovered_parts.cancel(db,p['dispatcher'],recovery.id,recovery.version,'Khách giữ lại')
+    assert t.status=='DA_DONG'
 
 
 def test_exception_forms_inside_details_and_error_opens(client,db,stocked):

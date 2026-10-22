@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from .. import quotes, sales_orders, sales_receipts, attachments
-from ..models import Equipment, StockDoc, ServiceRecoveredPart
+from ..models import Equipment, ServiceRecoveredPart
 from ..security import has_role
 
 
@@ -96,25 +96,16 @@ def order_checks(session,user,data,stock_values,customer):
 
 
 def service_checks(session,t,primary):
-    if not primary:return []
-    form=primary.get('form','')
-    if form=='service-DA_DONG':
+    if t.status=='HOAN_THANH':
         machine=session.get(Equipment,t.serial) if t.serial else None
         from ..equipment_custody import pending
         returned=not machine or (machine.custody_location=='TAI_KHACH' and not pending(session,machine.serial))
         recovered=session.scalar(select(ServiceRecoveredPart.id).where(ServiceRecoveredPart.ticket_id==t.id,ServiceRecoveredPart.status=='CHO_NOP').limit(1))
-        parts=[x for x in t.lines if x.kind=='VAT_TU']
-        docs={d.id:d.status for d in session.scalars(select(StockDoc).where(StockDoc.id.in_({x.stock_doc_id for x in parts if x.stock_doc_id})))}
-        checks=[check('photo','Có ảnh sau sửa',attachments.has_visible(session,'service_ticket',t.id,'SAU')),
-                check('price','Giá đã khóa',t.priced_at is not None),
-                check('materials','Vật tư đã xuất kho',all(x.stock_doc_id and docs.get(x.stock_doc_id)=='DA_GHI' for x in parts)),
-                check('machine','Máy khách đã trả',returned),
+        checks=[check('machine','Máy khách đã trả',returned),
                 check('recovered','Linh kiện thu hồi đã nộp',recovered is None)]
-        balance=sales_receipts.balance(t)
-        from . import money
-        text='Báo thu chờ xác nhận' if balance['pending'] else 'Còn nợ '+money(balance['remaining'])+' (sẽ theo dõi công nợ)' if balance['remaining']>0 else 'Đã thu đủ'
-        checks.append(check('payment',text,not balance['remaining'] and not balance['pending'],False))
-        return checks
+        return [c for c in checks if not c['ok']]
+    if not primary:return []
+    form=primary.get('form','')
     if form=='service-HOAN_THANH':
         return [check('photo','Có ảnh sau sửa',attachments.has_visible(session,'service_ticket',t.id,'SAU')),
                 check('billing','Đã lưu tiền / miễn phí',t.billing is not None)]

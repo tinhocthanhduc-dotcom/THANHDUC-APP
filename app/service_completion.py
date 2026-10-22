@@ -18,8 +18,9 @@ def complete(session, user, ticket_id: int, charges: ServiceCharges, note: str =
         from .technician_work import apply_report
         apply_report(session, ticket, fault, fix)
         service_charges.set_charges_in_tx(session, user, ticket, charges)
-        service_tickets.transition_in_tx(session, user, ticket, 'HOAN_THANH', note)
+        service_tickets.transition_in_tx(session, user, ticket, 'HOAN_THANH', note, auto_close=False)
         if receipt is not None:
             sales_receipts.report_for_ticket_in_tx(session, user, ticket,
                 receipt.model_copy(update={'version': ticket.version}))
+        service_tickets.auto_close_in_tx(session,user,ticket)
     return ticket
