@@ -5,7 +5,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import customers, products, quotes as svc
@@ -13,7 +13,7 @@ from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, SalesOrder, User, VAT_RATES
+from ..models import Customer, Product, Quote, SalesOrder, User, VAT_RATES
 from ..money_words import money_words
 from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
@@ -117,11 +117,29 @@ def _error(exc):
 
 
 @router.get('/bao-gia')
-def listing(request: Request,q: str='',status: str='',phan: int=0,user: User=Depends(quote_user),session: Session=Depends(get_session)):
-    rows = svc.search(session,user,q[:200],status or None)
-    return render(request,'bao_gia_dong.jinja' if phan else 'bao_gia_ds.jinja',rows=rows,q=q,selected_status=status,
-                  statuses=STATUSES,can_write=has_role(user,*svc.WRITERS),expired=_expired,
-                  names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({row.customer_code for row in rows}))).all()))
+def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,user: User=Depends(quote_user),session: Session=Depends(get_session)):
+    rows = svc.search(session,user,q[:200],'DA_GUI' if han else (status or None))
+    today = svc._today()
+    if han:  # Ô "Sắp hết hạn": báo giá đã gửi, còn tối đa 2 ngày hoặc đã quá hạn.
+        rows = [row for row in rows if row.valid_until <= today+timedelta(days=2)]
+    names = dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({row.customer_code for row in rows}))).all())
+    makers = dict(session.execute(select(User.id,User.full_name).where(User.id.in_({row.created_by for row in rows}))).all())
+    extra = dict(rows=rows,q=q,selected_status=status,soon=han,today=today,statuses=STATUSES,can_write=has_role(user,*svc.WRITERS),
+                 expired=_expired,names=names,makers=makers)
+    if phan:
+        return render(request,'bao_gia_dong.jinja',**extra)
+    # Số trên đầu trang: chỉ đọc, đếm trên toàn bộ báo giá (không theo ô tìm).
+    counts = dict(session.execute(select(Quote.status,func.count()).group_by(Quote.status)).all())
+    waiting = session.execute(select(func.count(),func.coalesce(func.sum(Quote.total),0)).where(Quote.status=='DA_GUI')).one()
+    soon = session.scalar(select(func.count()).where(Quote.status=='DA_GUI',Quote.valid_until<=today+timedelta(days=2)))
+    recent = dict(session.execute(select(Quote.status,func.count()).where(Quote.created_at>=func.now()-timedelta(days=30),
+        Quote.status.in_(('CHAP_NHAN','TU_CHOI'))).group_by(Quote.status)).all())
+    won = session.execute(select(func.count(),func.coalesce(func.sum(Quote.total),0)).where(Quote.status=='CHAP_NHAN',
+        Quote.created_at>=func.date_trunc('month',func.timezone('Asia/Ho_Chi_Minh',func.now())).op('AT TIME ZONE')('Asia/Ho_Chi_Minh'))).one()
+    decided = recent.get('CHAP_NHAN',0)+recent.get('TU_CHOI',0)
+    stats = dict(counts=counts,total=sum(counts.values()),waiting=waiting[0],waiting_sum=waiting[1],soon=soon,won=won[0],won_sum=won[1],
+                 rate=round(100*recent.get('CHAP_NHAN',0)/decided) if decided else None,accepted=recent.get('CHAP_NHAN',0),decided=decided)
+    return render(request,'bao_gia_ds.jinja',stats=stats,**extra)
 
 
 @router.get('/bao-gia/tim-khach')

@@ -19,6 +19,13 @@ VERBS = dict(parts_pending='Cấp linh kiện', delivery_handover='Bàn giao cho
     stock_low='Xem thẻ kho', receipts_pending='Xác nhận', refunds_pending='Duyệt hoàn tiền', pending_destruction='Duyệt hủy',
     pending_supplier_returns='Duyệt trả NCC', receipts_rejected='Làm lại báo thu', quotes_open='Mở báo giá', orders_draft='Mở đơn',
     orders_unreported='Báo thu', orders_deposit='Thu cọc', service_unassigned='Giao thợ', service_close='Xem', service_unreported='Báo thu')
+# Biểu tượng đầu khung nhóm việc: theo phân hệ của nhóm (chỉ trang trí).
+ICON_BY = (('receipt','Tài chính'),('refund','Tài chính'),('quote','Bán hàng'),('order','Bán hàng'),('delivery','Bán hàng'),
+    ('service','Dịch vụ'),('machine','Dịch vụ'),('purchase','Mua hàng'))
+# Dòng nhắc dưới tên nhóm; nhóm không có ở đây thì để trống.
+HINTS = dict(receipts_pending='Kiểm tra tiền đã về rồi xác nhận', parts_pending='Thợ đang chờ linh kiện', quotes_open='Gọi lại khách trước khi hết hạn',
+    orders_unreported='Thu tiền và báo thu', orders_waiting='Soạn hàng và giao', orders_draft='Hoàn tất rồi xác nhận đơn', service_unassigned='Chọn thợ cho phiếu',
+    purchases_waiting='Nhận hàng khi NCC giao', receipts_rejected='Sửa và gửi lại báo thu', stock_low='Cân nhắc đặt thêm hàng')
 NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhận báo thu.', 'rejected':'Đã từ chối báo thu.'}
 
 
@@ -31,11 +38,12 @@ def page(request: Request, user, session):
         raise BusinessError('BAD_PAGE', 'Số trang chưa hợp lệ.')
     groups = [my_work.filtered(session, user, key, number)] if key else my_work.collect(session, user)
     # Việc đang chờ luôn ở đầu; không bắt người dùng lướt qua các nhóm rỗng.
-    groups.sort(key=lambda group: group['count'] == 0)
+    groups.sort(key=lambda group: (group['count'] == 0, not any(row.get('overdue') for row in group['rows'])))
+    icons = {g['key']: nav.NAV_ICONS[next((label for part, label in ICON_BY if part in g['key']), 'Kho')] for g in groups}
     shortcuts = [(label, href) for label, href, roles in (
         ('Tạo báo giá','/bao-gia/moi',quotes.WRITERS),
         ('Nhận đơn dịch vụ','/dich-vu/moi',service_tickets.CREATORS),
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
-    return render(request, 'viec_cua_toi.jinja', groups=groups, labels=LABELS, verbs=VERBS, shortcuts=shortcuts,
+    return render(request, 'viec_cua_toi.jinja', groups=groups, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
         advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))
