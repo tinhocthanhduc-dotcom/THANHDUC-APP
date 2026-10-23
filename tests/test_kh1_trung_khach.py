@@ -95,5 +95,5 @@ def test_nhan_don_dich_vu_chon_san_khach_va_may(client, db, service_people):
     service_login(client, service_people["dispatcher"])
     html = client.get("/dich-vu/moi?customer_code=KTD-000001").text
     assert 'name="customer_code" value="KTD-000001"' in html and "KTD-000001 · Minh Phát" in html
-    assert 'name="serial" value="AB123" checked' in html
+    assert '<option value="AB123" selected>' in html
     assert 'href="/khach-hang/moi?quay_ve=/dich-vu/moi"' in html

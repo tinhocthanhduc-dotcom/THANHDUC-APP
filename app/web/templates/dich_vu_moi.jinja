@@ -2,35 +2,75 @@
 {% block title %}Nhận đơn dịch vụ{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% block main %}
-<div class="bar"><h1>Nhận đơn dịch vụ</h1><a href="/dich-vu">Danh sách dịch vụ</a></div>
-{% include 'buoc_tiep.jinja' %}
+<div class="bar svn-bar"><h1>Nhận đơn dịch vụ</h1><span class="tag">Phiếu mới</span><span class="svn-flow">Nhận đơn → Giao thợ → Đang làm → Hoàn thành</span><a href="/dich-vu">Danh sách dịch vụ</a></div>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-<form id="service-create" method="post" action="/dich-vu/moi" class="card form" data-service-form>
+{% set kind_hints = {'': 'Để trống nếu chưa rõ. Thợ chọn loại khi báo kết quả, trước khi Hoàn thành.', 'SUA_TAI_CHO': 'Thợ đến chỗ khách sửa. Nếu không sửa được tại chỗ, thợ bấm Mang máy về xưởng.', 'MANG_VE': 'Thợ nhận máy về: chụp ảnh máy, ghi tình trạng và phụ kiện lúc nhận.', 'BAO_HANH': 'Chọn phiếu trước để miễn phí theo bảo hành, hoặc để app kiểm hạn của máy.', 'MUC_DINH_KY': 'Giao mực theo hợp đồng định kỳ của khách.'} %}
+{% set kind_bad = error_code in ['KIND_REQUIRED','WARRANTY_MISMATCH'] or (error_code=='BAD_FORM' and 'Loại dịch vụ' in error) %}
+<form id="service-create" method="post" action="/dich-vu/moi" class="form svn" data-service-form data-kind-hints="{{ kind_hints|tojson|forceescape }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-<fieldset {% if not can_create %}disabled{% endif %}>
+<fieldset class="svn-grid" {% if not can_create %}disabled{% endif %}>
+<div class="svn-main">
+<div class="svn-top">
+<section class="card qf-card svn-cust"><h2 class="qf-h">Khách hàng</h2>
 {% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>
-  <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>
+  <label>Tìm khách: tên, mã hoặc số điện thoại<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" placeholder="Gõ để tìm khách" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>
   <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
   <a href="/khach-hang/moi?quay_ve=/dich-vu/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>
 </div>{% endcall %}
-<div data-service-choices aria-live="polite">{% include 'dich_vu_chon_may.jinja' %}</div>
-{% call picked.block(invalid=error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT','KIND_REQUIRED'] or (error_code=='BAD_FORM' and 'Loại dịch vụ' in error)) %}<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
-{% for value, label in [('', 'Chưa phân loại')] + service_kind_choices.items()|list %}<label><input type="radio" name="kind" value="{{ value }}" {% if (d.kind or '') == value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
-</div></fieldset>
-<section data-warranty-section {% if d.kind != 'BAO_HANH' %}hidden{% endif %}>
-<h2>Bảo hành cho phiếu trước</h2>
+</section>
+<section class="card qf-card svn-machine"><h2 class="qf-h">Máy và địa điểm</h2>
+<div data-service-choices aria-live="polite">{% if d.customer_code %}{% include 'dich_vu_chon_may.jinja' %}{% else %}<p class="svn-note">Chọn khách để xem địa điểm và máy.</p>{% endif %}</div>
+</section>
+</div>
+<section class="card qf-card svn-req"><h2 class="qf-h">Yêu cầu của khách</h2>
+<div class="svn-kindrow">
+<label class="svn-fld{% if kind_bad %} svn-bad{% endif %}"><span>Loại dịch vụ</span>
+<select name="kind" data-sv-kind {% if kind_bad %}aria-invalid="true"{% endif %}>
+<option value="">— Chưa chọn —</option>
+{% for value, label in service_kind_choices.items() %}<option value="{{ value }}" {% if d.kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+</select></label>
+<div class="svn-fld" role="group" aria-labelledby="svn-prio-label"><p class="group-label" id="svn-prio-label">Mức ưu tiên</p>
+<div class="seg stock-seg qf-seg3 svn-prio">
+{% for value, label in service_priorities.items() %}<label{% if value=='KHAN' %} class="svn-urgent"{% endif %}><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
+</div></div>
+</div>
+<p class="svn-note" data-sv-kind-hint>{{ kind_hints.get(d.kind or '', kind_hints['']) }}</p>
+<section class="svn-warranty" data-warranty-section {% if d.kind != 'BAO_HANH' %}hidden{% endif %}>
+<h3>Bảo hành cho phiếu trước</h3>
 {% set warranty_value=d.get('warranty_of_id','') %}{% include 'bao_hanh_picker.jinja' %}
 <p class="hint">Không chọn phiếu trước: kiểm hạn bảo hành của máy. Hết hạn vẫn nhận đơn, không tự miễn phí.</p>
 </section>
-<fieldset><legend>Mức ưu tiên</legend><div class="seg stock-seg">
-{% for value, label in service_priorities.items() %}<label><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
-</div></fieldset>
+<label class="svn-fld"><span>Mô tả lỗi <i class="svn-req-mark">*</i></span><textarea name="symptom" required minlength="3" maxlength="4000" placeholder="Khách báo gì, máy báo lỗi gì, đã thử gì…" data-sv-symptom>{{ d.symptom }}</textarea></label>
+<div class="svn-quick"><span class="svn-note">Thêm nhanh:</span>{% for q in ['Kẹt giấy','In mờ, nhạt','Không lên nguồn','Báo lỗi trên màn hình','Kéo nhiều tờ','Lem mực','Kết nối mạng'] %}<button type="button" class="chip" data-sv-quick="{{ q }}">+ {{ q }}</button>{% endfor %}</div>
+</section>
+</div>
+<aside class="qf-side svn-side">
+<section class="card qf-card svn-appt{% if error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT'] %} svn-bad{% endif %}"><h2 class="qf-h">Hẹn khách và giao thợ</h2>
 {% with ap_form=d, returning=false %}{% include 'hen_khach.jinja' %}{% endwith %}
-{% endcall %}
-{% if can_assign_new %}<fieldset><legend>Giao thợ ngay (tùy chọn)</legend><div class="seg stock-seg"><label><input type="radio" name="assignee_id" value="" {% if not d.get('assignee_id') %}checked{% endif %}><span>Chưa giao</span></label>{% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if d.get('assignee_id')|string==tech.id|string %}checked{% endif %}><span>{{ tech.full_name }}</span></label>{% endfor %}</div></fieldset>{% endif %}
-<label>Mô tả lỗi<textarea name="symptom" required minlength="3" maxlength="4000">{{ d.symptom }}</textarea></label>
+{% if can_assign_new %}<div class="svn-fld" role="group" aria-labelledby="svn-tech-label"><p class="group-label" id="svn-tech-label">Giao thợ ngay <small>(không bắt buộc)</small></p>
+<div class="seg stock-seg svn-techs"><label><input type="radio" name="assignee_id" value="" {% if not d.get('assignee_id') %}checked{% endif %}><span>Chưa giao</span></label>{% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if d.get('assignee_id')|string==tech.id|string %}checked{% endif %}><span>{{ tech.full_name }}</span></label>{% endfor %}</div></div>
+<p class="svn-note" data-sv-tech-hint>Chưa giao: phiếu nằm ở hàng chờ Điều phối.</p>{% endif %}
+</section>
+<section class="card qf-card svn-sum"><h2 class="qf-h">Tóm tắt phiếu</h2>
+<dl class="svn-dl">
+<dt>Khách</dt><dd data-sv-sum="customer">{{ customer_card.name if customer_card else 'Chưa chọn' }}</dd>
+<dt>Địa điểm</dt><dd data-sv-sum="site">Địa chỉ chính</dd>
+<dt>Loại</dt><dd data-sv-sum="kind">{{ service_kind_choices.get(d.kind, 'Chưa phân loại') }}</dd>
+<dt>Ưu tiên</dt><dd data-sv-sum="priority">{{ service_priorities.get(d.priority, '') }}</dd>
+<dt>Hẹn</dt><dd data-sv-sum="appointment">Chưa hẹn</dd>
+<dt>Thợ</dt><dd data-sv-sum="tech">Điều phối giao sau</dd>
+</dl>
+<ul class="svn-checks">
+<li data-sv-check="customer" data-ok="{{ '1' if d.customer_code else '0' }}">Đã chọn khách hàng</li>
+<li data-sv-check="symptom" data-ok="{{ '1' if (d.symptom or '')|trim|length >= 3 else '0' }}">Có mô tả lỗi</li>
+<li data-sv-check="appointment" data-ok="0">Đã hẹn khách</li>
+<li data-sv-check="kind" data-ok="{{ '1' if d.kind else 'opt' }}" data-optional>{{ 'Loại: ' ~ service_kind_choices[d.kind] if d.kind in service_kind_choices else 'Loại dịch vụ: để trống được' }}</li>
+</ul>
+</section>
+{% set primary_checks=[] %}{% set wf_part='action' %}{% include 'thanh_buoc.jinja' %}
+<p class="svn-note svn-after">Nhận đơn xong, phiếu vào hàng chờ của điều phối (hoặc thẳng tới thợ nếu đã chọn thợ).</p>
+</aside>
 </fieldset>
-{% if can_create %}<button class="primary">Nhận đơn</button>{% endif %}
 </form>
 <script src="{{ asset('picked.js') }}" defer></script>
 <script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script>
