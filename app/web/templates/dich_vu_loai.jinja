@@ -1,8 +1,6 @@
-{% if can_set_kind %}<section class="card" id="loai-dich-vu"><h2>Loại dịch vụ</h2>
-<p>Hiện tại: <strong>{{ service_kinds[t.kind] }}</strong></p>
-<form method="post" action="/dich-vu/{{ t.id }}/kind" class="form">
+{% if can_set_kind %}<section class="card kind-row" id="loai-dich-vu">
+<form method="post" action="/dich-vu/{{ t.id }}/kind" class="kind-form">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ form.get('version',t.version) if failed_action=='kind' else t.version }}">
 {% if technician_view %}{% include 'tho_return.jinja' %}{% endif %}
-<label>Chọn loại dịch vụ<select name="kind" required><option value="">Chọn loại dịch vụ</option>{% for code,label in service_kind_choices.items() %}<option value="{{ code }}" {% if (form.get('kind') if failed_action=='kind' else t.kind)==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-<p class="hint">Lưu loại dịch vụ trước khi nhập kết quả hoàn thành. Liên kết bảo hành được xử lý riêng tại chi tiết phiếu.</p>
-<button class="btn btn-secondary">Lưu loại dịch vụ</button></form></section>{% endif %}
+<label for="kind-{{ t.id }}">Loại dịch vụ</label><select id="kind-{{ t.id }}" name="kind" required data-autosubmit><option value="">{{ 'Chưa phân loại' if not t.kind else 'Chọn…' }}</option>{% for code,label in service_kind_choices.items() %}<option value="{{ code }}" {% if (form.get('kind') if failed_action=='kind' else t.kind)==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+<noscript><button class="btn btn-secondary">Lưu</button></noscript></form></section>{% endif %}

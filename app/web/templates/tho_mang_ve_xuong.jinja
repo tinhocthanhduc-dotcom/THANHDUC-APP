@@ -1,4 +1,4 @@
-<details name="tech-other" {% if failed_action=='workshop' %}open{% endif %}><summary>Mang máy về xưởng <span>›</span></summary>
+<details {% if not bring_open %}name="tech-other" {% endif %}class="{{ 'card tho-bring-form' if bring_open }}" {% if failed_action=='workshop' or bring_open %}open{% endif %}><summary>Mang máy về xưởng <span>›</span></summary>
 {% if not t.serial %}<p class="alert warn">Phiếu chưa có serial máy, gọi điều phối thêm serial</p>{% else %}
 {% with photo_tag='NHAN_MAY' %}{% include 'tho_anh.jinja' %}{% endwith %}
 <form id="workshop-bring" class="card form" method="post" action="/dich-vu/{{ t.id }}/mang-ve-xuong">
@@ -6,5 +6,5 @@
 <div class="field-group" role="group"><p class="group-label">Phụ kiện mang theo</p><div class="chips">{% for code,label in custody_accessories.items() %}<label class="chip"><input type="checkbox" name="accessories" value="{{ code }}" {% if code in workshop_form.get('accessories',[]) %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}<label class="chip"><input type="checkbox" name="accessories" value="KHONG_CO" {% if 'KHONG_CO' in workshop_form.get('accessories',[]) %}checked{% endif %}><span>Không kèm phụ kiện</span></label></div></div>
 <label>Ghi chú phụ kiện<input name="accessories_note" maxlength="2000" value="{{ workshop_form.get('accessories_note','') }}"></label>
 <label>Tình trạng máy lúc nhận<textarea name="condition_note" required maxlength="2000">{{ workshop_form.get('condition_note','') }}</textarea></label>
-{% include 'tho_workshop_materials.jinja' %}<button class="btn btn-ok">Mang máy về xưởng</button>
+{% include 'tho_workshop_materials.jinja' %}{% if not bring_open %}<button class="btn btn-ok">Mang máy về xưởng</button>{% endif %}
 </form>{% endif %}</details>

@@ -1901,6 +1901,20 @@ main:has(> .svl) { max-width: none; }
   .svl-q { flex-basis: 100% !important; } .svl-q input { width: 100%; }
   .svl-late { flex: 0 0 auto !important; }
 }
+.kind-row { padding-top: 10px; padding-bottom: 10px; }
+.kind-form { display: flex; align-items: center; gap: 10px; margin: 0; }
+.kind-form label { flex: none; font-weight: 700; margin: 0; }
+.kind-form select { flex: 1 1 auto; min-width: 0; margin: 0; }
+/* Báo cáo sửa chữa gọn: nhãn nhỏ, nút thấp, trạng thái nháp nằm cạnh tiêu đề. */
+.tho-report-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.tho-report-head h2 { margin: 0; }
+.tho-report-head .hint { margin: 0; font-size: .78rem; white-space: nowrap; }
+.tho-report .tho-report-group { margin-bottom: 8px; }
+.tho-report .tho-report-label { margin-bottom: 4px; font-size: .88rem; }
+.tho-screen .tho-report .seg:not(.seg-wrap) span { min-height: 44px; padding: 6px 8px; }
+.tho-report .seg-wrap { gap: 6px; }
+.tho-screen .tho-report .seg-wrap span { min-height: 36px; padding: 4px 10px; font-size: .9rem; }
+.tho-report input[name="fix_extra"] { margin: 2px 0 0; }
 /* Dòng hàng dạng bảng: "Giá lần trước" nằm dưới ô giá, không đẩy ô giá lệch khỏi hàng. */
 @container (min-width: 560px) {
   .qline-price { position: relative; }
