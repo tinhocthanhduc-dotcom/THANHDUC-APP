@@ -199,9 +199,10 @@ def test_api_and_form_defaults_and_form_money(client,db,people,kind,new_fields):
     row=(db.get(Quote if kind=='quote' else SalesOrder,int(r.headers['location'].split('?')[0].split('/')[-1])))
     assert (row.price_includes_vat,row.discount_amount,row.total)==(new_fields,100000 if new_fields else 0,980000 if new_fields else 1166400)
     html=client.get(r.headers['location']).text
-    assert 'name="price_includes_vat" value="'+('1' if new_fields else '')+'"' in html
-    assert 'name="discount_amount" value="'+str(100000 if new_fields else 0)+'"' in html
-    form.update(version=row.version,price_includes_vat=re.search(r'name="price_includes_vat" value="([^"]*)"',html)[1],discount_amount=re.search(r'name="discount_amount" value="([^"]*)"',html)[1])
+    # Giao diện: nhóm chọn Giá nhập (radio đang chọn) + ô Giảm giá có dấu chấm nghìn, để trống khi 0.
+    assert 'name="price_includes_vat" value="'+('1' if new_fields else '')+'" checked' in html
+    assert re.search(r'name="discount_amount"[^>]*value="'+('100.000' if new_fields else '')+'"',html)
+    form.update(version=row.version,price_includes_vat=re.search(r'name="price_includes_vat" value="([^"]*)" checked',html)[1],discount_amount=re.search(r'name="discount_amount"[^>]*value="([^"]*)"',html)[1])
     r=client.post(('/bao-gia/' if kind=='quote' else '/don-ban/')+str(row.id),data=form,follow_redirects=False)
     assert r.status_code==303,r.text
     db.refresh(row);assert row.total==result['total'] and row.discount_amount==result['discount_amount']

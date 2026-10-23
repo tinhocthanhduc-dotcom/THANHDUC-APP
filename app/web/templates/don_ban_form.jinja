@@ -2,6 +2,7 @@
 {% macro token(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action==action else o.version }}">{% endmacro %}
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
+{% import 'gia_giam.jinja' as gg %}
 {% import 'viec_khac.jinja' as other %}
 {% block main %}<div class="doc-detail{{ ' quote-form-page' if not o or o.status=='NHAP' }}">
 <div class="recv-head doc-head-bar"><a class="btn" href="/don-ban" aria-label="Quay lại Đơn bán">←</a><div><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><p class="hint">Đơn bán{% if o %} · {{ customer_name or o.customer_code }}{% endif %}</p></div>{% if o and o.status=='DA_GIAO' %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
@@ -37,7 +38,6 @@
 {% if can_write and editable %}<button>Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p>{% endif %}
 </form></details>{% else %}{% set live = can_write and editable %}{% set ful = d.get('fulfillment','TAI_QUAY') %}{% set pay = d.get('payment_term','TRA_NGAY') %}<form data-workflow-form="order" id="order-edit" method="post" class="form qf-form qf3 qf2o" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-terms data-default-warehouse="{{ default_warehouse }}" data-order-editable="{{ '1' if live else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
-<input type="hidden" name="price_includes_vat" value="{{ '1' if d.get('price_includes_vat') in [true,'1'] else '' }}"><input type="hidden" name="discount_amount" value="{{ d.get('discount_amount',0) }}">
 <div class="qf-main">{% if trip_ticket %}{% if not o %}<input type="hidden" name="service_ticket_id" value="{{ trip_ticket.id }}">{% endif %}<p class="alert info" data-trip-ticket-note>Kèm phiếu dịch vụ <a href="/dich-vu/{{ trip_ticket.id }}">{{ trip_ticket.number }}</a> cùng chuyến{{ ': chọn Thợ giao, điều phối giao cho thợ của phiếu.' if not o else '.' }}</p>{% endif %}
 <fieldset {% if not live %}disabled{% endif %}>
 <div class="qf-toprow">
@@ -75,11 +75,12 @@
 <div class="seg stock-seg qf-seg3" role="group" aria-label="Thanh toán">{% for value,label in payments.items() %}<label><input type="radio" name="payment_term" value="{{ value }}" {% if pay==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
 <label data-debt-days {% if pay!='CONG_NO' %}hidden{% endif %}>Số ngày được nợ<input name="due_days" inputmode="numeric" value="{{ d.get('due_days',30) if pay=='CONG_NO' else 30 }}"></label>
 <label data-deposit-amount {% if pay!='DAT_COC' %}hidden{% endif %}>Tiền cọc dự kiến (đ)<input name="deposit_amount" inputmode="numeric" data-money value="{{ d.get('deposit_amount') or '' }}"></label>
+{{ gg.mode(d) }}
 <div class="qf-pick" role="group" aria-label="Thuế VAT cả đơn" data-order-vat-all data-value="{{ default_vat_rate }}"><p class="qf-pick-label">Thuế VAT cả đơn <small data-pick-mixed hidden>· đang nhiều mức</small></p><div class="qf-quick">{% for rate in vat_rates|sort(reverse=true) %}<button type="button" class="chip{{ ' on' if rate|string == default_vat_rate|string }}" data-pick="{{ rate }}">{{ rate }}%</button>{% endfor %}</div></div>
 </fieldset>
 </section>
 <section class="card qf-sum"><h2 class="qf-h">Tổng đơn</h2>
-<dl><div><dt>Tiền hàng chưa VAT</dt><dd data-line-sum="subtotal">{{ o.subtotal|money if o else '—' }}</dd></div><div><dt>Thuế VAT</dt><dd data-line-sum="vat">{{ o.vat_total|money if o else '—' }}</dd></div><div class="qf-grand"><dt>Tổng thanh toán</dt><dd data-line-sum="total">{{ o.total|money if o else '—' }}</dd></div></dl>
+{{ gg.sum(d, o) }}
 <p class="hint">Đơn vị: đồng. Số có dấu * là chưa đủ dữ liệu; máy chủ tính lại khi lưu.</p>
 </section>
 {% if live and is_director %}<label class="card qf-override">Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
