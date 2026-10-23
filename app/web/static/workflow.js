@@ -79,7 +79,9 @@
   }
   form.addEventListener("input", update);
   form.addEventListener("change", update);
-  form.addEventListener("click", function () {
+  form.addEventListener("click", function (event) {
+    // Nút Lưu và chốt nằm trong form: không khóa nút ngay lúc bấm, nếu không trình duyệt hủy lượt gửi.
+    if (event.target.closest("button[type=submit], button:not([type]), [data-next-primary]")) return;
     queueMicrotask(update);
   });
   var lines = form.querySelector("[data-quote-lines],[data-order-lines]");
