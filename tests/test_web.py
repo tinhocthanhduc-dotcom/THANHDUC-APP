@@ -1850,9 +1850,9 @@ def test_b1_web_create_send_print(client, web_login, db, b1_catalog):
     assert q.number == 'BG-26-00001' and q.total == 264000
     assert q.lines[0].unit_price == 120000
     page = client.get(f'/bao-gia/{q.id}')
-    assert '264.000' in page.text and 'Lưu báo giá' in page.text
+    assert '264.000' in page.text and 'Lưu và gửi' in page.text
     r = client.post(f'/bao-gia/{q.id}/send', data=dict(csrf=csrf,version=q.version))
-    assert r.status_code == 200 and 'Đã gửi' in r.text and 'Lưu báo giá' not in r.text
+    assert r.status_code == 200 and 'Đã gửi' in r.text and 'Lưu và gửi' not in r.text
     printed = client.get(f'/bao-gia/{q.id}/in')
     assert printed.status_code == 200
     for expected in ('BG-26-00001', 'Hai trăm sáu mươi bốn nghìn đồng', '0313015734', '0888 304 668', 'Đường Mã Lò', 'Máy in'):

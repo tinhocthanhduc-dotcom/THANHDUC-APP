@@ -24,12 +24,14 @@
 </section>{% endif %}
 <div class="qf-main">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
-<section class="card qf-card"><h2 class="qf-h">Khách hàng</h2>
+<section class="card qf-card qf-cust"><h2 class="qf-h">Khách hàng</h2>
 {% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not live else '')) %}<div data-picker><label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".quote-customer-options" data-source="/bao-gia/tim-khach" placeholder="Tên, mã hoặc số điện thoại"></label><span class="hint" data-quote-customer-name>{{ customer_name }}</span><div class="quote-customer-options product-options" aria-live="polite"></div>{% if is_new and can_write %}<a href="/khach-hang/moi?quay_ve=/bao-gia/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>{% endif %}</div>{% endcall %}
-<label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200" placeholder="Người nhận hoặc người phụ trách"></label>
+<p class="qf-cust-hint">Có thể tìm bằng tên, mã khách hàng hoặc số điện thoại.</p>
+<div class="qf-pair"><label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200" placeholder="Người nhận hoặc người phụ trách"></label>
+<label>Điện thoại<input data-customer-phone readonly value="{{ customer_card.phone if customer_card else '' }}" placeholder="Tự điền theo khách hàng"></label></div>
 </section>
 <section class="card qf-card qf-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng hóa / dịch vụ <span class="qf-count" data-line-count>{{ d.lines|length }} dòng</span></h2>{% if live %}<button type="button" class="btn-ghost qf-clear" data-quote-clear>Xóa tất cả</button>{% endif %}</div>
-<div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>Số lượng</span><span>Đơn giá</span><span>Thành tiền</span><span></span></div>
+<div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>ĐVT</span><span>Số lượng</span><span>Đơn giá</span><span>VAT</span><span>Thành tiền</span><span></span></div>
 <div data-quote-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'bao_gia_dong_form.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-lines-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Bấm <b>Thêm</b> ở cột Tra giá, hoặc thêm dòng tự do (dịch vụ, công sửa).</p>
 {% if live %}<button type="button" class="qf-add" data-quote-add>+ Dòng tự do</button>{% endif %}
@@ -45,7 +47,7 @@
 <div class="qf-date"><span>Ngày báo giá</span><strong>{{ quote_date.strftime('%d/%m/%Y') }}</strong></div>
 <label><span>Hiệu lực đến hết ngày <span class="req" aria-hidden="true">*</span></span><input type="date" name="valid_until" value="{{ d.valid_until }}" required></label>
 {% if live %}<div class="qf-quick" role="group" aria-label="Chọn nhanh hiệu lực">{% for n in [7,15,30] %}<button type="button" class="chip" data-valid-days="{{ n }}">{{ n }} ngày</button>{% endfor %}</div>{% endif %}
-<label>Thuế VAT cả báo giá<select data-quote-vat-all>{% for rate in vat_rates|sort(reverse=true) %}<option value="{{ rate }}" {% if rate|string == default_vat_rate|string %}selected{% endif %}>{{ 'Không VAT (0%)' if rate == 0 else 'VAT ' ~ rate ~ '%' }}</option>{% endfor %}<option value="" hidden>Nhiều mức VAT</option></select></label>
+<div class="qf-pick" role="group" aria-label="Thuế VAT cả báo giá" data-quote-vat-all data-value="{{ default_vat_rate }}"><p class="qf-pick-label">Thuế VAT cả báo giá <small data-pick-mixed hidden>· đang nhiều mức</small></p><div class="qf-quick">{% for rate in vat_rates|sort(reverse=true) %}<button type="button" class="chip{{ ' on' if rate|string == default_vat_rate|string }}" data-pick="{{ rate }}">{{ rate }}%</button>{% endfor %}</div></div>
 <p class="hint">Áp cho mọi dòng. Dòng nào khác mức thì sửa riêng ở dòng đó.</p>
 </fieldset>
 </section>
@@ -55,7 +57,6 @@
 <p class="hint">Đơn vị: đồng. Số có dấu * là chưa đủ dữ liệu; máy chủ tính lại khi lưu.</p>
 </section>
 {% set wf_part='action' %}{% set workflow_total=(q.total|money if q else '—') if live else '' %}{% include 'thanh_buoc.jinja' %}
-{% if live %}<div class="qf-draft"><button aria-label="Lưu báo giá nháp">Lưu nháp</button><p class="hint">Lưu nháp để sửa sau; Lưu và gửi sẽ tính tiền và khóa giá trong cùng một lần.</p></div>{% endif %}
 </aside>
 </form>
 

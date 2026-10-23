@@ -56,6 +56,10 @@
     var button=event.target.closest('[data-order-add]');
     if (button) {
       var row=newRow(); row.classList.add('line-open');
+      if (button.dataset.orderAdd==='KHAC') {
+        row.querySelector('[data-order-kind][value=KHAC]').checked=true; kind(row,true); row.dataset.pickedProduct='1';
+        changed(); row.querySelector('[name=description]').focus(); return;
+      }
       changed(); row.querySelector('[name=product_code]').focus(); return;
     }
     button=event.target.closest('[data-order-remove]');
@@ -72,13 +76,14 @@
     changed();
   });
   function applyProduct(row,button) {
+      row.dataset.pickedProduct='1'; row.querySelector('[name=description]').title=button.dataset.orderPick||button.dataset.code||'';
       var previous=row.querySelector('[data-order-warehouse]:checked'), selected=previous ? previous.value : '';
       var group=row.querySelector('[data-order-warehouse]').closest('.seg');
       group.querySelectorAll('[data-liquidation-warehouse]').forEach(function(label){label.remove();});
       JSON.parse(button.dataset.liquidationChoices || '[]').forEach(function(wh){
         var label=document.createElement('label');label.dataset.liquidationWarehouse='1';
         var radio=document.createElement('input');radio.type='radio';radio.name=group.querySelector('input').name;radio.value=wh.code;radio.dataset.orderWarehouse='';radio.dataset.liquidation='1';radio.checked=wh.code===selected;
-        var text=document.createElement('span');text.textContent=wh.code+' · Kho Chờ Xử lý · thanh lý còn '+wh.available;label.append(radio,text);group.append(label);
+        var text=document.createElement('span'),name=document.createElement('i');name.className='wh-name';name.textContent=' · Kho Chờ Xử lý · thanh lý còn '+wh.available;text.append(wh.code,name);label.append(radio,text);group.append(label);
       });
       if(!group.querySelector('input:checked')) group.querySelector('input[value=""]').checked=true;
       liquidationFulfillment();
@@ -91,6 +96,25 @@
       if (!price.dataset.userTyped) price.value=(button.dataset.lastPrice || button.dataset.price).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
       row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+button.dataset.lastPrice.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
   }
+
+  // Bản 2: VAT từng dòng chỉ hiện mức đang chọn, bấm để đổi vòng; SĐT khách tự điền khi chọn khách.
+  form.addEventListener('click',function(e){
+    var label=e.target.closest('.qline-vat label, .qline-wh label');
+    if (!label || !editable) return;
+    var seg=label.closest('.seg'), radios=[].slice.call(seg.querySelectorAll('input[type=radio]')), cur=label.querySelector('input');
+    var other=[].slice.call(seg.querySelectorAll('label')).filter(function(l){ return l!==label; })[0];
+    // Chỉ khi đang ở dạng gọn (các mức khác bị ẩn) mới đổi vòng; điện thoại vẫn bấm chọn trực tiếp.
+    if (!cur.checked || !other || getComputedStyle(other).display!=='none') return;
+    e.preventDefault();
+    if (seg.closest('.qline-wh')) radios=radios.filter(function(r){ return r.value || r===cur; });
+    if (radios.length<2) return;
+    var next=radios[(radios.indexOf(cur)+1)%radios.length]; next.checked=true;
+    next.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  form.addEventListener('click',function(e){
+    var b=e.target.closest('[data-kind=customer]'), phone=form.querySelector('[data-customer-phone]');
+    if (b && phone) phone.value=(b.dataset.phone||'');
+  });
   // ---- Màn 3 cột: tra giá + tồn, thêm nhanh, VAT cả đơn, chọn nhanh ngày hẹn (chỉ giao diện) ----
   // Nút chọn một lần cho cả đơn (kho, VAT): value '*' = các dòng đang khác nhau.
   function pickGroup(el) {
@@ -150,7 +174,7 @@
       var input=hit.querySelector('[name=product_code]'); input.value=code; input.dispatchEvent(new Event('stock-picked'));
       hit.querySelector('[data-availability-summary]').textContent=b.dataset.availabilityText||'';
       applyProduct(hit,b);
-      hit.dataset.lineEdited='1'; hit.classList.remove('line-open','line-error');
+      hit.dataset.lineEdited='1'; hit.dataset.pickedProduct='1'; hit.querySelector('[name=description]').title=code; hit.classList.remove('line-open','line-error');
     }
     hit.classList.remove('qline-flash'); void hit.offsetWidth; hit.classList.add('qline-flash');
     hit.querySelector('[name=qty]').dispatchEvent(new Event('input',{bubbles:true}));
@@ -189,7 +213,7 @@
   if (whAll && editable) whAll.addEventListener('change',function(){
     var code=whAll.value;
     if (code==='*') return;
-    form.querySelectorAll('[data-order-line]').forEach(function(row){ var k=row.querySelector('[data-order-kind]:checked'); if (k && k.value==='HANG') setWarehouse(row,code); });
+    form.querySelectorAll('[data-order-line]').forEach(function(row){ var k=row.querySelector('[data-order-kind]:checked'); if (k && k.value==='HANG') { setWarehouse(row,code); refreshStock(row); } });
     changed(); lines.dispatchEvent(new Event('change',{bubbles:true}));
     if (browse) load();
   });
@@ -208,6 +232,53 @@
       form.querySelectorAll('[data-order-line]').forEach(function(row){ row.remove(); });
       reindex(); changed(); syncLines();
     }
+  });
+  // Ô Tồn: so tồn khả dụng của kho đang chọn với số lượng; đổi kho thì tải lại tồn.
+  function qtyOf(row) { return Number((row.querySelector('[name=qty]').value||'').replace(/\./g,'').replace(',','.'))||0; }
+  function badge(row) {
+    var el=row.querySelector('[data-stock-badge]'); if (!el) return;
+    var k=row.querySelector('[data-order-kind]:checked'), s=row.querySelector('[data-availability-summary]');
+    var has=s && s.dataset.available!==undefined && (!k || k.value==='HANG');
+    el.classList.remove('ok','no'); row.classList.remove('line-short');
+    if (!has) { el.textContent=''; return; }
+    var left=Number(s.dataset.available)-qtyOf(row), fmt=function(n){ return String(Math.round(n*1000)/1000).replace('.',','); };
+    if (left>=0) { el.textContent='Còn '+fmt(Number(s.dataset.available)); el.classList.add('ok'); }
+    else { el.textContent='Thiếu '+fmt(-left); el.classList.add('no'); row.classList.add('line-short'); }
+  }
+  function refreshStock(row) {
+    var code=row.querySelector('[name=product_code]').value.trim(), wh=row.querySelector('[data-order-warehouse]:checked'), s=row.querySelector('[data-availability-summary]');
+    if (!s) return;
+    if (!code || !wh || !wh.value) { delete s.dataset.available; badge(row); return; }
+    var want=code+'|'+wh.value; row.dataset.stockKey=want;
+    fetch('/don-ban/tim-hang?'+new URLSearchParams({q:code,warehouse:wh.value}),{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); }).then(function(html){
+      if (row.dataset.stockKey!==want) return;
+      var box=document.createElement('div'); box.innerHTML=html;
+      var hit=[].slice.call(box.querySelectorAll('[data-order-pick]')).filter(function(b){ return b.dataset.orderPick.toUpperCase()===code.toUpperCase(); })[0];
+      if (hit && hit.hasAttribute('data-available')) { s.dataset.available=hit.dataset.available; s.textContent=hit.dataset.availabilityText||''; } else delete s.dataset.available;
+      badge(row);
+    }).catch(function(){});
+  }
+  form.addEventListener('input',function(e){ var row=e.target.closest('[data-order-line]'); if (row && e.target.name==='qty') badge(row); });
+  form.addEventListener('change',function(e){
+    var row=e.target.closest('[data-order-line]'); if (!row) return;
+    if (e.target.matches('[data-order-warehouse]')) refreshStock(row); else badge(row);
+  });
+  form.addEventListener('click',function(e){ if (e.target.closest('[data-step], [data-order-pick]')) { var row=e.target.closest('[data-order-line]'); if (row) setTimeout(function(){ badge(row); },0); } });
+  form.querySelectorAll('[data-order-line]').forEach(badge);
+  // Ô tìm hàng: danh sách thả xuống khi bấm vào hoặc gõ; bấm ra ngoài hoặc Esc thì đóng.
+  if (browse && editable) {
+    var drop=browse.querySelector('[data-browse-list]'), q=browse.querySelector('[data-browse-q]');
+    var open=function(){ drop.hidden=false; }, close=function(){ drop.hidden=true; };
+    q.addEventListener('focus',open); q.addEventListener('input',open);
+    q.addEventListener('keydown',function(e){ if (e.key==='Escape') { close(); q.blur(); } });
+    document.addEventListener('click',function(e){ if (!browse.contains(e.target)) close(); });
+    drop.addEventListener('click',function(e){ if (e.target.closest('[data-browse-add]')) setTimeout(function(){ q.value=''; q.dispatchEvent(new Event('input')); close(); },0); });
+  }
+  // Địa chỉ giao chỉ cần khi thợ giao hoặc gửi vận chuyển.
+  var addr=form.querySelector('[data-ship-address]');
+  if (addr) form.addEventListener('change',function(e){
+    if (!e.target.matches('[name=fulfillment]')) return;
+    addr.hidden=!(['THO_GIAO','VAN_CHUYEN'].indexOf(e.target.value)>=0 || addr.querySelector('textarea').value.trim());
   });
   if (lines) { new MutationObserver(syncLines).observe(lines,{childList:true}); syncLines(); }
   document.querySelectorAll('[data-order-confirm]').forEach(function(confirm) { confirm.addEventListener('submit',function(event) {
