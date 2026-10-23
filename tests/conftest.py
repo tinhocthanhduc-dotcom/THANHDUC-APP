@@ -106,3 +106,17 @@ def configured_finance(db,make_user):
         finance_mappings.set_mapping(db,director,key,version=1,
             **({'fund_code':target} if key.startswith('THU_') else {'category_code':target}))
     return director
+
+
+def pytest_collection_modifyitems(config, items):
+    """CI chia bộ test thành nhiều phần chạy song song: TD_TEST_SHARD="1/5" chạy phần 1 trong 5.
+    Chia xen kẽ theo thứ tự thu thập nên các phần có thời gian gần bằng nhau; không đặt biến thì chạy hết."""
+    shard = os.environ.get("TD_TEST_SHARD")
+    if not shard:
+        return
+    index, total = (int(x) for x in shard.split("/"))
+    keep, skip = [], []
+    for i, item in enumerate(items):
+        (keep if i % total == index - 1 else skip).append(item)
+    config.hook.pytest_deselected(items=skip)
+    items[:] = keep
