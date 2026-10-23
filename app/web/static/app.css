@@ -1463,10 +1463,24 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .qb-add { min-height: 32px; padding: 0 12px; font-size: .85rem; color: var(--accent); border: 1px solid var(--accent); }
 .qb-add.on { background: var(--accent); color: var(--accent-text); }
 .qb-empty { padding: 16px 14px; margin: 0; }
+.qb-info .qb-stock { color: var(--ok, #15803d); font-weight: 600; }
+.qb-info .qb-stock.qb-out { color: var(--bad); }
+/* Đơn bán dùng chung khuôn 3 cột */
+.qf-two { display: grid; gap: 10px; margin-top: 10px; }
+.qf-two textarea { min-height: 44px; }
+@media (min-width: 700px) { .qf-two { grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); } }
+.qline-item .qline-stock { font-size: .78rem; }
+[data-order-line] .qline-kind .stock-seg label, [data-order-line] .qline-wh .stock-seg label { min-width: 0; }
+[data-order-line] .qline-kind .stock-seg span, [data-order-line] .qline-wh .stock-seg span { min-height: 34px; padding: 6px 8px; font-size: .82rem; }
+[data-order-line] .qline-wh .seg { gap: 4px; flex-wrap: wrap; }
+.qf-override { display: grid; gap: 6px; margin: 0; padding: 12px 14px; font-size: .9rem; }
+.qf-side [data-order-terms] { gap: 10px; }
+.qf-side [data-order-terms] .stock-seg span { font-size: .85rem; }
+
 /* Dòng hàng */
 .qf-lines { container-type: inline-size; }
 .qlines-head { display: none; padding: 0 0 6px; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.qf-lines:not(:has([data-quote-line])) .qlines-head { display: none !important; }
+.qf-lines:not(:has([data-quote-line],[data-order-line])) .qlines-head { display: none !important; }
 .qf-lines .quote-line { margin: 0; padding: 10px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
 .qf-lines .quote-line.line-error { border: 2px solid var(--bad); border-radius: 10px; padding: 10px; margin: 6px 0; }
 .qf-lines .quote-line.qline-flash { animation: qflash 1s ease-out; }
@@ -1479,7 +1493,7 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .qline-item > label input { font-weight: 600; }
 .qline-item [data-picker] { position: relative; }
 .qline-item [data-picker] input { height: 34px; min-height: 34px; font-size: .85rem; color: var(--muted); }
-.qline-item .hint:empty, .qline-price small:empty, .qline-item [data-quote-product-name] { display: none; }
+.qline-item .hint:empty, .qline-price small:empty, .qline-item [data-quote-product-name], .qline-item [data-order-product-name] { display: none; }
 .qline .qlabel { display: block; margin: 0 0 3px; font-size: .8rem; color: var(--muted); font-weight: 500; }
 .qline label { min-width: 0; }
 .qline-price small { display: block; margin-top: 3px; font-size: .76rem; color: var(--muted); }
@@ -1588,6 +1602,18 @@ main:has(> .quote-form-page) { max-width: 1480px; }
   .qline-price input { font-size: .9rem; padding-inline: 6px; }
 }
 .qf-sum dt { font-size: .9rem; white-space: nowrap; }
+/* Dòng đơn bán: hàng 1 tên-SL-giá-tiền, hàng 2 mã hàng + tồn, hàng 3 loại · kho · ĐVT · VAT. */
+[data-order-line] .qline-meta { flex-wrap: wrap; }
+[data-order-line] .qline-meta .seg { flex-wrap: wrap; }
+[data-order-line] .qline-meta .seg label { flex: 0 0 auto; }
+@container (min-width: 480px) {
+  .qline-item > [data-order-goods] { grid-column: 1 / 4; grid-row: 2; }
+  .qline-item > [data-order-goods] [data-picker] { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+  .qline-item > [data-order-goods] [data-picker] > label { flex: 0 1 260px; }
+  .qline-item > [data-order-goods] .product-options { flex-basis: 100%; }
+  [data-order-line] .qline-meta { grid-column: 1 / 5; grid-row: 3; justify-content: flex-start; flex-wrap: wrap; gap: 6px 14px; }
+  [data-order-line] .qline-unit { width: 64px; }
+}
 /* Đơn bán: dùng chung bảng của danh sách báo giá, 7 cột. */
 .list-top-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .list-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; flex-basis: 100%; padding: 0 0 8px; font-size: .9rem; }
@@ -1607,3 +1633,11 @@ main:has(> .quote-form-page) { max-width: 1480px; }
   .orow > .qcell:nth-child(6) { grid-column: 1; grid-row: 4; }
   .orow > .doc-amt { grid-column: 2; grid-row: 4; }
 }
+.qf-quick { flex-wrap: wrap; }
+.qf-quick .chip { white-space: nowrap; }
+.qf-pick { display: grid; gap: 6px; }
+.qf-pick-label { margin: 0; font-size: .9rem; font-weight: 600; }
+.qf-pick-label small { font-weight: 500; color: var(--warn, #b45309); }
+.qf-pick .qf-quick { margin: 0; }
+.qf-pick .chip { min-height: 36px; padding: 0 14px; font-size: .88rem; }
+.qf-pick .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }

@@ -3,9 +3,9 @@
 {% block title %}{{ o.number if o else 'Tạo đơn bán' }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% import 'viec_khac.jinja' as other %}
-{% block main %}<div class="doc-detail">
+{% block main %}<div class="doc-detail{{ ' quote-form-page' if not o or o.status=='NHAP' }}">
 <div class="recv-head doc-head-bar"><a class="btn" href="/don-ban" aria-label="Quay lại Đơn bán">←</a><div><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><p class="hint">Đơn bán{% if o %} · {{ customer_name or o.customer_code }}{% endif %}</p></div>{% if o and o.status=='DA_GIAO' %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}</div>
-{% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
+{% set workflow_page=true %}{% set order_live = not o or o.status=='NHAP' %}{% set wf_part='steps' if order_live else '' %}{% include 'thanh_buoc.jinja' %}
 
 {% if tech_delivery %}<section class="card"><h2>Giao bằng thợ</h2><p>{{ tech_delivery.label }} · {{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Chưa có thợ' }}</p><p>Đang ở kho thợ: {% for r in tech_delivery.held %}{{ r.product_code }}: {{ r.qty|qty }} {% else %}0{% endfor %}</p><a class="btn" href="/giao-don/{{ o.id }}">{% if tech_delivery.assignee %}Mở giao đơn · Giao thợ khác · Bàn giao · Trả kho{% else %}Giao thợ{% endif %}</a>{% for a in tech_delivery.attempts %}<p>Giao không thành: {{ tech_delivery.reason_labels[a.reason] }} · {{ a.note }}</p>{% endfor %}</section>{% endif %}
 {% set cancel_ask=tech_delivery.attempts[0] if tech_delivery and tech_delivery.attempts and tech_delivery.attempts[0].reason=='DE_NGHI_HUY' else None %}{% if cancel_ask and o.status=='DA_CHOT' %}<section class="card order-cancel-ask" id="de-nghi-huy" data-cancel-request><h2>Thợ đề nghị hủy đơn</h2><p>{{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Thợ' }} · {{ cancel_ask.created_at|service_time }}: <b>{{ cancel_ask.note }}</b></p>
@@ -34,22 +34,51 @@
 {% if can_write and editable and is_director %}<label>Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
 <p class="alert warn" data-order-warning hidden></p>
 {% if can_write and editable %}<button>Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p>{% endif %}
-</form></details>{% else %}<form data-workflow-form="order" id="order-edit" method="post" class="card form" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-order-editable="{{ '1' if can_write and editable else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">{% if trip_ticket %}{% if not o %}<input type="hidden" name="service_ticket_id" value="{{ trip_ticket.id }}">{% endif %}<p class="alert info" data-trip-ticket-note>Kèm phiếu dịch vụ <a href="/dich-vu/{{ trip_ticket.id }}">{{ trip_ticket.number }}</a> cùng chuyến{{ ': chọn Thợ giao, điều phối giao cho thợ của phiếu.' if not o else '.' }}</p>{% endif %}
+</form></details>{% else %}{% set live = can_write and editable %}<form data-workflow-form="order" id="order-edit" method="post" class="form qf-form qf3{{ ' qf3-browse' if browse }}" action="{{ '/don-ban/' ~ o.id if o else '/don-ban/moi' }}" data-order-form data-default-warehouse="{{ default_warehouse }}" data-order-editable="{{ '1' if live else '0' }}" data-order-unsaved="{{ '1' if unsaved else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
-<fieldset {% if not can_write or not editable %}disabled{% endif %}>
-{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Cố định sau khi tạo đơn' if o else ('Không sửa được ở trạng thái này' if not can_write or not editable else ''))) %}<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% if can_write %}<a href="/khach-hang/moi?quay_ve=/don-ban/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>{% endif %}{% endif %}</div>{% endcall %}
-{% include 'don_ban_dieu_kien.jinja' %}
-<label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
-<label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>
-<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
-<label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
+{% if browse %}<section class="card qf-browse" data-browse aria-label="Tra giá và tồn kho"><h2 class="qf-h">Tra giá · tồn kho</h2>
+<label><span class="sr-only">Tìm sản phẩm</span><input type="search" data-browse-q placeholder="Tìm mã hoặc tên… Enter để thêm kết quả đầu" autocomplete="off"></label>
+<div class="qb-groups" role="group" aria-label="Nhóm hàng"><button type="button" class="chip on" data-browse-group="">Tất cả</button>{% for g in groups %}<button type="button" class="chip" data-browse-group="{{ g }}">{{ g }}</button>{% endfor %}</div>
+<p class="hint qb-note">Giá bán chưa VAT · tồn theo Kho xuất cả đơn · bấm Thêm, bấm lại để tăng số lượng</p>
+<div class="qb-list" data-browse-list aria-live="polite">{% set rows=browse %}{% set last_prices=browse_prices %}{% set availability=browse_stock %}{% set warehouse=default_warehouse %}{% include 'don_ban_san_pham.jinja' %}</div>
+</section>{% endif %}
+<div class="qf-main">{% if trip_ticket %}{% if not o %}<input type="hidden" name="service_ticket_id" value="{{ trip_ticket.id }}">{% endif %}<p class="alert info" data-trip-ticket-note>Kèm phiếu dịch vụ <a href="/dich-vu/{{ trip_ticket.id }}">{{ trip_ticket.number }}</a> cùng chuyến{{ ': chọn Thợ giao, điều phối giao cho thợ của phiếu.' if not o else '.' }}</p>{% endif %}
+<fieldset {% if not live %}disabled{% endif %}>
+<section class="card qf-card"><h2 class="qf-h">Khách hàng</h2>
+{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Cố định sau khi tạo đơn' if o else ('Không sửa được ở trạng thái này' if not live else ''))) %}<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach" placeholder="Tên, mã hoặc số điện thoại"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">Khách hàng cố định sau khi tạo đơn.</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% if can_write %}<a href="/khach-hang/moi?quay_ve=/don-ban/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>{% endif %}{% endif %}</div>{% endcall %}
+<div class="qf-two"><label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200" placeholder="Người nhận hàng"></label>
+<label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000" rows="1" placeholder="Khi giao bằng thợ hoặc vận chuyển">{{ d.delivery_address }}</textarea></label></div>
+</section>
+<section class="card qf-card qf-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng hóa / dịch vụ <span class="qf-count" data-line-count>{{ d.lines|length }} dòng</span></h2>{% if live %}<button type="button" class="btn-ghost qf-clear" data-order-clear>Xóa tất cả</button>{% endif %}</div>
+<div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>Số lượng</span><span>Đơn giá</span><span>Thành tiền</span><span></span></div>
 <div data-order-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_ban_dong_form.jinja' %}{% endfor %}</div>
+<p class="hint qf-empty" data-lines-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Bấm <b>Thêm</b> ở cột Tra giá, hoặc bấm <b>+ Thêm dòng</b> để tìm hàng / ghi dòng khác.</p>
+{% if live %}<button type="button" class="qf-add" data-order-add>+ Thêm dòng</button>{% endif %}
 <p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
-{% if can_write and editable %}<button type="button" data-order-add>+ Thêm dòng</button>{% endif %}
+<label class="qf-note">Ghi chú<textarea name="note" maxlength="4000" placeholder="Ghi chú cho kho, người giao…">{{ d.note }}</textarea></label>
+</section>
 </fieldset>
-{% if can_write and editable and is_director %}<label>Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
 <p class="alert warn" data-order-warning hidden></p>
-{% if can_write and editable %}<button>Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p>{% endif %}
+</div>
+<aside class="qf-side">
+<section class="card qf-terms"><h2 class="qf-h">Nhận hàng &amp; thanh toán</h2>
+<fieldset {% if not live %}disabled{% endif %}>
+{% include 'don_ban_dieu_kien.jinja' %}
+<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
+{% if live %}<div class="qf-quick" role="group" aria-label="Chọn nhanh ngày hẹn">{% for n,label in [(0,'Hôm nay'),(1,'Ngày mai'),(2,'Ngày kia')] %}<button type="button" class="chip" data-promise-days="{{ n }}">{{ label }}</button>{% endfor %}</div>{% endif %}
+<div class="qf-pick" role="group" aria-label="Kho xuất cả đơn" data-order-wh-all data-value="{{ default_warehouse }}"><p class="qf-pick-label">Kho xuất cả đơn <small data-pick-mixed hidden>· đang nhiều kho</small></p><div class="qf-quick">{% for wh in warehouses if wh.active %}<button type="button" class="chip{{ ' on' if wh.code==default_warehouse }}" data-pick="{{ wh.code }}" title="{{ wh.name }}">{{ wh.code }}</button>{% endfor %}</div></div>
+<div class="qf-pick" role="group" aria-label="Thuế VAT cả đơn" data-order-vat-all data-value="{{ default_vat_rate }}"><p class="qf-pick-label">Thuế VAT cả đơn <small data-pick-mixed hidden>· đang nhiều mức</small></p><div class="qf-quick">{% for rate in vat_rates|sort(reverse=true) %}<button type="button" class="chip{{ ' on' if rate|string == default_vat_rate|string }}" data-pick="{{ rate }}">{{ rate }}%</button>{% endfor %}</div></div>
+<p class="hint">Kho và VAT áp cho mọi dòng hàng. Dòng nào khác thì sửa riêng ở dòng đó.</p>
+</fieldset>
+</section>
+<section class="card qf-sum"><h2 class="qf-h">Tổng đơn</h2>
+<dl><div><dt>Tiền hàng chưa VAT</dt><dd data-line-sum="subtotal">{{ o.subtotal|money if o else '—' }}</dd></div><div><dt>Thuế VAT</dt><dd data-line-sum="vat">{{ o.vat_total|money if o else '—' }}</dd></div><div class="qf-grand"><dt>Tổng thanh toán</dt><dd data-line-sum="total">{{ o.total|money if o else '—' }}</dd></div></dl>
+<p class="hint">Đơn vị: đồng. Số có dấu * là chưa đủ dữ liệu; máy chủ tính lại khi lưu.</p>
+</section>
+{% if live and is_director %}<label class="card qf-override">Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
+{% set wf_part='action' %}{% set workflow_total=(o.total|money if o else '—') if live else '' %}{% include 'thanh_buoc.jinja' %}
+{% if live %}<div class="qf-draft"><button aria-label="Lưu đơn nháp">Lưu nháp</button><p class="hint">Lưu nháp có thể thiếu kho. Lưu và chốt sẽ kiểm tra và giữ hàng trong cùng một lần.</p></div>{% endif %}
+</aside>
 </form>{% endif %}
 {% if o %}<section class="stock-tiles debt-tiles doc-money-tiles" aria-label="Số tiền đã lưu"><div class="stock-tile debt-main"><span>Tổng cộng</span><b>{{ o.total|money }} đồng</b></div><div class="stock-tile"><span>Tiền hàng</span><b>{{ o.subtotal|money }}</b></div><div class="stock-tile"><span>VAT</span><b>{{ o.vat_total|money }}</b></div><div class="stock-tile"><span>Phải thu</span><b>{{ (o.receivable|money) if o.receivable is not none else 'Chưa chốt' }}</b></div></section>{% endif %}
 {% if o and o.status!='NHAP' %}<p>Ngày hẹn giao/lấy: {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'Chưa hẹn' }}</p>{% endif %}
