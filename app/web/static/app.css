@@ -1907,3 +1907,42 @@ main:has(> .svl) { max-width: none; }
   .qline-price small { position: absolute; right: 0; top: 100%; margin-top: 1px; white-space: nowrap; font-size: .7rem; line-height: 1.15; }
   .quote-line:has(.qline-price small:not(:empty)) { padding-bottom: 16px; }
 }
+/* Tạo đơn từ báo giá: dòng chép từ báo giá chỉ đọc, chỉ chọn kho từng dòng. */
+.oq-bar { flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.oq-bar .oq-ok { color: var(--ok); }
+.oq-flow { margin-left: auto; color: var(--muted); font-size: .85rem; }
+.oq-cust { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.oq-cust small { color: var(--muted); }
+.oq-lock { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--tag); color: var(--muted); font-size: .85rem; }
+.oq-head { display: none; }
+.oq-line { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.oq-line .oq-name { flex: 1 0 100%; display: grid; gap: 2px; }
+.oq-line .oq-name .code { font: .78rem ui-monospace, monospace; color: var(--muted); }
+.oq-line .oq-wh { flex: 1 0 100%; }
+.oq-wh .stock-seg { flex-wrap: wrap; }
+.oq-wh .stock-seg label:has(input[value=""]), .oq-wh .wh-name { display: none; }
+.oq-stock { flex: 1 0 100%; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.oq-stock.ok { color: var(--ok); } .oq-stock.no { color: var(--bad); }
+.oq-line.line-short { background: color-mix(in srgb, var(--bad-bg) 55%, transparent); }
+.oq-ro { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.oq-line .oq-ro { display: inline; }
+.oq-amt { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+.oq-dash { color: var(--muted); }
+.oq-act { display: grid; gap: 8px; }
+.oq-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .88rem; }
+.oq-checks li::before { content: '✓ '; } .oq-checks li[data-ok="1"] { color: var(--ok); }
+.oq-checks li[data-ok="0"] { color: var(--bad); } .oq-checks li[data-ok="0"]::before { content: '✗ '; }
+.oq-act .oq-main { min-height: 50px; font-size: 1rem; }
+.oq-act .oq-main:disabled { opacity: .55; cursor: not-allowed; }
+@container (min-width: 760px) {
+  .oq-head, .oq-line { display: grid; grid-template-columns: minmax(0,1fr) 132px 96px 52px 48px 96px 48px 104px; gap: 8px; align-items: center; }
+  .oq-head { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding-bottom: 6px; }
+  .oq-head span:nth-child(n+2) { text-align: center; } .oq-head span:nth-child(6), .oq-head span:nth-child(8) { text-align: right; }
+  .oq-line .oq-name, .oq-line .oq-wh, .oq-stock { flex: none; }
+  .oq-amt { margin-left: 0; }
+  .oq-stock { text-align: center; }
+  .oq-line .oq-ro { text-align: center; } .oq-line .oq-r { text-align: right; }
+  .oq-k { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .oq-wh .stock-seg { flex-wrap: nowrap; justify-content: center; }
+  .oq-wh .stock-seg span { min-height: 34px; padding: 0 10px; }
+}

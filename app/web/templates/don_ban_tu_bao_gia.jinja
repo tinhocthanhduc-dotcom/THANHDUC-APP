@@ -1,22 +1,71 @@
 {% extends 'base.jinja' %}
 {% block title %}Tạo đơn từ {{ q.number }}{% endblock %}
-{% block main %}
-<div class="bar quote-heading"><h1>Tạo đơn bán</h1><a href="/bao-gia/{{ q.id }}">← {{ q.number }}</a></div>
-{% include 'buoc_tiep.jinja' %}
+{% import 'da_chon.jinja' as picked %}
+{% block main %}<div class="doc-detail quote-form-page">
+{% set live = not linked and q.status=='CHAP_NHAN' %}{% set ful = d.get('fulfillment') or 'TAI_QUAY' %}{% set pay = d.get('payment_term') or 'TRA_NGAY' %}
+<div class="bar quote-heading oq-bar"><h1>Tạo đơn bán</h1><a class="qf-src-chip" href="/bao-gia/{{ q.id }}">Từ báo giá {{ q.number }} ↗</a>{% if q.status=='CHAP_NHAN' %}<span class="tag oq-ok">Khách đã chấp nhận</span>{% endif %}<span class="oq-flow">Báo giá → <b>Đơn bán</b> → Giao hàng → Thu tiền → Xong</span></div>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if linked %}<p class="alert warn">Báo giá đã có đơn: <a href="/don-ban/{{ linked.id }}">{{ linked.number }}</a></p>{% endif %}
 {% if q.status!='CHAP_NHAN' %}<p class="alert bad">Chỉ lập đơn từ báo giá đã được khách chấp nhận.</p>{% endif %}
-<p>{{ customer.code }} · <strong>{{ customer.name }}</strong></p><p>Giá và các dòng được chép nguyên từ báo giá {{ q.number }}.</p>
-<form id="order-from-quote" method="post" class="card form" action="/don-ban/tu-bao-gia/{{ q.id }}">
+<form id="order-from-quote" method="post" class="form qf-form qf3 qf2o oq-form" action="/don-ban/tu-bao-gia/{{ q.id }}" data-order-from-quote>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
-<fieldset {% if linked or q.status!='CHAP_NHAN' %}disabled{% endif %}>
-<label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
-<label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>
-<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
-<label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
-{% for line in q.lines %}<section class="card quote-line"><strong>Dòng {{ line.line_no }} · {{ line.description }}</strong><p>{{ line.product_code or 'Khác' }} · {{ quantity(line.qty) }} {{ line.unit }} · {{ line.unit_price|money }} đồng · VAT {{ line.vat_rate }}%</p>
-{% if line.product_code %}<fieldset><legend>Kho xuất</legend>{% set warehouse_product_code=line.product_code %}{% set warehouse_name='warehouse_' ~ line.line_no %}{% set warehouse_value=d.warehouses.get(line.line_no,'') %}{% include 'don_ban_kho.jinja' %}</fieldset>{% endif %}</section>{% endfor %}
-<p>Tổng: <strong>{{ q.total|money }} đồng</strong></p>
-{% if not linked and q.status=='CHAP_NHAN' %}<button class="primary">Tạo đơn bán</button>{% endif %}
-</fieldset></form>
+<div class="qf-main">
+<fieldset {% if not live %}disabled{% endif %}>
+<div class="qf-toprow">
+<section class="card qf-card qf-cust"><h2 class="qf-h">Khách hàng</h2>
+<div class="oq-cust">{{ picked.card(customer_card) }}<small>Theo báo giá</small></div>
+<div class="qf-pair"><label>Người nhận<input name="contact_name" value="{{ d.contact_name }}" maxlength="200" placeholder="Người nhận hàng"></label>
+<label>Điện thoại<input readonly value="{{ customer_card.phone if customer_card else '' }}" placeholder="Theo khách hàng"></label></div>
+</section>
+<section class="card qf-card qf-ship"><h2 class="qf-h">Giao nhận</h2>
+<div class="seg stock-seg qf-seg4" role="group" aria-label="Nhận hàng">{% for value,label in fulfillments.items() %}<label><input type="radio" name="fulfillment" value="{{ value }}" {% if ful==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
+<div class="qf-date-row"><label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>{% if live %}<div class="qf-quick" role="group" aria-label="Chọn nhanh ngày hẹn">{% for n,label in [(0,'Hôm nay'),(1,'Ngày mai'),(2,'Ngày kia')] %}<button type="button" class="chip" data-promise-days="{{ n }}">{{ label }}</button>{% endfor %}</div>{% endif %}</div>
+<label class="qf-addr" data-ship-address>Địa chỉ giao<textarea name="delivery_address" maxlength="2000" rows="1" placeholder="Số nhà, đường, phường, quận">{{ d.delivery_address }}</textarea></label>
+<p class="hint qf-ship-hint" data-oq-ship-hint></p>
+</section>
+</div>
+<section class="card qf-card qf-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng hóa / dịch vụ <span class="qf-count">{{ q.lines|length }} dòng</span></h2>
+{% if live and goods_count %}<div class="qf-pick qf-pick-inline" role="group" aria-label="Kho xuất cả đơn"><p class="qf-pick-label">Kho xuất cả đơn</p><div class="qf-quick">{% for wh in warehouses if wh.active %}<button type="button" class="chip" data-oq-wh-all="{{ wh.code }}" title="{{ wh.name }}">{{ wh.code }}</button>{% endfor %}</div></div>{% endif %}</div>
+<p class="oq-lock">🔒 Tên hàng, số lượng, đơn giá, VAT và giảm giá chép nguyên từ báo giá {{ q.number }}. Ở đây chỉ chọn kho xuất. Cần đổi giá hoặc số lượng: tạo đơn nháp rồi sửa trên đơn.</p>
+<div class="oq-head" aria-hidden="true"><span>Tên hàng</span><span>Kho xuất</span><span>Tồn</span><span>ĐVT</span><span>SL</span><span>Đơn giá</span><span>VAT</span><span>Thành tiền</span></div>
+{% for line in q.lines %}<article class="quote-line oq-line" data-oq-line {% if line.product_code %}data-qty="{{ line.qty }}" data-stock="{{ stock_by_line[line.line_no]|tojson|forceescape }}"{% endif %}>
+<div class="oq-name"><strong>Dòng {{ line.line_no }} · {{ line.description }}</strong><span class="code">{{ line.product_code or 'Dòng khác' }}</span></div>
+<div class="oq-wh">{% if line.product_code %}<div role="group" aria-label="Kho xuất dòng {{ line.line_no }}">{% set warehouse_product_code=line.product_code %}{% set warehouse_name='warehouse_' ~ line.line_no %}{% set warehouse_value=d.warehouses.get(line.line_no,'') %}{% include 'don_ban_kho.jinja' %}</div>{% else %}<span class="oq-dash">—</span>{% endif %}</div>
+<span class="oq-stock" data-oq-stock>{% if line.product_code %}{% for wh,n in stock_by_line[line.line_no].items() %}{{ wh }}: {{ n|qty }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}—{% endif %}</span>
+<span class="oq-ro"><span class="oq-k">ĐVT </span>{{ line.unit }}</span><span class="oq-ro oq-qty"><span class="oq-k">SL </span>{{ quantity(line.qty) }}</span>
+<span class="oq-ro oq-r"><span class="oq-k">Giá </span>{{ line.unit_price|money }}</span><span class="oq-ro"><span class="oq-k">VAT </span>{{ line.vat_rate }}%</span>
+<b class="oq-amt">{{ (line.qty*line.unit_price)|round|int|money }}</b>
+</article>{% endfor %}
+<label class="qf-note">Ghi chú cho kho, người giao<textarea name="note" maxlength="4000" placeholder="Giao giờ hành chính, gọi trước khi đến…">{{ d.note }}</textarea></label>
+</section>
+</fieldset>
+</div>
+<aside class="qf-side">
+<section class="card qf-terms"><h2 class="qf-h">Thanh toán</h2>
+<fieldset {% if not live %}disabled{% endif %}>
+<div class="seg stock-seg qf-seg3" role="group" aria-label="Thanh toán">{% for value,label in payments.items() %}<label><input type="radio" name="payment_term" value="{{ value }}" {% if pay==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
+<label data-debt-days {% if pay!='CONG_NO' %}hidden{% endif %}>Số ngày được nợ<input name="due_days" inputmode="numeric" value="{{ d.get('due_days') or 30 }}"></label>
+<label data-deposit-amount {% if pay!='DAT_COC' %}hidden{% endif %}>Tiền cọc dự kiến (đ)<input name="deposit_amount" inputmode="numeric" data-money value="{{ d.get('deposit_amount') or '' }}"></label>
+</fieldset>
+</section>
+<section class="card qf-sum"><h2 class="qf-h">Tổng đơn <small>theo báo giá</small></h2>
+<dl>{% if q.discount_amount %}<div class="qf-minus"><dt>Giảm giá (từ báo giá)</dt><dd>−{{ q.discount_amount|money }}</dd></div>{% endif %}
+<div><dt>Tiền hàng chưa VAT</dt><dd>{{ q.subtotal|money }}</dd></div><div><dt>Thuế VAT</dt><dd>{{ q.vat_total|money }}</dd></div>
+<div class="qf-grand"><dt>Tổng thanh toán</dt><dd>{{ q.total|money }}</dd></div></dl>
+<p class="hint">Đơn vị: đồng.</p>
+</section>
+{% if live %}{% if is_director %}<label class="card qf-override">Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
+<section class="card oq-act"><ul class="oq-checks" data-oq-checks>
+<li data-ok="1">Báo giá đã được khách chấp nhận</li>
+<li data-oq-check="wh" data-ok="0">Mọi dòng hàng đã có kho</li>
+<li data-oq-check="stock" data-ok="1">Đủ tồn khả dụng</li>
+<li data-oq-check="addr" data-ok="1">Có địa chỉ giao</li></ul>
+<button class="primary oq-main" name="then" value="confirm" data-oq-confirm>Tạo đơn và chốt (giữ hàng)</button>
+<button class="oq-draft">Chỉ tạo đơn nháp</button>
+<p class="hint">Chốt = kiểm tồn và hạn mức, giữ hàng ở kho đã chọn. Kho nào thiếu hàng thì đổi kho ở dòng đó. Đơn nháp có thể chưa chọn kho.</p>
+</section>{% endif %}
+</aside>
+</form>
+</div>
+<script src="{{ asset('order-from-quote.js') }}" defer></script>
 {% endblock %}
