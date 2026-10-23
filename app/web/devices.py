@@ -4,7 +4,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import _customer_dict, _customer_form, checked_form, render, web_user
@@ -105,8 +105,25 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
                                       condition='MOI', note='', active=True, version=0), is_new=True)
 
 
-def _equipment_data(form):
-    return dict(product_code=str(form.get('product_code', '')), customer_code=form.get('customer_code') or None,
+def _picked(session, model, code, text):
+    """Mã đã chọn trong danh sách; nếu chưa bấm chọn thì chỉ nhận khi chữ gõ khớp đúng một mã hoặc một tên."""
+    code, text = str(code or '').strip(), str(text or '').strip()
+    if code or not text:
+        return code
+    key = text.split(' · ')[0].strip()
+    rows = session.scalars(select(model.code).where(or_(func.upper(model.code) == key.upper(),
+                                                        func.lower(model.name) == text.lower())).limit(2)).all()
+    return rows[0] if len(rows) == 1 else None
+
+
+def _equipment_data(form, session):
+    product = _picked(session, Product, form.get('product_code'), form.get('product_q'))
+    customer = _picked(session, Customer, form.get('customer_code'), form.get('customer_q'))
+    if product is None or product == '':
+        raise BusinessError('PRODUCT_NOT_PICKED', 'Chưa chọn hàng: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
+    if customer is None:
+        raise BusinessError('CUSTOMER_NOT_PICKED', 'Chưa chọn khách: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
+    return dict(product_code=product, customer_code=customer or None,
                 site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None,
                 condition=str(form.get('condition', 'MOI')), note=str(form.get('note', '')), active=form.get('active') == '1')
 
@@ -114,11 +131,16 @@ def _equipment_data(form):
 @router.post('/thiet-bi/moi')
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     customer_sites.check_writer(request.state.user)
-    data = dict(serial=str(form.get('serial', '')), **_equipment_data(form))
+    shown = dict(serial=str(form.get('serial', '')), product_code=str(form.get('product_code', '')),
+                 customer_code=form.get('customer_code') or None, site_id=form.get('site_id') or None,
+                 warranty_until=form.get('warranty_until') or None, condition=str(form.get('condition', 'MOI')),
+                 note=str(form.get('note', '')), active=form.get('active') == '1', version=0,
+                 product_q=str(form.get('product_q', '')), customer_q=str(form.get('customer_q', '')))
     try:
+        data = dict(serial=shown['serial'], **_equipment_data(form, session))
         row = equipment.create(session, request.state.user, EquipmentIn(**data))
     except (BusinessError, ValidationError) as exc:
-        return _form(request, session, {**data, 'version': 0}, is_new=True, error=_error(exc), status=getattr(exc, 'status', 400))
+        return _form(request, session, shown, is_new=True, error=_error(exc), status=getattr(exc, 'status', 400))
     return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_luu=1', status_code=303)
 
 
@@ -130,9 +152,12 @@ def view(request: Request, serial: str, da_luu: int = 0, user: User = Depends(we
 @router.post('/thiet-bi/{serial:path}')
 def update(request: Request, serial: str, form=Depends(checked_form), session: Session = Depends(get_session)):
     customer_sites.check_writer(request.state.user)
-    data = _equipment_data(form)
-    shown = {**equipment.snapshot(equipment.load(session, serial)), **data, 'version': form.get('version', '')}
+    shown = {**equipment.snapshot(equipment.load(session, serial)), 'version': form.get('version', ''),
+             'product_code': str(form.get('product_code', '')), 'customer_code': form.get('customer_code') or None,
+             'product_q': str(form.get('product_q', '')), 'customer_q': str(form.get('customer_q', ''))}
     try:
+        data = _equipment_data(form, session)
+        shown.update(data)
         row = equipment.update(session, request.state.user, serial, EquipmentPatch(**data, version=form.get('version')))
     except (BusinessError, ValidationError) as exc:
         return _form(request, session, shown, error=_error(exc), status=getattr(exc, 'status', 400))

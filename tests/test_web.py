@@ -3109,3 +3109,19 @@ def test_m4_web_return_shows_advance_and_timeline_links(client,db,m3_people):
     assert db.get(StockDoc,row.stock_doc_id).number in page.text and f'/phieu-kho/{row.stock_doc_id}' in page.text
     order_page=client.get(f'/don-mua/{order.id}');assert order_page.status_code==200 and 'Trả hàng' in order_page.text and '400.000' in order_page.text
     assert db.query(FundLedger).count()==n
+
+
+def test_d1_product_typed_but_not_picked(client, web_login, d1_catalog, db):
+    from app.models import Equipment
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    page = client.get('/thiet-bi/moi').text
+    assert 'name="product_q"' in page and 'type="hidden" name="product_code"' in page
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, product_code='', product_q='Máy in Canon LBP-2900 dài quá'))
+    assert r.status_code == 400 and 'Chưa chọn hàng' in r.text and 'Máy in Canon LBP-2900 dài quá' in r.text
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, product_code='', product_q='máy PHOTO', customer_code='', customer_q='Minh Phát'), follow_redirects=False)
+    assert r.status_code == 303
+    row = db.get(Equipment, 'AB123')
+    db.refresh(row)
+    assert row.product_code == 'TD-0002' and row.customer_code == 'KTD-000001'
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, serial='CD1', customer_code='', customer_q='Không có ai'))
+    assert r.status_code == 400 and 'Chưa chọn khách' in r.text
