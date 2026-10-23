@@ -123,6 +123,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     from .technician_deliveries import context as delivery_context
     tech_delivery=delivery_context(session,request.state.user,order) if order and order.fulfillment=='THO_GIAO' else None
     from .sales_returns import order_context as return_context
+    # Cột "Tra giá · tồn kho" của màn tạo/sửa đơn nháp: chỉ đọc danh mục, tồn ở kho mặc định.
+    live=has_role(request.state.user,'sales') and (order is None or order.status=='NHAP')
+    browse=products.search(session,'',active_only=True,limit=40) if live else []
     trip_id=str(data.get('service_ticket_id') or '')
     trip_ticket=session.get(ServiceTicket,int(trip_id)) if not order and trip_id.isdigit() else (session.get(ServiceTicket,order.service_ticket_id) if order and order.service_ticket_id else None)
     return render(request,'don_ban_form.jinja',trip_ticket=trip_ticket,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
@@ -135,7 +138,8 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
-                  liquidation_warehouses=pending_liquidation.choices(session,codes),warehouses=warehouses,default_warehouse=default_warehouse,can_write=has_role(request.state.user,'sales'),
+                  liquidation_warehouses=pending_liquidation.choices(session,codes|{p.code for p in browse}),warehouses=warehouses,
+                  browse=browse,groups=products.groups(session) if browse else [],browse_prices=picked.last_prices(session,data['customer_code'],browse) if browse else {},browse_stock=stock_reservations.picker(session,browse,default_warehouse),default_warehouse=default_warehouse,can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse') and not (order and order.delivery_assignee_id),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
                   saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error),**receipt_ctx)
@@ -264,6 +268,15 @@ def pick_customer(request: Request,q: str='',user: User=Depends(order_user),sess
 def pick_product(request: Request,q: str='',customer_code: str='',warehouse: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
     rows=products.search(session,q[:200],active_only=True,limit=20)
     return render(request,'don_ban_chon.jinja',kind='product',rows=rows,liquidation_warehouses=pending_liquidation.choices(session,[p.code for p in rows]),last_prices=picked.last_prices(session,customer_code,rows),warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
+
+
+@router.get('/don-ban/san-pham')
+def browse_products(request: Request,q: str='',nhom: str='',customer_code: str='',warehouse: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
+    """Cột "Tra giá · tồn kho" của màn tạo đơn bán: chỉ đọc danh mục đang bán và tồn khả dụng."""
+    rows=products.search(session,q[:200],active_only=True,limit=40,group=nhom[:100])
+    warehouse=warehouse[:50]
+    return render(request,'don_ban_san_pham.jinja',rows=rows,last_prices=picked.last_prices(session,customer_code[:50],rows),
+                  availability=stock_reservations.picker(session,rows,warehouse),warehouse=warehouse,liquidation_warehouses=pending_liquidation.choices(session,[p.code for p in rows]))
 
 
 @router.get('/don-ban/dieu-kien')
