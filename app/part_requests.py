@@ -209,6 +209,17 @@ def _decide(session, user, ident, note, version, status):
     return row
 
 
+def cancel_pending_for_ticket(session, user, ticket, note):
+    """Phiếu vừa đóng: hủy các yêu cầu còn chờ cấp để không kẹt ở hàng chờ kho. Caller giữ khóa phiếu."""
+    pending = session.scalars(select(PartRequest).where(PartRequest.ticket_id == ticket.id, PartRequest.status == 'CHO_CAP')
+                              .order_by(PartRequest.id).with_for_update())
+    for row in pending:
+        before = snapshot(row)
+        row.status, row.decision_note = 'DA_HUY', note
+        row.decided_by, row.decided_at = user.id, datetime.now(UTC)
+        _audit(session, user, row, 'cancel', before)
+
+
 def out_of_stock(session, user, ident, note, version):
     return _decide(session, user, ident, note, version, 'HET_HANG')
 

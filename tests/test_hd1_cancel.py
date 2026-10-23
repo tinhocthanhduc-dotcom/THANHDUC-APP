@@ -146,7 +146,7 @@ def test_dispatcher_cancellation_keeps_existing_behavior(db,supplied):
     before=tuple(db.query(m).count() for m in (StockDoc,StockLedger,FundLedger))
     svc.transition(db,p['dispatcher'],t.id,'DA_HUY',t.version,'Khách gọi hủy')
     assert t.status=='DA_HUY' and t.receivable==123456 and t.appointment_at==appointment
-    assert pending.status=='CHO_CAP' and db.query(TechnicianReturn).count()==0
+    assert pending.status=='DA_HUY' and db.query(TechnicianReturn).count()==0
     assert balance(db,own.code)==2 and balance(db,'K58')==8
     assert tuple(db.query(m).count() for m in (StockDoc,StockLedger,FundLedger))==before
 

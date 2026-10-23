@@ -240,7 +240,24 @@ def test_supply_looks_up_current_tech_warehouse_and_rejects_closed_ticket(db, he
     error('NO_TECH_WAREHOUSE',svc.supply,db,p['warehouse'],r.id,'K58',r.version)
     assert r.status=='CHO_CAP' and r.stock_doc_id is None
     service_tickets.transition(db,p['dispatcher'],t.id,'DA_HUY',t.version,'Khách ngừng sửa')
+    assert r.status=='DA_HUY'
     error('BAD_STATUS',svc.supply,db,p['warehouse'],r.id,'K58',r.version)
+
+
+def test_closing_ticket_cancels_pending_requests(db, held):
+    p,a,b=held;t=ticket(db,p,'DANG_LAM');r=request(db,p,t);done=request(db,p,t,qty=1)
+    svc.supply(db,p['warehouse'],done.id,'K58',done.version)
+    service_tickets.transition(db,p['technician'],t.id,'DANG_LAM',t.version)
+    service_tickets.transition(db,p['technician'],t.id,'KHONG_LAM_DUOC',t.version,'Khách không sửa nữa')
+    assert r.status=='DA_HUY' and r.decided_by==p['technician'].id and 'không làm được' in r.decision_note
+    assert done.status=='DA_CAP' and svc.search(db,p['warehouse'])==[]
+    assert db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='part_request.cancel',AuditLog.entity_id==str(r.id)))==1
+    other=ticket(db,p,'DANG_LAM');r2=request(db,p,other)
+    service_tickets.transition(db,p['technician'],other.id,'DANG_LAM',other.version)
+    charges(db,p,other)
+    attachments.add(db,p['technician'],'service_ticket',str(other.id),'SAU','sau.png',d5_image())
+    service_tickets.transition(db,p['technician'],other.id,'HOAN_THANH',other.version)
+    assert r2.status=='DA_HUY' and 'đã hoàn thành' in r2.decision_note
 
 
 def test_charge_version_changes_even_when_only_lines_change(db, held):
