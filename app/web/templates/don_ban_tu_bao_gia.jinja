@@ -60,7 +60,7 @@
 <li data-oq-check="wh" data-ok="0">Mọi dòng hàng đã có kho</li>
 <li data-oq-check="stock" data-ok="1">Đủ tồn khả dụng</li>
 <li data-oq-check="addr" data-ok="1">Có địa chỉ giao</li></ul>
-<button class="primary oq-main" name="then" value="confirm" data-oq-confirm>Tạo đơn và chốt (giữ hàng)</button>
+<button class="primary oq-main" name="then" value="confirm" form="order-from-quote" data-oq-confirm data-next-primary data-next-route="/don-ban/tu-bao-gia/{{ q.id }}">Tạo đơn và chốt (giữ hàng)</button>
 <button class="oq-draft">Chỉ tạo đơn nháp</button>
 <p class="hint">Chốt = kiểm tồn và hạn mức, giữ hàng ở kho đã chọn. Kho nào thiếu hàng thì đổi kho ở dòng đó. Đơn nháp có thể chưa chọn kho.</p>
 </section>{% endif %}
