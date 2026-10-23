@@ -227,7 +227,7 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
         if 'serial' not in data and len(machines)==1: data['serial']=machines[0][0].serial
     can_create=has_role(request.state.user, *svc.CREATORS)
     return render(request, "dich_vu_moi.jinja", appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
-                  sites=sites, machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
+                  sites=sites, sites_main_address=customer.address if customer else '', machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
                   can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
 
@@ -240,7 +240,8 @@ def pick_customer(request: Request, q: str = "", user: User = Depends(web_user),
 @router.get("/dich-vu/chon-khach")
 def pick_choices(request: Request, customer_code: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
     sites, machines = _choices(session, customer_code)
-    return render(request, "dich_vu_chon_may.jinja", sites=sites, machines=machines, d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial=machines[0][0].serial if len(machines)==1 else ''))
+    customer = session.get(Customer, customer_code[:50]) if customer_code else None
+    return render(request, "dich_vu_chon_may.jinja", sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial=machines[0][0].serial if len(machines)==1 else ''))
 
 
 @router.get("/dich-vu/moi")

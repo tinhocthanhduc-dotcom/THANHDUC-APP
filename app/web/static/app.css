@@ -1726,3 +1726,65 @@ main:has(> .quote-form-page) { max-width: none; }
   .qf2o .qlines-head span:nth-child(4), .qf2o .qlines-head span:nth-child(5), .qf2o .qlines-head span:nth-child(7) { text-align: center; }
   .qf2o .qline-badge { justify-self: center; }
 }
+/* Nhận đơn dịch vụ: 2 cột (khách + máy, yêu cầu | hẹn + giao thợ, tóm tắt) */
+main:has(> .svn) { max-width: none; }
+.svn-bar { flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.svn-bar h1 { margin: 0; }
+.svn-bar a { margin-left: auto; }
+.svn-flow { font-size: .82rem; color: var(--muted); }
+@media (max-width: 900px) { .svn-flow { display: none; } }
+.svn { display: block; }
+.svn-grid { display: grid; gap: 14px; align-items: start; grid-template-columns: minmax(0,1fr); margin: 0; padding: 0; border: 0; min-width: 0; }
+.svn-main { container-type: inline-size; display: grid; gap: 14px; min-width: 0; align-content: start; }
+.svn-side { min-width: 0; }
+.svn-top { display: grid; gap: 14px; }
+@container (min-width: 700px) { .svn-top { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+.svn .qf-card { display: grid; gap: 10px; align-content: start; padding: 14px 16px; }
+.svn .qf-h { margin: 0; }
+.svn-fld { display: grid; gap: 4px; margin: 0; font-size: .85rem; font-weight: 600; color: var(--muted); min-width: 0; }
+.svn-fld > .group-label { font-weight: 600; }
+.svn-fld small { font-weight: 500; }
+.svn-fld select, .svn-fld textarea { width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); font-weight: 600; }
+.svn-fld select { height: 42px; }
+.svn-fld textarea { min-height: 92px; font-weight: 400; resize: vertical; }
+.svn-bad select, .svn-bad textarea, .svn-fld [aria-invalid=true] { border-color: var(--bad); outline: 1px solid var(--bad); }
+.svn-appt.svn-bad { border-color: var(--bad); }
+.svn-req-mark { color: var(--bad); font-style: normal; }
+.svn-note { margin: 0; font-size: .8rem; color: var(--muted); font-weight: 400; }
+.svn-kindrow { display: grid; gap: 12px; align-items: end; }
+@container (min-width: 560px) { .svn-kindrow { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+.svn-prio span { min-height: 42px; }
+.svn-prio .svn-urgent input:checked + span { background: var(--bad); border-color: var(--bad); color: #fff; }
+.svn-warranty { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--sel); }
+.svn-warranty[hidden] { display: none; }
+.svn-warranty h3 { margin: 0; font-size: .92rem; }
+.svn-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: -4px; }
+.svn-quick .chip { min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-size: .82rem; font-weight: 600; cursor: pointer; }
+.svn-quick .chip:hover { border-color: var(--accent); color: var(--accent); }
+.svn-appt .appointment-picker { margin: 0; padding: 0; border: 0; min-width: 0; }
+.svn-appt .appointment-picker legend { font-size: .85rem; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.svn-techs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+.svn-techs label { min-width: 0; }
+.svn-techs span { min-height: 40px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px 6px; font-size: .85rem; font-weight: 600; line-height: 1.2; }
+.svn-dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px 14px; margin: 0; font-size: .92rem; }
+.svn-dl dt { color: var(--muted); }
+.svn-dl dd { margin: 0; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.svn-dl dd.svn-empty { color: var(--muted); font-weight: 500; }
+.svn-checks { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: .86rem; }
+.svn-checks li[data-ok="1"] { color: var(--ok, #15803d); }
+.svn-checks li[data-ok="1"]::before { content: "✓ "; }
+.svn-checks li[data-ok="0"] { color: var(--bad); }
+.svn-checks li[data-ok="0"]::before { content: "✗ "; }
+.svn-checks li[data-ok="opt"] { color: var(--muted); }
+.svn-checks li[data-ok="opt"]::before { content: "○ "; }
+.svn-side .workflow-action [data-workflow-checks] { display: none; }
+.svn-after { padding: 0 4px; }
+@media (min-width: 1000px) {
+  .svn-grid { grid-template-columns: minmax(0,1fr) 360px; }
+  .svn-side { position: sticky; top: 72px; }
+}
+@media (min-width: 1500px) { .svn-grid { grid-template-columns: minmax(0,1fr) 400px; } }
+@media (max-width: 600px) {
+  .svn .qf-card { padding: 12px; }
+  .svn .svn-sum { display: none; }
+}
