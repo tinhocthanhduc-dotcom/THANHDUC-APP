@@ -1734,3 +1734,15 @@ main:has(> .quote-form-page) { max-width: none; }
 @media (max-width: 480px) { .group-row { grid-template-columns: minmax(0, 1fr) auto; } .group-add { grid-template-columns: 1fr; } }
 .group-seg { flex-wrap: wrap; }
 .group-seg label { flex: 0 0 auto; }
+/* GG1: Giá nhập chưa VAT / đã gồm VAT + giảm giá toàn đơn */
+.qf-mode { display: grid; gap: 6px; }
+.qf-seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.qf-seg2 label { min-width: 0; }
+.qf-seg2 span { min-height: 38px; display: flex; align-items: center; justify-content: center; padding: 4px 6px; font-size: .88rem; font-weight: 600; }
+.qf-sum dl div[hidden] { display: none; }
+.qf-sum .qf-minus dt, .qf-sum .qf-minus dd { color: var(--bad); }
+.qf-disc { display: grid; gap: 4px; }
+.qf-sum dl dt { white-space: normal; }
+.qf-disc label { display: grid; grid-template-columns: minmax(0,1fr) 130px; align-items: center; gap: 10px; }
+.qf-disc input { height: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+.qf-disc .hint { margin: 0; font-size: .74rem; }

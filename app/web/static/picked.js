@@ -316,17 +316,25 @@
           row.classList.contains("line-open") ? "true" : "false",
         );
       var cell = row.querySelector("[data-line-amount]");
-      if (cell) cell.textContent = v ? money(v.amount) : "—";
+      // Thành tiền dòng = số lượng × đơn giá nhập (trước giảm giá toàn đơn, theo chế độ Giá nhập).
+      if (cell) cell.textContent = v ? money(v.entered) : "—";
       if (v) {
         subtotal += v.amount;
         tax += v.vat;
       } else complete = false;
     });
     // Ô tổng hiển thị (cột phải / thanh dưới) chỉ là tạm tính, máy chủ tính lại khi lưu.
-    var sums = { subtotal: subtotal, vat: tax, total: subtotal + tax };
+    var sums = { subtotal: subtotal, vat: tax, total: subtotal + tax, entered: entered, discount: discount || 0n };
     document.querySelectorAll("[data-line-sum]").forEach(function (el) {
-      el.textContent = money(sums[el.dataset.lineSum]) + (complete ? "" : "*");
+      el.textContent = (el.dataset.lineSum === "discount" ? "−" : "") + money(sums[el.dataset.lineSum]) + (complete ? "" : "*");
     });
+    // GG1: dòng Cộng tiền hàng / Giảm giá chỉ hiện khi giá gồm VAT hoặc có giảm giá.
+    form.querySelectorAll("[data-sum-row=entered]").forEach(function (el) {
+      el.hidden = !(included || discount > 0n);
+      var label = el.querySelector("[data-sum-label]");
+      if (label) label.textContent = included ? "Cộng tiền hàng (gồm VAT)" : "Cộng tiền hàng (chưa VAT)";
+    });
+    form.querySelectorAll("[data-sum-row=discount]").forEach(function (el) { el.hidden = !(discount > 0n); });
     form.querySelector("[data-line-totals]").textContent =
       (badDiscount ? "Giảm giá vượt tổng tiền hàng hoặc chưa hợp lệ. " : "") +
       "Tiền hàng " +
