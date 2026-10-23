@@ -6,7 +6,7 @@ Mỗi thay đổi ghi một dòng service_steps (chỉ thêm) và một dòng au
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import audit, service_sla, service_visits
@@ -421,15 +421,25 @@ def reject_transfer(session: Session, user: User, ticket_id: int, reason: str, v
     return t
 
 
-def search(session: Session, user: User, status: str | None = None, assignee_id: int | None = None,
-           overdue: bool = False, q: str | None = None, limit: int | None = None) -> list[ServiceTicket]:
+_ANY = object()
+PRIORITY_RANK = {"KHAN": 0, "GAP": 1, "THUONG": 2}
+
+
+def _search_stmt(user: User, status: str | None = None, assignee_id: int | None = None, overdue: bool = False,
+                 q: str | None = None, statuses=None, kind=_ANY, unassigned: bool = False):
     stmt = select(ServiceTicket)
     if _own_only(user):
         stmt = stmt.where(ServiceTicket.assignee_id == user.id)
     if status is not None:
         stmt = stmt.where(ServiceTicket.status == status)
+    if statuses is not None:
+        stmt = stmt.where(ServiceTicket.status.in_(tuple(statuses)))
     if assignee_id is not None:
         stmt = stmt.where(ServiceTicket.assignee_id == assignee_id)
+    if unassigned:
+        stmt = stmt.where(ServiceTicket.assignee_id.is_(None))
+    if kind is not _ANY:
+        stmt = stmt.where(ServiceTicket.kind.is_(None) if kind is None else ServiceTicket.kind == kind)
     if overdue:
         stmt = stmt.where(ServiceTicket.status.in_(OPEN), ServiceTicket.due_at < _now())
     needle = fold(q)
@@ -439,9 +449,29 @@ def search(session: Session, user: User, status: str | None = None, assignee_id:
             ServiceTicket.serial.ilike(f"%{needle}%"),
             Customer.search_text.like(like_pattern(needle)),
         ))
+    return stmt
+
+
+def search(session: Session, user: User, status: str | None = None, assignee_id: int | None = None,
+           overdue: bool = False, q: str | None = None, limit: int | None = None, *, statuses=None, kind=_ANY,
+           unassigned: bool = False, offset: int = 0, by_priority: bool = False) -> list[ServiceTicket]:
+    stmt = _search_stmt(user, status, assignee_id, overdue, q, statuses, kind, unassigned)
     # Quá hạn lâu nhất lên đầu, phiếu không có hạn xếp sau.
-    order = (ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc()) if overdue else (ServiceTicket.id.desc(),)
-    return list(session.scalars(stmt.order_by(*order).limit(limit or get_settings().search_limit * 5)))
+    if overdue:
+        order = (ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())
+    elif by_priority:
+        rank = case(PRIORITY_RANK, value=ServiceTicket.priority, else_=3)
+        order = (rank, ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())
+    else:
+        order = (ServiceTicket.id.desc(),)
+    return list(session.scalars(stmt.order_by(*order).offset(offset).limit(limit or get_settings().search_limit * 5)))
+
+
+def count_by_status(session: Session, user: User, assignee_id: int | None = None, overdue: bool = False,
+                    q: str | None = None, kind=_ANY, unassigned: bool = False) -> dict[str, int]:
+    """Số phiếu theo trạng thái với cùng bộ lọc của danh sách (trừ lọc trạng thái)."""
+    sub = _search_stmt(user, None, assignee_id, overdue, q, None, kind, unassigned).subquery()
+    return dict(session.execute(select(sub.c.status, func.count()).group_by(sub.c.status)).all())
 
 
 def open_counts(session: Session) -> dict[int, int]:
