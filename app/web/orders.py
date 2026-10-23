@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import customers, products, quotes, sales_orders as svc, stock_reservations
@@ -15,7 +15,7 @@ from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, ServiceTicket, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
+from ..models import Customer, CustomerPhone, Product, Quote, ServiceTicket, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
 from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
 from ..security import has_role
@@ -210,7 +210,7 @@ def warehouse_view(request:Request,order_id:int,user:User=Depends(warehouse_user
 @router.get('/don-ban')
 def listing(request: Request,q: str='',status: str='',phan: int=0,
             from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,fulfillment: str='',overdue: bool=False,
-            user: User=Depends(order_user),session: Session=Depends(get_session)):
+            nguoi: int=0,user: User=Depends(order_user),session: Session=Depends(get_session)):
     error=code=None
     http_status=200
     try:
@@ -222,8 +222,32 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
     except BusinessError as exc:
         rows=[]
         error,code,http_status=_error(exc)
-    names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({r.customer_code for r in rows}))).all())
-    return render(request,'don_ban_dong.jinja' if phan else 'don_ban_ds.jinja',rows=rows,names=names,q=q,
+    if nguoi:  # Lọc hiển thị theo người lập; chỉ đọc.
+        rows=[r for r in rows if r.created_by==nguoi]
+    codes={r.customer_code for r in rows}
+    names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_(codes))).all())
+    phones={}
+    for ccode,phone in session.execute(select(CustomerPhone.customer_code,CustomerPhone.phone).where(CustomerPhone.customer_code.in_(codes))
+                                       .order_by(CustomerPhone.is_contact,CustomerPhone.phone)):
+        phones.setdefault(ccode,phone)
+    makers=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({r.created_by for r in rows}))).all())
+    quote_numbers=dict(session.execute(select(Quote.id,Quote.number).where(Quote.id.in_({r.quote_id for r in rows if r.quote_id})))
+                       .all())
+    extra=dict(phones=phones,makers=makers,quote_numbers=quote_numbers,vn=ZoneInfo('Asia/Ho_Chi_Minh'),nguoi=nguoi)
+    if not phan:
+        # Ô số liệu đầu trang: chỉ đếm, không tính nợ (nợ đã có ở Đơn cần thu).
+        counts=dict(session.execute(select(SalesOrder.status,func.count()).group_by(SalesOrder.status)).all())
+        waiting=session.execute(select(func.count(),func.coalesce(func.sum(SalesOrder.total),0))
+                                .where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))).one()
+        late=session.scalar(select(func.count()).where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')),
+                                                       SalesOrder.promised_date<svc._today()))
+        month=session.execute(select(func.count(),func.coalesce(func.sum(SalesOrder.total),0)).where(SalesOrder.status!='DA_HUY',
+            SalesOrder.created_at>=func.date_trunc('month',func.timezone('Asia/Ho_Chi_Minh',func.now())).op('AT TIME ZONE')('Asia/Ho_Chi_Minh'))).one()
+        staff=session.execute(select(User.id,User.full_name).where(User.id.in_(select(SalesOrder.created_by).distinct()))
+                              .order_by(User.full_name)).all()
+        extra.update(stats=dict(counts=counts,total=sum(counts.values()),waiting=waiting[0],waiting_sum=waiting[1],late=late,
+                                month=month[0],month_sum=month[1]),staff=staff)
+    return render(request,'don_ban_dong.jinja' if phan else 'don_ban_ds.jinja',rows=rows,names=names,q=q,**extra,
                   selected_status=status,statuses=STATUSES,fulfillments=FULFILLMENTS,selected_fulfillment=fulfillment,overdue=overdue,
                   summaries=svc.summaries(session,rows),from_date=from_date,to_date=to_date,holding=holding,today=svc._today(),
                   can_write=has_role(user,'sales'),can_receivables=has_role(user,'sales','finance'),error=error,error_code=code,status=http_status)

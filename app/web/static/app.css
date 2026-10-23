@@ -1352,8 +1352,8 @@ a.list-tile:hover { border-color: var(--accent); }
 .list-card { padding: 0; overflow: hidden; }
 .list-bar { display: flex; align-items: flex-end; gap: 8px 12px; flex-wrap: wrap; padding: 4px 12px 0; border-bottom: 1px solid var(--line); margin: 0; }
 .list-tabs { display: flex; flex-wrap: wrap; flex: 1; min-width: 0; }
-.list-tabs label { margin: 0; cursor: pointer; }
-.list-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+.list-tabs label { position: relative; margin: 0; cursor: pointer; }
+.list-tabs input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 .list-tabs span { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; font-size: .92rem; }
 .list-tabs b { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--tag); color: var(--text); font-size: .75rem; text-align: center; }
 .list-tabs input:checked + span { color: var(--accent); border-bottom-color: var(--accent); }
@@ -1374,120 +1374,201 @@ a.list-tile:hover { border-color: var(--accent); }
 .qact .btn { width: 36px; height: 36px; min-height: 36px; padding: 0; display: grid; place-items: center; }
 .doc-da_gui.qrow .stock-chip { background: var(--tag); color: var(--accent); }
 .doc-chap_nhan.qrow .stock-chip { background: var(--ok-bg); color: var(--ok); }
-@media (min-width: 1000px) {
-  .qrow, .qrow.doc-head { grid-template-columns: 150px minmax(0,1.5fr) 120px 150px 160px 48px; }
-  .qrow.doc-head { background: var(--bg); text-transform: uppercase; letter-spacing: .03em; }
-  .qrow.doc-head .doc-amt { text-align: right; }
-  .qrow .doc-amt { text-align: right; justify-self: end; }
+/* Danh sách báo giá đủ thông tin: bảng 8 cột khi thẻ đủ rộng, thẻ gọn khi hẹp. */
+.list-card { container-type: inline-size; }
+.list-selects { display: flex; gap: 8px; margin: 0 0 6px auto; }
+.list-selects select { height: 36px; font-size: .9rem; padding: 0 8px; width: auto; max-width: 170px; }
+.list-selects + .list-search { margin-left: 0; }
+.quote-list-page .list-tabs { flex-basis: 100%; }
+.qcell > span, .qcell .doc-who { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.qrow .qcell small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.qcell .q-sub { position: relative; z-index: 1; color: var(--accent); font-weight: 600; }
+.q-ok { color: var(--ok) !important; font-weight: 700; }
+.qrow .doc-state { display: grid; gap: 3px; justify-items: start; }
+.qrow .doc-amt strong { font-variant-numeric: tabular-nums; }
+.qact { gap: 6px; align-items: center; }
+.qact .q-order { width: auto; padding: 0 10px; font-size: .82rem; color: var(--accent); border-color: var(--accent); white-space: nowrap; }
+.doc-tu_choi.qrow .stock-chip, .doc-da_huy.qrow .stock-chip { background: var(--bad-bg); color: var(--bad); }
+.quote-rows .list-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.quote-rows .list-foot b { color: var(--text); font-variant-numeric: tabular-nums; }
+.qrow.doc-head { display: none; }
+@container (min-width: 1020px) {
+  .qrow, .qrow.doc-head { display: grid; grid-template-columns: 124px minmax(0,1.4fr) minmax(0,1.4fr) 110px 136px 110px 140px 124px; gap: 12px; align-items: start; }
+  .qrow.doc-head { align-items: center; background: var(--bg); text-transform: uppercase; letter-spacing: .03em; font-size: .72rem; font-weight: 700; color: var(--muted); padding-block: 8px; }
+  .qrow.doc-head .doc-amt, .qrow .doc-amt { text-align: right; justify-self: stretch; }
+  .qrow > *, .qrow .doc-state { grid-column: auto; grid-row: auto; }
+}
+@container (max-width: 1019px) {
+  .qrow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; }
+  .qrow > .qcell:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .qrow > .doc-state { grid-column: 2; grid-row: 1; justify-items: end; text-align: right; }
+  .qrow > .qcell:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .qrow > .q-what { grid-column: 1 / -1; grid-row: 3; }
+  .qrow > .q-maker { display: none; }
+  .qrow > .qcell:nth-child(6) { grid-column: 1; grid-row: 4; }
+  .qrow > .doc-amt { grid-column: 2; grid-row: 4; text-align: right; }
+  .qrow > .qact { grid-column: 1 / -1; grid-row: 5; justify-content: flex-start; }
+  .qrow > .qact:not(:has(.q-order)) { display: none; }
 }
 @media (max-width: 999px) {
   .list-tiles { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .qrow { grid-template-columns: minmax(0,1fr) auto; }
-  .qrow > .qcell:nth-child(1) { grid-column: 1; }
-  .qrow > .doc-state { grid-column: 2; grid-row: 1; }
-  .qrow > .qcell:nth-child(2) { grid-column: 1 / -1; }
-  .qrow > .qcell:nth-child(4) { grid-column: 1; }
-  .qrow > .doc-amt { grid-column: 2; grid-row: 3; }
-  .qrow > .qact { display: none; }
 }
 @media (max-width: 640px) {
   .list-bar { padding: 8px 12px 0; }
   .list-tabs { flex-wrap: nowrap; overflow-x: auto; order: 2; flex-basis: 100%; }
   .list-tabs span { white-space: nowrap; }
   .list-search { width: 100%; order: 1; }
+  .list-selects { order: 3; margin: 0 0 6px; flex-basis: 100%; }
+  .list-selects label, .list-selects select { flex: 1; max-width: none; }
   .list-tile strong { font-size: 1.25rem; }
 }
 
-/* Khuôn 5: tạo / sửa báo giá — cột trái nhập, cột phải tổng tiền + bước tiếp. */
-main:has(> .quote-form-page) { max-width: 1240px; }
+/* Khuôn 5: tạo / sửa báo giá — 3 cột: tra giá | khách + dòng hàng | điều kiện + tổng + bước tiếp. */
+main:has(> .quote-form-page) { max-width: 1480px; }
 .quote-form-page .workflow-steps { padding: 4px 0 8px; }
 .quote-form-page .workflow-steps li { background: var(--tag); color: var(--muted); font-size: .85rem; border-radius: 999px; padding: 4px 12px; }
 .quote-form-page .workflow-steps [aria-current=step] { background: var(--accent); color: var(--accent-text); }
-.qf-cols { display: grid; gap: 16px; align-items: start; }
-.qf-main, .qf-side { min-width: 0; }
-.qf-form > fieldset { gap: 14px; }
-.qf-card { margin: 0; }
-.qf-h { margin: 0 0 10px; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.qf-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.qf-card-head .qf-h { margin: 0; }
-.qf-card-head [data-quote-add] { min-height: 40px; color: var(--accent); font-weight: 600; }
-.qf-card textarea { min-height: 72px; }
+.quote-form-page .doc-head-bar .qf-reset { width: auto; padding: 8px 12px; color: var(--bad); font-size: .9rem; }
+.qf3 { display: grid; gap: 14px; align-items: start; grid-template-columns: minmax(0,1fr); }
+.qf3 > .qf-main, .qf3 > .qf-side, .qf3 > .qf-browse { min-width: 0; }
+.qf3 fieldset { gap: 14px; }
+.qf-card, .qf-terms, .qf-sum, .qf-browse { margin: 0; }
+.qf-h { margin: 0 0 10px; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.qf-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+.qf-card-head .qf-h { margin: 0; display: flex; align-items: center; gap: 8px; }
+.qf-count { padding: 1px 8px; border-radius: 999px; background: var(--tag); color: var(--muted); font-size: .75rem; letter-spacing: 0; text-transform: none; }
+.qf-clear { min-height: 34px; padding: 0 8px; color: var(--bad); font-size: .85rem; font-weight: 600; }
+.qf-add { margin-top: 10px; min-height: 40px; width: auto; }
+.qf-empty { margin: 12px 0 0; padding: 16px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; }
+.qf-note { margin-top: 12px; }
+.qf-note textarea { min-height: 72px; }
+/* Cột tra giá */
+.qf-browse { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 0; overflow: hidden; }
+.qb-list { margin-inline: -14px; }
+.qf-browse > .qf-h { margin-bottom: 0; }
+.qf-browse input[type=search] { height: 40px; }
+.qb-groups { display: flex; flex-wrap: wrap; gap: 6px; }
+.qb-groups .chip { min-height: 32px; padding: 0 12px; font-size: .85rem; }
+.qb-note { margin-block: 0; font-size: .78rem; }
+.qb-list { border-top: 1px solid var(--line); overflow-y: auto; max-height: 420px; }
+.qb-item { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.qb-item:last-child { border-bottom: 0; }
+.qb-info { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.qb-info strong { font-size: .92rem; line-height: 1.3; overflow-wrap: anywhere; }
+.qb-info small { font-size: .76rem; color: var(--muted); }
+.qb-info .code { font-size: .76rem; }
+.qb-info .qb-last { color: var(--accent); }
+.qb-buy { display: grid; gap: 4px; justify-items: end; flex: none; }
+.qb-buy b { font-size: .9rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qb-add { min-height: 32px; padding: 0 12px; font-size: .85rem; color: var(--accent); border: 1px solid var(--accent); }
+.qb-add.on { background: var(--accent); color: var(--accent-text); }
+.qb-empty { padding: 16px 14px; margin: 0; }
+/* Dòng hàng */
 .qf-lines { container-type: inline-size; }
 .qlines-head { display: none; padding: 0 0 6px; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.qf-lines .quote-line { margin: 0; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
+.qf-lines:not(:has([data-quote-line])) .qlines-head { display: none !important; }
+.qf-lines .quote-line { margin: 0; padding: 10px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
 .qf-lines .quote-line.line-error { border: 2px solid var(--bad); border-radius: 10px; padding: 10px; margin: 6px 0; }
+.qf-lines .quote-line.qline-flash { animation: qflash 1s ease-out; }
+@keyframes qflash { from { background: var(--sel); } to { background: transparent; } }
 .qf-lines [data-line-summary] { border-color: var(--line); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
 .qline { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 10px; align-items: end; }
-.qline-item, .qline-price, .qline-vat { grid-column: 1 / -1; }
-.qline-item { display: grid; gap: 6px; }
+.qline-item, .qline-price, .qline-meta { grid-column: 1 / -1; }
+.qline-item { display: grid; gap: 4px; }
+.qline-item > label { order: -1; }
+.qline-item > label input { font-weight: 600; }
 .qline-item [data-picker] { position: relative; }
-.qline-item .hint:empty, .qline-price small:empty { display: none; }
+.qline-item [data-picker] input { height: 34px; min-height: 34px; font-size: .85rem; color: var(--muted); }
+.qline-item .hint:empty, .qline-price small:empty, .qline-item [data-quote-product-name] { display: none; }
 .qline .qlabel { display: block; margin: 0 0 3px; font-size: .8rem; color: var(--muted); font-weight: 500; }
 .qline label { min-width: 0; }
-.qline-price small { display: block; margin-top: 3px; font-size: .78rem; color: var(--muted); }
-.qline-vat .seg { gap: 6px; }
-.qline-vat .stock-seg label { min-width: 48px; }
-.qline-vat .stock-seg span { min-height: 40px; padding: 8px 6px; }
+.qline-price small { display: block; margin-top: 3px; font-size: .76rem; color: var(--muted); }
+.qline-meta { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+.qline-unit { width: 110px; }
+.qline-vat .seg { gap: 4px; }
+.qline-vat .stock-seg label { min-width: 44px; }
+.qline-vat .stock-seg span { min-height: 34px; padding: 6px 6px; font-size: .82rem; }
+.qstep { gap: 4px; }
+.qstep button { width: 30px; height: 38px; min-height: 0; font-size: 1.1rem; border-radius: 8px; }
+.qstep input { width: 42px; min-width: 0; height: 38px; min-height: 0; padding: 0 2px; font-weight: 700; }
 .qline-amount { display: grid; gap: 2px; }
-.qline-amount strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-.qline-amount small { font-size: .75rem; }
+.qline-amount strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.qline-amount small { font-size: .74rem; }
 .qline-del { align-self: end; justify-self: end; }
-.qline-del button { min-height: 40px; background: none; border: 1px solid var(--line); color: var(--bad); }
+.qline-del button { min-height: 38px; background: none; border: 1px solid var(--line); color: var(--bad); }
 .qline-del [aria-hidden] { display: none; }
 .qline-item .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: max(100%, 360px); max-width: 90vw; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
 .qf-lines [data-line-totals] { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--tag); color: var(--muted); font-size: .85rem; }
-@container (min-width: 520px) {
+@container (min-width: 480px) {
+  .qlines-head { display: grid; }
+  .qline, .qlines-head { grid-template-columns: minmax(0,1fr) 110px 100px 96px 28px; gap: 4px 8px; align-items: start; }
+  .qlines-head span:nth-child(2) { text-align: center; } .qlines-head span:nth-child(n+3) { text-align: right; }
   .quote-line.line-enhanced > [data-line-summary] { display: none; }
   .quote-line.line-enhanced:not(.line-open) > [data-line-detail] { display: grid; }
-  .qline { grid-template-columns: 76px 88px minmax(0,1fr) minmax(0,1fr); }
-  .qline-item { grid-column: 1 / -1; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
-  .qline-price { grid-column: auto; }
-  .qline-vat { grid-column: 1 / 4; }
-  .qline-amount { text-align: right; }
-}
-@container (min-width: 780px) {
-  .qlines-head { display: grid; }
-  .qline, .qlines-head { grid-template-columns: minmax(0,1fr) 78px 64px 112px auto 104px 32px; gap: 6px; align-items: start; }
-  .qline-item, .qline-price, .qline-vat { grid-column: auto; }
-  .qline-item { grid-template-columns: 1fr; gap: 4px; }
-  .qline .qlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .qline-vat .stock-seg { flex-wrap: nowrap; gap: 3px; }
-  .qline-vat .stock-seg label { min-width: 0; }
-  .qline-vat .stock-seg span { padding: 9px 7px; font-size: .85rem; }
-  .qline-amount { padding-top: 10px; }
-  .qline-del { align-self: start; }
-  .qline-del button { width: 36px; height: 44px; min-height: 0; padding: 0; border: 0; color: var(--muted); font-size: 1.35rem; }
+  .qline-item { grid-column: 1; grid-row: 1; }
+  .qline-qty { grid-column: 2; grid-row: 1; }
+  .qline-price { grid-column: 3; grid-row: 1; }
+  .qline-amount { grid-column: 4; grid-row: 1; text-align: right; padding-top: 8px; }
+  .qline-del { grid-column: 5; grid-row: 1; align-self: start; }
+  .qline-meta { grid-column: 1 / 4; grid-row: 2; }
+  .qline .qline-item .qlabel, .qline .qline-qty .qlabel, .qline .qline-price .qlabel, .qline .qline-amount .qlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .qline-meta .qlabel { display: none; }
+  .qline-unit { width: 90px; }
+  .qline-unit input { height: 32px; min-height: 0; font-size: .85rem; }
+  .qline-meta::before { content: 'ĐVT · VAT'; align-self: center; font-size: .74rem; color: var(--muted); }
+  .qline-price input { text-align: right; height: 38px; min-height: 0; }
+  .qstep { justify-content: center; }
+  .qline-del button { width: 30px; height: 38px; min-height: 0; padding: 0; border: 0; color: var(--muted); font-size: 1.3rem; }
   .qline-del button:hover { color: var(--bad); background: var(--bad-bg); }
   .qline-del [aria-hidden] { display: inline; }
   .qline-del .qdel-text { display: none; }
-  .qlines-head span:nth-child(n+6) { text-align: right; }
 }
+/* Cột phải */
 .qf-side { display: grid; gap: 12px; }
-.qf-sum { margin: 0; }
+.qf-terms fieldset { gap: 10px; }
+.qf-terms .hint { margin: -4px 0 0; font-size: .78rem; }
+.qf-date { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--bg); }
+.qf-date span { color: var(--muted); font-size: .85rem; font-weight: 600; }
+.qf-terms .req { color: var(--bad); }
+.qf-quick { display: flex; gap: 6px; margin-top: -4px; }
+.qf-quick .chip { min-height: 30px; padding: 0 10px; font-size: .82rem; }
 .qf-sum dl { margin: 0; display: grid; grid-template-columns: minmax(0,1fr); gap: 6px; }
 .qf-sum dl div { display: flex; justify-content: space-between; gap: 8px; }
 .qf-sum dt { color: var(--muted); }
 .qf-sum dd { margin: 0; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
-.qf-grand { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); align-items: baseline; }
-.qf-grand dt { color: var(--text); font-weight: 600; }
-.qf-grand dd { font-size: 1.4rem; font-weight: 800; }
-.qf-sum .saved-total { margin: 10px 0 0; font-size: .85rem; font-weight: 500; color: var(--muted); }
-.qf-sum .hint { margin: 8px 0 0; font-size: .78rem; }
-.qf-side .workflow-action { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.qf-grand { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); flex-direction: column; gap: 0 !important; }
+.qf-grand dt { color: var(--muted); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.qf-grand dd { text-align: left; font-size: 1.8rem; font-weight: 800; color: var(--accent); line-height: 1.2; }
+.qf-sum .saved-total { margin: 10px 0 0; font-size: .82rem; font-weight: 500; color: var(--muted); }
+.qf-sum .hint { margin: 8px 0 0; font-size: .76rem; }
+.qf-side .workflow-action { padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .qf-side .workflow-action h2 { margin: 0 0 8px; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.qf-side .workflow-checks li { padding: 3px 0; }
+.qf-side .workflow-checks li { padding: 2px 0; font-size: .9rem; }
 .qf-side .workflow-checks [data-ok="0"] { color: var(--bad); }
 .qf-side .workflow-buttons { flex-direction: column; }
-.qf-side .next-primary { min-height: 48px; font-size: 1rem; }
+.qf-side .next-primary { min-height: 50px; font-size: 1.02rem; }
 .workflow-total { display: none; }
 .qf-draft button { width: 100%; min-height: 44px; }
-.qf-draft .hint { margin: 6px 0 0; font-size: .8rem; }
-@media (min-width: 1100px) {
-  .qf-cols { grid-template-columns: minmax(0,1fr) 300px; }
-  .qf-side { position: sticky; top: 76px; }
+.qf-draft .hint { margin: 6px 0 0; font-size: .78rem; }
+@media (min-width: 1240px) {
+  .qf3 { grid-template-columns: minmax(0,1fr) 290px; }
+  .qf3.qf3-browse { grid-template-columns: 260px minmax(0,1fr) 272px; }
+  .qf3 > .qf-browse { position: sticky; top: 72px; max-height: calc(100vh - 90px); }
+  .qf3 > .qf-browse .qb-list { max-height: none; flex: 1; }
+  .qf3 > .qf-side { position: sticky; top: 72px; }
+}
+@media (min-width: 901px) and (max-width: 1239px) {
+  .qf3 { grid-template-columns: minmax(0,1fr) 280px; }
+  .qf3 > .qf-browse { grid-column: 1; grid-row: 2; }
+  .qf3 > .qf-main { grid-column: 1; grid-row: 1; }
+  .qf3 > .qf-side { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 72px; }
+}
+@media (max-width: 900px) {
+  .qf3 > .qf-main { order: 1; } .qf3 > .qf-browse { order: 2; } .qf3 > .qf-side { order: 3; }
+  .qb-list { max-height: 320px; }
 }
 @media (max-width: 600px) {
-  .qf-card { padding: 12px; }
+  .qf-card, .qf-terms, .qf-sum { padding: 12px; }
   .qf-side .workflow-action { border-radius: 14px 14px 0 0; border-width: 1px 0 0; padding: 10px 14px; gap: 6px; }
   .qf-side .workflow-action h2, .qf-side .workflow-checks [data-ok="1"] { display: none; }
   .qf-side .workflow-action .workflow-total { display: flex; justify-content: space-between; align-items: baseline; flex-shrink: 0; }
@@ -1495,4 +1576,34 @@ main:has(> .quote-form-page) { max-width: 1240px; }
   .qf-side .workflow-total strong { font-size: 1.2rem; font-weight: 800; }
   .qf-side:has(.workflow-total) .qf-sum { display: none; }
 }
-.qf-lines:not(:has([data-quote-line])) .qlines-head { display: none; }
+.qb-groups .chip, .qf-quick .chip { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; cursor: pointer; }
+.qb-groups .chip.on { background: var(--sel); border-color: var(--accent); color: var(--accent); }
+@container (min-width: 480px) {
+  .qline-item { display: contents; }
+  .qline-item > label { grid-column: 1; grid-row: 1; }
+  .qline-item > [data-picker] { grid-column: 1; grid-row: 2; }
+  .qline-meta { grid-column: 2 / 5; grid-row: 2; justify-content: flex-end; flex-wrap: nowrap; }
+  .qline-meta::before { content: none; }
+  .qline-unit { width: 64px; flex: none; }
+  .qline-price input { font-size: .9rem; padding-inline: 6px; }
+}
+.qf-sum dt { font-size: .9rem; white-space: nowrap; }
+/* Đơn bán: dùng chung bảng của danh sách báo giá, 7 cột. */
+.list-top-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.list-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; flex-basis: 100%; padding: 0 0 8px; font-size: .9rem; }
+.list-flags .check { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.list-dates summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.list-date-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 6px; }
+.list-date-row label { font-size: .82rem; }
+.list-date-row input { height: 36px; }
+.list-date-row button { min-height: 36px; }
+.q-bad { color: var(--bad) !important; font-weight: 700; }
+.orow.order-overdue { border-left: 0; background: none; box-shadow: inset 3px 0 0 var(--bad); }
+.qrow .qlink { white-space: nowrap; }
+@container (min-width: 1020px) {
+  .qrow.orow, .qrow.orow.doc-head { grid-template-columns: 128px minmax(0,1.4fr) minmax(0,1.4fr) 110px 130px 130px 170px; }
+}
+@container (max-width: 1019px) {
+  .orow > .qcell:nth-child(6) { grid-column: 1; grid-row: 4; }
+  .orow > .doc-amt { grid-column: 2; grid-row: 4; }
+}

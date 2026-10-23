@@ -1,6 +1,7 @@
 """Màn hình B1 dùng cùng lõi báo giá với API."""
 import re
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -8,12 +9,12 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import customers, products, quotes as svc
+from .. import customers, products, quotes as svc, sales_orders
 from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Product, Quote, SalesOrder, User, VAT_RATES
+from ..models import Customer, CustomerPhone, Product, Quote, SalesOrder, User, VAT_RATES
 from ..money_words import money_words
 from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
@@ -58,7 +59,13 @@ def _form(request, session, data=None, quote=None, error=None, code='', status=2
     replacement = svc.load(session, request.state.user, quote.replaced_by_id) if quote and quote.replaced_by_id else None
     linked_order = session.execute(select(SalesOrder.id, SalesOrder.number).where(SalesOrder.quote_id == quote.id,
                                   SalesOrder.status != 'DA_HUY')).first() if quote else None
-    return render(request, 'bao_gia_form.jinja', workflow=steps.quote(quote,linked_order),primary_checks=steps.quote_checks(data) if quote is None or quote.status=='NHAP' else [],today=svc._today().isoformat(), q=quote, d=data, line_errors=picked.line_errors(data['lines'],error,code), customer_card=card, customer_name=customer.name if customer else '',
+    editable = quote is None or quote.status == 'NHAP'
+    can_write = has_role(request.state.user,*svc.WRITERS)
+    browse = products.search(session,'',active_only=True,limit=40) if editable and can_write else []
+    vn_created = quote.created_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date() if quote else svc._today()
+    return render(request, 'bao_gia_form.jinja', browse=browse, groups=products.groups(session) if browse else [],
+                  browse_prices=picked.last_prices(session,data.get('customer_code'),browse), quote_date=vn_created,
+                  workflow=steps.quote(quote,linked_order),primary_checks=steps.quote_checks(data) if quote is None or quote.status=='NHAP' else [],today=svc._today().isoformat(), q=quote, d=data, line_errors=picked.line_errors(data['lines'],error,code), customer_card=card, customer_name=customer.name if customer else '',
                   product_names=names, statuses=STATUSES, vat_rates=VAT_RATES,
                   can_write=has_role(request.state.user,*svc.WRITERS), is_new=quote is None,
                   next_step=next_steps.quote(request.state.user,quote,linked_order),linked_order=linked_order, editable=quote is None or quote.status == 'NHAP', replaced=replacement,
@@ -117,15 +124,36 @@ def _error(exc):
 
 
 @router.get('/bao-gia')
-def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,user: User=Depends(quote_user),session: Session=Depends(get_session)):
+def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,nguoi: int=0,ky: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
     rows = svc.search(session,user,q[:200],'DA_GUI' if han else (status or None))
     today = svc._today()
     if han:  # Ô "Sắp hết hạn": báo giá đã gửi, còn tối đa 2 ngày hoặc đã quá hạn.
         rows = [row for row in rows if row.valid_until <= today+timedelta(days=2)]
-    names = dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({row.customer_code for row in rows}))).all())
+    # Lọc hiển thị theo người lập / khoảng ngày lập (giờ VN); chỉ đọc.
+    vn = ZoneInfo('Asia/Ho_Chi_Minh')
+    if nguoi:
+        rows = [row for row in rows if row.created_by == nguoi]
+    month = today.replace(day=1)
+    periods = {'30': (today-timedelta(days=29), today), 'thang': (month, today),
+               'thang-truoc': ((month-timedelta(days=1)).replace(day=1), month-timedelta(days=1))}
+    if ky in periods:
+        start,end = periods[ky]
+        rows = [row for row in rows if start <= row.created_at.astimezone(vn).date() <= end]
+    codes = {row.customer_code for row in rows}
+    names = dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_(codes))).all())
+    phones = {}
+    for code,phone in session.execute(select(CustomerPhone.customer_code,CustomerPhone.phone).where(CustomerPhone.customer_code.in_(codes))
+                                      .order_by(CustomerPhone.is_contact,CustomerPhone.phone)):
+        phones.setdefault(code,phone)
     makers = dict(session.execute(select(User.id,User.full_name).where(User.id.in_({row.created_by for row in rows}))).all())
+    ids = [row.id for row in rows]
+    orders = {qid:(oid,number) for qid,oid,number in session.execute(select(SalesOrder.quote_id,SalesOrder.id,SalesOrder.number)
+              .where(SalesOrder.quote_id.in_(ids),SalesOrder.status!='DA_HUY'))} if ids else {}
+    revised = dict(session.execute(select(Quote.id,Quote.number).where(Quote.id.in_({row.replaced_by_id for row in rows if row.replaced_by_id})))
+                   .all())
     extra = dict(rows=rows,q=q,selected_status=status,soon=han,today=today,statuses=STATUSES,can_write=has_role(user,*svc.WRITERS),
-                 expired=_expired,names=names,makers=makers)
+                 expired=_expired,names=names,phones=phones,makers=makers,orders=orders,revised=revised,vn=vn,
+                 can_order=has_role(user,*sales_orders.WRITERS),nguoi=nguoi,ky=ky)
     if phan:
         return render(request,'bao_gia_dong.jinja',**extra)
     # Số trên đầu trang: chỉ đọc, đếm trên toàn bộ báo giá (không theo ô tìm).
@@ -139,7 +167,9 @@ def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,use
     decided = recent.get('CHAP_NHAN',0)+recent.get('TU_CHOI',0)
     stats = dict(counts=counts,total=sum(counts.values()),waiting=waiting[0],waiting_sum=waiting[1],soon=soon,won=won[0],won_sum=won[1],
                  rate=round(100*recent.get('CHAP_NHAN',0)/decided) if decided else None,accepted=recent.get('CHAP_NHAN',0),decided=decided)
-    return render(request,'bao_gia_ds.jinja',stats=stats,**extra)
+    staff = session.execute(select(User.id,User.full_name).where(User.id.in_(select(Quote.created_by).distinct()))
+                            .order_by(User.full_name)).all()
+    return render(request,'bao_gia_ds.jinja',stats=stats,staff=staff,**extra)
 
 
 @router.get('/bao-gia/tim-khach')
@@ -152,6 +182,13 @@ def pick_customer(request: Request,q: str='',user: User=Depends(quote_user),sess
 def pick_product(request: Request,q: str='',customer_code: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
     rows = products.search(session,q[:200],active_only=True,limit=20)
     return render(request,'bao_gia_chon.jinja',kind='product',rows=rows,last_prices=picked.last_prices(session,customer_code,rows))
+
+
+@router.get('/bao-gia/san-pham')
+def browse_products(request: Request,q: str='',nhom: str='',customer_code: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
+    """Cột "Tra giá sản phẩm" của màn tạo báo giá: chỉ đọc danh mục đang bán."""
+    rows = products.search(session,q[:200],active_only=True,limit=40,group=nhom[:100])
+    return render(request,'bao_gia_san_pham.jinja',rows=rows,last_prices=picked.last_prices(session,customer_code[:50],rows))
 
 
 @router.get('/bao-gia/moi')
