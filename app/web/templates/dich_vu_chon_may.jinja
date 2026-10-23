@@ -1,11 +1,13 @@
-{% import 'da_chon.jinja' as picked %}
-{% call picked.block(invalid=error_code is defined and error_code=='BAD_SITE') %}<fieldset><legend>Địa điểm làm việc</legend><div class="seg stock-seg">
-<label><input type="radio" name="site_id" value="" {% if not d.get('site_id') %}checked{% endif %}><span>Địa chỉ chính</span></label>
-{% for site in sites %}<label><input type="radio" name="site_id" value="{{ site.id }}" {% if d.get('site_id')|string == site.id|string %}checked{% endif %}><span>{{ site.name }}</span></label>{% endfor %}
-</div></fieldset>{% endcall %}
-{% call picked.block(invalid=error_code is defined and error_code=='BAD_SERIAL') %}<fieldset><legend>Máy của khách (không bắt buộc)</legend><div class="seg stock-seg">
-<label><input type="radio" name="serial" value="" {% if not d.get('serial') %}checked{% endif %}><span>Không chọn</span></label>
-{% for machine, product_name in machines %}<label><input type="radio" name="serial" value="{{ machine.serial }}" {% if d.get('serial') == machine.serial %}checked{% endif %}><span>{{ machine.serial }} · {{ product_name }}</span></label>{% endfor %}
-</div></fieldset>
-
-{% endcall %}
+{% set main_address = sites_main_address if sites_main_address is defined else '' %}
+<label class="svn-fld{% if error_code is defined and error_code=='BAD_SITE' %} svn-bad{% endif %}"><span>Địa điểm làm việc</span>
+<select name="site_id" data-sv-site {% if error_code is defined and error_code=='BAD_SITE' %}aria-invalid="true"{% endif %}>
+<option value="" data-address="{{ main_address }}" {% if not d.get('site_id') %}selected{% endif %}>Địa chỉ chính</option>
+{% for site in sites %}<option value="{{ site.id }}" data-address="{{ site.address }}" {% if d.get('site_id')|string == site.id|string %}selected{% endif %}>{{ site.name }}</option>{% endfor %}
+</select></label>
+<p class="svn-note" data-sv-site-address>{% for site in sites if d.get('site_id')|string == site.id|string %}{{ site.address }}{% else %}{{ main_address }}{% endfor %}</p>
+<label class="svn-fld{% if error_code is defined and error_code=='BAD_SERIAL' %} svn-bad{% endif %}"><span>Máy của khách <small>(không bắt buộc)</small></span>
+<select name="serial" {% if error_code is defined and error_code=='BAD_SERIAL' %}aria-invalid="true"{% endif %}>
+<option value="" {% if not d.get('serial') %}selected{% endif %}>— Không chọn máy —</option>
+{% for machine, product_name in machines %}<option value="{{ machine.serial }}" {% if d.get('serial') == machine.serial %}selected{% endif %}>{{ machine.serial }} · {{ product_name }}</option>{% endfor %}
+</select></label>
+<p class="svn-note">{% if machines %}Chọn máy để thợ xem lịch sử sửa và hạn bảo hành.{% else %}Khách chưa có máy nào được theo dõi.{% endif %}</p>
