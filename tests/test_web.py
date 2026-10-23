@@ -3109,3 +3109,21 @@ def test_m4_web_return_shows_advance_and_timeline_links(client,db,m3_people):
     assert db.get(StockDoc,row.stock_doc_id).number in page.text and f'/phieu-kho/{row.stock_doc_id}' in page.text
     order_page=client.get(f'/don-mua/{order.id}');assert order_page.status_code==200 and 'Trả hàng' in order_page.text and '400.000' in order_page.text
     assert db.query(FundLedger).count()==n
+
+
+def test_gg1_quote_form_price_mode_and_discount_controls(client, web_login, db, b1_catalog):
+    from app.models import Quote
+    csrf = web_login('b1.sales', 'sales')
+    html = client.get('/bao-gia/moi').text
+    # Một nhóm chọn Giá nhập (Chưa VAT mặc định) + một ô Giảm giá toàn đơn, không còn ô ẩn.
+    assert html.count('name="price_includes_vat"') == 2 and 'type="hidden" name="price_includes_vat"' not in html
+    assert re.search(r'name="price_includes_vat" value="" checked', html)
+    assert html.count('name="discount_amount"') == 1 and 'data-sum-row="discount"' in html
+    r = client.post('/bao-gia/moi', data=b1_form(csrf, product_code='TD-0001', description='', qty='1', unit_price='150.000', vat_0='8',
+                                                 price_includes_vat='1', discount_amount='10.000'), follow_redirects=False)
+    assert r.status_code == 303
+    q = db.query(Quote).one()
+    assert q.price_includes_vat and q.discount_amount == 10000 and q.total == 140000
+    page = client.get(f'/bao-gia/{q.id}').text
+    assert re.search(r'name="price_includes_vat" value="1" checked', page) and 'value="10.000"' in page
+    assert 'Cộng tiền hàng (gồm VAT)' in page and '−10.000' in page
