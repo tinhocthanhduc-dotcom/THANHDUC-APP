@@ -456,3 +456,18 @@ def test_return_proposal_does_not_request_installed_allocated_parts(db,onsite):
     workshop.bring(db,p['technician'],t.id,t.version,intake(eq),[dict(product_code='TD-0001',qty=2)])
     assert balance(db,a.code)==4
     assert sum(row['qty'] for row in technician_returns.proposal(db,t)['rows'])==0
+
+
+def test_mang_ve_ticket_starts_with_bring_step_not_money(client,db,onsite):
+    # TUẤN 23/10: phiếu loại Mang về, máy còn ở chỗ khách → bước đầu là nhận máy về xưởng, không bắt thu tiền.
+    p,a,_,t,eq=onsite;t.kind='MANG_VE';db.commit();photo(db,p,t)
+    csrf=service_login(client,p['technician'])
+    page=client.get(f'/tho/phieu/{t.id}').text
+    assert 'Nhận máy mang về xưởng' in page and 'form="workshop-bring"' in page and 'Vuốt để Mang máy về xưởng' in page
+    assert 'data-tech-collection' not in page and 'id="completion-checks"' not in page and '/giu-may/' + str(t.id) + '/nhan' not in page
+    r=client.post(f'/dich-vu/{t.id}/mang-ve-xuong',data=dict(csrf=csrf,version=t.version,machine_version=eq.version,accessories='KHONG_CO',condition_note='Vỏ xước',return_to='tho'),follow_redirects=False)
+    assert r.status_code==303,r.text
+    db.expire_all();db.refresh(t);eq=db.get(Equipment,t.serial)
+    assert t.kind=='MANG_VE' and t.status=='DANG_LAM' and eq.custody_location=='THO_GIU'
+    page=client.get(f'/tho/phieu/{t.id}').text
+    assert 'Sửa xong, chờ trả máy' in page and 'Nhận máy mang về xưởng' not in page

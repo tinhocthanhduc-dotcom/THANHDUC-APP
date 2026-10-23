@@ -30,8 +30,8 @@ def held_machine(session,t):
 def bring(session,user,ident,version,intake,materials):
     with _transaction(session):
         t=_owned(session,user,ident,version)
-        if t.kind not in (None,'SUA_TAI_CHO','BAO_HANH') or service_charges.return_locked(t):
-            raise BusinessError('BAD_STATUS','Chỉ mang về từ phiếu sửa tại chỗ hoặc bảo hành đang sửa.',status=409)
+        if t.kind not in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE') or service_charges.return_locked(t):
+            raise BusinessError('BAD_STATUS','Chỉ mang về từ phiếu đang làm, máy còn ở chỗ khách.',status=409)
         before=tickets.snapshot(t)
         custody.receive_in_tx(session,user,t.id,intake)
         entries=technician_work.material_lines(session,user,materials)

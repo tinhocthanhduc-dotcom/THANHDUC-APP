@@ -1,4 +1,5 @@
 """KS1: optional intake classification, completion guard and unchanged posting rules."""
+import re
 import importlib.util
 from datetime import timedelta
 from pathlib import Path
@@ -131,7 +132,7 @@ def test_set_kind_forbidden_is_403_without_writes(client,db,unclassified,who,ent
 def test_assigned_technician_sets_kind_from_screen_then_completes(client,db,unclassified):
     p,_,t=unclassified;csrf=service_login(client,p['technician'])
     page=client.get(f'/tho/phieu/{t.id}').text
-    assert '<select name="kind" required>' in page and 'Đã chọn loại dịch vụ' in page
+    assert re.search(r'<select id="kind-\d+" name="kind" required data-autosubmit>', page) and 'Đã chọn loại dịch vụ' in page
     r=client.post(f'/dich-vu/{t.id}/kind',data=dict(csrf=csrf,return_to='tho',kind='MUC_DINH_KY',version=t.version),follow_redirects=False)
     assert r.status_code==303 and r.headers['location']==f'/tho/phieu/{t.id}?da_luu=1'
     db.refresh(t)

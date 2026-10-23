@@ -59,10 +59,10 @@
     var body = new FormData();
     body.set('csrf', box.dataset.csrf);
     body.set('data', json);
-    status.textContent = 'Đang lưu nháp…';
+    status.textContent = 'Đang lưu…';
     fetch('/tho/phieu/' + box.dataset.ticket + '/nhap', { method: 'POST', body: body, credentials: 'same-origin' })
-      .then(function (r) { if (!r.ok) throw new Error(); last = json; status.textContent = 'Đã lưu nháp lúc ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + '.'; })
-      .catch(function () { status.textContent = 'Chưa lưu được nháp, sẽ thử lại khi gõ tiếp.'; });
+      .then(function (r) { if (!r.ok) throw new Error(); last = json; status.textContent = 'Đã lưu ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); })
+      .catch(function () { status.textContent = 'Chưa lưu, sẽ thử lại'; });
   }
   function later() { clearTimeout(timer); timer = setTimeout(save, 1500); }
   var screen = document.querySelector('[data-technician-ticket]') || document;

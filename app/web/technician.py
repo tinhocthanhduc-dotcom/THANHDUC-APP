@@ -118,7 +118,7 @@ def detail_context(session, user, ticket, ctx):
     return_job=service_charges.return_locked(ticket)
     machine_held=bool(eq and eq.custody_ticket_id==ticket.id and eq.custody_location in ('THO_GIU','KHO_KY_THUAT'))
     workshop_repair=bool(ticket.status=='DANG_LAM' and machine_held and not return_job)
-    can_bring=bool(ticket.status=='DANG_LAM' and ticket.kind in (None,'SUA_TAI_CHO','BAO_HANH') and not return_job and
+    can_bring=bool(ticket.status=='DANG_LAM' and ticket.kind in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE') and not return_job and
         (not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
     billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
     if workshop_repair:billing_ready=billing_ready and mode in ('FULL','FREE')
@@ -165,10 +165,14 @@ def detail_context(session, user, ticket, ctx):
         returned=bool(eq and eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))
         checks=[dict(key='return-photo',label='Có ảnh trả máy',ok=returned or any(x.tag=='TRA_MAY' for x in ctx.get('files',[])+ctx.get('custody_files',[]))),
             dict(key='holder',label='Đã nhận máy để trả khách',ok=returned or bool(ctx.get('can_custody_return')))]
+    # Phiếu Mang về, máy còn ở chỗ khách: bước này là nhận máy về xưởng, chưa báo cáo/thu tiền.
+    bring_stage=bool(can_bring and ticket.kind=='MANG_VE')
+    if bring_stage:
+        checks=[];primary=dict(form='workshop-bring',label='Mang máy về xưởng')
     issued_rows=[dict(product=x.product_code,name=x.description or x.product_code,warehouse=x.warehouse_code,qty=x.qty) for x in ticket.lines if x.stock_doc_id is not None]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
-    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring,workshop_materials=materials,issued_materials=issued_rows,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),workshop_materials=materials,issued_materials=issued_rows,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=product.name if product else '',**contact(ctx['customer'],ctx['site']))
 
