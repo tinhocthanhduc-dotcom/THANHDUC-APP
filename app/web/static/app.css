@@ -1725,6 +1725,9 @@ main:has(> .quote-form-page) { max-width: none; }
   .qf2o .qlines-head span:nth-child(6), .qf2o .qlines-head span:nth-child(8) { text-align: right; }
   .qf2o .qlines-head span:nth-child(4), .qf2o .qlines-head span:nth-child(5), .qf2o .qlines-head span:nth-child(7) { text-align: center; }
   .qf2o .qline-badge { justify-self: center; }
+  /* Dòng khác (dịch vụ, công) không có kho: giữ chỗ cột Kho để các ô sau không dồn sang trái. */
+  .qf2o .qline-wh { grid-column: 2; } .qf2o .qline-badge { grid-column: 3; } .qf2o .qline-unit { grid-column: 4; } .qf2o .qline-qty { grid-column: 5; }
+  .qf2o .qline-price { grid-column: 6; } .qf2o .qline-vat { grid-column: 7; } .qf2o .qline-amount { grid-column: 8; } .qf2o .qline-del { grid-column: 9; }
 }
 /* Nhóm hàng: mỗi nhóm một dòng, tên sửa tại chỗ. */
 .group-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }

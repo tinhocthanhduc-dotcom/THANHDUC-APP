@@ -169,6 +169,8 @@
     if (hit) {
       var q=hit.querySelector('[name=qty]'), n=Number(q.value.replace(',','.'))||0;
       q.value=String(Math.round((n+1)*1000)/1000).replace('.',',');
+      // Chọn lại hàng đã có: cộng vào dòng cũ, báo rõ để không tưởng là nhập trùng.
+      if (window.tdToast) window.tdToast('Đã có '+(hit.querySelector('[name=description]').value||code)+': tăng số lượng lên '+q.value);
     } else {
       hit=newRow();
       var input=hit.querySelector('[name=product_code]'); input.value=code; input.dispatchEvent(new Event('stock-picked'));
