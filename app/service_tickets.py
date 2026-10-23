@@ -320,6 +320,9 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
     if technician_cancel:
         finish_cancel(session, user, t, note, cancellation)
+    elif to_status in CLOSED and from_status not in CLOSED:
+        from .part_requests import cancel_pending_for_ticket
+        cancel_pending_for_ticket(session, user, t, 'Tự hủy: phiếu ' + t.number + ' ' + {'HOAN_THANH': 'đã hoàn thành', 'DA_DONG': 'đã đóng', 'KHONG_LAM_DUOC': 'không làm được', 'DA_HUY': 'đã hủy'}[to_status])
     if to_status=='HOAN_THANH' and auto_close:
         auto_close_in_tx(session,user,t)
     return t

@@ -87,13 +87,7 @@ def prepare_cancel(session, ticket, lines):
 
 
 def finish_cancel(session, user, ticket, reason, cancellation):
-    pending = session.scalars(select(PartRequest).where(PartRequest.ticket_id==ticket.id,
-        PartRequest.status=='CHO_CAP').order_by(PartRequest.id).with_for_update())
-    for request in pending:
-        before = part_requests.snapshot(request)
-        request.status='DA_HUY';request.decision_note='Hủy đơn: '+reason
-        request.decided_by=user.id;request.decided_at=datetime.now(UTC)
-        part_requests._audit(session,user,request,'cancel',before)
+    part_requests.cancel_pending_for_ticket(session, user, ticket, 'Hủy đơn: '+reason)
     warehouse, grouped = cancellation
     create_requests(session, user, ticket.assignee_id, warehouse, ticket.id, grouped)
 
