@@ -607,6 +607,10 @@ from .opening import router as opening_router
 
 router.include_router(opening_router)
 
+from .product_groups import router as product_group_router
+
+router.include_router(product_group_router)
+
 from .devices import router as device_router
 
 router.include_router(device_router)

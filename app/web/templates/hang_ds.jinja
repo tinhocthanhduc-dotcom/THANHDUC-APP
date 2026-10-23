@@ -3,7 +3,7 @@
 {% block main %}
 <div class="bar">
   <h1>Hàng hóa</h1>
-  {% if can_write %}<a class="btn primary" href="/hang-hoa/moi">+ Thêm mã hàng</a>{% endif %}
+  <span>{% if can_write %}<a class="btn" href="/nhom-hang">Nhóm hàng</a> <a class="btn primary" href="/hang-hoa/moi">+ Thêm mã hàng</a>{% endif %}</span>
 </div>
 <form action="/hang-hoa" class="search" role="search">
   <input name="q" value="{{ q }}" placeholder="Tìm theo mã TD, tên, nhóm hàng" data-live="#rows" autofocus>

@@ -23,7 +23,7 @@ from app.db import get_session
 KEEP = {
     "alembic_version", "users", "employees", "employee_pay", "employee_salary_versions", "kpi_targets",
     "commission_rules", "attendance_holidays", "warehouses", "funds", "cash_categories", "finance_mappings",
-    "suppliers", "supplier_opening_debts", "products", "stock_min_levels", "customers", "customer_phones",
+    "suppliers", "supplier_opening_debts", "product_groups", "products", "stock_min_levels", "customers", "customer_phones",
     "customer_contacts", "customer_sites", "equipment", "push_keys", "push_subscriptions", "audit_log",
 }
 WIPE = {

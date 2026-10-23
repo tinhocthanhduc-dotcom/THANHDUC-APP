@@ -2,6 +2,16 @@ def item(code="TD-0001", **kw):
     return {"code": code, "name": "Mực HP 12A", "group_name": "Mực in", "unit": "hộp", "sale_price": 350000, **kw}
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def nhom(db):
+    from app.models import ProductGroup
+    db.add_all([ProductGroup(name="Mực in"), ProductGroup(name="Linh kiện")])
+    db.commit()
+
+
 def test_warehouse_manages_products(client, login):
     kho = login("kho58", "warehouse")
     sales = login("banhang", "sales")
@@ -30,3 +40,10 @@ def test_product_search_without_accents(client, login):
     client.patch("/products/TD-0002", json={"version": 1, "active": False}, headers=kho)
     assert [p["code"] for p in client.get("/products", headers=kho).json()] == ["TD-0001"]
     assert client.get("/products/td-0002", headers=kho).json()["active"] is False
+
+
+def test_product_group_must_exist(client, login):
+    kho = login("kho58", "warehouse")
+    r = client.post("/products", json=item(group_name="Nhóm lạ"), headers=kho)
+    assert r.status_code == 400 and r.json()["error"] == "GROUP_NOT_FOUND"
+    assert client.post("/products", json=item(group_name=""), headers=kho).status_code == 201
