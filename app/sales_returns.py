@@ -95,8 +95,12 @@ def create(session,user,order_id,body):
             if part.qty>remaining:
                 raise BusinessError('OVER_RETURN','Số trả vượt số đã giao trừ số đã trả theo GH.',status=409)
             final=part.qty==remaining
-            amount=piece.amount-previous[1] if final else min(piece.amount-previous[1],quotes._round(line.unit_price*part.qty))
-            vat=piece.vat_amount-previous[2] if final else min(piece.vat_amount-previous[2],quotes._round(Decimal(amount)*line.vat_rate/100))
+            if quotes.adjusted_pricing(order):
+                amount=piece.amount-previous[1] if final else min(piece.amount-previous[1],quotes.proportion(piece.amount,part.qty,piece.qty))
+                vat=piece.vat_amount-previous[2] if final else min(piece.vat_amount-previous[2],quotes.proportion(piece.vat_amount,part.qty,piece.qty))
+            else:
+                amount=piece.amount-previous[1] if final else min(piece.amount-previous[1],quotes._round(line.unit_price*part.qty))
+                vat=piece.vat_amount-previous[2] if final else min(piece.vat_amount-previous[2],quotes._round(Decimal(amount)*line.vat_rate/100))
             code=None;unit_cost=cost=0
             if line.kind=='HANG':
                 if part.condition=='LOI':

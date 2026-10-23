@@ -20,7 +20,7 @@ from ..money_words import money_words
 from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
 from ..security import has_role
 from . import checked_form, money, render, web_user
-from .quotes import _quantity
+from .quotes import _quantity, _pricing_raw, _pricing_body
 from .receipts import order_context, _report_body
 
 from . import next_steps, picked, steps
@@ -69,6 +69,7 @@ def _error(exc):
         return message,exc.code,exc.status
     loc=exc.errors()[0]['loc']
     labels={'qty':'Số lượng','unit_price':'Đơn giá','vat_rate':'VAT','kind':'Loại dòng','warehouse_code':'Kho',
+            'price_includes_vat':'Chế độ giá gồm VAT','discount_amount':'Giảm giá',
             'customer_code':'Khách hàng','fulfillment':'Cách nhận hàng','payment_term':'Thanh toán','due_days':'Số ngày nợ','deposit_amount':'Tiền cọc','carrier_name':'Đơn vị vận chuyển','tracking_code':'Mã vận đơn','contact_name':'Người liên hệ','delivery_address':'Địa chỉ giao',
             'description':'Mô tả','unit':'Đơn vị','product_code':'Mã hàng','lines':'Dòng đơn bán','warehouses':'Kho'}
     message=labels.get(str(loc[-1]),'Dữ liệu')+' chưa hợp lệ, hãy kiểm tra lại.'
@@ -93,7 +94,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
             customer_code=customer_code,contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
-            fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days=30,deposit_amount='')
+            fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days=30,deposit_amount='',price_includes_vat=False,discount_amount=0)
         for line in data['lines']:
             line['unit_price']=money(line['unit_price'])
         if data.get('deposit_amount') not in (None,''):
@@ -156,7 +157,7 @@ def _raw(form):
     return dict(customer_code=str(form.get('customer_code','')),contact_name=str(form.get('contact_name','')),
                 delivery_address=str(form.get('delivery_address','')),note=str(form.get('note','')),promised_date=str(form.get('promised_date','')),
                 version=str(form.get('version','')),lines=lines,fulfillment=str(form.get('fulfillment','TAI_QUAY')),
-                payment_term=str(form.get('payment_term','TRA_NGAY')),due_days=str(form.get('due_days','30')),deposit_amount=str(form.get('deposit_amount','')))
+                payment_term=str(form.get('payment_term','TRA_NGAY')),due_days=str(form.get('due_days','30')),deposit_amount=str(form.get('deposit_amount','')),**_pricing_raw(form))
 
 
 def _body(data):
@@ -173,7 +174,7 @@ def _body(data):
     return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines,
                 promised_date=data.get('promised_date') or None,fulfillment=data.get('fulfillment','TAI_QUAY'),
                 payment_term=data.get('payment_term','TRA_NGAY'),due_days=data.get('due_days','30'),
-                deposit_amount=_deposit(data.get('deposit_amount','')))
+                deposit_amount=_deposit(data.get('deposit_amount','')),**_pricing_body(data))
 
 
 def _deposit(value):
@@ -462,7 +463,9 @@ def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=De
         description=original[l.order_line_no].description,qty=l.qty,unit=original[l.order_line_no].unit,
         unit_price=original[l.order_line_no].unit_price,vat_rate=original[l.order_line_no].vat_rate,
         amount=l.amount) for l in gh.lines]
+    discount=svc.delivery_discount(session,order,gh)
     return render(request,'don_ban_in.jinja',warehouse_return=request.query_params.get('return_to')=='kho' and has_role(user,'warehouse'),o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
+                  delivery_discount=discount,entered_total=(gh.total if order.price_includes_vat else gh.subtotal)+discount,
                   company=get_settings(),quantity=_quantity,words=money_words(gh.total),statuses=STATUSES,
                   issued=gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
 

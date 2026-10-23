@@ -127,7 +127,7 @@ def _status(order, allowed):
         raise BusinessError('BAD_STATUS', 'Không thực hiện được ở trạng thái đơn bán hiện tại.', {'status': order.status}, status=409)
 
 
-def _lines(session, lines, require_warehouse=False):
+def _lines(session, lines, require_warehouse=False, *, price_includes_vat=False, discount_amount=0):
     for i, line in enumerate(lines, 1):
         if line.kind == 'HANG':
             if not line.product_code:
@@ -148,7 +148,7 @@ def _lines(session, lines, require_warehouse=False):
             if not session.scalar(select(pool.c.qty).where(pool.c.warehouse_code==line.warehouse_code,pool.c.product_code==line.product_code,pool.c.qty>0)):
                 raise BusinessError('BAD_WAREHOUSE','Mã hàng không có hồ sơ Thanh lý còn chờ ở kho đã chọn.')
     # Dùng nguyên phần tính dòng B1 (_round/_money_limit, VAT, giá bán và kiểm mã hàng).
-    priced = quotes._lines(session, [QuoteLineIn(**line.model_dump(exclude={'kind', 'warehouse_code'})) for line in lines])
+    priced = quotes._lines(session, [QuoteLineIn(**line.model_dump(exclude={'kind', 'warehouse_code'})) for line in lines],price_includes_vat,discount_amount)
     return [SalesOrderLine(kind=source.kind, warehouse_code=source.warehouse_code,
                           **{field: getattr(line, field) for field in ('line_no', 'product_code', 'description', 'qty',
                              'unit', 'unit_price', 'vat_rate', 'amount', 'vat_amount')})
@@ -166,11 +166,12 @@ def _new(session, user, body, quote_id=None, action='create'):
     # Save-and-confirm must take the exclusive customer lock from the start;
     # upgrading two concurrent FOR SHARE locks later would deadlock.
     customer = quotes._customer(session, body.customer_code, for_update=body.payment_term=='CONG_NO')
-    lines = _lines(session, body.lines)
+    lines = _lines(session, body.lines, price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount)
     order = SalesOrder(number=next_number(session, 'DB', _today()), customer_code=body.customer_code,
                        quote_id=quote_id, contact_name=body.contact_name, promised_date=body.promised_date,
                        delivery_address=customer.address if body.delivery_address is None else body.delivery_address,
-                       note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines)
+                       note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines,
+                       price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount)
     quotes._totals(order)
     _apply_terms(order,body)
     from .pending_liquidation import check_fulfillment
@@ -211,6 +212,7 @@ def create_from_quote(session: Session, user, quote_id, body: SalesOrderFromQuot
                  **{field: getattr(line, field) for field in ('product_code','description','qty','unit','unit_price','vat_rate')})
                  for line in quote.lines]
         order = _new(session, user, SalesOrderIn(customer_code=quote.customer_code,
+                     price_includes_vat=quote.price_includes_vat,discount_amount=quote.discount_amount,
                      contact_name=quote.contact_name if body.contact_name is None else body.contact_name,
                      delivery_address=body.delivery_address, note=quote.note if body.note is None else body.note,
                      lines=lines, promised_date=body.promised_date, **{k:getattr(body,k) for k in TERM_FIELDS}), quote_id, 'create_from_quote')
@@ -231,11 +233,12 @@ def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
         raise BusinessError('PRICE_LOCKED', 'Đơn bán đã chốt hoặc đã hủy, không sửa dòng được.', status=409)
     quotes._customer(session, order.customer_code,
                      for_update=(body.payment_term if 'payment_term' in body.model_fields_set else order.payment_term)=='CONG_NO')
-    lines = _lines(session, body.lines)
+    lines = _lines(session, body.lines, price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount)
     before = snapshot(order)
     order.lines.clear()
     session.flush()
     order.lines = lines
+    order.price_includes_vat, order.discount_amount = body.price_includes_vat, body.discount_amount
     for field in ('contact_name', 'delivery_address', 'note'):
         value = getattr(body, field)
         if value is not None:
@@ -267,7 +270,8 @@ def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
     quotes._customer(session, order.customer_code, for_update=order.payment_term=='CONG_NO')
     from .pending_liquidation import check_fulfillment
     check_fulfillment(session,order)
-    _lines(session, [SalesOrderLineIn.model_validate(line, from_attributes=True) for line in order.lines], require_warehouse=True)
+    _lines(session, [SalesOrderLineIn.model_validate(line, from_attributes=True) for line in order.lines], require_warehouse=True,
+           price_includes_vat=order.price_includes_vat,discount_amount=order.discount_amount)
     stock_posting._lock_balances(session,{(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG'})
     from .pending_liquidation import check_prices
     check_prices(session,user,order)
@@ -294,6 +298,25 @@ def delivery_sums(session, order_id):
 def first_delivery():
     return select(func.min(SalesDelivery.delivered_at)).where(
         SalesDelivery.order_id == SalesOrder.id, SalesDelivery.status == 'DA_GIAO').correlate(SalesOrder).scalar_subquery()
+
+
+def delivery_discount(session, order, target):
+    """Read-only print allocation; reconcile discount on the last shipment."""
+    if not order.discount_amount:return 0
+    originals={line.line_no:line for line in order.lines}
+    allocated={}
+    shipments=(g for g in deliveries(session,order.id) if g.status=='DA_GIAO' or g.id==target.id)
+    for shipment in sorted(shipments,key=lambda g:(g.delivered_at,g.id)):
+        discount=0
+        for piece in shipment.lines:
+            line=originals[piece.order_line_no]
+            old_qty,old_discount=allocated.get(line.line_no,(Decimal(0),0))
+            full=quotes.entered_line_total(line)-(line.amount+line.vat_amount if order.price_includes_vat else line.amount)
+            share=full-old_discount if old_qty+piece.qty==line.qty else min(full-old_discount,quotes.proportion(full,piece.qty,line.qty))
+            allocated[line.line_no]=(old_qty+piece.qty,old_discount+share)
+            discount+=share
+        if shipment.id==target.id:return discount
+    return 0
 
 
 def remaining_lines(session, order):
@@ -327,8 +350,13 @@ def effective_total(order):
             continue
         old = sums.get(line.line_no,dict(qty=0,amount=0,vat_amount=0))
         remaining = line.qty-line.closed_qty-old['qty']
-        amount = quotes._round(remaining*line.unit_price)
-        total += old['amount']+old['vat_amount']+amount+quotes._round(Decimal(amount)*line.vat_rate/100)
+        if quotes.adjusted_pricing(order):
+            piece=quotes.proportion(line.amount,remaining,line.qty)+quotes.proportion(line.vat_amount,remaining,line.qty)
+            value=min(line.amount+line.vat_amount-old['amount']-old['vat_amount'],piece)
+        else:
+            amount=quotes._round(remaining*line.unit_price)
+            value=amount+quotes._round(Decimal(amount)*line.vat_rate/100)
+        total += old['amount']+old['vat_amount']+value
     return total-returned
 
 
@@ -422,8 +450,12 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
         old = sums.get(line.line_no, dict(qty=0, amount=0, vat_amount=0))
         # Chỉ bù tiền khi giao đủ toàn bộ dòng, không thu phần đã đóng.
         final = old['qty'] + qty == line.qty
-        amount = line.amount-old['amount'] if final else quotes._round(qty*line.unit_price)
-        vat = line.vat_amount-old['vat_amount'] if final else quotes._round(Decimal(amount)*line.vat_rate/100)
+        if quotes.adjusted_pricing(order):
+            amount=line.amount-old['amount'] if final else min(line.amount-old['amount'],quotes.proportion(line.amount,qty,line.qty))
+            vat=line.vat_amount-old['vat_amount'] if final else min(line.vat_amount-old['vat_amount'],quotes.proportion(line.vat_amount,qty,line.qty))
+        else:
+            amount = line.amount-old['amount'] if final else quotes._round(qty*line.unit_price)
+            vat = line.vat_amount-old['vat_amount'] if final else quotes._round(Decimal(amount)*line.vat_rate/100)
         piece = SalesDeliveryLine(order_id=order.id, order_line_no=line.line_no, qty=qty,
             amount=amount, vat_amount=vat, warehouse_code=(actual_warehouse or line.warehouse_code) if line.kind=='HANG' else None)
         gh.lines.append(piece)
@@ -711,7 +743,11 @@ def _credit_commitments(customer_codes, exclude_order_id=None):
     line=SalesOrderLine
     qty=func.greatest(0,line.qty-line.closed_qty-func.coalesce(delivered.c.qty,0))
     amount=func.round(qty*line.unit_price)
-    unshipped=case((line.closed_qty>0,amount+func.round(amount*line.vat_rate/100)),
+    adjusted=or_(SalesOrder.price_includes_vat.is_(True),SalesOrder.discount_amount>0)
+    net_left=line.amount+line.vat_amount-func.coalesce(delivered.c.total,0)
+    proportional=func.round(line.amount*qty/line.qty)+func.round(line.vat_amount*qty/line.qty)
+    closed_value=case((adjusted,func.least(net_left,proportional)),else_=amount+func.round(amount*line.vat_rate/100))
+    unshipped=case((line.closed_qty>0,closed_value),
                   else_=line.amount+line.vat_amount-func.coalesce(delivered.c.total,0))
     orders=(select(SalesOrder.id,SalesOrder.customer_code,SalesOrder.receivable,
         func.sum(func.greatest(0,unshipped)).label('unshipped'))

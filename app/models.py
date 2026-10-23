@@ -595,6 +595,7 @@ class Quote(Base):
     __table_args__ = (
         CheckConstraint(_in('status', QUOTE_STATUSES), name='ck_quotes_status'),
         CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_quotes_money'),
+        CheckConstraint('discount_amount >= 0', name='ck_quotes_discount'),
         Index('ix_quotes_status_valid', 'status', 'valid_until'),
     )
 
@@ -607,6 +608,8 @@ class Quote(Base):
     note: Mapped[str] = mapped_column(Text, default='')
     cancel_reason: Mapped[str] = mapped_column(Text, default='')
     replaced_by_id: Mapped[int | None] = mapped_column(ForeignKey('quotes.id'))
+    price_includes_vat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    discount_amount: Mapped[int] = mapped_column(BigInteger, default=0, server_default=text('0'))
     subtotal: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_total: Mapped[int] = mapped_column(BigInteger, default=0)
     total: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -652,6 +655,7 @@ class SalesOrder(Base):
     __table_args__ = (
         CheckConstraint(_in('status', SALES_ORDER_STATUSES), name='ck_sales_orders_status'),
         CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_sales_orders_money'),
+        CheckConstraint('discount_amount >= 0', name='ck_sales_orders_discount'),
         CheckConstraint('receivable is null or receivable >= 0', name='ck_sales_orders_receivable'),
         CheckConstraint(_in('fulfillment', FULFILLMENTS), name='ck_sales_orders_fulfillment'),
         CheckConstraint(_in('payment_term', PAYMENT_TERMS), name='ck_sales_orders_payment_term'),
@@ -681,6 +685,8 @@ class SalesOrder(Base):
     note: Mapped[str] = mapped_column(Text, default='')
     status: Mapped[str] = mapped_column(String(16), default='NHAP')
     cancel_reason: Mapped[str] = mapped_column(Text, default='')
+    price_includes_vat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    discount_amount: Mapped[int] = mapped_column(BigInteger, default=0, server_default=text('0'))
     subtotal: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_total: Mapped[int] = mapped_column(BigInteger, default=0)
     total: Mapped[int] = mapped_column(BigInteger, default=0)

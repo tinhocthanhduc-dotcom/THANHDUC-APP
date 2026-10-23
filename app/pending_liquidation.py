@@ -38,11 +38,13 @@ def check_available(session,item,qty,exclude_disposition=None,exclude_order=None
 
 def check_prices(session,user,order):
     from .security import has_role
+    from .quotes import adjusted_pricing
     for line in order.lines:
         wh=session.get(Warehouse,line.warehouse_code) if line.warehouse_code else None
         if wh and wh.kind=='LOI':
             balance=session.get(StockBalance,(wh.code,line.product_code),populate_existing=True)
-            if balance and line.unit_price<balance.avg_cost and not has_role(user,'director'):
+            below_cost=line.amount<balance.avg_cost*line.qty if balance and adjusted_pricing(order) else balance and line.unit_price<balance.avg_cost
+            if below_cost and not has_role(user,'director'):
                 raise BusinessError('CAN_GIAM_DOC_DUYET_GIA','Giá thanh lý dưới giá vốn, cần giám đốc chốt đơn.',status=403)
 
 

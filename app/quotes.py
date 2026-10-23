@@ -112,7 +112,58 @@ def _money_limit(value):
     return value
 
 
-def _lines(session, lines):
+def discount_parts(values, discount):
+    """Largest remainder, with exact integer arithmetic and stable line order."""
+    _money_limit(discount)
+    total=sum(values)
+    if discount>total:
+        raise BusinessError('DISCOUNT_TOO_LARGE','Giảm giá không được vượt tổng tiền hàng theo đơn giá nhập.')
+    if not total:return [0]*len(values)
+    divided=[divmod(discount*value,total) for value in values]
+    parts=[q for q,_ in divided]
+    priority=sorted(range(len(values)),key=lambda i:(-divided[i][1],-values[i],i))
+    for i in priority[:discount-sum(parts)]:parts[i]+=1
+    return parts
+
+
+def adjusted_pricing(row):
+    return row.price_includes_vat or row.discount_amount>0
+
+
+def proportion(value, qty, total_qty):
+    with localcontext() as context:
+        context.prec=64
+        return _round(Decimal(value)*qty/total_qty)
+
+
+def entered_line_total(line):
+    with localcontext() as context:
+        context.prec=64
+        return _round(line.qty*line.unit_price)
+
+
+def entered_total(row):
+    return sum(entered_line_total(line) for line in row.lines)
+
+
+def priced_amounts(values, rates, price_includes_vat=False, discount_amount=0):
+    shares=discount_parts(values,discount_amount)
+    result=[]
+    with localcontext() as context:
+        context.prec=64
+        for value,rate,share in zip(values,rates,shares):
+            net=value-share
+            if price_includes_vat:
+                amount=_round(Decimal(net)*100/(100+rate))
+                vat=net-amount
+            else:
+                amount=net
+                vat=_money_limit(_round(Decimal(net)*rate/100))
+            result.append((amount,vat))
+    return result
+
+
+def _lines(session, lines, price_includes_vat=False, discount_amount=0):
     codes = sorted({line.product_code for line in lines if line.product_code})
     products = {p.code: p for p in session.scalars(select(Product).where(Product.code.in_(codes))
                 .order_by(Product.code).with_for_update(read=True).execution_options(populate_existing=True))}
@@ -131,10 +182,11 @@ def _lines(session, lines):
         with localcontext() as context:
             context.prec = 64
             amount = _money_limit(_round(line.qty * price))
-            vat_amount = _money_limit(_round(Decimal(amount) * line.vat_rate / 100))
         result.append(QuoteLine(line_no=i, product_code=line.product_code, description=description,
                                qty=line.qty, unit=line.unit.strip() or (product.unit if product else 'cái'),
-                               unit_price=price, vat_rate=line.vat_rate, amount=amount, vat_amount=vat_amount))
+                               unit_price=price, vat_rate=line.vat_rate, amount=amount, vat_amount=0))
+    priced=priced_amounts([line.amount for line in result],[line.vat_rate for line in result],price_includes_vat,discount_amount)
+    for line,(amount,vat) in zip(result,priced):line.amount,line.vat_amount=amount,vat
     return result
 
 
@@ -151,10 +203,11 @@ def _record(session, user, row, action, before, reason=''):
 
 def _new(session, user, body):
     _customer(session, body.customer_code)
-    lines = _lines(session, body.lines)
+    lines = _lines(session, body.lines, body.price_includes_vat, body.discount_amount)
     row = Quote(number=next_number(session, 'BG', _today()), customer_code=body.customer_code,
                 contact_name=body.contact_name, valid_until=body.valid_until or _today() + timedelta(days=7),
-                note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines)
+                note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines,
+                price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount)
     _totals(row)
     session.add(row)
     _record(session, user, row, 'create', None)
@@ -183,11 +236,12 @@ def update_in_tx(session: Session, user, quote_id, body: QuoteUpdate):
     before = snapshot(row)
     customer_code = body.customer_code if body.customer_code is not None else row.customer_code
     _customer(session, customer_code)
-    lines = _lines(session, body.lines)
+    lines = _lines(session, body.lines, body.price_includes_vat, body.discount_amount)
     row.lines.clear()
     session.flush()  # Xóa dòng cũ trước khi dùng lại khóa (quote_id, line_no).
     row.lines = lines
     row.customer_code = customer_code
+    row.price_includes_vat, row.discount_amount = body.price_includes_vat, body.discount_amount
     for field in ('contact_name', 'valid_until', 'note'):
         value = getattr(body, field)
         if value is not None:
@@ -215,7 +269,7 @@ def transition_in_tx(session, user, quote_id, version, target, allowed, action, 
         if not row.lines:
             raise BusinessError('EMPTY_LINES', 'Báo giá phải có ít nhất một dòng trước khi gửi.')
         _customer(session, row.customer_code)
-        _lines(session, [QuoteLineIn.model_validate(line, from_attributes=True) for line in row.lines])
+        _lines(session, [QuoteLineIn.model_validate(line, from_attributes=True) for line in row.lines],row.price_includes_vat,row.discount_amount)
     before = snapshot(row)
     row.status = target
     if target == 'DA_HUY':
@@ -248,6 +302,7 @@ def revise(session: Session, user, quote_id, version):
         _status(old, ('DA_GUI',))
         before = snapshot(old)
         new = _new(session, user, QuoteIn(customer_code=old.customer_code, contact_name=old.contact_name,
+                   price_includes_vat=old.price_includes_vat,discount_amount=old.discount_amount,
                    note=old.note, lines=[QuoteLineIn.model_validate(line, from_attributes=True) for line in old.lines]))
         old.status, old.replaced_by_id = 'DA_HUY', new.id
         old.cancel_reason = 'Thay bằng ' + new.number

@@ -648,7 +648,12 @@ class QuoteLineIn(BaseModel):
         return None if isinstance(value, str) and not value.strip() else value
 
 
-class QuoteIn(BaseModel):
+class OrderPricing(BaseModel):
+    price_includes_vat: bool = False
+    discount_amount: int = Field(default=0, strict=True, ge=0, le=9_223_372_036_854_775_807)
+
+
+class QuoteIn(OrderPricing):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     customer_code: str = Field(min_length=1, max_length=16)
     contact_name: str = Field(default='', max_length=200)
@@ -662,7 +667,7 @@ class QuoteVersion(BaseModel):
     version: int = Field(strict=True, ge=1)
 
 
-class QuoteUpdate(QuoteVersion):
+class QuoteUpdate(QuoteVersion, OrderPricing):
     customer_code: str | None = Field(default=None, min_length=1, max_length=16)
     contact_name: str | None = Field(default=None, max_length=200)
     valid_until: date | None = None
@@ -682,7 +687,7 @@ class QuoteLineOut(QuoteLineIn):
     vat_amount: int
 
 
-class QuoteOut(BaseModel):
+class QuoteOut(OrderPricing):
     model_config = ConfigDict(from_attributes=True)
     id: int
     number: str
@@ -719,7 +724,7 @@ class SalesOrderTerms(BaseModel):
     deposit_amount: int | None = Field(default=None, strict=True, ge=0, le=9_223_372_036_854_775_807)
 
 
-class SalesOrderIn(SalesOrderTerms):
+class SalesOrderIn(SalesOrderTerms, OrderPricing):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     customer_code: str = Field(min_length=1, max_length=16)
     promised_date: date | None = None
@@ -764,7 +769,7 @@ class SalesOrderConfirm(SalesOrderVersion):
     credit_override_reason: str = Field(default='', max_length=2000)
 
 
-class SalesOrderUpdate(SalesOrderOptions):
+class SalesOrderUpdate(SalesOrderOptions, OrderPricing):
     promised_date: date | None = None
     contact_name: str | None = Field(default=None, max_length=200)
     delivery_address: str | None = Field(default=None, max_length=2000)
@@ -782,7 +787,7 @@ class SalesOrderLineOut(SalesOrderLineIn):
     stock_doc_id: int | None
 
 
-class SalesOrderOut(SalesOrderTerms):
+class SalesOrderOut(SalesOrderTerms, OrderPricing):
     delivery_assignee_id: int | None = None
     delivery_assigned_at: datetime | None = None
     service_ticket_id: int | None = None

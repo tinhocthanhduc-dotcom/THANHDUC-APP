@@ -240,6 +240,8 @@
     var amount = (q * price + 500n) / 1000n;
     return {
       qty: q,
+      entered: amount,
+      rate: BigInt(vat.value),
       amount: amount,
       vat: (amount * BigInt(vat.value) + 50n) / 100n,
     };
@@ -248,7 +250,25 @@
     var subtotal = 0n,
       tax = 0n,
       complete = true;
-    rows().forEach(function (row, index) {
+    var currentRows=rows(), priced=currentRows.map(values),
+      discount=number(form.elements.discount_amount?.value || "0"),
+      mode=form.elements.price_includes_vat,
+      included=mode?.value === "1" && (mode.type !== "checkbox" || mode.checked),
+      entered=priced.reduce(function(sum,v){ return sum+(v ? v.entered : 0n); },0n),
+      badDiscount=discount === null || discount>entered;
+    if (badDiscount) complete=false;
+    if (!badDiscount && priced.every(Boolean)) {
+      var parts=priced.map(function(v,i){return {index:i,share:entered ? discount*v.entered/entered : 0n,remainder:entered ? discount*v.entered%entered : 0n,gross:v.entered};}),
+        missing=discount-parts.reduce(function(sum,p){return sum+p.share;},0n);
+      parts.sort(function(a,b){return a.remainder!==b.remainder ? (a.remainder>b.remainder ? -1 : 1) : a.gross!==b.gross ? (a.gross>b.gross ? -1 : 1) : a.index-b.index;});
+      parts.forEach(function(p){
+        if (missing>0n) {p.share+=1n;missing-=1n;}
+        var v=priced[p.index],net=v.entered-p.share,denom=100n+v.rate;
+        v.amount=included ? (net*200n+denom)/(2n*denom) : net;
+        v.vat=included ? net-v.amount : (net*v.rate+50n)/100n;
+      });
+    }
+    currentRows.forEach(function (row, index) {
       row.classList.add("line-enhanced");
       var description = row.querySelector("[name=description]").value,
         product = row.querySelector("[name=product_code]").value,
@@ -257,7 +277,7 @@
       var warehouse = row.querySelector("[data-order-warehouse]:checked"),
         kind = row.querySelector("[data-order-kind]:checked"),
         goods = kind && kind.value === "HANG";
-      var v = values(row),
+      var v = badDiscount ? null : priced[index],
         invalid =
           (row.dataset.lineInvalid === "1" && !row.dataset.lineEdited) ||
           (!description && !product) ||
@@ -308,6 +328,7 @@
       el.textContent = money(sums[el.dataset.lineSum]) + (complete ? "" : "*");
     });
     form.querySelector("[data-line-totals]").textContent =
+      (badDiscount ? "Giảm giá vượt tổng tiền hàng hoặc chưa hợp lệ. " : "") +
       "Tiền hàng " +
       money(subtotal) +
       " · VAT " +
