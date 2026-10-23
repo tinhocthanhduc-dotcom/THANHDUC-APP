@@ -1898,3 +1898,9 @@ main:has(> .svl) { max-width: none; }
   .svl-q { flex-basis: 100% !important; } .svl-q input { width: 100%; }
   .svl-late { flex: 0 0 auto !important; }
 }
+/* Dòng hàng dạng bảng: "Giá lần trước" nằm dưới ô giá, không đẩy ô giá lệch khỏi hàng. */
+@container (min-width: 560px) {
+  .qline-price { position: relative; }
+  .qline-price small { position: absolute; right: 0; top: 100%; margin-top: 1px; white-space: nowrap; font-size: .7rem; line-height: 1.15; }
+  .quote-line:has(.qline-price small:not(:empty)) { padding-bottom: 16px; }
+}

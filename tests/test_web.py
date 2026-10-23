@@ -2142,10 +2142,10 @@ def test_b3_stale_version_keeps_form_data(client,db,web_login,b3_catalog):
     order=b3_create(client,db,csrf)
     version=order.version
     assert client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=version)).status_code==200
-    r=client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=version,qty=['7,5','1.5'],unit_price=['999.000','333'],
+    r=client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=version,qty=['7','1.5'],unit_price=['999.000','333'],
         delivery_address='Địa chỉ vừa nhập',note='Giữ dòng của tôi',warehouse_0='K145'))
     assert r.status_code==409 and 'VERSION_CONFLICT' in r.text
-    assert 'value="999.000"' in r.text and 'value="7,5"' in r.text and 'Giữ dòng của tôi' in r.text
+    assert 'value="999.000"' in r.text and 'value="7"' in r.text and 'Giữ dòng của tôi' in r.text
     assert 'Địa chỉ vừa nhập' in r.text
     db.expire_all()
     assert order.lines[0].unit_price==120000 and order.lines[0].warehouse_code=='K58'
@@ -3174,3 +3174,14 @@ def test_nhom_hang_them_sua_xoa(client, web_login, db):
     client.post("/hang-hoa/TD-0001", data={"csrf": csrf, "version": "2", "name": "Mực HP 12A", "group_name": "", "unit": "hộp", "sale_price": "0", "active": "1"})
     assert client.post(f"/nhom-hang/{gid}", data={"csrf": csrf, "xoa": "1"}, follow_redirects=False).status_code == 303
     assert db.query(ProductGroup).count() == 0
+
+
+def test_order_goods_qty_must_be_whole_number(client,db,web_login,b3_catalog):
+    from app.models import SalesOrder
+    csrf=web_login('b3.sales','sales')
+    r=client.post('/don-ban/moi',data=b3_form(csrf,qty=['1,5','1.5']))
+    assert r.status_code==400 and 'BAD_QTY' in r.text and 'phải là số nguyên' in r.text
+    assert db.query(SalesOrder).count()==0
+    order=b3_create(client,db,csrf)
+    page=client.get(f'/don-ban/{order.id}').text
+    assert '<input name="qty" value="2" inputmode="numeric"' in page and '<input name="qty" value="1,5" inputmode="numeric"' in page
