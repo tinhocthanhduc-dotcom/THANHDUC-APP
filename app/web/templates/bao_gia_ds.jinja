@@ -13,6 +13,8 @@
 <div class="list-tabs" role="radiogroup" aria-label="Trạng thái"><label><input type="radio" name="status" value="" {% if not selected_status and not soon %}checked{% endif %}><span>Tất cả <b>{{ stats.total }}</b></span></label>
 {% for value,label in statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status == value and not soon %}checked{% endif %}><span>{{ label }} <b>{{ stats.counts.get(value,0) }}</b></span></label>{% endfor %}</div>
 {% if soon %}<input type="hidden" name="han" value="1">{% endif %}
+<div class="list-selects"><label><span class="sr-only">Người lập</span><select name="nguoi" data-autosubmit><option value="">Mọi người lập</option>{% for id,name in staff %}<option value="{{ id }}" {% if nguoi == id %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+<label><span class="sr-only">Thời gian lập</span><select name="ky" data-autosubmit>{% for value,label in [('','Mọi thời gian'),('30','30 ngày qua'),('thang','Tháng này'),('thang-truoc','Tháng trước')] %}<option value="{{ value }}" {% if ky == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></div>
 <label class="list-search"><span class="sr-only">Tìm báo giá</span><input type="search" name="q" value="{{ q }}" placeholder="Tìm số BG, tên khách (không dấu)…" data-live="#quote-rows" autocomplete="off"></label><noscript><button>Lọc</button></noscript>
 </form>
 {% if soon %}<p class="list-note">Đang xem báo giá đã gửi còn tối đa 2 ngày hiệu lực hoặc đã hết hạn. <a href="/bao-gia">Bỏ lọc</a></p>{% endif %}

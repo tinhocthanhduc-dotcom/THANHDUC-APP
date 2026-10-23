@@ -25,8 +25,10 @@ def snapshot(p: Product) -> dict:
     return ProductOut.model_validate(p).model_dump()
 
 
-def search(session: Session, q: str, active_only: bool = True, limit: int = 50) -> list[Product]:
+def search(session: Session, q: str, active_only: bool = True, limit: int = 50, group: str = "") -> list[Product]:
     stmt = select(Product)
+    if group:
+        stmt = stmt.where(Product.group_name == group)
     if active_only:
         stmt = stmt.where(Product.active.is_(True))
     if fold(q):

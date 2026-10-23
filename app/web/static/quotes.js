@@ -13,11 +13,8 @@
     if (!editable) return;
     var button=event.target.closest('[data-quote-add]');
     if (button) {
-      var row=document.querySelector('#quote-line-template').content.firstElementChild.cloneNode(true);
-      form.querySelector('[data-quote-lines]').appendChild(row); row.classList.add('line-open'); reindex();
-      row.querySelectorAll('[data-live]').forEach(window.bindLive);
-      row.querySelectorAll('[data-money]').forEach(window.bindMoney);
-      changed(); row.querySelector('input').focus(); return;
+      var row=newRow(); row.classList.add('line-open');
+      changed(); row.querySelector('[name=description]').focus(); return;
     }
     button=event.target.closest('[data-quote-remove]');
     if (button) { button.closest('[data-quote-line]').remove(); reindex(); changed(); return; }
@@ -38,6 +35,94 @@
     }
     changed();
   });
+  // ---- Màn 3 cột: tra giá, thêm nhanh, VAT cả báo giá, chọn nhanh hiệu lực (chỉ giao diện) ----
+  var lines=form.querySelector('[data-quote-lines]'), vatAll=form.querySelector('[data-quote-vat-all]');
+  function thousands(v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+  function syncLines() {
+    var rows=form.querySelectorAll('[data-quote-line]'), count=form.querySelector('[data-line-count]'), empty=form.querySelector('[data-lines-empty]');
+    if (count) count.textContent=rows.length+' dòng';
+    if (empty) empty.hidden=rows.length>0;
+    if (!vatAll) return;
+    var rates={}; rows.forEach(function(row){ var c=row.querySelector('[data-quote-vat]:checked'); if (c) rates[c.value]=1; });
+    var keys=Object.keys(rates);
+    if (keys.length===1) vatAll.value=keys[0]; else if (keys.length>1) vatAll.value='';
+  }
+  function newRow() {
+    var row=document.querySelector('#quote-line-template').content.firstElementChild.cloneNode(true);
+    lines.appendChild(row); reindex();
+    row.querySelectorAll('[data-live]').forEach(window.bindLive);
+    row.querySelectorAll('[data-money]').forEach(window.bindMoney);
+    if (vatAll && vatAll.value!=='') row.querySelectorAll('[data-quote-vat]').forEach(function(r){ r.checked=r.value===vatAll.value; });
+    return row;
+  }
+  function addProduct(b) {
+    var code=b.dataset.code, hit=null;
+    form.querySelectorAll('[data-quote-line]').forEach(function(row){ if (row.querySelector('[name=product_code]').value.trim().toUpperCase()===code) hit=hit||row; });
+    if (hit) {
+      var q=hit.querySelector('[name=qty]'), n=Number(q.value.replace(',','.'))||0;
+      q.value=String(Math.round((n+1)*1000)/1000).replace('.',',');
+    } else {
+      hit=newRow();
+      hit.querySelector('[name=product_code]').value=code;
+      hit.querySelector('[data-quote-product-name]').textContent=b.dataset.name;
+      hit.querySelector('[name=description]').value=b.dataset.name;
+      hit.querySelector('[name=unit]').value=b.dataset.unit;
+      hit.querySelector('[name=unit_price]').value=thousands(b.dataset.lastPrice||b.dataset.price);
+      hit.querySelector('[data-last-price-hint]').textContent=b.dataset.lastPrice ? 'Giá lần trước '+b.dataset.lastDate+': '+thousands(b.dataset.lastPrice) : '';
+      hit.dataset.lineEdited='1'; hit.classList.remove('line-open','line-error');
+    }
+    hit.classList.remove('qline-flash'); void hit.offsetWidth; hit.classList.add('qline-flash');
+    hit.querySelector('[name=qty]').dispatchEvent(new Event('input',{bubbles:true}));
+    syncLines();
+  }
+  var browse=form.querySelector('[data-browse]');
+  if (browse && editable) {
+    var bq=browse.querySelector('[data-browse-q]'), list=browse.querySelector('[data-browse-list]'), group='', timer, seq=0;
+    function load() {
+      var current=++seq, params=new URLSearchParams({q:bq.value, nhom:group, customer_code:form.querySelector('[name=customer_code]').value});
+      fetch('/bao-gia/san-pham?'+params,{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); })
+        .then(function(html){ if (current===seq) list.innerHTML=html; })
+        .catch(function(){ if (current===seq) list.textContent='Không tải được danh sách, hãy thử lại.'; });
+    }
+    bq.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(load,250); });
+    bq.addEventListener('keydown',function(e){
+      if (e.key!=='Enter') return;
+      e.preventDefault();
+      var first=list.querySelector('[data-browse-add]');
+      if (first) { addProduct(first); bq.select(); }
+    });
+    browse.addEventListener('click',function(e){
+      var g=e.target.closest('[data-browse-group]');
+      if (g) { group=g.dataset.browseGroup; browse.querySelectorAll('[data-browse-group]').forEach(function(x){ x.classList.toggle('on',x===g); }); load(); return; }
+      var b=e.target.closest('[data-browse-add]');
+      if (b) addProduct(b);
+    });
+    form.querySelector('[name=customer_code]').addEventListener('stock-picked',function(){ setTimeout(load,0); });
+  }
+  if (vatAll && editable) vatAll.addEventListener('change',function(){
+    var rate=vatAll.value;
+    if (rate==='') return;
+    form.querySelectorAll('[data-quote-vat]').forEach(function(r){ if (r.value===rate) r.checked=true; });
+    changed(); lines.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  form.addEventListener('change',function(e){ if (e.target.matches('[data-quote-vat]')) syncLines(); });
+  form.addEventListener('click',function(e){
+    if (!editable) return;
+    var d=e.target.closest('[data-valid-days]');
+    if (d) {
+      var t=new Date(form.dataset.today+'T00:00:00'); t.setDate(t.getDate()+Number(d.dataset.validDays));
+      var v=form.querySelector('[name=valid_until]');
+      v.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+      v.dispatchEvent(new Event('input',{bubbles:true})); return;
+    }
+    if (e.target.closest('[data-quote-clear]')) {
+      if (!form.querySelector('[data-quote-line]') || !confirm('Xóa tất cả dòng hàng?')) return;
+      form.querySelectorAll('[data-quote-line]').forEach(function(row){ row.remove(); });
+      reindex(); changed(); syncLines();
+    }
+  });
+  new MutationObserver(syncLines).observe(lines,{childList:true});
+  syncLines();
   var send=document.querySelector('[data-quote-send]');
   if (send) send.addEventListener('submit',function(event) {
     if (!dirty) return;
