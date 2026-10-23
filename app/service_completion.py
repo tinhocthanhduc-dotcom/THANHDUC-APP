@@ -15,6 +15,11 @@ def complete(session, user, ticket_id: int, charges: ServiceCharges, note: str =
         service_tickets._check_version(ticket, charges.version)
         if ticket.status != 'DANG_LAM':
             raise BusinessError('BAD_STATUS', 'Chỉ hoàn thành phiếu đang làm.', status=409)
+        if ticket.serial:
+            from .equipment_custody import _machine
+            _machine(session,ticket.serial,lock=True)
+        if service_charges.return_locked(ticket):
+            raise BusinessError('CHARGES_LOCKED','Tiền trả máy đã chốt, không sửa phí hoặc vật tư.',status=409)
         from .technician_work import apply_report
         apply_report(session, ticket, fault, fix)
         service_charges.set_charges_in_tx(session, user, ticket, charges)

@@ -175,10 +175,13 @@ def test_migration_from_0050_preserves_reason_money_stock_and_history(db,engine,
     p=people;t=ticket(db,p,'DANG_LAM');reason='Khách chưa quyết định'
     cfg=Config(str(Path(__file__).parents[1]/'alembic.ini'))
     cfg.attributes['database_url']=engine.url.render_as_string(hide_password=False)
+    ident=t.id
     db.commit();command.downgrade(cfg,'0050')
     try:
-        db.execute(text("update service_tickets set status='KHACH_HEN_SAU',status_reason=:reason where id=:id"),dict(reason=reason,id=t.id));db.commit();db.refresh(t)
-        before=(t.receivable,t.subtotal,t.vat_total,t.total,db.query(StockLedger).count(),db.query(FundLedger).count())
+        # Revision 0050 does not contain columns added by later ORM models.
+        db.execute(text("update service_tickets set status='KHACH_HEN_SAU',status_reason=:reason where id=:id"),dict(reason=reason,id=ident));db.commit()
+        values=db.execute(text('select receivable,subtotal,vat_total,total from service_tickets where id=:id'),dict(id=ident)).one()
+        before=(*values,db.query(StockLedger).count(),db.query(FundLedger).count())
         db.commit();command.upgrade(cfg,'head');db.expire_all();db.refresh(t)
         assert t.status=='DA_HUY' and t.status_reason==reason
         assert (t.receivable,t.subtotal,t.vat_total,t.total,db.query(StockLedger).count(),db.query(FundLedger).count())==before
@@ -187,8 +190,8 @@ def test_migration_from_0050_preserves_reason_money_stock_and_history(db,engine,
         assert history[0].actor_id==p['director'].id
         with pytest.raises(IntegrityError):
             with db.begin_nested():db.execute(text("update service_tickets set status='KHACH_HEN_SAU' where id=:id"),dict(id=t.id))
-        db.commit();command.downgrade(cfg,'0050');db.refresh(t)
-        assert t.status=='DA_HUY'
+        db.commit();command.downgrade(cfg,'0050')
+        assert db.scalar(text('select status from service_tickets where id=:id'),dict(id=ident))=='DA_HUY'
     finally:
         db.rollback();command.upgrade(cfg,'head')
     db.refresh(t)

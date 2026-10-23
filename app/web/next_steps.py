@@ -67,6 +67,8 @@ def service(session, user, t):
     if t.status=='DA_NHAN' and can_step:return block(transition('Đã đến khách','DANG_LAM') if t.appointment_at else transition('Hẹn khách để bắt đầu','DA_HEN'))
     if t.status=='DA_HEN' and can_step:return block(transition('Đã đến khách','DANG_LAM'),
         [form('Không gặp khách','service-no-show',base+'/no-show','Ghi người liên hệ, đã gọi chưa và giờ hẹn mới.')])
+    if t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA':
+        return block(form('Hẹn trả máy','service-schedule-return',base+'/hen-tra-may')) if dispatcher else None
     if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))
     if t.status=='DANG_LAM' and can_step:
         secondary=[transition('Hẹn quay lại','DA_HEN'),form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]

@@ -37,6 +37,7 @@ WIPE = {
     "purchase_returns", "supplier_payments", "purchase_receipt_lines", "purchase_receipts",
     "purchase_order_lines", "purchase_orders", "cash_corrections", "day_closings", "fund_ledger",
     "fund_balances", "cash_docs", "sales_receipts", "sales_order_lines", "sales_orders", "quote_lines",
+    # service_tickets includes MV1 repaired_by; wipe the entire dossier, keep users.
     "quotes", "attachments", "service_steps", "service_tickets", "stock_ledger", "stock_balances",
     "stock_doc_lines", "stock_docs", "doc_counters",
 }

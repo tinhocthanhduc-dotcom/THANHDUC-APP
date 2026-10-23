@@ -149,7 +149,7 @@ def _draft_query(month):
       left join prior p on p.order_id=o.id and p.source='DON_BAN'
       where o.created_at>=:start_at and o.created_at<:hi and (m.order_id is not null or p.order_id is not null)
       union all
-      select 'PHIEU_DV','THO',f.actor_id,null,t.id,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
+      select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.actor_id),null,t.id,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
         coalesce(fee.base,0),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
         t.status='DA_HUY' or w.number is not null,
         case when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,

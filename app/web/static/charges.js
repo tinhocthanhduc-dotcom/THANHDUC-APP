@@ -11,7 +11,7 @@
       var quantity = row.querySelector('[name=line_qty]').value.trim().replace(',', '.');
       var enteredPrice = row.querySelector('[name=line_price]').value.trim();
       var price = enteredPrice.replace(/\./g, '');
-      var vat = row.querySelector('[data-charge-vat]:checked');
+      var vat = (row.querySelector('[data-charge-vat]:checked') || row.querySelector('input[type=hidden][data-charge-vat]'));
       if (!/^(?:\d+(?:\.\d{0,3})?|\.\d{1,3})$/.test(quantity) || !/^(?:\d+|\d{1,3}(?:\.\d{3})+)$/.test(enteredPrice) || !vat) {
         valid = false; row.querySelector('[data-charge-row-total]').textContent = '—'; return;
       }
@@ -35,7 +35,7 @@
       if (check.dataset.check === 'warehouses') {
         ok = Array.from(form.querySelectorAll('[data-charge-line]')).every(function(row) {
           if (row.querySelector('[name=line_kind]').value !== 'VAT_TU') return true;
-          return !!row.querySelector('[data-charge-warehouse]:checked');
+          return !!(row.querySelector('[data-charge-warehouse]:checked') || row.querySelector('input[type=hidden][data-charge-warehouse]'));
         });
       }
       check.dataset.ok = ok ? '1' : '0';

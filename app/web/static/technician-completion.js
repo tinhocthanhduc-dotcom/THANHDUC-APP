@@ -52,6 +52,7 @@
         ok = free
           ? form.elements.free_reason.value.trim().length >= 3
           : total > 0n;
+        if (form.dataset.workshop === "1" && !["FULL", "FREE"].includes(mode)) ok = false;
         if (mode === "PARTIAL") {
           const part = money(form.elements.partial_amount.value);
           ok = ok && part > 0n && part < total;

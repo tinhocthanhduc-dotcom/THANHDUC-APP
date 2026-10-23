@@ -342,7 +342,7 @@ class ServiceTicket(Base):
         CheckConstraint("warranty_of_id is null or warranty_of_id <> id", name='ck_service_tickets_warranty_self'),
         CheckConstraint("appointment_slot in ('SANG','CHIEU','GIO') and appointment_at is not null or appointment_slot is null", name='ck_service_tickets_slot'),
         Index("ix_service_tickets_open", "status", "due_at"),
-        CheckConstraint("hold_reason in ('','CHO_KHACH_DUYET','CHO_KY_THUAT_KHAC','CHO_DOI_TAC','HEN_NGAY_KHAC','KHAC')", name="ck_service_tickets_hold_reason"),
+        CheckConstraint("hold_reason in ('','CHO_KHACH_DUYET','CHO_KY_THUAT_KHAC','CHO_DOI_TAC','HEN_NGAY_KHAC','KHAC','SUA_XONG_CHO_TRA')", name="ck_service_tickets_hold_reason"),
         CheckConstraint("billing in ('THU_TIEN','MIEN_PHI')", name="ck_service_tickets_billing"),
         CheckConstraint("billing <> 'MIEN_PHI' or free_reason <> ''", name="ck_service_tickets_free_reason"),
         CheckConstraint("(priced_at is null) = (total is null)", name="ck_service_tickets_priced"),
@@ -378,6 +378,7 @@ class ServiceTicket(Base):
     total: Mapped[int | None] = mapped_column(BigInteger)
     receivable: Mapped[int | None] = mapped_column(BigInteger)
     priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    repaired_by: Mapped[int | None] = mapped_column(ForeignKey('users.id', name='fk_service_tickets_repaired_by'))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1)

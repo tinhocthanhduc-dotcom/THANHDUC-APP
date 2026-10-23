@@ -1,0 +1,6 @@
+{% from '_ui.jinja' import item_picker %}<div class="field-group" role="group" data-workshop-materials data-item-picker><p class="group-label">Linh kiện đã thay từ Hàng tôi giữ</p>
+<p class="hint">Chỉ khai số đã lắp cho máy này. Lưu sẽ trừ kho ngay.</p>
+{% for item in workshop_materials %}<div class="tech-material" data-pick-row data-pick-text="{{ item.code }} {{ item.name }}" data-pick-name="{{ item.name }}" data-pick-meta="{{ item.code }} · Đang giữ {{ item.held|qty }}"{% if item.extra %} data-pick-extra{% endif %}>
+<input type="hidden" name="material_product" value="{{ item.code }}"><span><b>{{ item.name }}</b><small>{{ item.code }} · Đang giữ {{ item.held|qty }}</small></span>
+<div class="tech-stepper"><button type="button" data-workshop-step="-1" aria-label="Giảm {{ item.name }}">−</button><input name="material_qty" value="{{ item.qty|string|replace(',','.') }}" inputmode="decimal" data-held="{{ item.held|qty|replace(',','.') }}" aria-label="Số lượng {{ item.name }}"><button type="button" data-workshop-step="1" aria-label="Tăng {{ item.name }}">+</button></div></div>{% else %}<p>Kho của bạn chưa có linh kiện.</p>{% endfor %}
+{% if workshop_materials %}{{ item_picker('Thêm linh kiện khác') }}{% endif %}</div>

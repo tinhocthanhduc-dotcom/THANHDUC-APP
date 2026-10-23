@@ -52,7 +52,7 @@ def _specs(user, today, now):
         add('service_today', 'Hôm nay có hẹn', own.where(t.status=='DA_HEN', t.appointment_at>=start, t.appointment_at<end), 'service', '/dich-vu')
         ready = (t.status == 'CHO_LINH_KIEN') & select(PartRequest.id).where(PartRequest.ticket_id == t.id).exists() & ~select(PartRequest.id).where(PartRequest.ticket_id == t.id, PartRequest.status == 'CHO_CAP').exists()
         add('service_parts_ready', 'Đã có linh kiện', own.where(ready), 'service', '/dich-vu')
-        add('service_paused', 'Tạm dừng · cần tiếp tục', own.where(t.status == 'TAM_DUNG'), 'service', '/dich-vu')
+        add('service_paused', 'Tạm dừng · cần tiếp tục', own.where(t.status == 'TAM_DUNG',t.hold_reason!='SUA_XONG_CHO_TRA'), 'service', '/dich-vu')
         add('service_working', 'Đang làm và chờ linh kiện', own.where(t.status.in_(('DANG_LAM','CHO_LINH_KIEN')), ~ready), 'service', '/dich-vu')
     if has_role(user, 'technician', 'dispatcher'):
         pending = service.where(t.status.in_(('HOAN_THANH','DA_DONG')), t.billing=='THU_TIEN', t.priced_at.is_not(None), _available(t)>0)
@@ -62,6 +62,7 @@ def _specs(user, today, now):
     if has_role(user, 'dispatcher', 'reception'):
         add('service_unassigned', 'Phiếu mới chưa giao thợ', service.where(t.status=='MOI', t.assignee_id.is_(None)), 'service', '/dich-vu')
     if has_role(user, 'dispatcher'):
+        add('service_return_ready','Máy sửa xong chờ trả',service.where(t.status=='TAM_DUNG',t.hold_reason=='SUA_XONG_CHO_TRA'), 'service','/dich-vu')
         recent=select(ServiceStep.ticket_id).join(User,User.id==ServiceStep.actor_id).where(ServiceStep.action=='reassign',ServiceStep.at>=now-timedelta(days=7),User.roles.contains(['technician']),ServiceStep.note.startswith('Thợ '))
         add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent)), 'service','/dich-vu')
         recovered_count=select(func.count()).where(ServiceRecoveredPart.ticket_id==t.id,

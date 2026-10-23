@@ -132,53 +132,61 @@ def _accessories(values,note):
 
 def receive(session,user,ticket_id,body):
     with _transaction(session):
-        t = _ticket(session,ticket_id,lock=True)
-        if not has_role(user,'dispatcher') and not ('technician' in user.roles and t.assignee_id == user.id):_forbidden()
-        if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Phiếu đã đóng, không nhận máy về.',status=409)
-        eq = _machine(session,t.serial,lock=True)
-        _version(eq,body.version)
-        if eq.custody_location != 'TAI_KHACH':
-            raise BusinessError('MACHINE_HELD','Máy đang được giữ; phải trả máy theo phiếu đang giữ trước.',{'ticket_id':eq.custody_ticket_id},status=409)
-        _no_pending(session,eq.serial)
-        tech = service_tickets._technician(session,t.assignee_id)
-        if not body.condition_note.strip():raise BusinessError('CONDITION_REQUIRED','Phải ghi tình trạng máy khi nhận.')
-        values = _accessories(body.accessories,body.accessories_note)
-        old = latest(session,eq.serial)
-        _photo(session,t.id,'NHAN_MAY',old.confirmed_at if old else None)
-        row = EquipmentCustody(serial=eq.serial,ticket_id=t.id,location='THO_GIU',holder_id=tech.id,
-            accessories=values,accessories_note=body.accessories_note,condition_note=body.condition_note,
-            status='DA_NHAN',created_by=user.id,confirmed_by=user.id,confirmed_at=_now())
-        session.add(row);_record(session,user,row,'receive');_accept_cache(session,user,eq,row)
-    return row
+        return receive_in_tx(session,user,ticket_id,body)
 
+
+def receive_in_tx(session,user,ticket_id,body):
+    """Cùng luật KT4; caller quản lý transaction, không commit tại đây."""
+    t = _ticket(session,ticket_id,lock=True)
+    if not has_role(user,'dispatcher') and not ('technician' in user.roles and t.assignee_id == user.id):_forbidden()
+    if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Phiếu đã đóng, không nhận máy về.',status=409)
+    eq = _machine(session,t.serial,lock=True)
+    _version(eq,body.version)
+    if eq.custody_location != 'TAI_KHACH':
+        raise BusinessError('MACHINE_HELD','Máy đang được giữ; phải trả máy theo phiếu đang giữ trước.',{'ticket_id':eq.custody_ticket_id},status=409)
+    _no_pending(session,eq.serial)
+    tech = service_tickets._technician(session,t.assignee_id)
+    if not body.condition_note.strip():raise BusinessError('CONDITION_REQUIRED','Phải ghi tình trạng máy khi nhận.')
+    values = _accessories(body.accessories,body.accessories_note)
+    old = latest(session,eq.serial)
+    _photo(session,t.id,'NHAN_MAY',old.confirmed_at if old else None)
+    row = EquipmentCustody(serial=eq.serial,ticket_id=t.id,location='THO_GIU',holder_id=tech.id,
+        accessories=values,accessories_note=body.accessories_note,condition_note=body.condition_note,
+        status='DA_NHAN',created_by=user.id,confirmed_by=user.id,confirmed_at=_now())
+    session.add(row);_record(session,user,row,'receive');_accept_cache(session,user,eq,row)
+    return row
 
 def handover(session,user,ticket_id,body):
     with _transaction(session):
-        t = _ticket(session,ticket_id,lock=True);eq = _machine(session,t.serial,lock=True)
-        if not has_role(user,'dispatcher') and not _is_holder(user,eq):_forbidden()
-        _version(eq,body.version)
-        if eq.custody_ticket_id != t.id or eq.custody_location == 'TAI_KHACH':
-            raise BusinessError('BAD_STATUS','Máy không đang giữ theo phiếu này.',status=409)
-        _no_pending(session,eq.serial)
-        if body.location not in ('THO_GIU','KHO_KY_THUAT','DOI_TAC'):
-            raise BusinessError('BAD_LOCATION','Giao trả khách phải dùng thao tác Đã trả khách.')
-        if body.location == 'THO_GIU':
-            if body.holder_id is None:raise BusinessError('BAD_HOLDER','Phải chọn thợ nhận máy.')
-            service_tickets._technician(session,body.holder_id)
-            if eq.custody_location == 'THO_GIU' and eq.custody_holder_id == body.holder_id:
-                raise BusinessError('SAME_HOLDER','Máy đang do thợ này giữ.',status=409)
-        elif body.holder_id is not None:raise BusinessError('BAD_HOLDER','Chỉ chọn người giữ khi bàn giao cho thợ.')
-        if body.location == 'DOI_TAC' and not body.partner_name.strip():raise BusinessError('PARTNER_REQUIRED','Phải ghi tên đối tác.')
-        if body.location != 'DOI_TAC' and (body.partner_name or body.expected_back):raise BusinessError('BAD_LOCATION','Chỉ ghi đối tác và ngày về khi gửi đối tác.')
-        old = latest(session,eq.serial)
-        note = old.accessories_note if body.accessories_note is None else body.accessories_note
-        values = _accessories(old.accessories if body.accessories is None else body.accessories,note)
-        row = EquipmentCustody(serial=eq.serial,ticket_id=t.id,location=body.location,holder_id=body.holder_id,
-            partner_name=body.partner_name,expected_back=body.expected_back,accessories=values,accessories_note=note,
-            condition_note=old.condition_note if body.condition_note is None else body.condition_note,status='CHO_NHAN',created_by=user.id)
-        session.add(row);_record(session,user,row,'handover')
-    return row
+        return handover_in_tx(session,user,ticket_id,body)
 
+
+def handover_in_tx(session,user,ticket_id,body):
+    """Cùng luật KT4; caller quản lý transaction, không commit tại đây."""
+    t = _ticket(session,ticket_id,lock=True);eq = _machine(session,t.serial,lock=True)
+    if not has_role(user,'dispatcher') and not _is_holder(user,eq):_forbidden()
+    _version(eq,body.version)
+    if eq.custody_ticket_id != t.id or eq.custody_location == 'TAI_KHACH':
+        raise BusinessError('BAD_STATUS','Máy không đang giữ theo phiếu này.',status=409)
+    _no_pending(session,eq.serial)
+    if body.location not in ('THO_GIU','KHO_KY_THUAT','DOI_TAC'):
+        raise BusinessError('BAD_LOCATION','Giao trả khách phải dùng thao tác Đã trả khách.')
+    if body.location == 'THO_GIU':
+        if body.holder_id is None:raise BusinessError('BAD_HOLDER','Phải chọn thợ nhận máy.')
+        service_tickets._technician(session,body.holder_id)
+        if eq.custody_location == 'THO_GIU' and eq.custody_holder_id == body.holder_id:
+            raise BusinessError('SAME_HOLDER','Máy đang do thợ này giữ.',status=409)
+    elif body.holder_id is not None:raise BusinessError('BAD_HOLDER','Chỉ chọn người giữ khi bàn giao cho thợ.')
+    if body.location == 'DOI_TAC' and not body.partner_name.strip():raise BusinessError('PARTNER_REQUIRED','Phải ghi tên đối tác.')
+    if body.location != 'DOI_TAC' and (body.partner_name or body.expected_back):raise BusinessError('BAD_LOCATION','Chỉ ghi đối tác và ngày về khi gửi đối tác.')
+    old = latest(session,eq.serial)
+    note = old.accessories_note if body.accessories_note is None else body.accessories_note
+    values = _accessories(old.accessories if body.accessories is None else body.accessories,note)
+    row = EquipmentCustody(serial=eq.serial,ticket_id=t.id,location=body.location,holder_id=body.holder_id,
+        partner_name=body.partner_name,expected_back=body.expected_back,accessories=values,accessories_note=note,
+        condition_note=old.condition_note if body.condition_note is None else body.condition_note,status='CHO_NHAN',created_by=user.id)
+    session.add(row);_record(session,user,row,'handover')
+    return row
 
 def _locked(session,ident,version):
     ref = session.get(EquipmentCustody,ident)
@@ -212,26 +220,30 @@ def cancel(session,user,ident,version):
 
 def return_customer(session,user,ticket_id,body):
     with _transaction(session):
-        t = _ticket(session,ticket_id,lock=True);eq = _machine(session,t.serial,lock=True)
-        if eq.custody_location != 'THO_GIU' or eq.custody_holder_id != user.id or 'technician' not in user.roles:_forbidden()
-        _version(eq,body.version)
-        if eq.custody_ticket_id != t.id:raise BusinessError('BAD_STATUS','Máy không đang giữ theo phiếu này.',status=409)
-        _no_pending(session,eq.serial)
-        # Lần nhận trực tiếp từ khách mở chu kỳ sau dòng TAI_KHACH gần nhất.
-        last_return_id = session.scalar(select(func.max(EquipmentCustody.id)).where(EquipmentCustody.serial==eq.serial,
-            EquipmentCustody.location=='TAI_KHACH',EquipmentCustody.status=='DA_NHAN')) or 0
-        start = session.scalar(select(EquipmentCustody).where(EquipmentCustody.serial==eq.serial,EquipmentCustody.ticket_id==t.id,
-            EquipmentCustody.status=='DA_NHAN',EquipmentCustody.id>last_return_id).order_by(EquipmentCustody.id).limit(1))
-        values = _accessories(body.accessories,body.accessories_note)
-        missing = sorted(set(start.accessories)-set(values))
-        if missing and not body.accessories_note.strip():raise BusinessError('MISSING_ACCESSORIES','Thiếu phụ kiện so với lúc nhận; phải ghi chú.',{'missing':missing})
-        _photo(session,t.id,'TRA_MAY',start.confirmed_at)
-        row = EquipmentCustody(serial=eq.serial,ticket_id=t.id,location='TAI_KHACH',accessories=values,
-            accessories_note=body.accessories_note,condition_note=body.condition_note or latest(session,eq.serial).condition_note,
-            status='DA_NHAN',created_by=user.id,confirmed_by=user.id,confirmed_at=_now())
-        session.add(row);_record(session,user,row,'return');_accept_cache(session,user,eq,row)
-    return row
+        return return_customer_in_tx(session,user,ticket_id,body)
 
+
+def return_customer_in_tx(session,user,ticket_id,body):
+    """Cùng luật KT4; caller quản lý transaction, không commit tại đây."""
+    t = _ticket(session,ticket_id,lock=True);eq = _machine(session,t.serial,lock=True)
+    if eq.custody_location != 'THO_GIU' or eq.custody_holder_id != user.id or 'technician' not in user.roles:_forbidden()
+    _version(eq,body.version)
+    if eq.custody_ticket_id != t.id:raise BusinessError('BAD_STATUS','Máy không đang giữ theo phiếu này.',status=409)
+    _no_pending(session,eq.serial)
+    # Lần nhận trực tiếp từ khách mở chu kỳ sau dòng TAI_KHACH gần nhất.
+    last_return_id = session.scalar(select(func.max(EquipmentCustody.id)).where(EquipmentCustody.serial==eq.serial,
+        EquipmentCustody.location=='TAI_KHACH',EquipmentCustody.status=='DA_NHAN')) or 0
+    start = session.scalar(select(EquipmentCustody).where(EquipmentCustody.serial==eq.serial,EquipmentCustody.ticket_id==t.id,
+        EquipmentCustody.status=='DA_NHAN',EquipmentCustody.id>last_return_id).order_by(EquipmentCustody.id).limit(1))
+    values = _accessories(body.accessories,body.accessories_note)
+    missing = sorted(set(start.accessories)-set(values))
+    if missing and not body.accessories_note.strip():raise BusinessError('MISSING_ACCESSORIES','Thiếu phụ kiện so với lúc nhận; phải ghi chú.',{'missing':missing})
+    _photo(session,t.id,'TRA_MAY',start.confirmed_at)
+    row = EquipmentCustody(serial=eq.serial,ticket_id=t.id,location='TAI_KHACH',accessories=values,
+        accessories_note=body.accessories_note,condition_note=body.condition_note or latest(session,eq.serial).condition_note,
+        status='DA_NHAN',created_by=user.id,confirmed_by=user.id,confirmed_at=_now())
+    session.add(row);_record(session,user,row,'return');_accept_cache(session,user,eq,row)
+    return row
 
 def check_returned(session,ticket):
     # Cùng thứ tự khóa với nhận/bàn giao, không thể đóng lọt khi đang nhận máy.
