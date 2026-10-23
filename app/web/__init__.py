@@ -69,6 +69,15 @@ def quantity(value):
 
 
 templates.env.filters['qty'] = quantity
+
+
+def quantity_input(value):
+    # Ô nhập số lượng: số đã lưu (1.000) hiện gọn 1; giữ nguyên chữ người dùng vừa gõ khi trả lỗi.
+    text = str(value if value is not None else '')
+    return quantity(text) if isinstance(value, Decimal) or re.fullmatch(r'-?[0-9]+\.[0-9]{3}', text) else text
+
+
+templates.env.filters['qty_input'] = quantity_input
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals["web_navigation"] = nav.menu

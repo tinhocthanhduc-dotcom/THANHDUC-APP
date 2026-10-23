@@ -170,6 +170,8 @@ def _body(data):
             vat=int(line['vat_rate'])
         except ValueError:
             raise BusinessError('BAD_VAT',f'VAT dòng {i} phải là 0, 5, 8 hoặc 10%.')
+        if line.get('kind','HANG')=='HANG' and line['product_code'].strip() and not re.fullmatch(r'[0-9]+',line['qty'].strip()):
+            raise BusinessError('BAD_QTY',f'Số lượng dòng {i} phải là số nguyên.')
         lines.append({**line,'qty':line['qty'].replace(',','.'),'unit_price':int(price.replace('.','')) if price else None,'vat_rate':vat})
     return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines,
                 promised_date=data.get('promised_date') or None,fulfillment=data.get('fulfillment','TAI_QUAY'),

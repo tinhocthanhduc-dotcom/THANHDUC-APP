@@ -1725,6 +1725,9 @@ main:has(> .quote-form-page) { max-width: none; }
   .qf2o .qlines-head span:nth-child(6), .qf2o .qlines-head span:nth-child(8) { text-align: right; }
   .qf2o .qlines-head span:nth-child(4), .qf2o .qlines-head span:nth-child(5), .qf2o .qlines-head span:nth-child(7) { text-align: center; }
   .qf2o .qline-badge { justify-self: center; }
+  /* Dòng khác (dịch vụ, công) không có kho: giữ chỗ cột Kho để các ô sau không dồn sang trái. */
+  .qf2o .qline-wh { grid-column: 2; } .qf2o .qline-badge { grid-column: 3; } .qf2o .qline-unit { grid-column: 4; } .qf2o .qline-qty { grid-column: 5; }
+  .qf2o .qline-price { grid-column: 6; } .qf2o .qline-vat { grid-column: 7; } .qf2o .qline-amount { grid-column: 8; } .qf2o .qline-del { grid-column: 9; }
 }
 /* Nhóm hàng: mỗi nhóm một dòng, tên sửa tại chỗ. */
 .group-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
@@ -1912,3 +1915,9 @@ main:has(> .svl) { max-width: none; }
 .tho-report .seg-wrap { gap: 6px; }
 .tho-screen .tho-report .seg-wrap span { min-height: 36px; padding: 4px 10px; font-size: .9rem; }
 .tho-report input[name="fix_extra"] { margin: 2px 0 0; }
+/* Dòng hàng dạng bảng: "Giá lần trước" nằm dưới ô giá, không đẩy ô giá lệch khỏi hàng. */
+@container (min-width: 560px) {
+  .qline-price { position: relative; }
+  .qline-price small { position: absolute; right: 0; top: 100%; margin-top: 1px; white-space: nowrap; font-size: .7rem; line-height: 1.15; }
+  .quote-line:has(.qline-price small:not(:empty)) { padding-bottom: 16px; }
+}
