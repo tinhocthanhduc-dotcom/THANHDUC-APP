@@ -1477,66 +1477,6 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .qf-side [data-order-terms] { gap: 10px; }
 .qf-side [data-order-terms] .stock-seg span { font-size: .85rem; }
 
-/* Dòng hàng */
-.qf-lines { container-type: inline-size; }
-.qlines-head { display: none; padding: 0 0 6px; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.qf-lines:not(:has([data-quote-line],[data-order-line])) .qlines-head { display: none !important; }
-.qf-lines .quote-line { margin: 0; padding: 10px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
-.qf-lines .quote-line.line-error { border: 2px solid var(--bad); border-radius: 10px; padding: 10px; margin: 6px 0; }
-.qf-lines .quote-line.qline-flash { animation: qflash 1s ease-out; }
-@keyframes qflash { from { background: var(--sel); } to { background: transparent; } }
-.qf-lines [data-line-summary] { border-color: var(--line); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
-.qline { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 10px; align-items: end; }
-.qline-item, .qline-price, .qline-meta { grid-column: 1 / -1; }
-.qline-item { display: grid; gap: 4px; }
-.qline-item > label { order: -1; }
-.qline-item > label input { font-weight: 600; }
-.qline-item [data-picker] { position: relative; }
-.qline-item [data-picker] input { height: 34px; min-height: 34px; font-size: .85rem; color: var(--muted); }
-.qline-item .hint:empty, .qline-price small:empty, .qline-item [data-quote-product-name], .qline-item [data-order-product-name] { display: none; }
-.qline .qlabel { display: block; margin: 0 0 3px; font-size: .8rem; color: var(--muted); font-weight: 500; }
-.qline label { min-width: 0; }
-.qline-price small { display: block; margin-top: 3px; font-size: .76rem; color: var(--muted); }
-.qline-meta { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
-.qline-unit { width: 110px; }
-.qline-vat .seg { gap: 4px; }
-.qline-vat .stock-seg label { min-width: 44px; }
-.qline-vat .stock-seg span { min-height: 34px; padding: 6px 6px; font-size: .82rem; }
-.qstep { gap: 4px; }
-.qstep button { width: 30px; height: 38px; min-height: 0; font-size: 1.1rem; border-radius: 8px; }
-.qstep input { width: 42px; min-width: 0; height: 38px; min-height: 0; padding: 0 2px; font-weight: 700; }
-.qline-amount { display: grid; gap: 2px; }
-.qline-amount strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
-.qline-amount small { font-size: .74rem; }
-.qline-del { align-self: end; justify-self: end; }
-.qline-del button { min-height: 38px; background: none; border: 1px solid var(--line); color: var(--bad); }
-.qline-del [aria-hidden] { display: none; }
-.qline-item .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: max(100%, 360px); max-width: 90vw; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
-.qf-lines [data-line-totals] { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--tag); color: var(--muted); font-size: .85rem; }
-@container (min-width: 480px) {
-  .qlines-head { display: grid; }
-  .qline, .qlines-head { grid-template-columns: minmax(0,1fr) 110px 100px 96px 28px; gap: 4px 8px; align-items: start; }
-  .qlines-head span:nth-child(2) { text-align: center; } .qlines-head span:nth-child(n+3) { text-align: right; }
-  .quote-line.line-enhanced > [data-line-summary] { display: none; }
-  .quote-line.line-enhanced:not(.line-open) > [data-line-detail] { display: grid; }
-  .qline-item { grid-column: 1; grid-row: 1; }
-  .qline-qty { grid-column: 2; grid-row: 1; }
-  .qline-price { grid-column: 3; grid-row: 1; }
-  .qline-amount { grid-column: 4; grid-row: 1; text-align: right; padding-top: 8px; }
-  .qline-del { grid-column: 5; grid-row: 1; align-self: start; }
-  .qline-meta { grid-column: 1 / 4; grid-row: 2; }
-  .qline .qline-item .qlabel, .qline .qline-qty .qlabel, .qline .qline-price .qlabel, .qline .qline-amount .qlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .qline-meta .qlabel { display: none; }
-  .qline-unit { width: 90px; }
-  .qline-unit input { height: 32px; min-height: 0; font-size: .85rem; }
-  .qline-meta::before { content: 'ĐVT · VAT'; align-self: center; font-size: .74rem; color: var(--muted); }
-  .qline-price input { text-align: right; height: 38px; min-height: 0; }
-  .qstep { justify-content: center; }
-  .qline-del button { width: 30px; height: 38px; min-height: 0; padding: 0; border: 0; color: var(--muted); font-size: 1.3rem; }
-  .qline-del button:hover { color: var(--bad); background: var(--bad-bg); }
-  .qline-del [aria-hidden] { display: inline; }
-  .qline-del .qdel-text { display: none; }
-}
 /* Cột phải */
 .qf-side { display: grid; gap: 12px; }
 .qf-terms fieldset { gap: 10px; }
@@ -1564,14 +1504,14 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .workflow-total { display: none; }
 .qf-draft button { width: 100%; min-height: 44px; }
 .qf-draft .hint { margin: 6px 0 0; font-size: .78rem; }
-@media (min-width: 1240px) {
+@media (min-width: 1800px) {
   .qf3 { grid-template-columns: minmax(0,1fr) 290px; }
   .qf3.qf3-browse { grid-template-columns: 260px minmax(0,1fr) 272px; }
   .qf3 > .qf-browse { position: sticky; top: 72px; max-height: calc(100vh - 90px); }
   .qf3 > .qf-browse .qb-list { max-height: none; flex: 1; }
   .qf3 > .qf-side { position: sticky; top: 72px; }
 }
-@media (min-width: 901px) and (max-width: 1239px) {
+@media (min-width: 901px) and (max-width: 1799px) {
   .qf3 { grid-template-columns: minmax(0,1fr) 280px; }
   .qf3 > .qf-browse { grid-column: 1; grid-row: 2; }
   .qf3 > .qf-main { grid-column: 1; grid-row: 1; }
@@ -1592,28 +1532,7 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 }
 .qb-groups .chip, .qf-quick .chip { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; cursor: pointer; }
 .qb-groups .chip.on { background: var(--sel); border-color: var(--accent); color: var(--accent); }
-@container (min-width: 480px) {
-  .qline-item { display: contents; }
-  .qline-item > label { grid-column: 1; grid-row: 1; }
-  .qline-item > [data-picker] { grid-column: 1; grid-row: 2; }
-  .qline-meta { grid-column: 2 / 5; grid-row: 2; justify-content: flex-end; flex-wrap: nowrap; }
-  .qline-meta::before { content: none; }
-  .qline-unit { width: 64px; flex: none; }
-  .qline-price input { font-size: .9rem; padding-inline: 6px; }
-}
 .qf-sum dt { font-size: .9rem; white-space: nowrap; }
-/* Dòng đơn bán: hàng 1 tên-SL-giá-tiền, hàng 2 mã hàng + tồn, hàng 3 loại · kho · ĐVT · VAT. */
-[data-order-line] .qline-meta { flex-wrap: wrap; }
-[data-order-line] .qline-meta .seg { flex-wrap: wrap; }
-[data-order-line] .qline-meta .seg label { flex: 0 0 auto; }
-@container (min-width: 480px) {
-  .qline-item > [data-order-goods] { grid-column: 1 / 4; grid-row: 2; }
-  .qline-item > [data-order-goods] [data-picker] { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
-  .qline-item > [data-order-goods] [data-picker] > label { flex: 0 1 260px; }
-  .qline-item > [data-order-goods] .product-options { flex-basis: 100%; }
-  [data-order-line] .qline-meta { grid-column: 1 / 5; grid-row: 3; justify-content: flex-start; flex-wrap: wrap; gap: 6px 14px; }
-  [data-order-line] .qline-unit { width: 64px; }
-}
 /* Đơn bán: dùng chung bảng của danh sách báo giá, 7 cột. */
 .list-top-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .list-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; flex-basis: 100%; padding: 0 0 8px; font-size: .9rem; }
@@ -1641,3 +1560,169 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .qf-pick .qf-quick { margin: 0; }
 .qf-pick .chip { min-height: 36px; padding: 0 14px; font-size: .88rem; }
 .qf-pick .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+/* Dòng hàng báo giá / đơn bán — bản 2: mỗi dòng một hàng ngang
+   Tên hàng · ĐVT · Số lượng · Đơn giá · VAT · Thành tiền · ×  (máy tính); điện thoại xếp chồng. */
+.qf-lines { container-type: inline-size; }
+.qlines-head { display: none; padding: 0 0 6px; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.qf-lines:not(:has([data-quote-line],[data-order-line])) .qlines-head { display: none !important; }
+.qf-lines .quote-line { margin: 0; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
+.qf-lines .quote-line.line-error { border: 2px solid var(--bad); border-radius: 10px; padding: 8px; margin: 6px 0; }
+.qf-lines .quote-line.qline-flash { animation: qflash 1s ease-out; }
+@keyframes qflash { from { background: var(--sel); } to { background: transparent; } }
+.qf-lines [data-line-summary] { border-color: var(--line); border-radius: 10px; padding: 10px 12px; font-weight: 600; }
+.qline { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 10px; align-items: end; }
+.qline-item { grid-column: 1 / -1; display: grid; gap: 6px; min-width: 0; }
+.qline-item > label input { font-weight: 600; }
+.qline .qlabel { display: block; margin: 0 0 3px; font-size: .8rem; color: var(--muted); font-weight: 500; }
+.qline label { min-width: 0; }
+.qline-code { position: relative; display: grid; gap: 2px; }
+.qline-code [data-picker] { position: relative; display: grid; gap: 2px; }
+.qline-code input { height: 34px; min-height: 34px; font-size: .85rem; color: var(--muted); }
+.qline .hint:empty, .qline-price small:empty, .qline [data-quote-product-name], .qline [data-order-product-name] { display: none; }
+.qline-stock { font-size: .78rem; }
+.qline-more { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.qline-more .seg { flex-wrap: wrap; gap: 4px; }
+.qline-more .seg label { flex: 0 0 auto; min-width: 0; }
+.qline-more .stock-seg span { min-height: 34px; padding: 6px 8px; font-size: .82rem; }
+.qline-price small { display: block; margin-top: 3px; font-size: .76rem; color: var(--muted); }
+.qline-vat .seg { gap: 4px; }
+.qline-vat .stock-seg label { min-width: 44px; flex: 0 0 auto; }
+.qline-vat .stock-seg span { min-height: 36px; padding: 6px; font-size: .82rem; }
+.qline-amount { display: grid; gap: 2px; align-self: center; }
+.qline-amount strong { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qline-del { align-self: center; justify-self: end; }
+.qline-del button { min-height: 38px; background: none; border: 1px solid var(--line); color: var(--bad); }
+.qline-del [aria-hidden] { display: none; }
+.qline-code .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: max(100%, 360px); max-width: 90vw; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+.qf-lines [data-line-totals] { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--tag); color: var(--muted); font-size: .85rem; }
+.qf-adds { display: flex; flex-wrap: wrap; gap: 8px; }
+@container (min-width: 560px) {
+  .qlines-head { display: grid; }
+  .qline, .qlines-head { grid-template-columns: minmax(0,1fr) 62px 120px 108px 62px 104px 28px; gap: 4px 8px; align-items: center; }
+  .qlines-head span:nth-child(n+2) { text-align: center; } .qlines-head span:nth-child(4), .qlines-head span:nth-child(6) { text-align: right; }
+  .quote-line.line-enhanced > [data-line-summary] { display: none; }
+  .quote-line.line-enhanced:not(.line-open) > [data-line-detail] { display: grid; }
+  .qline-item { grid-column: 1; }
+  .qline .qlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .qline-item > label input, .qline-unit input, .qline-price input, .qstep input { height: 38px; min-height: 0; }
+  .qline-unit input { text-align: center; padding-inline: 4px; font-size: .88rem; }
+  .qline-price input { text-align: right; padding-inline: 6px; font-size: .9rem; }
+  .qstep { justify-content: center; gap: 4px; }
+  .qstep button { width: 32px; height: 38px; min-height: 0; font-size: 1.1rem; }
+  .qstep input { width: 44px; padding: 0 2px; }
+  .qline-amount { text-align: right; }
+  .qline-del button { width: 28px; height: 38px; min-height: 0; padding: 0; border: 0; color: var(--muted); font-size: 1.3rem; }
+  .qline-del button:hover { color: var(--bad); background: var(--bad-bg); }
+  .qline-del [aria-hidden] { display: inline; }
+  .qline-del .qdel-text { display: none; }
+  /* Dòng đã có hàng: ẩn ô mã / loại / kho (đã chọn ở cột trái và Kho xuất cả đơn); dòng lỗi thì hiện lại để sửa. */
+  [data-quote-line]:not(.line-error) .qline-code,
+  [data-picked-product="1"]:not(.line-error) .qline-code > [data-picker] > label,
+  [data-picked-product="1"]:not(.line-error) .qline-more { display: none; }
+  [data-picked-product="1"]:not(.line-error) .qline-code [data-availability-summary] { display: none; }
+  /* VAT từng dòng: chỉ hiện mức đang chọn, bấm để đổi vòng 10 → 8 → 5 → 0. */
+  .qline-vat .seg { justify-content: center; }
+  .qline-vat .stock-seg label:not(:has(input:checked)) { display: none; }
+  .qline-vat .stock-seg label { min-width: 0; width: 100%; }
+  .qline-vat .stock-seg input:checked + span { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; }
+  .qline-vat .stock-seg span { height: 38px; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; }
+  .qline-vat .stock-seg span::after { content: '▾'; font-size: .7rem; color: var(--muted); }
+}
+/* Ô khách hàng bản 2 */
+.qf-cust [data-picked-summary]:not([hidden]) { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 6px 4px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.qf-cust [data-picked-text] { flex: 1; min-width: 0; }
+.qf-cust [data-customer-card] { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.qf-cust [data-card-title] { font-weight: 600; }
+.qf-cust [data-card-address] { display: none; }
+.qf-cust [data-card-debt], .qf-cust [data-card-committed] { font-size: .78rem; color: var(--muted); }
+.qf-cust [data-picked-edit] { width: auto; min-height: 34px; padding: 0 12px; }
+.qf-cust-hint { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+.qf-pair { display: grid; gap: 10px; margin-top: 12px; }
+@media (min-width: 700px) { .qf-pair { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+.qf-pair input[readonly] { background: var(--bg); color: var(--muted); }
+/* Khung tổng bản 2 */
+.qf-sum { padding: 0; overflow: hidden; }
+.qf-sum > .qf-h { margin: 0; padding: 14px 16px 0; }
+.qf-sum dl { padding: 10px 16px 14px; gap: 8px; }
+.qf-sum dl div { display: flex; justify-content: space-between; gap: 8px; }
+.qf-sum dl dt { color: var(--text); font-size: .92rem; }
+.qf-sum dl dd { font-size: .95rem; }
+.qf-sum .qf-grand { margin: 6px -16px -14px; padding: 14px 16px; border-top: 1px solid var(--line); background: var(--sel); display: grid !important; }
+.qf-sum .qf-grand dt { color: var(--accent); font-size: .74rem; }
+.qf-sum .qf-grand dd { font-size: 1.9rem; }
+.qf-sum > .hint { margin: 0; padding: 8px 16px 12px; font-size: .76rem; }
+/* Cột 1, 3 rộng hơn và giãn hết khung */
+main:has(> .quote-form-page) { max-width: none; }
+@media (min-width: 1800px) {
+  .qf3.qf3-browse { grid-template-columns: 340px minmax(0,1fr) 340px; }
+  .qf3:not(.qf3-browse) { grid-template-columns: minmax(0,1fr) 340px; }
+}
+/* Đơn bán mới: 2 cột (khách + giao nhận ở trên, dòng hàng, cột phải thanh toán + tổng) */
+.qf2o .qf-main { container-type: inline-size; display: grid; gap: 12px; align-content: start; }
+.qf2o .qf-main > fieldset { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.qf-toprow { display: grid; gap: 12px; }
+@container (min-width: 760px) { .qf-toprow { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+.qf-seg4, .qf-seg3 { display: grid; gap: 6px; }
+.qf-seg4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.qf-seg3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+@media (min-width: 420px) { .qf-seg4 { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+.qf-seg4 label, .qf-seg3 label { min-width: 0; }
+.qf-seg4 span, .qf-seg3 span { min-height: 40px; display: flex; align-items: center; justify-content: center; padding: 4px 6px; font-size: .85rem; font-weight: 600; line-height: 1.2; }
+.qf-ship { display: grid; gap: 10px; align-content: start; }
+.qf-ship .qf-h { margin: 0; }
+.qf-date-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.qf-date-row > label { flex: 1 1 150px; }
+.qf-date-row .qf-quick { margin: 0; padding-bottom: 4px; }
+.qf-addr textarea { min-height: 40px; resize: vertical; }
+.qf-ship-hint { margin: 0; font-size: .78rem; }
+.qf-src { margin: 0 0 8px; }
+.qf-src-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--sel); color: var(--accent); font-size: .85rem; font-weight: 700; text-decoration: none; }
+.qf2o .qf-card-head { flex-wrap: wrap; }
+.qf-pick-inline { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.qf-pick-inline .qf-pick-label { font-size: .82rem; color: var(--muted); }
+.qf-pick-inline .chip { min-height: 32px; padding: 0 12px; }
+.qf-find { position: relative; margin: 6px 0 8px; }
+.qf-find input { height: 42px; border-style: dashed; border-color: var(--accent); }
+.qf-find-drop { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; max-height: 340px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+.qf-find-drop .qb-item { padding: 8px 12px; }
+.qf-note { margin-top: 10px; }
+.qf-note textarea { min-height: 44px; }
+.qf-terms .qf-pick { margin-top: 2px; }
+/* Ô Tồn: còn đủ / thiếu theo số lượng đang nhập */
+.qline-badge { justify-self: start; font-size: .78rem; font-weight: 700; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
+.qline-badge:empty { display: none; }
+.qline-badge.ok { color: var(--ok, #15803d); background: color-mix(in srgb, var(--ok, #15803d) 12%, transparent); }
+.qline-badge.no { color: var(--bad); background: var(--bad-bg); }
+[data-order-line].line-short { background: color-mix(in srgb, var(--bad-bg) 55%, transparent); }
+.qline-wh .stock-seg { gap: 4px; }
+.qline-wh .stock-seg label { flex: 0 0 auto; min-width: 0; }
+.qline-wh .stock-seg span { min-height: 36px; padding: 6px 10px; font-size: .84rem; }
+.qline-wh .wh-name { font-style: normal; }
+/* Dòng đã chọn hàng: ẩn danh sách gợi ý mã khi đổi kho */
+[data-picked-product="1"]:not(.line-error) .order-options { display: none; }
+/* Đơn: 9 cột khi khung dòng đủ rộng: Tên · Kho · Tồn · ĐVT · SL · Giá · VAT · Tiền · × */
+@container (min-width: 560px) and (max-width: 879px) {
+  /* Khung vừa: 2 hàng mỗi dòng — Tên · Kho · Tồn / ĐVT · SL · Giá · VAT · Tiền · × */
+  .qf2o .qlines-head { display: none; }
+  .qf2o .qline { grid-template-columns: 58px 120px minmax(0,1fr) 62px minmax(0,1fr) 72px; grid-template-areas: "item item item item wh badge" "unit qty price vat amt del"; gap: 6px 8px; }
+  .qf2o .qline-item { grid-area: item; } .qf2o .qline-wh { grid-area: wh; } .qf2o .qline-badge { grid-area: badge; align-self: center; }
+  .qf2o .qline-unit { grid-area: unit; } .qf2o .qline-qty { grid-area: qty; } .qf2o .qline-price { grid-area: price; }
+  .qf2o .qline-vat { grid-area: vat; } .qf2o .qline-amount { grid-area: amt; } .qf2o .qline-del { grid-area: del; }
+}
+@container (min-width: 560px) {
+  /* Kho từng dòng: chỉ hiện kho đang chọn (mã kho), bấm để đổi vòng. */
+  .qline-wh .stock-seg { flex-wrap: nowrap; }
+  .qline-wh .stock-seg label:not(:has(input:checked)) { display: none; }
+  .qline-wh .stock-seg label { width: 100%; }
+  .qline-wh .stock-seg input:checked + span { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; }
+  .qline-wh .stock-seg span { height: 38px; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; white-space: nowrap; overflow: hidden; }
+  .qline-wh .stock-seg span::after { content: '▾'; font-size: .7rem; color: var(--muted); }
+  .qline-wh .wh-name { display: none; }
+}
+@container (min-width: 880px) {
+  .qf2o .qline, .qf2o .qlines-head { grid-template-columns: minmax(0,1fr) 92px 84px 58px 120px 108px 62px 112px 28px; }
+  .qf2o .qlines-head span:nth-child(2), .qf2o .qlines-head span:nth-child(3) { text-align: center; }
+  .qf2o .qlines-head span:nth-child(6), .qf2o .qlines-head span:nth-child(8) { text-align: right; }
+  .qf2o .qlines-head span:nth-child(4), .qf2o .qlines-head span:nth-child(5), .qf2o .qlines-head span:nth-child(7) { text-align: center; }
+  .qf2o .qline-badge { justify-self: center; }
+}
