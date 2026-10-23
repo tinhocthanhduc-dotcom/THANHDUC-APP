@@ -210,7 +210,7 @@ def warehouse_view(request:Request,order_id:int,user:User=Depends(warehouse_user
 @router.get('/don-ban')
 def listing(request: Request,q: str='',status: str='',phan: int=0,
             from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,fulfillment: str='',overdue: bool=False,
-            nguoi: int=0,user: User=Depends(order_user),session: Session=Depends(get_session)):
+            nguoi: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
     error=code=None
     http_status=200
     try:
@@ -222,6 +222,7 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
     except BusinessError as exc:
         rows=[]
         error,code,http_status=_error(exc)
+    nguoi = int(nguoi) if nguoi.isdigit() else 0  # ô "Mọi người lập" gửi nguoi= rỗng
     if nguoi:  # Lọc hiển thị theo người lập; chỉ đọc.
         rows=[r for r in rows if r.created_by==nguoi]
     codes={r.customer_code for r in rows}

@@ -124,13 +124,14 @@ def _error(exc):
 
 
 @router.get('/bao-gia')
-def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,nguoi: int=0,ky: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
+def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,nguoi: str='',ky: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
     rows = svc.search(session,user,q[:200],'DA_GUI' if han else (status or None))
     today = svc._today()
     if han:  # Ô "Sắp hết hạn": báo giá đã gửi, còn tối đa 2 ngày hoặc đã quá hạn.
         rows = [row for row in rows if row.valid_until <= today+timedelta(days=2)]
     # Lọc hiển thị theo người lập / khoảng ngày lập (giờ VN); chỉ đọc.
     vn = ZoneInfo('Asia/Ho_Chi_Minh')
+    nguoi = int(nguoi) if nguoi.isdigit() else 0  # ô "Mọi người lập" gửi nguoi= rỗng
     if nguoi:
         rows = [row for row in rows if row.created_by == nguoi]
     month = today.replace(day=1)
