@@ -195,5 +195,7 @@ def state(session,user,order):
     last_action=session.scalar(select(AuditLog.action).where(AuditLog.entity=='sales_order',AuditLog.entity_id==str(order.id),
         AuditLog.action.in_(('sales_order.failed_delivery','sales_order.deliver'))).order_by(AuditLog.id.desc()).limit(1))
     unsuccessful=last_action=='sales_order.failed_delivery'
-    label='Giao không thành' if unsuccessful else 'Chưa có thợ' if not order.delivery_assignee_id else 'Đang ở thợ' if held else 'Có thợ chưa nhận hàng'
-    return dict(held=held,attempts=attempts,label=label,assignee=session.get(User,order.delivery_assignee_id) if order.delivery_assignee_id else None)
+    # Thợ đã đề nghị hủy và chưa giao lại: chờ bán hàng hủy, thẻ của thợ đổi sang "Chờ hủy".
+    cancel_requested=unsuccessful and order.status=='DA_CHOT' and bool(attempts) and attempts[0].reason=='DE_NGHI_HUY'
+    label='Chờ bán hàng hủy đơn' if cancel_requested else 'Giao không thành' if unsuccessful else 'Chưa có thợ' if not order.delivery_assignee_id else 'Đang ở thợ' if held else 'Có thợ chưa nhận hàng'
+    return dict(held=held,attempts=attempts,label=label,cancel_requested=cancel_requested,assignee=session.get(User,order.delivery_assignee_id) if order.delivery_assignee_id else None)

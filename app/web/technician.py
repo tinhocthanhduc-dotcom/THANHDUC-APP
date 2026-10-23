@@ -178,6 +178,7 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
     by_ticket={job['id']:job for job in jobs if job['kind']=='service'}
     for order in orders:
         action=next_steps.delivery(session,user,order)
+        cancel_asked=action['primary']['label'].startswith('Đã đề nghị hủy')
         if order.service_ticket_id in by_ticket:
             # Đơn giao cùng chuyến với phiếu của thợ: gộp vào thẻ phiếu, không thành dòng riêng.
             by_ticket[order.service_ticket_id].setdefault('trips',[]).append(dict(number=order.number,href=f'/giao-don/{order.id}?return_to=tho',action=action['primary']))
@@ -185,8 +186,8 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
         customer=session.get(Customer,order.customer_code)
         appointment=datetime.combine(order.promised_date,time.min,service_tickets.service_sla.TZ) if order.promised_date else None
         jobs.append(dict(kind='delivery',id=order.id,number=order.number,priority='',customer=customer.name,machine='',serial='',
-            symptom='Giao đơn bán',appointment=appointment,overdue=bool(order.promised_date and order.promised_date<now.astimezone(service_tickets.service_sla.TZ).date()),
-            href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],status='GIAO_DON',created=order.created_at,group='upcoming',sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))
+            symptom='Chờ bán hàng hủy đơn' if cancel_asked else 'Giao đơn bán',appointment=appointment,overdue=bool(order.promised_date and order.promised_date<now.astimezone(service_tickets.service_sla.TZ).date()),
+            href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],status='CHO_HUY' if cancel_asked else 'GIAO_DON',created=order.created_at,group='upcoming',sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))
     jobs.sort(key=lambda row:(row['sort'],row['kind'],row['id']))
     day=now.astimezone(service_tickets.service_sla.TZ).date()
     # Chỉ nhắc, không chặn: thợ có hồ sơ nhân sự mà hôm nay chưa bấm Vào ca.
