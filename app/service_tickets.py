@@ -33,14 +33,14 @@ FLOW = {
     "DA_HEN": {"DA_HEN", "DANG_LAM", "KHONG_LAM_DUOC"},  # DA_HEN -> DA_HEN là dời lịch hẹn
     "DANG_LAM": {"DA_HEN", "HOAN_THANH", "CHO_LINH_KIEN", "TAM_DUNG", "KHONG_LAM_DUOC", "DA_HUY"},
     "CHO_LINH_KIEN": {"DANG_LAM", "KHONG_LAM_DUOC", "DA_HUY"},
-    "TAM_DUNG": {"DANG_LAM", "KHONG_LAM_DUOC", "DA_HUY"},
+    "TAM_DUNG": {"DANG_LAM", "DA_HEN", "KHONG_LAM_DUOC", "DA_HUY"},
     "HOAN_THANH": {"DANG_LAM", "DA_DONG"},  # chỉ điều phối: mở lại nghiệm thu (có lý do) hoặc đóng hồ sơ
     "DA_DONG": {"DANG_LAM"},
 }
 # Phiếu đã hoàn thành chỉ điều phối được mở lại, hủy hoặc đóng; hủy lúc đó trả vật tư về kho.
 CANCELLABLE = OPEN + ("HOAN_THANH", "DA_DONG")
 HOLD_REASONS = {"CHO_KHACH_DUYET": "Chờ khách duyệt", "CHO_KY_THUAT_KHAC": "Chờ kỹ thuật khác",
-                "CHO_DOI_TAC": "Chờ đối tác", "HEN_NGAY_KHAC": "Hẹn ngày khác", "KHAC": "Khác"}
+                "CHO_DOI_TAC": "Chờ đối tác", "HEN_NGAY_KHAC": "Hẹn ngày khác", "KHAC": "Khác", "SUA_XONG_CHO_TRA": "Sửa xong, chờ trả máy"}
 NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY")
 ASSIGNABLE = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
 
@@ -214,10 +214,16 @@ def _transition(session: Session, user: User, ticket_id: int, to_status: str, ve
 def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: str,
                      note: str = "", appointment_at: datetime | None = None, hold_reason: str = "",
                      no_show: bool = False, appointment_slot: str | None = None, *, auto_close: bool = True,
-                     return_lines=None) -> ServiceTicket:
+                     return_lines=None, _action=None) -> ServiceTicket:
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
     note = (note or "").strip()
     is_dispatcher = has_role(user, *DISPATCHERS)
+    ready=t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA'
+    if t.status=='TAM_DUNG' and to_status=='DA_HEN':
+        if not is_dispatcher:raise BusinessError('FORBIDDEN','Chỉ điều phối được hẹn trả máy.',status=403)
+        if not ready:raise BusinessError('BAD_TRANSITION','Chỉ hẹn trả khi máy đã sửa xong chờ trả.',status=409)
+    if ready and to_status=='DANG_LAM':
+        raise BusinessError('BAD_TRANSITION','Điều phối cần hẹn trả máy trước khi thợ đi trả.',status=409)
     if to_status == 'KHACH_HEN_SAU':
         raise BusinessError('BAD_TRANSITION', 'Trạng thái này không còn được sử dụng.', status=409)
     technician_cancel = to_status == 'DA_HUY' and not is_dispatcher
@@ -252,6 +258,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         from .service_appointments import validate
         validate(appointment_at, appointment_slot, _now())
     if to_status == "TAM_DUNG":
+        if hold_reason=='SUA_XONG_CHO_TRA' and (t.repaired_by is None or t.priced_at is None):
+            raise BusinessError('WORKSHOP_REQUIRED','Dùng thao tác Sửa xong, chờ trả máy để chốt kết quả và tiền.')
         if hold_reason not in HOLD_REASONS:
             raise BusinessError("HOLD_REASON_REQUIRED", "Phải chọn lý do tạm dừng.")
         if hold_reason == "KHAC" and not note:
@@ -289,6 +297,11 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         outcome = {'HOAN_THANH': 'XONG', 'DA_HEN': 'HEN_LAI', 'DA_HUY': 'HUY'}.get(to_status, to_status)
         service_visits.close_visit(session, t, outcome, stamp, note, appointment_at if returning else None)
     if to_status == 'DANG_LAM':
+        if t.repaired_by is not None and t.priced_at is not None:
+            from . import equipment_custody
+            eq=equipment_custody._machine(session,t.serial,lock=True)
+            if eq.custody_ticket_id!=t.id or eq.custody_location!='THO_GIU' or eq.custody_holder_id!=t.assignee_id or equipment_custody.pending(session,t.serial):
+                raise BusinessError('MACHINE_NOT_RECEIVED','Thợ đi trả cần xác nhận đã nhận máy trước khi đến khách.',status=409)
         service_visits.open_visit(session, t, stamp)
     if no_show:
         service_visits.open_visit(session, t, stamp)
@@ -317,7 +330,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         # Một lượt mới vẫn đổi phiên bản khi giờ hẹn tình cờ bằng giờ đã lưu.
         t.version += 1
         action = "no_show"
-    _record(session, user, t, action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
+    _record(session, user, t, _action or action, before, from_status, note, note if to_status in NEEDS_REASON or reopening else "")
     if technician_cancel:
         finish_cancel(session, user, t, note, cancellation)
     elif to_status in CLOSED and from_status not in CLOSED:

@@ -1,7 +1,11 @@
+{% if line.get('stock_doc_id') %}<div class="card charge-line" data-charge-line data-kind="VAT_TU">
+<input type="hidden" name="line_stock_doc_id" value="{{ line.stock_doc_id }}"><input type="hidden" name="line_kind" value="{{ line.kind }}"><input type="hidden" name="line_product" value="{{ line.product_code }}"><input type="hidden" name="line_description" value="{{ line.description }}"><input type="hidden" name="line_qty" value="{{ line.qty }}"><input type="hidden" name="line_price" value="{{ line.unit_price }}"><input type="hidden" name="warehouse_{{ index }}" value="{{ line.warehouse_code }}" data-charge-warehouse><input type="hidden" name="vat_{{ index }}" value="{{ line.vat_rate }}" data-charge-vat>
+<strong>{{ charge_names.get(line.product_code,line.product_code) }} · {{ line.qty|qty }}</strong><p class="hint">{{ line.warehouse_code }} · Đã xuất kho, giữ nguyên khi giao thợ khác.</p><output data-charge-row-total hidden></output>
+</div>{% else %}
 {% import 'kha_dung_chon.jinja' as stock %}
 {% set material = line.kind == 'VAT_TU' %}
 <fieldset class="card charge-line" data-charge-line data-kind="{{ line.kind }}">
-<input type="hidden" name="line_kind" value="{{ line.kind }}">
+<input type="hidden" name="line_stock_doc_id" value=""><input type="hidden" name="line_kind" value="{{ line.kind }}">
 <div class="bar"><strong>{{ 'Vật tư' if material else 'Dòng phí' }}</strong>{% if can_charge and charge_editable %}<button type="button" data-charge-remove>Xóa dòng</button>{% endif %}</div>
 {% if material %}
 <div data-picker><label>Hàng (tìm và chọn)<input name="line_product" value="{{ line.product_code or '' }}" required autocomplete="off" data-live=".charge-options" data-source="/dich-vu/tim-vat-tu"></label>
@@ -20,3 +24,5 @@
 <p class="hint">Tạm tính: <output data-charge-row-total>—</output> đồng (gồm VAT).</p>
 {% if line.amount is defined %}<p class="hint">Lõi đã lưu: {{ line.amount|money }} + VAT {{ line.vat_amount|money }} đồng.</p>{% endif %}
 </fieldset>
+
+{% endif %}

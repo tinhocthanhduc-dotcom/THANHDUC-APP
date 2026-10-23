@@ -54,6 +54,9 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         rows = list(session.scalars(select(ServiceTicket).where(opened)
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())))
         title = "Đơn đang mở"
+    elif view == 'return_ready':
+        rows=list(session.scalars(select(ServiceTicket).where(ServiceTicket.status=='TAM_DUNG',ServiceTicket.hold_reason=='SUA_XONG_CHO_TRA').order_by(ServiceTicket.id)))
+        title='Máy sửa xong chờ trả'
     elif view == "paused":
         rows = svc.search(session, user, status="TAM_DUNG", limit=count_paused or 1)
         title = "Tạm dừng"
@@ -71,7 +74,7 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
     visit_counts = dict(session.execute(select(ServiceVisit.ticket_id, func.count()).where(
         ServiceVisit.ticket_id.in_([t.id for t in rows])).group_by(ServiceVisit.ticket_id)).all())
     return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
-                  count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
+                  count_return_ready=session.scalar(select(func.count()).select_from(ServiceTicket).where(ServiceTicket.status=='TAM_DUNG',ServiceTicket.hold_reason=='SUA_XONG_CHO_TRA')),count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
                   users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
                   now=now, delay=_delay, watch=dict(url='/dieu-phoi/moi', stamp=work_watch.dispatch(session)))
 

@@ -36,6 +36,17 @@ def charges(session,user,ticket,version,total,mode,reason,materials):
     if not free and amount<=0:
         raise BusinessError('CUSTOMER_AMOUNT_REQUIRED','Chưa nhập tiền thu khách hoặc chọn Miễn phí')
     own=technician_stock.own_warehouse(session,user,lock=True)
+    # Issued rows are immutable; foreign unissued rows survive an internal reopen.
+    lines=[service_charges.line_input(x) for x in ticket.lines if x.kind=='VAT_TU' and
+        (x.stock_doc_id is not None or own is None or x.warehouse_code!=own.code)]
+    lines.extend(material_lines(session,user,materials))
+    net,tax=net_from_gross(amount)
+    if not free:lines.append(dict(kind='PHI',description=FEE_DESCRIPTION,qty=1,unit_price=net,vat_rate=DEFAULT_VAT_RATE))
+    return ServiceCharges(version=version,billing='MIEN_PHI' if free else 'THU_TIEN',free_reason=reason if free else '',lines=lines),net+tax
+
+
+def material_lines(session,user,materials):
+    own=technician_stock.own_warehouse(session,user,lock=True)
     lines=[];counts=Counter()
     for material in materials:
         qty=technician_returns.quantity(material.get('qty',0))
@@ -50,9 +61,7 @@ def charges(session,user,ticket,version,total,mode,reason,materials):
         balance=session.scalar(select(StockBalance).where(StockBalance.warehouse_code==own.code,StockBalance.product_code==code))
         if not balance or counts[code]>balance.qty:
             raise BusinessError('NEGATIVE_STOCK','Số vật tư vượt số đang giữ trong kho của bạn.',status=409)
-    net,tax=net_from_gross(amount)
-    if not free:lines.append(dict(kind='PHI',description=FEE_DESCRIPTION,qty=1,unit_price=net,vat_rate=DEFAULT_VAT_RATE))
-    return ServiceCharges(version=version,billing='MIEN_PHI' if free else 'THU_TIEN',free_reason=reason if free else '',lines=lines),net+tax
+    return lines
 
 
 def apply_report(session,t,fault,fix):
@@ -63,7 +72,7 @@ def apply_report(session,t,fault,fix):
     t.fault_found,t.fix_done=fault,fix
 
 
-def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix=''):
+def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix='',return_machine=None):
     from .stock_docs import _transaction
     from .models import ServiceDraft
     with _transaction(session):
@@ -72,14 +81,27 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
             raise BusinessError('FORBIDDEN','Chỉ thợ được giao được hoàn thành phiếu.',status=403)
         service_tickets._check_version(t,version)
         if t.status!='DANG_LAM':raise BusinessError('BAD_STATUS','Chỉ hoàn thành phiếu đang làm.',status=409)
-        apply_report(session,t,fault,fix)
-        body,actual=charges(session,user,t,version,total,mode,reason,materials)
+        if t.serial:
+            from .equipment_custody import _machine
+            _machine(session,t.serial,lock=True)  # ticket -> machine -> warehouse, also for two dossiers sharing a serial
+        locked=service_charges.return_locked(t)
+        if locked:
+            actual=t.receivable or 0
+            if materials or money(str(total))!=actual or mode not in ('','FULL','PARTIAL') or (reason and reason!=t.free_reason):
+                raise BusinessError('CHARGES_LOCKED','Số phải thu đã chốt khi sửa xong; chỉ chọn cách thu, không sửa phí hoặc vật tư.',status=409)
+        else:
+            apply_report(session,t,fault,fix)
+            body,actual=charges(session,user,t,version,total,mode,reason,materials)
         received=0
         if mode=='FULL':received=actual
         elif mode=='PARTIAL':
             received=money(partial)
             if not 0<received<actual:raise BusinessError('BAD_PARTIAL_AMOUNT','Thu một phần phải lớn hơn 0 và nhỏ hơn tổng phải thu.')
-        service_charges.set_charges_in_tx(session,user,t,body)
+        if locked:
+            if return_machine is not None:
+                from .equipment_custody import return_customer_in_tx
+                return_customer_in_tx(session,user,t.id,return_machine)
+        else:service_charges.set_charges_in_tx(session,user,t,body)
         service_tickets.transition_in_tx(session,user,t,'HOAN_THANH',note,auto_close=False)
         if received:
             from . import sales_receipts
@@ -122,6 +144,7 @@ def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entr
         service_tickets._check_version(t,version)
         allowed=('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') if failed else ('DA_GIAO','DA_NHAN','DA_HEN')
         if t.status not in allowed:raise BusinessError('BAD_STATUS','Không chuyển thợ ở bước này.',status=409)
+        if service_charges.return_locked(t):raise BusinessError('CHARGES_LOCKED','Điều phối cần phân công trả máy, không đổi phí hoặc chuyển việc sửa.',status=409)
         reason=(reason or '').strip()
         if len(reason)<3:raise BusinessError('REASON_REQUIRED','Phải ghi lý do chuyển thợ ít nhất 3 ký tự.')
         if assignee_id==user.id:raise BusinessError('SAME_ASSIGNEE','Chọn thợ khác với chính mình.')
@@ -153,7 +176,7 @@ def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entr
         if failed and t.status=='DANG_LAM':
             from . import service_visits
             service_visits.close_visit(session,t,'KHONG_LAM_DUOC',service_tickets._now(),history)
-        t.lines.clear();session.flush()
+        t.lines[:]=[line for line in t.lines if line.stock_doc_id is not None];session.flush()
         keep_free=bool(t.warranty_basis and t.billing=='MIEN_PHI')
         t.billing='MIEN_PHI' if keep_free else None
         t.free_reason=t.free_reason if keep_free else ''

@@ -1,7 +1,7 @@
 """Tiền và vật tư của phiếu dịch vụ (D6).
 
 Dòng phí và dòng vật tư sửa tự do khi phiếu còn mở. Khi phiếu sang HOAN_THANH, giá bị khóa (ghi tổng và số phải thu)
-và vật tư được xuất kho bằng phiếu PX tự lập và ghi sổ trong cùng transaction: đây là đường duy nhất Dịch vụ trừ kho.
+và vật tư chưa xuất được ghi PX trong cùng transaction. MV1 cũng dùng issue_materials để xuất ngay khi khai đã lắp, không xuất lại dòng đã có PX.
 Mở lại hoặc hủy phiếu đã hoàn thành thì hủy các phiếu PX đó (sổ kho ghi đảo) và mở khóa giá.
 Báo thu do sales_receipts quản lý; danh sách cần thu nối tổng đã thu/chờ bằng SQL.
 """
@@ -15,11 +15,23 @@ from sqlalchemy.orm import Session
 from . import audit, service_sla, service_tickets, stock_docs, stock_posting, technician_stock
 from .errors import BusinessError
 from .models import Product, SalesReceipt, ServiceLine, ServiceTicket, User, Warehouse, StockBalance, StockDocLine, StockLedger, StockDoc
-from .schemas import ServiceCharges, ServiceLineOut, StockDocIn, StockDocLineIn
+from .schemas import ServiceCharges, ServiceLineIn, ServiceLineOut, StockDocIn, StockDocLineIn
 from .security import has_role
 from .stock_docs import _transaction
 
 VIEWERS = ("dispatcher", "finance")
+
+
+def return_locked(t):
+    return getattr(t,'repaired_by',None) is not None and t.priced_at is not None
+
+
+def line_input(line):
+    return {key:getattr(line,key) for key in ServiceLineIn.model_fields}
+
+
+def _issued_key(line):
+    return tuple(getattr(line,k) for k in ('kind','product_code','warehouse_code','qty','stock_doc_id','unit_price','vat_rate','description'))
 
 
 def _round(x: Decimal) -> int:
@@ -44,6 +56,8 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
     if not has_role(user, *service_tickets.DISPATCHERS) and t.assignee_id != user.id:
         raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được sửa tiền của phiếu này.", status=403)
+    if return_locked(t):
+        raise BusinessError('CHARGES_LOCKED','Tiền đã chốt khi sửa xong, thợ trả máy không được sửa.',status=409)
     if t.status not in service_tickets.OPEN:
         code = "PRICE_LOCKED" if t.priced_at is not None else "BAD_STATUS"
         raise BusinessError(code, "Phiếu đã hoàn thành hoặc đóng, không sửa tiền được.", {"status": t.status}, status=409)
@@ -57,28 +71,35 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
             raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc được đổi bảo hành sang Có thu tiền.', status=403)
         if not body.billing_reason.strip():
             raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do thu tiền phiếu còn bảo hành.')
+    issued=[x for x in t.lines if x.stock_doc_id is not None]
+    required=Counter(_issued_key(x) for x in issued)
+    submitted=Counter(_issued_key(x) for x in body.lines if x.stock_doc_id is not None)
+    if submitted!=required:
+        raise BusinessError('LINE_ISSUED','Dòng vật tư đã xuất kho phải được giữ nguyên, không sửa hoặc xóa.',status=409)
+    editable=[x for x in body.lines if x.stock_doc_id is None]
     own = technician_stock.restricted_warehouse(session, user, lock=True)
     if own:
         # Mỗi dòng cũ chỉ miễn kiểm một lần; không cho nhân bản dòng kho công ty.
-        unchanged = Counter((x.product_code, x.warehouse_code, x.qty) for x in t.lines if x.kind == 'VAT_TU')
-        for x in body.lines:
+        unchanged = Counter((x.product_code, x.warehouse_code, x.qty) for x in t.lines if x.kind == 'VAT_TU' and x.stock_doc_id is None)
+        for x in editable:
             if x.kind != 'VAT_TU' or x.warehouse_code == own.code:
                 continue
             key = (x.product_code, x.warehouse_code, x.qty)
             if not unchanged[key]:
                 raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư thêm hoặc sửa phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
             unchanged[key] -= 1
-    _validate_lines(session, body)
+    _validate_lines(session, body.model_copy(update={'lines':editable}))
     before = _snapshot(t)
     lines = []
-    for i, x in enumerate(body.lines, 1):
+    start=max((x.line_no for x in issued),default=0)+1
+    for i, x in enumerate(editable, start):
         amount = _round(x.qty * x.unit_price)
         lines.append(ServiceLine(line_no=i, kind=x.kind, product_code=x.product_code, warehouse_code=x.warehouse_code,
                                  description=x.description, qty=x.qty, unit_price=x.unit_price, vat_rate=x.vat_rate,
                                  amount=amount, vat_amount=_round(Decimal(amount) * x.vat_rate / 100)))
-    t.lines.clear()
+    t.lines[:] = issued
     session.flush()  # xóa dòng cũ trước để số dòng mới không trùng
-    t.lines = lines
+    t.lines.extend(lines)
     t.billing = body.billing
     t.free_reason = free_reason if body.billing == "MIEN_PHI" else ""
     # Thay dòng cũng là sửa phiếu, kể cả khi cách thu không thay đổi.
@@ -115,10 +136,19 @@ def complete(session: Session, user: User, t: ServiceTicket) -> None:
     vat_total = sum(x.vat_amount for x in t.lines)
     if t.billing == "THU_TIEN" and subtotal + vat_total == 0:
         raise BusinessError("EMPTY_CHARGES", "Có thu tiền nhưng chưa có dòng phí hoặc vật tư nào có giá.")
+    issue_materials(session,user,t)
+    t.subtotal, t.vat_total, t.total = subtotal, vat_total, subtotal + vat_total
+    t.receivable = t.total if t.billing == "THU_TIEN" else 0
+    # Recognition date remains completion time, including a later workshop return.
+    t.priced_at = datetime.now(UTC)
+
+
+def issue_materials(session,user,t,lines=None):
+    """Xuất những dòng chưa có PX, cùng lõi/giá vốn cho xuất sớm và hoàn thành."""
     today = datetime.now(UTC).astimezone(service_sla.TZ).date()
     by_wh: dict[str, list[ServiceLine]] = {}
-    for x in t.lines:
-        if x.kind == "VAT_TU":
+    for x in t.lines if lines is None else lines:
+        if x.kind == "VAT_TU" and x.stock_doc_id is None:
             by_wh.setdefault(x.warehouse_code, []).append(x)
     for wh in sorted(by_wh):
         parts = by_wh[wh]
@@ -135,9 +165,6 @@ def complete(session: Session, user: User, t: ServiceTicket) -> None:
         stock_posting.post_in_tx(session, user, doc.id, None)
         for x in parts:
             x.stock_doc_id = doc.id
-    t.subtotal, t.vat_total, t.total = subtotal, vat_total, subtotal + vat_total
-    t.receivable = t.total if t.billing == "THU_TIEN" else 0
-    t.priced_at = datetime.now(UTC)
 
 
 def release(session: Session, user: User, t: ServiceTicket, reason: str) -> None:

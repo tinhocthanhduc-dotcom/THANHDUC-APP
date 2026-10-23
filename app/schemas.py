@@ -489,6 +489,7 @@ class ServiceTicketOut(BaseModel):
     vat_total: int | None
     total: int | None
     receivable: int | None
+    repaired_by: int | None
     priced_at: datetime | None
     created_by: int
     created_at: datetime
@@ -501,6 +502,7 @@ class ServiceLineIn(BaseModel):
     kind: Literal["PHI", "VAT_TU"]
     product_code: str | None = Field(default=None, max_length=16)
     warehouse_code: str | None = Field(default=None, max_length=16)
+    stock_doc_id: int | None = Field(default=None, ge=1)
     description: str = Field(default="", max_length=500)
     qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
     unit_price: int = Field(strict=True, ge=0, le=10_000_000_000)

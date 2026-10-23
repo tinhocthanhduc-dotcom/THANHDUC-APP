@@ -43,18 +43,18 @@ def detail_context(session, user, ticket, shown=None):
                 StockDoc.id.in_({line.stock_doc_id for line in ticket.lines if line.stock_doc_id is not None})).order_by(StockDoc.id)))
     return dict(material_cost=service_charges.material_costs(session,[ticket.id]).get(ticket.id,0) if has_role(user,'dispatcher') else None,can_warranty_override=has_role(user,'dispatcher'), charges=data, charge_names=names, charge_stock_values=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')]), charge_default_warehouse=own.code if own else '', charge_warehouses=warehouses, charge_docs=docs,
                 can_charge=has_role(user, 'dispatcher') or ticket.assignee_id == user.id,
-                charge_editable=ticket.status in service_tickets.OPEN,
+                charge_editable=ticket.status in service_tickets.OPEN and not service_charges.return_locked(ticket),
                 charge_unsaved=shown is not None,
                 charge_subtotal=sum(line.amount for line in ticket.lines), charge_vat=sum(line.vat_amount for line in ticket.lines))
 
 
 def _raw(form):
-    fields = {key: form.getlist(key) for key in ('line_kind', 'line_description', 'line_product', 'line_qty', 'line_price')}
+    fields = {key: form.getlist(key) for key in ('line_kind', 'line_description', 'line_product', 'line_qty', 'line_price', 'line_stock_doc_id')}
     lines = []
     for i, kind in enumerate(fields['line_kind']):
         def at(key):
             return str(fields[key][i]) if i < len(fields[key]) else ''
-        lines.append(dict(kind=str(kind), description=at('line_description'), product_code=at('line_product') or None,
+        lines.append(dict(kind=str(kind), stock_doc_id=at('line_stock_doc_id') or None, description=at('line_description'), product_code=at('line_product') or None,
                           warehouse_code=str(form.get(f'warehouse_{i}', '')) or None, qty=at('line_qty'),
                           unit_price=at('line_price'), vat_rate=str(form.get(f'vat_{i}', str(DEFAULT_VAT_RATE)))))
     return dict(billing_reason=str(form.get('billing_reason','')), billing=str(form.get('billing', '')), free_reason=str(form.get('free_reason', '')),

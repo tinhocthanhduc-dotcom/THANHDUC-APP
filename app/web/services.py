@@ -36,7 +36,7 @@ TRANSITIONS = {
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
-         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy",
+         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
 
@@ -111,7 +111,7 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"), customers=customers, users=_users(session), is_overdue=_is_overdue)
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None, custody_shown=None, technician_view=False, completion_form=None, return_form=None):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None, custody_shown=None, technician_view=False, completion_form=None, return_form=None, workshop_form=None):
     from .recovered_parts import detail_context as recovered_context
     from .custody import context as custody_context
     from .parts import detail_context as part_context
@@ -126,6 +126,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     own = "technician" in user.roles and t.assignee_id == user.id and t.status not in ('HOAN_THANH','DA_DONG')
     targets = sorted(svc.FLOW.get(t.status, ()), key=lambda s: list(STATUSES).index(s)) if dispatcher or own else []
     targets=[target for target in targets if target!='DA_DONG']
+    if t.status=='TAM_DUNG':
+        targets=[s for s in targets if not (s=='DA_HEN' and (not dispatcher or t.hold_reason!='SUA_XONG_CHO_TRA')) and not (s=='DANG_LAM' and t.hold_reason=='SUA_XONG_CHO_TRA')]
     if dispatcher and t.status in svc.CANCELLABLE:
         if "DA_HUY" not in targets: targets.append("DA_HUY")
     if t.status == 'DA_NHAN' and t.appointment_at and (dispatcher or own):
@@ -142,6 +144,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         labels["DA_HEN"] = "Dời hẹn"
     can_no_show = (dispatcher or own) and (t.status == "DA_HEN" or (t.status == "DA_NHAN" and t.appointment_at is not None))
     visible_actions = {"transition:" + target for target in targets}
+    visible_actions.update(("workshop","repair-done","schedule-return"))
     if can_no_show:
         visible_actions.add("no-show")
     if dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'): visible_actions.add('reschedule')
@@ -162,7 +165,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
     returning = technician_returns.proposal(session,t) if t.status in svc.OPEN else dict(rows=[],warehouses=[],warehouse=None)
     return_rows = return_form if return_form is not None else returning['rows']
-    ctx = dict(technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
+    ctx = dict(workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
@@ -282,6 +285,64 @@ def warranty_suggestions(request: Request, customer_code: str = '', serial: str 
 @router.get("/dich-vu/{ticket_id}")
 def detail(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
     return _detail(request, session, user, ticket_id)
+
+
+def _workshop_materials(form):
+    codes,quantities=form.getlist('material_product'),form.getlist('material_qty')
+    if len(codes)!=len(quantities):
+        raise BusinessError('BAD_FORM','Dòng vật tư chưa đủ dữ liệu.')
+    return [dict(product_code=str(c),qty=str(q)) for c,q in zip(codes,quantities)]
+
+
+@router.post('/dich-vu/{ticket_id}/mang-ve-xuong')
+def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
+    from .. import service_workshop
+    from ..schemas import CustodyIntake
+    from .custody import _accessory_values
+    from .technician import owned,after_post
+    user=request.state.user;owned(session,user,ticket_id)
+    shown=dict(condition_note=str(form.get('condition_note','')),accessories=[str(v) for v in form.getlist('accessories')],accessories_note=str(form.get('accessories_note','')))
+    try:
+        shown['materials']=_workshop_materials(form)
+        body=CustodyIntake(version=form.get('machine_version'),accessories=_accessory_values(form),
+            condition_note=shown['condition_note'],accessories_note=shown['accessories_note'])
+        service_workshop.bring(session,user,ticket_id,_version(form),body,shown['materials'])
+    except (BusinessError,ValidationError) as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,failed_action='workshop',error=message,error_code=code,status=status,technician_view=True,workshop_form=shown)
+    return after_post(request,session,user,ticket_id,f'/tho/phieu/{ticket_id}?da_luu=1')
+
+
+@router.post('/dich-vu/{ticket_id}/sua-xong-cho-tra')
+def workshop_repaired(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
+    from .. import service_workshop
+    from .technician import owned,after_post,report_fields
+    user=request.state.user;owned(session,user,ticket_id)
+    shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason')}
+    try:
+        shown['materials']=_workshop_materials(form)
+        fault,fix,report=report_fields(form);shown.update(report)
+        service_workshop.repair_done(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],
+            shown['free_reason'],shown['materials'],fault,fix)
+    except (BusinessError,ValidationError) as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,failed_action='repair-done',error=message,error_code=code,status=status,completion_form=shown,technician_view=True)
+    return after_post(request,session,user,ticket_id,f'/tho/phieu/{ticket_id}?da_luu=1')
+
+
+@router.post('/dich-vu/{ticket_id}/hen-tra-may')
+def workshop_schedule(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
+    from .. import service_workshop
+    user=request.state.user;svc._require(user,svc.DISPATCHERS,'Chỉ điều phối được hẹn trả máy.')
+    try:
+        appointment,slot=service_appointments.parse(form,svc._now())
+        ident=str(form.get('assignee_id',''))
+        if not ident.isdigit():raise BusinessError('BAD_ASSIGNEE','Chọn thợ đi trả máy.')
+        service_workshop.schedule_return(session,user,ticket_id,_version(form),appointment,slot,int(ident),str(form.get('note','')))
+    except (BusinessError,ValidationError) as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,form=form,failed_action='schedule-return',error=message,error_code=code,status=status)
+    return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
 
 
 @router.post("/dich-vu/{ticket_id}/{action}")

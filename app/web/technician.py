@@ -96,8 +96,10 @@ def detail_context(session, user, ticket, ctx):
     try:actual=sum(technician_work.net_from_gross(technician_work.money(amount)))
     except BusinessError:actual=0
     held=list(session.execute(select(Product,StockBalance.qty).join(StockBalance,StockBalance.product_code==Product.code).where(StockBalance.warehouse_code==warehouse.code if warehouse else False,StockBalance.qty>0,Product.active.is_(True)).order_by(Product.code)))
-    selected={line.product_code:str(line.qty) for line in ticket.lines if line.kind=='VAT_TU'}
+    selected={line.product_code:str(line.qty) for line in ticket.lines if line.kind=='VAT_TU' and line.stock_doc_id is None and warehouse and line.warehouse_code==warehouse.code}
     if 'materials' in shown:selected={line['product_code']:line['qty'] for line in shown['materials']}
+    if 'materials' in ctx.get('workshop_form',{}):
+        selected={line['product_code']:line['qty'] for line in ctx['workshop_form']['materials']}
     from . import quantity
     for code,value in selected.items():
         try:selected[code]=quantity(str(value).replace(',','.'))
@@ -112,7 +114,14 @@ def detail_context(session, user, ticket, ctx):
     materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0'),issued=issued.get(p.code,0),extra=not issued.get(p.code) and not chosen(selected.get(p.code,'0'))) for p,qty in held]
     materials.sort(key=lambda item:(item['extra'],item['code']))
     ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
+    from .. import service_charges
+    return_job=service_charges.return_locked(ticket)
+    machine_held=bool(eq and eq.custody_ticket_id==ticket.id and eq.custody_location in ('THO_GIU','KHO_KY_THUAT'))
+    workshop_repair=bool(ticket.status=='DANG_LAM' and machine_held and not return_job)
+    can_bring=bool(ticket.status=='DANG_LAM' and ticket.kind in ('SUA_TAI_CHO','BAO_HANH') and not return_job and
+        (not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
     billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
+    if workshop_repair:billing_ready=billing_ready and mode in ('FULL','FREE')
     # Đơn giao cùng chuyến còn phải thu: để thợ nhập "Khách trả tổng" rồi app tự chia (đơn hàng trước, dư vào phiếu).
     from .. import sales_receipts
     trips=[]
@@ -133,21 +142,32 @@ def detail_context(session, user, ticket, ctx):
     checks = [dict(key='report',label='Đã chọn kết quả sửa',ok=report_ok),
         dict(key='photo' ,label='Có ảnh nghiệm thu',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
         dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]
-    if ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH'):
+    if not workshop_repair and (ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH')):
         checks.append(dict(key='machine',label='Máy đã trả khách',ok=not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
-    checks.append(dict(key='warehouses',label='Vật tư đã chọn kho của bạn',ok=all(warehouse and line.get('warehouse_code')==warehouse.code for line in ctx['charges']['lines'] if line['kind']=='VAT_TU')))
+    checks.append(dict(key='warehouses',label='Vật tư đã chọn kho của bạn',ok=all(line.get('stock_doc_id') or (warehouse and line.get('warehouse_code')==warehouse.code) or any(x.kind=='VAT_TU' and x.product_code==line.get('product_code') and x.warehouse_code==line.get('warehouse_code') for x in ticket.lines) for line in ctx['charges']['lines'] if line['kind']=='VAT_TU')))
     target = {'DA_GIAO':'DA_NHAN','DA_NHAN':'DA_HEN','DA_HEN':'DANG_LAM','DANG_LAM':'HOAN_THANH',
               'CHO_LINH_KIEN':'DANG_LAM','TAM_DUNG':'DANG_LAM'}.get(ticket.status)
+    if ticket.status=='TAM_DUNG' and ticket.hold_reason=='SUA_XONG_CHO_TRA':target=None
     if ticket.status=='DA_NHAN' and ticket.appointment_at: target='DANG_LAM'
     labels={'DA_GIAO':'Nhận đơn','DA_NHAN':'Hẹn khách','DA_HEN':'Đã đến khách','DANG_LAM':'Hoàn thành','CHO_LINH_KIEN':'Tiếp tục làm','TAM_DUNG':'Tiếp tục làm'}
+    if workshop_repair:labels['DANG_LAM']='Sửa xong, chờ trả máy'
     if ticket.status=='DA_NHAN' and ticket.appointment_at: labels['DA_NHAN']='Đã đến khách'
     primary = dict(form='service-complete' if ticket.status=='DANG_LAM' else 'service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
     exceptions=[s for s in ctx['transitions'] if s!=target and s in (
         ('DA_HEN','TAM_DUNG','KHONG_LAM_DUOC','DA_HUY') if ticket.status=='DANG_LAM'
         else ('DA_HUY','KHONG_LAM_DUOC') if ticket.status in ('CHO_LINH_KIEN','TAM_DUNG') else ())]
+    if return_job:
+        ctx['can_request_parts']=False
+        ctx['can_tech_transfer']=False
+        exceptions=[s for s in exceptions if s!='KHONG_LAM_DUOC']
+    if return_job and ticket.status=='DANG_LAM':
+        returned=bool(eq and eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))
+        checks=[dict(key='return-photo',label='Có ảnh trả máy',ok=returned or any(x.tag=='TRA_MAY' for x in ctx.get('files',[])+ctx.get('custody_files',[]))),
+            dict(key='holder',label='Đã nhận máy để trả khách',ok=returned or bool(ctx.get('can_custody_return')))]
+    issued_rows=[dict(product=x.product_code,name=x.description or x.product_code,warehouse=x.warehouse_code,qty=x.qty) for x in ticket.lines if x.stock_doc_id is not None]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
-    return dict(technician_view=True,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring,workshop_materials=materials,issued_materials=issued_rows,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=product.name if product else '',**contact(ctx['customer'],ctx['site']))
 
@@ -219,6 +239,21 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
     from .services import _detail, _message, _version
     owned(session, user, ticket_id)
     request.state.technician_return = True
+    from .. import technician_work
+    if service_charges.return_locked(session.get(ServiceTicket,ticket_id)):
+        shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','partial_amount','method','note')}
+        shown['materials']=[dict(product_code=str(code),qty=str(qty)) for code,qty in zip(form.getlist('material_product'),form.getlist('material_qty'))]
+        try:
+            from .custody import _accessory_values
+            from ..schemas import CustodyIntake
+            body=CustodyIntake(version=form.get('machine_version'),accessories=_accessory_values(form),accessories_note=str(form.get('accessories_note',''))) if form.get('return_machine')=='1' else None
+            if form.getlist('material_product') or form.getlist('line_kind'):
+                raise BusinessError('CHARGES_LOCKED','Tiền và vật tư đã chốt, không sửa khi trả máy.',status=409)
+            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],str(form.get('free_reason','')),[],shown['partial_amount'],shown['method'],shown['note'],return_machine=body)
+        except (BusinessError,ValidationError) as exc:
+            message,code,status=_message(exc)
+            return _detail(request,session,user,ticket_id,form=form,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)
+        return after_post(request,session,user,ticket_id,'/tho')
     if 'customer_amount' in form:
         from .. import technician_work
         shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note','fault_found','fix_done')}
@@ -286,7 +321,7 @@ async def upload_photo(request:Request,ticket_id:int,form=Depends(checked_form),
     t=owned(session,user,ticket_id)
     t=service_tickets._get(session,user,ticket_id,lock=True)
     if t.status not in service_tickets.OPEN:raise BusinessError('BAD_STATUS','Phiếu đã hoàn thành hoặc đóng.',status=409)
-    tag=form.get('tag') if form.get('tag') in ('TRUOC','BIEN_BAN') else 'SAU'
+    tag=form.get('tag') if form.get('tag') in ('TRUOC','BIEN_BAN','NHAN_MAY','TRA_MAY') else 'SAU'
     upload=form.get('file')
     try:
         if not isinstance(upload,UploadFile):raise BusinessError('EMPTY_FILE','Chọn ảnh cần tải.')
