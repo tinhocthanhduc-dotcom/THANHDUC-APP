@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
@@ -46,6 +46,7 @@ def local_time(value):
 
 
 templates.env.filters["service_time"] = local_time
+templates.env.filters["service_short"] = lambda value: value.astimezone(TZ).strftime("%d/%m %H:%M") if value else "—"
 templates.env.filters["appointment_label"] = service_appointments.label
 templates.env.globals.update(service_statuses=STATUSES, service_kinds={None: 'Chưa phân loại', **KINDS}, service_kind_choices=KINDS,
                              service_priorities=PRIORITIES, step_labels=STEPS, hold_reasons=svc.HOLD_REASONS)
@@ -99,18 +100,93 @@ def _message(exc):
     return message, exc.code, exc.status
 
 
+LIST_GROUPS = {
+    "moi": ("Chưa giao thợ", ("MOI",)),
+    "lam": ("Đang xử lý", ("DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM")),
+    "cho": ("Chờ linh kiện · tạm dừng", ("CHO_LINH_KIEN", "TAM_DUNG")),
+    "xong": ("Hoàn thành", ("HOAN_THANH", "DA_DONG")),
+    "huy": ("Không làm được · hủy", ("KHONG_LAM_DUOC", "DA_HUY")),
+}
+STATUS_GROUP = {st: key for key, (_, sts) in LIST_GROUPS.items() for st in sts}
+
+
+def _list_rows(session, rows):
+    """Tên khách, số điện thoại, địa điểm, máy cho từng dòng danh sách, mỗi loại một truy vấn."""
+    from ..models import CustomerPhone, CustomerSite, Equipment
+    codes = {t.customer_code for t in rows}
+    customers = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_(codes))).all()) if codes else {}
+    phones = {}
+    if codes:
+        for code, phone in session.execute(select(CustomerPhone.customer_code, CustomerPhone.phone)
+                                           .where(CustomerPhone.customer_code.in_(codes))
+                                           .order_by(CustomerPhone.is_contact, CustomerPhone.phone)):
+            phones.setdefault(code, phone)
+    site_ids = {t.site_id for t in rows if t.site_id}
+    sites = dict(session.execute(select(CustomerSite.id, CustomerSite.name).where(CustomerSite.id.in_(site_ids))).all()) if site_ids else {}
+    serials = {t.serial for t in rows if t.serial}
+    machines = dict(session.execute(select(Equipment.serial, Product.name).join(Product, Product.code == Equipment.product_code)
+                                    .where(Equipment.serial.in_(serials))).all()) if serials else {}
+    return customers, phones, sites, machines
+
+
 @router.get("/dich-vu")
 def listing(request: Request, q: str = "", status: str = "", assignee_id: str = "", overdue: bool = False,
-            phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    selected = int(assignee_id) if assignee_id.isdigit() else None
-    rows = svc.search(session, user, status or None, selected, overdue, q[:200])
-    customers = dict(session.execute(select(Customer.code, Customer.name)
-                                    .where(Customer.code.in_({t.customer_code for t in rows}))).all())
-    return render(request, "dich_vu_dong.jinja" if phan else "dich_vu_ds.jinja", rows=rows,
-                  q=q, selected_status=status, selected_assignee=selected, overdue=overdue,
-                  technicians=[] if _own_only(user) else _technicians(session), own_only=_own_only(user),
-                  heading="Việc của tôi" if _own_only(user) else "Dịch vụ",
-                  can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"), customers=customers, users=_users(session), is_overdue=_is_overdue)
+            phan: int = 0, nhom: str = "", loai: str = "", trang: str = "", so: str = "",
+            user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from . import paging
+    q = q[:200]
+    own_only = _own_only(user)
+    unassigned = assignee_id == "chua" and not own_only
+    selected = int(assignee_id) if assignee_id.isdigit() and len(assignee_id) <= 18 else None
+    kind = svc._ANY if not loai else (None if loai == "chua" else loai)
+    if loai and loai != "chua" and loai not in KINDS:
+        kind, loai = svc._ANY, ""
+    group = nhom if nhom in LIST_GROUPS else ""
+    status = status if status in STATUSES else ""
+    filters = dict(assignee_id=selected, overdue=overdue, q=q, kind=kind, unassigned=unassigned)
+    counts = svc.count_by_status(session, user, **filters)
+    if status:
+        statuses, total = (status,), counts.get(status, 0)
+    elif group:
+        statuses = LIST_GROUPS[group][1]
+        total = sum(counts.get(st, 0) for st in statuses)
+    else:
+        statuses, total = None, sum(counts.values())
+    query = dict(q=q, status=status, nhom=group, assignee_id=assignee_id if (selected or unassigned) else "",
+                 loai=loai, overdue="1" if overdue else "")
+    page = paging.build(trang, so, total, query)
+    rows = svc.search(session, user, None, selected, overdue, q, page["size"], statuses=statuses, kind=kind,
+                      unassigned=unassigned, offset=page["offset"], by_priority=group in ("moi", "lam")) if total else []
+    customers, phones, sites, machines = _list_rows(session, rows)
+    ctx = dict(rows=rows, q=q, selected_status=status, selected_group=group, selected_assignee=selected,
+               unassigned=unassigned, selected_kind=loai, overdue=overdue, page=page,
+               customers=customers, phones=phones, sites=sites, machines=machines, users=_users(session),
+               is_overdue=_is_overdue, status_group=STATUS_GROUP, own_only=own_only)
+    if phan:
+        return render(request, "dich_vu_dong.jinja", **ctx)
+    # Ô số và tab: ô số đếm toàn bộ phiếu (chỉ giới hạn theo quyền), tab đếm theo bộ lọc đang chọn.
+    everything = svc.count_by_status(session, user)
+    overdue_all = sum(svc.count_by_status(session, user, overdue=True).values())
+    urgent_new = session.scalar(select(func.count()).select_from(svc._search_stmt(user, "MOI").where(ServiceTicket.priority == "KHAN").subquery()))
+    def group_count(source, key):
+        return sum(source.get(st, 0) for st in LIST_GROUPS[key][1])
+    tiles = [
+        dict(key="moi", label="Chưa giao thợ", count=group_count(everything, "moi"), sub=f"{urgent_new} phiếu Khẩn" if urgent_new else "Không có phiếu Khẩn", tone="warn"),
+        dict(key="lam", label="Đang xử lý", count=group_count(everything, "lam"), sub=f"{everything.get('DANG_LAM', 0)} phiếu đang làm", tone="info"),
+        dict(key="qua-han", label="Quá hạn", count=overdue_all, sub="Cần xử lý trước" if overdue_all else "Không có phiếu trễ", tone="bad"),
+        dict(key="cho", label="Chờ linh kiện · tạm dừng", count=group_count(everything, "cho"), sub=f"{everything.get('CHO_LINH_KIEN', 0)} chờ linh kiện", tone=""),
+    ]
+    tabs = [dict(key="", label="Tất cả", count=sum(counts.values()))] + [
+        dict(key=key, label=label, count=group_count(counts, key)) for key, (label, _) in LIST_GROUPS.items()]
+    base = {k: v for k, v in query.items() if k not in ("nhom", "status")}
+    from urllib.parse import urlencode
+    def link(**changes):
+        merged = {k: v for k, v in {**base, **changes}.items() if v}
+        return "/dich-vu" + ("?" + urlencode(merged) if merged else "")
+    return render(request, "dich_vu_ds.jinja", **ctx, tiles=tiles, tabs=tabs, link=link,
+                  technicians=[] if own_only else _technicians(session),
+                  heading="Việc của tôi" if own_only else "Dịch vụ",
+                  can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"))
 
 
 def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None, custody_shown=None, technician_view=False, completion_form=None, return_form=None, workshop_form=None):

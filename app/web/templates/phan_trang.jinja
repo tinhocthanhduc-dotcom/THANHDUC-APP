@@ -1,0 +1,12 @@
+{% macro bar(p, noun='dòng') -%}
+<nav class="pager" aria-label="Phân trang" data-pager data-page="{{ p.page }}" data-last="{{ p.last }}">
+<span class="pager-count">{% if p.last > 1 %}Hiện <b>{{ p.start }}–{{ p.end }}</b> / {{ p.total }} {{ noun }}{% else %}{{ p.total }} {{ noun }}{% endif %}</span>
+{% if p.last > 1 %}<div class="pager-pages">
+{% if p.page > 1 %}<a class="pager-btn" href="{{ p.href(p.page - 1) }}" rel="prev" data-pager-prev>‹ Trước</a>{% else %}<span class="pager-btn off" aria-disabled="true">‹ Trước</span>{% endif %}
+{% for n in p.numbers %}{% if n is none %}<span class="pager-dots">…</span>{% elif n == p.page %}<span class="pager-btn on" aria-current="page">{{ n }}</span>{% else %}<a class="pager-btn pager-num" href="{{ p.href(n) }}">{{ n }}</a>{% endif %}{% endfor %}
+<span class="pager-of">Trang {{ p.page }}/{{ p.last }}</span>
+{% if p.page < p.last %}<a class="pager-btn" href="{{ p.href(p.page + 1) }}" rel="next" data-pager-next>Sau ›</a>{% else %}<span class="pager-btn off" aria-disabled="true">Sau ›</span>{% endif %}
+</div>{% endif %}
+{% if p.total > p.sizes[0] %}<label class="pager-size"><span class="sr-only">Số dòng mỗi trang</span><select data-pager-size>{% for n in p.sizes %}<option value="{{ n }}" {% if n == p.size %}selected{% endif %}>{{ n }} / trang</option>{% endfor %}</select></label>{% endif %}
+</nav>
+{%- endmacro %}
