@@ -1,11 +1,21 @@
 {% extends "base.jinja" %}
 {% block title %}Báo giá{% endblock %}
-{% block main %}<div class="stock-page doc-page">
-<div class="bar"><h1>Báo giá</h1>{% if can_write %}<a class="btn btn-ok" href="/bao-gia/moi">+ Tạo báo giá</a>{% endif %}</div>
-<form action="/bao-gia" class="card form doc-filter" role="search">
-<label>Tìm báo giá<input name="q" value="{{ q }}" placeholder="Số BG hoặc tên khách không dấu" data-live="#quote-rows" autocomplete="off"></label>
-<fieldset><legend>Trạng thái</legend><div class="seg stock-seg"><label><input type="radio" name="status" value="" {% if not selected_status %}checked{% endif %}><span>Tất cả</span></label>
-{% for value,label in statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status == value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></fieldset><noscript><button>Lọc</button></noscript>
+{% block main %}<div class="stock-page doc-page quote-list-page">
+<div class="list-top"><div><h1>Báo giá</h1><p class="hint">Gửi giá cho khách, khách đồng ý thì chuyển thành đơn bán.</p></div>{% if can_write %}<a class="btn btn-ok" href="/bao-gia/moi">+ Tạo báo giá</a>{% endif %}</div>
+<div class="list-tiles">
+<a class="list-tile{% if selected_status=='DA_GUI' and not soon %} on{% endif %}" href="/bao-gia?status=DA_GUI"><small>Đang chờ khách trả lời</small><strong class="t-accent">{{ stats.waiting }}</strong><span>{{ stats.waiting_sum|money }} đ</span></a>
+<a class="list-tile{% if soon %} on{% endif %}" href="/bao-gia?han=1"><small>Sắp hết hạn / đã hết hạn</small><strong class="{{ 't-bad' if stats.soon else '' }}">{{ stats.soon }}</strong><span>{{ 'Gọi lại khách hôm nay' if stats.soon else 'Không có báo giá sắp hết hạn' }}</span></a>
+<a class="list-tile{% if selected_status=='CHAP_NHAN' %} on{% endif %}" href="/bao-gia?status=CHAP_NHAN"><small>Chấp nhận · tạo tháng này</small><strong class="t-ok">{{ stats.won }}</strong><span>{{ stats.won_sum|money }} đ</span></a>
+<div class="list-tile"><small>Tỷ lệ chốt · 30 ngày qua</small><strong>{{ stats.rate ~ '%' if stats.rate is not none else '–' }}</strong><span>{{ stats.accepted }} / {{ stats.decided }} báo giá khách đã trả lời</span></div>
+</div>
+<section class="card list-card">
+<form action="/bao-gia" class="list-bar" role="search">
+<div class="list-tabs" role="radiogroup" aria-label="Trạng thái"><label><input type="radio" name="status" value="" {% if not selected_status and not soon %}checked{% endif %}><span>Tất cả <b>{{ stats.total }}</b></span></label>
+{% for value,label in statuses.items() %}<label><input type="radio" name="status" value="{{ value }}" {% if selected_status == value and not soon %}checked{% endif %}><span>{{ label }} <b>{{ stats.counts.get(value,0) }}</b></span></label>{% endfor %}</div>
+{% if soon %}<input type="hidden" name="han" value="1">{% endif %}
+<label class="list-search"><span class="sr-only">Tìm báo giá</span><input type="search" name="q" value="{{ q }}" placeholder="Tìm số BG, tên khách (không dấu)…" data-live="#quote-rows" autocomplete="off"></label><noscript><button>Lọc</button></noscript>
 </form>
+{% if soon %}<p class="list-note">Đang xem báo giá đã gửi còn tối đa 2 ngày hiệu lực hoặc đã hết hạn. <a href="/bao-gia">Bỏ lọc</a></p>{% endif %}
 <div id="quote-rows">{% include 'bao_gia_dong.jinja' %}</div>
+</section>
 </div>{% endblock %}

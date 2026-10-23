@@ -295,10 +295,17 @@
           "aria-expanded",
           row.classList.contains("line-open") ? "true" : "false",
         );
+      var cell = row.querySelector("[data-line-amount]");
+      if (cell) cell.textContent = v ? money(v.amount) : "—";
       if (v) {
         subtotal += v.amount;
         tax += v.vat;
       } else complete = false;
+    });
+    // Ô tổng hiển thị (cột phải / thanh dưới) chỉ là tạm tính, máy chủ tính lại khi lưu.
+    var sums = { subtotal: subtotal, vat: tax, total: subtotal + tax };
+    document.querySelectorAll("[data-line-sum]").forEach(function (el) {
+      el.textContent = money(sums[el.dataset.lineSum]) + (complete ? "" : "*");
     });
     form.querySelector("[data-line-totals]").textContent =
       "Tiền hàng " +
