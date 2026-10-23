@@ -44,6 +44,7 @@
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
 </section>
 
+{% include 'dich_vu_loai.jinja' %}
 {% if can_schedule_return %}{% include 'hen_tra_may.jinja' %}{% endif %}
 {% include 'bao_hanh_chi_tiet.jinja' %}
 {% if t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG','HOAN_THANH','DA_DONG'] %}{% include 'linh_kien_thu_hoi_trong_phieu.jinja' %}{% endif %}

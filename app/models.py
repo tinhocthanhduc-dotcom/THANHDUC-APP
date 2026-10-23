@@ -334,11 +334,11 @@ class ServiceTicket(Base):
 
     __tablename__ = "service_tickets"
     __table_args__ = (
-        CheckConstraint(_in("kind", SERVICE_KINDS), name="ck_service_tickets_kind"),
+        CheckConstraint("kind is null or " + _in("kind", SERVICE_KINDS), name="ck_service_tickets_kind"),
         CheckConstraint(_in("priority", SERVICE_PRIORITIES), name="ck_service_tickets_priority"),
         CheckConstraint(_in("status", SERVICE_STATUSES), name="ck_service_tickets_status"),
         CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
-        CheckConstraint("(warranty_of_id is null and warranty_basis is null) or (kind = 'BAO_HANH' and warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'))", name='ck_service_tickets_warranty'),
+        CheckConstraint("(warranty_of_id is null and warranty_basis is null) or (kind is not null and kind = 'BAO_HANH' and warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'))", name='ck_service_tickets_warranty'),
         CheckConstraint("warranty_of_id is null or warranty_of_id <> id", name='ck_service_tickets_warranty_self'),
         CheckConstraint("appointment_slot in ('SANG','CHIEU','GIO') and appointment_at is not null or appointment_slot is null", name='ck_service_tickets_slot'),
         Index("ix_service_tickets_open", "status", "due_at"),
@@ -353,7 +353,7 @@ class ServiceTicket(Base):
     customer_code: Mapped[str] = mapped_column(ForeignKey("customers.code"), index=True)
     site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
     serial: Mapped[str | None] = mapped_column(ForeignKey("equipment.serial"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     priority: Mapped[str] = mapped_column(String(8), default="THUONG")
     symptom: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(16), default="MOI")

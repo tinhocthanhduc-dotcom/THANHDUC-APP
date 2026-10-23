@@ -10,6 +10,7 @@ from ..db import get_session
 from ..models import User
 from ..schemas import (
     ServiceAssign,
+    ServiceKindSet,
     ServiceWarrantyLink, RecoveredPartIn, RecoveredPartOut,
     ServiceNoShow,
     ServiceVisitOut,
@@ -101,6 +102,11 @@ def no_show(ticket_id: int, body: ServiceNoShow, user: User = Depends(current_us
 def warranty_link(ticket_id: int, body: ServiceWarrantyLink, user: User = Depends(current_user), session: Session = Depends(get_session)):
     from .. import service_warranty
     return service_warranty.relink(session, user, ticket_id, body)
+
+
+@router.post('/{ticket_id}/kind', response_model=ServiceTicketOut)
+def set_kind(ticket_id: int, body: ServiceKindSet, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.set_kind(session, user, ticket_id, body)
 
 
 @router.get('/{ticket_id}/recovered-parts', response_model=list[RecoveredPartOut])

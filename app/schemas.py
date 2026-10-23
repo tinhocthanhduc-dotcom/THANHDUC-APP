@@ -338,13 +338,18 @@ class ServiceTicketIn(BaseModel):
     customer_code: str = Field(min_length=1, max_length=16)
     site_id: int | None = Field(default=None, ge=1)
     serial: str | None = Field(default=None, max_length=64)
-    kind: ServiceKind
+    kind: ServiceKind | None = None
     priority: ServicePriority = "THUONG"
     symptom: str = Field(min_length=3, max_length=4000)
 
     warranty_of_id: int | None = Field(default=None, ge=1)
     appointment_at: AwareDatetime | None = None
     appointment_slot: AppointmentSlot | None = None
+
+    @field_validator('kind', mode='before')
+    @classmethod
+    def blank_kind(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
 
     @model_validator(mode='after')
     def warranty_kind(self):
@@ -358,6 +363,12 @@ class ServiceWarrantyLink(BaseModel):
     warranty_of_id: int | None = Field(default=None, ge=1)
     version: int | None = Field(default=None, ge=1)
     note: str = Field(default='', max_length=2000)
+
+
+class ServiceKindSet(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    kind: ServiceKind
+    version: int | None = Field(default=None, ge=1)
 
 
 class RecoveredPartIn(BaseModel):
@@ -470,7 +481,7 @@ class ServiceTicketOut(BaseModel):
     customer_code: str
     site_id: int | None
     serial: str | None
-    kind: ServiceKind
+    kind: ServiceKind | None
     warranty_of_id: int | None
     warranty_basis: Literal['PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'] | None
     priority: ServicePriority

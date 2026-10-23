@@ -16,7 +16,7 @@ from .. import service_tickets as svc
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, Product, TechnicianReturn, User, ServiceTicket
-from ..schemas import ServiceAssign, ServiceReason, ServiceTicketIn, ServiceTransition
+from ..schemas import ServiceAssign, ServiceKindSet, ServiceReason, ServiceTicketIn, ServiceTransition
 from ..security import has_role
 from . import checked_form, render, templates, web_user, nav
 
@@ -35,7 +35,7 @@ TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Đã đến khách", "CHO_LINH_KIEN": "Chờ linh kiện",
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
-STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại",
+STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
@@ -47,7 +47,7 @@ def local_time(value):
 
 templates.env.filters["service_time"] = local_time
 templates.env.filters["appointment_label"] = service_appointments.label
-templates.env.globals.update(service_statuses=STATUSES, service_kinds=KINDS,
+templates.env.globals.update(service_statuses=STATUSES, service_kinds={None: 'Chưa phân loại', **KINDS}, service_kind_choices=KINDS,
                              service_priorities=PRIORITIES, step_labels=STEPS, hold_reasons=svc.HOLD_REASONS)
 
 
@@ -83,6 +83,8 @@ def _validation_message(exc):
               "symptom": "Mô tả lỗi", "assignee_id": "Thợ được giao", "site_id": "Địa điểm",
               "serial": "Serial", "note": "Ghi chú / lý do", "reason": "Lý do", "appointment_at": "Ngày giờ hẹn"}
     error = exc.errors()[0]
+    if not error['loc']:
+        return str(error.get('ctx', {}).get('error', 'Dữ liệu chưa hợp lệ, hãy kiểm tra lại.'))
     label = fields.get(error["loc"][0], "Dữ liệu")
     return f"{label} chưa hợp lệ, hãy kiểm tra lại."
 
@@ -144,7 +146,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         labels["DA_HEN"] = "Dời hẹn"
     can_no_show = (dispatcher or own) and (t.status == "DA_HEN" or (t.status == "DA_NHAN" and t.appointment_at is not None))
     visible_actions = {"transition:" + target for target in targets}
-    visible_actions.update(("workshop","repair-done","schedule-return"))
+    visible_actions.update(("workshop","repair-done","schedule-return","kind"))
     if can_no_show:
         visible_actions.add("no-show")
     if dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'): visible_actions.add('reschedule')
@@ -165,7 +167,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
     returning = technician_returns.proposal(session,t) if t.status in svc.OPEN else dict(rows=[],warehouses=[],warehouse=None)
     return_rows = return_form if return_form is not None else returning['rows']
-    ctx = dict(workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
+    ctx = dict(can_set_kind=t.status in svc.OPEN and (dispatcher or own),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
@@ -256,8 +258,6 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id")}
     try:
-        if not data['kind']:
-            raise BusinessError('KIND_REQUIRED', 'Hãy chọn loại dịch vụ: Sửa tại chỗ, Mang về, Bảo hành hoặc Mực định kỳ.')
         appointment, slot = service_appointments.parse(form,svc._now())
         body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": data['serial'] or None, "warranty_of_id": data['warranty_of_id'] or None})
@@ -343,6 +343,20 @@ def workshop_schedule(request:Request,ticket_id:int,form=Depends(checked_form),s
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,form=form,failed_action='schedule-return',error=message,error_code=code,status=status)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
+
+
+@router.post('/dich-vu/{ticket_id}/kind')
+def set_kind(request: Request, ticket_id: int, form=Depends(checked_form), session: Session=Depends(get_session)):
+    user=request.state.user
+    try:
+        svc.set_kind(session,user,ticket_id,ServiceKindSet(kind=form.get('kind'),version=_version(form)))
+    except (BusinessError,ValidationError) as exc:
+        if isinstance(exc,BusinessError) and exc.status in (403,404):
+            return render(request,'loi.jinja',error=exc,status=exc.status)
+        error,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,form,failed_action='kind',error=error,error_code=code,status=status)
+    from .technician import after_post
+    return after_post(request,session,user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1')
 
 
 @router.post("/dich-vu/{ticket_id}/{action}")

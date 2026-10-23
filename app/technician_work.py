@@ -81,6 +81,7 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
             raise BusinessError('FORBIDDEN','Chỉ thợ được giao được hoàn thành phiếu.',status=403)
         service_tickets._check_version(t,version)
         if t.status!='DANG_LAM':raise BusinessError('BAD_STATUS','Chỉ hoàn thành phiếu đang làm.',status=409)
+        service_tickets.require_kind(t)
         if t.serial:
             from .equipment_custody import _machine
             _machine(session,t.serial,lock=True)  # ticket -> machine -> warehouse, also for two dossiers sharing a serial
