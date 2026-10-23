@@ -14,7 +14,7 @@
   <a href="/khach-hang/moi?quay_ve=/dich-vu/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>
 </div>{% endcall %}
 <div data-service-choices aria-live="polite">{% include 'dich_vu_chon_may.jinja' %}</div>
-{% call picked.block(invalid=error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT']) %}<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
+{% call picked.block(invalid=error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT','KIND_REQUIRED'] or (error_code=='BAD_FORM' and 'Loại dịch vụ' in error)) %}<fieldset><legend>Loại dịch vụ</legend><div class="seg stock-seg">
 {% for value, label in service_kinds.items() %}<label><input type="radio" name="kind" value="{{ value }}" {% if d.kind == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></fieldset>
 <section data-warranty-section {% if d.kind != 'BAO_HANH' %}hidden{% endif %}>
