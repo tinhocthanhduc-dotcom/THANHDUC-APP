@@ -328,10 +328,18 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
 def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
     customer=session.get(Customer,quote.customer_code)
     data=data if data is not None else dict(version=quote.version,contact_name=quote.contact_name,
-        delivery_address=customer.address,note=quote.note,promised_date='',warehouses={})
-    return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,quantity=_quantity,
-                  liquidation_warehouses=pending_liquidation.choices(session,[l.product_code for l in quote.lines if l.product_code]),warehouses=_warehouses(session),linked=_active_order(session,quote.id),
-                  next_step=next_steps.block(next_steps.form('Tạo đơn bán','order-from-quote',f'/don-ban/tu-bao-gia/{quote.id}')) if quote.status=='CHAP_NHAN' and not _active_order(session,quote.id) else None,
+        delivery_address=customer.address,note=quote.note,promised_date='',warehouses={},
+        fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days='30',deposit_amount='')
+    warehouses=_warehouses(session)
+    codes={l.product_code for l in quote.lines if l.product_code}
+    active=[w.code for w in warehouses if w.active]
+    stock=stock_reservations.quantities(session,[(w,c) for w in active for c in codes])
+    # Tồn khả dụng từng kho cho mỗi dòng hàng, để chọn kho ngay trên trang.
+    stock_by_line={l.line_no:{w:float(stock.get((w,l.product_code),{}).get('available',0)) for w in active} for l in quote.lines if l.product_code}
+    card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None
+    return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,customer_card=card,quantity=_quantity,
+                  liquidation_warehouses=pending_liquidation.choices(session,list(codes)),warehouses=warehouses,linked=_active_order(session,quote.id),
+                  stock_by_line=stock_by_line,goods_count=len(codes),fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   error=error,error_code=code,status=status)
 
 
@@ -353,13 +361,27 @@ def from_quote(request: Request,quote_id: int,form=Depends(checked_form),session
     customer=session.get(Customer,source.customer_code)
     raw=dict(version=str(form.get('version','')),contact_name=str(form.get('contact_name',source.contact_name)),
              delivery_address=str(form.get('delivery_address',customer.address)),note=str(form.get('note',source.note)),promised_date=str(form.get('promised_date','')),
-             warehouses={int(k[10:]):str(v) for k,v in form.items() if re.fullmatch(r'warehouse_[0-9]+',k)})
+             warehouses={int(k[10:]):str(v) for k,v in form.items() if re.fullmatch(r'warehouse_[0-9]+',k)},
+             **{k:str(form[k]) for k in svc.TERM_FIELDS if k in form},credit_override_reason=str(form.get('credit_override_reason','')))
     try:
-        body=SalesOrderFromQuote(**{**raw,'version':_version(form),'promised_date':raw['promised_date'] or None})
+        # Trường để trống thì dùng mặc định của đơn (Tại quầy, Trả ngay, 30 ngày, không cọc).
+        terms={k:raw[k] for k in svc.TERM_FIELDS if raw.get(k,'').strip()}
+        if 'deposit_amount' in terms:terms['deposit_amount']=_deposit(terms['deposit_amount'])
+        body=SalesOrderFromQuote(**{k:v for k,v in raw.items() if k not in svc.TERM_FIELDS and k not in ('credit_override_reason','version','promised_date')},**terms,
+                                 **{'version':_version(form),'promised_date':raw['promised_date'] or None})
         order=svc.create_from_quote(session,user,quote_id,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _quote_form(request,session,quotes.load(session,user,quote_id),raw,error=message,code=code,status=status)
+    if form.get('then')=='confirm':
+        try:
+            reason=SalesOrderConfirm(version=order.version,credit_override_reason=raw['credit_override_reason']).credit_override_reason
+            svc.confirm(session,user,order.id,order.version,reason)
+        except (BusinessError,ValidationError) as exc:
+            # Đơn nháp đã tạo; báo rõ vì sao chưa chốt để sửa kho/số lượng rồi chốt trên đơn.
+            message,code,status=_error(exc)
+            return _form(request,session,order=svc.load(session,user,order.id),error=f'Đã tạo đơn nháp {order.number} nhưng chưa chốt được: {message}',
+                         code=code,status=status,action_form=dict(form),action='confirm')
     return RedirectResponse(f'/don-ban/{order.id}?da_luu=1',status_code=303)
 
 

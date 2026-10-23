@@ -3185,3 +3185,30 @@ def test_order_goods_qty_must_be_whole_number(client,db,web_login,b3_catalog):
     order=b3_create(client,db,csrf)
     page=client.get(f'/don-ban/{order.id}').text
     assert '<input name="qty" value="2" inputmode="numeric"' in page and '<input name="qty" value="1,5" inputmode="numeric"' in page
+
+
+def test_from_quote_terms_and_create_confirm(client,db,web_login,b3_catalog):
+    from app.models import SalesOrder
+    csrf=web_login('b3.sales','sales')
+    q=b3_quote(db)
+    page=client.get(f'/don-ban/tu-bao-gia/{q.id}').text
+    assert 'name="fulfillment"' in page and 'name="payment_term"' in page and 'data-oq-confirm' in page and 'Chỉ tạo đơn nháp' in page
+    assert 'data-stock=' in page and 'K58:' in page
+    r=client.post(f'/don-ban/tu-bao-gia/{q.id}',data=dict(csrf=csrf,version=q.version,warehouse_1='K58',fulfillment='THO_GIAO',
+        payment_term='DAT_COC',due_days='30',deposit_amount='50.000',delivery_address='145 Mã Lò',then='confirm'),follow_redirects=False)
+    assert r.status_code==303,r.text
+    db.expire_all()
+    order=db.query(SalesOrder).one()
+    assert order.status=='DA_CHOT' and order.fulfillment=='THO_GIAO' and order.payment_term=='DAT_COC' and order.deposit_amount==50000
+
+
+def test_from_quote_confirm_failure_keeps_draft_with_reason(client,db,web_login,b3_catalog):
+    from app.models import SalesOrder
+    csrf=web_login('b3.sales','sales')
+    q=b3_quote(db)
+    # Chưa chọn kho: tạo được đơn nháp nhưng không chốt được, trang đơn báo rõ lý do.
+    r=client.post(f'/don-ban/tu-bao-gia/{q.id}',data=dict(csrf=csrf,version=q.version,then='confirm'))
+    db.expire_all()
+    order=db.query(SalesOrder).one()
+    assert order.status=='NHAP' and r.status_code>=400
+    assert f'Đã tạo đơn nháp {order.number} nhưng chưa chốt được' in r.text

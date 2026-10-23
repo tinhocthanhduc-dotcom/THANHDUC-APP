@@ -306,9 +306,8 @@ def test_sales_end_to_end_only_follow_next_actions(client, db, people, configure
     assert db.query(Quote).one().status=='DA_GUI'  # UX3: Lưu và gửi trong một lần.
     page=next_action(client,page)  # Chấp nhận
     page=next_action(client,page)  # GET chọn kho / tạo từ báo giá
-    page=next_action(client,page)  # POST tạo đơn (dòng tự do không cần kho)
+    page=next_action(client,page)  # POST Tạo đơn và chốt (dòng tự do không cần kho)
     assert page.status_code==200
-    page=next_action(client,page)  # Chốt
     page=next_action(client,page)  # Giao
     o=db.query(SalesOrder).one();assert o.status=='DA_GIAO'
     page=next_action(client,page,amount='120.000',method='TIEN_MAT',received_at=DAY.isoformat(),note='Thu đủ')
