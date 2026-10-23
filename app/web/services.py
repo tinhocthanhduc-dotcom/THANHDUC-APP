@@ -214,7 +214,7 @@ def _choices(session, customer_code):
 
 
 def _new_form(request, session, data=None, error=None, error_code="", status=200):
-    data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "SUA_TAI_CHO", "priority": "THUONG", "symptom": "", "warranty_of_id": ""}
+    data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "", "priority": "THUONG", "symptom": "", "warranty_of_id": ""}
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     sites, machines = _choices(session, data['customer_code'])
     if not error:
@@ -245,7 +245,7 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
     chosen = session.get(Customer, request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
     if chosen and chosen.status == 'DANG_DUNG':
         # Quay về từ màn tạo/chọn khách: chọn sẵn khách, để _new_form tự chọn máy/địa điểm duy nhất.
-        return _new_form(request, session, dict(customer_code=chosen.code, kind='SUA_TAI_CHO', priority='THUONG', symptom='', warranty_of_id=''))
+        return _new_form(request, session, dict(customer_code=chosen.code, kind='', priority='THUONG', symptom='', warranty_of_id=''))
     return _new_form(request, session)
 
 
@@ -253,6 +253,8 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id")}
     try:
+        if not data['kind']:
+            raise BusinessError('KIND_REQUIRED', 'Hãy chọn loại dịch vụ: Sửa tại chỗ, Mang về, Bảo hành hoặc Mực định kỳ.')
         appointment, slot = service_appointments.parse(form,svc._now())
         body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": data['serial'] or None, "warranty_of_id": data['warranty_of_id'] or None})
