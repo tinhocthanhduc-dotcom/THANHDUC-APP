@@ -52,12 +52,14 @@ def quote_checks(data):
 
 
 def order_checks(session,user,data,stock_values,customer):
+    from ..errors import BusinessError
+    from .quotes import _pricing_body
     from ..models import Product, Warehouse,StockBalance
     from ..pending_liquidation import supply_query
     pool=supply_query().subquery()
     checks=[check('customer','Đã chọn khách hàng',customer and customer.status=='DANG_DUNG'),
             check('lines','Có ít nhất 1 dòng',data['lines'])]
-    demand={};total=0
+    demand={};total=0;values=[];rates=[];liquidation_costs=[]
     for i,line in enumerate(data['lines'],1):
         if line.get('kind')=='HANG':
             checks.append(check('warehouse-'+str(i),f'Dòng {i} đã chọn kho' if line.get('warehouse_code') else f'Dòng {i} chưa chọn kho',line.get('warehouse_code')))
@@ -67,7 +69,7 @@ def order_checks(session,user,data,stock_values,customer):
             product=session.get(Product,line.get('product_code')) if line.get('product_code') else None
             price=Decimal(price) if price else Decimal(product.sale_price if product else 0)
             if qty<=0 or price<0 or int(line.get('vat_rate',8)) not in (0,5,8,10):
-                checks.append(check('line-'+str(i),f'Dòng {i}: kiểm tra số lượng, đơn giá và VAT',False))
+                raise ValueError
             if line.get('kind')=='HANG':
                 checks.append(check('product-'+str(i),f'Dòng {i}: đã chọn hàng đang dùng',product and product.active))
                 wh=session.get(Warehouse,line.get('warehouse_code')) if line.get('warehouse_code') else None
@@ -75,14 +77,24 @@ def order_checks(session,user,data,stock_values,customer):
                 if liquidation and data.get('fulfillment')=='THO_GIAO':checks.append(check('THANH_LY_KHONG_GIAO_THO','Hàng thanh lý giao tại kho hoặc kho giao, không giao qua thợ.',False))
                 if liquidation:
                     balance=session.get(StockBalance,(wh.code,line['product_code']))
-                    if balance and price<balance.avg_cost and not has_role(user,'director'):checks.append(check('CAN_GIAM_DOC_DUYET_GIA','Giá thanh lý dưới giá vốn, cần giám đốc chốt đơn.',False))
+                    if balance:liquidation_costs.append((len(values),qty,price,balance.avg_cost))
                 if line.get('warehouse_code') and (not wh or not wh.active or (wh.kind!='KHO' and not liquidation)):checks.append(check('active-warehouse-'+str(i),f'Dòng {i}: kho không còn dùng',False))
             elif not line.get('description','').strip():checks.append(check('description-'+str(i),f'Dòng {i}: cần mô tả',False))
-            amount=quotes._round(qty*price);total+=amount+quotes._round(Decimal(amount)*int(line.get('vat_rate',8))/100)
+            values.append(quotes.proportion(price,qty,Decimal(1)));rates.append(int(line.get('vat_rate',8)))
             if line.get('kind')=='HANG' and line.get('warehouse_code') and line.get('product_code'):
                 key=(line['warehouse_code'],line['product_code']);demand[key]=demand.get(key,0)+qty
         except (InvalidOperation,ValueError,TypeError):
             checks.append(check('line-'+str(i),f'Dòng {i}: kiểm tra số lượng, đơn giá và VAT',False))
+    if len(values)==len(data['lines']):
+        try:
+            pricing=_pricing_body(data)
+            priced=quotes.priced_amounts(values,rates,**pricing)
+            total=quotes._money_limit(sum(amount+vat for amount,vat in priced))
+            for index,qty,price,cost in liquidation_costs:
+                below=priced[index][0]<cost*qty if pricing['price_includes_vat'] or pricing['discount_amount'] else price<cost
+                if below and not has_role(user,'director'):checks.append(check('CAN_GIAM_DOC_DUYET_GIA','Giá thanh lý dưới giá vốn, cần giám đốc chốt đơn.',False))
+        except BusinessError as exc:
+            checks.append(check('pricing',exc.message,False))
     for (wh,product),qty in demand.items():
         available=stock_values.get((wh,product),{}).get('available',0)
         missing=max(Decimal(0),qty-available)

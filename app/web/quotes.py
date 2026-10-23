@@ -42,7 +42,7 @@ def _expired(q):
 
 def _blank():
     return dict(customer_code='', contact_name='', valid_until=(svc._today()+timedelta(days=7)).isoformat(),
-                note='', version=0, lines=[])
+                note='', version=0, lines=[], price_includes_vat=False, discount_amount=0)
 
 
 def _form(request, session, data=None, quote=None, error=None, code='', status=200, action_form=None, action=''):
@@ -92,7 +92,22 @@ def _raw(form):
         lines.append(row)
     return dict(customer_code=str(form.get('customer_code','')), contact_name=str(form.get('contact_name','')),
                 valid_until=str(form.get('valid_until','')), note=str(form.get('note','')),
-                version=str(form.get('version','')), lines=lines)
+                version=str(form.get('version','')), lines=lines, **_pricing_raw(form))
+
+
+def _pricing_raw(form):
+    return dict(price_includes_vat=str(form.get('price_includes_vat','')),
+                discount_amount=str(form.get('discount_amount','0') or '0'))
+
+
+def _pricing_body(data):
+    mode=data.get('price_includes_vat',False)
+    if mode not in (True,False,'','1'):
+        raise BusinessError('BAD_PRICE_MODE','Chế độ giá gồm VAT chưa hợp lệ.')
+    discount=str(data.get('discount_amount',0)).strip() or '0'
+    if not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)',discount) or len(discount.replace('.',''))>19:
+        raise BusinessError('BAD_DISCOUNT','Giảm giá phải là số nguyên đồng, có thể dùng dấu chấm hàng nghìn.')
+    return dict(price_includes_vat=mode in (True,'1'),discount_amount=int(discount.replace('.','')))
 
 
 def _body(data):
@@ -108,7 +123,7 @@ def _body(data):
         lines.append({**line, 'unit_price':int(price.replace('.','')) if price else None,
                       'qty':line['qty'].replace(',','.'), 'vat_rate':vat})
     return dict(customer_code=data['customer_code'], contact_name=data['contact_name'],
-                valid_until=data['valid_until'] or None, note=data['note'], lines=lines)
+                valid_until=data['valid_until'] or None, note=data['note'], lines=lines, **_pricing_body(data))
 
 
 def _error(exc):
@@ -116,7 +131,7 @@ def _error(exc):
         return exc.message,exc.code,exc.status
     loc = exc.errors()[0]['loc']
     labels = {'qty':'Số lượng','unit_price':'Đơn giá','unit':'Đơn vị','vat_rate':'VAT', 'product_code':'Mã hàng',
-              'customer_code':'Khách hàng','contact_name':'Người liên hệ','valid_until':'Hạn báo giá','description':'Mô tả','lines':'Dòng báo giá'}
+              'customer_code':'Khách hàng','contact_name':'Người liên hệ','valid_until':'Hạn báo giá','description':'Mô tả','lines':'Dòng báo giá','discount_amount':'Giảm giá','price_includes_vat':'Chế độ giá gồm VAT'}
     text = labels.get(str(loc[-1]),'Dữ liệu') + ' chưa hợp lệ, hãy kiểm tra lại.'
     if len(loc)>1 and isinstance(loc[1],int):
         text = f'Dòng {loc[1]+1}: ' + text
@@ -260,5 +275,6 @@ def print_quote(request: Request,quote_id: int,user: User=Depends(quote_user),se
     from zoneinfo import ZoneInfo
     quote=svc.load(session,user,quote_id)
     return render(request,'bao_gia_in.jinja',q=quote,customer=session.get(Customer,quote.customer_code),company=get_settings(),
+                  entered_total=svc.entered_total(quote),
                   words=money_words(quote.total),quantity=_quantity,statuses=STATUSES,expired=_expired(quote),
                   issued=quote.created_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
