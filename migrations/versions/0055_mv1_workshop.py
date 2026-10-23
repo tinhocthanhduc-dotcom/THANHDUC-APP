@@ -1,13 +1,13 @@
 """MV1: workshop repair attribution and ready-for-return hold reason.
 
-Revision ID: 0054
-Revises: 0053
+Revision ID: 0055
+Revises: 0054
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = '0054'
-down_revision = '0053'
+revision = '0055'
+down_revision = '0054'
 branch_labels = None
 depends_on = None
 

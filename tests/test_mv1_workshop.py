@@ -402,7 +402,7 @@ def test_migration_and_pilot_classification_keep_legacy_rows(db,engine,people):
     p=people;t=ticket(db,p,'DANG_LAM');ident=t.id
     cfg=Config(str(Path(__file__).parents[1]/'alembic.ini'));cfg.attributes['database_url']=engine.url.render_as_string(hide_password=False)
     before=t.receivable,t.total,t.status
-    db.commit();command.downgrade(cfg,'0053')
+    db.commit();command.downgrade(cfg,'0054')
     try:
         assert db.scalar(text("select count(*) from information_schema.columns where table_name='service_tickets' and column_name='repaired_by'"))==0
         db.commit();command.upgrade(cfg,'head');db.expire_all();db.refresh(t)
