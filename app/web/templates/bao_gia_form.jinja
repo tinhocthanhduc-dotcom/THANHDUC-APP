@@ -3,29 +3,42 @@
 {% block title %}{{ q.number if q else 'Tạo báo giá' }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% import 'viec_khac.jinja' as other %}
-{% block main %}<div class="doc-detail">
+{% block main %}<div class="doc-detail quote-form-page">
 <div class="recv-head doc-head-bar"><a class="btn" href="/bao-gia" aria-label="Quay lại Báo giá">←</a><div><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><p class="hint">Báo giá{% if q %} · {{ customer_name or q.customer_code }}{% endif %}</p></div>{% if q %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">In báo giá</a>{% endif %}</div>
-{% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
+{% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if q %}<p class="doc-status doc-{{ q.status|lower }}">Trạng thái: <strong class="stock-chip">{{ statuses[q.status] }}</strong></p>{% endif %}
 {% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
 {% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
 {% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
-<form data-workflow-form="quote" data-today="{{ today }}" id="quote-edit" method="post" class="card form" action="{{ '/bao-gia/' ~ q.id if q else '/bao-gia/moi' }}" data-quote-form data-quote-unsaved="{{ '1' if unsaved else '0' }}" data-quote-editable="{{ '1' if can_write and editable else '0' }}">
+<div class="qf-cols"><div class="qf-main">
+<form data-workflow-form="quote" data-today="{{ today }}" id="quote-edit" method="post" class="form qf-form" action="{{ '/bao-gia/' ~ q.id if q else '/bao-gia/moi' }}" data-quote-form data-quote-unsaved="{{ '1' if unsaved else '0' }}" data-quote-editable="{{ '1' if can_write and editable else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_write or not editable %}disabled{% endif %}>
-{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not can_write or not editable else '')) %}<div data-picker><label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".quote-customer-options" data-source="/bao-gia/tim-khach"></label><span class="hint" data-quote-customer-name>{{ customer_name }}</span><div class="quote-customer-options product-options" aria-live="polite"></div>{% if is_new and can_write %}<a href="/khach-hang/moi?quay_ve=/bao-gia/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>{% endif %}</div>{% endcall %}
+<section class="card qf-card"><h2 class="qf-h">Khách hàng</h2>
+{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not can_write or not editable else '')) %}<div data-picker><label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" data-live=".quote-customer-options" data-source="/bao-gia/tim-khach" placeholder="Tên, mã hoặc số điện thoại"></label><span class="hint" data-quote-customer-name>{{ customer_name }}</span><div class="quote-customer-options product-options" aria-live="polite"></div>{% if is_new and can_write %}<a href="/khach-hang/moi?quay_ve=/bao-gia/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>{% endif %}</div>{% endcall %}
 <div class="row2"><label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>{% call picked.block(locked=('Không sửa được ở trạng thái này' if not can_write or not editable else '')) %}<label>Hiệu lực đến hết ngày<input type="date" name="valid_until" value="{{ d.valid_until }}" required></label>{% endcall %}</div>
-<label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>
+</section>
+<section class="card qf-card qf-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng hóa / dịch vụ</h2>{% if can_write and editable %}<button type="button" class="btn-ghost" data-quote-add>+ Thêm dòng hàng / dịch vụ</button>{% endif %}</div>
+<div class="qlines-head" aria-hidden="true"><span>Hàng / mô tả</span><span>SL</span><span>ĐVT</span><span>Đơn giá</span><span>VAT</span><span>Thành tiền</span><span></span></div>
 <div data-quote-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'bao_gia_dong_form.jinja' %}{% endfor %}</div>
-{% if q %}<p class="saved-total">Số tiền đã lưu: Tiền hàng {{ q.subtotal|money }} · VAT {{ q.vat_total|money }} · Tổng {{ q.total|money }} đồng</p>{% endif %}
 <p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
-{% if can_write and editable %}<button type="button" data-quote-add>+ Thêm dòng hàng / dịch vụ</button>{% endif %}
+</section>
+<section class="card qf-card"><h2 class="qf-h">Ghi chú gửi khách</h2><label><span class="sr-only">Ghi chú</span><textarea name="note" maxlength="4000" placeholder="Bảo hành, thời gian giao, điều kiện thanh toán…">{{ d.note }}</textarea></label></section>
 </fieldset>
 <p class="alert warn" data-quote-warning hidden></p>
-{% if can_write and editable %}<button aria-label="Lưu báo giá nháp">Lưu nháp</button><p class="hint">Lưu nháp để sửa sau; Lưu và gửi sẽ tính tiền và khóa giá trong cùng một lần.</p>{% endif %}
 </form>
+</div>
+<aside class="qf-side">
+<section class="card qf-sum"><h2 class="qf-h">Tổng báo giá</h2>
+<dl><div><dt>Tiền hàng</dt><dd data-line-sum="subtotal">{{ q.subtotal|money if q else '—' }}</dd></div><div><dt>VAT</dt><dd data-line-sum="vat">{{ q.vat_total|money if q else '—' }}</dd></div><div class="qf-grand"><dt>Tổng gồm VAT</dt><dd data-line-sum="total">{{ q.total|money if q else '—' }}</dd></div></dl>
+{% if q %}<p class="saved-total">Số tiền đã lưu: Tiền hàng {{ q.subtotal|money }} · VAT {{ q.vat_total|money }} · Tổng {{ q.total|money }} đồng</p>{% endif %}
+<p class="hint">Đơn vị: đồng. Số có dấu * là chưa đủ dữ liệu; máy chủ tính lại khi lưu.</p>
+</section>
+{% set wf_part='action' %}{% set workflow_total=(q.total|money if q else '—') if can_write and editable else '' %}{% include 'thanh_buoc.jinja' %}
+{% if can_write and editable %}<div class="qf-draft"><button form="quote-edit" aria-label="Lưu báo giá nháp">Lưu nháp</button><p class="hint">Lưu nháp để sửa sau; Lưu và gửi sẽ tính tiền và khóa giá trong cùng một lần.</p></div>{% endif %}
+</aside></div>
 
 {% if q and can_write %}
 <div class="quote-actions">
