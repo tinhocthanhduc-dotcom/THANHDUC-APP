@@ -9,7 +9,7 @@
 <h2 class="tho-grp">{{ label }}</h2>
 <div class="tho-jobs">{% for job in rows %}{% if job.trips %}<div class="tho-trip-group" data-trip-group>{% endif %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>
 <span class="cardtop"><span>{{ job.number }} · {% if job.overdue %}<span class="tho-late">{{ 'Quá giờ · ' if job.appointment else 'Quá hạn xử lý' }}</span>{% endif %}{% if job.appointment %}{{ job.appointment|appointment_label(job.get('appointment_slot')) }}{% elif not job.overdue %}Chưa hẹn{% endif %}</span><span class="tag tone-{{ tones.get(job.status,'mute') }}">{{ 'Giao hàng' if job.status=='GIAO_DON' else 'Chờ hủy' if job.status=='CHO_HUY' else service_statuses[job.status] }}</span></span>
-<b>{{ job.customer }}</b>
+<b>{{ job.customer }}</b>{% if job.kind=='service' %}<span class="mu">{{ service_kinds[job.service_kind] }}</span>{% endif %}
 {% if job.address %}<span class="mu tho-one-line" title="{{ job.address }}">{{ job.address }}</span>{% endif %}
 <span class="tho-one-line tho-symptom" title="{{ job.symptom }}">{{ job.symptom }}</span>
 {% if job.machine or job.serial %}<span class="tho-one-line">{{ job.machine }} {{ '· ' ~ job.serial if job.serial else '' }}</span>{% endif %}

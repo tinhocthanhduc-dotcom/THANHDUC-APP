@@ -119,6 +119,7 @@ def service_checks(session,t,primary):
     if not primary:return []
     form=primary.get('form','')
     if form=='service-HOAN_THANH':
-        return [check('photo','Có ảnh sau sửa',attachments.has_visible(session,'service_ticket',t.id,'SAU')),
+        return [check('kind','Đã chọn loại dịch vụ',t.kind is not None),
+                check('photo','Có ảnh sau sửa',attachments.has_visible(session,'service_ticket',t.id,'SAU')),
                 check('billing','Đã lưu tiền / miễn phí',t.billing is not None)]
     return []

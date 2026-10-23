@@ -118,7 +118,7 @@ def detail_context(session, user, ticket, ctx):
     return_job=service_charges.return_locked(ticket)
     machine_held=bool(eq and eq.custody_ticket_id==ticket.id and eq.custody_location in ('THO_GIU','KHO_KY_THUAT'))
     workshop_repair=bool(ticket.status=='DANG_LAM' and machine_held and not return_job)
-    can_bring=bool(ticket.status=='DANG_LAM' and ticket.kind in ('SUA_TAI_CHO','BAO_HANH') and not return_job and
+    can_bring=bool(ticket.status=='DANG_LAM' and ticket.kind in (None,'SUA_TAI_CHO','BAO_HANH') and not return_job and
         (not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
     billing_ready=(mode=='FREE' and len(reason.strip())>=3) or (mode!='FREE' and actual>0)
     if workshop_repair:billing_ready=billing_ready and mode in ('FULL','FREE')
@@ -139,7 +139,8 @@ def detail_context(session, user, ticket, ctx):
     ctx['completion_form']=dict(ctx.get('completion_form') or {},repair_result=result)
     report_ok=result in REPAIR_RESULTS
     ctx.update(repair_results=REPAIR_RESULTS,fault_chips=FAULT_CHIPS,work_chips=WORK_CHIPS)
-    checks = [dict(key='report',label='Đã chọn kết quả sửa',ok=report_ok),
+    checks = [dict(key='kind',label='Đã chọn loại dịch vụ',ok=ticket.kind is not None),
+        dict(key='report',label='Đã chọn kết quả sửa',ok=report_ok),
         dict(key='photo' ,label='Có ảnh nghiệm thu',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
         dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]
     if not workshop_repair and (ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH')):
@@ -188,7 +189,7 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
     for ticket,customer,site,machine in rows:
         action=next_steps.service(session,user,ticket)
         if action and ticket.status=='DA_GIAO':action={**action,'primary':{**action['primary'],'label':'Nhận đơn'}}
-        jobs.append(dict(kind='service',id=ticket.id,number=ticket.number,priority=ticket.priority,customer=customer.name,
+        jobs.append(dict(kind='service',service_kind=ticket.kind,id=ticket.id,number=ticket.number,priority=ticket.priority,customer=customer.name,
             machine=machine or '',serial=ticket.serial or '',symptom=ticket.symptom,appointment=ticket.appointment_at,
             appointment_slot=ticket.appointment_slot, overdue=(ticket.status in ('DA_HEN','DA_NHAN') and ticket.appointment_at is not None and service_appointments.end(ticket.appointment_at,ticket.appointment_slot)<now) or (ticket.due_at is not None and ticket.due_at<now),
             href=f'/tho/phieu/{ticket.id}',action=action['primary'] if action else None,status=ticket.status,created=ticket.created_at,

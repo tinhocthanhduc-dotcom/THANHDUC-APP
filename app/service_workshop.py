@@ -30,7 +30,7 @@ def held_machine(session,t):
 def bring(session,user,ident,version,intake,materials):
     with _transaction(session):
         t=_owned(session,user,ident,version)
-        if t.kind not in ('SUA_TAI_CHO','BAO_HANH') or service_charges.return_locked(t):
+        if t.kind not in (None,'SUA_TAI_CHO','BAO_HANH') or service_charges.return_locked(t):
             raise BusinessError('BAD_STATUS','Chỉ mang về từ phiếu sửa tại chỗ hoặc bảo hành đang sửa.',status=409)
         before=tickets.snapshot(t)
         custody.receive_in_tx(session,user,t.id,intake)
@@ -45,7 +45,7 @@ def bring(session,user,ident,version,intake,materials):
         added=[ServiceLine(line_no=i,**x,amount=0,vat_amount=0) for i,x in enumerate(entries,start)]
         t.lines.extend(added)
         service_charges.issue_materials(session,user,t,added)
-        if t.kind=='SUA_TAI_CHO':t.kind='MANG_VE'
+        if t.kind in (None,'SUA_TAI_CHO'):t.kind='MANG_VE'
         t.version+=1
         tickets._record(session,user,t,'workshop',before,'DANG_LAM','Mang máy về xưởng')
     return t

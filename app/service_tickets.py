@@ -15,7 +15,7 @@ from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
 from .models import Customer, CustomerSite, Equipment, SalesReceipt, ServiceStep, ServiceTicket, User
-from .schemas import ServiceTicketIn, ServiceTicketOut
+from .schemas import ServiceKindSet, ServiceTicketIn, ServiceTicketOut
 from .security import has_role
 from .stock_docs import _transaction
 from .text import fold
@@ -156,6 +156,33 @@ def _technician(session: Session, user_id: int) -> User:
     return u
 
 
+def set_kind(session: Session, user: User, ticket_id: int, body: ServiceKindSet) -> ServiceTicket:
+    _require(user, (*DISPATCHERS, TECHNICIAN), 'Chỉ thợ được giao hoặc điều phối được chọn loại dịch vụ.')
+    with _transaction(session):
+        t = session.scalar(select(ServiceTicket).where(ServiceTicket.id == ticket_id)
+                           .with_for_update().execution_options(populate_existing=True))
+        if t is None:
+            raise BusinessError('NOT_FOUND', 'Không tìm thấy phiếu dịch vụ.', status=404)
+        if not has_role(user, *DISPATCHERS) and t.assignee_id != user.id:
+            raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao hoặc điều phối được chọn loại dịch vụ.', status=403)
+        _check_version(t, body.version)
+        if t.status not in OPEN:
+            raise BusinessError('BAD_STATUS', 'Chỉ chọn loại khi phiếu còn mở.', status=409)
+        if (t.warranty_of_id is not None or t.warranty_basis is not None) and body.kind != 'BAO_HANH':
+            raise BusinessError('WARRANTY_MISMATCH', 'Cần xử lý liên kết bảo hành trước khi đổi loại dịch vụ.')
+        if t.kind != body.kind:
+            before = snapshot(t)
+            t.kind = body.kind
+            t.version += 1
+            _record(session, user, t, 'set_kind', before, t.status)
+    return t
+
+
+def require_kind(t: ServiceTicket):
+    if t.kind is None:
+        raise BusinessError('KIND_REQUIRED', 'Chọn loại dịch vụ trước khi hoàn thành.')
+
+
 def assign(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "") -> ServiceTicket:
     """Giao thợ, hoặc chuyển sang thợ khác (cũng là cách duyệt yêu cầu chuyển việc). Phiếu về DA_GIAO."""
     _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
@@ -232,6 +259,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao được hủy khi đang làm, chờ linh kiện hoặc tạm dừng.', status=403)
     if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG') and (
             is_dispatcher or (t.assignee_id == user.id and t.status not in ('HOAN_THANH','DA_DONG'))):
+        if to_status == 'HOAN_THANH':
+            require_kind(t)
         from .equipment_custody import check_returned
         check_returned(session,t)
     if to_status == "DA_HUY":

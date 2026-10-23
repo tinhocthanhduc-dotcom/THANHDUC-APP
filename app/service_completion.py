@@ -15,6 +15,7 @@ def complete(session, user, ticket_id: int, charges: ServiceCharges, note: str =
         service_tickets._check_version(ticket, charges.version)
         if ticket.status != 'DANG_LAM':
             raise BusinessError('BAD_STATUS', 'Chỉ hoàn thành phiếu đang làm.', status=409)
+        service_tickets.require_kind(ticket)
         if ticket.serial:
             from .equipment_custody import _machine
             _machine(session,ticket.serial,lock=True)

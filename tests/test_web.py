@@ -975,7 +975,7 @@ def test_d3_reception_create_and_customer_choices(client, db, service_people, mo
     assert '<html' not in client.get('/dich-vu?phan=1').text
 
 
-def test_service_intake_requires_kind_no_default(client, db, service_people, make_user):
+def test_service_intake_allows_unclassified_no_default(client, db, service_people, make_user):
     from app.models import ServiceTicket
     csrf = service_login(client, make_user('dv.kind', 'reception'))
     for url in ('/dich-vu/moi', '/dich-vu/moi?customer_code=KTD-000001'):
@@ -985,11 +985,12 @@ def test_service_intake_requires_kind_no_default(client, db, service_people, mak
         data = service_form(csrf, **missing)
         if not missing: data.pop('kind')
         response = client.post('/dich-vu/moi', data=data)
-        assert response.status_code == 400 and 'Hãy chọn loại dịch vụ' in response.text
+        assert response.status_code == 200 and 'Chưa phân loại' in response.text
         assert 'Máy in bị kẹt giấy' in response.text
-    assert db.query(ServiceTicket).count() == 0
+    assert db.query(ServiceTicket).count() == 2
+    assert all(t.kind is None for t in db.query(ServiceTicket))
     assert client.post('/dich-vu/moi', data=service_form(csrf, kind='MANG_VE')).status_code == 200
-    assert db.query(ServiceTicket).one().kind == 'MANG_VE'
+    assert db.query(ServiceTicket).order_by(ServiceTicket.id.desc()).first().kind == 'MANG_VE'
 
 
 def test_d3_dispatcher_assignment_open_counts(client, db, service_people):
