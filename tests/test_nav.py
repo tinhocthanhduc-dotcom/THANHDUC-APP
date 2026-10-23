@@ -21,7 +21,7 @@ EXPECTED = {
               '/bao-cao/ban-hang', '/hang-hoa', '/ton-kho'},
     'warehouse': {'/cho-xu-ly', '/linh-kien-thu-hoi', '/may-dang-giu', '/yeu-cau-linh-kien', '/viec-cua-toi', '/don-ban', '/hang-hoa', '/ton-kho', '/phieu-kho',
                   '/ton-kho?canh-bao=1', '/ton-dau-ky', '/kho', '/don-mua',
-                  '/nha-cung-cap', '/bao-cao-mua-hang'},
+                  '/nha-cung-cap', '/bao-cao-mua-hang', '/nhom-hang'},
     'finance': {'/cho-xu-ly', '/linh-kien-thu-hoi', '/viec-cua-toi', '/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
                 '/hang-hoa', '/ton-kho', '/phieu-kho', '/don-mua', '/nha-cung-cap', '/bao-cao-mua-hang',
                 '/bao-thu', '/thu-chi', '/chot-so', '/dieu-chinh', '/cong-no-ncc',

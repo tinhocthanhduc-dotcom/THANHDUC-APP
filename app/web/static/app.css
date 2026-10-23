@@ -1726,3 +1726,11 @@ main:has(> .quote-form-page) { max-width: none; }
   .qf2o .qlines-head span:nth-child(4), .qf2o .qlines-head span:nth-child(5), .qf2o .qlines-head span:nth-child(7) { text-align: center; }
   .qf2o .qline-badge { justify-self: center; }
 }
+/* Nhóm hàng: mỗi nhóm một dòng, tên sửa tại chỗ. */
+.group-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.group-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.group-row:last-child { border-bottom: 0; }
+.group-row .group-del { color: var(--bad); }
+@media (max-width: 480px) { .group-row { grid-template-columns: minmax(0, 1fr) auto; } .group-add { grid-template-columns: 1fr; } }
+.group-seg { flex-wrap: wrap; }
+.group-seg label { flex: 0 0 auto; }

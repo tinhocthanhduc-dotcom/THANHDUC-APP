@@ -155,6 +155,7 @@ def test_hang_hoa_chi_kho_tao(client, web_login, db):
     assert client.get("/hang-hoa/moi").status_code == 403
     csrf = web_login("thu.kho", "warehouse")
     assert 'value="TD-0001"' in client.get("/hang-hoa/moi").text
+    client.post("/nhom-hang/moi", data={"csrf": csrf, "name": "Mực"})
     data = {"csrf": csrf, "code": "td-0124", "name": "Mực HP 107A", "group_name": "Mực", "unit": "hộp", "sale_price": "350.000"}
     r = client.post("/hang-hoa/moi", data=data, follow_redirects=False)
     assert r.headers["location"] == "/hang-hoa/TD-0124?da_luu=1"
@@ -3126,3 +3127,28 @@ def test_d1_product_typed_but_not_picked(client, web_login, d1_catalog, db):
     assert row.product_code == 'TD-0002' and row.customer_code == 'KTD-000001'
     r = client.post('/thiet-bi/moi', data=device_form(csrf, serial='CD1', customer_code='', customer_q='Không có ai'))
     assert r.status_code == 400 and 'Chưa chọn khách' in r.text
+
+
+def test_nhom_hang_them_sua_xoa(client, web_login, db):
+    from app.models import ProductGroup
+    csrf = web_login("ban.hang", "sales")
+    assert client.post("/nhom-hang/moi", data={"csrf": csrf, "name": "Mực"}).status_code == 403
+    csrf = web_login("thu.kho", "warehouse")
+    r = client.post("/nhom-hang/moi", data={"csrf": csrf, "name": "  Mực   in "}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "Đã có nhóm" in client.post("/nhom-hang/moi", data={"csrf": csrf, "name": "mực in"}).text
+    page = client.get("/hang-hoa/moi").text
+    assert 'name="group_name" value="Mực in"' in page and "<datalist" not in page
+    client.post("/hang-hoa/moi", data={"csrf": csrf, "code": "TD-0001", "name": "Mực HP 12A", "group_name": "Mực in", "unit": "hộp", "sale_price": "0"})
+    assert "chưa có trong danh mục" in client.post("/hang-hoa/moi", data={"csrf": csrf, "code": "TD-0002", "name": "X", "group_name": "Lạ", "unit": "cái", "sale_price": "0"}).text
+    gid = db.query(ProductGroup).one().id
+    r = client.post(f"/nhom-hang/{gid}", data={"csrf": csrf, "xoa": "1", "name": "Mực in"})
+    assert r.status_code == 409 and "còn 1 mã hàng" in r.text
+    client.post(f"/nhom-hang/{gid}", data={"csrf": csrf, "name": "Mực máy in"})
+    db.expire_all()
+    p = db.get(Product, "TD-0001")
+    assert p.group_name == "Mực máy in" and "muc may in" in p.search_text
+    assert "1 mã hàng" in client.get("/nhom-hang").text
+    client.post("/hang-hoa/TD-0001", data={"csrf": csrf, "version": "2", "name": "Mực HP 12A", "group_name": "", "unit": "hộp", "sale_price": "0", "active": "1"})
+    assert client.post(f"/nhom-hang/{gid}", data={"csrf": csrf, "xoa": "1"}, follow_redirects=False).status_code == 303
+    assert db.query(ProductGroup).count() == 0

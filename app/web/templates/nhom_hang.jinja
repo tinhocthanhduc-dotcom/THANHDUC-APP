@@ -1,0 +1,26 @@
+{% extends "base.jinja" %}
+{% block title %}Nhóm hàng{% endblock %}
+{% block main %}
+<div class="bar"><h1>Nhóm hàng</h1><a href="/hang-hoa">← Hàng hóa</a></div>
+{% if saved %}<p class="alert ok">{% if saved == 'xoa' %}Đã xóa nhóm.{% elif saved == 'them' %}Đã thêm nhóm.{% else %}Đã lưu. Các mã hàng trong nhóm đã đổi theo tên mới.{% endif %}</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+{% if can_write %}
+<form method="post" action="/nhom-hang/moi" class="card form group-add">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+  <label>Thêm nhóm mới<input name="name" value="{{ shown.new or '' }}" required maxlength="100" placeholder="Ví dụ: Mực in, Linh kiện, Máy in"></label>
+  <button class="primary">Thêm nhóm</button>
+</form>
+{% endif %}
+<section class="card">
+{% for g, count in rows %}
+<form method="post" action="/nhom-hang/{{ g.id }}" class="group-row">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+  <label class="group-name"><span class="sr-only">Tên nhóm</span><input name="name" value="{{ shown[g.id] if g.id in shown else g.name }}" required maxlength="100" {% if not can_write %}readonly{% endif %}></label>
+  <a class="hint" href="/hang-hoa?q={{ g.name | urlencode }}&amp;tat_ca=1">{{ count }} mã hàng</a>
+  {% if can_write %}<button>Lưu tên</button>
+  {% if count == 0 %}<button name="xoa" value="1" class="link group-del" formnovalidate onclick='return confirm({{ ("Xóa nhóm " ~ g.name ~ "?") | tojson }})'>Xóa</button>{% endif %}{% endif %}
+</form>
+{% else %}<p class="hint">Chưa có nhóm hàng nào.</p>{% endfor %}
+</section>
+{% if can_write %}<p class="hint">Đổi tên nhóm thì mọi mã hàng trong nhóm đổi theo. Chỉ xóa được nhóm không còn mã hàng nào.</p>{% endif %}
+{% endblock %}

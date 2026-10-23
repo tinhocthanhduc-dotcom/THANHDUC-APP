@@ -136,6 +136,16 @@ class Product(Base):
     __mapper_args__ = {"version_id_col": version}
 
 
+class ProductGroup(Base):
+    """Danh mục nhóm hàng. products.group_name giữ đúng tên nhóm để lọc nhanh; đổi tên nhóm thì đổi luôn trên mã hàng."""
+
+    __tablename__ = "product_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class AuditLog(Base):
     """Nhật ký: ai sửa gì, lúc nào, trước và sau. Không sửa, không xóa."""
 
