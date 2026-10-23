@@ -234,7 +234,7 @@
     }
   });
   // Ô Tồn: so tồn khả dụng của kho đang chọn với số lượng; đổi kho thì tải lại tồn.
-  function qtyOf(row) { return Number((row.querySelector('[name=qty]').value||'').replace(/\./g,'').replace(',','.'))||0; }
+  function qtyOf(row) { return Number((row.querySelector('[name=qty]').value||'').replace(',','.'))||0; }
   function badge(row) {
     var el=row.querySelector('[data-stock-badge]'); if (!el) return;
     var k=row.querySelector('[data-order-kind]:checked'), s=row.querySelector('[data-availability-summary]');
