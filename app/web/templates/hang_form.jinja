@@ -24,7 +24,7 @@
     {% if p.group_name and p.group_name not in groups %}<label><input type="radio" name="group_name" value="{{ p.group_name }}" checked><span>{{ p.group_name }} (chưa có trong danh mục)</span></label>{% endif %}
   </div></div>
   {% if can_write %}<p class="hint">Chưa có nhóm cần dùng? <a href="/nhom-hang">Thêm ở trang Nhóm hàng</a>.</p>{% endif %}
-  {% if 'director' in user.roles %}<label>Bảo hành máy (tháng)<input type="number" name="warranty_months" min="0" max="60" value="{{ p.warranty_months or 0 }}" required></label><p class="hint">Lớn hơn 0: bắt buộc ghi serial khi giao máy.</p>{% endif %}
+  {% if 'director' in user.roles %}<label>Bảo hành máy (tháng)<input type="number" name="warranty_months" min="0" max="60" value="{{ p.warranty_months or 0 }}" required{% if is_new %} data-warranty-auto{% endif %}></label><p class="hint">Lớn hơn 0: bắt buộc ghi serial khi giao máy.{% if is_new %} Máy mới mặc định 12 tháng: chọn nhóm Máy in sẽ tự điền 12, vẫn sửa được.{% endif %}</p>{% endif %}
   <label>Giá bán (đồng)<input name="sale_price" value="{{ p.sale_price | money }}" inputmode="numeric" data-money></label>
   {% if not is_new %}
   <label class="check"><input type="checkbox" name="active" value="1" {% if p.active %}checked{% endif %}> Đang bán</label>
@@ -32,4 +32,11 @@
   </fieldset>
   {% if can_write %}<button class="primary">Lưu</button>{% else %}<p class="hint">Chỉ Kho được sửa danh mục hàng.</p>{% endif %}
 </form>
+{% if is_new %}<script>
+// Mã hàng mới: chọn nhóm có chữ "Máy" thì điền sẵn bảo hành 12 tháng, nếu người dùng chưa tự gõ số.
+(function(){var box=document.querySelector('[data-warranty-auto]');if(!box)return;var touched=false;
+box.addEventListener('input',function(){touched=true;});
+document.querySelectorAll('input[name="group_name"]').forEach(function(r){r.addEventListener('change',function(){
+if(touched||!r.checked)return;box.value=/^máy/i.test(r.value.trim())?'12':'0';});});})();
+</script>{% endif %}
 {% endblock %}

@@ -54,6 +54,14 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         rows = list(session.scalars(select(ServiceTicket).where(opened)
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())))
         title = "Đơn đang mở"
+    elif view == 'new':
+        rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'MOI')
+                                   .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id)))
+        title = 'Chưa giao thợ'
+    elif view == 'workshop':
+        rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'CHO_SUA_XUONG')
+                                   .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id)))
+        title = 'Ở xưởng'
     elif view == 'return_ready':
         rows=list(session.scalars(select(ServiceTicket).where(ServiceTicket.status=='TAM_DUNG',ServiceTicket.hold_reason=='SUA_XONG_CHO_TRA').order_by(ServiceTicket.id)))
         title='Máy sửa xong chờ trả'
@@ -73,9 +81,24 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
     delivery_labels={o.id:technician_deliveries.state(session,user,o)['label'] for o in delivery_orders}
     visit_counts = dict(session.execute(select(ServiceVisit.ticket_id, func.count()).where(
         ServiceVisit.ticket_id.in_([t.id for t in rows])).group_by(ServiceVisit.ticket_id)).all())
-    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
-                  count_return_ready=session.scalar(select(func.count()).select_from(ServiceTicket).where(ServiceTicket.status=='TAM_DUNG',ServiceTicket.hold_reason=='SUA_XONG_CHO_TRA')),count_open=count_open, count_overdue=count_overdue, count_parts=count_parts, count_paused=count_paused,
-                  users=dict(session.execute(select(User.id, User.full_name)).all()), open_counts=svc.open_counts(session),
+    # Đợt 5: tên khách và "Bước tiếp · ai làm" trên từng dòng; chỉ để đọc.
+    from ..models import Customer
+    from . import nav
+    from .customer_overview import _service_next
+    users = dict(session.execute(select(User.id, User.full_name)).all())
+    customer_names = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in rows}))).all())
+    extra = session.execute(select(
+        func.count().filter(ServiceTicket.status == 'MOI'),
+        func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'CHO_SUA_XUONG'),
+        func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'SUA_XONG_CHO_TRA'),
+    )).one()
+    tiles = [dict(label=label, n=n, href=f'/dieu-phoi?view={key}', on=view == key, tone='huy' if key == 'overdue' and n else '')
+             for key, n, label in (('open', count_open, 'Đang mở'), ('overdue', count_overdue, 'Quá hạn'), ('new', extra[0], 'Chưa giao thợ'),
+                                   ('workshop', extra[1], 'Ở xưởng'), ('return_ready', extra[2], 'Sửa xong chờ trả'),
+                                   ('parts', count_parts, 'Chờ linh kiện'), ('paused', count_paused, 'Tạm dừng'))]
+    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,tiles=tiles,customer_names=customer_names,
+                  next_of={t.id: _service_next(t, users) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
+                  users=users, open_counts=svc.open_counts(session),
                   now=now, delay=_delay, watch=dict(url='/dieu-phoi/moi', stamp=work_watch.dispatch(session)))
 
 

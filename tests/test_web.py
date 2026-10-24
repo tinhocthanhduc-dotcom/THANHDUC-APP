@@ -973,7 +973,7 @@ def test_d3_reception_create_and_customer_choices(client, db, service_people, mo
     assert response.status_code == 200, response.text
     ticket = db.query(ServiceTicket).one()
     assert re.fullmatch(r'DV-26-\d{5}', ticket.number) and ticket.status == 'MOI'
-    assert ticket.number in response.text and '<h2>Mới' in response.text
+    assert ticket.number in response.text and 'b-cho">Mới</span>' in response.text
     assert 'Giao thợ</button>' not in response.text
     assert ticket.number in client.get('/dich-vu?q=minh phat&phan=1').text
     assert ticket.number in client.get('/dich-vu?q=ab123&phan=1').text
@@ -1005,8 +1005,8 @@ def test_d3_dispatcher_assignment_open_counts(client, db, service_people):
     ticket = new_service(db, service_people)
     csrf = service_login(client, service_people['dispatcher'])
     page = client.get(f'/dich-vu/{ticket.id}').text
-    assert 'Dv.Technician · 1 việc đang mở' in page
-    assert 'Dv.Tho.B · 0 việc đang mở' in page
+    assert 'Dv.Technician<small>1 việc đang mở</small>' in page
+    assert 'Dv.Tho.B<small>0 việc đang mở</small>' in page
     response = service_action(client, ticket, csrf, 'assign', assignee_id=service_people['other'].id, note='Giao anh B')
     assert response.status_code == 200, response.text
     db.refresh(ticket)
@@ -1666,9 +1666,9 @@ def test_d7_overdue_excludes_closed_and_orders_oldest(client, db, service_people
     assert response.text.index(older.number) < response.text.index(later.number)
     assert closed.number not in response.text and waiting.number not in response.text
     assert 'trễ 3 giờ 15 phút' in response.text and 'trễ 1 giờ 0 phút' in response.text
-    assert '<strong>3</strong><span>Đơn đang mở' in response.text
-    assert '<strong>2</strong><span>Đơn quá hạn' in response.text
-    assert '<strong>1</strong><span>Chờ linh kiện' in response.text
+    assert '<span class="t-label">Đang mở</span><span class="t-n">3</span>' in response.text
+    assert '<span class="t-label">Quá hạn</span><span class="t-n">2</span>' in response.text
+    assert '<span class="t-label">Chờ linh kiện</span><span class="t-n">1</span>' in response.text
     assert waiting.number in client.get('/dieu-phoi?view=parts').text
     assert waiting.number in client.get('/dieu-phoi?view=open').text
     assert closed.number not in client.get('/dieu-phoi?view=open').text
@@ -1681,8 +1681,8 @@ def test_d7_dashboard_not_truncated_by_search_limit(client, db, service_people, 
         d7_ticket(db, service_people, f'DV-26-{i+1:05}', [], due='2026-01-01T00:00:00+07:00', status='DA_NHAN')
     service_login(client, service_people['dispatcher'])
     response = client.get('/dieu-phoi')
-    assert '<strong>7</strong><span>Đơn quá hạn' in response.text
-    assert response.text.count('class="code">DV-26-') == 7
+    assert '<span class="t-label">Quá hạn</span><span class="t-n">7</span>' in response.text
+    assert response.text.count('class="lt-no" href="/dich-vu/') == 7
 
 
 def test_d7_report_counts_average_and_historical_lateness(client, db, service_people, d7_history):

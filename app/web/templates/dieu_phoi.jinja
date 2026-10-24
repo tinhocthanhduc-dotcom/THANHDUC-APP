@@ -1,11 +1,30 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Điều phối{% endblock %}
-{% block main %}<div class="stock-page doc-page">
-<div class="bar"><h1>Điều phối</h1><a class="btn" href="/dieu-phoi/bao-cao">Báo cáo dịch vụ</a></div>
-<nav class="stock-tiles dispatch-tiles" aria-label="Nhóm đơn">{% for key,count,label in [('open',count_open,'Đơn đang mở'),('overdue',count_overdue,'Đơn quá hạn'),('parts',count_parts,'Chờ linh kiện'),('paused',count_paused,'Tạm dừng'),('return_ready',count_return_ready,'Máy sửa xong chờ trả')] %}<a class="stock-tile{% if view == key %} on{% endif %}{% if key=='overdue' and count %} tile-bad{% endif %}" href="/dieu-phoi?view={{ key }}"{% if view == key %} aria-current="page"{% endif %}><strong>{{ count }}</strong><span>{{ label }}</span></a>{% endfor %}</nav>
-{% if delivery_orders %}<section class="card doc-list dispatch-deliveries"><h2>Đơn bán chờ giao thợ · {{ delivery_orders|length }}</h2>{% for order in delivery_orders %}<a class="doc-row" href="/giao-don/{{ order.id }}"><b class="code">{{ order.number }}</b><strong class="doc-who">{{ order.delivery_address or 'Chưa có địa chỉ giao' }}</strong><span class="doc-state"><span class="stock-chip">{{ delivery_labels[order.id] }}</span></span><span class="meta">{% if order.delivery_assignee_id %}Đã giao thợ {{ users.get(order.delivery_assignee_id, 'Nhân viên') }}{% else %}<b class="doc-bad">Chưa giao thợ</b>{% endif %}</span></a>{% endfor %}</section>{% else %}<p class="hint">Đơn bán chờ giao thợ: không có.</p>{% endif %}
-<h2 class="overview-label">{{ title }}</h2>
-<section class="card doc-list svc-list dispatch-list">
-{% for t in rows %}{% set late = t.due_at and t.due_at < now %}<div class="doc-row svc-{{ t.status|lower }}{% if late %} service-overdue{% endif %}"><a href="/dich-vu/{{ t.id }}" class="code">{{ t.number }}</a><strong class="doc-who"><a href="/dich-vu/{{ t.id }}">{{ users.get(t.assignee_id, 'Chưa giao') }}</a>{% if t.assignee_id %} <small class="hint">· {{ open_counts.get(t.assignee_id, 0) }} việc đang mở</small>{% endif %}</strong><span class="doc-state"><span class="stock-chip">{{ service_statuses[t.status] }}</span><small class="meta">{{ service_kinds[t.kind] }}</small>{% if visit_counts.get(t.id,0) >= 3 and t.status not in ['HOAN_THANH','DA_DONG'] %}<span class="badge">Đi nhiều lần</span>{% endif %}</span><span class="meta">{% if t.appointment_at %}Hẹn: {{ t.appointment_at|appointment_label(t.appointment_slot) }} · {% endif %}{% if late %}<b class="doc-bad">{{ delay(t.due_at, now) }}</b> · {% endif %}Hạn: {{ t.due_at|service_time }}</span><span class="meta">{% if t.hold_reason %}Lý do: {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}{% endif %}</span></div>{% else %}<p class="empty">Không có đơn phù hợp.</p>{% endfor %}
+{# Đợt 5: ô đếm và bảng dùng chung khuôn danh sách; mỗi dòng có khách, máy và Bước tiếp · ai làm. Chỉ đọc. #}
+{% block main %}<div class="page-wide dp-page">
+{% call ui.page_head('Điều phối', sub='Dịch vụ · phiếu cần theo dõi, sắp theo hạn') %}<a class="btn btn-ghost" href="/dieu-phoi/bao-cao">Báo cáo dịch vụ</a>{% if can_create %}<a class="btn btn-new" href="/dich-vu/moi">+ Nhận đơn dịch vụ</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles, keep_phone=true) }}
+<section class="card list-frame dispatch-list" aria-label="{{ title }}">
+<h2 class="dp-title">{{ title }} <span>{{ rows|length }}</span></h2>
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards dp-table">
+<thead><tr><th>Phiếu · hạn</th><th>Khách · máy</th><th>Trạng thái</th><th>Bước tiếp · ai làm</th><th>Thợ</th></tr></thead><tbody>
+{% for t in rows %}{% set late = t.due_at and t.due_at < now and t.status not in ['HOAN_THANH','DA_DONG','DA_HUY'] %}{% set nx = next_of[t.id] %}
+<tr data-href="/dich-vu/{{ t.id }}"{% if late %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="/dich-vu/{{ t.id }}">{{ t.number }}</a><span class="lt-sub{{ ' lt-bad' if late }}">{% if late %}{{ delay(t.due_at, now) }}{% else %}Hạn: {{ t.due_at|service_time }}{% endif %}</span></td>
+<td><b>{{ customer_names.get(t.customer_code, t.customer_code) }}</b><span class="lt-sub">{{ t.serial or 'Chưa chọn máy' }} · {{ service_kinds[t.kind] }}{% if t.appointment_at %} · hẹn {{ t.appointment_at|appointment_label(t.appointment_slot) }}{% endif %}</span></td>
+<td class="lt-st">{{ ui.badge(service_statuses[t.status], 'cho' if t.status in ['MOI','CHO_LINH_KIEN','TAM_DUNG'] else 'xong' if t.status in ['HOAN_THANH','DA_DONG'] else 'lam') }}{% if visit_counts.get(t.id,0) >= 3 and t.status not in ['HOAN_THANH','DA_DONG'] %} {{ ui.badge('Đi nhiều lần', 'huy') }}{% endif %}{% if t.hold_reason %}<span class="lt-sub">{{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</span>{% endif %}</td>
+<td class="kx-next"><span{% if late %} class="lt-bad"{% endif %}>{{ nx[1] }}</span><span class="lt-sub">{{ nx[0] }}</span></td>
+<td>{{ users.get(t.assignee_id, 'Chưa giao') }}{% if t.assignee_id %}<span class="lt-sub">{{ open_counts.get(t.assignee_id, 0) }} việc đang mở</span>{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Không có phiếu nào trong nhóm này.') }}{% endif %}
 </section>
-</div>{% endblock %}
+<section class="card list-frame dispatch-deliveries" aria-label="Đơn bán thợ giao">
+<h2 class="dp-title">Đơn bán chờ thợ giao <span>{{ delivery_orders|length }}</span></h2>
+{% if delivery_orders %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Đơn</th><th>Địa chỉ giao</th><th>Tình trạng</th><th>Thợ</th></tr></thead><tbody>
+{% for order in delivery_orders %}<tr data-href="/giao-don/{{ order.id }}"><td class="lt-first"><a class="lt-no" href="/giao-don/{{ order.id }}">{{ order.number }}</a></td><td>{{ order.delivery_address or 'Chưa có địa chỉ giao' }}</td><td class="lt-st">{{ ui.badge(delivery_labels[order.id], 'lam') }}</td><td>{% if order.delivery_assignee_id %}Đã giao thợ {{ users.get(order.delivery_assignee_id, 'Nhân viên') }}{% else %}<span class="lt-bad">Chưa giao thợ</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="hint dp-none">Không có đơn bán nào chờ thợ giao.</p>{% endif %}
+</section>
+</div>
+{% endblock %}
