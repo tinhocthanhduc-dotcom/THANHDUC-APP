@@ -150,11 +150,7 @@ def add_salary(request:Request,employee_id:int,form=Depends(checked_form),user:U
 
 
 # Khuôn 8: trang Cá nhân gom việc của riêng mỗi người (chấm công, lương, KPI, tài khoản).
-PERSONAL = (('/cham-cong','Chấm công','Vào ca, ra ca, xin nghỉ hoặc bổ sung công.'),
-            ('/phieu-luong','Phiếu lương','Lương từng tháng đã duyệt.'),
-            ('/tam-ung','Tạm ứng','Xin tạm ứng và xem khoản đã chi.'),
-            ('/kpi','KPI của tôi','Chỉ số tháng này, tạm tính.'),
-            ('/hoa-hong','Hoa hồng của tôi','Hoa hồng theo quy tắc của vị trí.'))
+PERSONAL = nav.PERSONAL
 
 
 @router.get('/ca-nhan')
