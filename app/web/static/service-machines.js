@@ -1,7 +1,8 @@
 (function() {
   function refresh(root) {
     root.querySelectorAll('[data-machine-selector]').forEach(function(form) {
-      var choice = form.querySelector('[name=machine_pick]:checked');
+      // "+ Máy mới" nằm ngoài form (cùng dòng nút Chọn máy), gắn vào form bằng thuộc tính form=.
+      var choice = Array.prototype.find.call(form.elements, function(el) { return el.name === 'machine_pick' && el.checked; });
       var fields = form.querySelector('[data-machine-new-fields]');
       if (fields) fields.hidden = fields.disabled = !(choice && choice.value === 'NEW');
     });

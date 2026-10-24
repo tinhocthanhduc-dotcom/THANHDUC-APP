@@ -279,6 +279,40 @@
     });
   }, true);
 
+  // ---- Ô ảnh chuẩn (o_anh.jinja pick): xem trước ảnh đã chụp, tối đa 2 ảnh; ảnh lưu cùng nút của form ----
+  document.addEventListener('change', function (event) {
+    var input = event.target;
+    if (!input.matches || !input.matches('[data-photo-pick]')) return;
+    var box = input.closest('[data-photo-pick-box]'), list = box.querySelector('[data-photo-picked]'), note = box.querySelector('[data-photo-pick-note]');
+    var files = Array.prototype.slice.call(input.files || []);
+    if (files.length > 2) {
+      try { var dt = new DataTransfer(); files.slice(0, 2).forEach(function (f) { dt.items.add(f); }); input.files = dt.files; } catch (e) { /* trình duyệt cũ */ }
+      files = files.slice(0, 2);
+      if (window.tdToast) window.tdToast('Mỗi ô tối đa 2 ảnh, đã giữ 2 ảnh đầu', 'warn');
+    }
+    list.innerHTML = '';
+    files.forEach(function (file) {
+      var tile = document.createElement('article'); tile.className = 'tech-photo';
+      var img = document.createElement('img'); img.alt = 'Ảnh đã chụp'; img.src = URL.createObjectURL(file);
+      var small = document.createElement('small'); small.textContent = 'Lưu khi bấm nút bên dưới';
+      tile.appendChild(img); tile.appendChild(small); list.appendChild(tile);
+    });
+    if (note) note.hidden = files.length > 0;
+  });
+  // Nút chính bên ngoài trỏ vào ô ảnh (vd. "Tải ảnh sau sửa") khi chưa chọn ảnh: mở máy ảnh luôn.
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest && event.target.closest('button[form]');
+    var form = button && document.getElementById(button.getAttribute('form'));
+    if (!form || !form.hasAttribute('data-photo-slot-form')) return;
+    var input = form.querySelector('input[type=file]');
+    if (input && !input.files.length) { event.preventDefault(); input.click(); }
+  });
+  document.addEventListener('invalid', function (event) {
+    if (!event.target.matches || !event.target.matches('[data-photo-pick]')) return;
+    if (window.tdToast) window.tdToast('Chụp ảnh trước khi lưu', 'bad');
+    var box = event.target.closest('[data-photo-pick-box]'); if (box && box.scrollIntoView) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, true);
+
   document.addEventListener('keydown', function (event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.key === 'Escape') {

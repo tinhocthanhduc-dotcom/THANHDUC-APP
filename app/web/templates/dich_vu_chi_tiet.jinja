@@ -34,7 +34,7 @@
   <dl>
     <dt>Khách hàng</dt><dd><a href="/khach-hang/{{ t.customer_code }}">{{ customer.name }}</a></dd>
     <dt>Địa điểm</dt><dd>{% if site %}{{ site.name }}{% if site.address %} — {{ site.address }}{% endif %}{% else %}Địa chỉ chính{% if customer.address %} — {{ customer.address }}{% endif %}{% endif %}</dd>
-    <dt>Serial</dt><dd>{% if t.serial %}<a href="/thiet-bi/{{ t.serial|urlquote }}">{{ t.serial }}</a>{% else %}Không chọn{% endif %}{% include 'dich_vu_may.jinja' %}</dd>
+    <dt>Serial</dt><dd>{% if t.serial %}<a href="/thiet-bi/{{ t.serial|urlquote }}">{{ t.serial }}</a>{% else %}Không chọn{% endif %}</dd>{% set machine_html %}{% include 'dich_vu_may.jinja' %}{% endset %}{% if machine_html|trim %}<div class="service-machine-row">{{ machine_html }}</div>{% endif %}
     <dt>Loại</dt><dd>{{ service_kinds[t.kind] }}</dd><dt>Ưu tiên</dt><dd>{{ service_priorities[t.priority] }}</dd>
     <dt>Thợ</dt><dd>{{ users.get(t.assignee_id, 'Chưa giao') }}</dd>
     <dt>Hạn xử lý</dt><dd>{{ t.due_at|service_time }}</dd><dt>Hẹn khách</dt><dd>{{ t.appointment_at|appointment_label(t.appointment_slot) }}</dd>

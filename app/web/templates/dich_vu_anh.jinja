@@ -1,28 +1,14 @@
-<section id="anh" class="card service-action"><h2>Ảnh</h2>
-{% if can_upload %}<div class="photo-upload-grid">
-{% for tag, label in [('TRUOC','Ảnh trước'), ('SAU','Ảnh sau sửa'), ('KHAC','Tệp khác')] if not technician_view or tag in ['TRUOC','SAU'] %}
-<form id="photo-{{ tag }}-form" method="post" action="/dich-vu/{{ t.id }}/anh/tai" enctype="multipart/form-data" class="form" data-photo-upload>
-  {% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tag" value="{{ tag }}">
-  <label class="btn photo-capture" for="photo-{{ tag }}">{{ label }}</label>
-  <input id="photo-{{ tag }}" type="file" name="file" required {% if tag != 'KHAC' %}accept="image/*" capture="environment"{% else %}accept="image/*,application/pdf"{% endif %}>
-  <button>Tải {{ label|lower }}</button>
-</form>
-{% endfor %}
-</div><p class="hint">Chọn hoặc chụp ảnh, rồi bấm Tải. Ảnh JPEG, PNG, WEBP; tệp khác có thể là PDF.</p>{% endif %}
-{% for tag, label in [('TRUOC','Ảnh trước'), ('SAU','Ảnh sau sửa'), ('KHAC','Tệp khác'), ('BIEN_BAN','Biên bản'), ('NHAN_MAY','Ảnh nhận máy'), ('TRA_MAY','Ảnh trả máy')] %}
+{% import 'o_anh.jinja' as anh with context %}
+{% macro up_hidden(tag) %}{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tag" value="{{ tag }}">{% endmacro %}
+{% macro hide_form(file) %}{% if can_hide %}<details class="photo-hide" {% if photo_form.get('attachment_id') == file.id %}open{% endif %}><summary class="btn">✕ Xóa</summary>
+<form method="post" action="/dich-vu/{{ t.id }}/anh/{{ file.id }}/an" class="form">{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ photo_form.get('version', file.version) if photo_form.get('attachment_id') == file.id else file.version }}">
+<label>Lý do<input name="reason" required minlength="3" maxlength="2000" value="{{ photo_form.get('reason', '') if photo_form.get('attachment_id') == file.id else '' }}"></label><button class="btn-danger">Xóa ảnh</button></form></details>{% endif %}{% endmacro %}
+{# TUẤN 24/10: ô ảnh chuẩn như Ảnh nhận máy, mỗi ô tối đa 2 ảnh; ô Tệp khác để giấy tờ (có thể PDF). #}
+<section id="anh" class="service-action photo-slots">
+{% for tag, label in [('TRUOC','Ảnh trước sửa'), ('SAU','Ảnh nghiệm thu'), ('KHAC','Tệp khác'), ('BIEN_BAN','Biên bản'), ('NHAN_MAY','Ảnh nhận máy'), ('TRA_MAY','Ảnh trả máy')] %}
 {% set group = files|selectattr('tag', 'equalto', tag)|list %}
-{% if group %}<h3>{{ label }}</h3><div class="photo-gallery">
-{% for file in group %}<article class="photo-item">
-  <a href="/attachments/{{ file.id }}/file" target="_blank" rel="noopener" aria-label="Xem {{ file.filename }}">
-  {% if file.content_type.startswith('image/') %}<img src="/attachments/{{ file.id }}/file" alt="{{ label }} — {{ file.filename }}" loading="lazy">{% else %}<span class="btn">Mở PDF</span>{% endif %}
-  <span class="photo-name">{{ file.filename }}</span></a>
-  {% if can_hide %}<details {% if photo_form.get('attachment_id') == file.id %}open{% endif %}><summary>Ẩn ảnh / tệp</summary>
-    <form method="post" action="/dich-vu/{{ t.id }}/anh/{{ file.id }}/an" class="form">
-    {% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ photo_form.get('version', file.version) if photo_form.get('attachment_id') == file.id else file.version }}">
-    <label>Lý do ẩn<textarea name="reason" required minlength="3" maxlength="2000">{{ photo_form.get('reason', '') if photo_form.get('attachment_id') == file.id else '' }}</textarea></label><button>Ẩn ảnh / tệp</button>
-    </form></details>{% endif %}
-</article>{% endfor %}
-</div>{% endif %}
+{% set upload = can_upload and tag in ['TRUOC','SAU','KHAC'] and not (technician_view and tag=='KHAC') %}
+{% if upload or group %}{{ anh.saved(label, group, '/dich-vu/' ~ t.id ~ '/anh/tai', up_hidden(tag), upload, hide_form, 'image/*,application/pdf' if tag=='KHAC' else 'image/*', 0 if tag=='KHAC' else 2, 'photo-' ~ tag ~ '-form') }}{% endif %}
 {% endfor %}
-{% if not files %}<p class="hint">Chưa có ảnh hoặc tệp đính kèm.</p>{% endif %}
+{% if not files and not can_upload %}<p class="hint">Chưa có ảnh hoặc tệp đính kèm.</p>{% endif %}
 </section>

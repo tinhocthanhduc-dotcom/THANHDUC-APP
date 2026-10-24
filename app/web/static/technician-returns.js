@@ -19,7 +19,7 @@
     root.addEventListener('click',function(event){
       var button=event.target.closest('[data-return-split]');if(!button)return;
       var original=button.closest('[data-return-row]'), copy=original.cloneNode(true), chosen=original.querySelector('[data-condition-choice]:checked').value;
-      copy.querySelector('[name=return_qty]').value='0';copy.querySelector('[data-damage-reason]').value='';copy.querySelector('[data-damage-photo]').value='';
+      copy.querySelector('[name=return_qty]').value='0';copy.querySelector('[data-damage-reason]').value='';copy.querySelector('[data-damage-photo]').value='';copy.querySelectorAll('[data-photo-picked]').forEach(function(list){list.innerHTML='';});copy.querySelectorAll('[data-photo-pick-note]').forEach(function(note){note.hidden=false;});
       copy.querySelectorAll('[data-condition-choice]').forEach(function(input){input.name='return_condition_pending';});
       original.after(copy);update();
       copy.querySelector('[data-condition-choice][value="'+(chosen==='TOT'?'HU_HONG':'TOT')+'"]').checked=true;update();
