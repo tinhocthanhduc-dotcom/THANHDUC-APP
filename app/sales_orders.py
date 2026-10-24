@@ -723,8 +723,20 @@ def summaries(session, orders, today=None):
         state[oid]=dict(has_returns=has_return,paid=int(paid),pending=int(pending),refunded=int(refunded),remaining=remaining,advance=advance,due_date=due,
             overdue_days=max(0,(today-due).days) if due and remaining else 0,
             delivery_label='Đã giao đủ' if o.status=='DA_GIAO' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Chưa giao',
-            money_label='Còn nợ' if remaining else 'Khách ứng trước' if advance else 'Đã thu đủ phần đã giao' if o.status!='NHAP' else 'Chưa phát sinh')
+            money_label=_money_label(o.status,o.receivable or 0,int(paid),int(pending),remaining,advance))
     return state
+
+
+def _money_label(status, receivable, paid, pending, remaining, advance):
+    """Nhãn tiền trên danh sách; chỉ đổi chữ, không đổi cách tính nợ (nợ = đã giao − đã thu)."""
+    if status=='NHAP':return 'Chưa phát sinh'
+    if remaining:return 'Còn nợ'
+    if advance:return 'Khách ứng trước'
+    if pending:return f'Chờ xác nhận thu {pending:,}'.replace(',','.')
+    if not receivable and not paid:
+        # Chưa giao gì thì chưa phát sinh tiền phải thu, không được ghi là "đã thu đủ".
+        return 'Đã hủy · không phát sinh' if status=='DA_HUY' else 'Chưa giao · chưa thu'
+    return 'Đã thu đủ' if status=='DA_GIAO' else 'Đã thu đủ phần đã giao'
 
 
 def save_and_confirm(session,user,body,order_id=None,credit_override_reason=''):
