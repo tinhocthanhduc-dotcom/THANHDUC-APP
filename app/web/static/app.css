@@ -1272,8 +1272,9 @@ main:has(> .me-page) { max-width: 640px; }
 .menu-body { display: grid; gap: 8px; padding: 0 10px 16px; }
 .nav-search { width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-size: .9rem; }
 .role-nav { display: grid; gap: 1px; }
-.nav-head { padding: 12px 10px 4px; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.role-nav a, .nav-group > summary { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 6px 10px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: .93rem; overflow-wrap: anywhere; }
+.role-nav > .nav-head ~ .nav-head { border-top: 1px solid var(--line); margin-top: 6px; }
+.nav-head { padding: 16px 10px 6px; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.role-nav a, .nav-group > summary { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 1rem; overflow-wrap: anywhere; }
 .role-nav a:hover, .nav-group > summary:hover { background: var(--tag); }
 .nav-ico { flex: none; color: var(--muted); }
 .nav-group > summary { list-style: none; cursor: pointer; font-weight: 600; }
@@ -1281,8 +1282,9 @@ main:has(> .me-page) { max-width: 640px; }
 .nav-group > summary::after { content: ''; margin-left: auto; width: 7px; height: 7px; flex: none; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
 .nav-group[open] > summary::after { transform: rotate(45deg); }
 .nav-group.on > summary, .nav-group.on > summary .nav-ico { color: var(--accent); }
-.nav-children { display: grid; gap: 1px; padding: 2px 0 6px; }
-.nav-children a { padding-left: 38px; min-height: 34px; color: var(--muted); }
+/* Mục con: chữ đậm màu như mục cha, một đường dọc nối về nhóm cho dễ dò. */
+.nav-children { display: grid; gap: 1px; margin: 2px 0 6px 19px; padding-left: 8px; border-left: 1px solid var(--line); }
+.nav-children a { padding-left: 12px; min-height: 36px; font-size: .95rem; color: var(--text); }
 .role-nav a.on { background: var(--tag); color: var(--accent); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
 .role-nav a.on .nav-ico { color: var(--accent); }
 .nav-top { font-weight: 600; }
@@ -1306,7 +1308,7 @@ main:has(> .me-page) { max-width: 640px; }
 .user-panel .logout { color: var(--bad); font-weight: 600; }
 .phone-tabs { display: none; }
 @media (min-width: 901px) {
-  body.web-app { display: grid; grid-template-columns: 240px minmax(0,1fr); grid-template-rows: auto 1fr; min-height: 100vh; }
+  body.web-app { display: grid; grid-template-columns: 280px minmax(0,1fr); grid-template-rows: auto 1fr; min-height: 100vh; }
   body.web-app > .side { grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
   body.web-app > .top { grid-column: 2; grid-row: 1; position: sticky; top: 0; z-index: 20; }
   body.web-app > main { grid-column: 2; grid-row: 2; width: 100%; padding: 20px 24px 40px; }

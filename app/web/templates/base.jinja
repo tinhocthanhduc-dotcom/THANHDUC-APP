@@ -49,9 +49,9 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
     <div class="menu-body">
       <input type="search" class="nav-search" data-nav-search placeholder="Tìm trang…" aria-label="Tìm trang trong menu" autocomplete="off">
       <nav aria-label="Menu chính" class="role-nav">
-      {% set ns = namespace(work=false) %}
+      {% set ns = namespace(section='') %}
       {% for group in navigation.groups %}
-        {% if not group.label %}<div class="nav-head">Của tôi</div>{% elif not ns.work %}{% set ns.work = true %}<div class="nav-head">Nghiệp vụ</div>{% endif %}
+        {% if group.section != ns.section %}{% set ns.section = group.section %}<div class="nav-head">{{ group.section }}</div>{% endif %}
         {% if not group.label or group['items']|length == 1 %}
           {% for item in group['items'] %}<a href="{{ item.href }}" data-nav-item class="nav-top{% if item.active %} on{% endif %}"{% if item.active %} aria-current="page"{% endif %} title="{{ item.label }}">{{ item.icon|safe }}{{ item.label }}</a>{% endfor %}
         {% else %}
