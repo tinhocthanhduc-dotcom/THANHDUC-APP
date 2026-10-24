@@ -306,3 +306,10 @@ def test_api_invalid_warranty_months_never_writes(db,machine,client,months):
     response=client.patch('/products/TD-0001',headers={'Authorization':'Bearer '+issue_token(p['director'])},json=dict(version=product.version,warranty_months=months))
     assert response.status_code==422
     db.expire_all();assert (product.version,product.warranty_months,db.query(AuditLog).count())==before
+
+
+def test_counter_serial_input_cannot_change_full_delivery_rule(db,machine):
+    p=machine;o=order(db,p,2,confirm=False);before=state(db,o)
+    fail('BAD_COUNTER_SALE',sales_orders.counter_sale,db,p['sales'],o.id,SalesCounterSale(version=o.version,method='TIEN_MAT',amount=o.total,
+        delivery_lines=[dict(order_line_no=1,qty=1,serials=['COUNTER-PART'])]))
+    assert state(db,o)==before

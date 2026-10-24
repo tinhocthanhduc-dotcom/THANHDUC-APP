@@ -683,6 +683,10 @@ def counter_sale(session,user,order_id,body):
             raise BusinessError('BAD_COUNTER_SALE','Bán tại quầy chỉ dùng cho đơn tại quầy, trả ngay.',status=409)
         if body.amount!=order.total:
             raise BusinessError('BAD_AMOUNT','Bán tại quầy phải thu đúng tổng đơn; thu thiếu dùng luồng thường.')
+        if body.delivery_lines is not None:
+            quantities={p.order_line_no:p.qty for p in body.delivery_lines}
+            if len(quantities)!=len(body.delivery_lines) or set(quantities)!={l.line_no for l in order.lines} or any(quantities[l.line_no]!=l.qty for l in order.lines):
+                raise BusinessError('BAD_COUNTER_SALE','Bán tại quầy phải giao đủ các dòng; giao một phần dùng luồng thường.',status=409)
         before=snapshot(order)
         stamp=datetime.now(UTC)
         day=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date()
