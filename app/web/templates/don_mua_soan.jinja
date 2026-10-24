@@ -1,0 +1,57 @@
+{# Đợt 3 · khuôn 5: soạn đơn mua (tạo mới hoặc nháp) cùng bố cục Đơn bán: NCC + ngày ở trên, dòng hàng gọn, cột phải là VAT, tổng và Bước tiếp. #}
+{% import '_ui.jinja' as ui %}
+<div class="doc-detail quote-form-page po-compose">
+{% call ui.page_head(o.number if o else 'Tạo đơn mua', sub='Đơn mua · đặt hàng nhà cung cấp', back='/don-mua', badge_label='Nháp' if o else '', badge_tone='nhap') %}{% if o %}<a class="btn btn-ghost" href="/don-mua/{{ o.id }}/in">In đơn đặt hàng</a>{% endif %}{% endcall %}
+{{ ui.steps([('Nháp','cur'),('Đã đặt',''),('Nhận hàng',''),('Xong','')]) }}
+{% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+{% if saved %}{{ ui.toast('Đã lưu nháp ' ~ o.number ~ '.') }}<p class="alert ok" role="status">Đã lưu.</p>{% endif %}
+<form method="post" action="{{ '/don-mua/' ~ o.id if o else '/don-mua/moi' }}" class="form qf-form qf3 qf2o po-form" data-purchase-form data-purchase-unsaved="{{ '1' if error else '0' }}" data-purchase-editable="1" data-default-warehouse="{{ default_warehouse }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
+<div class="qf-main"><fieldset>
+<div class="qf-toprow">
+<section class="card qf-card po-supplier{{ ' field-invalid' if field_errors.supplier_code }}"><h2 class="qf-h">Nhà cung cấp</h2>
+<div data-picker data-po-supplier data-picked="{{ '1' if supplier and not field_errors.supplier_code else '0' }}">
+<div class="po-picked" data-po-picked><span aria-hidden="true">✓</span><div><b data-purchase-supplier>{% if supplier %}{{ supplier.code }} · {{ supplier.name }}{% endif %}</b><small data-po-supplier-info>{% if supplier %}{{ supplier.phones|join(', ') }}{% if supplier.phones and supplier.address %} · {% endif %}{{ supplier.address }}{% endif %}</small></div><button type="button" class="btn btn-ghost" data-po-change>Đổi</button></div>
+<label class="po-supplier-find">Nhà cung cấp (tìm và chọn)<input name="supplier_code" value="{{ d.supplier_code }}" autocomplete="off" data-live=".supplier-options" data-source="/don-mua/tim-ncc" placeholder="Tên, mã hoặc số điện thoại NCC" required{% if field_errors.supplier_code %} aria-invalid="true" aria-describedby="loi-supplier_code"{% endif %}></label>
+<div class="supplier-options product-options" aria-live="polite"></div></div>
+{{ ui.field_error(field_errors, 'supplier_code') }}
+</section>
+<section class="card qf-card qf-ship"><h2 class="qf-h">Ngày</h2>
+<div class="qf-pair"><label class="{{ 'field-invalid' if field_errors.order_date }}">Ngày đơn<input type="date" name="order_date" value="{{ d.order_date }}" required></label>
+<label class="{{ 'field-invalid' if field_errors.expected_date }}">Dự kiến nhận<input type="date" name="expected_date" value="{{ d.expected_date or '' }}" data-po-expected></label></div>
+<div class="qf-quick" role="group" aria-label="Chọn nhanh ngày dự kiến nhận">{% for n,label in [(1,'Ngày mai'),(3,'3 ngày'),(7,'7 ngày')] %}<button type="button" class="chip" data-po-days="{{ n }}">{{ label }}</button>{% endfor %}</div>
+{{ ui.field_error(field_errors, 'order_date') }}{{ ui.field_error(field_errors, 'expected_date') }}
+</section>
+</div>
+<section class="card qf-card qf-lines po-lines{{ ' field-invalid' if field_errors.lines }}"><div class="qf-card-head"><h2 class="qf-h">Hàng mua <span class="qf-count" data-po-count>{{ d.lines|length }} dòng</span></h2>
+<div class="qf-pick qf-pick-inline" role="group" aria-label="Kho nhận cả đơn" data-po-wh-all data-value="{{ default_warehouse }}"><p class="qf-pick-label">Kho nhận cả đơn <small data-pick-mixed hidden>· đang nhiều kho</small></p><div class="qf-quick">{% for w in kho %}<button type="button" class="chip{{ ' on' if w.code==default_warehouse }}" data-pick="{{ w.code }}" title="{{ w.name }}">{{ w.code }}</button>{% endfor %}</div></div></div>
+<div class="qf-find" data-po-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-po-q placeholder="+ Tìm hàng để thêm: mã, tên… (Enter thêm kết quả đầu)" autocomplete="off"></label>
+<div class="qf-find-drop" data-po-list aria-live="polite" hidden></div></div>
+<div class="pol-head" aria-hidden="true"><span>Hàng</span><span>Kho</span><span>Tồn</span><span>Số lượng</span><span>Giá chưa VAT</span><span>VAT</span><span>Thành tiền</span><span></span></div>
+<div data-purchase-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_mua_dong.jinja' %}{% endfor %}</div>
+<p class="hint qf-empty" data-po-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>.</p>
+{{ ui.field_error(field_errors, 'lines') }}
+<div class="qf-adds"><button type="button" class="qf-add btn-ghost" data-purchase-add>+ Dòng hàng tìm theo mã</button></div>
+<label class="qf-note">Ghi chú cho nhà cung cấp<textarea name="note" maxlength="4000" placeholder="Giao giờ hành chính, xuất hóa đơn…">{{ d.note }}</textarea></label>
+</section>
+</fieldset>
+<p data-purchase-warning class="alert warn" hidden></p>
+</div>
+<aside class="qf-side">
+<section class="card qf-terms"><div class="qf-pick" role="group" aria-label="Thuế VAT cả đơn" data-po-vat-all data-value="{{ default_vat }}"><p class="qf-pick-label">Thuế VAT cả đơn <small data-pick-mixed hidden>· đang nhiều mức</small></p><div class="qf-quick">{% for rate in vat_rates|sort(reverse=true) %}<button type="button" class="chip{{ ' on' if rate|string == default_vat }}" data-pick="{{ rate }}">{{ rate }}%</button>{% endfor %}</div></div><p class="hint">Áp cho mọi dòng; dòng nào khác mức thì bấm ô VAT của dòng đó.</p></section>
+<section class="card qf-sum"><h2 class="qf-h">Tổng đơn mua</h2>
+<dl><div><dt>Tiền hàng chưa VAT</dt><dd data-po-sub>{{ (o.subtotal|money) if o else '0' }}</dd></div><div><dt>VAT</dt><dd data-po-vat>{{ (o.vat_total|money) if o else '0' }}</dd></div><div class="qf-grand"><dt>Tổng thanh toán</dt><dd data-po-total>{{ (o.total|money) if o else '0' }}</dd></div></dl>
+<p class="hint">Đơn vị: đồng. Tạm tính, số chính thức tính khi lưu.</p></section>
+<section class="card workflow-action po-next" aria-label="Bước tiếp"><h2>Bước tiếp · kho làm</h2>
+<ul class="workflow-checks" data-po-checks><li data-check="supplier">Đã chọn nhà cung cấp</li><li data-check="lines">Có ít nhất 1 dòng hàng</li><li data-check="filled">Mọi dòng có hàng, kho nhận và đơn giá</li></ul>
+<div class="workflow-total"><span>Tổng gồm VAT</span><strong data-po-total-bar>{{ (o.total|money) if o else '0' }}</strong></div>
+<div class="workflow-buttons"><button class="btn-ok next-primary" name="then" value="order" data-po-primary>Lưu và đặt hàng</button><button class="btn-ghost" name="then" value="">{{ 'Lưu nháp' if o else 'Chỉ lưu nháp' }}</button></div>
+<p class="hint" data-po-missing hidden></p>
+<p class="hint">Đặt hàng xong dòng hàng khóa lại; khi NCC giao, bấm Nhận hàng.</p>
+</section>
+</aside>
+</form>
+{% if o %}<details class="card po-danger"{% if reason and not receipt_action %} open{% endif %}><summary>Hủy đơn mua</summary><p class="alert warn">Hậu quả: đơn chuyển Đã hủy, không đặt hay nhận hàng được nữa. Tồn kho và nợ NCC không đổi.</p><form method="post" action="/don-mua/{{ o.id }}/cancel" class="form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ o.version }}"><label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ reason }}</textarea></label><button class="btn-danger">Hủy đơn mua</button></form></details>{% endif %}
+<template id="purchase-line-template">{% set line=dict(product_code='',warehouse_code=default_warehouse if default_warehouse!='*' else '',qty='1',unit_cost='',vat_rate=default_vat if default_vat!='*' else default_vat_rate) %}{% set index='new' %}{% include 'don_mua_dong.jinja' %}</template>
+<script src="{{ asset('purchases.js') }}" defer></script>
+</div>

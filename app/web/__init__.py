@@ -311,8 +311,26 @@ def _customer_form(request: Request, user: User, c: dict, session=None, **ctx) -
         can_site_write=has_role(user, *site_svc.WRITERS),
         can_write=has_role(user, *CUSTOMER_WRITERS),
         can_credit=has_role(user, *customer_svc.CREDIT_ROLES),
-        **ctx,
+        return_labels=RETURN_LABELS,
+        **{"field_errors": {}, **ctx},
     )
+
+
+def _customer_where(exc) -> dict:
+    """Đợt 3: lỗi khách thuộc ô nào để tô đỏ đúng ô."""
+    if isinstance(exc, ValidationError):
+        names = ("name", "email", "address", "phones", "tax_code", "credit_limit", "reason")
+        for err in exc.errors():
+            loc = [str(x) for x in err["loc"]]
+            if "contacts" in loc:
+                return {"contacts": _error_text(exc)}
+            field = next((x for x in reversed(loc) if x in names), None)
+            if field:
+                return {"confirm_reason" if field == "reason" else field: _error_text(exc)}
+        return {}
+    field = {"DUPLICATE_TAX": "tax_code", "DUPLICATE_PHONE": "phones", "PHONE_IN_USE": "phones", "MISSING_PHONE": "phones",
+             "MISSING_IDENTITY": "phones", "FIELD_FORBIDDEN": "credit_limit"}.get(exc.code)
+    return {field: exc.message} if field else {}
 
 
 def _blank_customer() -> dict:
@@ -375,6 +393,7 @@ def customer_list(
 
 # Màn đơn mới được quay về sau khi tạo/chọn khách (chỉ các đường dẫn này, chống chuyển hướng ra ngoài).
 RETURN_PATHS = ("/dich-vu/moi", "/bao-gia/moi", "/don-ban/moi")
+RETURN_LABELS = {"/dich-vu/moi": "Nhận đơn dịch vụ", "/bao-gia/moi": "Báo giá", "/don-ban/moi": "Đơn bán"}
 
 
 def _return_to(value) -> str:
@@ -434,10 +453,10 @@ def customer_create(request: Request, form=Depends(checked_form), session: Sessi
         body = CustomerCreate(customer=CustomerIn(**data), confirmation=_confirmation(form))
         c, warnings = customer_svc.create(session, user, body)
     except ValidationError as exc:
-        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400, return_to=return_to)
+        return _customer_form(request, user, shown, error=_error_text(exc), ask_confirm=None, form=form, status=400, return_to=return_to, field_errors=_customer_where(exc))
     except BusinessError as exc:
         ask = exc.details if exc.code == "PHONE_IN_USE" else None
-        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status, return_to=return_to)
+        return _customer_form(request, user, shown, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status, return_to=return_to, field_errors=_customer_where(exc))
     return RedirectResponse(_back_url(return_to, c.code) if return_to else _saved_url(c.code, warnings), status_code=303)
 
 
@@ -467,10 +486,10 @@ def customer_update(request: Request, code: str, form=Depends(checked_form), ses
         body = CustomerPatch(version=_digits(form.get("version")), confirmation=_confirmation(form), **data)
         c, warnings = customer_svc.update(session, user, code, body)
     except ValidationError as exc:
-        return _customer_form(request, user, shown, session=session, error=_error_text(exc), ask_confirm=None, form=form, status=400)
+        return _customer_form(request, user, shown, session=session, error=_error_text(exc), ask_confirm=None, form=form, status=400, field_errors=_customer_where(exc))
     except BusinessError as exc:
         ask = exc.details if exc.code == "PHONE_IN_USE" else None
-        return _customer_form(request, user, shown, session=session, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status)
+        return _customer_form(request, user, shown, session=session, error=exc.message, error_detail=exc.details, ask_confirm=ask, form=form, status=exc.status, field_errors=_customer_where(exc))
     return RedirectResponse(_saved_url(c.code, warnings), status_code=303)
 
 

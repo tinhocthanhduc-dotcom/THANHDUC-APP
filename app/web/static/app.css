@@ -1750,11 +1750,8 @@ main:has(> .quote-form-page) { max-width: none; }
 .group-seg label { flex: 0 0 auto; }
 /* Nhận đơn dịch vụ: 2 cột (khách + máy, yêu cầu | hẹn + giao thợ, tóm tắt) */
 main:has(> .svn) { max-width: none; }
-.svn-bar { flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.svn-bar h1 { margin: 0; }
-.svn-bar a { margin-left: auto; }
-.svn-flow { font-size: .82rem; color: var(--muted); }
-@media (max-width: 900px) { .svn-flow { display: none; } }
+.svn-head .steps-bar { margin: 4px 0 10px; }
+.svn-cust-hint { margin: 0; font-size: .82rem; }
 .svn { display: block; }
 .svn-grid { display: grid; gap: 14px; align-items: start; grid-template-columns: minmax(0,1fr); margin: 0; padding: 0; border: 0; min-width: 0; }
 .svn-main { container-type: inline-size; display: grid; gap: 14px; min-width: 0; align-content: start; }
@@ -2198,3 +2195,175 @@ main:has(> .page-mid) { max-width: 752px; }
 .xg-panel .seg.xg-days label { flex: 1 1 0; min-width: 0; }
 .xg-panel .seg.xg-months { display: grid; grid-template-columns: repeat(3, 1fr); }
 .xg-panel .seg.xg-months label { min-width: 0; }
+/* Đợt 3 · khuôn 5: soạn đơn mua (dòng gọn như Đơn bán) */
+.form-alert b { margin-right: 4px; }
+.next-primary.is-blocked { opacity: .5; }
+.po-compose .steps-bar, .sk-compose .steps-bar { margin: 4px 0 10px; }
+.po-supplier.field-invalid { border-color: var(--bad); }
+.po-picked { display: none; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--ok); border-radius: 10px; background: var(--ok-bg); }
+.po-picked > span { color: var(--ok); font-weight: 800; }
+.po-picked > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.po-picked small { color: var(--muted); }
+.po-picked .btn { min-height: 34px; padding: 0 12px; width: auto; }
+[data-po-supplier][data-picked="1"] .po-picked { display: flex; }
+[data-po-supplier][data-picked="1"] .po-supplier-find { display: none; }
+.po-compose .qf-ship .qf-pair { margin-top: 0; }
+.po-compose .qf-ship .qf-quick { margin: 0; }
+.qb-info + .qb-buy .qb-last { font-size: .72rem; color: var(--muted); }
+.pol-head { display: none; }
+.pol { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-areas: "item item" "wh stock" "qty price" "vat amt" "del del"; gap: 6px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.pol:last-child { border-bottom: 0; }
+.pol.pol-bad { background: color-mix(in srgb, var(--bad-bg) 60%, transparent); }
+.pol-item { grid-area: item; position: relative; min-width: 0; display: grid; gap: 2px; }
+.pol-name { overflow-wrap: anywhere; line-height: 1.3; }
+.pol-sub { color: var(--muted); font-size: .78rem; }
+.pol-name:empty, .pol[data-picked="0"] .pol-sub:not(:has(span:not(:empty))) { display: none; }
+.pol[data-picked="1"] .pol-code { display: none; }
+.pol-item .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: max(100%, 360px); max-width: 90vw; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+.pol-wh { grid-area: wh; } .pol-stock { grid-area: stock; } .pol-qty { grid-area: qty; } .pol-price { grid-area: price; } .pol-vat { grid-area: vat; } .pol-amt { grid-area: amt; } .pol-del { grid-area: del; }
+.pol-wh .seg, .pol-vat .seg { gap: 4px; flex-wrap: wrap; }
+.pol-wh .stock-seg label, .pol-vat .stock-seg label { flex: 0 0 auto; min-width: 0; }
+.pol-wh .stock-seg span, .pol-vat .stock-seg span { min-height: 36px; padding: 6px 10px; font-size: .84rem; }
+.pol-stock { justify-self: end; font-size: .8rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.pol-stock:not(:empty)::before { content: 'Tồn '; font-weight: 500; }
+.pol-price input { text-align: right; }
+.pol-amt { justify-self: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pol-del { justify-self: end; min-height: 36px; width: auto; padding: 0 12px; background: none; border: 1px solid var(--line); color: var(--bad); }
+.pol .field-error { font-size: .8rem; }
+.pol .qstep input { flex: 1; min-width: 0; width: auto; }
+.pol-wh .stock-seg span { min-width: 44px; }
+.pol-vat .stock-seg span { min-width: 36px; padding: 6px 3px; }
+.pol-vat .seg { flex-wrap: nowrap; }
+@container (min-width: 700px) {
+  .pol-head { display: grid; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .pol, .pol-head { grid-template-columns: minmax(0,1fr) 78px 56px 120px 120px 62px 112px 28px; grid-template-areas: none; gap: 4px 8px; }
+  .pol > *, .pol-head > * { grid-area: auto; }
+  .pol-head span:nth-child(n+2) { text-align: center; } .pol-head span:nth-child(5), .pol-head span:nth-child(7) { text-align: right; }
+  .pol { padding: 6px 0; }
+  .pol-stock { justify-self: center; } .pol-stock:not(:empty)::before { content: none; }
+  .pol-qty input, .pol-price input { height: 38px; min-height: 0; }
+  .pol-price input { padding-inline: 6px; font-size: .9rem; }
+  .pol .qstep { justify-content: center; gap: 4px; }
+  .pol .qstep button { width: 32px; height: 38px; min-height: 0; font-size: 1.1rem; }
+  .pol .qstep input { width: 44px; padding: 0 2px; text-align: center; }
+  .pol-del { width: 28px; height: 38px; min-height: 0; padding: 0; border: 0; color: var(--muted); font-size: 1.3rem; }
+  .pol-del:hover { color: var(--bad); background: var(--bad-bg); }
+  /* Kho, VAT từng dòng: chỉ hiện mức đang chọn, bấm để đổi vòng. */
+  .pol-wh .stock-seg, .pol-vat .stock-seg { flex-wrap: nowrap; justify-content: center; }
+  .pol-wh .stock-seg label:not(:has(input:checked)), .pol-vat .stock-seg label:not(:has(input:checked)) { display: none; }
+  .pol-wh .stock-seg label, .pol-vat .stock-seg label { width: 100%; }
+  .pol-wh .stock-seg input:checked + span, .pol-vat .stock-seg input:checked + span { background: var(--surface); color: var(--text); border-color: var(--line); font-weight: 600; }
+  .pol-wh .stock-seg span, .pol-vat .stock-seg span { height: 38px; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; white-space: nowrap; }
+  .pol-wh .stock-seg span::after, .pol-vat .stock-seg span::after { content: '▾'; font-size: .7rem; color: var(--muted); }
+  /* Dòng chưa chọn kho: hiện đủ các kho để chọn. */
+  .pol-wh .stock-seg:not(:has(input:checked)) label { display: block; }
+  .pol-wh .stock-seg:not(:has(input:checked)) span::after { content: none; }
+}
+
+/* Đợt 3 · khuôn 5: lập phiếu kho (dòng gọn: Hàng · Tồn · SL · Đơn giá · Serial · Ghi chú · ×) */
+.sk-form > .qf-main > fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.sk-kinds { margin: 0; }
+.sk-row { display: grid; gap: 10px; }
+.sk-wh .seg { flex-wrap: wrap; }
+.sk-dest { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+.sk-dest legend { padding: 0; font-weight: 600; margin-bottom: 4px; }
+.sk-party { position: relative; display: grid; gap: 6px; }
+.sk-party[data-picked="1"] .po-picked, .tc-pick[data-picked="1"] .po-picked { display: flex; }
+.sk-party[data-picked="1"] .sk-party-find, .sk-party[data-picked="1"] .sk-party-options { display: none; }
+.sk-party .product-options:not(:empty), .skl-item .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: max(100%, 320px); max-width: 90vw; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+.skl-head { display: none; }
+.skl { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-areas: "item item" "stock qty" "cost cost" "serial note" "del del"; gap: 6px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.skl:last-child { border-bottom: 0; }
+.skl.pol-bad { background: color-mix(in srgb, var(--bad-bg) 60%, transparent); }
+.skl-item { grid-area: item; position: relative; min-width: 0; display: grid; gap: 2px; }
+.skl-stock { grid-area: stock; font-size: .8rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.skl-stock:not(:empty)::before { content: 'Tồn '; font-weight: 500; }
+.skl-stock.is-out { color: var(--bad); }
+.skl-qty { grid-area: qty; } .skl-cost { grid-area: cost; } .skl-serial { grid-area: serial; } .skl-note { grid-area: note; } .skl > .pol-del, .skl > span:last-child { grid-area: del; }
+.skl .qstep input { flex: 1; min-width: 0; width: auto; }
+.skl-cost input { text-align: right; }
+.skl .field-error { font-size: .8rem; }
+.skl .pol-name:empty, .skl[data-picked="0"] .pol-sub:not(:has(span:not(:empty))) { display: none; }
+.skl[data-picked="1"] .skl-code, .skl[data-picked="1"] .product-options { display: none; }
+@container (min-width: 700px) {
+  .sk-row { grid-template-columns: 180px minmax(0,1fr); align-items: start; }
+  .skl-head { display: grid; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .skl, .skl-head { grid-template-columns: minmax(0,1fr) 56px 120px 110px 110px minmax(0,.7fr) 28px; grid-template-areas: none; gap: 4px 8px; }
+  .sk-nocost .skl, .sk-nocost .skl-head { grid-template-columns: minmax(0,1fr) 56px 120px 120px minmax(0,.8fr) 28px; }
+  .sk-nocost .skl-cost-h { display: none; }
+  .skl > *, .skl-head > * { grid-area: auto !important; }
+  .skl-head span:nth-child(2), .skl-head span:nth-child(3) { text-align: center; } .skl-head span:nth-child(4) { text-align: right; }
+  .skl { padding: 6px 0; }
+  .skl-stock { justify-self: center; } .skl-stock:not(:empty)::before { content: none; }
+  .skl input { height: 38px; min-height: 0; }
+  .skl-cost input, .skl-serial input, .skl-note input { padding-inline: 6px; font-size: .9rem; }
+  .skl .qstep { justify-content: center; gap: 4px; }
+  .skl .qstep button { width: 32px; height: 38px; min-height: 0; font-size: 1.1rem; }
+  .skl .qstep input { width: 44px; padding: 0 2px; text-align: center; }
+  .skl > .pol-del { width: 28px; height: 38px; min-height: 0; padding: 0; border: 0; color: var(--muted); font-size: 1.3rem; }
+  .skl > .pol-del:hover { color: var(--bad); background: var(--bad-bg); }
+}
+@media (max-width: 600px) { .sk-next .sk-post-note { display: none; } }
+
+/* Đợt 3 · khuôn 5: phiếu thu chi một cột vừa */
+.tc-page { max-width: 760px; }
+.tc-form { display: grid; gap: 12px; }
+.tc-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.tc-kinds { margin: 4px 0 12px; flex-wrap: nowrap; }
+.tc-kinds .tc-k-code { font-weight: inherit; }
+.tc-money, .tc-who { display: grid; gap: 12px; }
+.tc-money .check { margin: 0; }
+.tc-kinds .btn.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent); }
+.tc-top { display: grid; gap: 12px; }
+.tc-amount input { height: 56px; font-size: 1.6rem; font-weight: 800; text-align: right; }
+.tc-date { display: grid; gap: 6px; align-content: start; }
+.tc-date .qf-quick { margin: 0; display: flex; gap: 6px; }
+.tc-date .chip { min-height: 34px; padding: 0 12px; }
+.tc-pick { position: relative; display: grid; gap: 6px; }
+.tc-pick[data-picked="1"] .tc-pick-find, .tc-pick[data-picked="1"] .cash-options { display: none; }
+.tc-pick .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: 100%; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+.tc-party { margin: 0; }
+.tc-next { display: grid; gap: 8px; }
+.tc-next .workflow-checks { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .9rem; }
+.tc-bar { margin: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px 12px; }
+.tc-bar .tc-total { display: none; }
+.tc-bar .cash-actions { grid-template-columns: auto auto; }
+.tc-bar .cash-actions button { min-width: 140px; }
+.tc-bar [data-tc-missing] { grid-column: 1 / -1; }
+@media (min-width: 640px) { .tc-top { grid-template-columns: minmax(0,1fr) 220px; align-items: start; } }
+@media (max-width: 600px) {
+  .tc-next { padding: 0; border: 0; background: none; }
+  .tc-kinds .tc-k-code { display: none; }
+  .tc-next .workflow-checks [data-ok="1"] { display: none; }
+  .tc-bar { grid-template-columns: minmax(0,1fr); margin: 0 -16px; }
+  .tc-bar .tc-total { display: flex; justify-content: space-between; align-items: baseline; }
+  .tc-bar .tc-total span { color: var(--muted); font-size: .85rem; }
+  .tc-bar .tc-total strong { font-size: 1.2rem; font-weight: 800; }
+  .tc-bar > .hint:not([data-tc-missing]) { display: none; }
+  .tc-bar .cash-actions { grid-template-columns: 1fr 1.4fr; }
+  .tc-bar .cash-actions button { min-width: 0; }
+}
+
+/* Đợt 3 · khuôn 5: thêm khách một cột vừa, 3 thẻ */
+.kh-page { max-width: 760px; }
+.kh-form { display: grid; gap: 12px; }
+.kh-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.kh-card { display: grid; gap: 12px; }
+.kh-card.credit { border-top: 1px solid var(--line); padding-top: 14px; }
+.kh-kind { margin: 0; } .kh-kind label { flex: 1 1 0; }
+.kh-debt { margin: 0; }
+.kh-dup { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; background: var(--warn-bg); }
+.kh-dup > span { font-weight: 800; color: var(--warn); }
+.kh-dup > div { display: grid; gap: 4px; min-width: 0; }
+.kh-dup small { color: var(--muted); }
+.kh-dup-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.kh-dup-actions .btn { width: auto; min-height: 36px; padding: 0 12px; }
+.kh-add { justify-self: start; width: auto; }
+.contacts .field-error { display: block; }
+.kh-bar { margin: 0; display: flex; align-items: center; gap: 12px; }
+.kh-bar .hint { flex: 1; margin: 0; }
+.kh-bar .next-primary { width: auto; min-width: 200px; }
+@media (max-width: 600px) {
+  .kh-bar { margin: 0 -16px; display: grid; }
+  .kh-bar .next-primary { width: 100%; }
+}

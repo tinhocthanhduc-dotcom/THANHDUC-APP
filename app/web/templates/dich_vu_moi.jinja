@@ -2,8 +2,12 @@
 {% block title %}Nhận đơn dịch vụ{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% block main %}
-<div class="bar svn-bar"><h1>Nhận đơn dịch vụ</h1><span class="tag">Phiếu mới</span><span class="svn-flow">Nhận đơn → Giao thợ → Đang làm → Hoàn thành</span><a href="/dich-vu">Danh sách dịch vụ</a></div>
-{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{# Đợt 3 · khuôn 5: chỉ đổi đầu trang (nút quay lại, dòng phụ, thanh bước) và ô chọn khách cho giống Báo giá; phần còn lại giữ nguyên. #}
+{% import '_ui.jinja' as ui %}
+{% set cust_bad = error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error) %}
+<div class="svn-head">{{ ui.page_head('Nhận đơn dịch vụ', sub='Dịch vụ · phiếu mới', back='/dich-vu') }}
+{{ ui.steps([('Nhận đơn','cur'),('Giao thợ',''),('Đang làm',''),('Hoàn thành','')]) }}</div>
+{% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
 {% set kind_hints = {'': 'Để trống nếu chưa rõ. Thợ chọn loại khi báo kết quả, trước khi Hoàn thành.', 'SUA_TAI_CHO': 'Thợ đến chỗ khách sửa. Nếu không sửa được tại chỗ, thợ bấm Mang máy về xưởng.', 'MANG_VE': 'Thợ nhận máy về: chụp ảnh máy, ghi tình trạng và phụ kiện lúc nhận.', 'BAO_HANH': 'Chọn phiếu trước để miễn phí theo bảo hành, hoặc để app kiểm hạn của máy.', 'MUC_DINH_KY': 'Giao mực theo hợp đồng định kỳ của khách.'} %}
 {% set kind_bad = error_code in ['KIND_REQUIRED','WARRANTY_MISMATCH'] or (error_code=='BAD_FORM' and 'Loại dịch vụ' in error) %}
 <form id="service-create" method="post" action="/dich-vu/moi" class="form svn" data-service-form data-kind-hints="{{ kind_hints|tojson|forceescape }}">
@@ -12,10 +16,12 @@
 <div class="svn-main">
 <div class="svn-top">
 <section class="card qf-card svn-cust"><h2 class="qf-h">Khách hàng</h2>
-{% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>
-  <label>Tìm khách: tên, mã hoặc số điện thoại<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" placeholder="Gõ để tìm khách" data-live=".service-options" data-source="/dich-vu/tim-khach"></label>
+{% call picked.block(text=picked.card(customer_card), invalid=cust_bad, locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>
+  <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" placeholder="Tên, mã hoặc số điện thoại" data-live=".service-options" data-source="/dich-vu/tim-khach"{% if cust_bad %} aria-invalid="true"{% endif %}></label>
   <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
+  {% if cust_bad %}<small class="field-error">{{ error }}</small>{% endif %}
   <a href="/khach-hang/moi?quay_ve=/dich-vu/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>
+  <p class="hint svn-cust-hint">Có thể tìm bằng tên, mã khách hàng hoặc số điện thoại.</p>
 </div>{% endcall %}
 </section>
 <section class="card qf-card svn-machine"><h2 class="qf-h">Máy và địa điểm</h2>
