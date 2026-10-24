@@ -363,6 +363,7 @@ class ServiceTicket(Base):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    split_from_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id',name='fk_service_tickets_split_from'),index=True)
     number: Mapped[str] = mapped_column(String(32), unique=True)
     customer_code: Mapped[str] = mapped_column(ForeignKey("customers.code"), index=True)
     site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))

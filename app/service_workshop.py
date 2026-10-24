@@ -146,11 +146,17 @@ def held_machine(session,t):
 
 def bring(session,user,ident,version,intake,materials,to_workshop=False):
     with _transaction(session):
-        t=_owned(session,user,ident,version)
-        if t.kind not in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE') or service_charges.return_locked(t):
-            raise BusinessError('BAD_STATUS','Chỉ mang về từ phiếu đang làm, máy còn ở chỗ khách.',status=409)
-        before=tickets.snapshot(t)
-        custody.receive_in_tx(session,user,t.id,intake)
+        return _bring_in_tx(session,user,ident,version,intake,materials,to_workshop)
+
+
+def _bring_in_tx(session,user,ident,version,intake,materials,to_workshop=False):
+    """Same MV1/XG1 body; caller holds the transaction for one machine or a trip."""
+    t=_owned(session,user,ident,version)
+    if t.kind not in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE') or service_charges.return_locked(t):
+        raise BusinessError('BAD_STATUS','Chỉ mang về từ phiếu đang làm, máy còn ở chỗ khách.',status=409)
+    before=tickets.snapshot(t)
+    custody.receive_in_tx(session,user,t.id,intake)
+    if materials is not None:
         entries=technician_work.material_lines(session,user,materials)
         from .technician_stock import own_warehouse
         own=own_warehouse(session,user)
@@ -162,16 +168,54 @@ def bring(session,user,ident,version,intake,materials,to_workshop=False):
         added=[ServiceLine(line_no=i,**x,amount=0,vat_amount=0) for i,x in enumerate(entries,start)]
         t.lines.extend(added)
         service_charges.issue_materials(session,user,t,added)
-        if t.kind in (None,'SUA_TAI_CHO'):t.kind='MANG_VE'
-        t.version+=1
-        tickets._record(session,user,t,'workshop',before,'DANG_LAM','Mang máy về xưởng')
-        if to_workshop:
-            # TUẤN 24/10: máy mang về mặc định giao Kho kỹ thuật (kho xác nhận nhận); gửi đối tác do điều phối làm sau.
-            eq=custody._machine(session,t.serial,lock=True)
-            custody.handover_in_tx(session,user,t.id,CustodyHandover(version=eq.version,location='KHO_KY_THUAT'))
-            tickets.transition_in_tx(session,user,t,'TAM_DUNG','Mang máy về, giao Kho kỹ thuật',
-                hold_reason=WAITING,_action='workshop_handover')
+    if t.kind in (None,'SUA_TAI_CHO'):t.kind='MANG_VE'
+    t.version+=1
+    tickets._record(session,user,t,'workshop',before,'DANG_LAM','Mang máy về xưởng')
+    if to_workshop:
+        # TUẤN 24/10: máy mang về mặc định giao Kho kỹ thuật (kho xác nhận nhận); gửi đối tác do điều phối làm sau.
+        eq=custody._machine(session,t.serial,lock=True)
+        custody.handover_in_tx(session,user,t.id,CustodyHandover(version=eq.version,location='KHO_KY_THUAT'))
+        tickets.transition_in_tx(session,user,t,'TAM_DUNG','Mang máy về, giao Kho kỹ thuật',
+            hold_reason=WAITING,_action='workshop_handover')
     return t
+
+
+def bring_trip(session,user,ident,version,items,materials):
+    from sqlalchemy import select
+    from .models import ServiceTicket, Equipment
+    from .schemas import WorkshopTripItem, CustodyIntake
+    with _transaction(session):
+        root=_owned(session,user,ident,version)
+        parts=[x if isinstance(x,WorkshopTripItem) else WorkshopTripItem.model_validate(x) for x in items]
+        ids=[x.ticket_id for x in parts]
+        if len(ids)!=len(set(ids)) or ident not in ids:
+            raise BusinessError('BAD_TRIP','Danh sách nhận máy phải có phiếu gốc và không trùng phiếu.')
+        children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.split_from_id==ident)
+            .order_by(ServiceTicket.id).with_for_update().execution_options(populate_existing=True)))
+        family={root.id:root,**{t.id:t for t in children}}
+        if set(ids)-family.keys():raise BusinessError('BAD_TRIP','Chỉ nhận máy trên phiếu gốc và phiếu tách cùng chuyến.',status=409)
+        eligible={root.id}
+        for child in children:
+            eq=session.scalar(select(Equipment).where(Equipment.serial==child.serial).execution_options(populate_existing=True)) if child.serial else None
+            if child.assignee_id==root.assignee_id and child.status=='DANG_LAM' and eq is not None and eq.custody_location=='TAI_KHACH':
+                eligible.add(child.id)
+        if set(ids)!=eligible:
+            raise BusinessError('BAD_TRIP','Gửi đủ các máy còn ở khách, đang làm và cùng thợ của chuyến.',status=409)
+        by_id={x.ticket_id:x for x in parts}
+        # All ticket locks precede machine locks, in deterministic order.
+        machines={serial:custody._machine(session,serial,lock=True) for serial in sorted({family[n].serial for n in ids if family[n].serial})}
+        for n in sorted(ids):
+            ticket=family[n];part=by_id[n]
+            tickets._check_version(ticket,part.version)
+            if not ticket.serial:raise BusinessError('SERIAL_REQUIRED','Chọn máy trước khi mang về.')
+            custody._version(machines[ticket.serial],part.machine_version)
+        result=[]
+        for n in [ident]+sorted(set(ids)-{ident}):
+            part=by_id[n]
+            intake=CustodyIntake(version=part.machine_version,accessories=part.accessories,
+                accessories_note=part.accessories_note,condition_note=part.condition_note)
+            result.append(_bring_in_tx(session,user,n,part.version,intake,materials if n==ident else None,to_workshop=True))
+    return result
 
 
 def repair_done(session,user,ident,version,total,mode,reason,materials,fault='',fix=''):
