@@ -1,4 +1,6 @@
 """KT6: mọi POST dùng CSRF/form_key và gọi lõi nghiệp vụ."""
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
@@ -11,9 +13,12 @@ from ..errors import BusinessError
 from ..models import Product, ServiceTicket, User, Warehouse
 from ..schemas import RecoveredPartIn, RecoveredPartReceive, ServiceWarrantyLink
 from ..security import has_role
+from ..text import fold
 from . import checked_form, nav, render, web_user
 
 router = APIRouter()
+VN = ZoneInfo('Asia/Ho_Chi_Minh')
+LATE_DAYS = 3
 
 
 def detail_context(session, user, ticket, form=None):
@@ -24,24 +29,50 @@ def detail_context(session, user, ticket, form=None):
         recovered_statuses=svc.STATUSES, recovered_form=form or {})
 
 
-def _page(request, session, user, holder=None, ticket_id=None, selected='CHO_NOP', error=None, code='', status=200, form=None, failed_id=None):
-    rows = svc.search(session, user, holder_id=holder, ticket_id=ticket_id, pending=selected=='CHO_NOP')
+def _page(request, session, user, holder=None, ticket_id=None, selected='CHO_NOP', error=None, code='', status=200, form=None, failed_id=None, tre='', trang='', so='', q=''):
+    from datetime import UTC, datetime
+    from . import paging
+    selected = '' if selected == 'tat-ca' else selected
     if selected and selected not in svc.STATUSES: raise BusinessError('BAD_STATUS','Trạng thái chưa hợp lệ.')
-    if selected and selected!='CHO_NOP': rows=[r for r in rows if r.status==selected]
-    tickets={r.id:session.get(ServiceTicket,r.ticket_id) for r in rows}
-    return render(request, 'linh_kien_thu_hoi.jinja', rows=rows, tickets=tickets,
-        names=dict(session.execute(select(Product.code,Product.name)).all()), users=dict(session.execute(select(User.id,User.full_name)).all()),
+    found = svc.search(session, user, holder_id=holder, ticket_id=ticket_id)
+    now = datetime.now(UTC)
+    held = lambda r: (now - r.created_at).days
+    late = lambda r: r.status == 'CHO_NOP' and held(r) > LATE_DAYS
+    alls = found if holder is None and ticket_id is None else svc.search(session, user)
+    names = dict(session.execute(select(Product.code, Product.name)).all())
+    numbers = dict(session.execute(select(ServiceTicket.id, ServiceTicket.number).where(ServiceTicket.id.in_({r.ticket_id for r in found}))).all()) if found else {}
+    if fold(q):
+        key = fold(q)
+        found = [r for r in found if key in fold(' '.join((r.product_code, names.get(r.product_code, ''), numbers.get(r.ticket_id, ''), r.note or '')))]
+    rows = [r for r in found if (not selected or r.status == selected) and (not tre or late(r))]
+    query = dict(q=q[:200], tho=holder or '', ticket_id=ticket_id or '', status='tat-ca' if not selected else '' if selected == 'CHO_NOP' else selected, tre='1' if tre else '')
+    page, shown = paging.slice_rows(rows, trang, so, query)
+    link = paging.linker('/linh-kien-thu-hoi', query)
+    tickets = {r.id: session.get(ServiceTicket, r.ticket_id) for r in shown}
+    users = dict(session.execute(select(User.id, User.full_name)).all())
+    month = now.astimezone(VN).date().replace(day=1)
+    n_late = sum(1 for r in alls if late(r))
+    tiles = [dict(label='Chờ nộp', n=sum(1 for r in alls if r.status == 'CHO_NOP'), sub='Thợ đang giữ', href='/linh-kien-thu-hoi', on=selected == 'CHO_NOP' and not tre, tone='cho'),
+             dict(label=f'Giữ quá {LATE_DAYS} ngày', n=n_late, sub='Nhắc thợ nộp về kho' if n_late else 'Không có dòng trễ', href='/linh-kien-thu-hoi?tre=1', on=bool(tre), tone='huy' if n_late else ''),
+             dict(label='Đã nhận tháng này', n=sum(1 for r in alls if r.status == 'DA_NHAN' and r.received_at and r.received_at.astimezone(VN).date() >= month), sub='Vào Kho Thu hồi', href='/linh-kien-thu-hoi?status=DA_NHAN', on=selected == 'DA_NHAN', tone='xong'),
+             dict(label='Đã hủy', n=sum(1 for r in alls if r.status == 'DA_HUY'), sub='Có lý do hủy', href='/linh-kien-thu-hoi?status=DA_HUY', on=selected == 'DA_HUY')]
+    tabs = [dict(label=label, n=sum(1 for r in found if r.status == code), href=link(status='' if code == 'CHO_NOP' else code), on=selected == code) for code, label in svc.STATUSES.items()]
+    tabs.append(dict(label='Tất cả', n=len(found), href=link(status='tat-ca'), on=not selected))
+    chips = [dict(label=label, href=link(**{key: ''})) for key, label in (('tho', 'Thợ: ' + users.get(holder, '')), ('ticket_id', 'Phiếu ' + numbers.get(ticket_id, str(ticket_id or ''))), ('tre', f'Giữ quá {LATE_DAYS} ngày')) if query.get(key)]
+    holders = sorted({r.holder_id for r in alls if r.holder_id} | ({holder} if holder else set()), key=lambda i: users.get(i, ''))
+    return render(request, 'linh_kien_thu_hoi.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, tickets=tickets,
+        names=names, q=q[:200], users=users, holders=holders, held=held, late=late,
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI',Warehouse.recovered_only.is_(True),Warehouse.supplier_hold.is_(False),Warehouse.active.is_(True)).order_by(Warehouse.code))),
-        holder=holder, selected_status=selected, ticket_id=ticket_id, statuses=svc.STATUSES,
+        holder=holder, selected_status=selected, ticket_id=ticket_id, statuses=svc.STATUSES, tre=tre,
         can_receive=has_role(user,'warehouse'), can_ticket=nav.allowed(user,'/dich-vu'),
         can_cancel=lambda row:has_role(user,'dispatcher') or ('technician' in user.roles and row.holder_id==user.id),
         error=error, error_code=code, status=status, form=form or {}, failed_id=failed_id)
 
 
 @router.get('/linh-kien-thu-hoi')
-def listing(request:Request, tho:str='', ticket_id:int | None=None, status:str='CHO_NOP',
+def listing(request:Request, q:str='', tho:str='', ticket_id:int | None=None, status:str='CHO_NOP', tre:str='', trang:str='', so:str='',
             user:User=Depends(web_user), session:Session=Depends(get_session)):
-    return _page(request,session,user,int(tho) if tho.isdigit() else None,ticket_id,status)
+    return _page(request,session,user,int(tho) if tho.isdigit() else None,ticket_id,status or 'tat-ca',tre=tre,trang=trang,so=so,q=q)
 
 
 @router.get('/linh-kien-thu-hoi/tim-hang')

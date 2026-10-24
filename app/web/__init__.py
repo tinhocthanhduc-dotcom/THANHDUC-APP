@@ -97,6 +97,9 @@ def vn_date(value) -> str:
     # Ngày "2026-10-24" (chuỗi từ ô lọc) hoặc date -> 24/10/2026; chuỗi lạ giữ nguyên.
     text = str(value or '')
     match = re.fullmatch(r'(\d{4})-(\d{2})-(\d{2})', text)
+    if getattr(value, 'tzinfo', None) is not None:
+        from zoneinfo import ZoneInfo
+        value = value.astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
     if hasattr(value, 'strftime'):
         return value.strftime('%d/%m/%Y')
     return f'{match[3]}/{match[2]}/{match[1]}' if match else text
@@ -359,11 +362,15 @@ def _saved_url(code: str, warnings) -> str:
 
 @router.get("/khach-hang")
 def customer_list(
-    request: Request, q: str = "", phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)
+    request: Request, q: str = "", phan: int = 0, loai: str = "", trang_thai: str = "", no: str = "", tu: str = "", den: str = "",
+    trang: str = "", so: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)
 ):
-    rows = [customer_svc.to_out(c) for c in customer_svc.search(session, q[:200])]
-    name = "khach_dong.jinja" if phan else "khach_ds.jinja"
-    return render(request, name, rows=rows, q=q, can_write=has_role(user, *CUSTOMER_WRITERS))
+    if phan:
+        # Ô tìm trực tiếp ở các màn khác vẫn dùng phần dòng gọn, có giới hạn.
+        rows = [customer_svc.to_out(c) for c in customer_svc.search(session, q[:200])]
+        return render(request, "khach_dong.jinja", rows=rows, q=q, can_write=has_role(user, *CUSTOMER_WRITERS))
+    from .lists import customers_page
+    return customers_page(request, session, user, q, loai, trang_thai, no, tu, den, trang, so, can_write=has_role(user, *CUSTOMER_WRITERS))
 
 
 # Màn đơn mới được quay về sau khi tạo/chọn khách (chỉ các đường dẫn này, chống chuyển hướng ra ngoài).
@@ -488,11 +495,14 @@ def _product_from_form(form) -> dict:
 
 @router.get("/hang-hoa")
 def product_list(
-    request: Request, q: str = "", tat_ca: int = 0, phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)
+    request: Request, q: str = "", tat_ca: int = 0, phan: int = 0, nhom: str = "", tt: str = "", ton: str = "", trang: str = "", so: str = "",
+    user: User = Depends(web_user), session: Session = Depends(get_session)
 ):
-    rows = product_svc.search(session, q[:200], active_only=not tat_ca)
-    name = "hang_dong.jinja" if phan else "hang_ds.jinja"
-    return render(request, name, rows=rows, q=q, tat_ca=tat_ca, can_write=has_role(user, *product_svc.WRITERS))
+    if phan:
+        rows = product_svc.search(session, q[:200], active_only=not tat_ca)
+        return render(request, "hang_dong.jinja", rows=rows, q=q, tat_ca=tat_ca, can_write=has_role(user, *product_svc.WRITERS))
+    from .lists import products_page
+    return products_page(request, session, user, q, nhom, tt or ("tat-ca" if tat_ca else ""), ton, trang, so, can_write=has_role(user, *product_svc.WRITERS))
 
 
 @router.get("/hang-hoa/moi")

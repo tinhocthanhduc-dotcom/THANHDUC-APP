@@ -230,16 +230,22 @@ def search(session: Session, q: str, include_test: bool = True) -> list[Customer
     stmt = select(Customer).options(selectinload(Customer.phones), selectinload(Customer.contacts)).where(Customer.status != "DA_GOP")
     if not include_test:
         stmt = stmt.where(Customer.is_test.is_(False))
-    needle = fold(q)
-    digits = digits_query(q)
-    if needle:
-        conds = [Customer.search_text.like(like_pattern(needle))]
-        if digits and len(digits) >= 3 and not any(ch.isalpha() for ch in needle):
-            conds.append(Customer.code.in_(select(CustomerPhone.customer_code).where(CustomerPhone.phone.like("%" + digits + "%"))))
-            conds.append(Customer.tax_code.like("%" + digits + "%"))
-        stmt = stmt.where(or_(*conds))
+    stmt = stmt.where(*matches(q))
     stmt = stmt.order_by(Customer.updated_at.desc()).limit(limit)
     return list(session.scalars(stmt).all())
+
+
+def matches(q: str) -> list:
+    """Điều kiện ô tìm khách (tên/mã/MST/SĐT, không dấu); dùng chung cho ô chọn khách và danh sách."""
+    needle = fold(q)
+    digits = digits_query(q)
+    if not needle:
+        return []
+    conds = [Customer.search_text.like(like_pattern(needle))]
+    if digits and len(digits) >= 3 and not any(ch.isalpha() for ch in needle):
+        conds.append(Customer.code.in_(select(CustomerPhone.customer_code).where(CustomerPhone.phone.like("%" + digits + "%"))))
+        conds.append(Customer.tax_code.like("%" + digits + "%"))
+    return [or_(*conds)]
 
 
 def duplicates(session: Session, phone_text: str = "", tax_text: str = "", except_code: str = "", limit: int = 5) -> list[dict]:

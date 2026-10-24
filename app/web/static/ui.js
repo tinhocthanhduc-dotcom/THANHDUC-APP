@@ -233,7 +233,7 @@
       return;
     }
     var row = event.target.closest && event.target.closest('tr[data-href]');
-    if (!row || event.target.closest('a, button, input, select, label, summary')) return;
+    if (!row || event.target.closest('a, button, input, select, textarea, label, summary, form, details')) return;
     if (window.getSelection && String(window.getSelection())) return;
     if (event.ctrlKey || event.metaKey) window.open(row.dataset.href, '_blank');
     else location.href = row.dataset.href;

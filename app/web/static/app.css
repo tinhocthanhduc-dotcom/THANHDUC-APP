@@ -2157,3 +2157,7 @@ main:has(> .page-mid) { max-width: 752px; }
   .list-table.lt-cards tr.lt-alert td:first-child { box-shadow: none; }
   .lf-foot { padding: 10px 12px; }
 }
+.list-table .lt-actions .lt-act { display: inline-flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.list-table .lt-more summary { cursor: pointer; color: var(--muted); font-size: .85rem; margin-top: 4px; }
+.list-table .lt-more .form { text-align: left; margin-top: 6px; min-width: 220px; }
+.list-table .lt-act select { width: auto; max-width: 170px; min-height: 40px; }

@@ -1,21 +1,38 @@
 {% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Linh kiện thu hồi{% endblock %}
-{% block main %}<h1>Linh kiện thu hồi</h1><h2>Hàng lỗi chờ nhận</h2>
+{% block main %}<div class="page-wide list-page" data-list-page="linh-kien-thu-hoi">
+{% call ui.page_head('Linh kiện thu hồi', sub='Linh kiện thợ tháo ra từ máy khách. Thợ nộp về kho, thủ kho nhận vào Kho Thu hồi.') %}{% if can_receive %}<a class="btn btn-ghost" href="/cho-xu-ly">Kho Chờ xử lý</a>{% endif %}{% endcall %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-<form action="/linh-kien-thu-hoi" class="card form">
-<label>Lọc theo thợ<select name="tho"><option value="">Tất cả</option>{% for id,name in users.items() %}<option value="{{ id }}" {% if holder==id %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
-<label>Trạng thái<select name="status"><option value="">Tất cả</option>{% for code,label in statuses.items() %}<option value="{{ code }}" {% if selected_status==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-{% if ticket_id %}<input type="hidden" name="ticket_id" value="{{ ticket_id }}">{% endif %}<button>Lọc</button></form>
-<div class="work-rows">{% for row in rows %}<article class="card work-row" id="recovered-{{ row.id }}">
-<h2>{{ row.product_code }} · {{ names.get(row.product_code,'') }}</h2><strong>{{ row.qty }} · {{ statuses[row.status] }}</strong>
-<p>{% if can_ticket %}<a href="/dich-vu/{{ row.ticket_id }}">{{ tickets[row.id].number }}</a>{% else %}{{ tickets[row.id].number }}{% endif %} · Thợ giữ: {{ users.get(row.holder_id,'Nhân viên') }}</p>
-<p class="service-text">{{ row.note }}</p><p>Ghi nhận {{ row.created_at|service_time }}</p>
-{% if row.status=='DA_NHAN' %}<p>Đã nhận tại {{ row.warehouse_code }} · {{ row.received_at|service_time }} · {{ users.get(row.received_by,'Nhân viên') }}</p>{% if can_receive %}<a href="/phieu-kho/{{ row.stock_doc_id }}">Phiếu nhập hàng lỗi</a>{% endif %}{% endif %}
-{% if row.void_reason %}<p>Lý do hủy: {{ row.void_reason }}</p>{% endif %}
-{% if row.status=='CHO_NOP' and can_receive %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/nhan" class="form">
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/linh-kien-thu-hoi', q, 'Tìm mã hàng, tên linh kiện, số phiếu DV (không dấu)…', active=chips|length) %}<input type="hidden" name="status" value="{{ selected_status or 'tat-ca' }}">{% if ticket_id %}<input type="hidden" name="ticket_id" value="{{ ticket_id }}">{% endif %}
+<select name="tho" aria-label="Thợ giữ"><option value="">Mọi thợ</option>{% for id in holders %}<option value="{{ id }}" {% if holder==id %}selected{% endif %}>{{ users.get(id, 'Nhân viên') }}</option>{% endfor %}</select>
+<label class="check"><input type="checkbox" name="tre" value="1" {% if tre %}checked{% endif %}>Giữ quá hạn</label>{% endcall %}
+{{ ui.filter_chips(chips, link(tho='', ticket_id='', tre='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Phiếu DV · ngày tháo</th><th>Linh kiện</th><th>Thợ giữ</th><th>Kho nhận</th><th>Trạng thái</th><th class="num">Việc</th></tr></thead><tbody>
+{% for row in rows %}{% set t = tickets[row.id] %}
+<tr id="recovered-{{ row.id }}" data-recovered-row="{{ row.id }}"{% if can_ticket %} data-href="/dich-vu/{{ row.ticket_id }}"{% endif %}{% if late(row) %} class="lt-alert"{% endif %}>
+<td class="lt-first">{% if can_ticket %}<a class="lt-no" href="/dich-vu/{{ row.ticket_id }}">{{ t.number }}</a>{% else %}<b class="lt-no">{{ t.number }}</b>{% endif %}<span class="lt-sub">{{ row.created_at|service_time }}</span></td>
+<td><b>{{ names.get(row.product_code, row.product_code) }} × {{ row.qty }}</b><span class="lt-sub">{{ row.product_code }}{% if row.note %} · {{ row.note }}{% endif %}</span></td>
+<td>{{ users.get(row.holder_id, 'Nhân viên') }}<span class="lt-sub{{ ' lt-bad' if late(row) }}">{% if row.status == 'CHO_NOP' %}Giữ {{ held(row) }} ngày{% elif row.status == 'DA_NHAN' %}Nộp {{ row.received_at|service_time }}{% else %}Đã hủy{% endif %}</span></td>
+<td class="lt-phone-hide">{% if row.status == 'DA_NHAN' %}{{ row.warehouse_code }}<span class="lt-sub">{% if can_receive %}<a href="/phieu-kho/{{ row.stock_doc_id }}">Phiếu nhập hàng lỗi</a> · {% endif %}{{ users.get(row.received_by, 'Nhân viên') }}</span>{% elif row.void_reason %}—<span class="lt-sub">Lý do hủy: {{ row.void_reason }}</span>{% else %}—{% endif %}</td>
+<td class="lt-st">{{ ui.badge(statuses[row.status], {'CHO_NOP':'cho','DA_NHAN':'xong','DA_HUY':'huy'}[row.status]) }}</td>
+<td class="num lt-actions">{% if row.status == 'CHO_NOP' and can_receive %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/nhan" class="lt-act">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
-<label>Kho Thu hồi<select name="warehouse_code">{% for w in warehouses %}<option value="{{ w.code }}" {% if failed_id==row.id and form.get('warehouse_code')==w.code %}selected{% endif %}>{{ w.code }} · {{ w.name }}</option>{% else %}<option value="">Chưa có Kho Thu hồi</option>{% endfor %}</select></label><button>Nhận hàng lỗi</button></form>{% endif %}
-{% if row.status=='CHO_NOP' and can_cancel(row) %}<form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/huy" class="form">
+{% if warehouses|length == 1 %}<input type="hidden" name="warehouse_code" value="{{ warehouses[0].code }}">{% elif warehouses %}<select name="warehouse_code" aria-label="Kho Thu hồi">{% for w in warehouses %}<option value="{{ w.code }}" {% if failed_id==row.id and form.get('warehouse_code')==w.code %}selected{% endif %}>{{ w.code }} · {{ w.name }}</option>{% endfor %}</select>{% else %}<input type="hidden" name="warehouse_code" value=""><span class="lt-sub lt-bad">Chưa có Kho Thu hồi</span>{% endif %}
+<button class="btn btn-ok">Nhận vào kho</button></form>{% endif %}
+{% if row.status == 'CHO_NOP' and can_cancel(row) %}<details class="lt-more"{% if failed_id==row.id and form.get('reason') is not none %} open{% endif %}><summary>Hủy dòng</summary><form method="post" action="/linh-kien-thu-hoi/{{ row.id }}/huy" class="form">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
-<label>Lý do hủy<textarea name="reason" maxlength="2000" required>{{ form.get('reason','') if failed_id==row.id else '' }}</textarea></label><button>Hủy dòng thu hồi</button></form>{% endif %}
-</article>{% else %}<p class="card">Không có linh kiện thu hồi phù hợp.</p>{% endfor %}</div>{% endblock %}
+<label>Lý do hủy<textarea name="reason" maxlength="2000" required>{{ form.get('reason','') if failed_id==row.id else '' }}</textarea></label><button class="btn btn-danger">Hủy dòng thu hồi</button></form></details>{% endif %}
+</td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có linh kiện thu hồi phù hợp.', link(tho='', ticket_id='', tre='') if chips else '', 'Xóa lọc') }}{% endif %}
+{{ ui.list_foot(page, 'dòng') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

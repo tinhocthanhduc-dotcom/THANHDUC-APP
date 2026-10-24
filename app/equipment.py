@@ -28,7 +28,7 @@ def load(session: Session, serial: str) -> Equipment:
     return row
 
 
-def search(session: Session, q='', active_only=False):
+def search(session: Session, q='', active_only=False, limit: int | None = 50):
     stmt = select(Equipment).join(Product, Product.code == Equipment.product_code).outerjoin(Customer, Customer.code == Equipment.customer_code)
     if active_only:
         stmt = stmt.where(Equipment.active.is_(True))
@@ -36,7 +36,7 @@ def search(session: Session, q='', active_only=False):
         pattern = like_pattern(fold(q))
         stmt = stmt.where(or_(Equipment.search_text.like(pattern), Equipment.serial.ilike(like_pattern(normalize_serial(q))),
                              Product.search_text.like(pattern), Customer.search_text.like(pattern)))
-    return list(session.scalars(stmt.order_by(Equipment.serial).limit(50)))
+    return list(session.scalars(stmt.order_by(Equipment.serial).limit(limit)))
 
 
 def _validate_and_search_text(session, data, serial):
