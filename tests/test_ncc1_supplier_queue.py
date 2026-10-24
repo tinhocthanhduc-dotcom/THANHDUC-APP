@@ -46,7 +46,7 @@ def test_remaining_debt_card_links_straight_to_payment(client, db, people, role)
     assert g['title'] == 'Nợ NCC cần trả' and g['list_link'] == '/cong-no-ncc'
     assert g['count'] == 1
     assert g['rows'] == [dict(id=1, number='NCC-0001', status='CON_NO', customer='Minh Phát',
-        amount=600000, overdue=False, link='/cong-no-ncc/NCC-0001#tra-tien', kind='supplier_debt')]
+        amount=600000, overdue=False, oldest_debt_date=DAY, link='/cong-no-ncc/NCC-0001#tra-tien', kind='supplier_debt')]
     csrf = service_login(client, p[role])
     assert csrf
     r = client.get('/viec-cua-toi')
@@ -109,14 +109,15 @@ def test_receipt_dates_oldest_posted_only_threshold_and_code_tie_break(db, peopl
         ('NCC-0003', True), ('NCC-0002', False), ('NCC-0001', False)]
 
 
-def test_opening_date_fallback_and_receipt_date_takes_precedence(db, people):
+def test_unpaid_opening_date_precedes_receipt_date(db, people):
     p = people
     opening(db, p, 'NCC-0001', 120)
     assert group(db, p)['rows'][0]['overdue'] is True
     _, recent = received(db, p)
     recent.receipt_date = DAY - timedelta(days=5)
     db.commit()
-    assert group(db, p)['rows'][0]['overdue'] is False
+    assert group(db, p)['rows'][0]['overdue'] is True
+    assert group(db, p)['rows'][0]['oldest_debt_date'] == DAY - timedelta(days=120)
     assert group(db, p)['rows'][0]['amount'] == 1100000
 
 
