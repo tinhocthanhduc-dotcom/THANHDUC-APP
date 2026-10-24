@@ -1,4 +1,5 @@
 """Màn hình D3: đọc danh mục để chọn, mọi thay đổi phiếu đi qua lõi D2."""
+import re
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -36,7 +37,7 @@ TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Đã đến khách", "CHO_LINH_KIEN": "Chờ linh kiện",
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
-STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy",
+STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
@@ -385,6 +386,7 @@ def _workshop_materials(form):
     return [dict(product_code=str(c),qty=str(q)) for c,q in zip(codes,quantities)]
 
 
+@router.post('/tho/phieu/{ticket_id}/mang-ve-xuong')
 @router.post('/dich-vu/{ticket_id}/mang-ve-xuong')
 def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
     from .. import service_workshop
@@ -395,9 +397,31 @@ def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),sess
     shown=dict(condition_note=str(form.get('condition_note','')),accessories=[str(v) for v in form.getlist('accessories')],accessories_note=str(form.get('accessories_note','')))
     try:
         shown['materials']=_workshop_materials(form)
-        body=CustodyIntake(version=form.get('machine_version'),accessories=_accessory_values(form),
-            condition_note=shown['condition_note'],accessories_note=shown['accessories_note'])
-        service_workshop.bring(session,user,ticket_id,_version(form),body,shown['materials'],to_workshop=True)
+        trip_ids=set()
+        for key in form:
+            match=re.fullmatch(r'trip-([0-9]+)-(version|machine_version|accessories|accessories_note|condition_note)',key)
+            if key.startswith('trip-') and match is None:
+                raise BusinessError('BAD_TRIP','Trường nhận máy theo chuyến chưa hợp lệ.')
+            if match:
+                if len(match[1])>18:raise BusinessError('BAD_TRIP','Số phiếu trong chuyến chưa hợp lệ.')
+                trip_ids.add(int(match[1]))
+        if trip_ids:
+            from ..schemas import WorkshopTripItem
+            trip_ids.add(ticket_id)
+            items=[]
+            for n in sorted(trip_ids):
+                prefix=f'trip-{n}-'
+                generic=n==ticket_id and prefix+'machine_version' not in form
+                field=lambda name: name if generic else prefix+name
+                items.append(WorkshopTripItem(ticket_id=n,version=_version(form) if generic else form.get(prefix+'version'),
+                    machine_version=form.get(field('machine_version')),accessories=_accessory_values(form,field('accessories')),
+                    accessories_note=str(form.get(field('accessories_note'),'')),condition_note=str(form.get(field('condition_note'),''))))
+            shown['trip_items']=[item.model_dump(mode='json') for item in items]
+            service_workshop.bring_trip(session,user,ticket_id,_version(form),items,shown['materials'])
+        else:
+            body=CustodyIntake(version=form.get('machine_version'),accessories=_accessory_values(form),
+                condition_note=shown['condition_note'],accessories_note=shown['accessories_note'])
+            service_workshop.bring(session,user,ticket_id,_version(form),body,shown['materials'],to_workshop=True)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,failed_action='workshop',error=message,error_code=code,status=status,technician_view=True,workshop_form=shown)
@@ -443,15 +467,23 @@ def set_machine(request:Request,ticket_id:int,form=Depends(checked_form),session
     user=request.state.user
     technician_view=request.url.path.startswith('/tho/') and 'technician' in user.roles
     shown={key:str(form.get(key,'')) for key in service_machines.FORM_FIELDS}
+    shown['machine_picks']=[str(v) for v in form.getlist('machine_pick')]
+    split=[]
     try:
-        svc.set_machine(session,user,ticket_id,service_machines.body(form,_version(form)))
+        if len(form.getlist('machine_pick'))>=2:
+            serials,new_machine=service_machines.multiple(form)
+            split=svc.set_machines(session,user,ticket_id,_version(form),serials,new_machine)[1:]
+        else:
+            svc.set_machine(session,user,ticket_id,service_machines.body(form,_version(form)))
     except (BusinessError,ValidationError) as exc:
         if isinstance(exc,BusinessError) and exc.status in (403,404):
             return render(request,'loi.jinja',error=exc,status=exc.status)
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,failed_action='machine',error=message,error_code=code,status=status,
                        technician_view=technician_view,machine_form=shown)
-    return RedirectResponse(f'/tho/phieu/{ticket_id}?da_luu=1' if technician_view else f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
+    target=f'/tho/phieu/{ticket_id}?da_luu=1' if technician_view else f'/dich-vu/{ticket_id}?da_luu=1'
+    if split:target+='&tach='+','.join(t.number for t in split)
+    return RedirectResponse(target,status_code=303)
 
 
 @router.post('/dich-vu/{ticket_id}/kind')

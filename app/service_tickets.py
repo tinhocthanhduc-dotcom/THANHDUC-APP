@@ -128,8 +128,14 @@ def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket
         return create_in_tx(session,user,body)
 
 
-def create_in_tx(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket:
-    _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
+def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_from=None) -> ServiceTicket:
+    if _split_from is None:
+        _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
+    else:
+        _split_permission(user, _split_from)
+        fields=('customer_code','site_id','kind','priority','symptom','appointment_at','appointment_slot')
+        if body.new_machine is not None or body.warranty_of_id is not None or any(getattr(body,k)!=getattr(_split_from,k) for k in fields):
+            raise BusinessError('BAD_SPLIT','Thông tin phiếu tách phải lấy từ phiếu gốc.',status=409)
     customer = session.scalars(select(Customer).where(Customer.code == body.customer_code).with_for_update(read=True)).first()
     if customer is None or customer.status != "DANG_DUNG":
         details = {"merged_into": customer.merged_into} if customer is not None and customer.merged_into else {}
@@ -137,13 +143,14 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn) -> Service
     serial = _machine_serial(session, user, customer.code, body.site_id, body.serial, body.new_machine, body.kind)
     _check_site_and_serial(session, customer.code, body.site_id, serial)
     now = _now()
-    if body.appointment_at is not None or body.appointment_slot is not None:
+    if _split_from is None and (body.appointment_at is not None or body.appointment_slot is not None):
         from .service_appointments import validate
         validate(body.appointment_at, body.appointment_slot, now)
     t = ServiceTicket(
         number=next_number(session, "DV", now.astimezone(service_sla.TZ).date()),
         customer_code=customer.code, site_id=body.site_id, serial=serial,
         kind=body.kind, priority=body.priority, symptom=body.symptom, status="MOI",
+        split_from_id=_split_from.id if _split_from is not None else None,
         appointment_at=body.appointment_at, appointment_slot=body.appointment_slot,
         due_at=service_sla.due_at("MOI", body.priority, now, None), created_by=user.id,
     )
@@ -151,7 +158,7 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn) -> Service
     service_warranty.apply(session, t, body.warranty_of_id)
     session.add(t)
     session.flush()
-    _record(session, user, t, "create", None, None)
+    _record(session, user, t, "create", None, None, "Tách từ "+_split_from.number if _split_from is not None else "")
     return t
 
 
@@ -169,30 +176,95 @@ def _machine_serial(session, user, customer_code, site_id, serial, new_machine, 
     return serial
 
 
-def set_machine(session: Session, user: User, ticket_id: int, body: ServiceMachineSet) -> ServiceTicket:
+def _machine_ticket(session, user, ticket_id, version):
     _require(user, (*DISPATCHERS, TECHNICIAN), 'Chỉ điều phối, giám đốc hoặc thợ được giao được chọn máy.')
-    with _transaction(session):
-        t = session.scalar(select(ServiceTicket).where(ServiceTicket.id == ticket_id)
-                           .with_for_update().execution_options(populate_existing=True))
-        if t is None:
-            raise BusinessError('NOT_FOUND', 'Không tìm thấy phiếu dịch vụ.', status=404)
-        if not has_role(user, *DISPATCHERS) and t.assignee_id != user.id:
-            raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao được chọn máy cho phiếu này.', status=403)
-        _check_version(t, body.version)
-        if t.status not in OPEN:
-            raise BusinessError('BAD_STATUS', 'Chỉ chọn máy khi phiếu còn mở.', status=409)
-        if session.scalar(select(EquipmentCustody.id).where(EquipmentCustody.ticket_id == t.id).limit(1)) is not None:
-            raise BusinessError('SERIAL_LOCKED', 'Máy đã được nhận về xưởng, không đổi máy được.', status=409)
-        if t.warranty_of_id is not None or t.warranty_basis is not None:
-            raise BusinessError('WARRANTY_MISMATCH', 'Phiếu đã có căn cứ bảo hành, không đổi máy được.')
-        before = snapshot(t)
-        serial = _machine_serial(session, user, t.customer_code, t.site_id, body.serial, body.new_machine, t.kind)
-        _check_site_and_serial(session, t.customer_code, t.site_id, serial, t.id)
-        if t.serial != serial:
-            t.serial = serial
-            t.version += 1
-            _record(session, user, t, 'set_machine', before, t.status)
+    t=session.scalar(select(ServiceTicket).where(ServiceTicket.id==ticket_id).with_for_update().execution_options(populate_existing=True))
+    if t is None:raise BusinessError('NOT_FOUND','Không tìm thấy phiếu dịch vụ.',status=404)
+    _split_permission(user,t)
+    _check_version(t,version)
+    if t.status not in OPEN:raise BusinessError('BAD_STATUS','Chỉ chọn máy khi phiếu còn mở.',status=409)
+    if session.scalar(select(EquipmentCustody.id).where(EquipmentCustody.ticket_id==t.id).limit(1)) is not None:
+        raise BusinessError('SERIAL_LOCKED','Máy đã được nhận về xưởng, không đổi máy được.',status=409)
+    if t.warranty_of_id is not None or t.warranty_basis is not None:
+        raise BusinessError('WARRANTY_MISMATCH','Phiếu đã có căn cứ bảo hành, không đổi máy được.')
     return t
+
+
+def _split_permission(user, t):
+    if not has_role(user,*DISPATCHERS) and (TECHNICIAN not in user.roles or t.assignee_id!=user.id):
+        raise BusinessError('FORBIDDEN','Chỉ thợ được giao hoặc điều phối được chọn máy cho phiếu này.',status=403)
+
+
+def _set_machine_in_tx(session,user,t,serial,new_machine=None):
+    before=snapshot(t)
+    serial=_machine_serial(session,user,t.customer_code,t.site_id,serial,new_machine,t.kind)
+    _check_site_and_serial(session,t.customer_code,t.site_id,serial,t.id)
+    if t.serial!=serial:
+        t.serial=serial;t.version+=1
+        _record(session,user,t,'set_machine',before,t.status)
+    return t
+
+
+def set_machine(session: Session, user: User, ticket_id: int, body: ServiceMachineSet) -> ServiceTicket:
+    with _transaction(session):
+        t=_machine_ticket(session,user,ticket_id,body.version)
+        return _set_machine_in_tx(session,user,t,body.serial,body.new_machine)
+
+
+def _split_child(user,t,source):
+    _split_permission(user,source)
+    if source.status not in OPEN or t.split_from_id!=source.id or t.customer_code!=source.customer_code:
+        raise BusinessError('BAD_SPLIT','Phiếu không thuộc lần tách này.',status=409)
+
+
+def set_machines(session: Session,user: User,ticket_id: int,version: int,serials: list[str],new_machine=None) -> list[ServiceTicket]:
+    with _transaction(session):
+        t=_machine_ticket(session,user,ticket_id,version)
+        chosen=[_serial(value) for value in serials]
+        if any(value is None or len(value)>64 for value in chosen):
+            raise BusinessError('BAD_SERIAL','Danh sách máy chưa hợp lệ.')
+        if len(chosen)!=len(set(chosen)) or (new_machine is not None and _serial(new_machine.serial) in chosen):
+            raise BusinessError('SERIAL_DUPLICATE','Không chọn trùng một máy nhiều lần.')
+        before=snapshot(t)
+        if new_machine is not None:
+            chosen.append(_machine_serial(session,user,t.customer_code,t.site_id,None,new_machine,t.kind))
+        if not chosen:
+            return [_set_machine_in_tx(session,user,t,None)]
+        # Serialize multi-machine selections, including two different source tickets.
+        for serial in sorted(chosen):
+            eq=session.scalar(select(Equipment).where(Equipment.serial==serial).with_for_update().execution_options(populate_existing=True))
+            _check_site_and_serial(session,t.customer_code,t.site_id,serial,t.id)
+            if eq.site_id is not None and eq.site_id!=t.site_id:
+                raise BusinessError('BAD_SERIAL','Máy không thuộc địa điểm của phiếu.',{'serial':serial})
+        busy=session.execute(select(ServiceTicket.number,ServiceTicket.serial).where(ServiceTicket.serial.in_(chosen),
+            ServiceTicket.status.in_(OPEN),ServiceTicket.id!=t.id).order_by(ServiceTicket.id).limit(1)).first()
+        if busy:
+            raise BusinessError('SERIAL_BUSY',f'Máy {busy.serial} đang gắn với phiếu mở {busy.number}.',{'ticket_number':busy.number,'serial':busy.serial},status=409)
+        _set_machine_in_tx(session,user,t,chosen[0])
+        result=[t]
+        for serial in chosen[1:]:
+            child=create_in_tx(session,user,ServiceTicketIn(customer_code=t.customer_code,site_id=t.site_id,serial=serial,
+                kind=t.kind,priority=t.priority,symptom=t.symptom,appointment_at=t.appointment_at,appointment_slot=t.appointment_slot),_split_from=t)
+            note='Tách từ '+t.number
+            if t.assignee_id is not None:
+                assign_in_tx(session,user,child.id,t.assignee_id,child.version,note,_split_from=t)
+            if t.status in ('DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+                transition_in_tx(session,user,child,'DA_NHAN',note,_split_from=t)
+            if t.status in ('DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+                transition_in_tx(session,user,child,'DA_HEN',note,t.appointment_at,appointment_slot=t.appointment_slot,_split_from=t)
+            if t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+                transition_in_tx(session,user,child,'DANG_LAM',note,_split_from=t)
+            if t.status in ('CHO_LINH_KIEN','TAM_DUNG'):
+                transition_in_tx(session,user,child,t.status,note,hold_reason=t.hold_reason,_split_from=t)
+            result.append(child)
+        if len(result)>1:
+            t.version+=1
+            session.add(ServiceStep(ticket_id=t.id,action='split',from_status=t.status,to_status=t.status,actor_id=user.id,
+                assignee_id=t.assignee_id,note='Tách thêm: '+', '.join(c.number for c in result[1:])))
+            session.flush()
+            audit.record(session,user,'service_ticket.split','service_ticket',str(t.id),before,
+                {**snapshot(t),'split_tickets':[c.number for c in result[1:]]})
+    return result
 
 
 def _technician(session: Session, user_id: int) -> User:
@@ -236,11 +308,18 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
         return assign_in_tx(session,user,ticket_id,assignee_id,version,note)
 
 
-def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "", *, _technician_transfer=False) -> ServiceTicket:
+def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "", *, _technician_transfer=False, _split_from=None) -> ServiceTicket:
     """Giao thợ, hoặc chuyển sang thợ khác (cũng là cách duyệt yêu cầu chuyển việc). Phiếu về DA_GIAO."""
-    if not _technician_transfer:
+    if not _technician_transfer and _split_from is None:
         _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
-    t = _get(session, user, ticket_id, lock=True)
+    if _split_from is not None:
+        t=session.scalar(select(ServiceTicket).where(ServiceTicket.id==ticket_id).with_for_update().execution_options(populate_existing=True))
+        if t is None:raise BusinessError('NOT_FOUND','Không tìm thấy phiếu tách.',status=404)
+        _split_child(user,t,_split_from)
+        if t.status!='MOI' or t.assignee_id is not None or assignee_id!=_split_from.assignee_id:
+            raise BusinessError('BAD_SPLIT','Chỉ giao cùng thợ cho phiếu vừa tách.',status=409)
+    else:
+        t = _get(session, user, ticket_id, lock=True)
     if _technician_transfer and ("technician" not in user.roles or t.assignee_id!=user.id or t.status not in ("DA_GIAO","DA_NHAN","DA_HEN","DANG_LAM","CHO_LINH_KIEN","TAM_DUNG")):
         raise BusinessError("FORBIDDEN","Không được chuyển phiếu này.",status=403)
     _check_version(t, version)
@@ -289,8 +368,14 @@ def _transition(session: Session, user: User, ticket_id: int, to_status: str, ve
 def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: str,
                      note: str = "", appointment_at: datetime | None = None, hold_reason: str = "",
                      no_show: bool = False, appointment_slot: str | None = None, *, auto_close: bool = True,
-                     return_lines=None, _action=None) -> ServiceTicket:
+                     return_lines=None, _action=None, _split_from=None) -> ServiceTicket:
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
+    if _split_from is not None:
+        _split_child(user,t,_split_from)
+        if t.assignee_id!=_split_from.assignee_id or to_status not in ('DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+            raise BusinessError('BAD_SPLIT','Bước phiếu tách phải theo phiếu gốc.',status=409)
+        if to_status=='DA_HEN' and (appointment_at!=_split_from.appointment_at or appointment_slot!=_split_from.appointment_slot):
+            raise BusinessError('BAD_APPOINTMENT','Phiếu tách phải giữ lịch đã ghi của phiếu gốc.')
     note = (note or "").strip()
     is_dispatcher = has_role(user, *DISPATCHERS)
     ready=t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA'
@@ -387,13 +472,19 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
             eq=equipment_custody._machine(session,t.serial,lock=True)
             if eq.custody_ticket_id!=t.id or eq.custody_location!='THO_GIU' or eq.custody_holder_id!=t.assignee_id or equipment_custody.pending(session,t.serial):
                 raise BusinessError('MACHINE_NOT_RECEIVED','Thợ đi trả cần xác nhận đã nhận máy trước khi đến khách.',status=409)
-        service_visits.open_visit(session, t, stamp)
+        visit_stamp=stamp
+        if _split_from is not None:
+            from .models import ServiceVisit
+            visit_stamp=session.scalar(select(ServiceVisit.started_at).where(ServiceVisit.ticket_id==_split_from.id,
+                ServiceVisit.ended_at.is_(None))) or stamp
+        service_visits.open_visit(session, t, visit_stamp)
     if no_show:
         service_visits.open_visit(session, t, stamp)
         service_visits.close_visit(session, t, 'KHONG_GAP_KHACH', stamp, note, appointment_at)
     if to_status == 'DA_HEN':
         from .service_appointments import validate
-        validate(appointment_at, appointment_slot, _now())
+        if _split_from is None:
+            validate(appointment_at, appointment_slot, _now())
         t.appointment_at = appointment_at
         t.appointment_slot = appointment_slot
     t.status = to_status

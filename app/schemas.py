@@ -489,6 +489,8 @@ class ServiceStepOut(BaseModel):
 class ServiceTicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    split_from_id: int | None = None
+
     id: int
     number: str
     customer_code: str
@@ -1256,6 +1258,11 @@ class CustodyIntake(BaseModel):
     accessories: list[Accessory] = Field(max_length=5)
     accessories_note: str = Field(default='', max_length=2000)
     condition_note: str = Field(default='', max_length=2000)
+
+
+class WorkshopTripItem(CustodyIntake):
+    ticket_id: int = Field(ge=1)
+    machine_version: int = Field(ge=1)
 
 
 class CustodyHandover(BaseModel):
