@@ -23,7 +23,7 @@
 <h2 class="dp-title">Đơn bán chờ thợ giao <span>{{ delivery_orders|length }}</span></h2>
 {% if delivery_orders %}<div class="table-scroll"><table class="list-table lt-cards">
 <thead><tr><th>Đơn</th><th>Địa chỉ giao</th><th>Tình trạng</th><th>Thợ</th></tr></thead><tbody>
-{% for order in delivery_orders %}<tr data-href="/giao-don/{{ order.id }}"><td class="lt-first"><a class="lt-no" href="/giao-don/{{ order.id }}">{{ order.number }}</a></td><td>{{ order.delivery_address or 'Chưa có địa chỉ giao' }}</td><td class="lt-st">{{ ui.badge(delivery_labels[order.id], 'lam') }}</td><td>{% if order.delivery_assignee_id %}{{ users.get(order.delivery_assignee_id, 'Nhân viên') }}{% else %}<span class="lt-bad">Chưa giao thợ</span>{% endif %}</td></tr>{% endfor %}
+{% for order in delivery_orders %}<tr data-href="/giao-don/{{ order.id }}"><td class="lt-first"><a class="lt-no" href="/giao-don/{{ order.id }}">{{ order.number }}</a></td><td>{{ order.delivery_address or 'Chưa có địa chỉ giao' }}</td><td class="lt-st">{{ ui.badge(delivery_labels[order.id], 'lam') }}</td><td>{% if order.delivery_assignee_id %}Đã giao thợ {{ users.get(order.delivery_assignee_id, 'Nhân viên') }}{% else %}<span class="lt-bad">Chưa giao thợ</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}<p class="hint dp-none">Không có đơn bán nào chờ thợ giao.</p>{% endif %}
 </section>
 </div>
