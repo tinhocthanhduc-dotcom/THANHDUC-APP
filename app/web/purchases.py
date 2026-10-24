@@ -15,7 +15,7 @@ from .. import purchase_returns, supplier_debts, inventory_catalogs, products, p
 from ..config import DEFAULT_VAT_RATE, get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Product, PurchaseOrder, PurchaseReceipt, StockBalance, StockDoc, Supplier, User, Warehouse, VAT_RATES
+from ..models import Product, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, StockBalance, StockDoc, Supplier, User, Warehouse, VAT_RATES
 from ..money_words import money_words
 from ..schemas import PurchaseOrderIn, PurchaseOrderUpdate
 from ..security import has_role
@@ -44,6 +44,30 @@ def _stock(session, codes):
     return stock
 
 
+def incoming(session, pairs):
+    """Đợt 4: hàng đã đặt NCC chưa nhận, theo (kho, mã). Chỉ đọc."""
+    if not pairs:
+        return {}
+    left = func.sum(PurchaseOrderLine.qty - PurchaseOrderLine.received_qty)
+    rows = session.execute(select(PurchaseOrderLine.warehouse_code, PurchaseOrderLine.product_code, left).join(PurchaseOrder)
+                           .where(PurchaseOrder.status.in_(OPEN), PurchaseOrderLine.product_code.in_({c for _, c in pairs}))
+                           .group_by(PurchaseOrderLine.warehouse_code, PurchaseOrderLine.product_code))
+    return {(w, c): q for w, c, q in rows if q and q > 0}
+
+
+def last_suppliers(session, codes):
+    """Đợt 4: NCC của lần đặt gần nhất từng mã (đơn đã đặt, không tính nháp/hủy). Chỉ đọc."""
+    if not codes:
+        return {}
+    ranked = select(PurchaseOrderLine.product_code, PurchaseOrder.supplier_code, func.row_number().over(
+        partition_by=PurchaseOrderLine.product_code,
+        order_by=(PurchaseOrder.ordered_at.desc().nulls_last(), PurchaseOrder.id.desc())).label('n')).join(PurchaseOrder).where(
+        PurchaseOrderLine.product_code.in_(set(codes)), PurchaseOrder.status.not_in(('NHAP', 'DA_HUY'))).subquery()
+    rows = session.execute(select(ranked.c.product_code, Supplier.code, Supplier.name).join(Supplier, Supplier.code == ranked.c.supplier_code)
+                           .where(ranked.c.n == 1))
+    return {code: dict(code=sup, name=name) for code, sup, name in rows}
+
+
 def _where(exc, data):
     """Lỗi nằm ở ô nào: trả (ô đầu đơn, {chỉ số dòng: lời nhắn}) để hiện ngay dưới ô đó."""
     fields, lines = {}, {}
@@ -64,7 +88,7 @@ def _where(exc, data):
     return fields, lines
 
 
-def _form(request, session, row=None, data=None, error=None, code='', status=200, reason='', receiving=False, receive_data=None, receipt_action='', failed_receipt=None, where=({}, {})):
+def _form(request, session, row=None, data=None, error=None, code='', status=200, reason='', receiving=False, receive_data=None, receipt_action='', failed_receipt=None, where=({}, {}), prefill_note=''):
     if data is None:
         data = svc.snapshot(row) if row else dict(supplier_code='', order_date=quotes._today().isoformat(),
                             expected_date='', note='', version=0, lines=[])
@@ -100,7 +124,7 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code))),
         can_write=has_role(request.state.user, *svc.WRITERS), editable=row is None or row.status=='NHAP',
         error=error, error_code=code, status=status, reason=reason, saved=request.query_params.get('da_luu')=='1' and not error, placed=request.query_params.get('da_dat')=='1',
-        supplier=supplier, stock=_stock(session, codes) if composing else {}, kho=kho, default_warehouse=default_warehouse, default_vat=default_vat,
+        supplier=supplier, prefill_note=prefill_note, stock=_stock(session, codes) if composing else {}, kho=kho, default_warehouse=default_warehouse, default_vat=default_vat,
         last_costs={c: svc.suggest_cost(session, request.state.user, c) for c in codes if c} if composing else {},
         field_errors=where[0], line_errors=where[1])
 
@@ -225,13 +249,29 @@ def browse_products(request: Request, q: str='', user: User=Depends(purchase_use
 @router.get('/don-mua/moi')
 def new(request: Request, user: User=Depends(purchase_user), session: Session=Depends(get_session)):
     svc.check_writer(user)
-    code = request.query_params.get('product_code', '')
-    product = session.get(Product, code) if code else None
-    data = None
-    if product and product.active:
-        data = dict(supplier_code='', order_date=quotes._today().isoformat(), expected_date='', note='', version=0,
-            lines=[dict(product_code=product.code, warehouse_code='', qty='1', unit_cost=money(svc.suggest_cost(session,user,code) or 0), vat_rate=DEFAULT_VAT_RATE)])
-    return _form(request,session,data=data)
+    # Đợt 4: điền sẵn một hoặc nhiều dòng (product_code, qty, kho lặp theo thứ tự), ví dụ từ Tồn kho › Sắp hết.
+    params = request.query_params
+    codes, qtys, khos = params.getlist('product_code')[:50], params.getlist('qty'), params.getlist('kho')
+    active_kho = {w.code for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO')) if w.active}
+    lines, seen = [], set()
+    for i, code in enumerate(codes):
+        product = session.get(Product, code) if code else None
+        if product is None or not product.active or code in seen:
+            continue
+        seen.add(code)
+        qty = re.sub(r'\D', '', qtys[i] if i < len(qtys) else '')[:6].lstrip('0') or '1'
+        kho = khos[i] if i < len(khos) and khos[i] in active_kho else ''
+        lines.append(dict(product_code=code, warehouse_code=kho, qty=qty, unit_cost=money(svc.suggest_cost(session, user, code) or 0), vat_rate=DEFAULT_VAT_RATE))
+    data, note = None, ''
+    if lines:
+        found = last_suppliers(session, [l['product_code'] for l in lines])
+        same = {found[l['product_code']]['code'] if l['product_code'] in found else '' for l in lines}
+        supplier = same.pop() if len(same) == 1 else ''
+        data = dict(supplier_code=supplier, order_date=quotes._today().isoformat(), expected_date='', note='', version=0, lines=lines)
+        if params.get('tu') == 'sap-het':
+            note = (f'Điền sẵn từ Tồn kho › Sắp hết: {len(lines)} dòng, số lượng = Nên đặt, giá = lần mua trước'
+                    + (', NCC = NCC lần trước của các dòng' if supplier else '') + '. Kiểm tra rồi bấm Lưu và đặt hàng.')
+    return _form(request,session,data=data,prefill_note=note)
 
 
 @router.post('/don-mua/moi')

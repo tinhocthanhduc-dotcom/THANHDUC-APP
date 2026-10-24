@@ -102,7 +102,7 @@ def test_ban_hang_sua_khach_khong_dong_vao_cong_no(client, web_login, db):
     assert c.allow_debt and c.credit_limit == 5_000_000
 
     csrf = web_login("ban.hang", "sales")
-    page = client.get("/khach-hang/KTD-000001").text
+    page = client.get("/khach-hang/KTD-000001/sua").text
     assert 'name="credit_limit"' not in page and "5.000.000" in page
     r = client.post("/khach-hang/KTD-000001", data=customer_form(csrf, name="Nguyễn Văn An (Q.7)", version="1"), follow_redirects=False)
     assert r.status_code == 303
@@ -116,7 +116,7 @@ def test_sua_giu_so_nguoi_lien_he_rieng(client, web_login, db):
     data = customer_form(csrf, kind="CONG_TY", name="Công ty C", tax_code="0301234567", phones="02838123456")
     data.update(contact_name=["Chị Lan", ""], contact_phones=["0912 345 678", ""], contact_note=["Kế toán", ""])
     client.post("/khach-hang/moi", data=data)
-    page = client.get("/khach-hang/KTD-000001").text
+    page = client.get("/khach-hang/KTD-000001/sua").text
     assert 'name="phones" value="02838123456"' in page
     assert 'value="0912345678"' in page
     client.post("/khach-hang/KTD-000001", data={**data, "phones": "02838123456", "contact_phones": ["0912345678", ""], "version": "1"})
@@ -695,9 +695,9 @@ def test_d1_two_sites_on_customer_page(client, web_login, d1_catalog, db):
         data = site_form(csrf); data['name'] = name
         r = client.post('/khach-hang/KTD-000001/dia-diem/moi', data=data, follow_redirects=False)
         assert r.status_code == 303, r.text
-    page = client.get('/khach-hang/KTD-000001').text
+    page = client.get('/khach-hang/KTD-000001/sua').text
     assert '<h2>Địa điểm</h2>' in page and '<summary>Chi nhánh 58' in page and '<summary>Chi nhánh 145' in page and '+ Thêm địa điểm khác' in page
-    assert 'Chi nhánh 58' not in client.get('/khach-hang/KTD-000002').text
+    assert 'Chi nhánh 58' not in client.get('/khach-hang/KTD-000002/sua').text
     assert db.query(CustomerSite).count() == 2
 
 

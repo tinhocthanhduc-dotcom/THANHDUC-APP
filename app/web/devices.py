@@ -46,7 +46,7 @@ def _save_site(request, session, form, customer_code, site_id=None):
         return _customer_form(request, request.state.user, _customer_dict(customer), session=session,
                               error=None, ask_confirm=None, site_error=_error(exc), site_shown=shown,
                               site_target=site_id, status=getattr(exc, 'status', 400))
-    return RedirectResponse(f'/khach-hang/{quote(customer.code, safe="")}?da_luu=1#dia-diem', status_code=303)
+    return RedirectResponse(f'/khach-hang/{quote(customer.code, safe="")}/sua?da_luu=1#dia-diem', status_code=303)
 
 
 @router.post('/khach-hang/{customer_code}/dia-diem/moi')
