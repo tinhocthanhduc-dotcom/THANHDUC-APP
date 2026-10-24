@@ -2429,3 +2429,6 @@ main:has(> .page-mid) { max-width: 752px; }
 }
 .ls-buy { flex-basis: 100%; }
 @media (max-width: 640px) { .ls-bar { grid-template-columns: auto 1fr; } .ls-bar .hint { display: none; } }
+/* Máy đang giữ theo phiếu khác: mờ, không bấm được. */
+.machine-held span { opacity: .55; cursor: not-allowed; flex-direction: column; align-items: flex-start; justify-content: center; padding-top: 4px; padding-bottom: 4px; }
+.machine-held small { font-weight: 500; font-size: .8rem; }

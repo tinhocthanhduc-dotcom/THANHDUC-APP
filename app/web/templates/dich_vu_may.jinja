@@ -7,9 +7,9 @@
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ mf.get('version') or t.version }}">
 {% if technician_view %}{% include 'tho_return.jinja' %}{% endif %}
 <div class="field-group"><div class="machine-head"><p class="group-label">Máy của khách</p>{% if can_create_machine %}<label class="chip machine-new-chip"><input type="radio" name="machine_pick" value="NEW" {% if new_machine_selected %}checked{% endif %} required><span>+ Thêm máy mới</span></label>{% endif %}</div><div class="chips machine-choices">
-{% for machine,name in ticket_machines %}<label class="chip"><input type="radio" name="machine_pick" value="SERIAL:{{ machine.serial }}" {% if choice=='SERIAL:' ~ machine.serial %}checked{% endif %} required><span>{{ machine.serial }} · {{ name }}</span></label>{% endfor %}
+{% for machine,name in ticket_machines %}{% set held=(machine_held|default({})).get(machine.serial) %}<label class="chip{{ ' machine-held' if held is not none }}"><input type="radio" name="machine_pick" value="SERIAL:{{ machine.serial }}" {% if choice=='SERIAL:' ~ machine.serial and held is none %}checked{% endif %} {% if held is not none %}disabled{% endif %} required><span>{{ machine.serial }} · {{ name }}{% if held is not none %}<small>Đang giữ theo {{ held or 'phiếu khác' }}</small>{% endif %}</span></label>{% endfor %}
 {% if t.kind!='MANG_VE' %}<label class="chip"><input type="radio" name="machine_pick" value="NONE" {% if choice=='NONE' %}checked{% endif %} required><span>Không chọn máy</span></label>{% endif %}
-</div>{% if error_code in ['BAD_SERIAL','SERIAL_REQUIRED'] %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}</div>
+</div>{% if error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD'] %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}</div>
 {% if can_create_machine %}{% include 'dich_vu_may_moi.jinja' %}{% endif %}
 <button class="btn btn-ok">Lưu máy</button></form>{% if t.serial %}</details>{% else %}</div>{% endif %}
 {% elif machine_lock_reason %}<small class="hint">{{ machine_lock_reason }}</small>{% endif %}
