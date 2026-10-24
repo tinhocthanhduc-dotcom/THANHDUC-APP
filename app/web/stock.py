@@ -421,6 +421,18 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: 
     if can_alert:
         counts['sap'] = len(rows) if canh_bao else int(session.scalar(select(func.count()).select_from(
             narrow(stock_min_levels.low_stock_query(), StockMinLevel.warehouse_code).order_by(None).subquery())))
+    can_purchase = False
+    if canh_bao:
+        # Đợt 4: Đang về (đã đặt NCC chưa nhận), Nên đặt = tối thiểu − tồn − đang về, NCC lần trước. Chỉ đọc.
+        from math import ceil
+        from .purchases import incoming, last_suppliers
+        coming = incoming(session, [(r['warehouse_code'], r['product_code']) for r in rows])
+        suppliers = last_suppliers(session, [r['product_code'] for r in rows])
+        for r in rows:
+            r['incoming'] = coming.get((r['warehouse_code'], r['product_code']), 0)
+            r['need'] = max(ceil(r['min_qty'] - r['qty'] - r['incoming']), 0)
+            r['supplier'] = suppliers.get(r['product_code'])
+        can_purchase = nav.allowed(user, '/don-mua/moi') and has_role(user, 'warehouse')
     if tt:
         rows = [r for r in rows if (r['qty'] > 0) == (tt == 'con')]
     if xep == 'it':
@@ -440,7 +452,7 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: 
     groups = [g for g in session.scalars(select(Product.group_name).where(Product.group_name != '').distinct().order_by(Product.group_name))]
     return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', can_pending_transfer=has_role(user,'warehouse'),damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
                   warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows),
-                  nhom=nhom, xep=xep, tt=tt, sorts=TON_SORTS, groups=groups, counts=counts, can_alert=can_alert, link=link)
+                  nhom=nhom, xep=xep, tt=tt, sorts=TON_SORTS, groups=groups, counts=counts, can_alert=can_alert, link=link, can_purchase=can_purchase)
 
 
 def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False):
