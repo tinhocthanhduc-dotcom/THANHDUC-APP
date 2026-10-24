@@ -49,7 +49,8 @@ def order(user, o, available=0, deposit_remaining=0):
         return block(dict(form('Lưu và chốt', 'order-edit', base), then='confirm', counter=True))
     if o.status in ('DA_CHOT','GIAO_MOT_PHAN') and has_role(user,*sales_orders.DELIVERERS):
         if o.fulfillment=='THO_GIAO':return block(link('Giao cho thợ',f'/giao-don/{o.id}'))
-        return block(form('Giao tiếp' if o.status=='GIAO_MOT_PHAN' else 'Giao hàng', 'order-deliver', base+'/deliver'))
+        # Đợt 1b: một màn giao dùng chung cho kinh doanh và kho.
+        return block(link('Giao tiếp' if o.status=='GIAO_MOT_PHAN' else 'Giao hàng', f'/kho/giao/{o.id}'))
     if o.status in ('GIAO_MOT_PHAN','DA_GIAO') and available>0 and permitted(sales_orders.check_writer,user):
         return block(form('Báo thu', 'receipt-report', base+'/bao-thu', 'Kiểm tra số tiền và cách thu trong mục Thu tiền trước khi báo.'))
     return None

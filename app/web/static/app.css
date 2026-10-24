@@ -2043,6 +2043,51 @@ main:has(> .page-mid) { max-width: 752px; }
 .list-table tr:last-child td { border-bottom: 0; }
 .list-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (max-width: 640px) { .filter-bar > select, .filter-bar > label { flex: 1 1 140px; } }
+/* ===== Đợt 1b: một khung chi tiết cho báo giá và đơn bán (chỉ đọc) ===== */
+.doc-view .doc-main, .doc-view .doc-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.doc-view .doc-card { padding: 14px 16px; display: grid; gap: 10px; }
+.doc-view .doc-card > summary { cursor: pointer; font-weight: 600; }
+.doc-view .doc-h { margin: 0; font-size: .78rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.doc-view .doc-card-head { display: flex; align-items: center; gap: 8px; }
+.doc-view .doc-kv { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 12px; margin: 0; }
+.doc-view .doc-kv dt { color: var(--muted); }
+.doc-view .doc-kv dd { margin: 0; overflow-wrap: anywhere; text-align: left; }
+.doc-view .doc-kv .tot-due { color: var(--bad); font-weight: 700; }
+.doc-view .doc-lines-card { padding: 14px 0 0; }
+.doc-view .doc-lines-card > .doc-card-head, .doc-view .doc-lines-card > form { padding: 0 16px; }
+.doc-view .doc-lines-card > form { padding-bottom: 14px; }
+.doc-view .doc-lines { border: 0; border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; }
+.doc-view .doc-lines .hint { font-size: .8rem; }
+.doc-view .doc-prog { display: flex; gap: 4px; flex-wrap: wrap; }
+.doc-view .doc-total { font-size: 1.5rem; color: var(--info-solid); }
+.doc-view .doc-balance { padding-top: 10px; border-top: 1px solid var(--line); }
+.doc-view .doc-next > .btn, .doc-view .doc-next > button, .doc-view .doc-pay button { width: 100%; }
+.doc-view .doc-pay { display: grid; gap: 8px; margin-top: 4px; }
+.doc-view .doc-pay .seg label { flex: 1; }
+.doc-toast { font-weight: 600; }
+@media (min-width: 1024px) { .doc-view .doc-side { position: sticky; top: 12px; } }
+@media (max-width: 640px) {
+  .doc-view .doc-kv { grid-template-columns: 1fr; gap: 0; }
+  .doc-view .doc-kv dd { margin-bottom: 6px; }
+  .doc-view .doc-lines { overflow: visible; }
+  .doc-view .doc-lines thead { display: none; }
+  .doc-view .doc-lines tr { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .doc-view .doc-lines td { display: block; padding: 0; border: 0; text-align: left; }
+  .doc-view .doc-lines td[data-label="Tên hàng"] { grid-column: 1 / -1; }
+  .doc-view .doc-lines td[data-label="Kho"], .doc-view .doc-lines td[data-label="VAT"] { display: none; }
+  .doc-view .doc-lines td[data-label="Tiến độ"] { grid-column: 1 / -1; }
+  .doc-view .doc-lines td[data-label="SL"], .doc-view .doc-lines td[data-label="Đơn giá"] { display: none; }
+  .doc-view .doc-lines td[data-label="Thành tiền"] { grid-column: 1 / -1; grid-row: auto; }
+}
+.doc-view .doc-line-meta { display: none; }
+@media (max-width: 640px) { .doc-view .doc-line-meta { display: block; } }
+/* Màn hẹp: tiền và Bước tiếp lên đầu, Việc khác xuống cuối (theo mẫu điện thoại). */
+@media (max-width: 1023px) {
+  .doc-view .doc-grid { display: flex; flex-direction: column; align-items: stretch; }
+  .doc-view .doc-side { display: contents; }
+  .doc-view .doc-money { order: -2; }
+  .doc-view .doc-next { order: -1; }
+}
 /* Máy khách trên màn thợ: ảnh nhỏ, đối chiếu phụ kiện mở khi thiếu/khác, bàn giao thu gọn. */
 .photo-gallery.photo-thumbs { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
 .photo-gallery.photo-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }

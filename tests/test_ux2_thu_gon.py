@@ -135,7 +135,8 @@ def test_delivered_order_does_not_mark_consumed_stock_as_line_error(client,db,st
     sales_orders.deliver(db,stocked['warehouse'],order.id,order.version)
     service_login(client,stocked['sales'])
     html=client.get(f'/don-ban/{order.id}').text
-    assert '<fieldset class="card quote-line line-collapsed" data-order-line' in html
+    # Đợt 1b: đơn đã giao mở khung chỉ đọc; dòng hàng không bị đánh lỗi, tiến độ ghi đã giao đủ.
+    assert 'data-doc-view="order"' in html and 'Đã giao 5/5' in html and 'line-error' not in html
 
 
 def test_bad_product_marks_only_affected_line():

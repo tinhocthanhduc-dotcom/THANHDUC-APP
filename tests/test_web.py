@@ -2080,7 +2080,7 @@ def test_b3_warehouse_can_deliver_without_edit_and_technician_forbidden(client,d
     b3_action(client,db,csrf,order,'confirm')
     csrf=web_login('b3.warehouse','warehouse')
     page=client.get(f'/don-ban/{order.id}')
-    assert page.status_code==200 and '>Giao hàng</button>' in page.text
+    assert page.status_code==200 and f'href="/kho/giao/{order.id}"' in page.text and '>Giao hàng</a>' in page.text  # Đợt 1b: mở màn giao chung
     assert '>Lưu đơn</button>' not in page.text and '>Chốt đơn</button>' not in page.text and '>Hủy đơn</button>' not in page.text
     assert client.post('/don-ban/moi',data=b3_form(csrf)).status_code==403
     assert client.post(f'/don-ban/{order.id}',data=b3_form(csrf,version=order.version)).status_code==403

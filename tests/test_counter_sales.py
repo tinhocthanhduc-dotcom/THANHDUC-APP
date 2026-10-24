@@ -256,7 +256,7 @@ def test_carrier_is_saved_audited_printed_and_errors_keep_input(db,client,people
     p=people;stock(db,p,5);o=draft(db,p,fulfillment='VAN_CHUYEN')
     svc.confirm(db,p['sales'],o.id,o.version)
     csrf=service_login(client,p['warehouse'])
-    page=client.get(f'/don-ban/{o.id}');assert 'name="carrier_name"' in page.text and 'name="tracking_code"' in page.text
+    page=client.get(f'/kho/giao/{o.id}');assert 'name="carrier_name"' in page.text and 'name="tracking_code"' in page.text
     data=dict(csrf=csrf,version=o.version,delivery_form=1,deliver_1=3,carrier_name='Giao nhanh',tracking_code='VN-123')
     wrong=client.post(f'/don-ban/{o.id}/deliver',data=data)
     assert wrong.status_code==409 and 'Giao nhanh' in wrong.text and 'VN-123' in wrong.text

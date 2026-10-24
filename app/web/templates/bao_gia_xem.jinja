@@ -1,0 +1,48 @@
+{% extends "base.jinja" %}
+{# Đợt 1b: báo giá từ Đã gửi trở đi, cùng khung 2 cột chỉ đọc với đơn bán. #}
+{% macro token(action='') %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',q.version) if failed_action == action else q.version }}">{% endmacro %}
+{% import '_ui.jinja' as ui %}
+{% import 'viec_khac.jinja' as other %}
+{% block title %}{{ q.number }}{% endblock %}
+{% block main %}<div class="page-wide doc-view" data-doc-view="quote">
+{% set tones={'DA_GUI':'cho','CHAP_NHAN':'xong','TU_CHOI':'huy','DA_HUY':'huy'} %}
+{% call ui.page_head(q.number, sub='Báo giá · ' ~ (customer_name or q.customer_code) ~ ' · lập ' ~ quote_date.strftime('%d/%m/%Y'), back='/bao-gia', badge_label=statuses[q.status], badge_tone=tones.get(q.status,'nhap')) %}{% if linked_order %}<a class="btn btn-ghost" href="/don-ban/{{ linked_order.id }}">Đơn {{ linked_order.number }}</a>{% endif %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">Xem trước A4 / In</a>{% endcall %}
+{% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if toast_message %}<p class="alert ok doc-toast" role="status" data-doc-toast>✓ {{ toast_message }}</p>{% endif %}
+{% if q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
+{% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
+
+<div class="doc-grid">
+<div class="doc-main">
+<section class="card doc-card"><h2 class="doc-h">Khách hàng</h2>
+<dl class="doc-kv"><dt>Khách</dt><dd><b>{{ q.customer_code }} · {{ customer_name }}</b></dd>
+<dt>Liên hệ</dt><dd>{{ [q.contact_name or (customer_card.contact if customer_card else ''), customer_card.phone if customer_card else '']|select|join(' · ') or '—' }}</dd>
+<dt>Hiệu lực</dt><dd>đến hết {{ q.valid_until.strftime('%d/%m/%Y') }}</dd>
+<dt>Giá nhập</dt><dd>{{ 'Đã gồm VAT' if q.price_includes_vat else 'Chưa VAT' }}</dd></dl>
+</section>
+
+<section class="card doc-card doc-lines-card"><div class="doc-card-head"><h2 class="doc-h">Hàng hóa / dịch vụ</h2>{{ ui.badge(q.lines|length ~ ' dòng') }}</div>
+<div class="table-scroll doc-lines"><table class="list-table"><thead><tr><th>Tên hàng</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">VAT</th><th class="num">Thành tiền</th></tr></thead><tbody>
+{% for line in q.lines %}<tr data-quote-line="{{ line.line_no }}"><td data-label="Tên hàng"><b>{{ line.description or product_names.get(line.product_code, line.product_code) }}</b><div class="hint">{{ line.product_code or 'Dòng tự do' }}</div><div class="hint doc-line-meta">{{ line.qty|qty }} {{ line.unit }} × {{ line.unit_price|money }}</div></td><td data-label="SL" class="num">{{ line.qty|qty }} {{ line.unit }}</td><td data-label="Đơn giá" class="num">{{ line.unit_price|money }}</td><td data-label="VAT" class="num">{{ line.vat_rate }}%</td><td data-label="Thành tiền" class="num"><b>{{ line.amount|money }}</b></td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+{% if q.note %}<section class="card doc-card"><h2 class="doc-h">Ghi chú báo giá</h2><p class="service-text">{{ q.note }}</p></section>{% endif %}
+</div>
+
+<aside class="doc-side">
+<section class="card doc-card doc-money" aria-label="Tổng báo giá"><h2 class="doc-h">Tổng báo giá</h2>
+<dl class="totals"><dt>Tiền hàng chưa VAT</dt><dd>{{ q.subtotal|money }}</dd><dt>VAT</dt><dd>{{ q.vat_total|money }}</dd>{% if q.discount_amount %}<dt>Giảm giá toàn đơn</dt><dd>−{{ q.discount_amount|money }}</dd>{% endif %}<dt class="tot-main">Tổng cộng</dt><dd class="tot-main doc-total">{{ q.total|money }}</dd></dl>
+</section>
+<section class="card next-box doc-next" data-next-step aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · {{ doc_next.who }}</span><b>{{ doc_next.title }}</b>
+{% if next_step %}{% set a=next_step.primary %}{% if a.form %}<button class="btn-ok next-primary" type="submit" form="{{ a.form }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</button>{% else %}<a class="btn btn-new next-primary" href="{{ a.href }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</a>{% endif %}
+{% for b in next_step.secondary %}<button class="btn-ghost" type="submit" form="{{ b.form }}">{{ b.label }}</button>{% endfor %}{% endif %}
+</section>
+{% if can_write %}
+{% if q.status == 'DA_GUI' %}{% for action,label in [('accept','Khách đồng ý'),('reject','Khách từ chối'),('revise','Tạo bản sửa')] %}<form id="quote-{{ action }}" method="post" action="/bao-gia/{{ q.id }}/{{ action }}">{{ token(action) }}</form>{% endfor %}{% endif %}
+{% call other.group(open=failed_action=='cancel') %}{% if q.status == 'DA_GUI' %}<form method="post" action="/bao-gia/{{ q.id }}/cancel" class="card form service-action">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action == 'cancel' else '' }}</textarea></label><button class="btn-danger">Hủy báo giá</button></form>{% endif %}{% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}{% endcall %}
+{% endif %}
+</aside>
+</div>
+<script src="{{ asset('workflow.js') }}" defer></script>
+</div>{% endblock %}

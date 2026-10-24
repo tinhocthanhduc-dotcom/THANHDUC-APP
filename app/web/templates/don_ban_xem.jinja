@@ -1,0 +1,76 @@
+{% extends 'base.jinja' %}
+{# Đợt 1b: đơn bán từ Đã chốt trở đi. Một khung 2 cột chỉ đọc: trái = khách, hàng (kèm tiến độ từng dòng), ghi chú, chứng từ; phải = tiền + Bước tiếp. #}
+{% macro token(action) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',o.version) if failed_action==action else o.version }}">{% endmacro %}
+{% import '_ui.jinja' as ui %}
+{% macro pay_form(primary) %}<form id="receipt-report" method="post" action="{{ receipt_report_url }}" class="form doc-pay" data-receipt-report>{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ receipt_data.version }}">
+<div class="field-group"><p class="group-label">Cách thu</p><div class="seg stock-seg">{% for value,label in receipt_methods.items() %}<label><input type="radio" name="method" value="{{ value }}" {% if receipt_data.method==value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Số tiền (đồng)<input name="amount" value="{{ receipt_data.amount }}" inputmode="numeric" data-money required></label>
+<label>Ngày thu<input type="date" name="received_at" value="{{ receipt_data.received_at }}" required></label>
+<label>Ghi chú<textarea name="note" maxlength="4000" rows="2">{{ receipt_data.note }}</textarea></label>
+{% if primary %}<button class="btn-ok next-primary" type="submit" form="receipt-report" data-next-primary data-next-route="{{ next_step.primary.route }}">{{ receipt_report_label }}</button>{% else %}<button class="btn-ok">{{ receipt_report_label }}</button>{% endif %}
+</form>{% endmacro %}
+
+{% import 'viec_khac.jinja' as other %}
+{% block title %}{{ o.number }}{% endblock %}
+{% block main %}<div class="page-wide doc-view" data-doc-view="order">
+{% set tones={'DA_CHOT':'lam','GIAO_MOT_PHAN':'lam','DA_GIAO':'cho' if (available>0 or (collection and collection.balance.pending>0)) else 'xong','DA_HUY':'huy'} %}
+{% call ui.page_head(o.number, sub='Đơn bán · ' ~ (customer_name or o.customer_code) ~ ' · ' ~ fulfillments[o.fulfillment] ~ ' · ' ~ payments[o.payment_term], back='/don-ban', badge_label=statuses[o.status], badge_tone=tones.get(o.status,'nhap')) %}{% if source %}<a class="btn btn-ghost" href="/bao-gia/{{ source.id }}">Từ {{ source.number }}</a>{% endif %}{% if o.status in ['DA_GIAO','GIAO_MOT_PHAN'] %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}{% endcall %}
+{% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if toast_message %}<p class="alert ok doc-toast" role="status" data-doc-toast>✓ {{ toast_message }}</p>{% endif %}
+{% if tech_delivery %}<section class="card"><h2>Giao bằng thợ</h2><p>{{ tech_delivery.label }} · {{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Chưa có thợ' }}</p><p>Đang ở kho thợ: {% for r in tech_delivery.held %}{{ r.product_code }}: {{ r.qty|qty }} {% else %}0{% endfor %}</p><a class="btn" href="/giao-don/{{ o.id }}">{% if tech_delivery.assignee %}Mở giao đơn · Giao thợ khác · Bàn giao · Trả kho{% else %}Giao thợ{% endif %}</a>{% for a in tech_delivery.attempts %}<p>Giao không thành: {{ tech_delivery.reason_labels[a.reason] }} · {{ a.note }}</p>{% endfor %}</section>{% endif %}
+{% set cancel_ask=tech_delivery.attempts[0] if tech_delivery and tech_delivery.attempts and tech_delivery.attempts[0].reason=='DE_NGHI_HUY' else None %}{% if cancel_ask and o.status=='DA_CHOT' %}<section class="card order-cancel-ask" id="de-nghi-huy" data-cancel-request><h2>Thợ đề nghị hủy đơn</h2><p>{{ tech_delivery.assignee.full_name if tech_delivery.assignee else 'Thợ' }} · {{ cancel_ask.created_at|service_time }}: <b>{{ cancel_ask.note }}</b></p>
+{% if can_write %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="form">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else 'Thợ đề nghị: ' ~ cancel_ask.note }}</textarea></label><p class="hint">Hủy xong: tiền khách đã trả (nếu có) chuyển sang hoàn tiền chờ duyệt; hàng thợ đang giữ, thợ bấm Trả kho.</p><button class="btn-danger">Hủy đơn</button></form><p class="hint">Không hủy? Gọi khách rồi giao lại cho thợ ở mục Giao bằng thợ.</p>{% else %}<p class="hint">Chỉ bán hàng hoặc giám đốc được hủy đơn.</p>{% endif %}</section>{% endif %}
+
+<div class="doc-grid">
+<div class="doc-main">
+<section class="card doc-card"><h2 class="doc-h">Khách hàng</h2>
+<dl class="doc-kv"><dt>Khách</dt><dd><b>{{ o.customer_code }} · {{ customer_name }}</b></dd>
+<dt>Liên hệ</dt><dd>{{ [o.contact_name or (customer_card.contact if customer_card else ''), customer_card.phone if customer_card else '']|select|join(' · ') or '—' }}</dd>
+<dt>Nhận hàng</dt><dd>{{ fulfillments[o.fulfillment] }} · {{ 'hẹn ' ~ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'chưa hẹn ngày' }}</dd>
+{% if o.delivery_address %}<dt>Địa chỉ giao</dt><dd>{{ o.delivery_address }}</dd>{% endif %}
+<dt>Thanh toán</dt><dd>{{ payments[o.payment_term] }}{% if o.payment_term=='CONG_NO' %} · {{ o.due_days }} ngày nợ{% elif o.payment_term=='DAT_COC' %} · cọc dự kiến {{ o.deposit_amount|money }} đồng{% endif %}</dd>
+{% if order_summary and order_summary.due_date %}<dt>Hạn thanh toán</dt><dd class="{{ 'tot-due' if order_summary.overdue_days>0 }}">{{ order_summary.due_date.strftime('%d/%m/%Y') }}{% if order_summary.overdue_days>0 %} · Quá hạn {{ order_summary.overdue_days }} ngày{% endif %}</dd>{% endif %}
+</dl>
+{% if o.credit_override_by %}<p class="alert warn">Giám đốc chốt vượt hạn mức: {{ o.credit_override_reason }}</p>{% endif %}
+{% if o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
+</section>
+
+<section class="card doc-card doc-lines-card"><div class="doc-card-head"><h2 class="doc-h">Hàng hóa / dịch vụ</h2>{{ ui.badge(o.lines|length ~ ' dòng') }}</div>
+<div class="table-scroll doc-lines"><table class="list-table"><thead><tr><th>Tên hàng</th><th>Kho</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">VAT</th><th class="num">Thành tiền</th>{% if progress %}<th>Tiến độ</th>{% endif %}</tr></thead><tbody>
+{% for line in o.lines %}<tr data-order-line="{{ line.line_no }}"><td data-label="Tên hàng"><b>{{ line.description or product_names.get(line.product_code, line.product_code) }}</b><div class="hint">{{ line.product_code or 'Dòng khác' }}</div><div class="hint doc-line-meta">{{ line.qty|qty }} {{ line.unit }} × {{ line.unit_price|money }}{% if line.warehouse_code %} · {{ line.warehouse_code }}{% endif %}</div></td><td data-label="Kho">{{ line.warehouse_code or '—' }}</td><td data-label="SL" class="num">{{ line.qty|qty }} {{ line.unit }}</td><td data-label="Đơn giá" class="num">{{ line.unit_price|money }}</td><td data-label="VAT" class="num">{{ line.vat_rate }}%</td><td data-label="Thành tiền" class="num"><b>{{ line.amount|money }}</b></td>{% if progress %}<td data-label="Tiến độ"><span class="doc-prog">{% for label, tone in progress.get(line.line_no, []) %}{{ ui.badge(label, tone) }}{% endfor %}</span></td>{% endif %}</tr>{% endfor %}
+</tbody></table></div>
+{% if can_keep and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and reservations.values()|selectattr('missing','gt',0)|list %}<form method="post" action="/don-ban/{{ o.id }}/reserve" class="doc-inline">{{ token('reserve') }}<button class="btn-ok">Giữ thêm hàng còn thiếu</button></form>{% endif %}
+</section>
+
+{% if o.note %}<section class="card doc-card"><h2 class="doc-h">Ghi chú</h2><p class="service-text">{{ o.note }}</p></section>{% endif %}
+<details class="card doc-card" {% if failed_action=='void-delivery' or failed_receipt_id %}open{% endif %}><summary>Lịch sử · lần giao, phiếu xuất, báo thu</summary>{% include 'don_ban_lan_giao.jinja' %}{% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · <a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a></li>{% endfor %}</ul></section>{% endif %}
+{% if collection %}{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}{% endif %}</details>
+</div>
+
+<aside class="doc-side">
+<section class="card doc-card doc-money" aria-label="Tiền đơn"><h2 class="doc-h">Tiền đơn</h2>
+<dl class="totals"><dt>Tiền hàng chưa VAT</dt><dd>{{ o.subtotal|money }}</dd><dt>VAT</dt><dd>{{ o.vat_total|money }}</dd>{% if o.discount_amount %}<dt>Giảm giá toàn đơn</dt><dd>−{{ o.discount_amount|money }}</dd>{% endif %}<dt class="tot-main">Tổng cộng</dt><dd class="tot-main doc-total">{{ o.total|money }}</dd></dl>
+{% if collection %}{% set b=collection.balance %}<dl class="totals doc-balance receipt-balance"><dt>Phải thu</dt><dd data-balance="receivable">{{ b.receivable|money }} đồng</dd><dt>Đã thu</dt><dd data-balance="paid">{{ b.paid|money }} đồng</dd>{% if b.get('refunded') %}<dt>Đã hoàn</dt><dd data-balance="refunded">{{ b.refunded|money }} đồng</dd>{% endif %}<dt>Chờ xác nhận</dt><dd data-balance="pending">{{ b.pending|money }} đồng</dd><dt class="{{ 'tot-due' if b.remaining>0 }}">Còn nợ</dt><dd class="{{ 'tot-due' if b.remaining>0 }}" data-balance="remaining">{{ b.remaining|money }} đồng</dd>{% if b.get('advance') %}<dt>Khách ứng trước</dt><dd data-balance="advance">{{ b.advance|money }} đồng</dd>{% endif %}</dl>{% endif %}
+</section>
+
+<section class="card next-box doc-next" id="thu-tien" data-next-step aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · {{ doc_next.who }}</span><b>{{ doc_next.title }}</b>{% if doc_next.warn %}<span class="nb-warn" data-pay-due>{{ doc_next.warn }}</span>{% endif %}
+{% if error_code=="MAPPING_REQUIRED" %}<a class="btn" href="/ghep-tai-chinh">Ghép tài chính</a>{% endif %}
+{% set a=next_step.primary if next_step else None %}{% set pay_here=collection and can_report and receipt_reportable and (available>0 or error_code in ['OVER_PAYMENT','BAD_AMOUNT','BAD_FORM','VERSION_CONFLICT']) %}
+{% if pay_here and a.form=='receipt-report' %}{{ pay_form(true) }}{% endif %}
+{% if a and a.form!='receipt-report' %}{% if a.form %}<button class="btn-ok next-primary" type="submit" form="{{ a.form }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</button>{% else %}<a class="btn btn-new next-primary" href="{{ a.href }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</a>{% endif %}{% endif %}
+{% if can_decide and collection and collection.balance.pending>0 %}<a class="btn btn-ghost" href="/bao-thu">Báo thu chờ xác nhận</a>{% endif %}
+</section>
+{% if pay_here and not (a and a.form=='receipt-report') %}<details class="card doc-card" id="thu-tien-truoc" {% if receipt_error or o.payment_term=='DAT_COC' %}open{% endif %}><summary>{{ receipt_report_label }} trước khi giao</summary>{{ pay_form(false) }}</details>{% endif %}
+
+{% call other.group(open=failed_action in ['options','promise','release','cancel','counter-sale','close-remaining'] or (returns_ctx and returns_ctx.raw)) %}{% if o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_release %}{% for line in o.lines if line.kind=='HANG' %}{% set held=reservations[line.line_no] %}{% if held.reservation and held.reservation.status=='GIU' %}<p>{{ line.product_code }} · {{ line.warehouse_code }}</p><form method="post" action="/don-ban/{{ o.id }}/release" class="form">{{ token('release') }}<input type="hidden" name="reservation_id" value="{{ held.reservation.id }}"><label>Lý do nhả<input name="reason" required value="{{ action_form.get('reason','') if failed_action=='release' and action_form.get('reservation_id')|string==held.reservation.id|string else '' }}"></label><button>Nhả</button></form>{% endif %}{% endfor %}{% endif %}
+{% if o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_write %}<form class="form" method="post" action="/don-ban/{{ o.id }}/promise">{{ token('promise') }}<label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ action_form.get('promised_date','') if failed_action=='promise' else (o.promised_date or '') }}"></label><button>Lưu ngày hẹn</button></form>{% endif %}
+{% if o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and can_write %}<form class="card form" method="post" action="/don-ban/{{ o.id }}/options">{{ token('options') }}<div class="field-group"><p class="group-label">Đổi cách nhận hàng</p><div class="seg stock-seg">{% for value,label in fulfillments.items() %}<label><input type="radio" name="fulfillment" value="{{ value }}" {% if (action_form.get('fulfillment') if failed_action=='options' else o.fulfillment)==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div><button>Lưu cách nhận hàng</button></form>{% endif %}
+{% if can_close and o.status=='GIAO_MOT_PHAN' %}<form class="card form" method="post" action="/don-ban/{{ o.id }}/close-remaining">{{ token('close-remaining') }}<label>Lý do đóng phần còn lại<textarea name="reason" required>{{ action_form.get('reason','') if failed_action=='close-remaining' else '' }}</textarea></label><button>Đóng phần còn lại</button></form>{% endif %}
+{% if can_write and o.status=='DA_CHOT' %}<form method="post" action="/don-ban/{{ o.id }}/cancel" class="card form service-action">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action=='cancel' else '' }}</textarea></label><button class="btn-danger">Hủy đơn</button></form>{% endif %}
+{% if returns_ctx %}{% include 'tra_hang_trong_don.jinja' %}{% endif %}
+{% if failed_action=='cancel' and o.status=='DA_HUY' %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}{% endcall %}
+</aside>
+</div>
+<script src="{{ asset('workflow.js') }}" defer></script>
+</div>{% endblock %}

@@ -12,7 +12,7 @@
         );
       },
     );
-    button.textContent = full ? "Giao đủ và in phiếu giao" : "Giao một phần";
+    button.textContent = full ? button.dataset.fullLabel || "Giao đủ" : "Giao một phần";
   }
   form.addEventListener("input", update);
   update();

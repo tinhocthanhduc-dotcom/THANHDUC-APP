@@ -19,7 +19,7 @@ from ..models import Customer, CustomerPhone, Product, Quote, ServiceTicket, Sal
 from ..money_words import money_words
 from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
 from ..security import has_role
-from . import checked_form, money, render, web_user
+from . import doc_frame, checked_form, money, render, web_user
 from .quotes import _quantity, _pricing_raw, _pricing_body
 from .receipts import order_context, _report_body
 
@@ -129,12 +129,22 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     browse=products.search(session,'',active_only=True,limit=40) if live else []
     trip_id=str(data.get('service_ticket_id') or '')
     trip_ticket=session.get(ServiceTicket,int(trip_id)) if not order and trip_id.isdigit() else (session.get(ServiceTicket,order.service_ticket_id) if order and order.service_ticket_id else None)
-    return render(request,'don_ban_form.jinja',trip_ticket=trip_ticket,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
-                  order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=svc.remaining_lines(session,order) if order else {},
+    viewing=order is not None and order.status!='NHAP'
+    reservations=stock_reservations.for_order(session,order) if order else {}
+    delivery_state=svc.remaining_lines(session,order) if order else {}
+    saved=request.query_params.get('da_luu')=='1' and not error
+    frame={}
+    if order is not None:
+        frame=dict(toast_message=doc_frame.order_toast(order,receipt_ctx.get('collection'),receipt_ctx['available'],request.query_params.get('xong','')) if saved else '')
+        if viewing:
+            frame.update(doc_next=doc_frame.order_next(order,receipt_ctx.get('collection'),receipt_ctx['available']),
+                         progress=doc_frame.line_progress(order,reservations,delivery_state))
+    return render(request,'don_ban_xem.jinja' if viewing else 'don_ban_form.jinja',**frame,trip_ticket=trip_ticket,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+                  order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=delivery_state,
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
                   line_errors=picked.line_errors(data['lines'],error,code,stock_values=stock_values if order is None or order.status=='NHAP' else None), customer_card=card, customer_name=customer.name if customer else '',source=source,
-                  reservations=stock_reservations.for_order(session,order) if order else {},
+                  reservations=reservations,
                   stock_values=stock_values,
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
@@ -143,7 +153,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   browse=browse,groups=products.groups(session) if browse else [],browse_prices=picked.last_prices(session,data['customer_code'],browse) if browse else {},browse_stock=stock_reservations.picker(session,browse,default_warehouse),default_warehouse=default_warehouse,can_write=has_role(request.state.user,'sales'),
                   can_deliver=has_role(request.state.user,'sales','warehouse') and not (order and order.delivery_assignee_id),editable=order is None or order.status=='NHAP',
                   error=error,error_code=code,status=status,action_form=action_form or {},failed_action=action,
-                  saved=request.query_params.get('da_luu')=='1' and not error,unsaved=bool(error),**receipt_ctx)
+                  saved=saved,unsaved=bool(error),**receipt_ctx)
 
 
 def _raw(form):
@@ -188,8 +198,8 @@ def _deposit(value):
 
 
 def warehouse_user(user: User=Depends(web_user)):
-    if not has_role(user,'warehouse'):
-        raise BusinessError('FORBIDDEN','Chỉ kho hoặc giám đốc được giao hàng từ màn kho.',status=403)
+    if not has_role(user,*svc.DELIVERERS):
+        raise BusinessError('FORBIDDEN','Chỉ kho, kinh doanh hoặc giám đốc được giao hàng.',status=403)
     return user
 
 
@@ -205,7 +215,11 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
     # Trả ngay chỉ nhắc kho số khách còn phải trả (đã báo thu thì tính là đã trả); không chặn giao.
     money=svc.summaries(session,[order])[order.id]
     pay_due=max(0,svc.effective_total(order)-money['paid']-money['pending']) if order.payment_term=='TRA_NGAY' else 0
-    return render(request,'kho_giao.jinja',o=order,customer=customer,tech_delivery=tech_delivery,pay_due=pay_due,
+    # Thủ kho quay về Việc của tôi; kinh doanh mở từ đơn thì quay về đơn.
+    # Thủ kho giao xong thì in phiếu; kinh doanh giao xong quay về đơn để báo thu (in phiếu ở đầu đơn).
+    is_kho=has_role(user,'warehouse')
+    back='/viec-cua-toi' if is_kho else f'/don-ban/{order.id}'
+    return render(request,'kho_giao.jinja',o=order,customer=customer,tech_delivery=tech_delivery,pay_due=pay_due,back=back,print_after=is_kho,
         phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
         remaining=remaining,reservations=stock_reservations.for_order(session,order),
         stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),
@@ -431,7 +445,9 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
 @router.post('/don-ban/{order_id}/{action}')
 def action(request: Request,order_id: int,action: str,form=Depends(checked_form),session: Session=Depends(get_session)):
     user=request.state.user
-    warehouse_return=action=='deliver' and form.get('return_to')=='kho' and has_role(user,'warehouse')
+    warehouse_return=action=='deliver' and form.get('return_to')=='kho' and has_role(user,*svc.DELIVERERS)
+    # Đợt 1b: chỉ còn một màn giao hàng (/kho/giao), nên lỗi của form giao luôn quay lại màn đó, giữ số vừa nhập.
+    delivery_retry=action=='deliver' and 'delivery_form' in form and has_role(user,*svc.DELIVERERS)
     if action in ('reserve','release','close-remaining','void-delivery'):
         pass  # quyền theo người lập đơn/kho được kiểm trong module giữ hàng
     elif action=='deliver':
@@ -479,12 +495,12 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác đơn bán.',status=404)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
-        if warehouse_return:return warehouse_delivery(request,session,user,order_id,form,message,code,status)
+        if warehouse_return or delivery_retry:return warehouse_delivery(request,session,user,order_id,form,message,code,status)
         return _form(request,session,order=svc.load(session,user,order_id),error=message,code=code,status=status,
                      action_form=dict(form),action=action)
-    if warehouse_return:
+    if warehouse_return and has_role(user,'warehouse'):
         return RedirectResponse(f'/don-ban/{order_id}/in-giao?return_to=kho',status_code=303)
-    return RedirectResponse(f'/don-ban/{order_id}?da_luu=1',status_code=303)
+    return RedirectResponse(f'/don-ban/{order_id}?da_luu=1&xong={action}',status_code=303)
 
 
 @router.get('/don-ban/{order_id}/in-giao')
