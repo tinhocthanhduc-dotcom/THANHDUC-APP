@@ -2096,3 +2096,58 @@ main:has(> .page-mid) { max-width: 752px; }
 .acc-diff > summary::before, .tho-handover > summary::before { content: "▸"; margin-right: 8px; }
 .acc-diff[open] > summary::before, .tho-handover[open] > summary::before { content: "▾"; }
 #may-khach .tech-photos { border: 0; padding: 0; margin: 8px 0; background: none; box-shadow: none; }
+/* ===== Đợt 2: khung danh sách (khuôn 3) ===== */
+.list-frame { padding: 0; overflow: hidden; display: grid; }
+.list-frame > .filter-chips { padding: 0 14px 12px; }
+.ltabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.ltab { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.ltab span { font-size: .75rem; padding: 0 7px; border-radius: 999px; background: var(--tag); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ltab.on { color: var(--text); border-bottom-color: var(--info-solid); }
+.ltab.on span { background: var(--info-bg); color: var(--info-solid); }
+.lf-bar { padding: 12px 14px; }
+.lf-bar .lf-more { display: contents; }
+.lf-bar .lf-more > select, .lf-bar .lf-more > label { flex: 0 1 190px; min-width: 0; width: auto; }
+.lf-toggle, .lf-sheet-actions, .lf-sheet-title { display: none; }
+.lf-dates { position: relative; }
+.lf-dates > summary { list-style: none; min-height: 44px; cursor: pointer; font-weight: 600; }
+.lf-dates > summary::-webkit-details-marker { display: none; }
+.lf-dates[open] > summary, .lf-dates.on > summary { border-color: var(--info-solid); color: var(--info-solid); }
+.lf-date-row { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; display: flex; gap: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.lf-date-row label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+.list-frame .table-scroll { border-top: 1px solid var(--line); }
+.list-frame .list-table tr[data-href] { cursor: pointer; }
+.list-frame .list-table tr[data-href]:hover td { background: var(--bg); }
+.list-table tr.lt-alert td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.list-table .lt-no { font-weight: 700; color: var(--info-solid); text-decoration: none; white-space: nowrap; }
+.list-table .lt-sub { display: block; font-size: .85rem; color: var(--muted); }
+.list-table .lt-bad { color: var(--bad); font-weight: 600; }
+.lf-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--line); }
+.lf-foot .lf-sum { color: var(--muted); }
+.lf-foot .lf-sum b { color: var(--text); font-variant-numeric: tabular-nums; }
+.lf-foot .pager { margin: 0; padding: 0; border-top: 0; flex: 1 1 auto; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .lf-bar { flex-wrap: nowrap; }
+  .lf-bar > input[type=search] { flex: 1 1 auto; }
+  .lf-toggle { display: inline-flex; flex: none; }
+  .lf-toggle.on { border-color: var(--info-solid); color: var(--info-solid); background: var(--info-bg); }
+  .lf-bar .lf-more { display: none; }
+  .lf-bar.lf-open .lf-more { display: grid; gap: 10px; position: fixed; z-index: 60; left: 0; right: 0; bottom: 0; max-height: 80vh; overflow-y: auto; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 32px rgba(0,0,0,.25); }
+  .lf-bar.lf-open::before { content: ""; position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.35); }
+  .lf-bar.lf-open .lf-more > select, .lf-bar.lf-open .lf-more > label { width: 100%; }
+  .lf-bar .lf-sheet-title { display: block; font-size: 1.1rem; }
+  .lf-bar .lf-sheet-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+  .lf-date-row { position: static; box-shadow: none; padding: 8px 0 0; border: 0; }
+  .lf-date-row label { flex: 1; }
+  /* Bảng thành thẻ: số chứng từ + nhãn trên cùng, các ô khác xếp dưới, tiền canh phải. */
+  .list-table.lt-cards thead { display: none; }
+  .list-table.lt-cards, .list-table.lt-cards tbody { display: block; }
+  .list-table.lt-cards tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .list-table.lt-cards td { display: block; padding: 0; border: 0; grid-column: 1 / -1; }
+  .list-table.lt-cards td.lt-first { grid-column: 1; }
+  .list-table.lt-cards td.lt-st { grid-column: 2; grid-row: 1; justify-self: end; }
+  .list-table.lt-cards td.num { text-align: right; }
+  .list-table.lt-cards td.lt-phone-hide { display: none; }
+  .list-table.lt-cards tr.lt-alert { box-shadow: inset 3px 0 0 var(--bad); }
+  .list-table.lt-cards tr.lt-alert td:first-child { box-shadow: none; }
+  .lf-foot { padding: 10px 12px; }
+}

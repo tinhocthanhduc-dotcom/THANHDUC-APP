@@ -213,11 +213,30 @@
     var el = event.target.closest && event.target.closest('[data-autosubmit]');
     // Thanh lọc chung (macro filter_bar): mọi ô chọn trong form data-autofilter cũng lọc ngay; ô tìm thì Enter.
     if (!el && event.target.form && event.target.form.hasAttribute('data-autofilter') && event.target.type !== 'search') el = event.target;
+    // Tấm lọc trên điện thoại đang mở: chọn xong mới bấm "Xem kết quả", không gửi sau mỗi ô.
+    if (el && el.form && el.form.classList.contains('lf-open')) return;
     if (!el || !el.form) return;
     var live = el.form.querySelector('[data-live]');
     if (live) live.dispatchEvent(new Event('input'));
     else if (el.form.requestSubmit) el.form.requestSubmit();
     else el.form.submit();
+  });
+
+  // ---- Đợt 2: khung danh sách. Nút "Bộ lọc (n)" mở/đóng tấm lọc; bấm cả dòng là mở chứng từ. ----
+  document.addEventListener('click', function (event) {
+    // Bấm nền mờ ngoài tấm lọc (chính form) cũng đóng tấm.
+    var toggle = event.target.classList && event.target.classList.contains('lf-open') ? event.target : event.target.closest && event.target.closest('[data-lf-toggle]');
+    if (toggle) {
+      var bar = toggle.closest('.lf-bar'), open = !bar.classList.contains('lf-open');
+      bar.classList.toggle('lf-open', open);
+      bar.querySelectorAll('.lf-toggle').forEach(function (b) { b.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+      return;
+    }
+    var row = event.target.closest && event.target.closest('tr[data-href]');
+    if (!row || event.target.closest('a, button, input, select, label, summary')) return;
+    if (window.getSelection && String(window.getSelection())) return;
+    if (event.ctrlKey || event.metaKey) window.open(row.dataset.href, '_blank');
+    else location.href = row.dataset.href;
   });
 
   // ---- Phím tắt cho người ngồi máy tính ----
