@@ -17,6 +17,7 @@
 <div class="work-list">{% for row in group.rows[:limit] %}<a class="work-item{% if row.overdue %} work-overdue{% endif %}" href="{{ row.link }}">
 <span class="work-main"><span class="work-id"><strong>{{ row.number }}</strong><span class="tag">{{ labels[row.kind].get(row.status,row.status) }}</span>{% if row.overdue %}<span class="chip-bad">Quá hạn / cần xử lý ngay</span>{% endif %}</span>
 <span class="work-who">{{ row.customer }}{% if row.kind in ['quote','order','purchase','receipt','delivery','refund','pending_disposition','pending_supplier_return','supplier_debt'] %} · <strong class="work-money">{{ row.amount|money }} đồng</strong>{% endif %}</span>
+{% if row.workshop_stage %}<span class="work-sub">{{ row.workshop_serial }} · {{ row.workshop_machine }}</span><span class="work-sub">{{ {'KHO_KY_THUAT':'Kho kỹ thuật','DOI_TAC':'Đối tác','THO_GIU':'Thợ giữ'}.get(row.workshop_location,row.workshop_location) }}{% if row.workshop_partner %} · {{ row.workshop_partner }}{% endif %}</span><span class="work-sub">{{ row.workshop_stage }} · {{ row.workshop_days|int }} ngày từ bàn giao</span>{% endif %}
 {% if row.recovered_pending %}<span class="work-sub">Còn {{ row.recovered_pending }} linh kiện thu hồi chưa nộp · thợ {{ row.recovered_holders }}</span>{% endif %}
 {% if row.kind=='supplier_debt' and row.oldest_debt_date %}<span class="work-sub">Nợ từ {{ row.oldest_debt_date.strftime('%d/%m/%Y') }}</span>{% endif %}
 {% if row.kind=='stock' %}<span class="work-sub">{{ row.warehouse_code }} · Tồn {{ row.qty }} · Mức tối thiểu {{ row.min_qty }}</span>{% endif %}

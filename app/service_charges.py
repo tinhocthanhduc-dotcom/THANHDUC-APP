@@ -23,7 +23,7 @@ VIEWERS = ("dispatcher", "finance")
 
 
 def return_locked(t):
-    return getattr(t,'repaired_by',None) is not None and t.priced_at is not None
+    return t.priced_at is not None and (getattr(t,'repaired_by',None) is not None or getattr(t,'declined_at',None) is not None)
 
 
 def line_input(line):
@@ -56,6 +56,9 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
     if not has_role(user, *service_tickets.DISPATCHERS) and t.assignee_id != user.id:
         raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được sửa tiền của phiếu này.", status=403)
+    at_workshop=t.status=='TAM_DUNG' and t.hold_reason=='CHO_SUA_XUONG'
+    if at_workshop and not has_role(user,*service_tickets.DISPATCHERS):
+        raise BusinessError('FORBIDDEN','Chỉ điều phối lên báo giá sửa ở xưởng.',status=403)
     if return_locked(t):
         raise BusinessError('CHARGES_LOCKED','Tiền đã chốt khi sửa xong, thợ trả máy không được sửa.',status=409)
     if t.status not in service_tickets.OPEN:
@@ -89,7 +92,12 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
                 raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư thêm hoặc sửa phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
             unchanged[key] -= 1
     _validate_lines(session, body.model_copy(update={'lines':editable}))
+    if at_workshop and any(x.kind=='VAT_TU' and session.get(Warehouse,x.warehouse_code).kind!='KHO' for x in editable):
+        raise BusinessError('BAD_WAREHOUSE','Vật tư sửa ở xưởng phải lấy từ kho công ty.')
     before = _snapshot(t)
+    changed=(t.billing!=body.billing or Counter(_issued_key(x) for x in t.lines)!=Counter(_issued_key(x) for x in body.lines))
+    if at_workshop and changed:
+        t.quote_approved_at=t.quote_approved_by=None
     lines = []
     start=max((x.line_no for x in issued),default=0)+1
     for i, x in enumerate(editable, start):
@@ -174,6 +182,9 @@ def release(session: Session, user: User, t: ServiceTicket, reason: str) -> None
     for x in t.lines:
         x.stock_doc_id = None
     t.subtotal = t.vat_total = t.total = t.receivable = t.priced_at = None
+    t.quote_approved_at=t.quote_approved_by=t.declined_at=None
+    t.promised_return_on=t.warranty_months=None
+    t.warranty_scope=''
 
 
 def receivables(session: Session, user: User, from_date: date | None = None, to_date: date | None = None) -> list[ServiceTicket]:

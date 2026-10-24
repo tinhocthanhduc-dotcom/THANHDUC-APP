@@ -9,7 +9,7 @@
   <h2>{{ transition_labels[target] }}</h2>
   {% if target == 'DA_HEN' %}{% with ap_form=form if failed_action==action else {}, returning=t.status=='DANG_LAM' %}{% include 'hen_khach.jinja' %}{% endwith %}{% endif %}
 {% if target=='DA_HUY' and technician_cancel_allowed %}{% include 'tra_vat_tu_fields.jinja' %}{% endif %}
-  {% if target == 'TAM_DUNG' %}<fieldset><legend>Lý do tạm dừng</legend><div class="seg stock-seg">{% for code,label in hold_reasons.items() if code!='SUA_XONG_CHO_TRA' %}<label><input type="radio" name="hold_reason" value="{{ code }}" {% if failed_action == action and form.get('hold_reason') == code %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset><p class="hint">Chọn Khác thì phải ghi chú bên dưới.</p>{% endif %}
+  {% if target == 'TAM_DUNG' %}<fieldset><legend>Lý do tạm dừng</legend><div class="seg stock-seg">{% for code,label in hold_reasons.items() if code not in ['SUA_XONG_CHO_TRA','CHO_SUA_XUONG'] %}<label><input type="radio" name="hold_reason" value="{{ code }}" {% if failed_action == action and form.get('hold_reason') == code %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></fieldset><p class="hint">Chọn Khác thì phải ghi chú bên dưới.</p>{% endif %}
   {{ note(action, 'Lý do' if (target in ['KHONG_LAM_DUOC', 'DA_HUY'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status in ['HOAN_THANH','DA_DONG'] and target == 'DANG_LAM')) else 'Ghi chú', (target in ['KHONG_LAM_DUOC', 'DA_HUY'] or (target == 'DA_HEN' and t.status == 'DANG_LAM') or (t.status in ['HOAN_THANH','DA_DONG'] and target == 'DANG_LAM'))) }}
   {% if not next_step or next_step.primary.form!='service-' ~ target %}<button {% if target=='DANG_LAM' and t.status in ['HOAN_THANH','DA_DONG'] %}class="btn btn-secondary"{% endif %} {% if target=='DA_HEN' %}data-appointment-submit data-label="{{ transition_labels[target] }}"{% endif %} {% if target == 'DA_HUY' %}data-service-confirm="Hủy phiếu dịch vụ này?"{% endif %}>{{ transition_labels[target] }}</button>{% endif %}
 </form>
@@ -44,7 +44,9 @@
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
 </section>
 
+<p class="card">{{ warranty_terms }}</p>
 {% include 'dich_vu_loai.jinja' %}
+{% if at_workshop and dispatcher %}{% include 'xuong_bao_gia.jinja' %}{% endif %}
 {% if can_schedule_return %}{% include 'hen_tra_may.jinja' %}{% endif %}
 {% include 'bao_hanh_chi_tiet.jinja' %}
 {% if t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG','HOAN_THANH','DA_DONG'] %}{% include 'linh_kien_thu_hoi_trong_phieu.jinja' %}{% endif %}

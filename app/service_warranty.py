@@ -1,5 +1,6 @@
 """KT6: kiểm hạn tại lúc tạo/đổi liên kết, không sửa giá hay lịch sử phiếu gốc."""
 from datetime import timedelta
+from calendar import monthrange
 
 from sqlalchemy import case, or_, select
 
@@ -27,6 +28,25 @@ def completion(session, ticket, before=None):
     return stamp, step.assignee_id if step else ticket.assignee_id
 
 
+def add_months(day, months):
+    year, month = divmod(day.year * 12 + day.month - 1 + months, 12)
+    return day.replace(year=year, month=month+1, day=min(day.day, monthrange(year, month+1)[1]))
+
+
+def warranty_end(session, ticket):
+    stamp, _ = completion(session,ticket)
+    if stamp is None or ticket.warranty_months==0:return None
+    day=stamp.astimezone(service_sla.TZ).date()
+    return add_months(day,ticket.warranty_months) if ticket.warranty_months is not None else day+timedelta(days=get_settings().service_warranty_days)
+
+
+def terms(session,ticket):
+    if ticket.warranty_months==0:return 'Không bảo hành'
+    length=str(ticket.warranty_months)+' tháng' if ticket.warranty_months is not None else str(get_settings().service_warranty_days)+' ngày'
+    end=warranty_end(session,ticket) if ticket.status in ('HOAN_THANH','DA_DONG') else None
+    return 'Bảo hành: '+length+(', đến '+end.strftime('%d/%m/%Y') if end else ', tính từ ngày hoàn thành')+(' · '+ticket.warranty_scope if ticket.warranty_scope else '')
+
+
 def assess(session, ticket, warranty_of_id):
     if ticket.kind != 'BAO_HANH':
         if warranty_of_id is not None:
@@ -39,8 +59,7 @@ def assess(session, ticket, warranty_of_id):
             raise BusinessError('WARRANTY_MISMATCH', 'Phiếu trước phải cùng khách và cùng serial nếu cả hai có serial.')
         if parent.status not in ('HOAN_THANH', 'DA_DONG'):
             raise BusinessError('WARRANTY_NOT_COMPLETED', 'Phiếu trước chưa hoàn thành.', status=409)
-        stamp, _ = completion(session, parent)
-        end = stamp.astimezone(service_sla.TZ).date() + timedelta(days=get_settings().service_warranty_days) if stamp else None
+        end = warranty_end(session,parent)
         if end is not None and end >= today(): return 'PHIEU_TRUOC', end, 'Bảo hành ' + parent.number
         return 'HET_HAN', end, ''
     machine = session.get(Equipment, ticket.serial) if ticket.serial else None
@@ -98,7 +117,7 @@ def info(session, ticket):
     parent = session.get(ServiceTicket, ticket.warranty_of_id) if ticket.warranty_of_id else None
     stamp, technician_id = completion(session, parent) if parent else (None, None)
     if parent:
-        end = stamp.astimezone(service_sla.TZ).date() + timedelta(days=get_settings().service_warranty_days) if stamp else None
+        end = warranty_end(session,parent)
     else:
         machine = session.get(Equipment, ticket.serial) if ticket.serial else None
         end = machine.warranty_until if machine else None

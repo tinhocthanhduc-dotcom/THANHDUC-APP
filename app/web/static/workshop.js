@@ -27,9 +27,18 @@
     const accessories=returned || !!form.querySelector('[name=accessories]:checked');
     const due=Number(form.elements.customer_amount.value);
     const collected=Number(partial.value.replace(/\./g,''));
-    const ready=(returned || (form.dataset.holder==='1' && photo)) && accessories && (mode!=='PARTIAL' || (collected>0 && collected<due));
+    const record=form.dataset.requiresRecord!=='1' || !!document.querySelector('[data-photo-tag=BIEN_BAN] [data-saved-photo]');
+    const ready=record && (returned || (form.dataset.holder==='1' && photo)) && accessories && (mode!=='PARTIAL' || (collected>0 && collected<due));
     const button=document.querySelector('[data-tho-primary]');if(button)button.disabled=!ready;
   }
   form.addEventListener('input',update);form.addEventListener('change',update);
   document.addEventListener('tech-photo-change',update);update();
+})();
+
+(function () {
+  document.querySelectorAll('[data-workshop-handover]').forEach(function(form) {
+    const partner=form.querySelector('[data-workshop-partner]');
+    function update() { const chosen=form.querySelector('[name=location]:checked'); partner.hidden=partner.disabled=!(chosen && chosen.value==='DOI_TAC'); }
+    form.addEventListener('change',update);update();
+  });
 })();

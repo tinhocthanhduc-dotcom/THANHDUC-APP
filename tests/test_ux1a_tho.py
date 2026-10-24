@@ -191,10 +191,10 @@ def test_machine_check_and_bring_back_current_block(client,db,people):
     attachments.add(db,p['technician'],'equipment_custody',str(t.id),'NHAN_MAY','nhan.png',d5_image())
     equipment_custody.receive(db,p['technician'],t.id,CustodyIntake(version=eq.version,accessories=[],condition_note='Vỏ trầy'))
     login(client,p);page=client.get(f'/tho/phieu/{t.id}');screen=Screen(page.text)
-    # MV1: repair in the workshop ends before the separate return-to-customer step.
+    # XG1: the technician hands the machine to the workshop; dispatch manages repair.
     assert not any(a.get('data-check')=='machine' for _,a,_ in screen.tags)
-    assert f'action="/dich-vu/{t.id}/sua-xong-cho-tra"' in page.text
-    assert 'Sửa xong, chờ trả máy' in page.text
+    assert f'action="/tho/phieu/{t.id}/ban-giao-xuong"' in page.text
+    assert 'Bàn giao máy về xưởng' in page.text
     assert '/tra-khach' in page.text
 
 

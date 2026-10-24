@@ -151,8 +151,8 @@ def _draft_query(month):
       union all
       select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.actor_id),null,t.id,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
         coalesce(fee.base,0),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
-        t.status='DA_HUY' or w.number is not null,
-        case when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,
+        t.status='DA_HUY' or w.number is not null or t.declined_at is not null,
+        case when t.declined_at is not null then 'Khách không sửa' when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,
         coalesce(p.previous,0)
       from service_tickets t join finished f on f.ticket_id=t.id
       left join fees fee on fee.ticket_id=t.id

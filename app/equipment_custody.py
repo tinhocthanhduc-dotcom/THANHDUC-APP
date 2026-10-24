@@ -229,6 +229,8 @@ def return_customer_in_tx(session,user,ticket_id,body):
     if eq.custody_location != 'THO_GIU' or eq.custody_holder_id != user.id or 'technician' not in user.roles:_forbidden()
     _version(eq,body.version)
     if eq.custody_ticket_id != t.id:raise BusinessError('BAD_STATUS','Máy không đang giữ theo phiếu này.',status=409)
+    from .service_workshop import check_handover_record
+    check_handover_record(session,t)
     _no_pending(session,eq.serial)
     # Lần nhận trực tiếp từ khách mở chu kỳ sau dòng TAI_KHACH gần nhất.
     last_return_id = session.scalar(select(func.max(EquipmentCustody.id)).where(EquipmentCustody.serial==eq.serial,
