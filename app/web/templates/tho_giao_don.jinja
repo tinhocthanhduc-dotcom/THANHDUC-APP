@@ -20,7 +20,7 @@
 <section class="card"><h2><span class="tho-stepno">1</span>Hàng giao</h2>
 {% for line in lines %}<div class="tho-dline" data-dline data-gross="{{ line.unit_gross }}" data-remaining="{{ line.remaining|qty|replace(',','.') }}">
 <span><b>{{ line.name }}</b><small>{{ line.code }}{{ ' · ' if line.code }}Còn giao {{ line.remaining|qty }} · Thợ đang giữ {{ line.held|qty }}</small></span>
-<div class="stepper"><button type="button" data-step="-1" aria-label="Bớt">−</button><input name="qty_{{ line.line_no }}" value="{{ raw.get('qty_' ~ line.line_no, line.qty|qty|replace(',','.')) }}" inputmode="decimal" min="0" max="{{ line.held|qty|replace(',','.') }}" aria-label="Số giao {{ line.name }}"><button type="button" data-step="1" aria-label="Thêm">+</button></div></div>
+<div class="stepper"><button type="button" data-step="-1" aria-label="Bớt">−</button><input name="qty_{{ line.line_no }}" value="{{ raw.get('qty_' ~ line.line_no, line.qty|qty|replace(',','.')) }}" inputmode="decimal" min="0" max="{{ line.held|qty|replace(',','.') }}" aria-label="Số giao {{ line.name }}"><button type="button" data-step="1" aria-label="Thêm">+</button></div></div>{% if warranty_months.get(line.code,0)>0 %}<label class="sale-serials">Serial máy giao · bảo hành {{ warranty_months[line.code] }} tháng<textarea name="serials_{{ line.line_no }}" rows="2" placeholder="Mỗi máy một serial; cách nhau bằng dấu phẩy hoặc xuống dòng">{{ raw.get('serials_' ~ line.line_no,'') }}</textarea></label>{% endif %}
 {% else %}<p>Không còn hàng cần giao.</p>{% endfor %}
 {% if lines and lines|selectattr('held','equalto',0)|list %}<p class="hint">Dòng thợ chưa giữ hàng: báo kho bàn giao trước khi giao.</p>{% endif %}</section>
 <section class="card"><h2><span class="tho-stepno">2</span>Thu tiền</h2>

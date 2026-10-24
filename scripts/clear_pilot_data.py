@@ -32,7 +32,7 @@ WIPE = {
     "attendance_month_locks", "pending_item_moves", "pending_dispositions", "pending_items",
     "technician_return_lines", "technician_returns", "service_recovered_parts", "service_visits",
     "service_lines", "service_drafts", "sales_return_lines", "sales_returns", "sales_refunds",
-    "sales_delivery_attempts", "sales_delivery_lines", "sales_deliveries", "stock_reservations",
+    "sales_delivery_attempts", "sales_delivery_serials", "sales_delivery_lines", "sales_deliveries", "stock_reservations",
     "form_submissions", "equipment_custody", "part_requests", "daily_digests", "purchase_return_lines",
     "purchase_returns", "supplier_payments", "purchase_receipt_lines", "purchase_receipts",
     "purchase_order_lines", "purchase_orders", "cash_corrections", "day_closings", "fund_ledger",
@@ -118,6 +118,7 @@ def _run(session, args) -> None:
     # Chờ tối đa 10 giây; ai đang lưu phiếu dở thì dừng, không treo app.
     session.execute(text("set local lock_timeout = '10s'"))
     session.execute(text("lock table " + ", ".join(sorted(wipe)) + " in access exclusive mode"))
+    sale_equipment = list(session.scalars(text('select distinct serial from sales_delivery_serials where created_equipment')))
     files = list(session.execute(text("select path from attachments")).scalars())
     # Máy khách đang được ghi là thợ/kho giữ theo phiếu cũ: đưa về "tại khách".
     session.execute(text(
@@ -133,6 +134,8 @@ def _run(session, args) -> None:
         session.execute(text(f"delete from {t}"))
     for t, g in guards:
         session.execute(text(f'alter table {t} enable trigger "{g}"'))
+    if 'equipment' not in wipe and sale_equipment:
+        session.execute(text('delete from equipment where serial = any(:serials)'), {'serials': sale_equipment})
     if not args.xoa_khach:
         session.execute(text(f"update customers set merged_into = null where merged_into in {TEST_CUSTOMERS}"))
         session.execute(text(f"delete from equipment where customer_code in {TEST_CUSTOMERS}"))

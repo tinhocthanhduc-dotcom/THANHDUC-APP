@@ -1,4 +1,5 @@
 """Giao diện web cho nhân viên: đăng nhập, khách hàng, hàng hóa. Mọi quy tắc nằm ở tầng nghiệp vụ, trang web chỉ gọi vào."""
+from datetime import date
 import hashlib
 import re
 import hmac
@@ -78,6 +79,13 @@ def quantity_input(value):
 
 
 templates.env.filters['qty_input'] = quantity_input
+def day_label(value, short=False):
+    if not value:return '—'
+    day=date.fromisoformat(value) if isinstance(value,str) else value
+    return day.strftime('%d/%m' if short else '%d/%m/%Y')
+
+
+templates.env.filters['day_label'] = day_label
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 templates.env.globals["web_navigation"] = nav.menu
@@ -459,6 +467,7 @@ def _product_from_form(form) -> dict:
         "group_name": str(form.get("group_name", "")),
         "unit": str(form.get("unit", "")).strip() or "cái",
         "sale_price": _digits(form.get("sale_price")),
+        **({"warranty_months": int(str(form.get("warranty_months") or "0")) if re.fullmatch(r"[0-9]+", str(form.get("warranty_months") or "0")) else form.get("warranty_months")} if "warranty_months" in form else {}),
     }
 
 

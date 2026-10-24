@@ -20,6 +20,7 @@
 <span class="hint" data-picked-label>{% if d.customer_code and customer_name %}Đã chọn: {{ d.customer_code }}{% endif %}</span><div class="device-options" aria-live="polite"></div>
 </div>
 <div data-customer-sites aria-live="polite">{% include 'thiet_bi_dia_diem.jinja' %}</div>
+<p>Bảo hành đến {{ d.warranty_until|day_label }} · hỗ trợ tận nơi đến {{ d.support_until|default(none)|day_label(true) }}</p><label>Hỗ trợ tận nơi đến<input type="date" name="support_until" value="{{ d.support_until or '' }}"></label>
 <label>Hết bảo hành<input type="date" name="warranty_until" value="{{ d.warranty_until or '' }}"></label>
 <fieldset><legend>Tình trạng</legend><div class="seg stock-seg">
 <label><input type="radio" name="condition" value="MOI" {% if d.condition == 'MOI' %}checked{% endif %}><span>Mới</span></label>

@@ -2096,3 +2096,9 @@ main:has(> .page-mid) { max-width: 752px; }
 .acc-diff > summary::before, .tho-handover > summary::before { content: "▸"; margin-right: 8px; }
 .acc-diff[open] > summary::before, .tho-handover[open] > summary::before { content: "▾"; }
 #may-khach .tech-photos { border: 0; padding: 0; margin: 8px 0; background: none; box-shadow: none; }
+
+/* BH1: serial paste fields stay inside mobile cards. */
+.sale-serials{display:block;min-width:0;margin-top:12px}.sale-serials textarea,[data-counter-serials] textarea{width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+
+.serial-boxes{display:grid;gap:8px;margin-block:8px}.serial-boxes input{min-width:0;width:100%;box-sizing:border-box}
+.recv-form > .action-bar{margin-inline:0;min-width:0}

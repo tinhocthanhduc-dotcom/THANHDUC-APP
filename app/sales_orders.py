@@ -466,6 +466,8 @@ def deliver_in_tx(session, user, order_id, version, lines=None, receiver_name=''
     gh.total = gh.subtotal+gh.vat_total
     session.add(gh)
     session.flush()
+    from .sales_warranty import enroll_in_tx
+    enroll_in_tx(session,user,order,gh,parts,quantities,body.lines)
     # Lấy số PX trước khóa tồn, cùng thứ tự với các luồng xuất kho khác.
     # Nếu khóa tồn rồi chờ doc_counters.PX, có thể deadlock với xuất DV.
     docs = []
@@ -549,6 +551,8 @@ def void_delivery(session, user, delivery_id, reason, version):
             raise BusinessError('REASON_REQUIRED','Phải nhập lý do hủy lần giao.')
         before, old = snapshot(order), delivery_snapshot(gh)
         from .pending_liquidation import delivery_rows,void_delivery_in_tx
+        from .sales_warranty import void_delivery_in_tx as void_serials
+        void_serials(session,user,gh)
         liquid_docs={r.stock_doc_id for r in delivery_rows(session,gh.id)}
         void_delivery_in_tx(session,user,gh.id,f'{gh.number}: {reason}')
         for doc_id in sorted({l.stock_doc_id for l in gh.lines if l.stock_doc_id}-liquid_docs):
@@ -689,7 +693,7 @@ def counter_sale(session,user,order_id,body):
         if any(line.kind=='HANG' for line in order.lines):
             lock_counter(session,'PX',day)
         confirm_in_tx(session,user,order.id,order.version)
-        deliver_in_tx(session,user,order.id,order.version,receiver_name=order.contact_name,_stamp=stamp)
+        deliver_in_tx(session,user,order.id,order.version,lines=body.delivery_lines,receiver_name=order.contact_name,_stamp=stamp)
         sales_receipts.report_in_tx(session,user,order.id,body.model_copy(update={'version':order.version}))
         _record(session,user,order,'counter_sale',before)
     return order

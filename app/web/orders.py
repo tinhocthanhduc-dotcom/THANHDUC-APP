@@ -17,6 +17,7 @@ from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, CustomerPhone, Product, Quote, ServiceTicket, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
+from ..sales_warranty import parse_serials, for_order as serials_for_order
 from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
 from ..security import has_role
 from . import doc_frame, checked_form, money, render, web_user
@@ -147,6 +148,8 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   reservations=reservations,
                   stock_values=stock_values,
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
+                  warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_(codes))).all()),
+                  sale_serials=serials_for_order(session,order.id) if order else [],
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
                   liquidation_warehouses=pending_liquidation.choices(session,codes|{p.code for p in browse}),warehouses=warehouses,
@@ -161,6 +164,7 @@ def _raw(form):
     lines=[]
     for i in range(max((len(v) for v in fields.values()),default=0)):
         line={key:str(values[i]) if i<len(values) else '' for key,values in fields.items()}
+        line['counter_serials']=str(form.getlist('counter_serials')[i]) if i<len(form.getlist('counter_serials')) else ''
         line.update(kind=str(form.get(f'kind_{i}','HANG')),warehouse_code=str(form.get(f'warehouse_{i}','')),
                     vat_rate=str(form.get(f'vat_{i}',str(DEFAULT_VAT_RATE))))
         lines.append(line)
@@ -182,7 +186,7 @@ def _body(data):
             raise BusinessError('BAD_VAT',f'VAT dòng {i} phải là 0, 5, 8 hoặc 10%.')
         if line.get('kind','HANG')=='HANG' and line['product_code'].strip() and not re.fullmatch(r'[0-9]+',line['qty'].strip()):
             raise BusinessError('BAD_QTY',f'Số lượng dòng {i} phải là số nguyên.')
-        lines.append({**line,'qty':line['qty'].replace(',','.'),'unit_price':int(price.replace('.','')) if price else None,'vat_rate':vat})
+        lines.append({**{k:v for k,v in line.items() if k!='counter_serials'},'qty':line['qty'].replace(',','.'),'unit_price':int(price.replace('.','')) if price else None,'vat_rate':vat})
     return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines,
                 promised_date=data.get('promised_date') or None,fulfillment=data.get('fulfillment','TAI_QUAY'),
                 payment_term=data.get('payment_term','TRA_NGAY'),due_days=data.get('due_days','30'),
@@ -223,7 +227,7 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
         phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
         remaining=remaining,reservations=stock_reservations.for_order(session,order),
         stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),
-        fulfillments=FULFILLMENTS,d=data,error=error,error_code=code,status=status)
+        warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines]))).all()),fulfillments=FULFILLMENTS,d=data,error=error,error_code=code,status=status)
 
 
 @router.get('/kho/giao/{order_id}')
@@ -347,7 +351,9 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
 def _counter_after_save(request,session,user,order,form):
     """Đơn đã lưu nháp; Bán tại quầy = lõi counter_sale với số tiền bằng tổng đơn vừa lưu."""
     try:
-        body=SalesCounterSale(version=order.version,method=str(form.get('counter_method','TIEN_MAT')),amount=order.total)
+        values=form.getlist('counter_serials')
+        body=SalesCounterSale(version=order.version,method=str(form.get('counter_method','TIEN_MAT')),amount=order.total,
+            delivery_lines=[dict(order_line_no=l.line_no,qty=l.qty,serials=parse_serials(values[i] if i<len(values) else '')) for i,l in enumerate(order.lines)])
         svc.counter_sale(session,user,order.id,body)
     except (BusinessError,ValidationError) as exc:
         # Giữ đơn nháp và nói rõ vì sao chưa bán được, như màn Tạo đơn từ báo giá.
@@ -479,14 +485,15 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             if 'deposit_amount' in values:values['deposit_amount']=_deposit(values['deposit_amount'])
             svc.change_options(session,user,order_id,SalesOrderOptions(version=version,**values))
         elif action=='counter-sale':
+            order=svc.load(session,user,order_id)
             raw={k:str(form.get(k,'')) for k in ('version','method','amount','received_at','note')}
-            body=SalesCounterSale(**_report_body(form,raw).model_dump())
+            body=SalesCounterSale(**_report_body(form,raw).model_dump(),delivery_lines=[dict(order_line_no=l.line_no,qty=l.qty,serials=parse_serials(form.get('serials_'+str(l.line_no),''))) for l in order.lines])
             svc.counter_sale(session,user,order_id,body)
         elif action=='confirm':
             body=SalesOrderConfirm(version=version,credit_override_reason=str(form.get('credit_override_reason','')))
             svc.confirm(session,user,order_id,version,body.credit_override_reason)
         elif action=='deliver':
-            rows=[dict(order_line_no=int(k[8:]),qty=str(v).replace(',','.')) for k,v in form.items() if re.fullmatch(r'deliver_[0-9]+',k)]
+            rows=[dict(order_line_no=int(k[8:]),qty=str(v).replace(',','.'),serials=parse_serials(form.get('serials_'+k[8:],''))) for k,v in form.items() if re.fullmatch(r'deliver_[0-9]+',k)]
             body=SalesDeliveryIn(version=version,lines=rows if rows or 'delivery_form' in form else None,
                 receiver_name=str(form.get('receiver_name','')),note=str(form.get('note','')),
                 carrier_name=str(form.get('carrier_name','')),tracking_code=str(form.get('tracking_code','')))

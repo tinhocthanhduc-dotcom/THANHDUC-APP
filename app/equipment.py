@@ -105,7 +105,7 @@ def update(session: Session, user, serial, body):
     if row.version != body.version:
         raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa thiết bị, hãy tải lại.', status=409)
     before = snapshot(row)
-    data = {field: getattr(row, field) for field in ('product_code', 'customer_code', 'site_id', 'warranty_until', 'condition', 'note', 'active')}
+    data = {field: getattr(row, field) for field in ('product_code', 'customer_code', 'site_id', 'warranty_until', 'support_until', 'condition', 'note', 'active')}
     data.update(body.model_dump(exclude_unset=True, exclude={'version'}))
     search_text = _validate_and_search_text(session, data, row.serial)
     for field, value in data.items():

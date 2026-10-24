@@ -90,6 +90,7 @@
       var availability=row.querySelector('[data-availability-summary]');
       if(button.hasAttribute('data-available')) availability.dataset.available=button.dataset.available; else delete availability.dataset.available;
       row.querySelector('[data-order-product-name]').textContent=button.dataset.name;
+      var serialField=row.querySelector('[data-counter-serials]'); if(serialField) serialField.hidden=!(Number(button.dataset.warrantyMonths)>0);
       row.querySelector('[name=description]').value=button.dataset.name;
       row.querySelector('[name=unit]').value=button.dataset.unit;
       var price=row.querySelector('[name=unit_price]');

@@ -109,7 +109,7 @@ def _check_site_and_serial(session: Session, customer_code: str, site_id: int | 
         if site is None or not site.active or site.customer_code != customer_code:
             raise BusinessError("BAD_SITE", "Địa điểm không thuộc khách này hoặc đã ngừng dùng.", {"site_id": site_id})
     if serial is not None:
-        eq = session.get(Equipment, serial)
+        eq = session.scalar(select(Equipment).where(Equipment.serial==serial).with_for_update(read=True).execution_options(populate_existing=True))
         if eq is None or not eq.active:
             raise BusinessError("BAD_SERIAL", "Máy chưa có trong danh mục thiết bị, hãy thêm ở trang Thiết bị trước.", {"serial": serial})
         if eq.customer_code is not None and eq.customer_code != customer_code:

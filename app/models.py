@@ -117,7 +117,8 @@ class Product(Base):
 
     __tablename__ = "products"
     __table_args__ = (
-        CheckConstraint("code ~ '^TD-[0-9]{4,}$'", name="ck_products_code"),
+        CheckConstraint('warranty_months between 0 and 60', name='ck_products_warranty_months'),
+        CheckConstraint("code ~ '^TD-[0-9]{4,}$' or code = 'MAY-CU-CARE'", name="ck_products_code"),
         CheckConstraint("sale_price >= 0", name="ck_products_price"),
         Index("ix_products_search", "search_text", postgresql_using="gin", postgresql_ops={"search_text": "gin_trgm_ops"}),
     )
@@ -126,6 +127,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(300))
     group_name: Mapped[str] = mapped_column(String(100), default="")
     unit: Mapped[str] = mapped_column(String(32), default="cái")
+    warranty_months: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     sale_price: Mapped[int] = mapped_column(BigInteger, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_test: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -559,6 +561,7 @@ class Equipment(Base):
     customer_code: Mapped[str | None] = mapped_column(ForeignKey("customers.code"), index=True)
     site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
     warranty_until: Mapped[date | None] = mapped_column(Date)
+    support_until: Mapped[date | None] = mapped_column(Date)
     condition: Mapped[str] = mapped_column(String(3), default="MOI")
     note: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -1272,6 +1275,21 @@ class SalesDelivery(Base):
     __mapper_args__ = {'version_id_col': version}
 
 
+class SalesDeliverySerial(Base):
+    """Immutable enrollment history; snapshots support voids without altering stock."""
+    __tablename__ = 'sales_delivery_serials'
+    __table_args__ = (UniqueConstraint('delivery_id','serial',name='uq_sales_delivery_serials_delivery_serial'),
+        ForeignKeyConstraint(['delivery_id','order_line_id'],['sales_delivery_lines.delivery_id','sales_delivery_lines.order_line_no']),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    delivery_id: Mapped[int] = mapped_column(ForeignKey('sales_deliveries.id'), index=True)
+    order_line_id: Mapped[int] = mapped_column(Integer)
+    serial: Mapped[str] = mapped_column(ForeignKey('equipment.serial'), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_equipment: Mapped[bool] = mapped_column(Boolean)
+    equipment_before: Mapped[dict | None] = mapped_column(JSONB)
+    equipment_after: Mapped[dict] = mapped_column(JSONB)
+
+
 class SalesDeliveryLine(Base):
     __tablename__ = 'sales_delivery_lines'
     __table_args__ = (
@@ -1342,6 +1360,7 @@ class SalesReturnLine(Base):
     line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey('sales_orders.id'))
     order_line_no: Mapped[int] = mapped_column(Integer)
+    serials: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list, server_default='{}')
     delivery_id: Mapped[int] = mapped_column(ForeignKey('sales_deliveries.id'))
     qty: Mapped[Decimal] = mapped_column(Numeric(14,3))
     condition: Mapped[str] = mapped_column(String(3))
