@@ -41,11 +41,12 @@ def quote(user, q, linked):
 
 
 def order(user, o, available=0, deposit_remaining=0):
+    # counter: màn đơn đổi nút chính thành Bán tại quầy khi đang chọn Tại quầy + Trả ngay.
     if o is None:
-        return block(dict(form('Lưu và chốt', 'order-edit', '/don-ban/moi'), then='confirm')) if permitted(sales_orders.check_writer,user) else None
+        return block(dict(form('Lưu và chốt', 'order-edit', '/don-ban/moi'), then='confirm', counter=True)) if permitted(sales_orders.check_writer,user) else None
     base=f'/don-ban/{o.id}'
     if o.status=='NHAP' and permitted(sales_orders.check_writer,user):
-        return block(dict(form('Lưu và chốt', 'order-edit', base), then='confirm'))
+        return block(dict(form('Lưu và chốt', 'order-edit', base), then='confirm', counter=True))
     if o.status in ('DA_CHOT','GIAO_MOT_PHAN') and has_role(user,*sales_orders.DELIVERERS):
         if o.fulfillment=='THO_GIAO':return block(link('Giao cho thợ',f'/giao-don/{o.id}'))
         return block(form('Giao tiếp' if o.status=='GIAO_MOT_PHAN' else 'Giao hàng', 'order-deliver', base+'/deliver'))

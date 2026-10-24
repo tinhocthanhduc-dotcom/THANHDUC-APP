@@ -2,15 +2,17 @@
 from datetime import datetime, time, timedelta
 from urllib.parse import quote, urlencode
 
-from sqlalchemy import case, func, literal, or_, select
+from sqlalchemy import String, case, func, literal, or_, select
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels, supplier_debts
 from .config import get_settings
 from .errors import BusinessError
-from .models import PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
+# Báo giá đã đồng ý quá số ngày này mà chưa có đơn thì tô đỏ.
+ACCEPTED_ALERT_DAYS = 2
 
 
 def _now():
@@ -110,6 +112,14 @@ def _specs(user, today, now):
     if has_role(user, 'sales'):
         q = docs(Quote, Customer.name).join(Customer, Customer.code==Quote.customer_code).where(Quote.status.in_(('NHAP','DA_GUI')))
         if not director:q=q.where(Quote.created_by==user.id)
+        # Khách đã đồng ý nhưng chưa có đơn còn hiệu lực: báo giá không được rời hàng đợi.
+        accepted_at=func.coalesce(select(func.max(AuditLog.at)).where(AuditLog.entity=='quote',AuditLog.action=='quote.accept',
+            AuditLog.entity_id==func.cast(Quote.id,String)).correlate(Quote).scalar_subquery(),Quote.created_at)
+        has_order=select(SalesOrder.id).where(SalesOrder.quote_id==Quote.id,SalesOrder.status!='DA_HUY').exists()
+        accepted=docs(Quote,Customer.name,overdue=accepted_at<now-timedelta(days=ACCEPTED_ALERT_DAYS)).join(
+            Customer,Customer.code==Quote.customer_code).where(Quote.status=='CHAP_NHAN',~has_order)
+        if not director:accepted=accepted.where(Quote.created_by==user.id)
+        add('quotes_accepted','Báo giá đã đồng ý · chưa tạo đơn',accepted.order_by(accepted_at,Quote.id),'quote','/bao-gia')
         add('quotes_open', 'Báo giá chờ kết quả', q.order_by(Quote.created_at, Quote.id), 'quote', '/bao-gia')
         orders = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code)
         if not director:orders=orders.where(SalesOrder.created_by==user.id)
@@ -230,6 +240,7 @@ def _group(session, spec, page=1):
             if kind=='pending_disposition':row['link']=f"/cho-xu-ly/duyet-huy#xl-{row['id']}"
             if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
             if kind=='refund':row['link']=f"/bao-thu?tab=hoan-tien#refund-{row['id']}"
+            if spec['key']=='quotes_accepted':row['link']=f"/don-ban/tu-bao-gia/{row['id']}"
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
             if spec['key']=='orders_cancel_requested':row['link']=f"/don-ban/{row['id']}#de-nghi-huy"
             if spec['key']=='service_close':row['link']=f"/linh-kien-thu-hoi?ticket_id={row['id']}"

@@ -4,6 +4,7 @@
 <div class="recv-page">
 <div class="recv-head"><a class="btn" href="/viec-cua-toi" aria-label="Về Việc của tôi">←</a><div><h1>Giao hàng · {{ o.number }}</h1><p class="hint">{{ fulfillments[o.fulfillment] }} · Hẹn {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'chưa hẹn' }}</p></div></div>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if pay_due>0 and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<p class="alert warn" data-pay-due>Trả ngay: khách còn phải trả <b>{{ pay_due|money }} đ</b>. Nhắc khách thanh toán khi nhận hàng; kho vẫn giao được.</p>{% endif %}
 <section class="card recv-info"><div class="recv-kv"><span>Khách</span><b>{{ customer.name }}</b></div>{% if phone %}<div class="recv-kv"><span>SĐT</span><b>{{ phone }}</b></div>{% endif %}{% if o.note %}<p class="service-text">{{ o.note }}</p>{% endif %}<a href="/don-ban/{{ o.id }}">Xem đơn đầy đủ</a></section>
 {% if o.fulfillment=='THO_GIAO' %}{% set td=tech_delivery %}{% set missing=namespace(n=0) %}{% for line in o.lines if line.kind=='HANG' %}{% if remaining[line.line_no].remaining > td.held|selectattr('order_line_id','equalto',line.line_no)|sum(attribute='qty') %}{% set missing.n=missing.n+1 %}{% endif %}{% endfor %}
 {% if not td.assignee %}<section class="card po-next" data-tech-wait><div class="po-next-k">Đơn do thợ giao</div><b>Chờ điều phối giao thợ</b><p class="hint">Có thợ rồi mới bàn giao hàng sang kho thợ.</p><a class="btn" href="/giao-don/{{ o.id }}">Xem đơn giao</a></section>
