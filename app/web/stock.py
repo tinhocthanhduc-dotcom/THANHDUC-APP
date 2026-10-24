@@ -17,7 +17,7 @@ from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
 from ..inventory_catalogs import check_writer
-from ..models import Product, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, TechnicianReturn, TechnicianReturnLine, User, Warehouse
+from ..models import Customer, Product, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, TechnicianReturn, TechnicianReturnLine, User, Warehouse
 from ..schemas import StockDocCancel, StockDocIn, StockDocPatch, StockMinLevelIn
 from ..security import has_role
 from ..text import fold
@@ -78,27 +78,64 @@ def _body(data):
     for i, row in enumerate(data['lines'], 1):
         cost = str(row['unit_cost']).strip()
         if cost and not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)', cost):
-            raise BusinessError('BAD_UNIT_COST', f'Đơn giá dòng {i} phải là số nguyên đồng không âm.')
+            raise BusinessError('BAD_UNIT_COST', f'Đơn giá dòng {i} phải là số nguyên đồng không âm.', {'line_no': i})
         lines.append({**row, 'qty': str(row['qty']).replace(',', '.'),
                       'unit_cost': int(cost.replace('.', '')) if cost else None,
                       'serial': row['serial'] or None})
     return StockDocIn(**{**data, 'lines': lines})
 
 
-def _form(request, session, doc, error=None, status=200, action_reason='', saved=False, error_code=''):
+def _avail(session, codes):
+    """Có thể dùng của từng mã ở mọi kho (để cột Tồn đổi theo kho đang chọn, không phải tải lại)."""
+    from .quotes import _quantity
+    codes = sorted({c for c in codes if c})
+    if not codes:
+        return {}
+    values = stock_reservations.quantities(session, [(w, c) for w in session.scalars(select(Warehouse.code)) for c in codes])
+    out = {}
+    for (warehouse, code), v in values.items():
+        out.setdefault(code, {})[warehouse] = _quantity(v['available'])
+    return out
+
+
+def _where(exc, data):
+    """Lỗi thuộc ô nào: (ô đầu phiếu, {chỉ số dòng: lời nhắn})."""
+    fields, lines = {}, {}
+    rows = data.get('lines', [])
+    if isinstance(exc, ValidationError):
+        for e in exc.errors():
+            loc = e['loc']
+            if loc and loc[0] == 'lines' and len(loc) > 1 and isinstance(loc[1], int): lines.setdefault(loc[1], _error(exc))
+            elif loc: fields.setdefault(str(loc[0]), _error(exc))
+        return fields, lines
+    field = {'BAD_SUPPLIER': 'supplier_code', 'BAD_CUSTOMER': 'customer_code', 'BAD_TRANSFER': 'to_warehouse_code',
+             'BAD_WAREHOUSE': 'warehouse_code', 'REASON_REQUIRED': 'reason'}.get(exc.code)
+    if field: fields[field] = _error(exc)
+    if 'line_no' in exc.details: lines[exc.details['line_no'] - 1] = _error(exc)
+    for i, row in enumerate(rows):
+        if row.get('product_code') and (row['product_code'] in exc.details.get('invalid_codes', []) or
+                                        (exc.code == 'NEGATIVE_STOCK' and row['product_code'] == exc.details.get('product'))):
+            lines[i] = _error(exc)
+    return fields, lines
+
+
+def _form(request, session, doc, error=None, status=200, action_reason='', saved=False, error_code='', where=({}, {})):
     # Chỉ các bảng danh mục được đọc để gợi ý; không sửa tồn hoặc sổ ở tầng web.
     warehouses = list(session.scalars(select(Warehouse).order_by(Warehouse.code)))
-    suppliers = list(session.scalars(select(Supplier).where(or_(Supplier.active.is_(True), Supplier.code == doc.get('supplier_code'))).order_by(Supplier.name)))
     selected_dest = session.get(Warehouse,doc.get('to_warehouse_code')) if doc.get('to_warehouse_code') else None
     return render(request, 'phieu_form.jinja', d=doc, kinds=KINDS, states=STATES, tech_destination=selected_dest.name if selected_dest and selected_dest.kind == 'THO' else '',
-                  warehouses=warehouses, suppliers=suppliers, error=error, error_code=error_code, status=status,
+                  warehouses=warehouses, error=error, error_code=error_code, status=status,
                   source=stock_sources.describe(session, stock_docs.load(session, doc['id'])) if doc.get('id') else None,
                   stock_values=stock_reservations.quantities(session,[(doc['warehouse_code'],r['product_code']) for r in doc['lines'] if r['product_code'] and doc['warehouse_code']]),
                   action_reason=action_reason, saved=saved,
                   product_names={code: name for code, name in session.execute(
                       select(Product.code, Product.name).where(Product.code.in_([r['product_code'] for r in doc['lines']]))
                   )},
-                  can_write=has_role(request.state.user, 'warehouse'))
+                  can_write=has_role(request.state.user, 'warehouse'), avail=_avail(session, [r['product_code'] for r in doc['lines']]),
+                  supplier=session.get(Supplier, doc['supplier_code']) if doc.get('supplier_code') else None,
+                  customer=session.get(Customer, doc['customer_code']) if doc.get('customer_code') else None,
+                  units={code: unit for code, unit in session.execute(select(Product.code, Product.unit).where(Product.code.in_([r['product_code'] for r in doc['lines']])))},
+                  field_errors=where[0], line_errors=where[1])
 
 
 @router.get('/phieu-kho')
@@ -172,7 +209,28 @@ def _doc_values(session, docs):
 @router.get('/phieu-kho/tim-hang')
 def product_picker(request: Request, q: str = '', warehouse: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
     rows=products.search(session,q[:200],limit=20)
-    return render(request, 'phieu_chon_hang.jinja', rows=rows,warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse))
+    return render(request, 'phieu_chon_hang.jinja', rows=rows,warehouse=warehouse,availability=stock_reservations.picker(session,rows,warehouse),avail=_avail(session,[p.code for p in rows]))
+
+
+@router.get('/phieu-kho/san-pham')
+def browse_products(request: Request, q: str = '', warehouse: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Ô "+ Tìm hàng để thêm" của phiếu kho: tên, đơn vị, có thể dùng ở từng kho."""
+    rows=products.search(session,q[:200],limit=20)
+    return render(request, 'phieu_san_pham.jinja', rows=rows, warehouse=warehouse, avail=_avail(session,[p.code for p in rows]))
+
+
+@router.get('/phieu-kho/tim-ncc')
+def pick_supplier(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import inventory_catalogs
+    rows=[s for s in inventory_catalogs.search(session,Supplier,q[:200]) if s.active][:20]
+    return render(request, 'phieu_chon_doi_tac.jinja', rows=[dict(code=s.code,name=s.name,info=', '.join(s.phones)) for s in rows])
+
+
+@router.get('/phieu-kho/tim-khach')
+def pick_customer(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import customers
+    rows=customers.search(session,q[:200])[:20]
+    return render(request, 'phieu_chon_doi_tac.jinja', rows=[dict(code=c.code,name=c.name,info=', '.join(p.phone for p in c.phones)) for c in rows])
 
 
 @router.get('/phieu-kho/tim-kho-tho')
@@ -250,6 +308,7 @@ def technician_transfer(request: Request,doc_id: int,tho: int | None=None,user: 
 def new(request: Request, loai: str = 'PN', user: User = Depends(web_user), session: Session = Depends(get_session)):
     data = _blank(loai)
     data['warehouse_code'] = request.query_params.get('kho_nguon','')
+    data['lines'] = []  # Đợt 3: bắt đầu bằng ô "+ Tìm hàng để thêm", không có dòng rỗng.
     data['to_warehouse_code'] = request.query_params.get('kho_dich') or None
     if loai == 'CK' and data['warehouse_code']:data['reason'] = 'Trả hàng từ kho thợ'
     return _form(request, session, data)
@@ -272,7 +331,8 @@ def _save_form(request, session, form, doc_id=None, posting=False):
         if posting:
             stock_posting.post(session, request.state.user, doc.id, doc.version)
     except (BusinessError, ValidationError) as exc:
-        return _form(request, session, shown, error=_error(exc), status=getattr(exc, 'status', 400))
+        return _form(request, session, shown, error=_error(exc), status=getattr(exc, 'status', 400),
+                     error_code=getattr(exc, 'code', 'BAD_FORM'), where=_where(exc, data))
     return RedirectResponse(f'/phieu-kho/{doc.id}?da_luu=1', status_code=303)
 
 

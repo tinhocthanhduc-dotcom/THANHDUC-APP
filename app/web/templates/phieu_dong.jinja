@@ -1,15 +1,15 @@
 {% import 'kha_dung_chon.jinja' as stock %}
-<div class="stock-line card" data-stock-line>
-<label>Hàng (gõ tên không dấu hoặc mã để chọn)
-<input name="product_code" value="{{ line.product_code }}" required autocomplete="off" data-live=".product-options" data-source="/phieu-kho/tim-hang" aria-label="Tìm và chọn mã hàng">
-</label>
-<span class="product-name hint">{{ product_names.get(line.product_code, "") }}</span><span class="hint" data-availability-summary>{{ stock.text(stock_values.get((d.warehouse_code,line.product_code)),d.warehouse_code) if stock_values is defined else '' }}</span><div class="product-options" aria-live="polite"></div>
-<div class="row2">
-<label>Số lượng<input name="qty" value="{{ line.qty }}" inputmode="decimal" required></label>
-<label data-cost {% if d.kind in ['PX', 'CK'] %}hidden{% endif %}>Đơn giá (đồng)
-<input name="unit_cost" value="{% if line.unit_cost is number %}{{ line.unit_cost | money }}{% else %}{{ line.unit_cost or '' }}{% endif %}" inputmode="numeric" data-money {% if d.kind in ['PX', 'CK'] %}disabled{% endif %}>
-</label></div>
-<label>Số sê-ri<input name="serial" value="{{ line.serial or '' }}" maxlength="200"></label>
-<label>Ghi chú dòng<input name="line_note" value="{{ line.note }}" maxlength="2000"></label>
-{% if can_write and d.status == 'NHAP' %}<button type="button" data-remove-line>Xóa dòng</button>{% endif %}
+{# Đợt 3: dòng phiếu kho gọn một hàng: Hàng · Tồn · SL · Đơn giá · Serial · Ghi chú · ×. Ô mã chỉ hiện khi dòng chưa có hàng hoặc đang lỗi. #}
+{% set code = line.product_code %}{% set bad = line_errors.get(loop_index) if loop_index is defined and loop_index != 'new' else none %}{% set known = code and code in product_names %}
+<div class="skl{{ ' pol-bad' if bad }}" data-stock-line data-picked="{{ '1' if known and not bad else '0' }}" data-stock='{{ avail.get(code, {})|tojson }}'>
+<div class="skl-item"><b class="pol-name product-name">{{ product_names.get(code, "") }}</b><small class="pol-sub"><span data-sk-code>{{ code }}{% if units.get(code) %} · {{ units[code] }}{% endif %}</span></small>
+<label class="skl-code"><span class="sr-only">Hàng (gõ tên không dấu hoặc mã để chọn)</span><input name="product_code" value="{{ code }}" required autocomplete="off" data-live=".product-options" data-source="/phieu-kho/tim-hang" aria-label="Tìm và chọn mã hàng" placeholder="Tìm mã hoặc tên hàng"{% if bad %} aria-invalid="true"{% endif %}></label>
+<span class="hint" data-availability-summary hidden>{{ stock.text(stock_values.get((d.warehouse_code,code)),d.warehouse_code) if stock_values is defined else '' }}</span><div class="product-options" aria-live="polite"></div>
+{% if bad %}<small class="field-error">{{ bad }}</small>{% endif %}</div>
+<span class="skl-stock" data-sk-stock aria-label="Có thể dùng ở kho"></span>
+<div class="skl-qty"><span class="stepper qstep"><button type="button" data-step="-1" aria-label="Giảm số lượng">−</button><input name="qty" value="{{ line.qty|qty_input }}" inputmode="decimal" required aria-label="Số lượng"><button type="button" data-step="1" aria-label="Tăng số lượng">+</button></span></div>
+<label class="skl-cost" data-cost {% if d.kind in ['PX', 'CK'] %}hidden{% endif %}><span class="sr-only">Đơn giá (đồng)</span><input name="unit_cost" value="{% if line.unit_cost is number %}{{ line.unit_cost | money }}{% else %}{{ line.unit_cost or '' }}{% endif %}" inputmode="numeric" data-money placeholder="Đơn giá" {% if d.kind in ['PX', 'CK'] %}disabled{% endif %}></label>
+<label class="skl-serial"><span class="sr-only">Số sê-ri</span><input name="serial" value="{{ line.serial or '' }}" maxlength="200" placeholder="Serial"></label>
+<label class="skl-note"><span class="sr-only">Ghi chú dòng</span><input name="line_note" value="{{ line.note }}" maxlength="2000" placeholder="Ghi chú dòng"></label>
+{% if can_write and d.status == 'NHAP' %}<button type="button" class="pol-del" data-remove-line aria-label="Xóa dòng" title="Xóa dòng">×</button>{% else %}<span></span>{% endif %}
 </div>

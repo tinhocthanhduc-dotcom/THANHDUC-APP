@@ -71,7 +71,20 @@ def _body(data):
     return CashDocIn(**{**data,'amount':int(digits)})
 
 
-def _form(request,session,data,doc=None,error=None,code='',status=200,reason='',correction_form=None):
+def _where(exc,data):
+    """Đợt 3: lỗi thuộc ô nào để tô đỏ đúng ô (chỉ đọc mã lỗi, không đổi nghiệp vụ)."""
+    if isinstance(exc,ValidationError):
+        return {str(e['loc'][0]):_error(exc) for e in exc.errors() if e['loc']}
+    field={'BAD_AMOUNT':'amount','AMOUNT_TOO_LARGE':'amount','BAD_CATEGORY':'category_code','BAD_FUND':'fund_code',
+           'NEGATIVE_CASH':'fund_code','BAD_TRANSFER':'to_fund_code','BAD_OPENING':'is_opening'}.get(exc.code)
+    if exc.code=='BAD_FUND' and exc.details.get('fund') and exc.details['fund']==data.get('to_fund_code'):
+        field='to_fund_code'
+    if exc.code=='BAD_PARTNER':
+        field='customer_code' if data.get('customer_code') else 'supplier_code'
+    return {field:_error(exc)} if field else {}
+
+
+def _form(request,session,data,doc=None,error=None,code='',status=200,reason='',correction_form=None,fields=None):
     editable = doc is None or doc.status=='NHAP'
     closed=bool(doc and day_closings.is_closed(session,doc.doc_date))
     replacement=session.execute(select(CashDoc.id,CashDoc.number).join(CashCorrection,CashCorrection.new_doc_id==CashDoc.id).where(
@@ -86,7 +99,10 @@ def _form(request,session,data,doc=None,error=None,code='',status=200,reason='',
                   error=error,error_code=code,status=status,reason=reason,closed=closed,correction=proposal,replacement=replacement,
                   can_correct=bool(doc and doc.status=='DA_GHI' and doc.kind in ('PT','PC') and not doc.is_opening and not doc.source_type),
                   pending_correction=session.scalar(select(CashCorrection.id).where(CashCorrection.doc_id==doc.id,CashCorrection.status=='CHO_DUYET')) if doc else None,
-                  saved=request.query_params.get('da_luu')=='1' and not error)
+                  saved=request.query_params.get('da_luu')=='1' and not error,field_errors=fields or {},
+                  category=session.get(CashCategory,data['category_code']) if data.get('category_code') else None,
+                  customer=session.scalar(select(Customer).where(Customer.code==data['customer_code'])) if data.get('customer_code') else None,
+                  supplier=session.get(Supplier,data['supplier_code']) if data.get('supplier_code') else None)
 
 
 @router.get('/thu-chi')
@@ -178,7 +194,7 @@ def _submit(request,form,session,doc_id=None,post=False):
         if own_saved:
             doc=docs.load(session,user,doc.id)
             shown.update(id=doc.id,number=doc.number,version=doc.version,status=doc.status)
-        return _form(request,session,shown,doc,error=_error(exc),code=getattr(exc,'code','BAD_FORM'),status=getattr(exc,'status',400))
+        return _form(request,session,shown,doc,error=_error(exc),code=getattr(exc,'code','BAD_FORM'),status=getattr(exc,'status',400),fields=_where(exc,data))
     return RedirectResponse(f'/thu-chi/{doc.id}?da_luu=1',status_code=303)
 
 

@@ -1,0 +1,1 @@
+{% for r in rows %}<button type="button" data-pick-party="{{ r.code }}" data-name="{{ r.name }}" data-info="{{ r.info }}">{{ r.code }} · {{ r.name }}{% if r.info %}<span class="hint"> · {{ r.info }}</span>{% endif %}</button>{% else %}<p class="hint">Không có kết quả đang dùng phù hợp.</p>{% endfor %}

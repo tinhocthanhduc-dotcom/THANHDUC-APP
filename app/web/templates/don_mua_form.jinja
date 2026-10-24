@@ -1,10 +1,10 @@
 {% extends 'base.jinja' %}
 {% block title %}{{ o.number if o else 'Tạo đơn mua' }}{% endblock %}
-{% block main %}{% if receiving %}{% include 'don_mua_nhan_trang.jinja' %}{% else %}<div class="po-page">
+{% block main %}{% if receiving %}{% include 'don_mua_nhan_trang.jinja' %}{% elif o is none or (can_write and editable) %}{% include 'don_mua_soan.jinja' %}{% else %}<div class="po-page">
 {% if o %}<section class="card po-head"><div class="bar"><h1>{{ o.number }}</h1><span class="stock-chip po-st-{{ o.status|lower }}">{{ statuses[o.status] }}</span><span class="po-gap"></span><a href="/don-mua">← Đơn mua</a><a class="btn" href="/don-mua/{{ o.id }}/in">In đơn đặt hàng</a></div>
 <div class="po-kv"><div><span>Nhà cung cấp</span><b>{{ supplier_name or o.supplier_code }}</b></div><div><span>Ngày đơn</span><b>{{ o.order_date.strftime('%d/%m/%Y') }}</b></div>{% if o.expected_date %}<div><span>Dự kiến nhận</span><b>{{ o.expected_date.strftime('%d/%m/%Y') }}</b></div>{% endif %}<div><span>Tổng đơn (gồm VAT)</span><b>{{ o.total|money }} đ</b></div></div></section>
 {% else %}<div class="bar"><h1>Tạo đơn mua</h1><a href="/don-mua">← Đơn mua</a></div>{% endif %}
-{% if error %}<p class="alert bad" data-error-code="{{ error_code }}" role="alert">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad" data-error-code="{{ error_code }}" role="alert">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">{{ 'Đã đặt hàng. Khi nhà cung cấp giao, bấm Nhận hàng.' if placed else 'Đã lưu.' }}</p>{% endif %}
 {% if o and o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
 <div class="po-cols"><div class="po-main">
 {% if o and can_write and o.status in ['DA_DAT','NHAN_MOT_PHAN'] %}{% set ns = namespace(left=0, n=0) %}{% for l in o.lines %}{% if l.received_qty<l.qty %}{% set ns.left = ns.left + l.qty - l.received_qty %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
