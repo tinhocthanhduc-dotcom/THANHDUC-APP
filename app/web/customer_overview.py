@@ -47,6 +47,10 @@ def _service_next(t, names):
         return 'điều phối', 'Giao thợ trả máy, thu tiền'
     if t.status == 'TAM_DUNG':
         return 'điều phối', svc.HOLD_REASONS.get(t.hold_reason, 'Tạm dừng')
+    if t.status == 'HOAN_THANH':
+        return 'điều phối', 'Kiểm tra tiền rồi đóng phiếu'
+    if t.status == 'DA_HUY':
+        return 'không ai', 'Đã hủy'
     return 'không ai', 'Đã đóng'
 
 
