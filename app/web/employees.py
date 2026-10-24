@@ -64,9 +64,33 @@ def _detail(request,session,actor,ident,**kwargs):
 
 
 @router.get('/nhan-su')
-def listing(request:Request,q:str='',position:str='',status:str='',user:User=Depends(manager_user),session:Session=Depends(get_session)):
-    return _render(request,'nhan_su_ds.jinja',rows=svc.search(session,user,q[:200],position,status),q=q[:200],
-        positions=svc.POSITIONS,position=position,selected_status=status,is_director=has_role(user,'director'))
+def listing(request:Request,q:str='',position:str='',status:str='',thieu:str='',trang:str='',so:str='',user:User=Depends(manager_user),session:Session=Depends(get_session)):
+    from . import paging
+    q,status=q[:200],status if status in ('left','tat-ca') else ''
+    is_director=has_role(user,'director')
+    def missing(r):
+        gaps=[label for label,bad in (('CCCD',not r['id_number']),('lương',is_director and r.get('current_salary') is None)) if bad]
+        return ('Thiếu '+', '.join(gaps)) if gaps else r['warning']
+    found=svc.search(session,user,q,position)
+    working=lambda r:not r['end_date']
+    rows=[r for r in found if (status=='tat-ca' or working(r)==(status!='left')) and (not thieu or missing(r))]
+    query=dict(q=q,position=position,status=status,thieu='1' if thieu else '')
+    page,shown=paging.slice_rows(rows,trang,so,query)
+    link=paging.linker('/nhan-su',query)
+    # Ô số đếm toàn bộ hồ sơ (không theo ô tìm); bấm là lọc.
+    alls=found if not (q or position) else svc.search(session,user)
+    active=[r for r in alls if working(r)]
+    gaps=sum(1 for r in active if missing(r))
+    tiles=[dict(label='Đang làm',n=len(active),sub=f"{len({r['position'] for r in active})} vị trí",href='/nhan-su',on=False),
+           dict(label='Kỹ thuật',n=sum(1 for r in active if r['position']=='Kỹ thuật'),sub='Thợ đi sửa, giao hàng',href='/nhan-su?position=K%E1%BB%B9+thu%E1%BA%ADt',on=position=='Kỹ thuật'),
+           dict(label='Thiếu hồ sơ',n=gaps,sub='Chưa có CCCD'+(' hoặc lương' if is_director else ''),href='/nhan-su?thieu=1',on=bool(thieu),tone='cho' if gaps else ''),
+           dict(label='Đã nghỉ',n=len(alls)-len(active),sub='Giữ hồ sơ để tra cứu',href='/nhan-su?status=left',on=status=='left')]
+    tabs=[dict(label='Đang làm',n=sum(1 for r in found if working(r)),href=link(status=''),on=not status),
+          dict(label='Đã nghỉ',n=sum(1 for r in found if not working(r)),href=link(status='left'),on=status=='left'),
+          dict(label='Tất cả',n=len(found),href=link(status='tat-ca'),on=status=='tat-ca')]
+    chips=[dict(label=label,href=link(**{key:''})) for key,label in (('position','Vị trí: '+position),('thieu','Thiếu hồ sơ')) if query.get(key)]
+    return _render(request,'nhan_su_ds.jinja',rows=shown,page=page,tiles=tiles,tabs=tabs,chips=chips,link=link,q=q,missing=missing,
+        positions=svc.POSITIONS,position=position,selected_status=status,thieu=thieu,is_director=is_director)
 
 
 @router.get('/nhan-su/tim-tai-khoan')

@@ -1,13 +1,30 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Hàng hóa{% endblock %}
-{% block main %}
-<div class="bar">
-  <h1>Hàng hóa</h1>
-  <span>{% if can_write %}<a class="btn" href="/nhom-hang">Nhóm hàng</a> <a class="btn primary" href="/hang-hoa/moi">+ Thêm mã hàng</a>{% endif %}</span>
+{% block main %}<div class="page-wide list-page" data-list-page="hang-hoa">
+{% call ui.page_head('Hàng hóa', sub='Mã hàng, giá bán, bảo hành' ~ (' và tồn các kho.' if can_stock else '.')) %}{% if can_write %}<a class="btn btn-ghost" href="/nhom-hang">Nhóm hàng</a><a class="btn btn-new" href="/hang-hoa/moi">+ Thêm mã hàng</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/hang-hoa', q, 'Tìm mã TD, tên hàng (không dấu)…', active=chips|length) %}{% if tt %}<input type="hidden" name="tt" value="{{ tt }}">{% endif %}
+<select name="nhom" aria-label="Nhóm hàng"><option value="">Mọi nhóm hàng</option>{% for g in groups %}<option {% if nhom==g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select>
+{% if can_stock %}<select name="ton" aria-label="Tồn kho"><option value="">Mọi mức tồn</option>{% for code,label in stock_states.items() %}{% if code != 'sap' or can_alert %}<option value="{{ code }}" {% if ton==code %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}</select>{% endif %}{% endcall %}
+{{ ui.filter_chips(chips, link(nhom='', ton='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Mã hàng</th><th>Tên hàng · nhóm</th><th>Đơn vị · bảo hành</th>{% if can_stock %}<th>Tồn {{ warehouses|join(' · ') }}</th>{% endif %}<th>Trạng thái</th><th class="num">Giá bán</th></tr></thead><tbody>
+{% for p in rows %}{% set st = states.get(p.code) %}
+<tr data-href="/hang-hoa/{{ p.code }}" data-product-row="{{ p.code }}"{% if p.active and st in ('het', 'sap') %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="/hang-hoa/{{ p.code }}">{{ p.code }}</a></td>
+<td><b>{{ p.name }}</b><span class="lt-sub">{{ p.group_name or 'Chưa có nhóm' }}{% if p.is_test %} · Dữ liệu thử{% endif %}</span></td>
+<td class="lt-phone-hide">{{ p.unit }}<span class="lt-sub">{% if p.warranty_months %}Bảo hành {{ p.warranty_months }} tháng{% else %}Không bảo hành{% endif %}</span></td>
+{% if can_stock %}<td>{% set by = stock.get(p.code, {}) %}{% if by %}{% for w in warehouses %}{{ by.get(w, 0)|qty }}{{ ' · ' if not loop.last }}{% endfor %}<span class="lt-sub{{ ' lt-bad' if st in ('het', 'sap') }}">{{ stock_states[st] if st else '' }}</span>{% else %}<span class="lt-sub">Chưa nhập kho</span>{% endif %}</td>{% endif %}
+<td class="lt-st">{{ ui.badge('Đang bán' if p.active else 'Ngừng bán', 'xong' if p.active else 'nhap') }}</td>
+<td class="num"><b>{{ p.sale_price|money }}</b></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có mã hàng nào khớp bộ lọc.' if chips or q else 'Chưa có mã hàng.', link(q='', nhom='', ton='') if chips or q else '', 'Xóa lọc') }}{% endif %}
+{{ ui.list_foot(page, 'mã hàng') }}
+</section>
 </div>
-<form action="/hang-hoa" class="search" role="search">
-  <input name="q" value="{{ q }}" placeholder="Tìm theo mã TD, tên, nhóm hàng" data-live="#rows" autofocus>
-  <label class="check"><input type="checkbox" name="tat_ca" value="1" {% if tat_ca %}checked{% endif %}> Cả mã ngừng bán</label>
-</form>
-<div id="rows">{% include "hang_dong.jinja" %}</div>
+<script src="{{ asset('pager.js') }}" defer></script>
 {% endblock %}

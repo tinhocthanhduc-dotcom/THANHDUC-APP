@@ -173,7 +173,7 @@ def test_web_create_receive_cancel_csrf_and_replay(client,db,people):
     assert db.query(ServiceRecoveredPart).count()==1
     row=db.scalar(select(ServiceRecoveredPart));ident=row.id
     service_login(client,p['warehouse'])
-    page=client.get('/linh-kien-thu-hoi');assert page.status_code==200 and 'Nhận hàng lỗi' in page.text
+    page=client.get('/linh-kien-thu-hoi');assert page.status_code==200 and 'Nhận vào kho' in page.text
     assert client.get('/linh-kien-thu-hoi?tho=&status=CHO_NOP').status_code==200
     forms=Forms(page.text,page.url)
     receive=next(f for f in forms.forms if f['path']==f'/linh-kien-thu-hoi/{ident}/nhan')

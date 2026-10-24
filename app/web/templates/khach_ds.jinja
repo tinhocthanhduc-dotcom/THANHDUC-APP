@@ -1,12 +1,31 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Khách hàng{% endblock %}
-{% block main %}<div class="stock-page doc-page">
-<div class="bar">
-  <h1>Khách hàng</h1>
-  {% if can_write %}<a class="btn btn-new" href="/khach-hang/moi">+ Thêm khách</a>{% endif %}
+{% block main %}<div class="page-wide list-page" data-list-page="khach-hang">
+{% call ui.page_head('Khách hàng', sub='Khách cá nhân và công ty. Bấm dòng để xem máy, đơn, phiếu dịch vụ' ~ (' và công nợ.' if can_debt else '.')) %}{% if can_write %}<a class="btn btn-new" href="/khach-hang/moi">+ Thêm khách</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/khach-hang', q, 'Tìm tên, mã KTD, số điện thoại, MST (không dấu)…', active=chips|length) %}{% if selected_status != 'DANG_DUNG' %}<input type="hidden" name="trang_thai" value="{{ selected_status }}">{% endif %}
+<select name="loai" aria-label="Loại khách"><option value="">Mọi loại khách</option>{% for code,label in KIND_LABELS.items() %}<option value="{{ code }}" {% if loai==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+{% if can_debt %}<label class="check"><input type="checkbox" name="no" value="1" {% if no %}checked{% endif %}>Đang còn nợ</label>{% endif %}
+{{ ui.date_range('Ngày tạo', 'tu', tu, 'den', den) }}{% endcall %}
+{{ ui.filter_chips(chips, link(loai='', no='', tu='', den='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Mã · ngày tạo</th><th>Tên khách</th><th>Liên hệ</th><th>Giao dịch gần nhất</th><th>Trạng thái</th>{% if can_debt %}<th class="num">Còn nợ · hạn mức</th>{% endif %}</tr></thead><tbody>
+{% for c in rows %}{% set d = debts.get(c.code) %}
+<tr data-href="/khach-hang/{{ c.code }}" data-customer-row="{{ c.code }}"{% if can_debt and alert(c) %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="/khach-hang/{{ c.code }}">{{ c.code }}</a><span class="lt-sub">{{ c.created_at|vn_date }}</span></td>
+<td><b>{{ c.name }}</b><span class="lt-sub">{{ KIND_LABELS[c.kind] }}{% if c.tax_code %} · MST {{ c.tax_code }}{% endif %}{% if c.is_test %} · Dữ liệu thử{% endif %}</span></td>
+<td>{{ c.phones|map(attribute='phone')|join(', ') or '—' }}<span class="lt-sub">{% if c.contacts %}{{ c.contacts[0].name }}{% else %}{{ c.address|truncate(48, true, '…') }}{% endif %}</span></td>
+<td class="lt-phone-hide">{% set x = last.get(c.code) %}{% if x %}{{ x.number }}<span class="lt-sub">{{ x.label }} · {{ x.at|vn_date }}</span>{% else %}<span class="lt-sub">Chưa có</span>{% endif %}</td>
+<td class="lt-st">{{ ui.badge(STATUS_LABELS[c.status], {'DANG_DUNG':'xong','NGUNG':'nhap','DA_GOP':'huy'}[c.status]) }}</td>
+{% if can_debt %}<td class="num">{% if d %}<b{% if alert(c) %} class="lt-bad"{% endif %}>{{ d.remaining|money }}</b><span class="lt-sub">Nợ từ {{ d.since.strftime('%d/%m/%Y') }}</span>{% else %}<b>—</b>{% endif %}<span class="lt-sub">{% if c.allow_debt %}Hạn mức {{ c.credit_limit|money }}{% else %}Không cho nợ{% endif %}</span></td>{% endif %}
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có khách nào khớp "' ~ q ~ '".' if q else ('Không có khách nào khớp bộ lọc.' if chips else 'Chưa có khách nào.'), link(q='', loai='', no='', tu='', den='') if chips or q else '', 'Xóa lọc') }}{% endif %}
+{% if can_debt %}{% call ui.list_foot(page, 'khách') %}Còn nợ <b>{{ debt_sum|money }}</b> đ{% endcall %}{% else %}{{ ui.list_foot(page, 'khách') }}{% endif %}
+</section>
 </div>
-<form action="/khach-hang" class="card form doc-filter" role="search">
-  <input type="search" aria-label="Tìm khách hàng" name="q" value="{{ q }}" placeholder="Tìm theo tên, mã KTD, số điện thoại, MST (gõ không dấu cũng được)" data-live="#rows" autofocus>
-</form>
-<div id="rows">{% include "khach_dong.jinja" %}</div>
-</div>{% endblock %}
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

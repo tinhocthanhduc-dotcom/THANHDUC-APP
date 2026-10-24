@@ -60,7 +60,11 @@ def site_update(request: Request, customer_code: str, site_id: int, form=Depends
 
 
 @router.get('/thiet-bi')
-def listing(request: Request, q: str = '', phan: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+def listing(request: Request, q: str = '', phan: int = 0, tt: str = '', bh: str = '', o: str = '', trang: str = '', so: str = '',
+            user: User = Depends(web_user), session: Session = Depends(get_session)):
+    if not phan:
+        from .lists import devices_page
+        return devices_page(request, session, user, q, tt, bh, o, trang, so, can_write=has_role(user, *customer_sites.WRITERS))
     rows = equipment.search(session, q[:200])
     return render(request, 'thiet_bi_dong.jinja' if phan else 'thiet_bi_ds.jinja', rows=rows, q=q,
                   product_names={code: name for code, name in session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows])))},

@@ -1,7 +1,30 @@
 {% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Nhân sự{% endblock %}
-{% block main %}
-<div class="bar"><h1>Nhân sự</h1><a class="btn btn-new" href="/nhan-su/moi">Thêm hồ sơ</a></div>
-<form class="form" method="get" action="/nhan-su"><label>Tìm không dấu<input name="q" type="search" value="{{ q }}" placeholder="Mã NV, họ tên, tài khoản, SĐT"></label><div class="row2"><label>Vị trí<select name="position"><option value="">Tất cả vị trí</option>{% for p in positions %}<option {% if position==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label><label>Trạng thái<select name="status"><option value="">Tất cả</option><option value="working" {% if selected_status=='working' %}selected{% endif %}>Đang làm</option><option value="left" {% if selected_status=='left' %}selected{% endif %}>Đã nghỉ</option></select></label></div><button class="btn-ghost">Lọc</button></form>
-<div class="employee-table-scroll"><table class="employee-table"><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Vị trí</th><th>Ngày vào làm</th><th>Thâm niên</th><th>Trạng thái</th>{% if is_director %}<th>Lương hiện tại</th>{% endif %}</tr></thead><tbody>{% for r in rows %}<tr><th><a href="/nhan-su/{{ r.id }}">{{ r.code }}</a></th><td>{{ r.full_name }}</td><td>{{ r.position }}</td><td>{{ r.start_date }}</td><td>{{ r.tenure }}</td><td>{{ 'Đã nghỉ' if r.end_date else 'Đang làm' }}</td>{% if is_director %}<td>{{ r.current_salary|money if r.current_salary is not none else 'Chưa có' }}</td>{% endif %}</tr>{% else %}<tr><td colspan="{{ 7 if is_director else 6 }}">Chưa có hồ sơ phù hợp.</td></tr>{% endfor %}</tbody></table></div>
+{% block main %}<div class="page-wide list-page" data-list-page="nhan-su">
+{% call ui.page_head('Nhân sự', sub='Hồ sơ nhân viên, vị trí, ngày vào làm.' ~ (' Lương chỉ giám đốc thấy.' if is_director else '')) %}<a class="btn btn-new" href="/nhan-su/moi">+ Thêm hồ sơ</a>{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/nhan-su', q, 'Tìm mã NV, họ tên, tài khoản, SĐT (không dấu)…', active=chips|length) %}{% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
+<select name="position" aria-label="Vị trí"><option value="">Mọi vị trí</option>{% for p in positions %}<option {% if position==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+<label class="check"><input type="checkbox" name="thieu" value="1" {% if thieu %}checked{% endif %}>Thiếu hồ sơ</label>{% endcall %}
+{{ ui.filter_chips(chips, link(position='', thieu='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Mã NV · ngày vào</th><th>Họ tên · tài khoản</th><th>Vị trí</th><th>Thâm niên</th><th>Trạng thái</th>{% if is_director %}<th class="num">Lương hiện tại</th>{% endif %}</tr></thead><tbody>
+{% for r in rows %}{% set gap = missing(r) %}
+<tr data-href="/nhan-su/{{ r.id }}" data-employee-row="{{ r.id }}"{% if gap and not r.end_date %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="/nhan-su/{{ r.id }}">{{ r.code }}</a><span class="lt-sub">{{ r.start_date|vn_date }}</span></td>
+<td><b>{{ r.full_name }}</b><span class="lt-sub">{{ r.username }}{% if r.phone %} · {{ r.phone }}{% endif %}</span></td>
+<td>{{ r.position }}</td>
+<td class="lt-phone-hide">{{ r.tenure }}{% if r.end_date %}<span class="lt-sub">Nghỉ từ {{ r.end_date|vn_date }}</span>{% endif %}</td>
+<td class="lt-st">{{ ui.badge('Đã nghỉ' if r.end_date else 'Đang làm', 'nhap' if r.end_date else 'xong') }}{% if gap %}<span class="lt-sub lt-bad">{{ gap }}</span>{% endif %}</td>
+{% if is_director %}<td class="num">{% if r.current_salary is not none %}<b>{{ r.current_salary|money }}</b>{% else %}<span class="lt-sub">Chưa có</span>{% endif %}</td>{% endif %}
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Chưa có hồ sơ phù hợp.', link(q='', position='', thieu='') if chips or q else '', 'Xóa lọc') }}{% endif %}
+{{ ui.list_foot(page, 'nhân viên') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
 {% endblock %}

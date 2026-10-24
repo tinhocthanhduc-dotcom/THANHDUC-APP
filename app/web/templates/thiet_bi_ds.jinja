@@ -1,7 +1,30 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Thiết bị{% endblock %}
-{% block main %}
-<div class="bar"><h1>Thiết bị</h1>{% if can_device_write %}<a class="btn primary" href="/thiet-bi/moi">+ Thêm thiết bị</a>{% endif %}</div>
-<form action="/thiet-bi" class="search"><input name="q" value="{{ q }}" placeholder="Serial, tên hàng, tên khách (không dấu cũng được)" data-live="#device-results" aria-label="Tìm thiết bị"><button>Tìm</button></form>
-<div id="device-results">{% include 'thiet_bi_dong.jinja' %}</div>
+{% block main %}<div class="page-wide list-page" data-list-page="thiet-bi">
+{% call ui.page_head('Thiết bị', sub='Máy của khách theo serial: bảo hành, đang ở đâu, phiếu dịch vụ.') %}{% if can_device_write %}<a class="btn btn-new" href="/thiet-bi/moi">+ Thêm thiết bị</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/thiet-bi', q, 'Tìm serial, tên máy, tên khách (không dấu)…', active=chips|length) %}{% if tt %}<input type="hidden" name="tt" value="{{ tt }}">{% endif %}
+<select name="bh" aria-label="Bảo hành"><option value="">Bảo hành: tất cả</option>{% for code,label in warranties.items() %}<option value="{{ code }}" {% if bh==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+<select name="o" aria-label="Đang ở"><option value="">Đang ở: tất cả</option>{% for code,label in locations.items() %}<option value="{{ code }}" {% if o==code %}selected{% endif %}>{{ label }}</option>{% endfor %}<option value="CHUA_GAN" {% if o=='CHUA_GAN' %}selected{% endif %}>Chưa gắn khách</option></select>{% endcall %}
+{{ ui.filter_chips(chips, link(bh='', o='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Serial · ngày ghi</th><th>Máy</th><th>Khách · địa điểm</th><th>Bảo hành</th><th>Đang ở</th><th class="num">Phiếu DV</th></tr></thead><tbody>
+{% for e in rows %}{% set w = warranty(e) %}{% set at = place(e) %}{% set t = tickets.get(e.serial) %}
+<tr data-href="/thiet-bi/{{ e.serial|urlquote }}" data-device-row="{{ e.serial }}"{% if e.active and w == 'sap' %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="/thiet-bi/{{ e.serial|urlquote }}">{{ e.serial }}</a><span class="lt-sub">{{ e.created_at|vn_date }}{% if not e.active %} · Ngừng dùng{% endif %}</span></td>
+<td><b>{{ product_names.get(e.product_code, e.product_code) }}</b><span class="lt-sub">{{ e.product_code }}</span></td>
+<td>{{ customer_names.get(e.customer_code, 'Chưa gán khách') }}<span class="lt-sub">{{ sites.get(e.site_id, '') }}</span></td>
+<td{% if not e.active %} class="lt-phone-hide"{% endif %}>{% if e.warranty_until %}Đến {{ e.warranty_until|vn_date }}<span class="lt-sub{{ ' lt-bad' if w == 'sap' }}">{% if w == 'het' %}Hết bảo hành{% elif w == 'sap' %}Còn {{ (e.warranty_until - today).days }} ngày{% else %}Còn bảo hành{% endif %}{% if e.support_until and e.support_until >= today %} · hỗ trợ tại chỗ đến {{ e.support_until.strftime('%d/%m') }}{% endif %}</span>{% else %}<span class="lt-sub">Chưa có bảo hành</span>{% endif %}</td>
+<td class="lt-st">{% if at %}{{ ui.badge(locations[at], 'xong' if at == 'TAI_KHACH' else 'lam') }}{% if at != 'TAI_KHACH' %}<span class="lt-sub">{{ holders.get(e.custody_holder_id, '') }}{% if e.custody_ticket_id %} · {{ held_tickets.get(e.custody_ticket_id, '') }}{% endif %}</span>{% endif %}{% else %}<span class="lt-sub">—</span>{% endif %}</td>
+<td class="num">{% if t %}<b>{{ t.n }} phiếu</b><span class="lt-sub">Gần nhất {{ t.last|vn_date }}</span>{% else %}<span class="lt-sub">Chưa có phiếu</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có thiết bị phù hợp.', link(q='', bh='', o='') if chips or q else '', 'Xóa lọc') }}{% endif %}
+{{ ui.list_foot(page, 'thiết bị') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
 {% endblock %}
