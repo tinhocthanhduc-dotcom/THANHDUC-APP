@@ -2441,3 +2441,6 @@ img.delivery-photo { display: block; width: 100%; height: auto; max-height: 70vh
 .tho-trip-title { font-size: 17px; margin: 14px 0 6px; }
 .tho-trip-title small { font-weight: 500; color: var(--muted); white-space: nowrap; }
 .tho-trip-machine { border-top: 2px solid var(--line); padding-top: 6px; margin-top: 10px; display: grid; gap: 10px; }
+/* TUẤN 24/10: phụ kiện mang theo chữ nhỏ lại, gọn trên điện thoại. */
+.acc-chips { gap: 6px; }
+.acc-chips .chip span { min-height: 40px; padding: 0 11px; font-size: 14px; font-weight: 600; border-width: 1.5px; border-radius: 10px; }
