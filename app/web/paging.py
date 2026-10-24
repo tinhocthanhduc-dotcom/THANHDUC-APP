@@ -42,3 +42,17 @@ def build(raw_page, raw_size, total: int, query: dict) -> dict:
     return dict(page=page, size=size, total=total, last=last, offset=(page - 1) * size,
                 start=(page - 1) * size + 1 if total else 0, end=min(page * size, total),
                 numbers=items, href=href, sizes=SIZES)
+
+
+def slice_rows(rows: list, raw_page, raw_size, query: dict):
+    """Danh sách đã lọc đủ trong bộ nhớ: số đếm và tổng tính trên cả list, chỉ cắt phần hiển thị."""
+    page = build(raw_page, raw_size, len(rows), query)
+    return page, rows[page['offset']:page['offset'] + page['size']]
+
+
+def linker(path: str, query: dict):
+    """link(**đổi) -> đường dẫn giữ bộ lọc hiện tại, bỏ ô rỗng; đổi lọc thì về trang 1."""
+    def link(**changes):
+        merged = {k: v for k, v in {**query, **changes}.items() if v not in ('', None, False) and k not in ('trang', 'phan')}
+        return path + ('?' + urlencode(merged) if merged else '')
+    return link

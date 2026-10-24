@@ -102,19 +102,71 @@ def _form(request, session, doc, error=None, status=200, action_reason='', saved
 
 
 @router.get('/phieu-kho')
-def listing(request: Request, loai: str = '', kho: str = '', trang_thai: str = '', tu: str = '', den: str = '',
-            user: User = Depends(web_user), session: Session = Depends(get_session)):
+def listing(request: Request, loai: str = '', kho: str = '', trang_thai: str = '', tu: str = '', den: str = '', q: str = '',
+            trang: str = '', so: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from . import paging
+    loai, trang_thai, q = (loai if loai in KINDS else ''), (trang_thai if trang_thai in STATES else ''), q[:200]
     error = None
-    rows = []
+    found = []
     try:
         start, end = date.fromisoformat(tu) if tu else None, date.fromisoformat(den) if den else None
-        rows = stock_docs.search(session, loai or None, kho or None, trang_thai or None, start, end)
+        found = stock_docs.search(session, loai or None, kho or None, None, start, end)
     except ValueError:
         error = 'Ngày lọc chưa hợp lệ.'
-    return render(request, 'phieu_ds.jinja', rows=rows, kinds=KINDS, states=STATES,
-                  warehouses=list(session.scalars(select(Warehouse).order_by(Warehouse.code))),
-                  loai=loai, kho=kho, trang_thai=trang_thai, tu=tu, den=den, error=error,
+    if q.strip():
+        # Số phiếu hoặc mã/tên hàng trên dòng (không dấu).
+        key = fold(q)
+        hit = {code for code, text in session.execute(select(Product.code, Product.search_text).where(
+            Product.code.in_({l.product_code for d in found for l in d.lines}))) if key in (text or '')}
+        found = [d for d in found if key in fold(d.number) or any(l.product_code in hit or key in fold(l.product_code) for l in d.lines)]
+    counts = {code: sum(1 for d in found if d.status == code) for code in STATES}
+    rows = [d for d in found if not trang_thai or d.status == trang_thai]
+    query = dict(q=q, loai=loai, kho=kho, trang_thai=trang_thai, tu=tu, den=den)
+    page, shown = paging.slice_rows(rows, trang, so, query)
+    link = paging.linker('/phieu-kho', query)
+    can_value = has_role(user, 'warehouse', 'finance')
+    values = _doc_values(session, rows) if can_value else {}
+    codes = {l.product_code for d in shown for l in d.lines}
+    month = datetime.now(VN).date().replace(day=1)
+    month_docs = list(session.execute(select(StockDoc.kind, func.count()).where(StockDoc.status == 'DA_GHI', StockDoc.doc_date >= month).group_by(StockDoc.kind)).all())
+    by_kind = dict(month_docs)
+    drafts = session.scalar(select(func.count()).where(StockDoc.status == 'NHAP')) or 0
+    month_iso = month.isoformat()
+    tiles = [
+        dict(label='Phiếu nháp', n=drafts, sub='Chưa ghi sổ' if drafts else 'Không có phiếu treo', href='/phieu-kho?trang_thai=NHAP', on=trang_thai == 'NHAP' and not loai, tone='cho' if drafts else ''),
+        dict(label='Nhập tháng này', n=by_kind.get('PN', 0), sub='Phiếu nhập đã ghi', href=f'/phieu-kho?loai=PN&trang_thai=DA_GHI&tu={month_iso}', on=loai == 'PN' and tu == month_iso, tone='xong'),
+        dict(label='Xuất tháng này', n=by_kind.get('PX', 0), sub='Giao đơn, cấp thợ, xuất khác', href=f'/phieu-kho?loai=PX&trang_thai=DA_GHI&tu={month_iso}', on=loai == 'PX' and tu == month_iso),
+        dict(label='Chuyển · kiểm kê tháng này', n=by_kind.get('CK', 0) + by_kind.get('KK', 0), sub='Phiếu CK và KK đã ghi', href=f'/phieu-kho?trang_thai=DA_GHI&tu={month_iso}&loai=CK', on=loai in ('CK', 'KK') and tu == month_iso),
+    ]
+    tabs = [dict(label='Tất cả', n=len(found), href=link(trang_thai=''), on=not trang_thai)] + [
+        dict(label=label, n=counts[code], href=link(trang_thai=code), on=trang_thai == code) for code, label in STATES.items()]
+    chips = [dict(label=label, href=link(**{key: ''})) for key, label in (('kho', 'Kho ' + kho), ('loai', KINDS.get(loai, ''))) if query.get(key)]
+    if tu or den:
+        chips.append(dict(label='Ngày phiếu', href=link(tu='', den='')))
+    posted = [d for d in rows if d.status == 'DA_GHI']
+    return render(request, 'phieu_ds.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, kinds=KINDS, states=STATES,
+                  warehouses=list(session.scalars(select(Warehouse).order_by(Warehouse.kind, Warehouse.code))),
+                  loai=loai, kho=kho, trang_thai=trang_thai, tu=tu, den=den, q=q, error=error, values=values, can_value=can_value,
+                  sources={d.id: stock_sources.describe(session, d) for d in shown},
+                  in_sum=sum(values.get(d.id, 0) for d in posted if d.kind == 'PN'), out_sum=sum(values.get(d.id, 0) for d in posted if d.kind == 'PX'),
+                  product_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(codes))).all()) if codes else {},
                   can_write=has_role(user, 'warehouse'))
+
+
+def _doc_values(session, docs):
+    """Giá trị phiếu theo giá vốn: phiếu đã ghi lấy từ sổ kho (chiều ra với PX/CK, chiều vào với PN), nháp lấy SL × đơn giá nếu có."""
+    posted = [d.id for d in docs if d.status == 'DA_GHI' and d.kind != 'KK']
+    out_kinds = {d.id: d.kind in ('PX', 'CK') for d in docs}
+    values = {}
+    if posted:
+        for doc_id, qty_in, qty_out, amount in session.execute(select(StockLedger.doc_id, StockLedger.qty_in, StockLedger.qty_out, StockLedger.amount)
+                .where(StockLedger.doc_id.in_(posted), StockLedger.is_reversal.is_(False))):
+            if (qty_out > 0) if out_kinds[doc_id] else (qty_in > 0):
+                values[doc_id] = values.get(doc_id, 0) + abs(int(amount))
+    for d in docs:
+        if d.status == 'NHAP' and all(l.unit_cost is not None for l in d.lines) and d.lines:
+            values[d.id] = int(sum(l.qty * l.unit_cost for l in d.lines))
+    return values
 
 
 @router.get('/phieu-kho/tim-hang')

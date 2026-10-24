@@ -13,7 +13,7 @@ from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog,PendingDisposition,PendingItem,Product,SalesReturn,ServiceTicket,StockDoc,Supplier,TechnicianReturn,User,Warehouse
 from ..security import has_role
-from . import checked_form,render,web_user
+from . import checked_form,money,render,web_user
 
 router=APIRouter()
 
@@ -41,16 +41,43 @@ def _qty(raw):
     return svc.quantity(value.replace('.','').replace(',','.'))
 
 
+TABS=(('Đang chờ','DANG_CHO',''),('Đang ở NCC','DANG_CHO','ncc'),('Chờ duyệt hủy','DANG_CHO','huy'),('Xong','XONG',''),('Đã hủy','DA_HUY',''),('Tất cả','tat-ca',''))
+TILE_GROUPS=('HANG_LOI','CHO_BH_NCC','THANH_LY','CHUA_PHAN_LOAI')
+
+
 @router.get('/cho-xu-ly')
-def listing(request:Request,group:str='',warehouse:str='',min_days:str='',q:str='',status:str='DANG_CHO',view:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
+def listing(request:Request,group:str='',warehouse:str='',min_days:str='',q:str='',status:str='DANG_CHO',view:str='',trang:str='',so:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from . import paging
     try:days=int(min_days) if min_days.strip() else None
     except ValueError:raise BusinessError('BAD_DAYS','Số ngày lọc chưa hợp lệ.')
-    rows=svc.search(session,user,group or None,warehouse or None,days,q[:200],status,view)
+    # "Tất cả" gửi status=tat-ca vì ô rỗng bị bỏ khỏi địa chỉ và mặc định là Đang chờ.
+    wanted='' if status=='tat-ca' else status
+    view=view if view in ('ncc','huy') else ''
+    rows=svc.search(session,user,group or None,warehouse or None,days,q[:200],wanted,view)
+    # Tab đếm theo cùng nhóm, kho, số ngày, ô tìm.
+    every=svc.search(session,user,group or None,warehouse or None,days,q[:200],'','')
+    by_view={v:len(svc.search(session,user,group or None,warehouse or None,days,q[:200],'DANG_CHO',v)) for v in ('ncc','huy')}
+    def tab_count(st,v):
+        return by_view[v] if v else len(every) if st=='tat-ca' else sum(1 for e in every if e['item'].status==st)
+    query=dict(group=group,warehouse=warehouse,min_days='' if days is None else days,q=q[:200],status='' if status=='DANG_CHO' else status,view=view)
+    page,shown=paging.slice_rows(rows,trang,so,query)
+    link=paging.linker('/cho-xu-ly',query)
+    tabs=[dict(label=label,n=tab_count(st,v),href=link(status='' if st=='DANG_CHO' else st,view=v),on=(status==st and view==v)) for label,st,v in TABS]
     totals=svc.totals(session,user)
+    can_value=svc.can_value(user)
+    tiles=[dict(label=svc.GROUPS[code],n=totals.get(code,{}).get('count',0),
+                sub=(money(totals.get(code,{}).get('value',0))+' đ') if can_value else f"{totals.get(code,{}).get('overdue',0)} hồ sơ quá hạn",
+                href=link(group=code,status='',view=''),on=group==code,tone='huy' if totals.get(code,{}).get('overdue') else '') for code in TILE_GROUPS]
+    chips=[dict(label=label,href=link(**{key:''})) for key,label in (('group',svc.GROUPS.get(group,'')),('warehouse','Kho '+warehouse),
+        ('min_days',f'Nằm kho quá {days} ngày')) if query.get(key) not in ('',None)]
     notices=alerts.pending_notices(session,user)
-    return render(request,'cho_xu_ly_ds.jinja',**context(user),rows=rows,totals=totals,source_links=source_links(session,[row['item'] for row in rows]),
+    return render(request,'cho_xu_ly_ds.jinja',**context(user),rows=shown,page=page,tabs=tabs,tiles=tiles,chips=chips,link=link,totals=totals,
+        source_links=source_links(session,[row['item'] for row in shown]),
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI').order_by(Warehouse.code))),
-        sold_quantities=pending_liquidation.sold_quantities(session,[r['item'].id for r in rows]),view=view,supplier_names=dict(session.execute(select(Supplier.code,Supplier.name)).all()),selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days)
+        sold_quantities=pending_liquidation.sold_quantities(session,[r['item'].id for r in shown]),view=view,supplier_names=dict(session.execute(select(Supplier.code,Supplier.name)).all()),
+        selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days,
+        value_sum=sum(e['item'].qty_left*e['item'].unit_cost for e in rows) if can_value else 0,
+        can_approve_returns=has_role(user,'finance','director'))
 
 
 def transfer_form(request,session,user,data=None,error=None,code='',status=200):

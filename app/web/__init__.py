@@ -80,6 +80,18 @@ def quantity_input(value):
 templates.env.filters['qty_input'] = quantity_input
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
+
+
+def vn_date(value) -> str:
+    # Ngày "2026-10-24" (chuỗi từ ô lọc) hoặc date -> 24/10/2026; chuỗi lạ giữ nguyên.
+    text = str(value or '')
+    match = re.fullmatch(r'(\d{4})-(\d{2})-(\d{2})', text)
+    if hasattr(value, 'strftime'):
+        return value.strftime('%d/%m/%Y')
+    return f'{match[3]}/{match[2]}/{match[1]}' if match else text
+
+
+templates.env.filters["vn_date"] = vn_date
 templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key

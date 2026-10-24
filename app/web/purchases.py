@@ -2,25 +2,30 @@
 import re
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, Request
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import purchase_returns, supplier_debts, inventory_catalogs, products, purchase_orders as svc, purchase_receipts as receipts, quotes
 from ..config import DEFAULT_VAT_RATE, get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Product, StockDoc, Supplier, User, Warehouse, VAT_RATES
+from ..models import Product, PurchaseOrder, PurchaseReceipt, StockDoc, Supplier, User, Warehouse, VAT_RATES
 from ..money_words import money_words
 from ..schemas import PurchaseOrderIn, PurchaseOrderUpdate
 from ..security import has_role
-from . import checked_form, money, render, web_user
+from . import checked_form, money, nav, render, web_user
 from .quotes import _quantity
 
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp', 'DA_DAT':'Đã đặt', 'NHAN_MOT_PHAN':'Nhận một phần', 'DA_NHAN':'Đã nhận', 'DA_HUY':'Đã hủy'}
+TONES = {'NHAP':'nhap', 'DA_DAT':'lam', 'NHAN_MOT_PHAN':'cho', 'DA_NHAN':'xong', 'DA_HUY':'huy'}
+OPEN = ('DA_DAT', 'NHAN_MOT_PHAN')
 
 
 def purchase_user(user: User = Depends(web_user)):
@@ -106,10 +111,57 @@ def _error(exc):
 
 
 @router.get('/don-mua')
-def listing(request: Request, q: str='', status: str='', supplier_code: str='', user: User=Depends(purchase_user), session: Session=Depends(get_session)):
-    rows=svc.search(session,user,q[:200],status or None,supplier_code or None)
-    return render(request,'don_mua_ds.jinja',rows=rows,q=q,selected_status=status,statuses=STATUSES,supplier_code=supplier_code,
-        suppliers=list(session.scalars(select(Supplier).order_by(Supplier.code))),can_write=has_role(user,*svc.WRITERS))
+def listing(request: Request, q: str='', status: str='', supplier_code: str='', tre: str='',
+            from_date: str=Query(default='', alias='from'), to_date: str=Query(default='', alias='to'), trang: str='', so: str='',
+            user: User=Depends(purchase_user), session: Session=Depends(get_session)):
+    from . import paging
+    q, status = q[:200], status if status in (*STATUSES, 'CHO_NHAN') else ''
+    error = None
+    try:
+        start, end = (date.fromisoformat(v) if v else None for v in (from_date, to_date))
+    except ValueError:
+        start = end = None; from_date = to_date = ''
+        error = 'Ngày lọc chưa hợp lệ.'
+    today = datetime.now(ZoneInfo('Asia/Ho_Chi_Minh')).date()
+    late = lambda r: r.status in OPEN and r.expected_date is not None and r.expected_date < today
+    # Lấy đủ theo ô tìm, NCC, ngày; tab đếm trên tập này rồi mới lọc trạng thái và cắt trang.
+    found = svc.search(session, user, q, None, supplier_code or None, start, end, cap=False)
+    counts = {code: sum(1 for r in found if r.status == code) for code in STATUSES}
+    rows = [r for r in found if (not status or (r.status in OPEN if status == 'CHO_NHAN' else r.status == status)) and (not tre or late(r))]
+    query = dict(q=q, status=status, supplier_code=supplier_code, tre=tre, **{'from': from_date, 'to': to_date})
+    page, shown = paging.slice_rows(rows, trang, so, query)
+    link = paging.linker('/don-mua', query)
+    received = dict(session.execute(select(PurchaseReceipt.order_id, func.sum(PurchaseReceipt.total))
+        .where(PurchaseReceipt.order_id.in_([r.id for r in shown]), PurchaseReceipt.status == 'DA_GHI')
+        .group_by(PurchaseReceipt.order_id)).all()) if shown else {}
+    codes = {l.product_code for r in shown for l in r.lines}
+    suppliers = list(session.scalars(select(Supplier).order_by(Supplier.code)))
+    # Ô số đếm toàn bộ đơn (không theo bộ lọc), bấm là lọc.
+    month_start = today.replace(day=1)
+    alls = list(session.scalars(select(PurchaseOrder).where(PurchaseOrder.status != 'DA_HUY')))
+    waiting = [r for r in alls if r.status in OPEN]
+    month = [r for r in alls if r.status != 'NHAP' and r.order_date >= month_start]
+    late_n = sum(1 for r in alls if late(r))
+    tiles = [
+        dict(label='Chờ nhận hàng', n=len(waiting), sub=money(sum(r.total for r in waiting)) + ' đ', href='/don-mua?status=CHO_NHAN', on=status == 'CHO_NHAN' and not tre, tone='cho' if waiting else ''),
+        dict(label='Nhận quá hẹn', n=late_n, sub='Gọi NCC hỏi ngày giao' if late_n else 'Không có đơn trễ', href='/don-mua?tre=1', on=bool(tre), tone='huy' if late_n else ''),
+        dict(label='Nháp chưa đặt', n=sum(1 for r in alls if r.status == 'NHAP'), sub='Đặt để NCC giao', href='/don-mua?status=NHAP', on=status == 'NHAP' and not tre),
+        dict(label='Đặt tháng này', n=len(month), sub=money(sum(r.total for r in month)) + ' đ', href=f'/don-mua?from={month_start.isoformat()}', on=False, tone='xong'),
+    ]
+    tabs = [dict(label='Tất cả', n=len(found), href=link(status=''), on=not status)] + [
+        dict(label=label, n=counts[code], href=link(status=code), on=status == code) for code, label in STATUSES.items()]
+    if status == 'CHO_NHAN':
+        tabs.insert(1, dict(label='Chờ nhận', n=counts['DA_DAT'] + counts['NHAN_MOT_PHAN'], href=link(status='CHO_NHAN'), on=True))
+    names = dict(session.execute(select(Supplier.code, Supplier.name)).all())
+    chips = [dict(label=label, href=link(**{key: ''})) for key, label in (
+        ('supplier_code', 'NCC: ' + names.get(supplier_code, supplier_code)), ('tre', 'Nhận quá hẹn')) if query.get(key)]
+    if from_date or to_date:
+        chips.append(dict(label='Ngày đặt', href=link(**{'from': '', 'to': ''})))
+    return render(request, 'don_mua_ds.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, q=q,
+        selected_status=status, statuses=STATUSES, supplier_code=supplier_code, suppliers=suppliers, supplier_names=names,
+        received=received, late=late, tre=tre, from_date=from_date, to_date=to_date, error=error, total_sum=sum(r.total for r in rows),
+        product_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(codes))).all()) if codes else {},
+        can_write=has_role(user, *svc.WRITERS), can_debts=nav.allowed(user, '/cong-no-ncc'))
 
 
 @router.get('/don-mua/tim-ncc')
