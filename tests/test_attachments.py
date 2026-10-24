@@ -97,7 +97,13 @@ def test_api_tai_len_va_tai_ve(client, login, db):
     db.add(Customer(code="KTD-000001", name="Minh Phát"))
     db.commit()
     dp = login("dp", "dispatcher")
-    r = client.post("/service-tickets", json={"customer_code": "KTD-000001", "kind": "MANG_VE", "symptom": "Kẹt giấy"}, headers=dp)
+    from app.models import Equipment, Product, User
+    db.add(Product(code='TD-0001', name='Máy in'))
+    db.flush()
+    db.add(Equipment(serial='ATTACH-MAY', product_code='TD-0001', customer_code='KTD-000001',
+                     created_by=db.scalar(select(User.id).where(User.username == 'dp'))))
+    db.commit()
+    r = client.post("/service-tickets", json={"customer_code": "KTD-000001", "kind": "MANG_VE", "serial": "ATTACH-MAY", "symptom": "Kẹt giấy"}, headers=dp)
     tid = r.json()["id"]
     r = client.post("/attachments", data={"entity": "service_ticket", "entity_id": str(tid), "tag": "TRUOC"},
                     files={"file": ("anh.jpg", _jpeg(800, 600), "image/jpeg")}, headers=dp)

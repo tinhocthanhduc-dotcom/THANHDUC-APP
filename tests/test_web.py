@@ -994,7 +994,7 @@ def test_service_intake_allows_unclassified_no_default(client, db, service_peopl
         assert 'Máy in bị kẹt giấy' in response.text
     assert db.query(ServiceTicket).count() == 2
     assert all(t.kind is None for t in db.query(ServiceTicket))
-    assert client.post('/dich-vu/moi', data=service_form(csrf, kind='MANG_VE')).status_code == 200
+    assert client.post('/dich-vu/moi', data=service_form(csrf, kind='MANG_VE', serial='AB123')).status_code == 200
     assert db.query(ServiceTicket).order_by(ServiceTicket.id.desc()).first().kind == 'MANG_VE'
 
 

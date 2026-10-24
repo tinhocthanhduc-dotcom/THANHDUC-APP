@@ -338,6 +338,7 @@ class ServiceTicketIn(BaseModel):
     customer_code: str = Field(min_length=1, max_length=16)
     site_id: int | None = Field(default=None, ge=1)
     serial: str | None = Field(default=None, max_length=64)
+    new_machine: 'EquipmentIn | None' = None
     kind: ServiceKind | None = None
     priority: ServicePriority = "THUONG"
     symptom: str = Field(min_length=3, max_length=4000)
@@ -353,6 +354,8 @@ class ServiceTicketIn(BaseModel):
 
     @model_validator(mode='after')
     def warranty_kind(self):
+        if self.new_machine is not None and self.serial and self.serial.strip():
+            raise ValueError('Chọn máy có sẵn hoặc tạo máy mới, không chọn cả hai.')
         if self.kind != 'BAO_HANH' and self.warranty_of_id is not None:
             raise ValueError('Chỉ phiếu Bảo hành được chọn phiếu trước.')
         return self
@@ -616,6 +619,23 @@ class EquipmentIn(EquipmentFields):
     @classmethod
     def normalize_serial(cls, value):
         return ''.join(value.split()).upper() if isinstance(value, str) else value
+
+
+# Resolve the nested intake model after EquipmentIn is defined.
+ServiceTicketIn.model_rebuild()
+
+
+class ServiceMachineSet(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    serial: str | None = Field(default=None, max_length=64)
+    new_machine: EquipmentIn | None = None
+
+    @model_validator(mode='after')
+    def one_machine(self):
+        if self.new_machine is not None and self.serial and self.serial.strip():
+            raise ValueError('Chọn máy có sẵn hoặc tạo máy mới, không chọn cả hai.')
+        return self
 
 
 class EquipmentPatch(EquipmentFields):
