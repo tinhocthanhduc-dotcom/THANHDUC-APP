@@ -12,7 +12,7 @@ GROUPS = (
     {'label': '', 'items': (
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
         # Màn kho giao mở từ Việc của tôi: giữ quyền chỉ thủ kho như trước, menu sáng Việc của tôi (không sáng Danh mục › Kho).
-        {'label': 'Giao hàng', 'href': '/viec-cua-toi', 'prefixes': ('/kho/giao',), 'roles': ('warehouse',), 'hidden': True, 'highlight': '/viec-cua-toi'},
+        {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse',), 'hidden': True, 'highlight': '/viec-cua-toi'},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
