@@ -619,10 +619,12 @@ body.tho-app { --bg: #fff; --surface: #f1f3f6; --surface2: #e2e6ec; --text: #0b0
 .tho-icb { width: 44px; height: 44px; flex: none; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; list-style: none; }
 .tho-icb::-webkit-details-marker { display: none; }
 .tho-account { position: relative; }
-.tho-account-menu { position: absolute; right: 0; top: 52px; width: 240px; display: grid; gap: 8px; padding: 12px; margin: 0; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.tho-account-menu { position: absolute; right: 0; top: 52px; width: min(320px, calc(100vw - 24px)); max-height: calc(100vh - 140px); overflow-y: auto; display: grid; gap: 10px; padding: 12px; margin: 0; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .tho-account-menu .identity { display: flex; flex-direction: column; overflow-wrap: anywhere; }
 .tho-account-menu .identity small { color: var(--muted); }
-.tho-account-menu .btn, .tho-account-menu button { min-height: 48px; width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.tho-account-menu .me-list { border: 2px solid var(--line); border-radius: 12px; overflow: hidden; }
+.tho-account-menu .me-item { min-height: 52px; padding: 10px 12px; }
+.tho-account-menu button.me-item { width: 100%; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; text-align: left; font: inherit; font-weight: 700; color: var(--bad); justify-content: flex-start; }
 .tho-back { min-height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 6px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: var(--text); font-weight: 800; font-size: 16px; text-decoration: none; flex: none; }
 .tho-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); background: var(--bg); border-top: 2px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tho-tabs a { min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: none; text-align: center; }

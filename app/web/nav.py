@@ -125,6 +125,14 @@ def matching(path, query=None):
     return max(matches, key=lambda pair: pair[0])[1] if matches else None
 
 
+# Khuôn 8: trang Cá nhân và menu tài khoản màn thợ dùng chung danh sách việc riêng của mỗi người.
+PERSONAL = (('/cham-cong','Chấm công','Vào ca, ra ca, xin nghỉ hoặc bổ sung công.'),
+            ('/phieu-luong','Phiếu lương','Lương từng tháng đã duyệt.'),
+            ('/tam-ung','Tạm ứng','Xin tạm ứng và xem khoản đã chi.'),
+            ('/kpi','KPI của tôi','Chỉ số tháng này, tạm tính.'),
+            ('/hoa-hong','Hoa hồng của tôi','Hoa hồng theo quy tắc của vị trí.'))
+
+
 def allowed(user, path, query=None):
     item = matching(path, query)
     if item and item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles:return False
@@ -212,4 +220,5 @@ def menu(user, path, query=None):
     crumb = next(((group['label'] or 'Của tôi', item['label']) for group in groups for item in group['items'] if item['active']), None)
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
     # Người nhiều vai trong khung thợ: tab dưới là nhóm đầu, menu đầy đủ mở từ nút tài khoản.
-    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user))
+    personal = [dict(href=h, label=l, hint=t) for h, l, t in PERSONAL if allowed(user, h)] if shell else []
+    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal)
