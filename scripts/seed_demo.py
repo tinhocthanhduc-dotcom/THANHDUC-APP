@@ -104,6 +104,9 @@ def main() -> None:
         inventory_catalogs.create(s, boss, Supplier, SupplierIn(name="Nhà phân phối HP Phương Nam (mẫu)", tax_code="0309876543", phones=["0287654321"])),
         inventory_catalogs.create(s, boss, Supplier, SupplierIn(name="Linh kiện máy in Chợ Lớn (mẫu)", phones=["0909111222"])),
     ]
+    # Từ PR #133 mã hàng phải thuộc nhóm có trong danh mục Nhóm hàng.
+    for group in dict.fromkeys(group for _, _, group, _ in PRODUCTS):
+        products.create_group(s, boss, group)
     for code, name, group, price in PRODUCTS:
         products.create(s, boss, ProductIn(code=code, name=name, group_name=group, sale_price=price, is_test=True))
     s.commit()

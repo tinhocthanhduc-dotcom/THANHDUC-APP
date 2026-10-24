@@ -3,7 +3,7 @@
 {% block main %}<div class="stock-page doc-page">
 <div class="bar">
   <h1>Khách hàng</h1>
-  {% if can_write %}<a class="btn btn-ok" href="/khach-hang/moi">+ Thêm khách</a>{% endif %}
+  {% if can_write %}<a class="btn btn-new" href="/khach-hang/moi">+ Thêm khách</a>{% endif %}
 </div>
 <form action="/khach-hang" class="card form doc-filter" role="search">
   <input type="search" aria-label="Tìm khách hàng" name="q" value="{{ q }}" placeholder="Tìm theo tên, mã KTD, số điện thoại, MST (gõ không dấu cũng được)" data-live="#rows" autofocus>

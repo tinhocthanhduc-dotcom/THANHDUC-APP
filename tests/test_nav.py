@@ -159,7 +159,7 @@ def test_finance_specific_service_receivables_prefix_and_csv(client, make_user):
 def test_director_every_menu_destination_works(client, make_user):
     service_login(client, make_user('nav.director', 'director'))
     for item in nav.items():
-        if item.get('technician_page'): continue  # Chỉ người có vai trò technician mới vào /tho.
+        if item.get('technician_page') or item.get('hidden'): continue  # /tho chỉ cho technician; mục ẩn không có trên menu.
         response = client.get(item['href'])
         assert response.status_code == 200, (item['href'], response.text[:200])
 

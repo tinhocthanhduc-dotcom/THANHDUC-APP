@@ -1,7 +1,9 @@
-{% extends 'base.jinja' %}{% from '_ui.jinja' import invalid, field_error, described %}
-{% block title %}Quy chuẩn giao diện{% endblock %}
+{% extends 'base.jinja' %}{% from '_ui.jinja' import invalid, field_error, described, badge, page_head, tiles, filter_bar, filter_chips, totals, steps, next_box, empty %}
+{% block title %}Quy chuẩn giao diện</div>
+{% endblock %}
 {% block main %}
-<div class="bar"><h1>Quy chuẩn giao diện</h1><span class="hint">Trang mẫu, không ghi dữ liệu.</span></div>
+<div class="page-wide">
+{{ page_head('Quy chuẩn giao diện', 'Trang mẫu, không ghi dữ liệu. Màn nào cũng lắp từ các mẫu dưới đây (macro trong _ui.jinja), không tự vẽ lại.') }}
 {% if ok %}<span hidden data-toast="Đã ghi nhận (trang mẫu, không lưu)"></span>{% endif %}
 
 <section class="card ui-section" aria-labelledby="ui-mau">
@@ -13,21 +15,80 @@
 </section>
 
 <section class="card ui-section" aria-labelledby="ui-nut">
-  <h2 id="ui-nut">Nút</h2>
+  <h2 id="ui-nut">Nút và nghĩa của màu</h2>
   <div class="chips">
-    <button type="button" class="btn-ok" data-toast-demo="Đã ghi nhận">Xác nhận</button>
-    <button type="button" class="btn-danger" data-toast-demo="Đã hủy (mẫu)">Hủy</button>
+    <button type="button" class="btn-new" data-toast-demo="Mở màn tạo (mẫu)">+ Tạo báo giá</button>
+    <button type="button" class="btn-ok" data-toast-demo="Đã ghi nhận">Lưu và chốt</button>
+    <button type="button" class="btn-danger" data-toast-demo="Đã hủy (mẫu)">Hủy đơn</button>
+    <button type="button" class="btn-ghost" data-toast-demo="Việc phụ (mẫu)">In phiếu</button>
     <button type="button" class="btn-info" data-toast-demo="Đang gọi (mẫu)">Gọi khách</button>
-    <button type="button" class="btn-ghost" data-toast-demo="Việc phụ (mẫu)">Việc khác</button>
   </div>
   <div>
     <button type="button" class="btn-ok btn-block" disabled>Hoàn thành</button>
     <p class="why-disabled">Còn thiếu: ảnh nghiệm thu.</p>
   </div>
+  <div class="table-scroll"><table class="list-table">
+    <thead><tr><th>Màu</th><th>Dùng cho</th><th>Lớp</th></tr></thead>
+    <tbody>
+      <tr><td>{{ badge('Xanh dương', 'lam') }}</td><td>Mở việc mới, sang màn khác: Tạo báo giá, Nhận đơn, Lập phiếu, Giao thợ, Gọi khách</td><td><code>.btn-new</code>, <code>.btn-info</code>, <code>a.primary</code></td></tr>
+      <tr><td>{{ badge('Xanh lá', 'xong') }}</td><td>Chốt, lưu, xác nhận, hoàn thành: việc làm thay đổi sổ</td><td><code>.btn-ok</code>, <code>button.primary</code></td></tr>
+      <tr><td>{{ badge('Đỏ', 'huy') }}</td><td>Hủy, đóng phiếu, xóa, từ chối</td><td><code>.btn-danger</code></td></tr>
+      <tr><td>{{ badge('Viền xám') }}</td><td>Việc phụ: In, Xem, Tải CSV, Việc khác</td><td><code>.btn-ghost</code> hoặc nút trơn</td></tr>
+    </tbody>
+  </table></div>
+  <p class="hint">Cao 44px trên máy tính, nút màu 52px trên điện thoại. Nút chính ở thanh bước tự theo luật: nút gửi form là xanh lá, nút mở màn khác là xanh dương.</p>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-kho">
+  <h2 id="ui-kho">Ba khổ trang</h2>
+  <ul>
+    <li><code>&lt;div class="page-wide"&gt;</code> · rộng 1200: danh sách, hàng đợi, chi tiết chứng từ, báo cáo.</li>
+    <li><code>&lt;div class="page-mid"&gt;</code> · vừa 720: form ngắn một cột (Thêm khách, Lập phiếu thu chi, Đổi mật khẩu).</li>
+    <li>Màn thợ giữ khổ điện thoại riêng.</li>
+  </ul>
+  <p class="hint">Một chứng từ giữ đúng một khổ ở mọi trạng thái.</p>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-ds">
+  <h2 id="ui-ds">Danh sách (khuôn 3): đầu trang, ô số, thanh lọc, bảng</h2>
+  {% call page_head('Đơn mua', 'Đặt hàng NCC, nhận hàng vào kho, theo dõi còn nợ.', kicker='Mua hàng') %}<a class="btn btn-ghost" href="#ui-ds">Công nợ NCC</a><a class="btn btn-new" href="#ui-ds">+ Tạo đơn mua</a>{% endcall %}
+  {{ tiles([dict(label='Chờ nhận', n=3, sub='2 quá hẹn', href='#ui-ds', on=true, tone='cho'), dict(label='Nhận một phần', n=1, sub='K58', href='#ui-ds'), dict(label='Đã nhận đủ', n=12, sub='tháng này', href='#ui-ds', tone='xong'), dict(label='Đã hủy', n=0, href='#ui-ds')]) }}
+  {% call filter_bar('/ui/quy-chuan') %}<input type="search" name="q" placeholder="Số đơn, tên NCC, mã hàng" aria-label="Tìm"><select name="kho" aria-label="Kho"><option value="">Mọi kho</option><option>K58</option><option>K145</option></select><select name="ky" aria-label="Thời gian"><option>Tháng này</option><option>Tháng trước</option></select>{% endcall %}
+  {{ filter_chips([dict(label='Chờ nhận', href='#ui-ds'), dict(label='Kho K58', href='#ui-ds')], '#ui-ds') }}
+  <div class="table-scroll"><table class="list-table">
+    <thead><tr><th>Số đơn · ngày</th><th>Nhà cung cấp</th><th>Trạng thái</th><th class="num">Tổng (gồm VAT)</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#ui-ds">DM-26-00004</a><br><small class="hint">22/10</small></td><td>Công ty Mực in Sài Gòn</td><td>{{ badge('Chờ nhận', 'cho') }}</td><td class="num">8.208.000</td></tr>
+      <tr><td><a href="#ui-ds">DM-26-00002</a><br><small class="hint">20/10</small></td><td>Công ty Mực in Sài Gòn</td><td>{{ badge('Nhận một phần', 'lam') }}</td><td class="num">21.924.000</td></tr>
+      <tr><td><a href="#ui-ds">DM-26-00001</a><br><small class="hint">18/10</small></td><td>Phân phối HP miền Nam</td><td>{{ badge('Đã nhận đủ', 'xong') }}</td><td class="num">75.816.000</td></tr>
+    </tbody>
+  </table></div>
+  {{ empty('Không có đơn mua theo bộ lọc đang chọn.', '#ui-ds', 'Xóa lọc') }}
+  <p class="hint">Đổi ô chọn là lọc ngay, không có nút "Lọc". Trên điện thoại ô số ẩn, danh sách lên đầu màn.</p>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-ct">
+  <h2 id="ui-ct">Chi tiết chứng từ (khuôn 4): đầu trang, thanh bước, bước tiếp, cột phải</h2>
+  {% call page_head('DB-26-00005', 'Đơn bán · Công ty TNHH ABC · Khách lấy sau · Trả ngay · từ BG-26-00003', back='#ui-ct', badge_label='Đã chốt', badge_tone='lam') %}<a class="btn btn-ghost" href="#ui-ct">In phiếu giao</a>{% endcall %}
+  {{ steps([('Nháp', 'done'), ('Đã chốt', 'done'), ('Giao hàng', 'cur'), ('Thu tiền', ''), ('Xong', '')]) }}
+  <div class="doc-grid">
+    <div class="page-mid">
+      {% call next_box('thủ kho K58', 'Soạn và giao 2 dòng, khách lấy ngày 24/10', 'Đơn Trả ngay: khách còn phải trả 9.234.000 đ khi nhận hàng.') %}<button type="button" class="btn-ok" data-toast-demo="Đã giao DB-26-00005 (mẫu)">Giao hàng</button>{% endcall %}
+      <section class="card"><h3>Hàng hóa · 2 dòng</h3>{{ totals([('Máy in HP M404dn · K58 · 1 cái', '6.900.000', ''), ('Hộp mực HP 76A · K58 · 1 cái', '1.650.000', '')]) }}</section>
+    </div>
+    <aside class="card">{{ totals([('Tiền hàng chưa VAT', '8.550.000', ''), ('VAT 8%', '684.000', ''), ('Tổng cộng', '9.234.000', 'main'), ('Đã thu', '0', ''), ('Còn phải thu', '9.234.000', 'due')]) }}</aside>
+  </div>
+</section>
+
+<section class="card ui-section" aria-labelledby="ui-nhan">
+  <h2 id="ui-nhan">Nhãn trạng thái: 5 nhóm</h2>
+  <div class="chips">{{ badge('Nháp') }} {{ badge('Chờ nhận · Chờ duyệt', 'cho') }} {{ badge('Đang làm · Đã chốt', 'lam') }} {{ badge('Xong · Đã giao', 'xong') }} {{ badge('Đã hủy · Từ chối', 'huy') }}</div>
+  <p class="hint">Vàng là đang chờ người khác; xanh là đang làm; xanh lá là xong; đỏ là hủy hoặc hỏng.</p>
 </section>
 
 <section class="card ui-section" aria-labelledby="ui-thongbao">
   <h2 id="ui-thongbao">Thông báo nhỏ</h2>
+  <p class="hint">Luôn nêu số chứng từ và người làm tiếp, ví dụ "Đã chốt DB-26-00005 · chờ kho giao". Dùng macro <code>toast()</code>.</p>
   <div class="chips">
     <button type="button" class="btn-ghost" data-toast-demo="Đã ghi nhận">Thông báo thường</button>
     <button type="button" class="btn-ghost" data-toast-demo="Không lưu được, hãy thử lại." data-toast-kind="bad">Thông báo lỗi</button>
@@ -86,4 +147,5 @@
   <p><kbd>Esc</kbd> đóng khung đang mở · <kbd>/</kbd> vào ô tìm kiếm.</p>
   <details><summary>Mở thử một khung, rồi bấm Esc</summary><p>Khung chi tiết.</p></details>
 </section>
+</div>
 {% endblock %}

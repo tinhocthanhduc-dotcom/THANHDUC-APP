@@ -12,7 +12,7 @@
 {% block main %}
 <h1>Báo cáo hàng chờ xử lý</h1><p>Đơn vị: đồng. Ngày và tháng theo giờ Việt Nam.</p>
 <div class="chips">{% for label,value,active in presets %}<a class="btn {{ 'btn-info' if active else 'btn-ghost' }}" href="?period={{ value }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}<a class="btn btn-ghost" href="/bao-cao/cho-xu-ly">6 tháng gần nhất</a></div>
-<form action="/bao-cao/cho-xu-ly" class="form quote-filters"><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ start }}" required{{ ui.described({'from':error} if error else {},'from') }}>{{ ui.field_error({'from':error} if error else {},'from') }}</label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label></div><button class="btn-info">Lọc</button></form>
+<form action="/bao-cao/cho-xu-ly" class="form quote-filters"><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ start }}" required{{ ui.described({'from':error} if error else {},'from') }}>{{ ui.field_error({'from':error} if error else {},'from') }}</label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label></div><button class="btn-ghost">Lọc</button></form>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% else %}
 <section id="tuoi-hang"><div class="bar"><h2>Tồn theo tuổi</h2><a class="btn btn-ghost" href="/bao-cao/cho-xu-ly/tuoi-hang.csv?{{ query }}">Tải CSV</a></div>
 <p>Tồn hiện tại, không theo kỳ lọc. Tuổi tại kho tính từ ngày nhập; tuổi gửi NCC tính từ ngày gửi. Số lượng bao gồm Kho Thu hồi có giá trị bằng 0.</p>

@@ -1,7 +1,7 @@
 {% extends 'base.jinja' %}
 {% block title %}Thu chi{% endblock %}
 {% block main %}<div class="stock-page cash-page">
-<div class="bar"><h1>Thu chi</h1><a class="btn btn-ok" href="/thu-chi/moi">+ Lập phiếu</a><a href="/quy">Quỹ và sổ quỹ</a></div>
+<div class="bar"><h1>Thu chi</h1><a class="btn btn-new" href="/thu-chi/moi">+ Lập phiếu</a><a href="/quy">Quỹ và sổ quỹ</a></div>
 {% if error %}<p class="alert bad" data-error-code="{{ error.code }}">{{ error.message }}</p>{% endif %}
 {% set keep = {'quy': filters.quy, 'trang_thai': filters.trang_thai, 'from': filters['from'], 'to': filters.to} %}
 <nav class="stock-tiles" aria-label="Loại phiếu">{% for value,label in [('', 'Tất cả'),('PT','Thu'),('PC','Chi'),('CQ','Chuyển quỹ')] %}<a class="stock-tile{% if filters.loai==value %} on{% endif %}" href="/thu-chi?{{ dict(keep, loai=value)|urlencode }}"{% if filters.loai==value %} aria-current="page"{% endif %}><b>{{ value or 'Tất cả' }}</b><span>{{ label if value else 'Mọi loại phiếu' }}</span></a>{% endfor %}</nav>

@@ -211,6 +211,8 @@
   // ---- Bộ lọc: đổi ô chọn là lọc ngay (dùng tìm trực tiếp nếu form có, không thì gửi form) ----
   document.addEventListener('change', function (event) {
     var el = event.target.closest && event.target.closest('[data-autosubmit]');
+    // Thanh lọc chung (macro filter_bar): mọi ô chọn trong form data-autofilter cũng lọc ngay; ô tìm thì Enter.
+    if (!el && event.target.form && event.target.form.hasAttribute('data-autofilter') && event.target.type !== 'search') el = event.target;
     if (!el || !el.form) return;
     var live = el.form.querySelector('[data-live]');
     if (live) live.dispatchEvent(new Event('input'));
