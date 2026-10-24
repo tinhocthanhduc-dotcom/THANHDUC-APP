@@ -224,6 +224,42 @@
   function typing(el) {
     return el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
   }
+  // ---- Ảnh: nén trên máy trước khi gửi (cạnh dài 1280px, JPEG) để tải nhanh, đỡ tốn dung lượng ----
+  // Máy không nén được thì gửi ảnh gốc, server vẫn tự thu nhỏ. Ô chụp màn thợ (data-tech-camera) tự nén riêng.
+  var PHOTO_SIDE = 1280, PHOTO_QUALITY = 0.72;
+  function shrinkPhoto(file) {
+    if (!/^image\//.test(file.type) || !window.createImageBitmap) return Promise.resolve(file);
+    return createImageBitmap(file).then(function (bmp) {
+      var scale = Math.min(1, PHOTO_SIDE / Math.max(bmp.width, bmp.height)), canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+      canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      if (bmp.close) bmp.close();
+      return new Promise(function (resolve) {
+        canvas.toBlob(function (blob) {
+          resolve(blob && blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', PHOTO_QUALITY);
+      });
+    }).catch(function () { return file; });
+  }
+  window.tdShrinkPhoto = shrinkPhoto;
+  document.addEventListener('change', function (event) {
+    var input = event.target;
+    if (!input.matches || !input.matches('input[type=file]') || input.hasAttribute('data-tech-camera') || input.dataset.shrunk === '1' || !window.DataTransfer) return;
+    var files = Array.prototype.slice.call(input.files || []);
+    if (!files.some(function (f) { return /^image\//.test(f.type); })) return;
+    event.stopImmediatePropagation();
+    var buttons = input.form ? Array.prototype.slice.call(input.form.querySelectorAll('button')) : [];
+    buttons.forEach(function (b) { b.disabled = true; });
+    Promise.all(files.map(shrinkPhoto)).then(function (out) {
+      try { var dt = new DataTransfer(); out.forEach(function (f) { dt.items.add(f); }); input.files = dt.files; } catch (e) { /* giữ ảnh gốc */ }
+    }).then(function () {
+      buttons.forEach(function (b) { b.disabled = false; });
+      input.dataset.shrunk = '1';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      delete input.dataset.shrunk;
+    });
+  }, true);
+
   document.addEventListener('keydown', function (event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.key === 'Escape') {

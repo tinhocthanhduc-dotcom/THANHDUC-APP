@@ -1,4 +1,5 @@
 """MV1: workshop custody, immutable early issues, locked return and repair attribution."""
+import re
 from datetime import timedelta
 from decimal import Decimal
 
@@ -471,3 +472,18 @@ def test_mang_ve_ticket_starts_with_bring_step_not_money(client,db,onsite):
     assert t.kind=='MANG_VE' and t.status=='DANG_LAM' and eq.custody_location=='THO_GIU'
     page=client.get(f'/tho/phieu/{t.id}').text
     assert 'Sửa xong, chờ trả máy' in page and 'Nhận máy mang về xưởng' not in page
+
+
+def test_machine_photos_on_technician_screen_are_one_tap_uploads(client,db,onsite):
+    # TUẤN 24/10: ảnh nhận/trả máy trên màn thợ là một nút Chụp ảnh (tải ngay, nén, báo lỗi tại chỗ).
+    p,a,_,t,eq=onsite;t.kind='MANG_VE';db.commit()
+    csrf=service_login(client,p['technician'])
+    page=client.get(f'/tho/phieu/{t.id}').text
+    assert 'data-photo-tag="NHAN_MAY"' in page and f'/giu-may/{t.id}/anh/tai' not in page
+    fk=re.search(r'name="form_key" value="([^"]+)"',page).group(1)
+    r=client.post(f'/tho/phieu/{t.id}/anh',data=dict(csrf=csrf,form_key=fk,tag='NHAN_MAY'),files={'file':('may.jpg',d5_image(),'image/jpeg')})
+    assert r.status_code==201,r.text
+    r=client.post(f'/dich-vu/{t.id}/mang-ve-xuong',data=dict(csrf=csrf,version=t.version,machine_version=eq.version,accessories='KHONG_CO',condition_note='Vỏ xước',return_to='tho'),follow_redirects=False)
+    assert r.status_code==303,r.text
+    page=client.get(f'/tho/phieu/{t.id}').text
+    assert f'/giu-may/{t.id}/anh/tai' not in page and 'data-photo-tag="TRA_MAY"' in page  # trả ngay nằm trong dòng gập

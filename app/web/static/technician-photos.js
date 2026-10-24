@@ -2,7 +2,7 @@
   const changed = () => document.dispatchEvent(new Event("tech-photo-change"));
   async function compress(file) {
     const bitmap = await createImageBitmap(file),
-      scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
@@ -15,7 +15,7 @@
         (blob) =>
           blob ? resolve(blob) : reject(new Error("Không nén được ảnh")),
         "image/jpeg",
-        0.82,
+        0.72,
       ),
     );
   }
@@ -71,7 +71,8 @@
             tile.querySelector("small").textContent = "Đang tải…";
             changed();
             try {
-              const blob = await compress(file),
+              // Máy cũ không nén được (thiếu createImageBitmap, ảnh lạ) thì gửi ảnh gốc, server tự nén.
+              const blob = await compress(file).catch(() => file),
                 data = new FormData();
               data.set("csrf", csrf);
               data.set("form_key", crypto.randomUUID());
@@ -86,7 +87,10 @@
                 body: data,
                 credentials: "same-origin",
               });
-              if (!response.ok) throw new Error("Lỗi tải ảnh");
+              if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.error || "Lỗi tải ảnh");
+              }
               const saved = await response.json();
               tile.dataset.savedPhoto = "";
               tile.dataset.photoId = saved.id;
@@ -100,7 +104,7 @@
               tile.append(button);
               URL.revokeObjectURL(preview);
             } catch (error) {
-              tile.querySelector("small").textContent = "Lỗi, thử lại";
+              tile.querySelector("small").textContent = error.message && error.message !== "Lỗi tải ảnh" ? error.message : "Lỗi, thử lại";
               retry.hidden = false;
             } finally {
               delete tile.dataset.uploading;

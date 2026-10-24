@@ -2088,3 +2088,11 @@ main:has(> .page-mid) { max-width: 752px; }
   .doc-view .doc-money { order: -2; }
   .doc-view .doc-next { order: -1; }
 }
+/* Máy khách trên màn thợ: ảnh nhỏ, đối chiếu phụ kiện mở khi thiếu/khác, bàn giao thu gọn. */
+.photo-gallery.photo-thumbs { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+.photo-gallery.photo-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.acc-diff, .tho-handover { margin: 6px 0; }
+.acc-diff > summary, .tho-handover > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; color: var(--muted); }
+.acc-diff > summary::before, .tho-handover > summary::before { content: "▸"; margin-right: 8px; }
+.acc-diff[open] > summary::before, .tho-handover[open] > summary::before { content: "▾"; }
+#may-khach .tech-photos { border: 0; padding: 0; margin: 8px 0; background: none; box-shadow: none; }
