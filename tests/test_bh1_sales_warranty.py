@@ -282,3 +282,19 @@ def test_liquidation_machine_condition_used_without_changing_cost(db,liquidation
     assert db.get(Equipment,'USED-A').condition=='CU'
     assert sum(r.cost_value for r in pending_liquidation.delivery_rows(db,gh.id))==200
     assert o.receivable==gh.total==432
+
+
+def test_care_cli_dry_run_then_apply_repeat(db,people,tmp_path):
+    import os, subprocess, sys
+    from app.config import get_settings
+    p=people;care(db,p)
+    csv_path=tmp_path/'warranty.csv';csv_path.write_text('serial,SĐT,model,ngày hết hạn bảo hành,mã phiếu CARE\nCLI-A,0901234567,Unknown,31/12/2027,CARE-CLI\nCLI-NO-MATCH,0902222222,Unknown,31/12/2027,CARE-UNKNOWN\n',encoding='utf-8-sig')
+    env={**os.environ,'TD_DATABASE_URL':get_settings().database_url}
+    command=[sys.executable,'scripts/import_care_warranty.py','--csv',str(csv_path)]
+    result=subprocess.run(command,env=env,capture_output=True,text=True,check=True)
+    assert not json.loads(result.stdout)['apply'] and db.get(Equipment,'CLI-A') is None
+    result=subprocess.run(command+['--apply'],env=env,capture_output=True,text=True,check=True)
+    report=json.loads(result.stdout);assert report['apply'] and report['rows'][1]['status']=='KHONG_KHOP_KHACH'
+    db.expire_all();assert db.get(Equipment,'CLI-A').warranty_until==date(2027,12,31)
+    subprocess.run(command+['--apply'],env=env,capture_output=True,text=True,check=True)
+    assert db.query(Equipment).filter_by(serial='CLI-A').count()==1 and db.get(Equipment,'CLI-NO-MATCH') is None

@@ -87,8 +87,10 @@ def import_rows(session,user,rows,*,apply=False,today=None):
                 matches=[p for p in products if model and model in (fold(p.name),fold(p.code))]
                 product=matches[0] if len(matches)==1 else fallback
                 result.update(status='TAO_MOI',product_code=product.code,warranty_until=expiry.isoformat())
-                if apply:equipment.create_in_tx(session,user,EquipmentIn(serial=serial,product_code=product.code,customer_code=customer.code,
-                    warranty_until=expiry,condition='CU',note=note))
+                if apply:
+                    with session.begin_nested():
+                        equipment.create_in_tx(session,user,EquipmentIn(serial=serial,product_code=product.code,customer_code=customer.code,
+                            warranty_until=expiry,condition='CU',note=note))
         except (ValueError,BusinessError) as exc:
             result.update(status='LOI',message=getattr(exc,'message',str(exc)))
     return report
