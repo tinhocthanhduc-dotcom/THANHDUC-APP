@@ -1,0 +1,48 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ s.name }}{% endblock %}
+{% block main %}
+{# Đợt 7: trang tổng quan một NCC, cùng khung trang khách (Đợt 4). Chỉ đọc; sửa thông tin ở /sua. #}
+<div class="page-wide kx-page" data-supplier="{{ s.code }}">
+{% call ui.page_head(s.code ~ ' · ' ~ s.name, sub='Nhà cung cấp' ~ ((' · MST ' ~ s.tax_code) if s.tax_code else '') ~ ((' · ' ~ s.phones|join(', ')) if s.phones else '') ~ ((' · ' ~ s.address) if s.address else ''), back='/nha-cung-cap', badge_label='' if s.active else 'Ngừng sử dụng', badge_tone='huy') %}<a class="btn btn-ghost" href="/nha-cung-cap/{{ s.code | urlencode }}/sua">{{ 'Sửa thông tin' if can_write else 'Xem thông tin' }}</a>{% endcall %}
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if quick %}<div class="kx-quick">{% for label, href in quick %}<a class="btn btn-new" href="{{ href }}">{{ label }}</a>{% endfor %}<span class="hint">Mở form với NCC này điền sẵn.</span></div>{% endif %}
+{% if tiles %}{{ ui.tiles(tiles, keep_phone=true) }}{% endif %}
+<div class="doc-grid kx-grid">
+{% if see_orders %}<section class="card list-frame kx-docs">
+{{ ui.list_tabs(tabs) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards kx-table">
+<thead><tr><th>Đơn mua · ngày</th><th>Hàng</th><th>Trạng thái</th><th>Bước tiếp · ai làm</th><th class="num">Tổng</th></tr></thead><tbody>
+{% for d in rows %}<tr data-href="{{ d.href }}"{% if d.late %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="{{ d.href }}">{{ d.no }}</a><span class="lt-sub">{{ d.o.order_date.strftime('%d/%m/%Y') }}</span></td>
+<td class="lt-phone-hide">{{ d.what }}<span class="lt-sub">{{ d.kho }}</span></td>
+<td class="lt-st">{{ ui.badge(d.status, d.tone) }}</td>
+<td class="kx-next">{% if d.open %}<span{% if d.late %} class="lt-bad"{% endif %}>{{ d.next }}</span><span class="lt-sub">{{ d.who }}</span>{% else %}<span class="lt-sub">{{ d.next }}</span>{% endif %}</td>
+<td class="num"><b>{{ d.amount|money }}</b></td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Không có đơn mua nào đang mở với NCC này.' if tab == 'mo' else 'Chưa có đơn mua nào.') }}{% endif %}
+{{ ui.list_foot(page, 'đơn mua') }}
+</section>{% endif %}
+<aside class="kx-side">
+{% if debt %}<section class="card kx-debt" id="cong-no"><h2 class="qf-h">Công nợ · kế toán, giám đốc</h2>
+<b class="kx-big{% if debt.remaining > 0 %} lt-bad{% endif %}">{{ debt.remaining|money }} đ</b>
+<dl class="kx-kv"><dt>Đầu kỳ</dt><dd>{{ debt.opening|money }}</dd><dt>Đã nhận hàng</dt><dd>{{ debt.received|money }}</dd><dt>Trả hàng</dt><dd>{{ debt.returned|money }}</dd><dt>Đã trả</dt><dd>{{ debt.paid|money }}</dd></dl>
+<a class="btn btn-ghost" href="/cong-no-ncc/{{ s.code | urlencode }}">Xem sổ công nợ</a>
+</section>{% endif %}
+<section class="card kx-contact"><h2 class="qf-h">Liên hệ</h2>
+<dl class="kx-kv">
+{% if s.phones %}<dt>Điện thoại</dt><dd>{% for p in s.phones %}<a href="tel:{{ p }}">{{ p }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+{% if s.tax_code %}<dt>MST</dt><dd>{{ s.tax_code }}</dd>{% endif %}
+{% if s.address %}<dt>Địa chỉ</dt><dd>{{ s.address }}</dd>{% endif %}
+{% if s.note %}<dt>Ghi chú</dt><dd>{{ s.note }}</dd>{% endif %}
+</dl>
+{% if not s.phones and not s.address %}<p class="hint">Chưa có thông tin liên hệ.</p>{% endif %}
+</section>
+{% if often %}<section class="card"><h2 class="qf-h">Hàng hay mua · 12 tháng</h2>
+<ul class="kx-owe">{% for x in often %}<li><span>{{ x.name }}<span class="lt-sub">{{ x.code }}</span></span><span>{{ x.n }} lần · {{ x.cost|money }}</span></li>{% endfor %}</ul>
+<p class="hint">Giá = lần đặt gần nhất, chưa VAT.</p></section>{% endif %}
+</aside>
+</div>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

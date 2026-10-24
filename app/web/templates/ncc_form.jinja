@@ -1,0 +1,27 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ c.name or 'Nhà cung cấp' }}{% endblock %}
+{% block main %}
+{# Đợt 7: form NCC khung 2 cột như Thêm khách (Đợt 3); ô và quy tắc lưu giữ nguyên. #}
+<div class="page-wide">
+{{ ui.page_head('Thêm nhà cung cấp' if is_new else ('Sửa nhà cung cấp' if can_write else 'Thông tin nhà cung cấp'), sub='' if is_new else c.code ~ ' · ' ~ c.name, back='/nha-cung-cap' if is_new else '/nha-cung-cap/' ~ c.code) }}
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<form method="post" action="{{ '/nha-cung-cap/moi' if is_new else '/nha-cung-cap/' ~ c.code }}" class="doc-grid kx-grid ncc-form">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<input type="hidden" name="version" value="{{ c.version }}">
+<section class="card form"><h2 class="qf-h">Thông tin</h2>
+<label>Tên nhà cung cấp<input name="name" value="{{ c.name }}" required maxlength="300"{% if not can_write %} disabled{% endif %}></label>
+<label>Mã số thuế<input name="tax_code" value="{{ c.tax_code }}"{% if not can_write %} disabled{% endif %}></label>
+<label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Ngăn cách bằng dấu phẩy"{% if not can_write %} disabled{% endif %}></label>
+<label>Địa chỉ<input name="address" value="{{ c.address }}" maxlength="2000"{% if not can_write %} disabled{% endif %}></label>
+<label>Ghi chú<textarea name="note" maxlength="2000"{% if not can_write %} disabled{% endif %}>{{ c.note }}</textarea></label>
+</section>
+<aside class="kx-side"><section class="card form"><h2 class="qf-h">Trạng thái</h2>
+<label class="check"><input type="checkbox" name="active" value="1" {% if c.active %}checked{% endif %}{% if not can_write %} disabled{% endif %}> Đang sử dụng</label>
+<p class="hint">Bỏ tick = Ngừng sử dụng, không chọn được khi lập đơn mua. Đơn cũ giữ nguyên.</p>
+{% if can_write %}<button class="btn-ok">Lưu</button><a class="btn btn-ghost" href="{{ '/nha-cung-cap' if is_new else '/nha-cung-cap/' ~ c.code }}">Thôi, quay lại</a>{% else %}<p class="hint">Chỉ Kho hoặc giám đốc được sửa danh mục này.</p>{% endif %}
+</section></aside>
+</form>
+</div>
+{% endblock %}

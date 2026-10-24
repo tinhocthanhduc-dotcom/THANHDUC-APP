@@ -585,7 +585,7 @@ def product_update(request: Request, code: str, form=Depends(checked_form), sess
 
 def _catalog_form(request, row, supplier, is_new=False, session=None, **ctx):
     holder = session.get(User, int(row["holder_id"])) if session and str(row.get("holder_id") or "").isdigit() else None
-    return render(request, "danh_muc_form.jinja", c=row, supplier=supplier,
+    return render(request, "ncc_form.jinja" if supplier else "danh_muc_form.jinja", c=row, supplier=supplier,
                   path="/nha-cung-cap" if supplier else "/kho",
                   label="Nhà cung cấp" if supplier else "Kho", is_new=is_new, holder_name=holder.full_name if holder else "",
                   can_write=has_role(request.state.user, *catalog_svc.WRITERS), **ctx)
@@ -616,6 +616,10 @@ def _register_catalog(path, model, in_schema, patch_schema):
 
     def listing(request: Request, q: str = "", phan: int = 0,
                 user: User = Depends(web_user), session: Session = Depends(get_session)):
+        if supplier and not phan:
+            from .supplier_pages import list_page
+            params = request.query_params
+            return list_page(request, session, user, q, params.get("tt", ""), params.get("ve", ""), params.get("no", ""))
         return render(request, "danh_muc_dong.jinja" if phan else "danh_muc_ds.jinja",
                       rows=catalog_svc.search(session, model, q[:200]), q=q, path=path,
                       supplier=supplier, label="Nhà cung cấp" if supplier else "Kho",
@@ -643,8 +647,15 @@ def _register_catalog(path, model, in_schema, patch_schema):
 
     def view(request: Request, code: str, da_luu: int = 0,
              user: User = Depends(web_user), session: Session = Depends(get_session)):
+        if supplier:
+            from .supplier_pages import overview
+            return overview(request, session, user, catalog_svc.load(session, model, code), request.query_params.get("tab", "mo"), saved=bool(da_luu))
         row = catalog_svc.snapshot(catalog_svc.load(session, model, code))
         return _catalog_form(request, row, supplier, session=session, error=None, saved=bool(da_luu))
+
+    def edit(request: Request, code: str, user: User = Depends(web_user), session: Session = Depends(get_session)):
+        row = catalog_svc.snapshot(catalog_svc.load(session, model, code))
+        return _catalog_form(request, row, supplier, session=session, error=None)
 
     def update(request: Request, code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
         user = request.state.user
@@ -665,6 +676,8 @@ def _register_catalog(path, model, in_schema, patch_schema):
     router.add_api_route(path + "/moi", new, methods=["GET"])
     router.add_api_route(path + "/moi", create, methods=["POST"])
     router.add_api_route(path + "/{code}", view, methods=["GET"])
+    if supplier:
+        router.add_api_route(path + "/{code}/sua", edit, methods=["GET"])
     router.add_api_route(path + "/{code}", update, methods=["POST"])
 
 
