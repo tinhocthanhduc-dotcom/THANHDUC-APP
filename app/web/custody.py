@@ -58,8 +58,8 @@ def detail(request:Request,ticket_id:int,user:User=Depends(web_user),session:Ses
     return _page(request,session,user,ticket_id)
 
 
-def _accessory_values(form):
-    values=[str(v) for v in form.getlist('accessories')]
+def _accessory_values(form, field='accessories'):
+    values=[str(v) for v in form.getlist(field)]
     if not values:raise BusinessError('ACCESSORIES_REQUIRED','Phải chọn phụ kiện hoặc Không kèm phụ kiện.')
     if 'KHONG_CO' in values:
         if len(values)!=1:raise BusinessError('BAD_ACCESSORIES','Không chọn đồng thời phụ kiện và Không kèm phụ kiện.')

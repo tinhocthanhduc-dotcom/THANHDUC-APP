@@ -33,6 +33,13 @@ def body(form, version):
     return ServiceMachineSet(version=version, serial=serial)
 
 
+def multiple(form):
+    choices=[str(value) for value in form.getlist('machine_pick')]
+    if 'NONE' in choices or choices.count('NEW')>1:
+        raise BusinessError('BAD_SERIAL','Chọn danh sách máy hợp lệ, không chọn Không có máy cùng máy khác.')
+    return ([value.removeprefix('SERIAL:') for value in choices if value!='NEW'],new_machine(form) if 'NEW' in choices else None)
+
+
 def context(session, user, ticket, shown=None):
     own = 'technician' in user.roles and ticket.assignee_id == user.id
     permitted = has_role(user, *service_tickets.DISPATCHERS) or own
