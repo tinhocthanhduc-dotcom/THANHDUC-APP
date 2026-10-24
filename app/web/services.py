@@ -399,6 +399,8 @@ def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),sess
     shown=dict(condition_note=str(form.get('condition_note','')),accessories=[str(v) for v in form.getlist('accessories')],accessories_note=str(form.get('accessories_note','')))
     try:
         shown['materials']=_workshop_materials(form)
+        # Giữ nguyên dữ liệu thợ đã nhập cho từng máy của chuyến khi có lỗi.
+        shown['trip_raw']={key:[str(v) for v in form.getlist(key)] for key in form if key.startswith('trip-')}
         trip_ids=set()
         for key in form:
             match=re.fullmatch(r'trip-([0-9]+)-(version|machine_version|accessories|accessories_note|condition_note)',key)

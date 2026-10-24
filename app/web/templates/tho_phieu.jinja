@@ -26,7 +26,7 @@
 <div class="tho-kv"><span>Lỗi khách báo</span><span class="service-text tho-symptom">{{ t.symptom }}</span></div>
 <p class="tho-kv"><span>Hẹn</span><b>{{ t.appointment_at|appointment_label(t.appointment_slot) if t.appointment_at else 'Chưa hẹn' }}</b></p>
 {% if maps %}<a class="btn btn-ghost" href="{{ maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</section>
-{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}{% set tach=request.query_params.get('tach','') %}{% if tach and not error %}<p class="alert ok" data-split-done>Đã tách thêm {{ tach.split(',')|length }} phiếu, mỗi máy một phiếu: {{ tach.replace(',', ', ') }}.</p>{% endif %}
 {% if arrived %}{% include 'dich_vu_loai.jinja' %}{% endif %}
 {% set working=t.status=='DANG_LAM' or (return_job and t.status=='DA_HEN') %}{% if working %}
 {% if bring_stage %}<section class="card tho-bring"><h2>Nhận máy mang về xưởng</h2><p class="hint">Chụp ảnh máy, chọn phụ kiện, ghi tình trạng rồi vuốt Mang máy về xưởng. Báo cáo sửa và thu tiền làm sau khi sửa xong.</p></section>{% with bring_open=true %}{% include 'tho_mang_ve_xuong.jinja' %}{% endwith %}

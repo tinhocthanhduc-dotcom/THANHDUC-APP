@@ -1,9 +1,19 @@
 (function() {
   function refresh(root) {
     root.querySelectorAll('[data-machine-selector]').forEach(function(form) {
-      var choice = form.querySelector('[name=machine_pick]:checked');
       var fields = form.querySelector('[data-machine-new-fields]');
-      if (fields) fields.hidden = fields.disabled = !(choice && choice.value === 'NEW');
+      var newPicked = Array.prototype.some.call(form.elements, function(el) { return el.name === 'machine_pick' && el.value === 'NEW' && el.checked; });
+      if (fields) fields.hidden = fields.disabled = !newPicked;
+      // MM1: báo trước số phiếu sẽ tách thêm khi tick từ 2 máy.
+      var count = Array.prototype.filter.call(form.elements, function(el) { return el.name === 'machine_pick' && el.checked; }).length;
+      var note = form.querySelector('[data-machine-split-note]');
+      if (note) {
+        if (!note.dataset.base) note.dataset.base = note.textContent;
+        note.textContent = count > 1 ? 'Đã chọn ' + count + ' máy: lưu sẽ tách thêm ' + (count - 1) + ' phiếu, mỗi máy một phiếu, cùng thợ.' : note.dataset.base;
+        note.classList.toggle('machine-split-on', count > 1);
+      }
+      var button = form.querySelector('button.btn-ok');
+      if (button) button.textContent = count > 1 ? 'Lưu ' + count + ' máy' : 'Lưu máy';
     });
     var intake = document.querySelector('[data-service-form]');
     if (intake) {

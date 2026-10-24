@@ -1,15 +1,15 @@
-{% if can_set_machine %}<details class="service-machine-editor" {% if failed_action=='machine' or not t.serial %}open{% endif %}>
-<summary class="btn btn-ghost">{{ 'Đổi máy' if t.serial else 'Chọn máy' }}</summary>
-{% set mf=machine_form %}{% set choice=mf.get('machine_pick') or ('SERIAL:' ~ t.serial if t.serial else 'NONE') %}
-{% set new_machine_selected=choice=='NEW' %}
+{% if can_set_machine %}{# TUẤN 24/10: chưa có máy thì hiện thẳng danh sách máy, không cần nút Chọn máy; đã có máy mới cần nút Đổi máy.
+   MM1: tick được nhiều máy; từ máy thứ hai app tự tách mỗi máy một phiếu. #}
+{% if t.serial %}<details class="service-machine-editor" {% if failed_action=='machine' %}open{% endif %}>
+<summary class="btn btn-ghost">Đổi máy</summary>{% else %}<div class="service-machine-editor">{% endif %}
+{% set mf=machine_form %}{% set picks=mf.get('machine_picks') or ([mf.get('machine_pick')] if mf.get('machine_pick') else (['SERIAL:' ~ t.serial] if t.serial else [])) %}
+{% set new_machine_selected='NEW' in picks %}
 <form method="post" action="{{ '/tho/phieu/' if technician_view else '/dich-vu/' }}{{ t.id }}/may" class="form" data-busy data-machine-selector>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ mf.get('version') or t.version }}">
 {% if technician_view %}{% include 'tho_return.jinja' %}{% endif %}
-<div class="field-group"><p class="group-label">Máy của khách</p><div class="chips machine-choices">
-{% for machine,name in ticket_machines %}<label class="chip"><input type="radio" name="machine_pick" value="SERIAL:{{ machine.serial }}" {% if choice=='SERIAL:' ~ machine.serial %}checked{% endif %} required><span>{{ machine.serial }} · {{ name }}</span></label>{% endfor %}
-{% if t.kind!='MANG_VE' %}<label class="chip"><input type="radio" name="machine_pick" value="NONE" {% if choice=='NONE' %}checked{% endif %} required><span>Không chọn máy</span></label>{% endif %}
-{% if can_create_machine %}<label class="chip"><input type="radio" name="machine_pick" value="NEW" {% if new_machine_selected %}checked{% endif %} required><span>+ Máy mới</span></label>{% endif %}
-</div>{% if error_code in ['BAD_SERIAL','SERIAL_REQUIRED'] %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}</div>
+<div class="field-group"><div class="machine-head"><p class="group-label">Máy của khách</p>{% if can_create_machine %}<label class="chip machine-new-chip"><input type="checkbox" name="machine_pick" value="NEW" {% if new_machine_selected %}checked{% endif %}><span>+ Thêm máy mới</span></label>{% endif %}</div><div class="chips machine-choices">
+{% for machine,name in ticket_machines %}{% set held=(machine_held|default({})).get(machine.serial) %}<label class="chip{{ ' machine-held' if held is not none }}"><input type="checkbox" name="machine_pick" value="SERIAL:{{ machine.serial }}" {% if 'SERIAL:' ~ machine.serial in picks and held is none %}checked{% endif %} {% if held is not none %}disabled{% endif %}><span>{{ machine.serial }} · {{ name }}{% if held is not none %}<small>Đang giữ theo {{ held or 'phiếu khác' }}</small>{% endif %}</span></label>{% endfor %}
+</div><p class="hint" data-machine-split-note>{{ 'Chọn máy mang về.' if t.kind=='MANG_VE' else 'Bỏ chọn hết nếu không gắn máy.' }} Chọn nhiều máy: mỗi máy thêm một phiếu riêng, cùng thợ.</p>{% if error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD','SERIAL_BUSY','SERIAL_DUPLICATE','BAD_SPLIT'] %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}</div>
 {% if can_create_machine %}{% include 'dich_vu_may_moi.jinja' %}{% endif %}
-<button class="btn btn-ok">Lưu máy</button></form></details>
+<button class="btn btn-ok">Lưu máy</button></form>{% if t.serial %}</details>{% else %}</div>{% endif %}
 {% elif machine_lock_reason %}<small class="hint">{{ machine_lock_reason }}</small>{% endif %}

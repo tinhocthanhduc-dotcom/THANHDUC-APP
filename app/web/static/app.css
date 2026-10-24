@@ -2368,6 +2368,25 @@ main:has(> .page-mid) { max-width: 752px; }
   .kh-bar .next-primary { width: 100%; }
 }
 
+/* TUẤN 24/10: ô ảnh chuẩn toàn app (o_anh.jinja) theo khuôn "Ảnh nhận máy": tên ô + nút Chụp ảnh, ảnh 2 cột, tối đa 2 ảnh. */
+.photo-slots { display: grid; gap: 10px; }
+.photo-slots > .photo-slot { margin: 0; }
+.photo-slot .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.photo-slot .bar strong { min-width: 0; overflow-wrap: anywhere; }
+.photo-slot .photo-empty { margin: 6px 0 0; }
+.photo-slot .req { color: #a20e16; }
+.photo-slot .tech-photo { position: relative; }
+.photo-hide > summary { list-style: none; min-height: 36px; padding: .35rem; text-align: center; cursor: pointer; }
+.photo-hide > summary::-webkit-details-marker { display: none; }
+.photo-hide[open] > summary { margin-bottom: 6px; }
+.photo-hide .form { gap: 6px; }
+/* Ô ảnh nằm trong một khung khác (dòng trả hàng, form giao hàng, form chờ xử lý): bỏ viền khung lồng. */
+.tho-ret .photo-slot, .recv-line .photo-slot, form .photo-slot[data-photo-pick-box] { border: 0; padding: 0; margin: 8px 0; background: none; box-shadow: none; }
+/* TUẤN 24/10: không còn nút Chọn máy; "+ Thêm máy mới" nằm cùng dòng tiêu đề Máy của khách. */
+.service-machine-editor { text-align: left; }
+.machine-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.machine-head .group-label { margin: 0; }
+.service-machine-row { grid-column: 1 / -1; min-width: 0; }
 /* ===== Đợt 4: trang tổng quan khách ===== */
 .kx-quick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .kx-quick .hint { margin: 0 0 0 4px; }
@@ -2410,6 +2429,21 @@ main:has(> .page-mid) { max-width: 752px; }
 }
 .ls-buy { flex-basis: 100%; }
 @media (max-width: 640px) { .ls-bar { grid-template-columns: auto 1fr; } .ls-bar .hint { display: none; } }
+/* Máy đang giữ theo phiếu khác: mờ, không bấm được. */
+.machine-held span { opacity: .55; cursor: not-allowed; flex-direction: column; align-items: flex-start; justify-content: center; padding-top: 4px; padding-bottom: 4px; }
+.machine-held small { font-weight: 500; font-size: .8rem; }
+/* TUẤN 24/10: ảnh giao hàng 1 ảnh, to vừa bề ngang điện thoại. */
+.photo-wide .tech-photo { width: 100%; }
+.photo-wide .tech-photo img { aspect-ratio: auto; max-height: 70vh; object-fit: contain; background: var(--surface); }
+img.delivery-photo { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; border-radius: 8px; margin: 6px 0; }
+/* MM1: chọn nhiều máy, nhận máy theo chuyến. */
+.machine-split-on { color: var(--text); font-weight: 700; }
+.tho-trip-title { font-size: 17px; margin: 14px 0 6px; }
+.tho-trip-title small { font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tho-trip-machine { border-top: 2px solid var(--line); padding-top: 6px; margin-top: 10px; display: grid; gap: 10px; }
+/* TUẤN 24/10: phụ kiện mang theo chữ nhỏ lại, gọn trên điện thoại. */
+.acc-chips { gap: 6px; }
+.acc-chips .chip span { min-height: 40px; padding: 0 11px; font-size: 14px; font-weight: 600; border-width: 1.5px; border-radius: 10px; }
 /* ===== Đợt 5: phiếu dịch vụ khung 2 cột, Điều phối khuôn danh sách ===== */
 .svc-next { gap: 10px; }
 .svc-next h2.nb-title, .svc-next .service-action h2.nb-title { margin: 0; font-size: 1.15rem; color: var(--text); }

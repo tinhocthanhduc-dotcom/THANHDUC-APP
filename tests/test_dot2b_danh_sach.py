@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from app import employees
+from app.web import lists  # ngày theo giờ VN như màn danh sách (sau 17h UTC lệch 1 ngày)
 from app.models import Customer, Equipment, Product, StockBalance, Warehouse
 from test_dot2_danh_sach import tab
 from test_ns1_employees import body, p, salary
@@ -63,7 +64,7 @@ def test_product_list_no_cap_stock_states_and_stopped_tab(db, client, make_user)
 def test_device_list_no_cap_and_warranty_soon(db, client, make_user):
     db.add(Product(code='TD-0001', name='Máy in', search_text='td-0001 may in'))
     db.commit()
-    today, user = date.today(), make_user('d2b.dp', 'dispatcher')
+    today, user = lists._today(), make_user('d2b.dp', 'dispatcher')
     db.add_all([Equipment(serial=f'SN{i:03d}', product_code='TD-0001', search_text=f'sn{i:03d}', created_by=user.id,
                           warranty_until=today + timedelta(days=10 if i == 1 else 400)) for i in range(1, 56)])
     db.commit()

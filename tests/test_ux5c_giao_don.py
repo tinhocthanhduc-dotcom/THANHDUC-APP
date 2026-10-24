@@ -70,6 +70,7 @@ def test_photo_is_big_camera_button(db, setup, client):
     p = setup; o = assigned(db, p); move(db, p, o, 2)
     service_login(client, p['technician'])
     page, _ = deliver_form(client, o)
-    # Ô chọn ảnh phủ kín nút lớn để bấm trên điện thoại mở thẳng máy ảnh; vẫn bắt buộc.
-    assert re.search(r'<label class="btn photo-capture delivery-capture">[^<]*<input type="file" name="photos" accept="image/\*" capture="environment" multiple required data-delivery-camera>', page.text)
-    assert 'data-photo-thumbs' in page.text
+    # Ô ảnh chuẩn (TUẤN 24/10): nút Chụp ảnh mở thẳng máy ảnh, 1 ảnh to vừa màn hình, vẫn bắt buộc.
+    assert re.search(r'<label class="btn photo-capture">[^<]*<input type="file" name="photos" accept="image/jpeg,image/png,image/webp" capture="environment"\s+required data-photo-pick', page.text)
+    assert 'photo-slot photo-wide' in page.text
+    assert 'data-photo-picked' in page.text

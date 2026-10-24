@@ -21,7 +21,17 @@
   }
   document.querySelectorAll("[data-tech-photos]").forEach((box) => {
     const csrf = box.dataset.csrf,
-      ticket = box.dataset.ticket;
+      ticket = box.dataset.ticket,
+      max = Number(box.dataset.photoMax || 0),
+      tiles = () => box.querySelectorAll(".tech-photo").length;
+    // TUẤN 24/10: mỗi ô tối đa 2 ảnh; đủ thì ẩn nút chụp, xóa bớt thì hiện lại.
+    function refresh() {
+      if (!max) return;
+      const full = tiles() >= max;
+      box.querySelector("[data-tech-capture]").hidden = full;
+      box.querySelector("[data-tech-full]").hidden = !full;
+    }
+    document.addEventListener("tech-photo-change", refresh);
     async function remove(button) {
       button.disabled = true;
       try {
@@ -54,8 +64,12 @@
     box
       .querySelector("[data-tech-camera]")
       .addEventListener("change", async function () {
-        const files = Array.from(this.files);
+        let files = Array.from(this.files);
         this.value = "";
+        if (max && files.length > max - tiles()) {
+          files = files.slice(0, Math.max(0, max - tiles()));
+          if (window.tdToast) window.tdToast(`Mỗi ô tối đa ${max} ảnh`, "warn");
+        }
         for (const file of files) {
           const tile = document.createElement("article");
           tile.className = "tech-photo";

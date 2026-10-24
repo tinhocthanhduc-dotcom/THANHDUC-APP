@@ -1,4 +1,4 @@
-{% extends 'base.jinja' %}{% from '_ui.jinja' import fill_chips %}
+{% extends 'base.jinja' %}{% import 'o_anh.jinja' as anh with context %}{% from '_ui.jinja' import fill_chips %}
 {# UX5c: thợ giao đơn theo bước. Số lượng và tiền cần thu điền sẵn; thợ chỉ sửa khi khác. #}
 {% macro tokens() %}{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ raw.get('version',order.version) }}">{% endmacro %}
 {% set can_deliver=order.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}
@@ -31,7 +31,7 @@
 <p class="hint" data-amount-hint>Tự tính theo số hàng giao, tối đa {{ balance.available|money }} đ. Sửa nếu khách trả khác.</p>
 <div class="chips" role="radiogroup" aria-label="Cách thu">{% for code,title in [('TIEN_MAT','Tiền mặt'),('CHUYEN_KHOAN','Chuyển khoản')] %}<label class="chip"><input type="radio" name="method" value="{{ code }}" {% if raw.get('method','TIEN_MAT')==code %}checked{% endif %}><span>{{ title }}</span></label>{% endfor %}</div></div></section>
 <section class="card"><h2><span class="tho-stepno">3</span>Xác nhận giao</h2>
-<div class="tho-delivery-photos" data-delivery-photos><label class="btn photo-capture delivery-capture">📷 Chụp ảnh giao hàng (bắt buộc)<input type="file" name="photos" accept="image/*" capture="environment" multiple required data-delivery-camera></label><p class="hint" data-photo-count>Chưa có ảnh. Bấm nút trên để mở máy ảnh.</p><div class="delivery-thumbs" data-photo-thumbs></div></div>
+{# TUẤN 24/10: ảnh giao hàng 1 ảnh, hiện to vừa bề ngang điện thoại. #}{{ anh.pick('Ảnh giao hàng', 'photos', required=true, wide=true) }}
 <label>Người nhận<input name="receiver_name" value="{{ raw.get('receiver_name', order.contact_name or '') }}" maxlength="200"></label>
 </section>
 </form>
@@ -52,7 +52,7 @@
 {% else %}<section class="card"><h2>{{ label if can_deliver else 'Đã giao xong' }}</h2><p>Cần thu còn {{ balance.available|money }} đ · Chờ kế toán xác nhận {{ balance.pending|money }} đ.</p></section>{% endif %}
 {% if attempts or shipments %}<details class="card tho-hist"><summary>Lịch sử giao</summary>
 {% for a in attempts %}<p>{{ a.created_at|service_time }} · Không giao được: {{ reason_labels[a.reason] }}{{ ' · ' ~ a.note if a.note }}</p>{% endfor %}
-{% for gh in shipments %}<p>{{ gh.number }} · {{ gh.receiver_name }}{{ ' · ' ~ gh.note if gh.note }}</p><p>{% for a in photos[gh.id] %}<a href="/attachments/{{ a.id }}/file" target="_blank" rel="noopener"><img src="/attachments/{{ a.id }}/file" alt="Ảnh giao hàng" loading="lazy" style="max-width:96px;max-height:96px"></a>{% endfor %}</p>{% endfor %}</details>{% endif %}
+{% for gh in shipments %}<p>{{ gh.number }} · {{ gh.receiver_name }}{{ ' · ' ~ gh.note if gh.note }}</p><p>{% for a in photos[gh.id] %}<a href="/attachments/{{ a.id }}/file" target="_blank" rel="noopener"><img src="/attachments/{{ a.id }}/file" alt="Ảnh giao hàng" loading="lazy" class="delivery-photo"></a>{% endfor %}</p>{% endfor %}</details>{% endif %}
 <div class="tho-bottom-action">{% if phone or can_deliver %}<div class="row2 tho-quick">{% if phone %}<a class="btn btn-info" href="tel:{{ phone }}">Gọi khách</a>{% endif %}{% if can_deliver %}<a class="btn btn-ghost" href="#viec-khac" data-open-details>Không giao được</a>{% endif %}</div>{% endif %}
 {% if can_deliver and lines %}<div class="swipe" data-swipe data-tone="ok"><button class="primary" type="submit" form="giao-xong" data-tho-primary>Vuốt để Giao xong</button></div>
 {% elif order.status=='DA_GIAO' and balance.available>0 %}<button class="primary btn-ok" type="submit" form="bao-thu">Báo thu · chờ kế toán xác nhận</button>
