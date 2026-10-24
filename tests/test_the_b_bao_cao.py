@@ -16,15 +16,15 @@ from test_web import service_login
 @pytest.mark.parametrize('changes,code', [
     (dict(fault_found='Kẹt giấy', fix_done=''), 'FIX_REQUIRED'),
     (dict(fix_done='x' * 2001), 'TEXT_TOO_LONG'),
-    (dict(repair_result='', work=['Thay drum']), 'FIX_REQUIRED'),
-    (dict(repair_result='LAI', work=['Thay drum']), 'FIX_REQUIRED'),
+    (dict(repair_result='', fix_extra='Thay drum'), 'FIX_REQUIRED'),
+    (dict(repair_result='LAI', fix_extra='Thay drum'), 'FIX_REQUIRED'),
 ])
 def test_report_result_required_rolls_back(client, db, job, changes, code):
     p, own, t = job
     form = data(client, p, t, **changes); before = snapshot(db, t); stock = balance(db, own.code)
     r = post(client, t, form)
     assert r.status_code == 400 and f'data-error-code="{code}"' in r.text and snapshot(db, t) == before and balance(db, own.code) == stock
-    if 'work' in changes: assert 'value="Thay drum" checked' in r.text  # thợ không mất lựa chọn
+    if 'fix_extra' in changes: assert 'value="Thay drum"' in r.text  # thợ không mất chữ đã ghi
 
 
 def test_bien_ban_photo_no_longer_required(client, db, job):
@@ -44,7 +44,9 @@ def test_bien_ban_photo_no_longer_required(client, db, job):
 def test_report_saved_and_shown_to_dispatcher(client, db, job):
     p, _, t = job
     service_login(client, p['technician']); html = client.get(f'/tho/phieu/{t.id}').text
-    assert 'name="repair_result" value="XONG"' in html and 'name="fault" value="Kẹt giấy"' in html and 'name="work" value="Thay drum"' in html
+    assert 'name="repair_result" value="XONG"' in html and 'name="fix_extra"' in html
+    # TUẤN 24/10: bỏ nút gợi ý Lỗi gặp / Đã làm; server vẫn nhận trường cũ.
+    assert 'name="fault"' not in html and 'name="work"' not in html
     assert 'Ảnh nghiệm thu' in html and html.index('id="bao-cao"') < html.index('id="completion-checks"')
     assert 'name="fault_found"' not in html and 'name="fix_done"' not in html
     assert post(client, t, data(client, p, t, fault_found='', fix_done='', repair_result='XONG', fault=['Kẹt giấy'], work=['Thay drum'])).status_code == 303

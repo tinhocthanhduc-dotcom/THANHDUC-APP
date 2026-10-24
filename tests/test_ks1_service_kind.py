@@ -65,9 +65,11 @@ def test_form_intake_without_kind_and_labels_everywhere(client,db,people,with_fi
         r=client.get(path)
         assert r.status_code==200 and 'Chưa phân loại' in r.text
     service_login(client,p['technician'])
-    for path in ('/tho',f'/tho/phieu/{t.id}'):
-        r=client.get(path)
-        assert r.status_code==200 and 'Chưa phân loại' in r.text
+    r=client.get('/tho');assert r.status_code==200 and 'Chưa phân loại' in r.text
+    # TUẤN 24/10: màn thợ chỉ hiện ô Loại dịch vụ sau khi Đã đến khách.
+    r=client.get(f'/tho/phieu/{t.id}');assert r.status_code==200 and 'name="kind"' not in r.text and 'Chưa phân loại' not in r.text
+    svc.transition(db,p['technician'],t.id,'DA_NHAN',t.version);svc.transition(db,p['technician'],t.id,'DANG_LAM',t.version)
+    r=client.get(f'/tho/phieu/{t.id}');assert r.status_code==200 and 'name="kind"' in r.text and 'Chưa phân loại' in r.text
 
 
 @pytest.mark.parametrize('entry',['transition','api','web','web-transition','technician_work','service_completion'])
