@@ -271,6 +271,13 @@ def new(request: Request, user: User=Depends(purchase_user), session: Session=De
         if params.get('tu') == 'sap-het':
             note = (f'Điền sẵn từ Tồn kho › Sắp hết: {len(lines)} dòng, số lượng = Nên đặt, giá = lần mua trước'
                     + (', NCC = NCC lần trước của các dòng' if supplier else '') + '. Kiểm tra rồi bấm Lưu và đặt hàng.')
+    # Đợt 7: mở từ trang một NCC thì điền sẵn NCC (chỉ NCC đang dùng).
+    chosen = params.get('supplier_code', '')
+    if chosen and (data is None or not data['supplier_code']):
+        sup = session.get(Supplier, chosen)
+        if sup is not None and sup.active:
+            data = data or dict(order_date=quotes._today().isoformat(), expected_date='', note='', version=0, lines=[])
+            data['supplier_code'] = sup.code
     return _form(request,session,data=data,prefill_note=note)
 
 

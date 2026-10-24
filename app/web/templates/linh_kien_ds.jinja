@@ -1,11 +1,43 @@
-{% extends 'base.jinja' %}{% block title %}Yêu cầu linh kiện{% endblock %}
-{% block main %}<div class="po-page part-page"><div class="bar"><h1>Yêu cầu linh kiện</h1><a href="/viec-cua-toi">← Việc của tôi</a></div><p class="hint">Yêu cầu chờ cấp cũ nhất ở trên. Cấp hàng sẽ lập và ghi sổ phiếu CK sang kho thợ.</p>
-<nav class="stock-actions" aria-label="Trạng thái yêu cầu">{% for code,label in part_statuses.items() %}<a class="btn{% if selected_status==code %} on{% endif %}"{% if selected_status==code %} aria-current="page"{% endif %} href="/yeu-cau-linh-kien?status={{ code }}">{{ label }}</a>{% endfor %}</nav>
-{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã xử lý yêu cầu.</p>{% endif %}
-<div class="part-grid">{% for r in rows %}{% set t=tickets.get(r.ticket_id) %}<article class="card part-req" id="yc-{{ r.id }}">
-<div class="recv-name"><div><b>{{ names.get(r.product_code,'') or r.product_code }}</b><small>{{ r.product_code }} · {{ r.number }} · {% if t %}{{ t.number }} · Thợ {{ users.get(t.assignee_id,'Chưa giao') }}{% else %}Thợ xin mang theo · {{ users.get(r.requester_id,'') }}{% endif %}</small></div><span class="stock-chip part-st-{{ r.status|lower }}">{{ part_statuses[r.status] }}</span></div>
-<div class="part-need">Cần <b>{{ r.qty|qty }}</b><span class="meta">{{ r.created_at|service_time }}</span></div>{% if r.reason %}<p class="recv-note">{{ r.reason }}</p>{% endif %}
-{% if r.status=='CHO_CAP' %}<form class="part-supply" method="post" action="/yeu-cau-linh-kien/{{ r.id }}/cap"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',r.version) if failed_id==r.id else r.version }}">{% for warehouse in warehouses %}{% set have=stocks.get((warehouse.code,r.product_code),0) %}<button name="warehouse_code" value="{{ warehouse.code }}" class="{{ 'btn-ok' if have>=r.qty else 'btn-ghost' }}">Cấp từ {{ warehouse.code.removeprefix('K') }} · Tồn {{ have|qty }}</button>{% endfor %}</form>
-<details class="po-danger"{% if failed_id==r.id and not d.get('warehouse_code') %} open{% endif %}><summary>Báo hết hàng</summary><p class="alert warn">Hậu quả: yêu cầu chuyển Hết hàng, thợ thấy ghi chú của bạn. Sau đó lập đơn mua để nhập hàng.</p><form class="form" method="post" action="/yeu-cau-linh-kien/{{ r.id }}/het-hang"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',r.version) if failed_id==r.id else r.version }}"><label>Ghi chú hết hàng<textarea name="note" maxlength="2000" required>{{ d.get('note','') if failed_id==r.id else '' }}</textarea></label><button class="btn-danger">Hết hàng</button></form></details>{% endif %}
-{% if r.status=='HET_HANG' %}<p class="recv-note">{{ r.decision_note }}</p><a class="btn" href="/don-mua/moi?product_code={{ r.product_code|urlquote }}">Lập đơn mua</a>{% endif %}
-</article>{% else %}<p class="card">Không có yêu cầu chờ cấp.</p>{% endfor %}</div></div>{% endblock %}
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Yêu cầu linh kiện{% endblock %}
+{% block main %}<div class="page-wide list-page part-page" data-list-page="yeu-cau-linh-kien">
+{# Đợt 7: khuôn 3. Cấp hàng = lõi part_requests.supply (lập và ghi sổ phiếu CK sang kho thợ), giao diện chỉ gửi form. #}
+{{ ui.page_head('Yêu cầu linh kiện', sub='Thợ xin linh kiện cho phiếu dịch vụ hoặc xin mang theo. Cấp hàng sẽ lập và ghi sổ phiếu CK sang kho thợ.') }}
+{{ ui.tiles(tiles) }}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if saved and not error %}<p class="alert ok">{% if done and done.status == 'DA_CAP' %}Đã cấp {{ done.number }} từ {{ done.from_warehouse_code }}{% if done.stock_doc_id %} · phiếu {{ docs.get(done.stock_doc_id, '') }} đã ghi sổ{% endif %} sang kho thợ.{% elif done and done.status == 'HET_HANG' %}Đã báo hết hàng {{ done.number }}. Lập đơn mua để nhập hàng.{% else %}Đã xử lý yêu cầu.{% endif %}</p>{% endif %}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/yeu-cau-linh-kien', q, 'Tìm linh kiện, mã hàng, số YC, số phiếu DV, tên thợ (không dấu)…', active=chips|length) %}{% if selected_status != 'CHO_CAP' %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}{% if ton %}<input type="hidden" name="ton" value="{{ ton }}">{% endif %}
+<select name="tho" aria-label="Thợ"><option value="">Mọi thợ</option>{% for id, name in technicians %}<option value="{{ id }}" {% if tho == id %}selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+<select name="loai" aria-label="Loại yêu cầu"><option value="">Cho phiếu + Mang theo</option>{% for code, label in loai_labels.items() %}<option value="{{ code }}" {% if loai == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% endcall %}
+{{ ui.filter_chips(chips, link(tho='', loai='', ton='', q='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards part-table">
+<thead><tr><th>Số YC · lúc xin</th><th>Linh kiện</th><th>Cho ai</th><th class="num">SL</th><th>Tồn kho công ty</th><th>Bước tiếp · kho</th>{% if selected_status == 'tat-ca' %}<th>Trạng thái</th>{% endif %}</tr></thead><tbody>
+{% for r in rows %}{% set t = tickets.get(r.ticket_id) %}{% set w = waited(r) %}{% set late = r.status == 'CHO_CAP' and w[1] %}
+<tr id="yc-{{ r.id }}" data-part-row="{{ r.number }}"{% if late %} class="lt-alert"{% endif %}>
+<td class="lt-first"><b>{{ r.number }}</b><span class="lt-sub{{ ' lt-bad' if late }}">{{ r.created_at|service_time }}{% if r.status == 'CHO_CAP' %} · {{ w[0] }}{% endif %}</span></td>
+<td><b>{{ names.get(r.product_code, '') or r.product_code }}</b><span class="lt-sub">{{ r.product_code }}{% if r.reason %} · {{ r.reason }}{% endif %}</span></td>
+<td>Thợ {{ users.get(tech(r), 'chưa giao') }}{% if t %}<span class="lt-sub"><a href="/dich-vu/{{ t.id }}">{{ t.number }}</a>{% if customers.get(t.customer_code) %} · {{ customers[t.customer_code] }}{% endif %}</span>{% else %}<span class="lt-sub">Thợ xin mang theo{% if r.requester_id != tech(r) %} · {{ users.get(r.requester_id, '') }}{% endif %}</span>{% endif %}</td>
+<td class="num"><b>{{ r.qty|qty }}</b></td>
+<td class="part-stock">{% for wh in warehouses %}{% set have = stocks.get((wh.code, r.product_code), 0) %}<span class="stock-chip {{ 'ps-ok' if have >= r.qty else 'ps-no' }}">{{ wh.code }} · tồn {{ have|qty }}</span>{% else %}—{% endfor %}</td>
+<td class="part-next">
+{% if r.status == 'CHO_CAP' %}
+<form class="part-supply" method="post" action="/yeu-cau-linh-kien/{{ r.id }}/cap"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',r.version) if failed_id==r.id else r.version }}">{% set ns = namespace(any=false) %}{% for wh in warehouses %}{% if stocks.get((wh.code, r.product_code), 0) >= r.qty %}{% set ns.any = true %}<button name="warehouse_code" value="{{ wh.code }}" class="btn-ok">Cấp từ {{ wh.code }}</button>{% endif %}{% endfor %}{% if not ns.any %}<span class="lt-sub lt-bad">Không kho nào đủ hàng</span>{% endif %}</form>
+<details class="po-danger lt-more"{% if failed_id==r.id and not d.get('warehouse_code') %} open{% endif %}><summary>Báo hết hàng</summary><p class="alert warn">Yêu cầu chuyển Hết hàng, thợ thấy ghi chú của bạn. Sau đó lập đơn mua để nhập hàng.</p><form class="form" method="post" action="/yeu-cau-linh-kien/{{ r.id }}/het-hang"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',r.version) if failed_id==r.id else r.version }}"><label>Ghi chú hết hàng<textarea name="note" maxlength="2000" required>{{ d.get('note','') if failed_id==r.id else '' }}</textarea></label><button class="btn-danger">Hết hàng</button></form></details>
+{% elif r.status == 'HET_HANG' %}<span class="lt-sub">{{ r.decision_note }}{% if r.decided_by %} · {{ users.get(r.decided_by, '') }}{% endif %}</span><a class="btn btn-new part-buy" href="/don-mua/moi?product_code={{ r.product_code|urlquote }}&amp;qty={{ r.qty|qty }}">Lập đơn mua</a>
+{% elif r.status == 'DA_CAP' %}Đã cấp từ {{ r.from_warehouse_code }}<span class="lt-sub">{% if r.stock_doc_id %}Phiếu <a href="/phieu-kho/{{ r.stock_doc_id }}">{{ docs.get(r.stock_doc_id, 'CK') }}</a> · {% endif %}{{ users.get(r.decided_by, '') }}{% if r.decided_at %} · {{ r.decided_at|service_time }}{% endif %}</span>
+{% else %}<span class="lt-sub">{{ r.decision_note or 'Đã hủy' }}</span>{% endif %}
+</td>
+{% if selected_status == 'tat-ca' %}<td class="lt-st">{{ ui.badge(part_statuses[r.status], {'CHO_CAP':'cho','DA_CAP':'xong','HET_HANG':'huy','DA_HUY':'nhap'}[r.status]) }}</td>{% endif %}
+</tr>{% endfor %}
+</tbody></table></div>
+{% elif chips or q %}{{ ui.empty('Không có yêu cầu nào khớp bộ lọc.', link(tho='', loai='', ton='', q=''), 'Xóa lọc') }}
+{% elif selected_status == 'CHO_CAP' %}<div class="empty-state part-empty"><p><b>Không có yêu cầu nào đang chờ cấp.</b></p><p class="hint">Thợ xin linh kiện từ phiếu dịch vụ (mục Linh kiện) hoặc "Xin hàng mang theo". Yêu cầu mới hiện ở đây, có chuông báo và trong Việc của tôi của kho.</p><div class="kx-quick"><a class="btn btn-ghost" href="/yeu-cau-linh-kien?status=DA_CAP">Xem đã cấp</a><a class="btn btn-ghost" href="/yeu-cau-linh-kien?status=HET_HANG">Xem hết hàng</a></div></div>
+{% else %}{{ ui.empty('Chưa có yêu cầu nào ở mục này.') }}{% endif %}
+{% call ui.list_foot(page, 'yêu cầu') %}Tổng cần <b>{{ qty_sum|qty }}</b> cái{% endcall %}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

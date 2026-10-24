@@ -1,0 +1,31 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Nhà cung cấp{% endblock %}
+{% block main %}<div class="page-wide list-page" data-list-page="nha-cung-cap">
+{# Đợt 7: khuôn 3. Cột Còn nợ chỉ kế toán, giám đốc (cùng nguồn Công nợ NCC). #}
+{% call ui.page_head('Nhà cung cấp', sub='Nơi mình mua hàng. Bấm dòng để xem đơn mua, hàng đang về' ~ (', công nợ.' if debts is not none else '.')) %}{% if can_write %}<a class="btn btn-new" href="/nha-cung-cap/moi">+ Thêm nhà cung cấp</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/nha-cung-cap', q, 'Tìm tên, mã NCC, MST, số điện thoại (không dấu)…', active=chips|length) %}{% if tab != 'dang-dung' %}<input type="hidden" name="tt" value="{{ tab }}">{% endif %}
+<label class="check"><input type="checkbox" name="ve" value="1" {% if ve %}checked{% endif %}>Có hàng đang về</label>
+{% if debts is not none %}<label class="check"><input type="checkbox" name="no" value="1" {% if no %}checked{% endif %}>Đang còn nợ</label>{% endif %}{% endcall %}
+{{ ui.filter_chips(chips, link(ve='', no='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Mã</th><th>Nhà cung cấp</th><th>Liên hệ</th><th>Đơn mua gần nhất</th><th>Đang về</th>{% if debts is not none %}<th class="num">Còn nợ</th>{% endif %}</tr></thead><tbody>
+{% for s in rows %}{% set o = last.get(s.code) %}{% set c = coming.get(s.code, []) %}
+<tr data-href="/nha-cung-cap/{{ s.code }}" data-supplier-row="{{ s.code }}">
+<td class="lt-first"><a class="lt-no" href="/nha-cung-cap/{{ s.code }}">{{ s.code }}</a></td>
+<td><b>{{ s.name }}</b><span class="lt-sub">{% if s.tax_code %}MST {{ s.tax_code }}{% else %}Chưa có MST{% endif %}{% if not s.active %} · Ngừng sử dụng{% endif %}</span></td>
+<td>{{ s.phones|join(', ') or '—' }}<span class="lt-sub">{{ s.address|truncate(48, true, '…') }}</span></td>
+<td class="lt-phone-hide">{% if o %}{{ o.number }}<span class="lt-sub">{{ o.order_date.strftime('%d/%m/%Y') }}</span>{% else %}<span class="lt-sub">Chưa có</span>{% endif %}</td>
+<td class="ncc-come">{% if c %}{{ ui.badge(c|length ~ ' đơn', 'cho') }}<span class="lt-sub">{{ left.get(s.code, 0) }} dòng chưa nhận đủ</span>{% else %}<span class="lt-sub">—</span>{% endif %}</td>
+{% if debts is not none %}{% set d = debts.get(s.code, 0) %}<td class="num ncc-debt">{% if d > 0 %}<b class="lt-bad">{{ d|money }}</b>{% elif d < 0 %}<b>{{ d|money }}</b><span class="lt-sub">Trả dư</span>{% else %}—{% endif %}</td>{% endif %}
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có nhà cung cấp nào khớp "' ~ q ~ '".' if q else ('Không có nhà cung cấp nào khớp bộ lọc.' if chips else 'Chưa có nhà cung cấp nào. Thêm NCC để lập đơn mua.'), link(q='', ve='', no='') if chips or q else ('/nha-cung-cap/moi' if can_write else ''), 'Xóa lọc' if chips or q else '+ Thêm nhà cung cấp') }}{% endif %}
+{% if debts is not none %}{% call ui.list_foot(page, 'nhà cung cấp') %}Còn nợ <b>{{ debt_sum|money }}</b> đ{% endcall %}{% else %}{{ ui.list_foot(page, 'nhà cung cấp') }}{% endif %}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

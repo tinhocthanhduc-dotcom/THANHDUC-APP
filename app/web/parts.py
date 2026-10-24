@@ -93,20 +93,103 @@ def cancel(request: Request, ticket_id: int, ident: int, form=Depends(checked_fo
     return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#linh-kien')
 
 
+TABS = {**svc.STATUSES, 'tat-ca': 'Tất cả'}
+LOAI = {'phieu': 'Cho phiếu dịch vụ', 'mang-theo': 'Thợ xin mang theo'}
+LATE_HOURS = 24
+
+
+def _waited(created, now):
+    minutes = max(0, int((now - created).total_seconds() // 60))
+    if minutes < 60:
+        return f'chờ {minutes} phút', False
+    if minutes < 48 * 60:
+        return f'chờ {minutes // 60} giờ', minutes >= LATE_HOURS * 60
+    return f'chờ {minutes // 1440} ngày', True
+
+
 def _queue(request, session, user, error=None, code='', status=200, failed_id=None, data=None):
-    selected = request.query_params.get('status', 'CHO_CAP')
-    rows = svc.search(session, user, selected)
+    """Đợt 7: danh sách Yêu cầu linh kiện theo khuôn 3. Chỉ đọc; cấp và báo hết hàng vẫn qua lõi part_requests."""
+    from datetime import UTC, datetime
+    from ..models import Customer
+    from ..text import fold
+    from .. import service_sla
+    from . import paging
+    params = request.query_params
+    selected = params.get('status', 'CHO_CAP')
+    selected = selected if selected in TABS else 'CHO_CAP'
+    q, loai, ton = params.get('q', '')[:200], params.get('loai', ''), params.get('ton', '')
+    loai = loai if loai in LOAI else ''
+    ton = ton if ton in ('du', 'thieu') and selected == 'CHO_CAP' else ''
+    tho = params.get('tho', '')
+    tho = int(tho) if tho.isdigit() else None
+    found = svc.search(session, user, None)
+    warehouses = list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code)))
+    tickets = {t.id: t for t in session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_({r.ticket_id for r in found if r.ticket_id})))}
+    names = dict(session.execute(select(Product.code, Product.name).where(Product.code.in_({r.product_code for r in found}))).all()) if found else {}
+    users = dict(session.execute(select(User.id, User.full_name)).all())
+    customers = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in tickets.values()}))).all()) if tickets else {}
+    stocks = _stocks(session, list(names), [w.code for w in warehouses]) if names else {}
+    tech = lambda r: tickets[r.ticket_id].assignee_id if r.ticket_id and r.ticket_id in tickets else r.requester_id
+    enough = lambda r: any(stocks.get((w.code, r.product_code), 0) >= r.qty for w in warehouses)
+
+    def matches(r):
+        if loai and (loai == 'phieu') != bool(r.ticket_id):
+            return False
+        if tho and tech(r) != tho:
+            return False
+        if q:
+            t = tickets.get(r.ticket_id)
+            text = ' '.join([r.number, r.product_code, names.get(r.product_code, ''), users.get(tech(r), ''), users.get(r.requester_id, ''),
+                             t.number if t else '', customers.get(t.customer_code, '') if t else ''])
+            return fold(q) in fold(text)
+        return True
+    # Tab đếm trên tập đã lọc (ô tìm, thợ, loại); ô số đếm trên toàn bộ, bấm là lọc.
+    filtered = [r for r in found if matches(r)]
+    counts = {k: sum(1 for r in filtered if r.status == k) for k in svc.STATUSES}
+    rows = [r for r in filtered if (selected == 'tat-ca' or r.status == selected) and (not ton or enough(r) == (ton == 'du'))]
+    if selected == 'tat-ca':
+        rows.sort(key=lambda r: (r.status != 'CHO_CAP', -r.created_at.timestamp() if r.status != 'CHO_CAP' else r.created_at.timestamp()))
+    elif selected != 'CHO_CAP':
+        rows.sort(key=lambda r: (r.decided_at or r.created_at), reverse=True)
     # Giữ dòng vừa đổi trạng thái để lỗi version vẫn hiện cùng dữ liệu đã nhập.
     if failed_id and failed_id not in {r.id for r in rows}:
         row = session.get(PartRequest, failed_id)
-        if row:rows.append(row)
-    warehouses = list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code)))
-    tickets = {t.id: t for t in session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_([r.ticket_id for r in rows])))}
-    return render(request, 'linh_kien_ds.jinja', rows=rows, warehouses=warehouses, tickets=tickets, part_statuses=svc.STATUSES, selected_status=selected,
-        names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows]))).all()),
-        users=dict(session.execute(select(User.id, User.full_name)).all()),
-        stocks=_stocks(session, [r.product_code for r in rows], [w.code for w in warehouses]),
-        error=error, error_code=code, status=status, failed_id=failed_id, d=data or {}, saved=request.query_params.get('da_luu') == '1')
+        if row:
+            rows.insert(0, row)
+    query = dict(q=q, status='' if selected == 'CHO_CAP' else selected, tho=tho or '', loai=loai, ton=ton)
+    page, shown = paging.slice_rows(rows, params.get('trang'), params.get('so'), query)
+    link = paging.linker('/yeu-cau-linh-kien', query)
+    now = datetime.now(UTC)
+    today = datetime.now(service_sla.TZ).date()
+    waiting = [r for r in found if r.status == 'CHO_CAP']
+    oldest = min((r.created_at for r in waiting), default=None)
+    ready = sum(1 for r in waiting if enough(r))
+    done_today = [r for r in found if r.status == 'DA_CAP' and r.decided_at and r.decided_at.astimezone(service_sla.TZ).date() == today]
+    tiles = [
+        dict(label='Chờ cấp', n=len(waiting), sub=('Cũ nhất ' + _waited(oldest, now)[0].removeprefix('chờ ')) if oldest else 'Không có yêu cầu chờ',
+             href='/yeu-cau-linh-kien', on=selected == 'CHO_CAP' and not ton, tone='cho' if waiting else ''),
+        dict(label='Cấp được ngay', n=ready, sub='Có kho đủ tồn', href='/yeu-cau-linh-kien?ton=du', on=ton == 'du', tone='xong' if ready else ''),
+        dict(label='Thiếu hàng', n=len(waiting) - ready, sub='Không kho nào đủ', href='/yeu-cau-linh-kien?ton=thieu', on=ton == 'thieu', tone='huy' if len(waiting) - ready else ''),
+        dict(label='Hết hàng · chờ mua', n=sum(1 for r in found if r.status == 'HET_HANG'), sub='Cần lập đơn mua', href='/yeu-cau-linh-kien?status=HET_HANG', on=selected == 'HET_HANG'),
+        dict(label='Đã cấp hôm nay', n=len(done_today), sub=f'{sum(r.qty for r in done_today):g} cái' if done_today else 'Chưa cấp', href='/yeu-cau-linh-kien?status=DA_CAP', on=selected == 'DA_CAP'),
+    ]
+    tabs = [dict(label=label, n=counts[k] if k in counts else len(filtered), href=link(status='' if k == 'CHO_CAP' else k, ton=''), on=selected == k) for k, label in TABS.items()]
+    technicians = sorted({tech(r) for r in found}, key=lambda i: users.get(i, ''))
+    chips = [dict(label=label, href=link(**{key: ''})) for key, label in (
+        ('tho', 'Thợ: ' + users.get(tho, '') if tho else ''), ('loai', LOAI.get(loai, '')),
+        ('ton', {'du': 'Cấp được ngay', 'thieu': 'Thiếu hàng'}.get(ton, ''))) if query.get(key)]
+    docs = dict(session.execute(select(StockDoc.id, StockDoc.number).where(StockDoc.id.in_({r.stock_doc_id for r in shown if r.stock_doc_id}))).all()) if shown else {}
+    done = None
+    if params.get('da_luu') == '1' and params.get('yc', '').isdigit():
+        done = session.get(PartRequest, int(params['yc']))
+        if done is not None and done.stock_doc_id:
+            docs.setdefault(done.stock_doc_id, session.get(StockDoc, done.stock_doc_id).number)
+    return render(request, 'linh_kien_ds.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, q=q,
+        tho=tho, loai=loai, ton=ton, loai_labels=LOAI, technicians=[(i, users.get(i, '')) for i in technicians],
+        warehouses=warehouses, tickets=tickets, part_statuses=svc.STATUSES, selected_status=selected,
+        names=names, users=users, customers=customers, stocks=stocks, docs=docs, tech=tech, waited=lambda r: _waited(r.created_at, now),
+        qty_sum=sum(r.qty for r in rows), done=done,
+        error=error, error_code=code, status=status, failed_id=failed_id, d=data or {}, saved=params.get('da_luu') == '1')
 
 
 @router.get('/yeu-cau-linh-kien')
@@ -129,7 +212,7 @@ def decide(request: Request, ident: int, action: str, form=Depends(checked_form)
     except BusinessError as exc:
         message, code, status = _message(exc)
         return _queue(request, session, user, message, code, status, ident, data)
-    return RedirectResponse('/yeu-cau-linh-kien?da_luu=1' + ('&status=HET_HANG' if action == 'het-hang' else ''), status_code=303)
+    return RedirectResponse(f'/yeu-cau-linh-kien?da_luu=1&yc={ident}' + ('&status=HET_HANG' if action == 'het-hang' else ''), status_code=303)
 
 
 # ---------- Thợ xin hàng mang theo (không gắn phiếu) ----------
