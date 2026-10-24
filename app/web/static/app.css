@@ -2050,3 +2050,4 @@ main:has(> .page-mid) { max-width: 752px; }
 .acc-diff > summary, .tho-handover > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; color: var(--muted); }
 .acc-diff > summary::before, .tho-handover > summary::before { content: "▸"; margin-right: 8px; }
 .acc-diff[open] > summary::before, .tho-handover[open] > summary::before { content: "▾"; }
+#may-khach .tech-photos { border: 0; padding: 0; margin: 8px 0; background: none; box-shadow: none; }

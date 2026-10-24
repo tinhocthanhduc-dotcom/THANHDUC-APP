@@ -71,7 +71,8 @@
             tile.querySelector("small").textContent = "Đang tải…";
             changed();
             try {
-              const blob = await compress(file),
+              // Máy cũ không nén được (thiếu createImageBitmap, ảnh lạ) thì gửi ảnh gốc, server tự nén.
+              const blob = await compress(file).catch(() => file),
                 data = new FormData();
               data.set("csrf", csrf);
               data.set("form_key", crypto.randomUUID());
@@ -86,7 +87,10 @@
                 body: data,
                 credentials: "same-origin",
               });
-              if (!response.ok) throw new Error("Lỗi tải ảnh");
+              if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.error || "Lỗi tải ảnh");
+              }
               const saved = await response.json();
               tile.dataset.savedPhoto = "";
               tile.dataset.photoId = saved.id;
@@ -100,7 +104,7 @@
               tile.append(button);
               URL.revokeObjectURL(preview);
             } catch (error) {
-              tile.querySelector("small").textContent = "Lỗi, thử lại";
+              tile.querySelector("small").textContent = error.message && error.message !== "Lỗi tải ảnh" ? error.message : "Lỗi, thử lại";
               retry.hidden = false;
             } finally {
               delete tile.dataset.uploading;
