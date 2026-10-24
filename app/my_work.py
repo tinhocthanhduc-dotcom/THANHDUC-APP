@@ -2,7 +2,7 @@
 from datetime import datetime, time, timedelta
 from urllib.parse import quote, urlencode
 
-from sqlalchemy import String, case, func, literal, or_, select
+from sqlalchemy import String, case, func, literal, or_, select, union_all
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels, supplier_debts
 from .config import get_settings
@@ -23,6 +23,30 @@ def _available(model):
     rows=sales_receipts.totals(model)
     reported=select(rows.c.paid+rows.c.pending).where(rows.c.parent_id==model.id).correlate(model).scalar_subquery()
     return func.coalesce(model.receivable,0)-func.coalesce(reported,0)
+
+
+def _supplier_debt_dates(deductions):
+    # Opening debt always comes first, even when its date is newer than a receipt.
+    charges = union_all(
+        select(SupplierOpeningDebt.supplier_code, literal(0).label('source_order'),
+            SupplierOpeningDebt.as_of.label('debt_date'), literal(0).label('debt_id'),
+            SupplierOpeningDebt.amount.label('amount')),
+        select(PurchaseOrder.supplier_code, literal(1), PurchaseReceipt.receipt_date,
+            PurchaseReceipt.id, PurchaseReceipt.total).join(PurchaseReceipt,
+                PurchaseReceipt.order_id == PurchaseOrder.id).where(PurchaseReceipt.status == 'DA_GHI'),
+    ).subquery()
+    running = select(charges, func.sum(charges.c.amount).over(
+        partition_by=charges.c.supplier_code,
+        order_by=(charges.c.source_order, charges.c.debt_date, charges.c.debt_id),
+        rows=(None, 0)).label('cumulative')).subquery()
+    unpaid = select(running.c.supplier_code, running.c.debt_date, running.c.debt_id,
+        func.row_number().over(partition_by=running.c.supplier_code,
+            order_by=(running.c.source_order, running.c.debt_date, running.c.debt_id)).label('position'))
+    unpaid = unpaid.outerjoin(deductions, deductions.c.supplier_code == running.c.supplier_code).where(
+        running.c.cumulative > func.coalesce(deductions.c.amount, 0)).subquery()
+    return select(unpaid.c.supplier_code, unpaid.c.debt_date.label('oldest_debt_date'),
+        unpaid.c.debt_id.label('oldest_debt_id')).where(
+        unpaid.c.position == 1).subquery()
 
 
 def _specs(user, today, now):
@@ -183,20 +207,17 @@ def _specs(user, today, now):
         add('purchases_waiting', 'Đơn mua chờ nhận hàng', orders, 'purchase', '/don-mua')
         add('stock_low', 'Hàng dưới mức tối thiểu', low, 'stock', '/ton-kho?canh-bao=1')
     if has_role(user, 'finance'):
-        balances = supplier_debts._balances().subquery()
-        received_dates = select(PurchaseOrder.supplier_code,
-            func.min(PurchaseReceipt.receipt_date).label('oldest')).join(
-                PurchaseReceipt, PurchaseReceipt.order_id == PurchaseOrder.id).where(
-                PurchaseReceipt.status == 'DA_GHI').group_by(PurchaseOrder.supplier_code).subquery()
-        oldest = func.coalesce(received_dates.c.oldest, SupplierOpeningDebt.as_of)
+        deductions = supplier_debts._deductions().subquery()
+        balances = supplier_debts._balances(deductions).subquery()
+        unpaid_dates = _supplier_debt_dates(deductions)
+        oldest = unpaid_dates.c.oldest_debt_date
         debt_overdue = func.coalesce(oldest < today - timedelta(days=get_settings().supplier_debt_alert_days), False)
         debt_order = (debt_overdue.desc(), oldest.asc().nulls_last(), balances.c.supplier_code)
         debts = select(func.row_number().over(order_by=debt_order).label('id'),
             balances.c.supplier_code.label('number'), literal('CON_NO').label('status'),
             balances.c.name.label('customer'), balances.c.remaining.label('amount'),
-            debt_overdue.label('overdue')).select_from(balances).outerjoin(received_dates,
-                received_dates.c.supplier_code == balances.c.supplier_code).outerjoin(
-                SupplierOpeningDebt, SupplierOpeningDebt.supplier_code == balances.c.supplier_code).where(
+            debt_overdue.label('overdue'), oldest).select_from(balances).outerjoin(unpaid_dates,
+                unpaid_dates.c.supplier_code == balances.c.supplier_code).where(
                 balances.c.remaining > 0).order_by(*debt_order)
         add('supplier_debts_due', 'Nợ NCC cần trả', debts, 'supplier_debt', '/cong-no-ncc')
         specs['supplier_debts_due']['page_size'] = 25
