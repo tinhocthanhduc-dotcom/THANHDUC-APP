@@ -1,1 +1,26 @@
-{% extends 'base.jinja' %}{% block title %}Máy đang giữ{% endblock %}{% block main %}<h1>Máy đang giữ</h1><nav class="stock-actions" aria-label="Nơi giữ"><a class="btn" href="/may-dang-giu">Tất cả</a>{% for code,label in locations.items() if code!='TAI_KHACH' %}<a class="btn{% if code==selected_location %} on{% endif %}" href="/may-dang-giu?location={{ code }}">{{ label }}</a>{% endfor %}</nav><p>Đỏ khi giữ quá 7 ngày hoặc quá ngày dự kiến về.</p><ul class="list">{% for item in rows %}<li class="card{% if item.overdue %} service-overdue{% endif %}" data-held-serial="{{ item.machine.serial }}"><a href="/giu-may/{{ item.ticket.id }}"><strong>{{ item.machine.serial }}</strong> · {{ item.ticket.number }}<br>{{ locations[item.machine.custody_location] }} · {{ users.get(item.machine.custody_holder_id,'') }}{% if item.row.partner_name %}{{ item.row.partner_name }}{% endif %}<br>{{ item.days }} ngày{% if item.row.expected_back %} · Dự kiến về {{ item.row.expected_back }}{% endif %}{% if item.overdue %}<strong> · Quá hạn giữ máy</strong>{% endif %}</a></li>{% else %}<li>Không có máy đang giữ.</li>{% endfor %}</ul>{% endblock %}
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Máy đang giữ{% endblock %}
+{# Đợt 6: khuôn danh sách; mỗi máy có khách, lỗi, nơi giữ từ ngày nào, hẹn trả, Bước tiếp · ai làm và nút đúng việc. #}
+{% block main %}<div class="page-wide list-page giu-page" data-list-page="may-dang-giu">
+{% call ui.page_head('Máy đang giữ', sub='Máy của khách đang nằm ở mình · đỏ khi giữ quá 7 ngày hoặc quá ngày dự kiến về') %}{% if can_dispatch %}<a class="btn btn-ghost" href="/dieu-phoi">Điều phối</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles, keep_phone=true) }}
+<section class="card list-frame">
+<form class="filter-bar lf-bar" method="get" action="/may-dang-giu" role="search">{% for k, v in keep.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<input type="search" name="q" value="{{ q }}" placeholder="Tìm serial, số DV, tên khách (không dấu)…" aria-label="Tìm" autocomplete="off"><noscript><button>Tìm</button></noscript></form>
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards giu-table">
+<thead><tr><th>Máy</th><th>Khách · phiếu</th><th>Lỗi khách báo</th><th>Đang ở · từ ngày</th><th>Hẹn trả khách</th><th>Bước tiếp · ai làm</th><th></th></tr></thead><tbody>
+{% for item in rows %}{% set eq = item.machine %}{% set t = item.ticket %}
+<tr data-href="{{ item.href }}" data-held-serial="{{ eq.serial }}"{% if item.overdue %} class="lt-alert service-overdue"{% endif %}>
+<td class="lt-first"><b>{{ item.model or eq.serial }}</b><span class="lt-sub">{{ eq.serial }}</span></td>
+<td><b>{{ item.customer }}</b><a class="lt-sub lt-link" href="/dich-vu/{{ t.id }}">{{ t.number }}{% if t.kind %} · {{ service_kinds[t.kind] }}{% endif %}</a></td>
+<td><span class="giu-lbl">Lỗi: </span>{{ t.symptom|truncate(70) }}</td>
+<td>{{ ui.badge(locations[eq.custody_location] ~ (' · ' ~ item.holder if item.holder else ''), 'lam' if eq.custody_location == 'THO_GIU' else 'cho' if eq.custody_location == 'DOI_TAC' else 'nhap') }}<span class="lt-sub{{ ' lt-bad' if item.overdue }}">từ {{ item.started|vn_date }} · {{ item.days }} ngày{% if item.row.expected_back %} · dự kiến về {{ item.row.expected_back|vn_date }}{% endif %}</span>{% if item.pending %}<span class="lt-sub">Chờ {{ locations[item.pending.location]|lower }} nhận</span>{% endif %}{% if item.overdue %}<span class="sr-only">Quá hạn giữ máy</span>{% endif %}</td>
+<td><span class="giu-lbl">Hẹn trả khách: </span>{% if t.promised_return_on %}<span{% if item.return_late %} class="lt-bad"{% endif %}>{{ t.promised_return_on|vn_date }}</span>{% if item.return_late %}<span class="lt-sub lt-bad">đã quá hẹn</span>{% endif %}{% else %}<span class="giu-none">Chưa hẹn</span>{% endif %}</td>
+<td class="kx-next"><span{% if item.overdue %} class="lt-bad"{% endif %}>{{ item.next[1] }}</span><span class="lt-sub">{{ item.next[0] }}</span></td>
+<td class="num"><a class="btn btn-ghost giu-go" href="{{ item.href }}">{{ item.action }} ›</a></td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Không có máy nào khớp bộ lọc.' if q or keep else 'Không có máy đang giữ.', '/may-dang-giu' if q or keep else '', 'Xem tất cả') }}{% endif %}
+<div class="lf-foot"><span class="pager-count">{{ rows|length }} máy{% if rows|length != total %} / {{ total }} máy đang giữ{% endif %}</span></div>
+</section>
+</div>
+{% endblock %}

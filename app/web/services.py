@@ -179,21 +179,32 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
     urgent_new = session.scalar(select(func.count()).select_from(svc._search_stmt(user, "MOI").where(ServiceTicket.priority == "KHAN").subquery()))
     def group_count(source, key):
         return sum(source.get(st, 0) for st in LIST_GROUPS[key][1])
-    tiles = [
-        dict(key="moi", label="Chưa giao thợ", count=group_count(everything, "moi"), sub=f"{urgent_new} phiếu Khẩn" if urgent_new else "Không có phiếu Khẩn", tone="warn"),
-        dict(key="lam", label="Đang xử lý", count=group_count(everything, "lam"), sub=f"{everything.get('DANG_LAM', 0)} phiếu đang làm", tone="info"),
-        dict(key="qua-han", label="Quá hạn", count=overdue_all, sub="Cần xử lý trước" if overdue_all else "Không có phiếu trễ", tone="bad"),
-        dict(key="cho", label="Chờ linh kiện · tạm dừng", count=group_count(everything, "cho"), sub=f"{everything.get('CHO_LINH_KIEN', 0)} chờ linh kiện", tone=""),
-    ]
-    tabs = [dict(key="", label="Tất cả", count=sum(counts.values()))] + [
-        dict(key=key, label=label, count=group_count(counts, key)) for key, (label, _) in LIST_GROUPS.items()]
     base = {k: v for k, v in query.items() if k not in ("nhom", "status")}
     from urllib.parse import urlencode
     def link(**changes):
         merged = {k: v for k, v in {**base, **changes}.items() if v}
         return "/dich-vu" + ("?" + urlencode(merged) if merged else "")
-    return render(request, "dich_vu_ds.jinja", **ctx, tiles=tiles, tabs=tabs, link=link,
-                  technicians=[] if own_only else _technicians(session),
+    # Đợt 6: ô đếm, tab, chip lọc theo khuôn danh sách chung (ui.tiles, ui.list_tabs, ui.filter_chips).
+    tiles = [
+        dict(label="Chưa giao thợ", n=group_count(everything, "moi"), href="/dich-vu?nhom=moi", on=group == "moi" and not overdue,
+             sub=f"{urgent_new} phiếu Khẩn" if urgent_new else "Không có phiếu Khẩn"),
+        dict(label="Đang xử lý", n=group_count(everything, "lam"), href="/dich-vu?nhom=lam", on=group == "lam" and not overdue,
+             sub=f"{everything.get('DANG_LAM', 0)} phiếu đang làm"),
+        dict(label="Quá hạn", n=overdue_all, href="/dich-vu?overdue=1", on=overdue and not group, tone="huy" if overdue_all else "",
+             sub="Cần xử lý trước" if overdue_all else "Không có phiếu trễ"),
+        dict(label="Chờ linh kiện · tạm dừng", n=group_count(everything, "cho"), href="/dich-vu?nhom=cho", on=group == "cho" and not overdue,
+             sub=f"{everything.get('CHO_LINH_KIEN', 0)} chờ linh kiện"),
+    ]
+    tabs = [dict(label="Tất cả", n=sum(counts.values()), href=link(), on=not group and not status)] + [
+        dict(label=label, n=group_count(counts, key), href=link(nhom=key), on=key == group and not status) for key, (label, _) in LIST_GROUPS.items()]
+    technicians = [] if own_only else _technicians(session)
+    chips = []
+    if unassigned:chips.append(dict(label="Chưa giao thợ", href=link(assignee_id="")))
+    elif selected:chips.append(dict(label=f"Thợ: {ctx["users"].get(selected, "")}", href=link(assignee_id="")))
+    if loai:chips.append(dict(label="Chưa phân loại" if loai == "chua" else f"Loại: {KINDS[loai]}", href=link(loai="")))
+    if overdue:chips.append(dict(label="Quá hạn", href=link(overdue="")))
+    return render(request, "dich_vu_ds.jinja", **ctx, tiles=tiles, tabs=tabs, link=link, chips=chips, clear_href=link(assignee_id="", loai="", overdue=""),
+                  technicians=technicians,
                   heading="Việc của tôi" if own_only else "Dịch vụ",
                   can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"))
 

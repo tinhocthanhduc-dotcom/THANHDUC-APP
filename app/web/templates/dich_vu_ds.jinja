@@ -1,21 +1,17 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}{{ heading }}{% endblock %}
-{% block main %}<div class="svl">
-<div class="svl-head"><div><h1>{{ heading }}</h1><p class="hint">Phiếu sửa máy, bảo hành, mực định kỳ. Bấm ô số để lọc nhanh.</p></div>
-<div class="list-top-actions">{% if can_receivables %}<a class="btn" href="/dich-vu/can-thu">Cần thu</a>{% endif %}{% if can_create %}<a class="btn btn-new" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}</div></div>
-<nav class="svl-tiles" aria-label="Lọc nhanh">{% for t in tiles %}{% set on = (t.key == 'qua-han' and overdue and not selected_group) or (t.key == selected_group and not overdue) %}<a class="card svl-tile tone-{{ t.tone or 'mute' }}{% if on %} on{% endif %}" href="{{ '/dich-vu?overdue=1' if t.key == 'qua-han' else '/dich-vu?nhom=' ~ t.key }}" {% if on %}aria-current="true"{% endif %}><span>{{ t.label }}</span><strong>{{ t.count }}</strong><small>{{ t.sub }}</small></a>{% endfor %}</nav>
-<section class="card svl-card">
-<div class="svl-bar">
-<nav class="svl-tabs" aria-label="Nhóm trạng thái">{% for t in tabs %}<a class="svl-tab{% if t.key == selected_group and not selected_status %} on{% endif %}" href="{{ link(nhom=t.key) }}" {% if t.key == selected_group and not selected_status %}aria-current="page"{% endif %}>{{ t.label }} <span>{{ t.count }}</span></a>{% endfor %}</nav>
-<form action="/dich-vu" class="svl-filters" role="search">
-{% if selected_group %}<input type="hidden" name="nhom" value="{{ selected_group }}">{% endif %}{% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
-{% if not own_only %}<label><span class="sr-only">Thợ</span><select name="assignee_id" data-autosubmit><option value="">Tất cả thợ</option>{% for tech in technicians %}<option value="{{ tech.id }}" {% if selected_assignee == tech.id %}selected{% endif %}>{{ tech.full_name }}</option>{% endfor %}<option value="chua" {% if unassigned %}selected{% endif %}>Chưa giao thợ</option></select></label>{% endif %}
-<label><span class="sr-only">Loại dịch vụ</span><select name="loai" data-autosubmit><option value="">Mọi loại</option>{% for value, label in service_kind_choices.items() %}<option value="{{ value }}" {% if selected_kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}<option value="chua" {% if selected_kind == 'chua' %}selected{% endif %}>Chưa phân loại</option></select></label>
-<label class="svl-late"><input type="checkbox" name="overdue" value="1" {% if overdue %}checked{% endif %}><span>Quá hạn</span></label>
-<label class="svl-q"><span class="sr-only">Tìm phiếu</span><input name="q" value="{{ q }}" placeholder="Số DV, serial, tên khách" data-live="#rows" autocomplete="off" type="search"></label>
-<noscript><button>Lọc</button></noscript>
-</form>
-</div>
+{# Đợt 6: cùng khuôn danh sách với Điều phối, Đơn mua: ô đếm nhỏ, tab, thanh tìm + Bộ lọc, bảng gọn, bấm cả dòng để mở. #}
+{% block main %}<div class="page-wide list-page svl-page" data-list-page="dich-vu">
+{% call ui.page_head(heading, sub='Phiếu sửa máy, bảo hành, mực định kỳ') %}{% if can_receivables %}<a class="btn btn-ghost" href="/dich-vu/can-thu">Cần thu</a>{% endif %}{% if can_create %}<a class="btn btn-new" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}{% endcall %}
+{{ ui.tiles(tiles, keep_phone=true) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/dich-vu', q, 'Tìm số DV, serial, tên khách (không dấu)…', active=chips|length) %}{% if selected_group %}<input type="hidden" name="nhom" value="{{ selected_group }}">{% endif %}{% if selected_status %}<input type="hidden" name="status" value="{{ selected_status }}">{% endif %}
+{% if not own_only %}<select name="assignee_id" aria-label="Thợ"><option value="">Tất cả thợ</option>{% for tech in technicians %}<option value="{{ tech.id }}" {% if selected_assignee == tech.id %}selected{% endif %}>{{ tech.full_name }}</option>{% endfor %}<option value="chua" {% if unassigned %}selected{% endif %}>Chưa giao thợ</option></select>{% endif %}
+<select name="loai" aria-label="Loại dịch vụ"><option value="">Mọi loại</option>{% for value, label in service_kind_choices.items() %}<option value="{{ value }}" {% if selected_kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}<option value="chua" {% if selected_kind == 'chua' %}selected{% endif %}>Chưa phân loại</option></select>
+<label class="check"><input type="checkbox" name="overdue" value="1" {% if overdue %}checked{% endif %}>Quá hạn</label>{% endcall %}
+{{ ui.filter_chips(chips, clear_href) }}
 <div id="rows">{% include "dich_vu_dong.jinja" %}</div>
 </section>
 </div>
