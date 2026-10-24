@@ -298,3 +298,11 @@ def test_care_cli_dry_run_then_apply_repeat(db,people,tmp_path):
     db.expire_all();assert db.get(Equipment,'CLI-A').warranty_until==date(2027,12,31)
     subprocess.run(command+['--apply'],env=env,capture_output=True,text=True,check=True)
     assert db.query(Equipment).filter_by(serial='CLI-A').count()==1 and db.get(Equipment,'CLI-NO-MATCH') is None
+
+
+@pytest.mark.parametrize('months',[None,-1,61,1.5,'12',True])
+def test_api_invalid_warranty_months_never_writes(db,machine,client,months):
+    p=machine;product=db.get(Product,'TD-0001');before=(product.version,product.warranty_months,db.query(AuditLog).count())
+    response=client.patch('/products/TD-0001',headers={'Authorization':'Bearer '+issue_token(p['director'])},json=dict(version=product.version,warranty_months=months))
+    assert response.status_code==422
+    db.expire_all();assert (product.version,product.warranty_months,db.query(AuditLog).count())==before

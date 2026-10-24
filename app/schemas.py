@@ -123,6 +123,13 @@ class ProductPatch(BaseModel):
     sale_price: int | None = Field(default=None, ge=0)
     active: bool | None = None
 
+    @field_validator('warranty_months')
+    @classmethod
+    def warranty_not_null(cls, value):
+        if value is None:
+            raise ValueError('Số tháng bảo hành phải là số nguyên từ 0 đến 60.')
+        return value
+
 
 class ProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
