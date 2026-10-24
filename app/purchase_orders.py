@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from decimal import Decimal, localcontext
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -15,6 +15,7 @@ from .errors import BusinessError
 from .models import Product, PurchaseOrder, PurchaseOrderLine, PURCHASE_ORDER_STATUSES, Supplier, Warehouse
 from .schemas import PurchaseOrderLineIn, PurchaseOrderOut
 from .security import has_role
+from .text import fold
 
 WRITERS = ('warehouse',)
 VIEWERS = ('warehouse', 'finance')
@@ -69,20 +70,29 @@ def load(session, user, order_id):
     return _load(session, order_id)
 
 
-def search(session, user, q='', status=None, supplier_code=None):
+def search(session, user, q='', status=None, supplier_code=None, from_date=None, to_date=None, cap=True):
+    """cap=False: danh sách có phân trang lấy đủ kết quả (không cắt ngầm 100 đơn)."""
     check_reader(user)
     if status and status not in (*PURCHASE_ORDER_STATUSES, 'CHO_NHAN'):
         raise BusinessError('BAD_STATUS', 'Trạng thái đơn mua không hợp lệ.')
     stmt = select(PurchaseOrder).options(selectinload(PurchaseOrder.lines))
     if q.strip():
-        stmt = stmt.where(PurchaseOrder.number.ilike(like_pattern(q.strip())))
+        # Số đơn, tên/mã NCC (không dấu) hoặc mã hàng trên dòng.
+        stmt = stmt.where(or_(PurchaseOrder.number.ilike(like_pattern(q.strip())),
+            PurchaseOrder.supplier_code.in_(select(Supplier.code).where(Supplier.search_text.like(like_pattern(fold(q))))),
+            PurchaseOrder.id.in_(select(PurchaseOrderLine.order_id).where(PurchaseOrderLine.product_code.ilike(like_pattern(q.strip()))))))
+    if from_date:
+        stmt = stmt.where(PurchaseOrder.order_date >= from_date)
+    if to_date:
+        stmt = stmt.where(PurchaseOrder.order_date <= to_date)
     if status == 'CHO_NHAN':
         stmt = stmt.where(PurchaseOrder.status.in_(('DA_DAT','NHAN_MOT_PHAN')))
     elif status:
         stmt = stmt.where(PurchaseOrder.status == status)
     if supplier_code:
         stmt = stmt.where(PurchaseOrder.supplier_code == supplier_code)
-    return list(session.scalars(stmt.order_by(PurchaseOrder.id.desc()).limit(get_settings().search_limit * 5)))
+    stmt = stmt.order_by(PurchaseOrder.id.desc())
+    return list(session.scalars(stmt.limit(get_settings().search_limit * 5) if cap else stmt))
 
 
 def _supplier(session, code):
