@@ -161,12 +161,13 @@ def detail_context(session, user, ticket, ctx):
         ctx['can_request_parts']=False
         ctx['can_tech_transfer']=False
         exceptions=[s for s in exceptions if s!='KHONG_LAM_DUOC']
-    if return_job and ticket.status=='DANG_LAM':
+    if return_job and ticket.status in ('DA_HEN','DANG_LAM'):
         returned=bool(eq and eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))
         checks=[dict(key='return-photo',label='Có ảnh trả máy',ok=returned or any(x.tag=='TRA_MAY' for x in ctx.get('files',[])+ctx.get('custody_files',[]))),
             dict(key='holder',label='Đã nhận máy để trả khách',ok=returned or bool(ctx.get('can_custody_return')))]
-    if return_job and (ticket.declined_at is not None or ticket.warranty_months is not None):
-        checks.append(dict(key='handover-record',label='Có biên bản ký nhận',ok=attachments.has_visible(session,'service_ticket',ticket.id,'BIEN_BAN')))
+    if return_job and ticket.status=='DA_HEN':
+        # TUẤN 24/10: Đã hẹn trả và Trả máy gộp một màn; vuốt Hoàn thành ghi luôn đã đến khách.
+        primary=dict(form='service-complete',label='Hoàn thành');target=None
     # Phiếu Mang về, máy còn ở chỗ khách: bước này là nhận máy về xưởng, chưa báo cáo/thu tiền.
     bring_stage=bool(can_bring and ticket.kind=='MANG_VE')
     if bring_stage:
@@ -266,7 +267,16 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
             body=CustodyIntake(version=form.get('machine_version'),accessories=_accessory_values(form),accessories_note=str(form.get('accessories_note',''))) if form.get('return_machine')=='1' else None
             if form.getlist('material_product') or form.getlist('line_kind'):
                 raise BusinessError('CHARGES_LOCKED','Tiền và vật tư đã chốt, không sửa khi trả máy.',status=409)
-            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],str(form.get('free_reason','')),[],shown['partial_amount'],shown['method'],shown['note'],return_machine=body)
+            version=_version(form)
+            ticket=session.get(ServiceTicket,ticket_id)
+            if ticket.status=='DA_HEN':
+                # TUẤN 24/10: trả máy là một màn; vuốt Hoàn thành ghi luôn Đã đến khách (vị trí lúc đến) rồi mới trả và thu.
+                service_tickets.transition(session,user,ticket_id,'DANG_LAM',version,'Đến khách trả máy')
+                if form.get('gps_lat'):
+                    from .. import service_visits
+                    service_visits.record_arrival(session,user,ticket_id,form.get('gps_lat'),form.get('gps_lng'),form.get('gps_accuracy'))
+                session.refresh(ticket);version=ticket.version
+            technician_work.complete(session,user,ticket_id,version,shown['customer_amount'],shown['collection_mode'],str(form.get('free_reason','')),[],shown['partial_amount'],shown['method'],shown['note'],return_machine=body)
         except (BusinessError,ValidationError) as exc:
             message,code,status=_message(exc)
             return _detail(request,session,user,ticket_id,form=form,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)

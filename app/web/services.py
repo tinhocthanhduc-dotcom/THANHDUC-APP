@@ -66,6 +66,13 @@ def _users(session):
     return dict(session.execute(select(User.id, User.full_name)).all())
 
 
+def _return_days(now):
+    # Nút chọn nhanh ngày hẹn trả máy sửa ở xưởng; ô ngày vẫn chọn được ngày khác.
+    from datetime import timedelta
+    today=now.astimezone(svc.service_sla.TZ).date();names=['T2','T3','T4','T5','T6','T7','CN']
+    return [dict(value=(day:=today+timedelta(days=n)).isoformat(),label='Mai' if n==1 else ('1 tuần' if n==7 else f'{n} ngày'),sub=f"{names[day.weekday()]} {day.strftime('%d/%m')}") for n in (1,2,3,7)]
+
+
 def _is_overdue(ticket):
     return ticket.status in svc.OPEN and ticket.due_at is not None and ticket.due_at < datetime.now(UTC)
 
@@ -247,7 +254,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         linked_orders=[o for o in linked_orders if o.delivery_assignee_id==user.id]
     returning = technician_returns.proposal(session,t) if t.status in svc.OPEN else dict(rows=[],warehouses=[],warehouse=None)
     return_rows = return_form if return_form is not None else returning['rows']
-    ctx = dict(dispatcher=dispatcher,at_workshop=at_workshop,xg_form=xg_form or {},warranty_terms=service_warranty.terms(session,t),can_set_kind=t.status in svc.OPEN and (dispatcher or own) and not (at_workshop and not dispatcher),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
+    from ..service_workshop import warranty_free
+    ctx = dict(dispatcher=dispatcher,at_workshop=at_workshop,xg_panel=dispatcher and t.status=='TAM_DUNG' and t.hold_reason in ('CHO_SUA_XUONG','SUA_XONG_CHO_TRA'),workshop_free=warranty_free(t),workshop_return_days=_return_days(svc._now()),xg_form=xg_form or {},warranty_terms=service_warranty.terms(session,t),can_set_kind=t.status in svc.OPEN and (dispatcher or own) and not (at_workshop and not dispatcher),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
@@ -382,18 +390,19 @@ def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),sess
     from .. import service_workshop
     from ..schemas import CustodyIntake
     from .custody import _accessory_values
-    from .technician import owned,after_post
+    from .technician import owned
     user=request.state.user;owned(session,user,ticket_id)
     shown=dict(condition_note=str(form.get('condition_note','')),accessories=[str(v) for v in form.getlist('accessories')],accessories_note=str(form.get('accessories_note','')))
     try:
         shown['materials']=_workshop_materials(form)
         body=CustodyIntake(version=form.get('machine_version'),accessories=_accessory_values(form),
             condition_note=shown['condition_note'],accessories_note=shown['accessories_note'])
-        service_workshop.bring(session,user,ticket_id,_version(form),body,shown['materials'])
+        service_workshop.bring(session,user,ticket_id,_version(form),body,shown['materials'],to_workshop=True)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,failed_action='workshop',error=message,error_code=code,status=status,technician_view=True,workshop_form=shown)
-    return after_post(request,session,user,ticket_id,f'/tho/phieu/{ticket_id}?da_luu=1')
+    # Máy đã giao Kho kỹ thuật, phiếu rời màn thợ: về Hôm nay.
+    return RedirectResponse('/tho',status_code=303)
 
 
 @router.post('/dich-vu/{ticket_id}/sua-xong-cho-tra')

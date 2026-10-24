@@ -26,6 +26,15 @@ def order(o):
 
 
 def service(t):
+    hold=getattr(t,'hold_reason',None)
+    workshop=hold in ('CHO_SUA_XUONG','SUA_XONG_CHO_TRA') or (t.status in ('DA_HEN','DANG_LAM','HOAN_THANH','DA_DONG') and getattr(t,'priced_at',None) and (getattr(t,'repaired_by',None) or getattr(t,'declined_at',None)))
+    if workshop and t.status not in ('DA_HUY','KHONG_LAM_DUOC'):
+        # TUẤN 24/10: máy sửa ở xưởng có chuỗi bước riêng, không hiện "Đến khách" khi máy đang ở xưởng.
+        from ..service_workshop import warranty_free
+        labels=['Nhận máy về','Báo giá','Sửa xong','Trả máy','Hoàn thành','Đóng']
+        if hold=='CHO_SUA_XUONG':current=2 if (t.quote_approved_at or warranty_free(t)) else 1
+        else:current={'HOAN_THANH':4,'DA_DONG':5}.get(t.status,3)
+        return flow(labels,current,'')
     labels=['Nhận đơn','Giao thợ','Thợ nhận']+([] if t.appointment_at else ['Hẹn'])+['Đến khách','Hoàn thành','Đóng']
     current={'MOI':0,'DA_GIAO':1,'DA_NHAN':2,'DA_HEN':len(labels)-4,
              'DANG_LAM':len(labels)-3,'CHO_LINH_KIEN':len(labels)-3,'TAM_DUNG':len(labels)-3,
