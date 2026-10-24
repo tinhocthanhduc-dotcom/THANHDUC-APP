@@ -2469,3 +2469,6 @@ img.delivery-photo { display: block; width: 100%; height: auto; max-height: 70vh
   .dp-page .tile .t-label { font-size: .75rem; line-height: 1.2; }
   .dp-page .tile .t-n { font-size: 1.15rem; }
 }
+/* Bảo hành sau sửa trên màn thợ: 3 nút một hàng, vừa màn 320px. */
+.seg.tho-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.seg.tho-months span { white-space: nowrap; padding-inline: 4px; }
