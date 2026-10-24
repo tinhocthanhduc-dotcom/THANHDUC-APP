@@ -82,7 +82,7 @@ def create(session,user,order_id,body):
             created_by=user.id,reason=reason,status='DA_NHAN',void_reason='',subtotal=0,vat_total=0,total=0,lines=[])
         deliveries={g.id:g for g in sales_orders.deliveries(session,order.id)}
         originals={l.line_no:l for l in order.lines}
-        running={}
+        running={}; used_serials=set()
         for n,part in enumerate(body.lines,1):
             gh=deliveries.get(part.delivery_id)
             line=originals.get(part.order_line_no)
@@ -116,6 +116,8 @@ def create(session,user,order_id,body):
                 cost=original_amount-previous[3] if final else min(original_amount-previous[3],quotes._round(part.qty*unit_cost))
             result=SalesReturnLine(line_no=n,order_id=order.id,order_line_no=line.line_no,delivery_id=gh.id,qty=part.qty,
                 condition=part.condition,warehouse_code=code,amount=amount,vat_amount=vat,unit_cost=unit_cost,cost_amount=cost)
+            from .sales_warranty import return_in_tx
+            result.serials=return_in_tx(session,user,order,line,piece,part.qty,part.serials,used_serials)
             row.lines.append(result)
             row.subtotal+=amount;row.vat_total+=vat;row.total=row.subtotal+row.vat_total
             for i,value in enumerate((part.qty,amount,vat,cost)):previous[i]+=value
@@ -157,6 +159,8 @@ def void(session,user,return_id,version,reason):
         if session.scalar(select(SalesRefund.id).where(SalesRefund.order_id==oid,SalesRefund.status=='DA_CHI').limit(1)) and paid<order.receivable+row.total:
             raise BusinessError('REFUND_PAID','Đã hoàn tiền; hủy trả hàng sẽ làm khách ứng trước âm.',status=409)
         before,old=sales_orders.snapshot(order),snapshot(row)
+        from .sales_warranty import void_return_in_tx
+        void_return_in_tx(session,user,row)
         for doc_id in sorted({l.stock_doc_id for l in row.lines if l.stock_doc_id}):
             doc=stock_docs.load(session,doc_id)
             stock_posting.void_in_tx(session,user,doc_id,reason,doc.version)

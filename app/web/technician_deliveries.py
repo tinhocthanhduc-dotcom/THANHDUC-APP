@@ -12,7 +12,8 @@ from .. import attachments, attendance, sales_orders, sales_receipts, technician
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, SalesOrder, ServiceTicket, User
+from ..sales_warranty import parse_serials
+from ..models import Product, Customer, SalesOrder, ServiceTicket, User
 from ..schemas import SalesDeliveryAssign, SalesDeliveryMove, SalesDeliveryFailed, TechnicianDeliveryIn
 from ..security import has_role
 from . import checked_form, render, web_user
@@ -29,7 +30,7 @@ SLOTS={'SANG':'buổi sáng','CHIEU':'buổi chiều','TOI':'buổi tối'}
 def context(session,user,order):
     state=svc.state(session,user,order)
     d0=attendance.today()
-    state.update(order=order,reason_labels=REASONS,tho_reasons=THO_REASONS,slots=SLOTS,
+    state.update(warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines]))).all()),order=order,reason_labels=REASONS,tho_reasons=THO_REASONS,slots=SLOTS,
         quick_dates=[('Hôm nay',d0),('Ngày mai',d0+timedelta(days=1)),('Ngày kia',d0+timedelta(days=2))],customer=session.get(Customer,order.customer_code),
         technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician'])).order_by(User.full_name))) if has_role(user,'dispatcher') else [],
         service_ticket=session.get(ServiceTicket,order.service_ticket_id) if order.service_ticket_id else None,
@@ -87,7 +88,7 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
         raw.setdefault(key,'')
     try:
         version=_version(form)
-        lines=[dict(order_line_no=int(k[4:]),qty=str(v).replace(',','.')) for k,v in form.items()
+        lines=[dict(order_line_no=int(k[4:]),qty=str(v).replace(',','.'),**({'serials':parse_serials(form.get('serials_'+k[4:],''))} if action=='deliver' else {})) for k,v in form.items()
             if re.fullmatch(r'qty_[0-9]+',k) and str(v).strip() and str(v).strip() not in ('0','0,0','0.0')]
         if action=='assign':
             choice=str(form.get('service_ticket_id') or '').strip()

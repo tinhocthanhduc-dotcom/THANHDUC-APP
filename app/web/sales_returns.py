@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import sales_orders, sales_receipts, sales_returns as svc, sales_refunds
+from ..sales_warranty import parse_serials
+from ..models import SalesDeliverySerial, SalesReturnLine, SalesReturn
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -36,7 +38,9 @@ def _form(request,session,user,order,raw=None,error=None,code='',status=200):
         if gh.status!='DA_GIAO':continue
         for piece in gh.lines:
             original=next(l for l in order.lines if l.line_no==piece.order_line_no)
-            rows.append(dict(gh=gh,line=original,remaining=piece.qty-svc.returned(session,gh.id,piece.order_line_no)[0],key=f'{gh.id}_{piece.order_line_no}'))
+            delivered=list(session.scalars(select(SalesDeliverySerial.serial).where(SalesDeliverySerial.delivery_id==gh.id,SalesDeliverySerial.order_line_id==original.line_no)))
+            already={s for arr in session.scalars(select(SalesReturnLine.serials).join(SalesReturn).where(SalesReturn.status=='DA_NHAN',SalesReturnLine.delivery_id==gh.id)) for s in arr}
+            rows.append(dict(serials=[s for s in delivered if s not in already],gh=gh,line=original,remaining=piece.qty-svc.returned(session,gh.id,piece.order_line_no)[0],key=f'{gh.id}_{piece.order_line_no}'))
     return render(request,'tra_hang_form.jinja',o=order,rows=rows,raw=raw or {},
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI'))).order_by(Warehouse.code))),
         error=error,error_code=code,status=status)
@@ -62,7 +66,7 @@ def create(request: Request,order_id: int,form=Depends(checked_form),session: Se
             suffix=f'{match[1]}_{match[2]}'
             condition=str(form.get('condition_'+suffix,'TOT'))
             warehouse=form.get(('defect_' if condition=='LOI' else 'warehouse_')+suffix) or None
-            parts.append(dict(delivery_id=int(match[1]),order_line_no=int(match[2]),qty=str(value).replace(',','.'),condition=condition,warehouse_code=warehouse))
+            parts.append(dict(delivery_id=int(match[1]),order_line_no=int(match[2]),qty=str(value).replace(',','.'),condition=condition,warehouse_code=warehouse,serials=parse_serials(form.get('serials_'+suffix,''))))
         body=SalesReturnIn(version=_version(form),reason=str(form.get('reason','')),lines=parts)
         row=svc.create(session,user,order_id,body)
     except (BusinessError,ValidationError) as exc:

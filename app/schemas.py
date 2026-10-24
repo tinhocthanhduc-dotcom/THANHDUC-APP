@@ -103,10 +103,11 @@ class CustomerResult(BaseModel):
 class ProductIn(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    code: str = Field(pattern=r"^TD-\d{4,}$")
+    code: str = Field(pattern=r"^(?:TD-\d{4,}|MAY-CU-CARE)$")
     name: str = Field(min_length=1, max_length=300)
     group_name: str = Field(default="", max_length=100)
     unit: str = Field(default="cái", min_length=1, max_length=32)
+    warranty_months: int = Field(default=0, ge=0, le=60, strict=True)
     sale_price: int = Field(default=0, ge=0)
     is_test: bool = False
 
@@ -118,8 +119,16 @@ class ProductPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=300)
     group_name: str | None = Field(default=None, max_length=100)
     unit: str | None = Field(default=None, min_length=1, max_length=32)
+    warranty_months: int | None = Field(default=None, ge=0, le=60, strict=True)
     sale_price: int | None = Field(default=None, ge=0)
     active: bool | None = None
+
+    @field_validator('warranty_months')
+    @classmethod
+    def warranty_not_null(cls, value):
+        if value is None:
+            raise ValueError('Số tháng bảo hành phải là số nguyên từ 0 đến 60.')
+        return value
 
 
 class ProductOut(BaseModel):
@@ -129,6 +138,7 @@ class ProductOut(BaseModel):
     name: str
     group_name: str
     unit: str
+    warranty_months: int = 0
     sale_price: int
     active: bool
     is_test: bool
@@ -607,12 +617,13 @@ class EquipmentFields(BaseModel):
     customer_code: str | None = Field(default=None, min_length=1, max_length=16)
     site_id: int | None = Field(default=None, ge=1)
     warranty_until: date | None = None
+    support_until: date | None = None
     condition: Literal["MOI", "CU"] = "MOI"
     note: str = Field(default="", max_length=2000)
     active: bool = True
 
 
-    @field_validator('customer_code', 'site_id', 'warranty_until', mode='before')
+    @field_validator('customer_code', 'site_id', 'warranty_until', 'support_until', mode='before')
     @classmethod
     def blank_optional(cls, value):
         return None if value == '' else value
@@ -1285,6 +1296,7 @@ class CustodyVersion(BaseModel):
 
 
 class SalesDeliveryLineIn(BaseModel):
+    serials: list[str] = Field(default_factory=list, max_length=10000)
     order_line_no: int = Field(gt=0)
     qty: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
 
@@ -1331,7 +1343,7 @@ class SalesDeliveryOut(BaseModel):
 
 
 class SalesCounterSale(SalesReceiptReport):
-    pass
+    delivery_lines: list[SalesDeliveryLineIn] | None = None
 
 
 class SalesDeliveryAssign(SalesOrderVersion):
@@ -1363,6 +1375,7 @@ class TechnicianDeliveryIn(SalesDeliveryIn):
 
 
 class SalesReturnLineIn(BaseModel):
+    serials: list[str] = Field(default_factory=list, max_length=10000)
     model_config = ConfigDict(extra='forbid')
     delivery_id: int = Field(gt=0)
     order_line_no: int = Field(gt=0)

@@ -124,7 +124,7 @@ def _equipment_data(form, session):
     if customer is None:
         raise BusinessError('CUSTOMER_NOT_PICKED', 'Chưa chọn khách: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
     return dict(product_code=product, customer_code=customer or None,
-                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None,
+                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None,
                 condition=str(form.get('condition', 'MOI')), note=str(form.get('note', '')), active=form.get('active') == '1')
 
 
@@ -133,7 +133,7 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
     customer_sites.check_writer(request.state.user)
     shown = dict(serial=str(form.get('serial', '')), product_code=str(form.get('product_code', '')),
                  customer_code=form.get('customer_code') or None, site_id=form.get('site_id') or None,
-                 warranty_until=form.get('warranty_until') or None, condition=str(form.get('condition', 'MOI')),
+                 warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None, condition=str(form.get('condition', 'MOI')),
                  note=str(form.get('note', '')), active=form.get('active') == '1', version=0,
                  product_q=str(form.get('product_q', '')), customer_q=str(form.get('customer_q', '')))
     try:

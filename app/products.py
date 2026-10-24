@@ -12,6 +12,7 @@ from .errors import BusinessError
 from .models import Product, ProductGroup, User
 from .schemas import ProductIn, ProductOut, ProductPatch
 from .text import fold
+from .security import has_role
 
 # Danh mục hàng do Kho quản lý, giống quy tắc "Kho là nơi ghi duy nhất".
 WRITERS = ("warehouse",)
@@ -119,12 +120,14 @@ def delete_group(session: Session, user: User, group_id: int) -> None:
 
 def suggest_code(session: Session) -> str:
     """Mã kế tiếp sau mã TD lớn nhất hiện có, chỉ để gợi ý; người nhập vẫn quyết định."""
-    codes = session.scalars(select(Product.code).order_by(func.length(Product.code).desc(), Product.code.desc()).limit(1)).all()
+    codes = session.scalars(select(Product.code).where(Product.code.like("TD-%")).order_by(func.length(Product.code).desc(), Product.code.desc()).limit(1)).all()
     n = int(re.sub(r"\D", "", codes[0])) + 1 if codes else 1
     return f"TD-{n:04d}"
 
 
 def create(session: Session, user: User, body: ProductIn) -> Product:
+    if (body.warranty_months or body.code=='MAY-CU-CARE') and not has_role(user,'director'):
+        raise BusinessError('FORBIDDEN','Chỉ giám đốc được cấu hình bảo hành máy.',status=403)
     p = Product(**body.model_dump())
     p.code = p.code.upper()
     p.name = p.name.strip()
@@ -149,6 +152,8 @@ def update(session: Session, user: User, code: str, body: ProductPatch) -> Produ
         raise BusinessError("VERSION_CONFLICT", "Người khác vừa sửa mã hàng này, hãy tải lại.", {"current": p.version}, status=409)
     before = snapshot(p)
     changes = body.model_dump(exclude_unset=True, exclude={"version"})
+    if 'warranty_months' in changes and changes['warranty_months']!=p.warranty_months and not has_role(user,'director'):
+        raise BusinessError('FORBIDDEN','Chỉ giám đốc được cấu hình bảo hành máy.',status=403)
     if changes.get("group_name") is not None and changes["group_name"].strip() != before["group_name"]:
         _check_group(session, changes["group_name"].strip())
     for k, v in changes.items():

@@ -17,4 +17,5 @@
 <div class="qline-amount"><span class="qlabel">Thành tiền</span><strong data-line-amount>{{ line.amount|money if line.amount is defined else '—' }}</strong></div>
 <div class="qline-del">{% if can_write and editable %}<button type="button" data-order-remove aria-label="Xóa dòng" title="Xóa dòng"><span aria-hidden="true">×</span><span class="qdel-text">Xóa dòng</span></button>{% endif %}</div>
 </div>
+<label data-counter-serials {% if not warranty_months.get(line.product_code,0) %}hidden{% endif %}>Serial khi bán tại quầy<textarea name="counter_serials" rows="2" placeholder="Mỗi máy một serial; dấu phẩy hoặc xuống dòng">{{ line.counter_serials or '' }}</textarea><small>Chỉ cần khi bấm Bán tại quầy. Giao sau thì nhập lúc giao.</small></label>
 </fieldset>
