@@ -72,7 +72,7 @@ def apply_report(session,t,fault,fix):
     t.fault_found,t.fix_done=fault,fix
 
 
-def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix='',return_machine=None):
+def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix='',return_machine=None,warranty_months=None):
     from .stock_docs import _transaction
     from .models import ServiceDraft
     with _transaction(session):
@@ -93,6 +93,12 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
         else:
             apply_report(session,t,fault,fix)
             body,actual=charges(session,user,t,version,total,mode,reason,materials)
+            # TUẤN 24/10: sửa tại chỗ thợ chọn bảo hành khi Hoàn thành (mặc định 1 tháng); sửa ở xưởng đã chốt lúc Sửa xong.
+            if warranty_months is not None:
+                from .service_workshop import WARRANTIES
+                if type(warranty_months) is not int or warranty_months not in WARRANTIES:
+                    raise BusinessError('WARRANTY_REQUIRED','Chọn số tháng bảo hành: 0, 1, 2, 3, 6 hoặc 12.')
+                t.warranty_months=warranty_months
         received=0
         if mode=='FULL':received=actual
         elif mode=='PARTIAL':

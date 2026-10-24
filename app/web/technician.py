@@ -283,12 +283,14 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
         return after_post(request,session,user,ticket_id,'/tho')
     if 'customer_amount' in form:
         from .. import technician_work
-        shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note','fault_found','fix_done')}
+        shown={key:str(form.get(key,'')) for key in ('customer_amount','collection_mode','free_reason','partial_amount','method','note','fault_found','fix_done','warranty_months')}
         shown['materials']=[dict(product_code=str(code),qty=str(qty)) for code,qty in zip(form.getlist('material_product'),form.getlist('material_qty'))]
         try:
             shown['fault_found'],shown['fix_done'],report=report_fields(form);shown.update(report)
             if len(form.getlist('material_product'))!=len(form.getlist('material_qty')):raise BusinessError('BAD_FORM','Dòng vật tư chưa đủ dữ liệu.')
-            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],shown['free_reason'],shown['materials'],shown['partial_amount'],shown['method'],shown['note'],shown['fault_found'],shown['fix_done'])
+            months=shown['warranty_months']
+            if months and not (months.isascii() and months.isdigit() and len(months)<=2):raise BusinessError('WARRANTY_REQUIRED','Chọn số tháng bảo hành: 0, 1, 2, 3, 6 hoặc 12.')
+            technician_work.complete(session,user,ticket_id,_version(form),shown['customer_amount'],shown['collection_mode'],shown['free_reason'],shown['materials'],shown['partial_amount'],shown['method'],shown['note'],shown['fault_found'],shown['fix_done'],warranty_months=int(months) if months else None)
         except (BusinessError,ValidationError) as exc:
             message,code,status=_message(exc)
             return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)
