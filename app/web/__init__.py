@@ -468,7 +468,18 @@ def customer_view(
     if c.code != code:
         return RedirectResponse(f"/khach-hang/{quote(c.code)}", status_code=303)
     warnings = [w.split(":", 1) for w in cb.split(",") if ":" in w and w.split(":", 1)[0] in WARNING_LABELS]
-    return _customer_form(request, user, _customer_dict(c), session=session, error=None, ask_confirm=None, saved=bool(da_luu), warnings=warnings)
+    # Đợt 4: mở khách là trang tổng quan (việc đang mở, máy, công nợ); form sửa ở /sua.
+    from .customer_overview import build
+    return build(request, session, user, c, tab=request.query_params.get("tab", ""), trang=request.query_params.get("trang", ""),
+                 so=request.query_params.get("so", ""), saved=bool(da_luu), warnings=warnings)
+
+
+@router.get("/khach-hang/{code}/sua")
+def customer_edit(request: Request, code: str, da_luu: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    c = customer_svc.load(session, code)
+    if c.code != code:
+        return RedirectResponse(f"/khach-hang/{quote(c.code)}/sua", status_code=303)
+    return _customer_form(request, user, _customer_dict(c), session=session, error=None, ask_confirm=None, saved=bool(da_luu))
 
 
 @router.post("/khach-hang/{code}")

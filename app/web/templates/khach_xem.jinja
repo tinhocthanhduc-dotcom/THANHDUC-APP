@@ -1,0 +1,64 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block main %}
+{# Đợt 4: trang tổng quan một khách. Chỉ đọc; tạo chứng từ mới bằng các nút xanh (khách điền sẵn), sửa thông tin ở /sua. #}
+<div class="page-wide kx-page" data-customer="{{ c.code }}">
+{% call ui.page_head(c.code ~ ' · ' ~ c.name, sub='Khách hàng · ' ~ KIND_LABELS[c.kind] ~ ((' · ' ~ phones|join(', ')) if phones else '') ~ ((' · ' ~ c.address) if c.address else ''), back='/khach-hang', badge_label={'NGUNG':'Ngừng giao dịch'}.get(c.status, ''), badge_tone='huy') %}<a class="btn btn-ghost" href="/khach-hang/{{ c.code | urlencode }}/sua">{{ 'Sửa thông tin' if can_write else 'Xem thông tin' }}</a>{% endcall %}
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% for code, other in warnings or [] %}<p class="alert warn">{{ WARNING_LABELS[code] }} <a href="/khach-hang/{{ other }}">{{ other }}</a>. Kiểm tra xem có phải cùng một khách không.</p>{% endfor %}
+{% if quick %}<div class="kx-quick">{% for label, path in quick %}<a class="btn btn-new" href="{{ path }}?customer_code={{ c.code | urlencode }}">{{ label|safe }}</a>{% endfor %}<span class="hint">Mở form với khách này điền sẵn.</span></div>{% endif %}
+{{ ui.tiles(tiles, keep_phone=true) }}
+<div class="doc-grid kx-grid">
+<section class="card list-frame kx-docs">
+{{ ui.list_tabs(tabs) }}
+{% if tab == 'may' %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Serial</th><th>Máy</th><th>Tình trạng</th></tr></thead><tbody>
+{% for m in rows %}<tr{% if m.href %} data-href="{{ m.href }}"{% endif %}>
+<td class="lt-first">{% if m.href %}<a class="lt-no" href="{{ m.href }}">{{ m.serial }}</a>{% else %}<b>{{ m.serial }}</b>{% endif %}</td>
+<td><b>{{ m.name }}</b>{% if not m.active %}<span class="lt-sub">Ngừng theo dõi</span>{% endif %}</td>
+<td class="lt-st">{{ ui.badge(m.state, m.tone) }}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Khách chưa có máy nào trong Thiết bị.') }}{% endif %}
+{% else %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards kx-table">
+<thead><tr><th>Chứng từ · ngày</th><th>Nội dung</th><th>Trạng thái</th><th>Bước tiếp · ai làm</th><th class="num">Số tiền</th></tr></thead><tbody>
+{% for d in rows %}<tr data-href="{{ d.href }}"{% if d.late and d.open %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="{{ d.href }}">{{ d.no }}</a><span class="lt-sub">{{ d.label }} · {{ d.at|vn_date }}</span></td>
+<td class="lt-phone-hide">{{ d.what or '—' }}</td>
+<td class="lt-st">{{ ui.badge(d.status, d.tone) }}</td>
+<td class="kx-next">{% if d.open %}<span{% if d.late %} class="lt-bad"{% endif %}>{{ d.next }}</span><span class="lt-sub">{{ d.who }}</span>{% else %}<span class="lt-sub">{{ d.next }}</span>{% endif %}</td>
+<td class="num{{ ' kx-noamt' if not d.amount }}">{% if d.amount %}<b>{{ d.amount|money }}</b>{% else %}—{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Khách không có việc nào đang mở.' if tab == 'mo' else 'Chưa có chứng từ nào.') }}{% endif %}
+{% endif %}
+{{ ui.list_foot(page, 'dòng') }}
+</section>
+<aside class="kx-side">
+{% if can_debt %}<section class="card kx-debt" id="cong-no"><h2 class="qf-h">Công nợ · kế toán, giám đốc</h2>
+{% if debt %}<b class="kx-big{% if debt.old or debt.over %} lt-bad{% endif %}">{{ debt.total|money }} đ</b>
+<dl class="kx-kv"><dt>Hạn mức</dt><dd>{% if c.allow_debt %}{{ c.credit_limit|money }}{% if c.credit_limit > debt.total %} · còn {{ (c.credit_limit - debt.total)|money }}{% else %} · <span class="lt-bad">vượt</span>{% endif %}{% else %}Không cho nợ{% endif %}</dd>
+<dt>Nợ từ</dt><dd{% if debt.old %} class="lt-bad"{% endif %}>{{ debt.since.strftime('%d/%m/%Y') }} · {{ debt.days }} ngày</dd>
+{% if debt.pending %}<dt>Chờ xác nhận</dt><dd>{{ debt.pending|money }}</dd>{% endif %}</dl>
+<ul class="kx-owe">{% for r in debt.docs[:5] %}<li><a href="{{ '/don-ban/' if r.kind == 'DB' else '/dich-vu/' }}{{ r.id }}">{{ r.number }}</a><span>{{ r.remaining|money }}</span></li>{% endfor %}</ul>
+{% else %}<p class="hint">Khách không còn nợ.{% if c.allow_debt %} Hạn mức {{ c.credit_limit|money }} đ.{% endif %}</p>{% endif %}
+<a class="btn btn-ghost" href="/bao-cao/tai-chinh?khach={{ c.code | urlencode }}#chung-tu">Xem sổ công nợ</a>
+</section>{% endif %}
+<section class="card kx-contact"><h2 class="qf-h">Liên hệ</h2>
+<dl class="kx-kv">
+{% if phones %}<dt>Điện thoại</dt><dd>{% for p in phones %}<a href="tel:{{ p }}">{{ p }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+{% if c.tax_code %}<dt>MST</dt><dd>{{ c.tax_code }}</dd>{% endif %}
+{% if c.email %}<dt>Email</dt><dd>{{ c.email }}</dd>{% endif %}
+{% if c.address %}<dt>Địa chỉ</dt><dd>{{ c.address }}</dd>{% endif %}
+{% for x in contacts %}<dt>Người liên hệ</dt><dd>{{ x.name }}{% if x.note %} · {{ x.note }}{% endif %}{% for p in x.phones %} · <a href="tel:{{ p }}">{{ p }}</a>{% endfor %}</dd>{% endfor %}
+{% for s in sites if s.active %}<dt>Địa điểm</dt><dd>{{ s.name }}{% if s.address %} · {{ s.address }}{% endif %}</dd>{% endfor %}
+{% if c.note %}<dt>Ghi chú</dt><dd>{{ c.note }}</dd>{% endif %}
+</dl>
+{% if not phones and not c.address and not contacts %}<p class="hint">Chưa có thông tin liên hệ.</p>{% endif %}
+</section>
+</aside>
+</div>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

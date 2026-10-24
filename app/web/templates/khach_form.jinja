@@ -6,13 +6,13 @@
 {% block main %}
 {# Đợt 3 · khuôn 5: thêm/sửa khách một cột vừa: Khách là ai · Địa chỉ và liên hệ · Công nợ. Trùng số báo ngay dưới ô SĐT. #}
 <div class="doc-detail kh-page">
-{{ ui.page_head(c.code ~ ' · ' ~ c.name if c.code else 'Thêm khách', sub=('Khách hàng' if c.code else 'Khách hàng · tạo mới'), back=return_to or '/khach-hang', kicker=('Đang tạo cho ' ~ return_labels[return_to]) if return_to else '', badge_label={'NGUNG':'Ngừng','DA_GOP':'Đã gộp'}.get(c.status, ''), badge_tone='huy') }}
+{{ ui.page_head(c.code ~ ' · ' ~ c.name if c.code else 'Thêm khách', sub=('Khách hàng · sửa thông tin' if c.code else 'Khách hàng · tạo mới'), back=return_to or (('/khach-hang/' ~ (c.code | urlencode)) if c.code else '/khach-hang'), kicker=('Đang tạo cho ' ~ return_labels[return_to]) if return_to else '', badge_label={'NGUNG':'Ngừng','DA_GOP':'Đã gộp'}.get(c.status, ''), badge_tone='huy') }}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% for code, other in warnings or [] %}
 <p class="alert warn">{{ WARNING_LABELS[code] }} <a href="/khach-hang/{{ other }}">{{ other }}</a>. Kiểm tra xem có phải cùng một khách không.</p>
 {% endfor %}
 {% if error %}<p class="alert bad form-alert" role="alert"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
-<form method="post" class="form kh-form" data-dup-form data-dup-except="{{ c.code }}" data-dup-return="{{ return_to or '' }}">
+<form method="post"{% if c.code %} action="/khach-hang/{{ c.code | urlencode }}"{% endif %} class="form kh-form" data-dup-form data-dup-except="{{ c.code }}" data-dup-return="{{ return_to or '' }}">
   {% if return_to %}<input type="hidden" name="quay_ve" value="{{ return_to }}">{% endif %}
   <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
   <input type="hidden" name="version" value="{{ c.version }}">

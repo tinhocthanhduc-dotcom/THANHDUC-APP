@@ -252,8 +252,9 @@ def _group(session, spec, page=1):
         row = dict(record)
         kind = spec['kind']
         if kind=='stock':
-            row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
-                link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
+            row.update(id=row['warehouse_code']+'/'+row['product_code'], number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
+                # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
+                link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
             prefix = {'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"

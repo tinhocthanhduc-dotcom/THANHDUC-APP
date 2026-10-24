@@ -3,6 +3,7 @@
 <div class="doc-detail quote-form-page po-compose">
 {% call ui.page_head(o.number if o else 'Tạo đơn mua', sub='Đơn mua · đặt hàng nhà cung cấp', back='/don-mua', badge_label='Nháp' if o else '', badge_tone='nhap') %}{% if o %}<a class="btn btn-ghost" href="/don-mua/{{ o.id }}/in">In đơn đặt hàng</a>{% endif %}{% endcall %}
 {{ ui.steps([('Nháp','cur'),('Đã đặt',''),('Nhận hàng',''),('Xong','')]) }}
+{% if prefill_note and not error %}<p class="alert info po-prefill" role="status">{{ prefill_note }}</p>{% endif %}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
 {% if saved %}{{ ui.toast('Đã lưu nháp ' ~ o.number ~ '.') }}<p class="alert ok" role="status">Đã lưu.</p>{% endif %}
 <form method="post" action="{{ '/don-mua/' ~ o.id if o else '/don-mua/moi' }}" class="form qf-form qf3 qf2o po-form" data-purchase-form data-purchase-unsaved="{{ '1' if error else '0' }}" data-purchase-editable="1" data-default-warehouse="{{ default_warehouse }}">

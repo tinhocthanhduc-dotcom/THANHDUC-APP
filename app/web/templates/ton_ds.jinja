@@ -10,4 +10,4 @@
 {% if groups %}<label>Nhóm hàng<select name="nhom" data-autosubmit{% if nhom %} class="on"{% endif %}><option value="">Tất cả nhóm</option>{% for g in groups %}<option value="{{ g }}"{% if nhom == g %} selected{% endif %}>{{ g }}</option>{% endfor %}</select></label>{% endif %}
 <label>Sắp xếp<select name="xep" data-autosubmit>{% for key,label in sorts.items() %}<option value="{{ key }}"{% if xep == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 <noscript><button>Lọc</button></noscript>
-</form><div id="stock-results">{% include 'ton_dong.jinja' %}</div></div>{% endblock %}
+</form><div id="stock-results">{% include 'ton_dong.jinja' %}</div></div>{% if canh_bao and can_purchase %}<script src="{{ asset('low-stock.js') }}" defer></script>{% endif %}{% endblock %}
