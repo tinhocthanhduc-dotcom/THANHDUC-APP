@@ -68,6 +68,6 @@
   var screen = document.querySelector('[data-technician-ticket]') || document;
   screen.addEventListener('input', later);
   screen.addEventListener('change', later);
-  screen.addEventListener('click', function (e) { if (e.target.closest('[data-qty-step],[data-fill-value],[data-fee-suggestion],[data-collection-clear]')) later(); });
+  screen.addEventListener('click', function (e) { if (e.target.closest('[data-qty-step],[data-fill-value],[data-fee-suggestion]')) later(); });
   complete.addEventListener('submit', function () { clearTimeout(timer); });
 })();

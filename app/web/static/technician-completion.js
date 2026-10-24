@@ -107,10 +107,6 @@
           ),
         );
       }
-      if (e.target.closest("[data-collection-clear]"))
-        screen
-          .querySelectorAll("[name=collection_mode]")
-          .forEach((input) => (input.checked = false));
       update();
     });
     // UX5a: mã vừa tìm thêm bắt đầu với số 1.
