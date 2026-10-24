@@ -2,7 +2,7 @@
 {% block title %}{{ heading }}{% endblock %}
 {% block main %}<div class="svl">
 <div class="svl-head"><div><h1>{{ heading }}</h1><p class="hint">Phiếu sửa máy, bảo hành, mực định kỳ. Bấm ô số để lọc nhanh.</p></div>
-<div class="list-top-actions">{% if can_receivables %}<a class="btn" href="/dich-vu/can-thu">Cần thu</a>{% endif %}{% if can_create %}<a class="btn btn-ok" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}</div></div>
+<div class="list-top-actions">{% if can_receivables %}<a class="btn" href="/dich-vu/can-thu">Cần thu</a>{% endif %}{% if can_create %}<a class="btn btn-new" href="/dich-vu/moi">+ Nhận đơn</a>{% endif %}</div></div>
 <nav class="svl-tiles" aria-label="Lọc nhanh">{% for t in tiles %}{% set on = (t.key == 'qua-han' and overdue and not selected_group) or (t.key == selected_group and not overdue) %}<a class="card svl-tile tone-{{ t.tone or 'mute' }}{% if on %} on{% endif %}" href="{{ '/dich-vu?overdue=1' if t.key == 'qua-han' else '/dich-vu?nhom=' ~ t.key }}" {% if on %}aria-current="true"{% endif %}><span>{{ t.label }}</span><strong>{{ t.count }}</strong><small>{{ t.sub }}</small></a>{% endfor %}</nav>
 <section class="card svl-card">
 <div class="svl-bar">
