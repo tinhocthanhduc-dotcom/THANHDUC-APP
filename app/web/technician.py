@@ -168,7 +168,8 @@ def detail_context(session, user, ticket, ctx):
     # Phiếu Mang về, máy còn ở chỗ khách: bước này là nhận máy về xưởng, chưa báo cáo/thu tiền.
     bring_stage=bool(can_bring and ticket.kind=='MANG_VE')
     if bring_stage:
-        checks=[];primary=dict(form='workshop-bring',label='Mang máy về xưởng')
+        checks=[dict(key='machine',label='Chọn máy trước khi mang về',ok=bool(ticket.serial))]
+        primary=dict(form='workshop-bring' if ticket.serial else None,label='Mang máy về xưởng')
     issued_rows=[dict(product=x.product_code,name=x.description or x.product_code,warehouse=x.warehouse_code,qty=x.qty) for x in ticket.lines if x.stock_doc_id is not None]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)

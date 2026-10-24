@@ -1,5 +1,5 @@
 <details {% if not bring_open %}name="tech-other" {% endif %}class="{{ 'card tho-bring-form' if bring_open }}" {% if failed_action=='workshop' or bring_open %}open{% endif %}><summary>Mang máy về xưởng <span>›</span></summary>
-{% if not t.serial %}<p class="alert warn">Phiếu chưa có serial máy, gọi điều phối thêm serial</p>{% else %}
+{% if not t.serial %}<p id="workshop-machine-needed" class="alert warn">Chọn máy trước khi mang về</p>{% include 'dich_vu_may.jinja' %}{% else %}
 {% with photo_tag='NHAN_MAY' %}{% include 'tho_anh.jinja' %}{% endwith %}
 <form id="workshop-bring" class="card form" method="post" action="/dich-vu/{{ t.id }}/mang-ve-xuong">
 {% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}"><input type="hidden" name="machine_version" value="{{ custody_machine.version }}">
