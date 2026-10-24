@@ -1,10 +1,10 @@
 {# TUẤN 24/10: ô ảnh chuẩn toàn app theo khuôn "Ảnh nhận máy" của màn thợ.
    Tên ô + nút 📷 Chụp ảnh, ảnh hiện 2 cột, mỗi ô tối đa 2 ảnh (server cũng chặn).
-   saved(): chụp xong tự tải lên ngay. pick(): ảnh đi cùng form lớn, xem trước rồi lưu khi bấm nút của form. #}
+   saved(): chụp xong tự tải lên ngay (tự có csrf + form_key; hidden chỉ thêm trường riêng). pick(): ảnh đi cùng form lớn, xem trước rồi lưu khi bấm nút của form. #}
 {% macro saved(title, files, action='', hidden='', can_upload=true, hide=none, accept='image/*', max=2, form_id='', field='file') -%}
 {% set full=max and files|length>=max %}
 <section class="card tech-photos photo-slot" data-photo-slot>
-{% if can_upload %}<form {% if form_id %}id="{{ form_id }}"{% endif %} class="bar" method="post" action="{{ action }}" enctype="multipart/form-data" data-busy data-photo-slot-form>{{ hidden }}<strong>{{ title }}</strong>
+{% if can_upload %}<form {% if form_id %}id="{{ form_id }}"{% endif %} class="bar" method="post" action="{{ action }}" enctype="multipart/form-data" data-busy data-photo-slot-form><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{{ hidden }}<strong>{{ title }}</strong>
 {% if not full %}{% set doc='pdf' in accept %}<label class="btn photo-capture">{{ '📎 Thêm tệp' if doc else '📷 Chụp ảnh' }}<input type="file" name="{{ field }}" accept="{{ accept }}" {% if not doc %}capture="environment"{% endif %} required data-autosubmit></label>{% else %}<small class="hint">Đủ {{ max }} ảnh</small>{% endif %}
 <noscript><button class="btn btn-ghost">Tải ảnh</button></noscript></form>{% else %}<div class="bar"><strong>{{ title }}</strong></div>{% endif %}
 <div class="tech-photo-list">{% for file in files %}<article class="tech-photo"><a href="/attachments/{{ file.id }}/file" target="_blank" rel="noopener">{% if file.content_type is not defined or file.content_type.startswith('image/') %}<img src="/attachments/{{ file.id }}/file" alt="{{ title }}" loading="lazy">{% else %}<span class="btn">Mở PDF</span>{% endif %}</a><small>Đã lưu</small>{% if hide %}{{ hide(file) }}{% endif %}</article>{% else %}<p class="hint photo-empty">Chưa có ảnh.</p>{% endfor %}</div>

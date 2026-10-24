@@ -1,8 +1,8 @@
 {% import 'o_anh.jinja' as anh with context %}
-{% macro up_hidden(tag) %}{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tag" value="{{ tag }}">{% endmacro %}
+{% macro up_hidden(tag) %}{% include "tho_return.jinja" %}<input type="hidden" name="tag" value="{{ tag }}">{% endmacro %}
 {% macro hide_form(file) %}{% if can_hide %}<details class="photo-hide" {% if photo_form.get('attachment_id') == file.id %}open{% endif %}><summary class="btn">✕ Xóa</summary>
 <form method="post" action="/dich-vu/{{ t.id }}/anh/{{ file.id }}/an" class="form">{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ photo_form.get('version', file.version) if photo_form.get('attachment_id') == file.id else file.version }}">
-<label>Lý do<input name="reason" required minlength="3" maxlength="2000" value="{{ photo_form.get('reason', '') if photo_form.get('attachment_id') == file.id else '' }}"></label><button class="btn-danger">Xóa ảnh</button></form></details>{% endif %}{% endmacro %}
+<label>Lý do<textarea name="reason" rows="2" required minlength="3" maxlength="2000">{{ photo_form.get('reason', '') if photo_form.get('attachment_id') == file.id else '' }}</textarea></label><button class="btn-danger">Xóa ảnh</button></form></details>{% endif %}{% endmacro %}
 {# TUẤN 24/10: ô ảnh chuẩn như Ảnh nhận máy, mỗi ô tối đa 2 ảnh; ô Tệp khác để giấy tờ (có thể PDF). #}
 <section id="anh" class="service-action photo-slots">
 {% for tag, label in [('TRUOC','Ảnh trước sửa'), ('SAU','Ảnh nghiệm thu'), ('KHAC','Tệp khác'), ('BIEN_BAN','Biên bản'), ('NHAN_MAY','Ảnh nhận máy'), ('TRA_MAY','Ảnh trả máy')] %}

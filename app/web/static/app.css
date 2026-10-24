@@ -2382,9 +2382,10 @@ main:has(> .page-mid) { max-width: 752px; }
 .photo-hide .form { gap: 6px; }
 /* Ô ảnh nằm trong một khung khác (dòng trả hàng, form giao hàng, form chờ xử lý): bỏ viền khung lồng. */
 .tho-ret .photo-slot, .recv-line .photo-slot, form .photo-slot[data-photo-pick-box] { border: 0; padding: 0; margin: 8px 0; background: none; box-shadow: none; }
-/* TUẤN 24/10: "+ Máy mới" lên cùng dòng nút Chọn máy / Đổi máy. */
-.service-machine-editor { position: relative; text-align: left; }
-.service-machine-editor > .machine-new-chip { position: absolute; top: 0; right: 0; margin: 0; min-height: 44px; }
+/* TUẤN 24/10: không còn nút Chọn máy; "+ Thêm máy mới" nằm cùng dòng tiêu đề Máy của khách. */
+.service-machine-editor { text-align: left; }
+.machine-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.machine-head .group-label { margin: 0; }
 .service-machine-row { grid-column: 1 / -1; min-width: 0; }
 /* ===== Đợt 4: trang tổng quan khách ===== */
 .kx-quick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
