@@ -308,7 +308,8 @@ def test_sales_end_to_end_only_follow_next_actions(client, db, people, configure
     page=next_action(client,page)  # GET chọn kho / tạo từ báo giá
     page=next_action(client,page)  # POST Tạo đơn và chốt (dòng tự do không cần kho)
     assert page.status_code==200
-    page=next_action(client,page)  # Giao
+    page=next_action(client,page)  # Giao hàng: mở màn giao chung (Đợt 1b)
+    page=next_action(client,page)  # Giao đủ
     o=db.query(SalesOrder).one();assert o.status=='DA_GIAO'
     page=next_action(client,page,amount='120.000',method='TIEN_MAT',received_at=DAY.isoformat(),note='Thu đủ')
     assert page.status_code==200
@@ -354,12 +355,12 @@ def test_next_actions_permissions_self_confirmation_csrf_and_stale_version(clien
     service_login(client,p['technician'])
     assert Page(client.get('/dich-vu/moi').text).primary is None
     service_login(client,p['warehouse'])
-    page=client.get(f'/don-ban/{o.id}');assert Page(page.text).primary['data-next-route']==f'/don-ban/{o.id}/deliver'
+    page=client.get(f'/don-ban/{o.id}');assert Page(page.text).primary['data-next-route']==f'/kho/giao/{o.id}'
     service_login(client,p['finance'])
     assert Page(client.get(f'/don-ban/{o.id}').text).primary is None
     csrf=service_login(client,p['sales'])
-    page=client.get(f'/don-ban/{o.id}')
-    assert client.post(Page(page.text).forms['order-deliver']['action'],data={'version':o.version}).status_code==403
+    page=client.get(f'/kho/giao/{o.id}')  # Đợt 1b: giao hàng ở một màn chung
+    assert client.post(Page(page.text).forms['warehouse-deliver']['action'],data={'version':o.version}).status_code==403
     assert next_action(client,page,version=o.version-1).status_code==409
     dual=p['sales'];dual.roles=['sales','finance'];db.commit()
     r=report(db,p,o,1000)

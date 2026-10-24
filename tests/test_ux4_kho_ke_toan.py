@@ -22,9 +22,10 @@ def delivery_data(csrf,order,**changes):
 
 def test_warehouse_prefill_permissions_and_work_link(client,db,stocked):
     order=warehouse_order(db,stocked)
-    for role in ['sales','technician','finance']:
+    # Đợt 1b: kinh doanh vốn được giao đơn, nay dùng chung màn giao với kho; thợ, kế toán vẫn bị chặn.
+    for role in ['technician','finance']:
         service_login(client,stocked[role]);assert client.get(f'/kho/giao/{order.id}').status_code==403
-    for role in ['warehouse','director']:
+    for role in ['warehouse','director','sales']:
         service_login(client,stocked[role]);r=client.get(f'/kho/giao/{order.id}')
         assert r.status_code==200 and 'name="deliver_1" value="2"' in r.text and 'name="deliver_2" value="1"' in r.text
         assert 'name="receiver_name" value="Chị Hạnh"' in r.text and r.text.count('data-next-primary')==1

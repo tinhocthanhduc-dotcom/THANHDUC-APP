@@ -8,7 +8,7 @@
 <div class="recv-head doc-head-bar"><a class="btn" href="/bao-gia" aria-label="Quay lại Báo giá">←</a><div><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><p class="hint">Báo giá{% if q %} · {{ customer_name or q.customer_code }}{% endif %}</p></div>{% if is_new and can_write %}<a class="btn btn-ghost qf-reset" href="/bao-gia/moi">Làm mới</a>{% endif %}{% if q %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">Xem trước A4 / In</a>{% endif %}</div>
 {% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if saved %}<p class="alert ok doc-toast" role="status" data-doc-toast>✓ {{ toast_message or "Đã lưu." }}</p>{% endif %}
 {% if q %}<p class="doc-status doc-{{ q.status|lower }}">Trạng thái: <strong class="stock-chip">{{ statuses[q.status] }}</strong></p>{% endif %}
 {% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
 {% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}

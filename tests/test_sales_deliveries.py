@@ -168,7 +168,7 @@ def test_second_warehouse_failure_is_atomic_with_gh_and_holds(db,people):
 def test_web_partial_form_errors_csrf_print_and_director_void(db,client,people):
     p=people;stock(db,p,10);o=order(db,p,10)
     csrf=service_login(client,p['warehouse'])
-    page=client.get(f'/don-ban/{o.id}')
+    page=client.get(f'/kho/giao/{o.id}')  # Đợt 1b: giao hàng ở màn chung
     assert page.status_code==200 and 'name="deliver_1"' in page.text
     assert client.post(f'/don-ban/{o.id}/deliver',data=dict(version=o.version,deliver_1='6')).status_code==403
     response=client.post(f'/don-ban/{o.id}/deliver',data=dict(csrf=csrf,version=o.version,delivery_form='1',deliver_1='11',receiver_name='Giữ tên',note='Giữ ghi chú'))
@@ -177,7 +177,7 @@ def test_web_partial_form_errors_csrf_print_and_director_void(db,client,people):
     assert response.status_code==303
     db.expire_all();gh=svc.deliveries(db,o.id)[0]
     detail=client.get(f'/don-ban/{o.id}')
-    assert gh.number in detail.text and 'Giao một phần' in detail.text and 'Đã đóng' in detail.text
+    assert gh.number in detail.text and 'Giao một phần' in detail.text and 'Giao 6/10' in detail.text  # Đợt 1b: tiến độ trên từng dòng
     printed=client.get(f'/don-ban/{o.id}/giao/{gh.id}/in')
     assert printed.status_code==200 and gh.number in printed.text and 'Bằng chữ' in printed.text and 'Người nhận' in printed.text
     assert 'Hủy lần giao' not in detail.text
