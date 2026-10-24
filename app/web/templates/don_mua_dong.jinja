@@ -1,0 +1,14 @@
+{# Đợt 3: dòng hàng đơn mua gọn một hàng: Hàng · Kho · Tồn · SL · Giá chưa VAT · VAT · Thành tiền · ×. Ô mã chỉ hiện khi dòng chưa có hàng hoặc đang lỗi. #}
+{% set code = line.product_code %}{% set bad = line_errors.get(index) if index != 'new' else none %}{% set known = code and code in product_names %}
+<div class="pol{{ ' pol-bad' if bad }}" data-purchase-line data-picked="{{ '1' if known and not bad else '0' }}" data-stock='{{ stock.get(code, {})|tojson }}'>
+<div class="pol-item" data-picker><b class="pol-name" data-purchase-name>{{ product_names.get(code, '') }}</b><small class="pol-sub"><span data-purchase-code>{{ code }}</span>{% if product_units.get(code) %} · {{ product_units[code] }}{% endif %}<span data-purchase-last>{% if last_costs.get(code) is not none %} · lần trước {{ last_costs[code]|money }}{% endif %}</span></small>
+<label class="pol-code"><span class="sr-only">Hàng (tìm và chọn)</span><input name="product_code" value="{{ code }}" autocomplete="off" data-live=".purchase-options" data-source="/don-mua/tim-hang" placeholder="Tìm mã hoặc tên hàng" required{% if bad %} aria-invalid="true"{% endif %}></label><div class="purchase-options product-options" aria-live="polite"></div>
+{% if bad %}<small class="field-error">{{ bad }}</small>{% endif %}</div>
+<div class="pol-wh" role="group" aria-label="Kho nhận"><div class="seg stock-seg">{% for w in warehouses %}<label><input type="radio" name="warehouse_{{ index }}" data-purchase-warehouse value="{{ w.code }}" {% if line.warehouse_code==w.code %}checked{% endif %} {% if not w.active %}disabled{% endif %} required><span title="{{ w.name }}">{{ w.code }}</span></label>{% endfor %}</div></div>
+<span class="pol-stock" data-purchase-stock aria-label="Tồn kho nhận"></span>
+<div class="pol-qty"><span class="stepper qstep"><button type="button" data-step="-1" aria-label="Giảm số lượng">−</button><input name="qty" value="{{ line.qty|qty_input }}" inputmode="decimal" required aria-label="Số lượng"><button type="button" data-step="1" aria-label="Tăng số lượng">+</button></span></div>
+<label class="pol-price"><span class="sr-only">Đơn giá chưa VAT</span><input name="unit_cost" value="{{ line.unit_cost }}" inputmode="numeric" data-money required placeholder="Giá chưa VAT"></label>
+<div class="pol-vat" role="group" aria-label="VAT"><div class="seg stock-seg">{% for rate in vat_rates %}<label><input type="radio" name="vat_{{ index }}" data-purchase-vat value="{{ rate }}" {% if line.vat_rate|string==rate|string %}checked{% endif %} required><span>{{ rate }}%</span></label>{% endfor %}</div></div>
+<b class="pol-amt" data-purchase-amount>{{ line.amount|money if line.amount is defined else '—' }}</b>
+<button type="button" class="pol-del" data-purchase-remove aria-label="Xóa dòng" title="Xóa dòng">×</button>
+</div>

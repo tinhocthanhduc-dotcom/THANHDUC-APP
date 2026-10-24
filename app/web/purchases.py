@@ -15,7 +15,7 @@ from .. import purchase_returns, supplier_debts, inventory_catalogs, products, p
 from ..config import DEFAULT_VAT_RATE, get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Product, PurchaseOrder, PurchaseReceipt, StockDoc, Supplier, User, Warehouse, VAT_RATES
+from ..models import Product, PurchaseOrder, PurchaseReceipt, StockBalance, StockDoc, Supplier, User, Warehouse, VAT_RATES
 from ..money_words import money_words
 from ..schemas import PurchaseOrderIn, PurchaseOrderUpdate
 from ..security import has_role
@@ -33,7 +33,38 @@ def purchase_user(user: User = Depends(web_user)):
     return user
 
 
-def _form(request, session, row=None, data=None, error=None, code='', status=200, reason='', receiving=False, receive_data=None, receipt_action='', failed_receipt=None):
+def _stock(session, codes):
+    """Tồn hiện có theo mã hàng và kho thường (chỉ để hiện trên form, không giữ hàng)."""
+    rows = session.execute(select(StockBalance.product_code, StockBalance.warehouse_code, StockBalance.qty)
+        .join(Warehouse, Warehouse.code == StockBalance.warehouse_code)
+        .where(StockBalance.product_code.in_(codes), Warehouse.kind == 'KHO')).all() if codes else []
+    stock = {}
+    for code, warehouse, qty in rows:
+        stock.setdefault(code, {})[warehouse] = _quantity(qty)
+    return stock
+
+
+def _where(exc, data):
+    """Lỗi nằm ở ô nào: trả (ô đầu đơn, {chỉ số dòng: lời nhắn}) để hiện ngay dưới ô đó."""
+    fields, lines = {}, {}
+    if isinstance(exc, BusinessError):
+        if exc.code == 'BAD_SUPPLIER': fields['supplier_code'] = exc.message
+        elif exc.code == 'EMPTY_ORDER': fields['lines'] = exc.message
+        elif exc.code in ('BAD_PRODUCT', 'BAD_WAREHOUSE'):
+            key = 'product_code' if exc.code == 'BAD_PRODUCT' else 'warehouse_code'
+            bad = set(exc.details.get('invalid_codes', []))
+            for i, line in enumerate(data['lines']):
+                if line.get(key) in bad: lines[i] = exc.message
+        elif 'line' in exc.details: lines[exc.details['line']] = exc.message
+    elif isinstance(exc, ValidationError):
+        for e in exc.errors():
+            loc = e['loc']
+            if loc and loc[0] == 'lines' and len(loc) > 1 and isinstance(loc[1], int): lines.setdefault(loc[1], _error(exc)[0])
+            elif loc: fields.setdefault(str(loc[0]), _error(exc)[0])
+    return fields, lines
+
+
+def _form(request, session, row=None, data=None, error=None, code='', status=200, reason='', receiving=False, receive_data=None, receipt_action='', failed_receipt=None, where=({}, {})):
     if data is None:
         data = svc.snapshot(row) if row else dict(supplier_code='', order_date=quotes._today().isoformat(),
                             expected_date='', note='', version=0, lines=[])
@@ -51,6 +82,12 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
                 ident=receipt_line_orders[l.receipt_line_id]
                 returned_qty[ident]=returned_qty.get(ident,0)+l.qty
     products=session.execute(select(Product.code,Product.name,Product.unit).where(Product.code.in_(codes))).all()
+    composing = row is None or row.status == 'NHAP'
+    kho = [w for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code)) if w.active]
+    picked = {line.get('warehouse_code') for line in data['lines'] if line.get('warehouse_code')}
+    default_warehouse = picked.pop() if len(picked) == 1 else ('*' if picked else (kho[0].code if kho else ''))
+    rates = {str(line.get('vat_rate')) for line in data['lines']}
+    default_vat = rates.pop() if len(rates) == 1 else ('*' if rates else str(DEFAULT_VAT_RATE))
     if receive_data is None and row:
         receive_data=dict(receipt_date=quotes._today().isoformat(),version=row.version,quantities={str(l.id):_quantity(l.qty-l.received_qty) for l in row.lines if l.received_qty<l.qty})
     return render(request, 'don_mua_form.jinja', o=row, d=data, statuses=STATUSES, vat_rates=VAT_RATES,
@@ -62,7 +99,10 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
         product_names={code:name for code,name,_ in products},product_units={code:unit for code,_,unit in products},
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO').order_by(Warehouse.code))),
         can_write=has_role(request.state.user, *svc.WRITERS), editable=row is None or row.status=='NHAP',
-        error=error, error_code=code, status=status, reason=reason, saved=request.query_params.get('da_luu')=='1' and not error)
+        error=error, error_code=code, status=status, reason=reason, saved=request.query_params.get('da_luu')=='1' and not error, placed=request.query_params.get('da_dat')=='1',
+        supplier=supplier, stock=_stock(session, codes) if composing else {}, kho=kho, default_warehouse=default_warehouse, default_vat=default_vat,
+        last_costs={c: svc.suggest_cost(session, request.state.user, c) for c in codes if c} if composing else {},
+        field_errors=where[0], line_errors=where[1])
 
 
 def _version(form):
@@ -89,9 +129,9 @@ def _body(data):
     for n,line in enumerate(data['lines'],1):
         price=line['unit_cost'].strip()
         if not re.fullmatch(r'(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)',price):
-            raise BusinessError('BAD_PRICE',f'Đơn giá dòng {n} phải là số nguyên đồng, không âm.')
+            raise BusinessError('BAD_PRICE',f'Đơn giá dòng {n} phải là số nguyên đồng, không âm.',{'line':n-1})
         try:vat=int(line['vat_rate'])
-        except ValueError:raise BusinessError('BAD_VAT',f'VAT dòng {n} phải là 0, 5, 8 hoặc 10%.')
+        except ValueError:raise BusinessError('BAD_VAT',f'VAT dòng {n} phải là 0, 5, 8 hoặc 10%.',{'line':n-1})
         lines.append({**line,'qty':line['qty'].replace(',','.'),'unit_cost':int(price.replace('.','')),'vat_rate':vat})
     return dict(supplier_code=data['supplier_code'], order_date=data['order_date'], expected_date=data['expected_date'] or None,
                 note=data['note'], lines=lines)
@@ -172,7 +212,14 @@ def pick_supplier(request: Request, q: str='', user: User=Depends(purchase_user)
 @router.get('/don-mua/tim-hang')
 def pick_product(request: Request, q: str='', user: User=Depends(purchase_user), session: Session=Depends(get_session)):
     rows=products.search(session,q[:200],active_only=True,limit=20)
-    return render(request,'don_mua_chon.jinja',kind='product',rows=rows,costs={p.code:svc.suggest_cost(session,user,p.code) for p in rows})
+    return render(request,'don_mua_chon.jinja',kind='product',rows=rows,costs={p.code:svc.suggest_cost(session,user,p.code) for p in rows},stock=_stock(session,[p.code for p in rows]))
+
+
+@router.get('/don-mua/san-pham')
+def browse_products(request: Request, q: str='', user: User=Depends(purchase_user), session: Session=Depends(get_session)):
+    """Ô "+ Tìm hàng để thêm": hàng đang bán, giá nhập lần trước, tồn từng kho."""
+    rows=products.search(session,q[:200],active_only=True,limit=20)
+    return render(request,'don_mua_san_pham.jinja',rows=rows,costs={p.code:svc.suggest_cost(session,user,p.code) for p in rows},stock=_stock(session,[p.code for p in rows]))
 
 
 @router.get('/don-mua/moi')
@@ -193,7 +240,17 @@ def create(request: Request, form=Depends(checked_form), session: Session=Depend
     try:row=svc.create(session,user,PurchaseOrderIn(**_body(data)))
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
-        return _form(request,session,data=data,error=message,code=code,status=status)
+        return _form(request,session,data=data,error=message,code=code,status=status,where=_where(exc,data))
+    return _then_order(request,session,user,row,form)
+
+
+def _then_order(request,session,user,row,form):
+    """Nút "Lưu và đặt hàng": lưu xong đặt luôn. Đặt không được thì nháp vẫn giữ, báo lý do trên trang đơn."""
+    if form.get('then')=='order':
+        try:svc.order(session,user,row.id,row.version)
+        except BusinessError as exc:
+            return _form(request,session,row=svc.load(session,user,row.id),error='Đã lưu nháp nhưng chưa đặt hàng được: '+exc.message,code=exc.code,status=exc.status)
+        return RedirectResponse(f'/don-mua/{row.id}?da_luu=1&da_dat=1',status_code=303)
     return RedirectResponse(f'/don-mua/{row.id}?da_luu=1',status_code=303)
 
 
@@ -205,11 +262,11 @@ def view(request: Request, order_id: int, user: User=Depends(purchase_user), ses
 @router.post('/don-mua/{order_id}')
 def update(request: Request, order_id: int, form=Depends(checked_form), session: Session=Depends(get_session)):
     user=request.state.user;svc.check_writer(user);data=_raw(form)
-    try:svc.update(session,user,order_id,PurchaseOrderUpdate(version=_version(form),**_body(data)))
+    try:row=svc.update(session,user,order_id,PurchaseOrderUpdate(version=_version(form),**_body(data)))
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
-        return _form(request,session,row=svc.load(session,user,order_id),data=data,error=message,code=code,status=status)
-    return RedirectResponse(f'/don-mua/{order_id}?da_luu=1',status_code=303)
+        return _form(request,session,row=svc.load(session,user,order_id),data=data,error=message,code=code,status=status,where=_where(exc,data))
+    return _then_order(request,session,user,row,form)
 
 
 @router.post('/don-mua/{order_id}/{action}')

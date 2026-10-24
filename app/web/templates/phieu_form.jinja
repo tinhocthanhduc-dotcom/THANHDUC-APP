@@ -1,47 +1,74 @@
 {% extends "base.jinja" %}
-{% block title %}{{ d.number or 'Lập phiếu kho' }}<script src="{{ asset('technician-stock.js') }}" defer></script>
-{% endblock %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ d.number or 'Lập phiếu kho' }}{% endblock %}
 {% block main %}
-<div class="bar"><h1>{{ d.number or 'Lập phiếu kho' }} · {{ states[d.status] }}</h1><a href="/phieu-kho">← Phiếu kho</a></div>
+{# Đợt 3 · khuôn 5: phiếu kho cùng bố cục Đơn bán: thông tin phiếu + dòng hàng gọn bên trái, tóm tắt và Bước tiếp bên phải. #}
+{% set live = can_write and d.status == 'NHAP' %}
+<div class="doc-detail quote-form-page sk-compose">
+{{ ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · nhập, xuất, chuyển, kiểm kê', back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) }}
+{% if d.status != 'DA_HUY' %}{{ ui.steps([('Nháp','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
-{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{% if live and not action_reason %}<b>Chưa lưu được.</b> {% endif %}{{ error }}</p>{% endif %}
 {% if source %}<p class="card" data-stock-source>Sinh từ <a href="{{ source.href }}">{{ source.label }}</a>.</p>{% endif %}
 {% if d.status == 'DA_HUY' %}<p class="alert warn">Lý do hủy: {{ d.void_reason }}</p>{% endif %}
-<form method="post" action="{% if d.id %}/phieu-kho/{{ d.id }}{% else %}/phieu-kho/moi{% endif %}" class="form" data-stock-form>
+<form method="post" action="{% if d.id %}/phieu-kho/{{ d.id }}{% else %}/phieu-kho/moi{% endif %}" class="form qf-form qf3 qf2o sk-form{{ ' sk-nocost' if d.kind in ['PX','CK'] }}" data-stock-form data-editable="{{ '1' if live else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 {% if d.id %}<input type="hidden" name="kind" value="{{ d.kind }}">{% endif %}
-<fieldset {% if not can_write or d.status != 'NHAP' %}disabled{% endif %}>
-<fieldset class="card"><legend>Loại phiếu</legend><div class="seg stock-seg">
+<div class="qf-main"><fieldset {% if not live %}disabled{% endif %}>
+<div class="seg stock-seg sk-kinds" role="group" aria-label="Loại phiếu">
 {% for code, label in kinds.items() %}<label><input type="radio" name="{% if d.id %}locked_kind{% else %}kind{% endif %}" value="{{ code }}" {% if d.kind == code %}checked{% endif %} {% if d.id %}disabled{% endif %}><span>{{ label }}</span></label>{% endfor %}
-</div></fieldset>
-<div class="card form">
-<label>Ngày phiếu<input type="date" name="doc_date" value="{{ d.doc_date }}" required></label>
-<fieldset><legend>Kho nguồn</legend><div class="seg stock-seg">
+</div>
+<section class="card qf-card sk-head"><h2 class="qf-h">Thông tin phiếu</h2>
+<div class="sk-row"><label class="sk-date">Ngày phiếu<input type="date" name="doc_date" value="{{ d.doc_date }}" required></label>
+<div class="field-group sk-wh{{ ' field-invalid' if field_errors.warehouse_code }}"><p class="group-label" data-sk-wh-label>{{ {'PN':'Kho nhận','KK':'Kho kiểm'}.get(d.kind, 'Kho xuất') }}</p><div class="seg stock-seg">
 {% for w in warehouses %}<label><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if d.warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.warehouse_code != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
-</div></fieldset>
-<fieldset data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend>
+</div>{{ ui.field_error(field_errors, 'warehouse_code') }}</div></div>
+<fieldset class="sk-dest{{ ' field-invalid' if field_errors.to_warehouse_code }}" data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend>
 <input type="hidden" name="to_warehouse_code" value="{{ d.to_warehouse_code or '' }}">
 <div class="seg stock-seg">{% for w in warehouses if w.kind=='KHO' %}<label><input type="radio" name="to_regular_warehouse" value="{{ w.code }}" {% if d.to_warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.to_warehouse_code != w.code %}disabled{% endif %}><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}</div>
-<div data-picker data-tech-destination><label>Hoặc chuyển cho thợ (tìm và chọn)<input value="{{ tech_destination }}" autocomplete="off" data-live=".tech-warehouse-options" data-source="/phieu-kho/tim-kho-tho"></label><input type="hidden" data-picked-value value="{{ d.to_warehouse_code or '' }}" data-destination-picker><div class="tech-warehouse-options product-options"></div></div>
+<div data-picker data-tech-destination><label>Hoặc chuyển cho thợ (tìm và chọn)<input value="{{ tech_destination }}" autocomplete="off" data-live=".tech-warehouse-options" data-source="/phieu-kho/tim-kho-tho" placeholder="Gõ tên thợ"></label><input type="hidden" data-picked-value value="{{ d.to_warehouse_code or '' }}" data-destination-picker><div class="tech-warehouse-options product-options"></div></div>
+{{ ui.field_error(field_errors, 'to_warehouse_code') }}
 </fieldset>
-<label data-kind-only="PN" {% if d.kind != 'PN' %}hidden{% endif %}>Nhà cung cấp<select name="supplier_code" {% if d.kind != 'PN' %}disabled{% endif %}><option value="">Chọn nhà cung cấp</option>{% for s in suppliers %}<option value="{{ s.code }}" {% if d.supplier_code == s.code %}selected{% endif %}>{{ s.code }} · {{ s.name }}</option>{% endfor %}</select></label>
-<label data-kind-only="PX" {% if d.kind != 'PX' %}hidden{% endif %}>Mã khách hàng (nếu có)<input name="customer_code" value="{{ d.customer_code or '' }}" {% if d.kind != 'PX' %}disabled{% endif %}></label>
-<label>Lý do<input name="reason" value="{{ d.reason }}" maxlength="2000"></label>
-<label>Ghi chú<textarea name="note" maxlength="2000">{{ d.note }}</textarea></label>
-</div>
-<div class="form" data-stock-lines>{% for line in d.lines %}{% include 'phieu_dong.jinja' %}{% endfor %}</div>
-{% if can_write and d.status == 'NHAP' %}<button type="button" data-add-stock-line>+ Thêm dòng hàng</button>{% endif %}
-</fieldset>
-{% if can_write and d.status == 'NHAP' %}<div class="stock-actions"><button class="primary" name="action" value="save">Lưu nháp</button>
-<button class="primary" name="action" value="post" {% if d.id %}formaction="/phieu-kho/{{ d.id }}/post"{% endif %}>Ghi sổ</button></div>{% endif %}
+<div class="sk-party{{ ' field-invalid' if field_errors.supplier_code }}" data-kind-only="PN" data-picker data-sk-party data-picked="{{ '1' if supplier and not field_errors.supplier_code else '0' }}" {% if d.kind != 'PN' %}hidden{% endif %}>
+<div class="po-picked"><span aria-hidden="true">✓</span><div><b data-party-name>{% if supplier %}{{ supplier.code }} · {{ supplier.name }}{% endif %}</b><small data-party-info>{{ supplier.phones|join(', ') if supplier else '' }}</small></div>{% if live %}<button type="button" class="btn btn-ghost" data-party-change>Đổi</button>{% endif %}</div>
+<label class="sk-party-find">Nhà cung cấp (tìm và chọn)<input name="supplier_code" value="{{ d.supplier_code or '' }}" autocomplete="off" data-live=".sk-party-options" data-source="/phieu-kho/tim-ncc" placeholder="Tên hoặc mã nhà cung cấp" {% if d.kind != 'PN' %}disabled{% endif %}></label><div class="sk-party-options product-options" aria-live="polite"></div>
+{{ ui.field_error(field_errors, 'supplier_code') }}</div>
+<div class="sk-party{{ ' field-invalid' if field_errors.customer_code }}" data-kind-only="PX" data-picker data-sk-party data-picked="{{ '1' if customer and not field_errors.customer_code else '0' }}" {% if d.kind != 'PX' %}hidden{% endif %}>
+<div class="po-picked"><span aria-hidden="true">✓</span><div><b data-party-name>{% if customer %}{{ customer.code }} · {{ customer.name }}{% endif %}</b><small data-party-info></small></div>{% if live %}<button type="button" class="btn btn-ghost" data-party-change>Đổi</button>{% endif %}</div>
+<label class="sk-party-find">Khách hàng (tìm và chọn, không bắt buộc)<input name="customer_code" value="{{ d.customer_code or '' }}" autocomplete="off" data-live=".sk-party-options" data-source="/phieu-kho/tim-khach" placeholder="Tên, mã hoặc số điện thoại" {% if d.kind != 'PX' %}disabled{% endif %}></label><div class="sk-party-options product-options" aria-live="polite"></div>
+{{ ui.field_error(field_errors, 'customer_code') }}</div>
+<div class="qf-pair"><label class="{{ 'field-invalid' if field_errors.reason }}">Lý do<input name="reason" value="{{ d.reason }}" maxlength="2000" placeholder="Nhập hàng NCC giao, xuất dùng, chuyển bổ sung…">{{ ui.field_error(field_errors, 'reason') }}</label>
+<label>Ghi chú<input name="note" value="{{ d.note }}" maxlength="2000" placeholder="Ghi chú thêm"></label></div>
+</section>
+<section class="card qf-card qf-lines sk-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng trong phiếu <span class="qf-count" data-sk-count>{{ d.lines|length }} dòng</span></h2><span class="hint" data-sk-stock-note>Tồn: số có thể dùng ở kho đang chọn</span></div>
+{% if live %}<div class="qf-find" data-sk-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-sk-q placeholder="+ Tìm hàng để thêm: mã, tên… (Enter thêm kết quả đầu)" autocomplete="off"></label><div class="qf-find-drop" data-sk-list aria-live="polite" hidden></div></div>{% endif %}
+<div class="skl-head" aria-hidden="true"><span>Hàng</span><span>Tồn</span><span>Số lượng</span><span class="skl-cost-h">Đơn giá</span><span>Serial</span><span>Ghi chú dòng</span><span></span></div>
+<div data-stock-lines>{% for line in d.lines %}{% set loop_index = loop.index0 %}{% include 'phieu_dong.jinja' %}{% endfor %}</div>
+<p class="hint qf-empty" data-sk-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>.</p>
+{% if live %}<div class="qf-adds"><button type="button" class="qf-add btn-ghost" data-add-stock-line>+ Dòng hàng tìm theo mã</button></div>{% endif %}
+</section>
+</fieldset></div>
+<aside class="qf-side">
+<section class="card qf-sum sk-sum"><h2 class="qf-h">Tóm tắt phiếu</h2><dl><div><dt>Loại</dt><dd data-sk-kind>{{ kinds[d.kind] }}</dd></div><div><dt>Kho</dt><dd data-sk-wh>{{ d.warehouse_code or 'Chưa chọn' }}</dd></div><div><dt>Số dòng</dt><dd data-sk-lines>{{ d.lines|length }}</dd></div><div><dt>Tổng số lượng</dt><dd data-sk-qty>—</dd></div><div data-sk-value-row {% if d.kind in ['PX','CK'] %}hidden{% endif %}><dt>Giá trị theo đơn giá</dt><dd data-sk-value>—</dd></div></dl></section>
+{% if live %}<section class="card workflow-action sk-next" aria-label="Bước tiếp"><h2>Bước tiếp · kho làm</h2>
+<ul class="workflow-checks" data-sk-checks><li data-check="wh">Đã chọn kho</li><li data-check="party" data-kind-check="PN">Đã chọn nhà cung cấp</li><li data-check="dest" data-kind-check="CK">Đã chọn kho đích</li><li data-check="lines">Có ít nhất 1 dòng</li><li data-check="filled">Mọi dòng có hàng và số lượng</li></ul>
+<div class="workflow-total"><span>Tổng số lượng</span><strong data-sk-qty-bar>—</strong></div>
+<div class="workflow-buttons"><button class="btn-ok next-primary" name="action" value="post" data-sk-primary {% if d.id %}formaction="/phieu-kho/{{ d.id }}/post"{% endif %}>Ghi sổ</button><button class="btn-ghost" name="action" value="save">{{ 'Lưu nháp' if d.id else 'Chỉ lưu nháp' }}</button></div>
+<p class="hint" data-sk-missing hidden></p>
+<p class="hint sk-post-note">Ghi sổ là tồn kho đổi ngay. Ghi sai thì hủy phiếu có lý do.</p>
+</section>{% endif %}
+</aside>
 </form>
 {% if can_write and d.id and d.status in ['NHAP', 'DA_GHI'] and (not source or source.voidable) %}
-<form method="post" class="card form stock-cancel" action="/phieu-kho/{{ d.id }}/{% if d.status == 'NHAP' %}cancel{% else %}void{% endif %}" {% if d.status == 'DA_GHI' %}data-confirm-void{% endif %}>
+<details class="card po-danger"{% if action_reason or error_code in ['REASON_REQUIRED'] %} open{% endif %}><summary>{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</summary>
+<form method="post" class="form stock-cancel" action="/phieu-kho/{{ d.id }}/{% if d.status == 'NHAP' %}cancel{% else %}void{% endif %}" {% if d.status == 'DA_GHI' %}data-confirm-void{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <label>Lý do hủy<input name="reason" value="{{ action_reason }}" required {% if d.status == 'DA_GHI' %}minlength="3"{% endif %} maxlength="2000"></label>
-<button>{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</button>
-</form>{% endif %}
-<template id="stock-line-template">{% set line = {'product_code':'', 'qty':'1', 'unit_cost':'', 'serial':'', 'note':''} %}{% include 'phieu_dong.jinja' %}</template>
+<p class="hint">{% if d.status == 'NHAP' %}Nháp bị hủy, tồn kho không đổi.{% else %}Tạo dòng đảo trong sổ kho với ngày hủy; tồn kho trở lại như trước khi ghi.{% endif %}</p>
+<button class="btn-danger">{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</button>
+</form></details>{% endif %}
+</div>
+<template id="stock-line-template">{% set line = {'product_code':'', 'qty':'1', 'unit_cost':'', 'serial':'', 'note':''} %}{% set loop_index = 'new' %}{% include 'phieu_dong.jinja' %}</template>
 <script src="{{ asset('stock.js') }}" defer></script>
 <script src="{{ asset('technician-stock.js') }}" defer></script>
 {% endblock %}
