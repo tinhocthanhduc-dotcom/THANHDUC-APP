@@ -2444,3 +2444,28 @@ img.delivery-photo { display: block; width: 100%; height: auto; max-height: 70vh
 /* TUẤN 24/10: phụ kiện mang theo chữ nhỏ lại, gọn trên điện thoại. */
 .acc-chips { gap: 6px; }
 .acc-chips .chip span { min-height: 40px; padding: 0 11px; font-size: 14px; font-weight: 600; border-width: 1.5px; border-radius: 10px; }
+/* ===== Đợt 5: phiếu dịch vụ khung 2 cột, Điều phối khuôn danh sách ===== */
+.svc-next { gap: 10px; }
+.svc-next h2.nb-title, .svc-next .service-action h2.nb-title { margin: 0; font-size: 1.15rem; color: var(--text); }
+.svc-next .card { border: 0; padding: 0; margin: 0; box-shadow: none; background: none; }
+.svc-next .service-action h2 { font-size: .95rem; color: var(--muted); }
+.svc-next .workflow-action { margin: 0; padding: 0; border: 0; background: none; }
+.svc-next .workflow-buttons { display: grid; gap: 8px; }
+.svc-next .workflow-buttons > * { width: 100%; }
+.seg.svc-techs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.seg.svc-techs span { display: grid; gap: 0; min-height: 52px; align-content: center; font-weight: 600; }
+.seg.svc-techs small { font-weight: 400; font-size: .78rem; color: var(--muted); }
+.seg.svc-techs input:checked + span small { color: inherit; }
+.svc-view [data-assigned] details > form { margin-top: 10px; }
+.svc-view .svc-warranty { margin: 0; }
+.svc-view .doc-main > .card > summary { cursor: pointer; font-weight: 600; }
+.dp-title { margin: 0; padding: 12px 14px; font-size: 1rem; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+.dp-title span { font-size: .75rem; padding: 0 7px; border-radius: 999px; background: var(--tag); color: var(--muted); }
+.dp-page { display: grid; gap: 16px; }
+.dp-none { padding: 12px 14px; margin: 0; }
+@media (max-width: 640px) {
+  .dp-page .tiles.keep-phone { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .dp-page .tile { padding: 8px 10px; min-height: 0; }
+  .dp-page .tile .t-label { font-size: .75rem; line-height: 1.2; }
+  .dp-page .tile .t-n { font-size: 1.15rem; }
+}
