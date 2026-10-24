@@ -46,21 +46,32 @@ def _rows(session,stmt):
     return rows
 
 
-def _balances():
+def _deductions():
+    """The posted debt reductions shared by balances and FIFO aging."""
+    credits = union_all(
+        select(SupplierPayment.supplier_code, SupplierPayment.amount.label('paid'), literal(0).label('returned'))
+            .where(SupplierPayment.status == 'DA_GHI'),
+        select(PurchaseReturn.supplier_code, literal(0), PurchaseReturn.total)
+            .where(PurchaseReturn.status == 'DA_GHI'),
+        select(PendingDisposition.supplier_code, literal(0), PendingDisposition.total)
+            .where(PendingDisposition.kind == 'TRA_NCC', PendingDisposition.status == 'DA_GHI'),
+    ).subquery()
+    paid, returned = func.sum(credits.c.paid), func.sum(credits.c.returned)
+    return select(credits.c.supplier_code, paid.label('paid'), returned.label('returned'),
+                  (paid + returned).label('amount')).group_by(credits.c.supplier_code)
+
+
+def _balances(deductions=None):
+    deductions = _deductions().subquery() if deductions is None else deductions
     received=(select(PurchaseOrder.supplier_code,func.sum(PurchaseReceipt.total).label('amount'))
         .join(PurchaseReceipt,PurchaseReceipt.order_id==PurchaseOrder.id).where(PurchaseReceipt.status=='DA_GHI')
         .group_by(PurchaseOrder.supplier_code).subquery())
-    paid=(select(SupplierPayment.supplier_code,func.sum(SupplierPayment.amount).label('amount'))
-        .where(SupplierPayment.status=='DA_GHI').group_by(SupplierPayment.supplier_code).subquery())
-    returned=(select(PurchaseReturn.supplier_code,func.sum(PurchaseReturn.total).label('amount'))
-        .where(PurchaseReturn.status=='DA_GHI').group_by(PurchaseReturn.supplier_code).subquery())
-    pending_return=(select(PendingDisposition.supplier_code,func.sum(PendingDisposition.total).label('amount')).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='DA_GHI').group_by(PendingDisposition.supplier_code).subquery())
-    returned_amount=func.coalesce(returned.c.amount,0)+func.coalesce(pending_return.c.amount,0)
-    opening=func.coalesce(SupplierOpeningDebt.amount,0); received_amount=func.coalesce(received.c.amount,0); paid_amount=func.coalesce(paid.c.amount,0)
+    returned_amount=func.coalesce(deductions.c.returned,0)
+    opening=func.coalesce(SupplierOpeningDebt.amount,0); received_amount=func.coalesce(received.c.amount,0); paid_amount=func.coalesce(deductions.c.paid,0)
     return (select(Supplier.code.label('supplier_code'),Supplier.name,Supplier.active,opening.label('opening'),
-            received_amount.label('received'),returned_amount.label('returned'),paid_amount.label('paid'),(opening+received_amount-returned_amount-paid_amount).label('remaining'))
+            received_amount.label('received'),returned_amount.label('returned'),paid_amount.label('paid'),(opening+received_amount-func.coalesce(deductions.c.amount,0)).label('remaining'))
         .outerjoin(SupplierOpeningDebt,SupplierOpeningDebt.supplier_code==Supplier.code)
-        .outerjoin(received,received.c.supplier_code==Supplier.code).outerjoin(pending_return,pending_return.c.supplier_code==Supplier.code).outerjoin(returned,returned.c.supplier_code==Supplier.code).outerjoin(paid,paid.c.supplier_code==Supplier.code))
+        .outerjoin(received,received.c.supplier_code==Supplier.code).outerjoin(deductions,deductions.c.supplier_code==Supplier.code))
 
 
 def balance(session,user,supplier_code):
