@@ -26,7 +26,7 @@
 <p>Trạng thái phiếu đã thay đổi. <a href="/dich-vu/{{ t.id }}">Tải lại phiếu</a> trước khi tiếp tục.</p>
 {% for key, value in retained_fields %}<label>{{ {'version':'Phiên bản', 'assignee_id':'Thợ được giao', 'to_status':'Trạng thái', 'note':'Ghi chú / lý do', 'reason':'Lý do', 'appointment_at':'Ngày giờ hẹn'}.get(key, key) }}<textarea readonly name="{{ key }}">{{ value }}</textarea></label>{% endfor %}
 </section>{% endif %}
-{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}{% set tach=request.query_params.get('tach','') %}{% if tach and not error %}<p class="alert ok" data-split-done>Đã tách thêm {{ tach.split(',')|length }} phiếu, mỗi máy một phiếu: {{ tach.replace(',', ', ') }}.</p>{% endif %}
 {% set custody_action=custody_machine and (custody_pending or custody_machine.custody_location=='DOI_TAC') %}
 {% if xg_panel %}{% include 'xuong_khung.jinja' %}{% if custody_action %}{% include 'may_khach.jinja' %}{% endif %}<details class="card xg-detail"><summary>Chi tiết phiếu · khách · máy{% if not custody_action %} · gửi đối tác{% endif %}</summary>{% endif %}
 <section class="card service-summary {% if is_overdue(t) %}service-overdue{% endif %}">
@@ -34,7 +34,7 @@
   <dl>
     <dt>Khách hàng</dt><dd><a href="/khach-hang/{{ t.customer_code }}">{{ customer.name }}</a></dd>
     <dt>Địa điểm</dt><dd>{% if site %}{{ site.name }}{% if site.address %} — {{ site.address }}{% endif %}{% else %}Địa chỉ chính{% if customer.address %} — {{ customer.address }}{% endif %}{% endif %}</dd>
-    <dt>Serial</dt><dd>{% if t.serial %}<a href="/thiet-bi/{{ t.serial|urlquote }}">{{ t.serial }}</a>{% else %}Không chọn{% endif %}{% include 'dich_vu_may.jinja' %}</dd>
+    <dt>Serial</dt><dd>{% if t.serial %}<a href="/thiet-bi/{{ t.serial|urlquote }}">{{ t.serial }}</a>{% else %}Không chọn{% endif %}</dd>{% set machine_html %}{% include 'dich_vu_may.jinja' %}{% endset %}{% if machine_html|trim %}<div class="service-machine-row">{{ machine_html }}</div>{% endif %}
     <dt>Loại</dt><dd>{{ service_kinds[t.kind] }}</dd><dt>Ưu tiên</dt><dd>{{ service_priorities[t.priority] }}</dd>
     <dt>Thợ</dt><dd>{{ users.get(t.assignee_id, 'Chưa giao') }}</dd>
     <dt>Hạn xử lý</dt><dd>{{ t.due_at|service_time }}</dd><dt>Hẹn khách</dt><dd>{{ t.appointment_at|appointment_label(t.appointment_slot) }}</dd>

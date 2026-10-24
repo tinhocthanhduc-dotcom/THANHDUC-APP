@@ -103,7 +103,7 @@ def _serial(value: str | None) -> str | None:
     return s or None
 
 
-def _check_site_and_serial(session: Session, customer_code: str, site_id: int | None, serial: str | None):
+def _check_site_and_serial(session: Session, customer_code: str, site_id: int | None, serial: str | None, ticket_id: int | None = None):
     if site_id is not None:
         site = session.get(CustomerSite, site_id)
         if site is None or not site.active or site.customer_code != customer_code:
@@ -114,6 +114,12 @@ def _check_site_and_serial(session: Session, customer_code: str, site_id: int | 
             raise BusinessError("BAD_SERIAL", "Máy chưa có trong danh mục thiết bị, hãy thêm ở trang Thiết bị trước.", {"serial": serial})
         if eq.customer_code is not None and eq.customer_code != customer_code:
             raise BusinessError("BAD_SERIAL", "Máy này đang ghi cho khách khác.", {"serial": serial, "customer_code": eq.customer_code})
+        # TUẤN 24/10: máy đang được giữ (thợ/xưởng/đối tác) theo phiếu khác thì không gắn vào phiếu này,
+        # nếu không phiếu này kẹt ở bước "Máy đã trả khách" và không hoàn thành được.
+        if eq.custody_location != 'TAI_KHACH' and eq.custody_ticket_id is not None and eq.custody_ticket_id != ticket_id:
+            held = session.get(ServiceTicket, eq.custody_ticket_id)
+            raise BusinessError("MACHINE_HELD", f"Máy {serial} đang được giữ theo phiếu {held.number if held else eq.custody_ticket_id}, chưa trả khách. Chọn máy khác hoặc trả máy theo phiếu đó trước.",
+                                {"serial": serial, "ticket_id": eq.custody_ticket_id}, status=409)
 
 
 def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket:
@@ -192,7 +198,7 @@ def _split_permission(user, t):
 def _set_machine_in_tx(session,user,t,serial,new_machine=None):
     before=snapshot(t)
     serial=_machine_serial(session,user,t.customer_code,t.site_id,serial,new_machine,t.kind)
-    _check_site_and_serial(session,t.customer_code,t.site_id,serial)
+    _check_site_and_serial(session,t.customer_code,t.site_id,serial,t.id)
     if t.serial!=serial:
         t.serial=serial;t.version+=1
         _record(session,user,t,'set_machine',before,t.status)
@@ -227,7 +233,7 @@ def set_machines(session: Session,user: User,ticket_id: int,version: int,serials
         # Serialize multi-machine selections, including two different source tickets.
         for serial in sorted(chosen):
             eq=session.scalar(select(Equipment).where(Equipment.serial==serial).with_for_update().execution_options(populate_existing=True))
-            _check_site_and_serial(session,t.customer_code,t.site_id,serial)
+            _check_site_and_serial(session,t.customer_code,t.site_id,serial,t.id)
             if eq.site_id is not None and eq.site_id!=t.site_id:
                 raise BusinessError('BAD_SERIAL','Máy không thuộc địa điểm của phiếu.',{'serial':serial})
         busy=session.execute(select(ServiceTicket.number,ServiceTicket.serial).where(ServiceTicket.serial.in_(chosen),

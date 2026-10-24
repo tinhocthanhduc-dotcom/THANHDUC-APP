@@ -3,7 +3,7 @@ from sqlalchemy import or_, select
 
 from .. import customer_sites, service_tickets
 from ..errors import BusinessError
-from ..models import Equipment, EquipmentCustody, Product
+from ..models import Equipment, EquipmentCustody, Product, ServiceTicket
 from ..schemas import EquipmentIn, ServiceMachineSet
 from ..security import has_role
 
@@ -50,6 +50,11 @@ def context(session, user, ticket, shown=None):
     machines = list(session.execute(select(Equipment, Product.name).join(Product).where(
         Equipment.active.is_(True), or_(Equipment.customer_code == ticket.customer_code, Equipment.serial == ticket.serial))
         .order_by(Equipment.serial))) if editable else []
+    # Máy đang được giữ theo phiếu khác: hiện mờ, không chọn được (server cũng chặn MACHINE_HELD).
+    held_ids = {eq.serial: eq.custody_ticket_id for eq, _ in machines
+                if eq.custody_location != 'TAI_KHACH' and eq.custody_ticket_id is not None and eq.custody_ticket_id != ticket.id}
+    numbers = dict(session.execute(select(ServiceTicket.id, ServiceTicket.number).where(ServiceTicket.id.in_(set(held_ids.values())))).all()) if held_ids else {}
     return dict(can_set_machine=editable, can_create_machine=can_create(user), machine_form=data, ticket_machines=machines,
+                machine_held={serial: numbers.get(ident, '') for serial, ident in held_ids.items()},
                 machine_lock_reason='Máy đã được nhận về xưởng, không đổi máy được.' if locked else
                     'Phiếu đã có căn cứ bảo hành, không đổi máy được.' if warranty else '')

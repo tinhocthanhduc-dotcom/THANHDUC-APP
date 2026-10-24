@@ -1,10 +1,20 @@
 <details {% if not bring_open %}name="tech-other" {% endif %}class="{{ 'card tho-bring-form' if bring_open }}" {% if failed_action=='workshop' or bring_open %}open{% endif %}><summary>Mang máy về xưởng <span>›</span></summary>
 {% if not t.serial %}<p id="workshop-machine-needed" class="alert warn">Chọn máy trước khi mang về</p>{% include 'dich_vu_may.jinja' %}{% else %}
+{% if trip_machines %}<p class="alert ok tho-trip-note">Chuyến này mang về {{ trip_machines|length + 1 }} máy, mỗi máy một phiếu. Chụp ảnh và ghi tình trạng từng máy, rồi vuốt một lần.</p><h3 class="tho-trip-title">Máy 1 · {{ t.serial }}{% if machine_name %} · {{ machine_name }}{% endif %}</h3>{% endif %}
 {% with photo_tag='NHAN_MAY' %}{% include 'tho_anh.jinja' %}{% endwith %}
 <form id="workshop-bring" class="card form" method="post" action="/dich-vu/{{ t.id }}/mang-ve-xuong">
 {% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}"><input type="hidden" name="machine_version" value="{{ custody_machine.version }}">
-<div class="field-group" role="group"><p class="group-label">Phụ kiện mang theo</p><div class="chips">{% for code,label in custody_accessories.items() %}<label class="chip"><input type="checkbox" name="accessories" value="{{ code }}" {% if code in workshop_form.get('accessories',[]) %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}<label class="chip"><input type="checkbox" name="accessories" value="KHONG_CO" {% if 'KHONG_CO' in workshop_form.get('accessories',[]) %}checked{% endif %}><span>Không kèm phụ kiện</span></label></div></div>
+<div class="field-group" role="group"><p class="group-label">Phụ kiện mang theo</p><div class="chips acc-chips">{% for code,label in custody_accessories.items() %}<label class="chip"><input type="checkbox" name="accessories" value="{{ code }}" {% if code in workshop_form.get('accessories',[]) %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}<label class="chip"><input type="checkbox" name="accessories" value="KHONG_CO" {% if 'KHONG_CO' in workshop_form.get('accessories',[]) %}checked{% endif %}><span>Không kèm phụ kiện</span></label></div></div>
 <label>Ghi chú phụ kiện<input name="accessories_note" maxlength="2000" value="{{ workshop_form.get('accessories_note','') }}"></label>
 <label>Tình trạng máy lúc nhận<textarea name="condition_note" required maxlength="2000">{{ workshop_form.get('condition_note','') }}</textarea></label>
+{# MM1: các máy tách cùng chuyến; ô ảnh tải thẳng vào phiếu của từng máy, các trường gửi theo dạng trip-<id>-... #}
+{% set raw=workshop_form.get('trip_raw',{}) %}{% for m in trip_machines %}{% set c=m.t %}{% set pre='trip-' ~ c.id ~ '-' %}
+<div class="tho-trip-machine" data-trip-machine="{{ c.id }}"><h3 class="tho-trip-title">Máy {{ loop.index + 1 }} · {{ m.eq.serial }}{% if m.name %} · {{ m.name }}{% endif %} <small>{{ c.number }}</small></h3>
+{% with t=c, files=m.files, custody_files=[], photo_tag='NHAN_MAY' %}{% include 'tho_anh.jinja' %}{% endwith %}
+<input type="hidden" name="{{ pre }}version" value="{{ c.version }}"><input type="hidden" name="{{ pre }}machine_version" value="{{ m.eq.version }}">
+<div class="field-group" role="group"><p class="group-label">Phụ kiện mang theo</p><div class="chips acc-chips">{% set picked=raw.get(pre ~ 'accessories',[]) %}{% for code,label in custody_accessories.items() %}<label class="chip"><input type="checkbox" name="{{ pre }}accessories" value="{{ code }}" {% if code in picked %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}<label class="chip"><input type="checkbox" name="{{ pre }}accessories" value="KHONG_CO" {% if 'KHONG_CO' in picked %}checked{% endif %}><span>Không kèm phụ kiện</span></label></div></div>
+<label>Ghi chú phụ kiện<input name="{{ pre }}accessories_note" maxlength="2000" value="{{ (raw.get(pre ~ 'accessories_note') or [''])[0] }}"></label>
+<label>Tình trạng máy lúc nhận<textarea name="{{ pre }}condition_note" required maxlength="2000">{{ (raw.get(pre ~ 'condition_note') or [''])[0] }}</textarea></label></div>
+{% endfor %}
 {% include 'tho_workshop_materials.jinja' %}{% if not bring_open %}<button class="btn btn-ok">Mang máy về xưởng</button>{% endif %}
 </form>{% endif %}</details>

@@ -14,13 +14,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import audit, service_tickets
 from .config import get_settings
 from .errors import BusinessError
-from .models import Attachment, StockDoc, User
+from .models import Attachment, EquipmentCustody, StockDoc, User
 from .schemas import AttachmentOut
 from .security import has_role
 from .stock_docs import _transaction
@@ -129,6 +129,28 @@ def _prepare(data: bytes) -> tuple[bytes, str, str, int | None, int | None]:
         raise BusinessError("BAD_FILE_TYPE", "Chỉ nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF.")
 
 
+# TUẤN 24/10: mỗi ô ảnh tối đa 2 ảnh (ô "Tệp khác" của phiếu dịch vụ là chỗ để giấy tờ, không giới hạn).
+# Chỉ chặn khi tải ảnh lẻ; ảnh lưu kèm chứng từ (_in_tx) đã giới hạn ở ô chọn ảnh, không để chứng từ kho/tiền hỏng vì đếm ảnh.
+SLOT_MAX = 2
+
+
+def _check_slot(session: Session, entity: str, entity_id, tag: str) -> None:
+    if entity == 'service_ticket' and tag == 'KHAC':
+        return
+    stmt = select(func.count()).select_from(Attachment).where(Attachment.entity_id == str(entity_id), Attachment.tag == tag, Attachment.hidden.is_(False))
+    if tag in ('NHAN_MAY', 'TRA_MAY'):
+        # Ảnh nhận/trả máy tính theo lượt giữ máy: lượt mới (sau lần bàn giao gần nhất) được chụp lại 2 ảnh.
+        since = session.scalar(select(func.max(EquipmentCustody.confirmed_at)).where(EquipmentCustody.ticket_id == int(entity_id)))
+        stmt = stmt.where(Attachment.entity.in_(('service_ticket', 'equipment_custody')))
+        if since is not None:
+            stmt = stmt.where(Attachment.created_at >= since)
+    else:
+        stmt = stmt.where(Attachment.entity == entity)
+    used = session.scalar(stmt)
+    if used >= SLOT_MAX:
+        raise BusinessError('PHOTO_LIMIT', 'Mỗi ô tối đa 2 ảnh. Xóa bớt ảnh cũ rồi chụp lại.', {'max': SLOT_MAX}, status=409)
+
+
 def add(session: Session, user: User, entity: str, entity_id: str, tag: str, filename: str, data: bytes, *, _in_tx=False) -> Attachment:
     if tag not in TAGS:
         raise BusinessError("BAD_TAG", "Loại tệp phải là ảnh trước, ảnh sau, biên bản hoặc khác.", {"allowed": list(TAGS)})
@@ -146,6 +168,8 @@ def add(session: Session, user: User, entity: str, entity_id: str, tag: str, fil
             raise BusinessError('BAD_TAG','Mục giữ máy chỉ nhận ảnh nhận máy hoặc trả máy.')
         check_photo(session,user,int(entity_id),write=True,tag=tag)
     _check(session, user, entity, entity_id, write=True)
+    if not _in_tx:
+        _check_slot(session, entity, entity_id, tag)
     content, content_type, ext, width, height = _prepare(data)
     if (tag in ('NHAN_MAY','TRA_MAY','GIAO_HANG') or entity in ('technician_return_line','pending_item','pending_disposition')) and not content_type.startswith('image/'):
         raise BusinessError('BAD_FILE_TYPE','Ảnh nhận và trả máy phải là ảnh JPEG, PNG hoặc WEBP.')

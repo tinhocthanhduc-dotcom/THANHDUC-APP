@@ -80,14 +80,16 @@ def test_zero_customer_total_and_overstock_no_mutation(client,db,job):
 
 def test_photos_three_auto_upload_hide_own_and_permission(client,db,held):
     p,_,_=held;t=ticket(db,p,'DANG_LAM');csrf=service_login(client,p['technician']);rows=[]
-    for i in range(3):
+    for i in range(2):
         r=client.post(f'/tho/phieu/{t.id}/anh',data=dict(csrf=csrf),files={'file':(f'{i}.png',d5_image(),'image/png')});assert r.status_code==201;rows.append(r.json())
-    assert db.query(Attachment).filter_by(entity_id=str(t.id),tag='SAU',hidden=False).count()==3
+    # TUẤN 24/10: mỗi ô tối đa 2 ảnh, ảnh thứ 3 bị chặn.
+    r=client.post(f'/tho/phieu/{t.id}/anh',data=dict(csrf=csrf),files={'file':('2.png',d5_image(),'image/png')});assert r.status_code==409 and r.json()['code']=='PHOTO_LIMIT'
+    assert db.query(Attachment).filter_by(entity_id=str(t.id),tag='SAU',hidden=False).count()==2
     html=client.get(f'/tho/phieu/{t.id}').text;assert 'data-check="photo"' in html and 'multiple' in html
     csrf_b=service_login(client,p['other_tech']);assert client.post(f'/tho/phieu/{t.id}/anh/{rows[0]["id"]}/xoa',data=dict(csrf=csrf_b,version=1)).status_code==403
     csrf=service_login(client,p['technician']);assert client.post(f'/tho/phieu/{t.id}/anh/{rows[0]["id"]}/xoa',data=dict(csrf=csrf,version=1)).status_code==200
     db.expire_all();a=db.get(Attachment,rows[0]['id']);assert a.hidden and a.hidden_reason=='Thợ xóa trước khi hoàn thành'
-    assert db.query(Attachment).filter_by(entity_id=str(t.id),hidden=False).count()==2
+    assert db.query(Attachment).filter_by(entity_id=str(t.id),hidden=False).count()==1
     assert client.post(f'/tho/phieu/{t.id}/anh',data=dict(csrf=csrf,tag='BIEN_BAN'),files={'file':('bb.png',d5_image(),'image/png')}).status_code==201
     assert post(client,t,data(client,p,t,material_product=[],material_qty=[])).status_code==303
     csrf=service_login(client,p['technician']);assert client.post(f'/tho/phieu/{t.id}/anh/{rows[1]["id"]}/xoa',data=dict(csrf=csrf,version=1)).status_code==409
