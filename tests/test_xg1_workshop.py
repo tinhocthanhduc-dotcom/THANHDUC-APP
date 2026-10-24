@@ -223,15 +223,16 @@ def test_end_to_end_repair_or_decline_with_locked_fee_and_commission(db,workshop
     finally:get_settings.cache_clear()
 
 
-def test_free_decline_completes_without_after_photo_but_needs_handover_record(db,workshop):
+def test_free_decline_completes_without_after_photo_with_one_return_photo(db,workshop):
+    # TUẤN 24/10: trả máy chỉ cần 1 ảnh (ảnh trả máy chụp kèm biên bản đã ký), không bắt thêm ảnh biên bản riêng.
     from app import technician_work
     p,a,b,t,eq=workshop
     svc.quote_decline(db,p['dispatcher'],t.id,t.version,'FREE',0,'Khách không sửa')
-    start_return(db,p,t,eq);photo(db,p,t,'TRA_MAY')
+    start_return(db,p,t,eq)
     before=snapshot(db,t)
     error('PHOTO_REQUIRED',technician_work.complete,db,p['technician'],t.id,t.version,0,'','',[],return_machine=intake(eq))
     assert snapshot(db,t)==before
-    photo(db,p,t,'BIEN_BAN')
+    photo(db,p,t,'TRA_MAY')
     technician_work.complete(db,p['technician'],t.id,t.version,0,'','',[],return_machine=intake(eq))
     assert t.status=='DA_DONG' and t.receivable==0 and t.warranty_months==0
     assert db.query(SalesReceipt).count()==0 and db.query(StockDoc).filter_by(kind='PX').count()==0
@@ -327,3 +328,30 @@ def test_reassignment_cannot_skip_workshop_quote_stage(db,workshop):
     p,a,b,t,eq=workshop;before=snapshot(db,t)
     error('BAD_STATUS',service_tickets.assign,db,p['dispatcher'],t.id,p['other_tech'].id,t.version,'Đổi người xử lý')
     assert snapshot(db,t)==before
+
+
+def test_return_appointment_and_handover_are_one_technician_screen(client,db,workshop):
+    # TUẤN 24/10: Đã hẹn trả + Trả máy gộp một màn, ẩn Loại dịch vụ, chỉ 1 ảnh trả máy; vuốt Hoàn thành ghi luôn đã đến khách.
+    p,a,b,t,eq=workshop;quote(db,p,t);approve(db,p,t);photo(db,p,t,'SAU',who='dispatcher');repaired(db,p,t)
+    svc.schedule_return(db,p['dispatcher'],t.id,t.version,service_tickets._now()+timedelta(days=1),None,p['technician'].id,'Giao trả máy')
+    hand=custody.pending(db,eq.serial);custody.confirm(db,p['technician'],hand.id,hand.version)
+    db.expire_all();db.refresh(t);eq=db.get(Equipment,t.serial)
+    assert t.status=='DA_HEN'
+    csrf=service_login(client,p['technician'])
+    page=client.get(f'/tho/phieu/{t.id}').text
+    assert 'Trả máy đã sửa xong' in page and 'Vuốt để Hoàn thành' in page and 'form="service-complete"' in page
+    assert 'Loại dịch vụ' not in page and 'name="kind"' not in page and 'data-photo-tag="BIEN_BAN"' not in page
+    assert 'id="service-DANG_LAM"' not in page
+    form=dict(csrf=csrf,version=t.version,customer_amount=str(t.receivable),collection_mode='FULL',method='TIEN_MAT',
+        return_machine='1',machine_version=eq.version,accessories='KHONG_CO')
+    r=client.post(f'/tho/phieu/{t.id}/hoan-thanh',data=form)
+    assert r.status_code==400 and 'data-error-code="PHOTO_REQUIRED"' in r.text
+    db.expire_all();db.refresh(t)
+    assert t.status=='DANG_LAM' and db.query(SalesReceipt).count()==0 and eq.custody_location=='THO_GIU'
+    photo(db,p,t,'TRA_MAY')
+    form.update(csrf=service_login(client,p['technician']),version=t.version)
+    r=client.post(f'/tho/phieu/{t.id}/hoan-thanh',data=form,follow_redirects=False)
+    assert r.status_code==303,r.text
+    db.expire_all();db.refresh(t);eq=db.get(Equipment,t.serial)
+    assert t.status=='DA_DONG' and eq.custody_location=='TAI_KHACH'
+    assert db.scalar(select(SalesReceipt).where(SalesReceipt.ticket_id==t.id)).amount==t.receivable

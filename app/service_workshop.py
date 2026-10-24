@@ -119,11 +119,11 @@ def workshop_repaired(session,user,ident,version,repaired_by,mode,reason,fault,f
 
 
 def check_handover_record(session,t):
-    """The new workshop return keeps the signed handover record requirement."""
+    """Trả máy sửa ở xưởng cần một ảnh: ảnh biên bản riêng hoặc ảnh trả máy chụp kèm biên bản đã ký (TUẤN 24/10)."""
     if t.declined_at is not None or t.warranty_months is not None:
         from .attachments import has_visible
         if not has_visible(session,'service_ticket',t.id,'BIEN_BAN'):
-            raise BusinessError('PHOTO_REQUIRED','Cần biên bản có chữ ký khách trước khi trả và hoàn thành.')
+            custody._photo(session,t.id,'TRA_MAY')
 
 
 def _owned(session,user,ident,version):
@@ -144,7 +144,7 @@ def held_machine(session,t):
     return eq
 
 
-def bring(session,user,ident,version,intake,materials):
+def bring(session,user,ident,version,intake,materials,to_workshop=False):
     with _transaction(session):
         t=_owned(session,user,ident,version)
         if t.kind not in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE') or service_charges.return_locked(t):
@@ -165,6 +165,12 @@ def bring(session,user,ident,version,intake,materials):
         if t.kind in (None,'SUA_TAI_CHO'):t.kind='MANG_VE'
         t.version+=1
         tickets._record(session,user,t,'workshop',before,'DANG_LAM','Mang máy về xưởng')
+        if to_workshop:
+            # TUẤN 24/10: máy mang về mặc định giao Kho kỹ thuật (kho xác nhận nhận); gửi đối tác do điều phối làm sau.
+            eq=custody._machine(session,t.serial,lock=True)
+            custody.handover_in_tx(session,user,t.id,CustodyHandover(version=eq.version,location='KHO_KY_THUAT'))
+            tickets.transition_in_tx(session,user,t,'TAM_DUNG','Mang máy về, giao Kho kỹ thuật',
+                hold_reason=WAITING,_action='workshop_handover')
     return t
 
 

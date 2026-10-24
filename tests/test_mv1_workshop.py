@@ -195,11 +195,12 @@ def test_workshop_web_success_and_second_intake_hidden(client,db,onsite):
     p,a,_,t,eq=onsite;photo(db,p,t)
     csrf=service_login(client,p['technician'])
     r=client.post(f'/dich-vu/{t.id}/mang-ve-xuong',data=dict(csrf=csrf,version=t.version,machine_version=eq.version,accessories='KHONG_CO',condition_note='Vỏ xước',material_product='TD-0001',material_qty='2',return_to='tho'),follow_redirects=False)
-    assert r.status_code==303,r.text
+    # TUẤN 24/10: mang máy về là giao luôn Kho kỹ thuật; phiếu rời màn thợ, về Hôm nay.
+    assert r.status_code==303 and r.headers['location']=='/tho',r.text
     db.expire_all();db.refresh(t)
-    page=client.get(f'/tho/phieu/{t.id}');assert page.status_code==200,page.text
-    assert 'Máy khách' in page.text and 'workshop-bring' not in page.text
-    assert f'/tho/phieu/{t.id}/ban-giao-xuong' in page.text and 'Bàn giao máy về xưởng' in page.text
+    assert t.status=='TAM_DUNG' and t.hold_reason=='CHO_SUA_XUONG'
+    hand=custody.pending(db,eq.serial);assert hand.location=='KHO_KY_THUAT' and hand.status=='CHO_NHAN'
+    assert f'/tho/phieu/{t.id}"' not in client.get('/tho').text
     assert balance(db,a.code)==2
 
 
@@ -469,9 +470,8 @@ def test_mang_ve_ticket_starts_with_bring_step_not_money(client,db,onsite):
     r=client.post(f'/dich-vu/{t.id}/mang-ve-xuong',data=dict(csrf=csrf,version=t.version,machine_version=eq.version,accessories='KHONG_CO',condition_note='Vỏ xước',return_to='tho'),follow_redirects=False)
     assert r.status_code==303,r.text
     db.expire_all();db.refresh(t);eq=db.get(Equipment,t.serial)
-    assert t.kind=='MANG_VE' and t.status=='DANG_LAM' and eq.custody_location=='THO_GIU'
-    page=client.get(f'/tho/phieu/{t.id}').text
-    assert 'Bàn giao máy về xưởng' in page and 'Nhận máy mang về xưởng' not in page
+    assert t.kind=='MANG_VE' and t.status=='TAM_DUNG' and t.hold_reason=='CHO_SUA_XUONG' and eq.custody_location=='THO_GIU'
+    assert custody.pending(db,eq.serial).location=='KHO_KY_THUAT'
 
 
 def test_machine_photos_on_technician_screen_are_one_tap_uploads(client,db,onsite):

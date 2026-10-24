@@ -19,7 +19,7 @@
 {% block main %}<div class="doc-detail">
 <div class="recv-head doc-head-bar"><a class="btn" href="/dich-vu" aria-label="Danh sách dịch vụ">←</a><div><h1>{{ t.number }}</h1><p class="hint doc-status svc-{{ t.status|lower }}"><span class="stock-chip">{{ service_statuses[t.status] }}</span> · {{ t.customer_code }}</p></div></div>
 {% for order in linked_orders %}<p class="doc-linked"><a class="tag" href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}{% if can_add_sale %}<p class="doc-linked"><a class="btn btn-ghost" href="/don-ban/moi?service_ticket={{ t.id }}" data-add-sale>+ Kèm hàng bán</a></p>{% endif %}
-{% set workflow_page=true %}{% include 'thanh_buoc.jinja' %}
+{% set workflow_page=true %}{% if xg_panel %}{% with wf_part='steps' %}{% include 'thanh_buoc.jinja' %}{% endwith %}{% else %}{% include 'thanh_buoc.jinja' %}{% endif %}
 {% include 'tu_dong_dong_phieu.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if retained_fields %}<section class="card form service-action"><h2>Dữ liệu vừa gửi chưa được lưu</h2>
@@ -27,6 +27,8 @@
 {% for key, value in retained_fields %}<label>{{ {'version':'Phiên bản', 'assignee_id':'Thợ được giao', 'to_status':'Trạng thái', 'note':'Ghi chú / lý do', 'reason':'Lý do', 'appointment_at':'Ngày giờ hẹn'}.get(key, key) }}<textarea readonly name="{{ key }}">{{ value }}</textarea></label>{% endfor %}
 </section>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% set custody_action=custody_machine and (custody_pending or custody_machine.custody_location=='DOI_TAC') %}
+{% if xg_panel %}{% include 'xuong_khung.jinja' %}{% if custody_action %}{% include 'may_khach.jinja' %}{% endif %}<details class="card xg-detail"><summary>Chi tiết phiếu · khách · máy{% if not custody_action %} · gửi đối tác{% endif %}</summary>{% endif %}
 <section class="card service-summary {% if is_overdue(t) %}service-overdue{% endif %}">
   <h2>{{ service_statuses[t.status] }}{% if is_overdue(t) %} · Quá hạn{% endif %}</h2>
   <dl>
@@ -44,15 +46,16 @@
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
 </section>
 
-<p class="card">{{ warranty_terms }}</p>
+{% if not xg_panel %}<p class="card">{{ warranty_terms }}</p>{% endif %}
 {% include 'dich_vu_loai.jinja' %}
-{% if at_workshop and dispatcher %}{% include 'xuong_bao_gia.jinja' %}{% endif %}
-{% if can_schedule_return %}{% include 'hen_tra_may.jinja' %}{% endif %}
+{% if at_workshop and dispatcher and not xg_panel %}{% include 'xuong_bao_gia.jinja' %}{% endif %}
+{% if can_schedule_return and not xg_panel %}{% include 'hen_tra_may.jinja' %}{% endif %}
 {% include 'bao_hanh_chi_tiet.jinja' %}
 {% if t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG','HOAN_THANH','DA_DONG'] %}{% include 'linh_kien_thu_hoi_trong_phieu.jinja' %}{% endif %}
-{% include "may_khach.jinja" %}
+{% if not (xg_panel and custody_action) %}{% include "may_khach.jinja" %}{% endif %}
 {% if t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'] %}{% include 'dich_vu_linh_kien.jinja' %}{% endif %}
-{% if t.status in ['HOAN_THANH','DA_DONG'] %}<details class="card"><summary>Tiền và vật tư đã chốt · {{ (t.total or 0)|money }} đồng</summary>{% include 'dich_vu_tien.jinja' %}</details>{% elif t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'] %}{% include 'dich_vu_tien.jinja' %}{% endif %}
+{% if xg_panel %}{% if t.hold_reason=='SUA_XONG_CHO_TRA' %}<section class="card"><h2>Tiền đã chốt · {{ (t.total or 0)|money }} đồng</h2>{% include 'dich_vu_tien.jinja' %}</section>{% endif %}</details>{% endif %}
+{% if t.status in ['HOAN_THANH','DA_DONG'] %}<details class="card"><summary>Tiền và vật tư đã chốt · {{ (t.total or 0)|money }} đồng</summary>{% include 'dich_vu_tien.jinja' %}</details>{% elif t.status in ['DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'] and not xg_panel %}{% include 'dich_vu_tien.jinja' %}{% endif %}
 
 {% include 'tra_vat_tu_history.jinja' %}
 {% if t.status=='MOI' %}{% if can_assign %}
@@ -63,7 +66,7 @@
   </div></fieldset>{{ note('assign') }}{% if not next_step or next_step.primary.form!='service-assign' %}<button>Giao thợ</button>{% endif %}
 </form>
 {% endif %}{% endif %}
-{% if t.status!='MOI' and can_assign %}
+{% if t.status!='MOI' and can_assign and not xg_panel %}
 <section class="card done-state service-action" data-assigned><div class="done-k">{% if t.transfer_request %}Thợ xin chuyển việc{% else %}Đã giao thợ{% endif %}</div><b>{{ users.get(t.assignee_id, 'Chưa giao') }}</b><p class="hint">{{ service_statuses[t.status] }}{% if t.assignee_id %} · {{ counts.get(t.assignee_id, 0) }} việc đang mở{% endif %}</p>
 <details data-reassign {% if failed_action == 'assign' or t.transfer_request %}open{% endif %}><summary class="btn">{% if t.transfer_request %}Duyệt chuyển · giao thợ khác{% else %}Giao thợ khác{% endif %}</summary>
 <form id="service-assign" method="post" action="/dich-vu/{{ t.id }}/assign" class="form">{{ version('assign') }}
@@ -104,5 +107,5 @@
 </ol></section></details>
 {% if collection %}{% if not next_step or next_step.primary.form!='service-DA_DONG' %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}<details class="card" {% if failed_receipt_id %}open{% endif %}><summary>Lịch sử báo thu</summary>{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}</details>{% endif %}
 <script src="{{ asset('workflow.js') }}" defer></script>
-<script src="{{ asset('technician-returns.js') }}" defer></script><script src="{{ asset('appointments.js') }}" defer></script><script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script><script src="{{ asset('recovered-parts.js') }}" defer></script>
+<script src="{{ asset('technician-returns.js') }}" defer></script><script src="{{ asset('appointments.js') }}" defer></script><script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script><script src="{{ asset('workshop.js') }}" defer></script><script src="{{ asset('recovered-parts.js') }}" defer></script>
 </div><script src="{{ asset('service-machines.js') }}" defer></script>{% endblock %}

@@ -513,11 +513,11 @@ main:has(> .rq-page) { max-width: 960px; }
 .tech-material {display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem 0;border-bottom:1px solid var(--line);}
 .tech-material>span {min-width:0;overflow-wrap:anywhere;}.tech-material small {display:block;color:var(--muted);}
 .tech-stepper {display:flex;gap:.2rem;align-items:center;flex-shrink:0;}.tech-stepper input {width:4rem;text-align:center;}.tech-stepper button {min-width:44px;min-height:44px;padding:.4rem;}
-.tech-collection {flex-wrap:nowrap;}.tech-collection label {flex:1;min-width:0;}.tech-collection span {padding:.6rem .25rem;font-size:.9rem;}
+.tech-collection {display:grid;grid-template-columns:1fr 1fr;}.tech-collection label {min-width:0;}.tech-collection span {padding:.6rem .25rem;font-size:.9rem;}
 .tech-other-list>details {border-bottom:1px solid var(--line);padding:.5rem 0;}.tech-other-list>details>summary {display:flex;justify-content:space-between;cursor:pointer;padding:.7rem .2rem;min-height:44px;}
 .tech-other-list>details>summary::marker {content:'';}.tech-other-list .card {padding:.6rem;}
 .tech-photos .bar {margin-bottom:0;}.tech-photos .photo-capture {position:relative;cursor:pointer;}.tech-photos input[type=file] {position:absolute;width:1px;height:1px;opacity:0;}
-.tech-photo-list {display:flex;flex-wrap:wrap;gap:.5rem;}.tech-photo {width:94px;display:flex;flex-direction:column;gap:.2rem;margin-top:.5rem;}.tech-photo img {width:94px;height:94px;object-fit:cover;border-radius:8px;}.tech-photo button {padding:.35rem;min-height:36px;}.tech-photo small {font-size:.8rem;}
+.tech-photo-list {display:flex;flex-wrap:wrap;gap:.5rem;}.tech-photo {width:calc(50% - .25rem);display:flex;flex-direction:column;gap:.2rem;margin-top:.5rem;}.tech-photo a {display:block;}.tech-photo img {width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:8px;display:block;}.tech-photo button {padding:.35rem;min-height:36px;}.tech-photo small {font-size:.8rem;}
 @media(max-width:400px){.tech-material {align-items:flex-start;flex-direction:column;}.tech-stepper {align-self:flex-end;}}
 
 .account-list {display:grid;gap:.6rem;margin-top:1rem;}.account-row {display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:.6rem;align-items:center;overflow-wrap:anywhere;}.account-row h2 {font-size:1.1rem;margin:0;}.account-row>* {min-width:0;}
@@ -2160,6 +2160,41 @@ main:has(> .page-mid) { max-width: 752px; }
 .list-table .lt-more summary { cursor: pointer; color: var(--muted); font-size: .85rem; margin-top: 4px; }
 .list-table .lt-more .form { text-align: left; margin-top: 6px; min-width: 220px; }
 .list-table .lt-act select { width: auto; max-width: 170px; min-height: 40px; }
+
+/* TUẤN 24/10: khung sửa ở xưởng của điều phối — một bước mỗi lúc, chọn bằng nút bấm. */
+.xg-panel { display: grid; gap: 12px; border-left: 4px solid var(--accent); }
+.xg-panel h2 { margin: 0; }
+.xg-head .hint { margin: 2px 0 0; }
+.xg-panel .seg { flex-wrap: wrap; }
+.xg-panel .seg label { flex: 1 1 auto; min-width: 72px; }
+.xg-panel .seg span { min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 10px; }
+.xg-days small { font-size: 12px; font-weight: 400; opacity: .8; }
+.xg-date { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); margin-top: 8px; }
+.xg-date input { flex: 1; min-width: 0; }
+.xg-quote, .xg-decline, .xg-more { border: 1px solid var(--line); border-radius: 8px; }
+.xg-quote > summary, .xg-decline > summary, .xg-more > summary { padding: 10px 12px; cursor: pointer; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.xg-more > summary { color: var(--muted); font-size: 14px; }
+.xg-more { border-style: dashed; }
+.xg-more[open] > summary, .xg-quote[open] > summary { border-bottom: 1px solid var(--line); }
+.xg-more > label, .xg-more > form { padding: 10px 12px; }
+.xg-quote > #tien { margin: 0; border: 0; box-shadow: none; }
+.xg-quote > #tien > h2 { display: none; }
+.xg-lines { list-style: none; margin: 0; padding: 8px 12px; display: grid; gap: 4px; }
+.xg-lines li { display: flex; justify-content: space-between; gap: 12px; }
+.xg-lines li span { min-width: 0; overflow-wrap: anywhere; }
+.xg-decline > summary { color: var(--bad); font-weight: 600; }
+.xg-decline > form { padding: 10px 12px; }
+.xg-photo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.xg-photo img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); display: block; }
+.xg-photo .photo-capture { position: relative; min-height: 48px; padding: 0 16px; cursor: pointer; }
+.xg-photo input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.xg-kv { display: flex; justify-content: space-between; gap: 12px; margin: 0; }
+.xg-kv span { color: var(--muted); }
+.xg-primary { width: 100%; min-height: 48px; font-size: 17px; }
+.xg-detail > summary { cursor: pointer; font-weight: 600; }
+.xg-panel .seg.xg-days label { flex: 1 1 0; min-width: 0; }
+.xg-panel .seg.xg-months { display: grid; grid-template-columns: repeat(3, 1fr); }
+.xg-panel .seg.xg-months label { min-width: 0; }
 /* Đợt 3 · khuôn 5: soạn đơn mua (dòng gọn như Đơn bán) */
 .form-alert b { margin-right: 4px; }
 .next-primary.is-blocked { opacity: .5; }

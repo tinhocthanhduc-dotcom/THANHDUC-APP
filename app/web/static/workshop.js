@@ -27,8 +27,7 @@
     const accessories=returned || !!form.querySelector('[name=accessories]:checked');
     const due=Number(form.elements.customer_amount.value);
     const collected=Number(partial.value.replace(/\./g,''));
-    const record=form.dataset.requiresRecord!=='1' || !!document.querySelector('[data-photo-tag=BIEN_BAN] [data-saved-photo]');
-    const ready=record && (returned || (form.dataset.holder==='1' && photo)) && accessories && (mode!=='PARTIAL' || (collected>0 && collected<due));
+    const ready=(returned || (form.dataset.holder==='1' && photo)) && accessories && (mode!=='PARTIAL' || (collected>0 && collected<due));
     const button=document.querySelector('[data-tho-primary]');if(button)button.disabled=!ready;
   }
   form.addEventListener('input',update);form.addEventListener('change',update);
@@ -40,5 +39,28 @@
     const partner=form.querySelector('[data-workshop-partner]');
     function update() { const chosen=form.querySelector('[name=location]:checked'); const off=!(chosen && chosen.value==='DOI_TAC'); partner.hidden=off; partner.querySelectorAll('input').forEach(function(input){ input.disabled=off; }); }
     form.addEventListener('change',update);update();
+  });
+})();
+
+(function () {
+  // Khung sửa ở xưởng của điều phối: nút ngày hẹn trả điền ô ngày; chỉ hiện ô lý do / phí khi cần.
+  document.querySelectorAll('[data-xg-panel]').forEach(function(panel) {
+    const date=panel.querySelector('[data-xg-date]');
+    panel.addEventListener('change',function(e) {
+      if(e.target.name==='return_pick' && date)date.value=e.target.value;
+      if(e.target===date)panel.querySelectorAll('[name=return_pick]').forEach(function(r){ r.checked=r.value===date.value; });
+      update();
+    });
+    function show(box,on) { if(!box)return; box.hidden=!on; box.querySelectorAll('input').forEach(function(input){ input.disabled=!on; }); }
+    function update() {
+      const repaired=panel.querySelector('[data-xg-repaired]');
+      if(repaired)show(repaired.querySelector('[data-xg-free-reason]'),repaired.querySelector('[name=mode]:checked')?.value==='FREE');
+      const decline=panel.querySelector('[data-xg-decline]');
+      if(decline) {
+        const free=decline.querySelector('[name=mode]:checked')?.value==='FREE';
+        show(decline.querySelector('[data-xg-fee]'),!free);show(decline.querySelector('[data-xg-decline-reason]'),free);
+      }
+    }
+    update();
   });
 })();

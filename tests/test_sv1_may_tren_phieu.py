@@ -298,10 +298,10 @@ def test_legacy_mang_ve_select_create_then_bring_full_flow(client, db, job):
         machine_version=eq.version, accessories='KHONG_CO', condition_note='Máy kẹt giấy, vỏ trầy', return_to='tho'))
     assert r.status_code == 200, r.text
     db.expire_all()
-    assert t.kind == 'MANG_VE' and t.status == 'DANG_LAM'
+    assert t.kind == 'MANG_VE' and t.status == 'TAM_DUNG' and t.hold_reason == 'CHO_SUA_XUONG'
     assert eq.custody_location == 'THO_GIU' and eq.custody_holder_id == p['technician'].id
-    assert db.query(EquipmentCustody).filter_by(ticket_id=t.id).count() == 1
-    assert 'Bàn giao máy về xưởng' in r.text
+    assert db.query(EquipmentCustody).filter_by(ticket_id=t.id).count() == 2
+    assert db.query(EquipmentCustody).filter_by(ticket_id=t.id, status='CHO_NHAN').one().location == 'KHO_KY_THUAT'
     assert all(db.query(m).count() == 0 for m in (StockDoc, StockLedger, SalesReceipt, FundLedger))
 
 
