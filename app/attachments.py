@@ -1,6 +1,6 @@
 """Tệp đính kèm (D4): ảnh trước/sau sửa, biên bản, gắn vào phiếu dịch vụ hoặc phiếu kho.
 
-Ảnh được xoay đúng chiều, bỏ thông tin EXIF (vị trí GPS) và thu về cạnh dài 1600px, lưu JPEG. PDF giữ nguyên.
+Ảnh được xoay đúng chiều, bỏ thông tin EXIF (vị trí GPS) và thu về cạnh dài 1280px (TUẤN 24/10: nén nhỏ cho nhanh, đỡ tốn bộ nhớ), lưu JPEG. PDF giữ nguyên.
 Loại tệp nhận theo nội dung, không tin đuôi file hay khai báo của trình duyệt. Không xóa, chỉ ẩn kèm lý do.
 """
 from contextlib import nullcontext
@@ -26,7 +26,7 @@ from .security import has_role
 from .stock_docs import _transaction
 
 TAGS = ("TRUOC", "SAU", "BIEN_BAN", "KHAC", "NHAN_MAY", "TRA_MAY", "GIAO_HANG")
-MAX_SIDE = 1600
+MAX_SIDE = 1280
 MAX_PIXELS = 60_000_000  # chặn ảnh "bom" giải nén
 HIDERS = ("dispatcher",)
 
@@ -123,7 +123,7 @@ def _prepare(data: bytes) -> tuple[bytes, str, str, int | None, int | None]:
             im = ImageOps.exif_transpose(im).convert("RGB")
             im.thumbnail((MAX_SIDE, MAX_SIDE))
             out = io.BytesIO()
-            im.save(out, "JPEG", quality=82, optimize=True)
+            im.save(out, "JPEG", quality=75, optimize=True, progressive=True)
             return out.getvalue(), "image/jpeg", "jpg", im.width, im.height
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         raise BusinessError("BAD_FILE_TYPE", "Chỉ nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF.")

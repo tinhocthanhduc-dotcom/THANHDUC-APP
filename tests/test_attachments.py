@@ -42,12 +42,12 @@ def _code(fn, *args):
 def test_anh_thu_nho_xoay_dung_va_bo_exif(db, ticket):
     t, p = ticket
     a = attachments.add(db, p["t1"], "service_ticket", str(t.id), "TRUOC", "IMG_1.HEIC.jpg", _jpeg(4000, 3000, orientation=6))
-    # Orientation 6 là xoay 90 độ: ảnh ngang 4000x3000 thành dọc 1200x1600.
-    assert (a.width, a.height, a.content_type) == (1200, 1600, "image/jpeg")
+    # Orientation 6 là xoay 90 độ: ảnh ngang 4000x3000 thành dọc 960x1280 (cạnh dài 1280px).
+    assert (a.width, a.height, a.content_type) == (960, 1280, "image/jpeg")
     path, _ = attachments.open_file(db, p["t1"], a.id)
     assert path.is_relative_to(Path(get_settings().files_dir)) and path.stat().st_size == a.size
     with Image.open(path) as im:
-        assert im.size == (1200, 1600) and not im.getexif()
+        assert im.size == (960, 1280) and not im.getexif()
     assert db.scalar(select(AuditLog.action).where(AuditLog.entity == "attachment")) == "attachment.add"
 
 

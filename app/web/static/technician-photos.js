@@ -2,7 +2,7 @@
   const changed = () => document.dispatchEvent(new Event("tech-photo-change"));
   async function compress(file) {
     const bitmap = await createImageBitmap(file),
-      scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
@@ -15,7 +15,7 @@
         (blob) =>
           blob ? resolve(blob) : reject(new Error("Không nén được ảnh")),
         "image/jpeg",
-        0.82,
+        0.72,
       ),
     );
   }
