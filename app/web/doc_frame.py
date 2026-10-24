@@ -45,10 +45,10 @@ def line_progress(order, reservations, delivery_state):
                 chips.append((f'Giao {_qty(delivered)}/{_qty(wanted)}', 'lam'))
             held = reservations.get(line.line_no) if line.kind == 'HANG' else None
             if held is not None:
+                # Giữ một phần thì hiện cả số đã giữ lẫn số còn thiếu; nhả hết thì ghi Chưa giữ.
+                chips.append((f'Đã giữ {_qty(held["held"])}/{_qty(remaining)}', 'lam') if held['held'] > 0 else ('Chưa giữ', 'cho'))
                 if held['missing'] > 0:
                     chips.append((f'Thiếu {_qty(held["missing"])} ở {line.warehouse_code}', 'huy'))
-                else:
-                    chips.append((f'Đã giữ {_qty(held["held"])}/{_qty(remaining)}', 'lam'))
             elif not delivered:
                 chips.append(('Chưa giao', 'nhap'))
         if line.closed_qty:
