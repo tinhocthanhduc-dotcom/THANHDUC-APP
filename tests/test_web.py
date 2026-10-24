@@ -973,7 +973,7 @@ def test_d3_reception_create_and_customer_choices(client, db, service_people, mo
     assert response.status_code == 200, response.text
     ticket = db.query(ServiceTicket).one()
     assert re.fullmatch(r'DV-26-\d{5}', ticket.number) and ticket.status == 'MOI'
-    assert ticket.number in response.text and '<h2>Mới' in response.text
+    assert ticket.number in response.text and 'b-cho">Mới</span>' in response.text
     assert 'Giao thợ</button>' not in response.text
     assert ticket.number in client.get('/dich-vu?q=minh phat&phan=1').text
     assert ticket.number in client.get('/dich-vu?q=ab123&phan=1').text
