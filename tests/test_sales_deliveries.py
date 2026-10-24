@@ -211,7 +211,10 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     cxl2b=importlib.util.module_from_spec(cxl2b_spec);cxl2b_spec.loader.exec_module(cxl2b)
     ns5_spec=importlib.util.spec_from_file_location('ns5_migration',file.parent/'0045_ns5_bang_luong.py')
     ns5=importlib.util.module_from_spec(ns5_spec);ns5_spec.loader.exec_module(ns5)
+    bh1_spec=importlib.util.spec_from_file_location('bh1_migration',file.parent/'0060_sales_warranty.py')
+    bh1=importlib.util.module_from_spec(bh1_spec);bh1_spec.loader.exec_module(bh1)
     with engine.begin() as conn:
+        monkeypatch.setattr(bh1,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s3,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(s5,'op',Operations(MigrationContext.configure(conn)))
@@ -219,6 +222,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         monkeypatch.setattr(ns5,'op',Operations(MigrationContext.configure(conn)))
         # Hạ các lớp phụ thuộc GH trước khi tái hiện schema S1/S2.
         # NS5 mở rộng ràng buộc khóa ghép tài chính mà S5 dựng lại khi hạ.
+        bh1.downgrade()
         ns5.downgrade()
         cxl2b.downgrade()
         s5.downgrade()
@@ -238,6 +242,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         s5.upgrade()
         cxl2b.upgrade()
         ns5.upgrade()
+        bh1.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

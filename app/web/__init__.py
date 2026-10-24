@@ -81,7 +81,10 @@ def quantity_input(value):
 templates.env.filters['qty_input'] = quantity_input
 def day_label(value, short=False):
     if not value:return '—'
-    day=date.fromisoformat(value) if isinstance(value,str) else value
+    try:
+        day=date.fromisoformat(value) if isinstance(value,str) else value
+    except ValueError:
+        return value  # Keep invalid user input visible on a validation response.
     return day.strftime('%d/%m' if short else '%d/%m/%Y')
 
 
