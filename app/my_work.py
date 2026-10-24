@@ -4,9 +4,10 @@ from urllib.parse import quote, urlencode
 
 from sqlalchemy import case, func, literal, or_, select
 
-from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels
+from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels, supplier_debts
+from .config import get_settings
 from .errors import BusinessError
-from .models import PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from .security import has_role
 
 LIMIT = 20
@@ -172,6 +173,23 @@ def _specs(user, today, now):
         add('purchases_waiting', 'Đơn mua chờ nhận hàng', orders, 'purchase', '/don-mua')
         add('stock_low', 'Hàng dưới mức tối thiểu', low, 'stock', '/ton-kho?canh-bao=1')
     if has_role(user, 'finance'):
+        balances = supplier_debts._balances().subquery()
+        received_dates = select(PurchaseOrder.supplier_code,
+            func.min(PurchaseReceipt.receipt_date).label('oldest')).join(
+                PurchaseReceipt, PurchaseReceipt.order_id == PurchaseOrder.id).where(
+                PurchaseReceipt.status == 'DA_GHI').group_by(PurchaseOrder.supplier_code).subquery()
+        oldest = func.coalesce(received_dates.c.oldest, SupplierOpeningDebt.as_of)
+        debt_overdue = func.coalesce(oldest < today - timedelta(days=get_settings().supplier_debt_alert_days), False)
+        debt_order = (debt_overdue.desc(), oldest.asc().nulls_last(), balances.c.supplier_code)
+        debts = select(func.row_number().over(order_by=debt_order).label('id'),
+            balances.c.supplier_code.label('number'), literal('CON_NO').label('status'),
+            balances.c.name.label('customer'), balances.c.remaining.label('amount'),
+            debt_overdue.label('overdue')).select_from(balances).outerjoin(received_dates,
+                received_dates.c.supplier_code == balances.c.supplier_code).outerjoin(
+                SupplierOpeningDebt, SupplierOpeningDebt.supplier_code == balances.c.supplier_code).where(
+                balances.c.remaining > 0).order_by(*debt_order)
+        add('supplier_debts_due', 'Nợ NCC cần trả', debts, 'supplier_debt', '/cong-no-ncc')
+        specs['supplier_debts_due']['page_size'] = 25
         refunds=select(SalesRefund.id,SalesRefund.number,SalesRefund.status,Customer.name.label('customer'),SalesRefund.amount,literal(False).label('overdue')).join(
             SalesOrder,SalesOrder.id==SalesRefund.order_id).join(Customer,Customer.code==SalesOrder.customer_code).where(SalesRefund.status=='CHO_DUYET').order_by(SalesRefund.id)
         add('refunds_pending','Hoàn tiền chờ duyệt',refunds,'refund','/bao-thu?tab=hoan-tien')
@@ -195,17 +213,19 @@ def _specs(user, today, now):
 
 def _group(session, spec, page=1):
     stmt = spec['statement']
+    page_size = spec.get('page_size', LIMIT)
     count = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())))
     rows = []
-    for record in session.execute(stmt.offset((page-1)*LIMIT).limit(LIMIT)).mappings():
+    for record in session.execute(stmt.offset((page-1)*page_size).limit(page_size)).mappings():
         row = dict(record)
         kind = spec['kind']
         if kind=='stock':
             row.update(number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
                 link='/the-kho/'+quote(row['warehouse_code'],safe='')+'/'+quote(row['product_code'],safe=''))
         else:
-            prefix = {'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
+            prefix = {'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if kind=='supplier_debt':row['link']='/cong-no-ncc/'+quote(row['number'],safe='')+'#tra-tien'
             if kind=='pending_supplier_return':row['link']=f"/cho-xu-ly/duyet-tra-ncc#xl-{row['id']}"
             if kind=='pending_disposition':row['link']=f"/cho-xu-ly/duyet-huy#xl-{row['id']}"
             if kind=='purchase':row['link']=f"/don-mua/{row['id']}/nhan#nhan-hang"
@@ -227,7 +247,7 @@ def _group(session, spec, page=1):
             matching=[line for line in damaged if line.return_id==row['id']]
             row['damage_reason']='; '.join(line.damage_reason for line in matching)
             row['damage_photos']=[photo.id for photo in photos if photo.entity_id in [f"{row['id']}:{line.line_no}" for line in matching]]
-    return dict(key=spec['key'], title=spec['title'], count=count, rows=rows,
+    return dict(key=spec['key'], title=spec['title'], count=count, rows=rows, page_size=page_size,
         link='/viec-cua-toi?'+urlencode({'nhom':spec['key']}), list_link=spec['link'])
 
 
