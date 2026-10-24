@@ -286,5 +286,5 @@ def held_rows(session,location='',today=None,holder_id=None):
     output=[]
     for eq,row,t,started in session.execute(rows.order_by(cycle.c.started,Equipment.serial)):
         days = max(0,(today-started.astimezone(service_sla.TZ).date()).days)
-        output.append(dict(machine=eq,row=row,ticket=t,days=days,overdue=days>7 or bool(row.expected_back and today>row.expected_back)))
+        output.append(dict(machine=eq,row=row,ticket=t,days=days,started=started,overdue=days>7 or bool(row.expected_back and today>row.expected_back)))
     return output

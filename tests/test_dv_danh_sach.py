@@ -58,8 +58,8 @@ def test_groups_tiles_kind_and_unassigned_filters(client, db, service_people):
     db.commit()
     service_login(client, p['dispatcher'])
     page = client.get('/dich-vu').text
-    assert '<span>Chưa giao thợ</span><strong>1</strong><small>1 phiếu Khẩn</small>' in page
-    assert '<span>Quá hạn</span><strong>1</strong>' in page and 'href="/dich-vu?overdue=1"' in page
+    assert '<span class="t-label">Chưa giao thợ</span><span class="t-n">1</span><span class="t-sub">1 phiếu Khẩn</span>' in page
+    assert '<span class="t-label">Quá hạn</span><span class="t-n">1</span>' in page and 'href="/dich-vu?overdue=1"' in page
     assert re.search(r'Đang xử lý <span>1</span>', page) and re.search(r'Hoàn thành <span>1</span>', page)
     assert numbers(client.get('/dich-vu?nhom=moi').text) == [fresh.number]
     assert numbers(client.get('/dich-vu?nhom=lam').text) == [assigned.number]

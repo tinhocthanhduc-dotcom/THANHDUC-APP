@@ -1,15 +1,15 @@
-{% import 'phan_trang.jinja' as pager %}
-<div class="svc-list svl-list">{% if rows %}<div class="svl-row svl-th" aria-hidden="true"><span>Số DV · nhận lúc</span><span>Khách · địa điểm</span><span>Máy · lỗi khách báo</span><span>Loại</span><span>Thợ</span><span>Hẹn · hạn</span><span>Trạng thái</span><span></span></div>{% endif %}
+{% import '_ui.jinja' as ui %}
+{# Đợt 6: dòng phiếu dạng bảng khuôn danh sách; quá hạn chỉ vạch đỏ bên trái + chữ trễ ở cột Hẹn · hạn. #}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards svl-table">
+<thead><tr><th>Phiếu · nhận</th><th>Khách · máy · lỗi</th><th>Loại</th><th>Thợ</th><th>Hẹn · hạn</th><th>Trạng thái</th></tr></thead><tbody>
 {% for t in rows %}{% set late = is_overdue(t) %}{% set g = status_group.get(t.status, 'lam') %}
-<a class="svl-row svc-{{ t.status|lower }}{% if late %} service-overdue{% endif %}" href="/dich-vu/{{ t.id }}">
-<span class="svl-no"><b class="code">{{ t.number }}</b>{% if t.priority == 'KHAN' %} <i class="svl-pr pr-khan">Khẩn</i>{% elif t.priority == 'GAP' %} <i class="svl-pr pr-gap">Gấp</i>{% endif %}<small>{{ t.created_at|service_short }}</small></span>
-<span class="svl-who"><strong>{{ customers.get(t.customer_code, t.customer_code) }}</strong><small>{{ sites.get(t.site_id, 'Địa chỉ chính') }}{% if phones.get(t.customer_code) %} · {{ phones[t.customer_code] }}{% endif %}</small></span>
-<span class="svl-what"><span>{% if t.serial %}{{ machines.get(t.serial, '') }}{% if machines.get(t.serial) %} · {% endif %}{{ t.serial }}{% else %}Chưa chọn máy{% endif %}</span><small>{{ t.symptom }}</small></span>
-<span class="svl-kind{% if not t.kind %} svl-muted{% endif %}">{{ service_kinds[t.kind] }}</span>
-<span class="svl-tech">{% if t.assignee_id %}{{ users.get(t.assignee_id, '') }}{% else %}<span class="svl-muted">Chưa giao</span>{% endif %}</span>
-<span class="svl-when">{% if t.appointment_at %}<span>{{ t.appointment_at|appointment_label(t.appointment_slot) }}</span>{% else %}<span class="svl-muted">Chưa hẹn</span>{% endif %}<small class="{{ 'doc-bad' if late else '' }}"{% if late %} title="Quá hạn"{% endif %}>{% if t.due_at %}{{ 'Trễ hạn' if late else 'Hạn' }} {{ t.due_at|service_short }}{% endif %}</small></span>
-<span class="svl-state"><span class="stock-chip svl-chip g-{{ g }}">{{ service_statuses[t.status] }}</span>{% if t.status == 'MOI' %}<small>Chờ điều phối</small>{% elif t.hold_reason and t.status == 'TAM_DUNG' %}<small>{{ hold_reasons.get(t.hold_reason, '') }}</small>{% elif t.status in ['KHONG_LAM_DUOC','DA_HUY'] and t.status_reason %}<small>{{ t.status_reason|truncate(40) }}</small>{% endif %}</span>
-<span class="svl-act"><span class="btn{% if t.status == 'MOI' and not own_only %} svl-go{% endif %}">{{ 'Giao thợ' if t.status == 'MOI' and not own_only else 'Mở' }}</span></span>
-</a>{% else %}<p class="empty">Không có phiếu phù hợp.</p>{% endfor %}
-{{ pager.bar(page, 'phiếu') }}
-</div>
+<tr data-href="/dich-vu/{{ t.id }}" class="svc-{{ t.status|lower }}{% if late %} lt-alert service-overdue{% endif %}">
+<td class="lt-first"><a class="lt-no" href="/dich-vu/{{ t.id }}"><b class="code">{{ t.number }}</b></a>{% if t.priority == 'KHAN' %} {{ ui.badge('Khẩn', 'huy') }}{% elif t.priority == 'GAP' %} {{ ui.badge('Gấp', 'cho') }}{% endif %}<span class="lt-sub">{{ t.created_at|service_short }}</span></td>
+<td><b>{{ customers.get(t.customer_code, t.customer_code) }}</b><span class="lt-sub">{% if t.serial %}{{ machines.get(t.serial, '') }}{% if machines.get(t.serial) %} · {% endif %}{{ t.serial }}{% else %}Chưa chọn máy{% endif %}{% if t.symptom %} · {{ t.symptom|truncate(60) }}{% endif %}</span></td>
+<td class="lt-phone-hide">{% if t.kind %}{{ service_kinds[t.kind] }}{% else %}<span class="lt-sub">Chưa phân loại</span>{% endif %}</td>
+<td>{% if t.assignee_id %}{{ users.get(t.assignee_id, '') }}{% else %}<span class="lt-sub">Chưa giao</span>{% endif %}</td>
+<td class="svl-when">{% if t.appointment_at %}{{ t.appointment_at|appointment_label(t.appointment_slot) }}{% else %}<span class="lt-sub">Chưa hẹn</span>{% endif %}{% if t.due_at %}<span class="lt-sub{{ ' lt-bad' if late }}">{{ 'Trễ hạn' if late else 'Hạn' }} {{ t.due_at|service_short }}</span>{% endif %}</td>
+<td class="lt-st">{{ ui.badge(service_statuses[t.status], {'moi':'cho','lam':'lam','cho':'cho','xong':'xong','huy':'huy'}[g]) }}{% if t.status == 'MOI' %}<span class="lt-sub">Chờ điều phối{% if not own_only %} · Giao thợ{% endif %}</span>{% elif t.hold_reason and t.status == 'TAM_DUNG' %}<span class="lt-sub">{{ hold_reasons.get(t.hold_reason, '') }}</span>{% elif t.status in ['KHONG_LAM_DUOC','DA_HUY'] and t.status_reason %}<span class="lt-sub">{{ t.status_reason|truncate(40) }}</span>{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Không có phiếu phù hợp.') }}{% endif %}
+{{ ui.list_foot(page, 'phiếu') }}
