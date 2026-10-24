@@ -8,77 +8,85 @@ from pydantic import TypeAdapter, ValidationError
 from ..errors import BusinessError
 from ..security import has_role
 
+# Thứ tự menu: Của tôi → Nghiệp vụ (theo dòng việc hằng ngày) → Quản lý (xem số, chốt tháng) → Thiết lập (ít dùng).
+SECTIONS = ('Của tôi', 'Nghiệp vụ', 'Quản lý', 'Thiết lập')
 GROUPS = (
-    {'label': '', 'items': (
+    {'label': '', 'section': 'Của tôi', 'items': (
+        {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
         # Màn giao hàng mở từ Việc của tôi hoặc từ đơn: thủ kho và kinh doanh (Đợt 1b), menu sáng Việc của tôi (không sáng Danh mục › Kho).
         {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse', 'sales'), 'hidden': True, 'highlight': '/viec-cua-toi'},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
-        {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
+        {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),
+         'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'menu_roles': ('technician',)},
+        {'label': 'Hàng tôi giữ', 'href': '/hang-toi-giu', 'prefixes': ('/hang-toi-giu',), 'roles': ('technician','warehouse'), 'menu_roles': ('technician',)},
         {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
         {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},
         {'label': 'Hoa hồng của tôi', 'href': '/hoa-hong', 'prefixes': ('/hoa-hong',), 'roles': ('sales','technician')},
     )},
-    {'label': 'Bán hàng', 'items': (
+    {'label': 'Khách hàng', 'section': 'Nghiệp vụ', 'items': (
+        {'label': 'Khách hàng', 'href': '/khach-hang', 'prefixes': ('/khach-hang',), 'roles': ('dispatcher', 'reception', 'sales', 'finance')},
+    )},
+    {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
     )},
-    {'label': 'Dịch vụ', 'items': (
-        {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
+    {'label': 'Dịch vụ', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
-        {'label': 'Dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
-        {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),
-         'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'menu_roles': ('technician',)},
-        {'label': 'Hàng tôi giữ', 'href': '/hang-toi-giu', 'prefixes': ('/hang-toi-giu',), 'roles': ('technician','warehouse'), 'menu_roles': ('technician',)},
-        {'label': 'Thiết bị', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
+        {'label': 'Phiếu dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
+        {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
+        {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
-    {'label': 'Kho', 'items': (
-        {'label':'Chờ xử lý','href':'/cho-xu-ly','prefixes':('/cho-xu-ly',),'roles':('warehouse','finance','dispatcher')},
-        {'label': 'Linh kiện thu hồi', 'href': '/linh-kien-thu-hoi', 'prefixes': ('/linh-kien-thu-hoi',), 'roles': ('technician','warehouse','dispatcher','finance')},
-        {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
+    {'label': 'Kho', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Tồn kho', 'href': '/ton-kho', 'prefixes': ('/ton-kho', '/the-kho'), 'roles': ('sales', 'warehouse', 'finance')},
-        {'label': 'Phiếu kho', 'href': '/phieu-kho', 'prefixes': ('/phieu-kho',), 'roles': ('warehouse', 'finance')},
-        {'label': 'Sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}},
-        {'label': 'Tồn đầu kỳ', 'href': '/ton-dau-ky', 'prefixes': ('/ton-dau-ky',), 'roles': ('warehouse',)},
+        {'label': 'Hàng sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}},
+        {'label': 'Phiếu nhập xuất kho', 'href': '/phieu-kho', 'prefixes': ('/phieu-kho',), 'roles': ('warehouse', 'finance')},
+        {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
+        {'label':'Hàng chờ xử lý','href':'/cho-xu-ly','prefixes':('/cho-xu-ly',),'roles':('warehouse','finance','dispatcher')},
+        {'label': 'Linh kiện thu hồi', 'href': '/linh-kien-thu-hoi', 'prefixes': ('/linh-kien-thu-hoi',), 'roles': ('technician','warehouse','dispatcher','finance')},
+        {'label': 'Hàng hóa', 'href': '/hang-hoa', 'prefixes': ('/hang-hoa',), 'roles': ('sales', 'warehouse', 'finance')},
     )},
-    {'label': 'Mua hàng', 'items': (
+    {'label': 'Mua hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Đơn mua', 'href': '/don-mua', 'prefixes': ('/don-mua',), 'roles': ('warehouse', 'finance')},
+        {'label': 'Nhà cung cấp', 'href': '/nha-cung-cap', 'prefixes': ('/nha-cung-cap',), 'roles': ('warehouse', 'finance')},
     )},
-    {'label': 'Tài chính', 'items': (
+    {'label': 'Tài chính', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo thu', 'href': '/bao-thu', 'prefixes': ('/bao-thu', '/hoan-tien', '/dich-vu/can-thu'), 'roles': ('finance',)},
         {'label': 'Thu chi · Sổ quỹ', 'href': '/thu-chi', 'prefixes': ('/thu-chi', '/so-quy'), 'roles': ('finance',)},
+        {'label': 'Công nợ nhà cung cấp', 'href': '/cong-no-ncc', 'prefixes': ('/cong-no-ncc',), 'roles': ('finance',)},
+        {'label': 'Điều chỉnh sổ', 'href': '/dieu-chinh', 'prefixes': ('/dieu-chinh',), 'roles': ('finance',)},
         {'label': 'Chốt sổ', 'href': '/chot-so', 'prefixes': ('/chot-so',), 'roles': ('finance',)},
-        {'label': 'Điều chỉnh', 'href': '/dieu-chinh', 'prefixes': ('/dieu-chinh',), 'roles': ('finance',)},
-        {'label': 'Công nợ NCC', 'href': '/cong-no-ncc', 'prefixes': ('/cong-no-ncc',), 'roles': ('finance',)},
-        {'label': 'Thiết lập tài chính', 'href': '/ghep-tai-chinh', 'prefixes': ('/quy', '/danh-muc-thu-chi', '/ghep-tai-chinh'), 'roles': ('finance',)},
     )},
-    {'label': 'Báo cáo', 'items': (
-        {'label': 'Báo cáo bán hàng', 'href': '/bao-cao/ban-hang', 'prefixes': ('/bao-cao/ban-hang',), 'roles': ('sales', 'finance')},
-        {'label': 'Báo cáo mua hàng', 'href': '/bao-cao-mua-hang', 'prefixes': ('/bao-cao-mua-hang',), 'roles': ('warehouse', 'finance')},
-        {'label': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',)},
-        {'label': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
+    # Nhóm Báo cáo đã nói "báo cáo", tên mục chỉ còn phần riêng.
+    {'label': 'Báo cáo', 'section': 'Quản lý', 'items': (
+        {'label': 'Bán hàng', 'solo': 'Báo cáo bán hàng', 'href': '/bao-cao/ban-hang', 'prefixes': ('/bao-cao/ban-hang',), 'roles': ('sales', 'finance')},
+        {'label': 'Mua hàng', 'solo': 'Báo cáo mua hàng', 'href': '/bao-cao-mua-hang', 'prefixes': ('/bao-cao-mua-hang',), 'roles': ('warehouse', 'finance')},
+        {'label': 'Hàng chờ xử lý', 'solo': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',)},
+        {'label': 'Tài chính', 'solo': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
     )},
-    {'label': 'Danh mục', 'items': (
-        {'label': 'Khách hàng', 'href': '/khach-hang', 'prefixes': ('/khach-hang',), 'roles': ('dispatcher', 'reception', 'sales', 'finance')},
-        {'label': 'Hàng hóa', 'href': '/hang-hoa', 'prefixes': ('/hang-hoa',), 'roles': ('sales', 'warehouse', 'finance')},
+    {'label': 'Danh mục', 'section': 'Thiết lập', 'items': (
         {'label': 'Nhóm hàng', 'href': '/nhom-hang', 'prefixes': ('/nhom-hang',), 'roles': ('warehouse',)},
-        {'label': 'Kho', 'href': '/kho', 'prefixes': ('/kho',), 'roles': ('warehouse',)},
-        {'label': 'Nhà cung cấp', 'href': '/nha-cung-cap', 'prefixes': ('/nha-cung-cap',), 'roles': ('warehouse', 'finance')},
+        {'label': 'Danh sách kho', 'href': '/kho', 'prefixes': ('/kho',), 'roles': ('warehouse',)},
+        {'label': 'Tồn đầu kỳ', 'href': '/ton-dau-ky', 'prefixes': ('/ton-dau-ky',), 'roles': ('warehouse',)},
+        {'label': 'Thiết lập tài chính', 'href': '/ghep-tai-chinh', 'prefixes': ('/quy', '/danh-muc-thu-chi', '/ghep-tai-chinh'), 'roles': ('finance',)},
     )},
 )
 # Tài khoản có phạm vi riêng: quyền giám đốc ở menu nghiệp vụ không bao gồm quản trị.
 ACCOUNT_GROUPS = (
-    {'label': 'Quản trị', 'items': (
-        {'label': 'Bảng lương', 'href': '/luong', 'prefixes': ('/luong',), 'roles': ('director',), 'payroll_page': True},
-        {'label': 'Chi lương', 'href': '/luong/chi', 'prefixes': ('/luong/chi',), 'roles': ('finance',), 'payroll_page': True},
-        {'label': 'Hoa hồng tháng', 'href': '/hoa-hong/thang', 'prefixes': ('/hoa-hong/thang',), 'roles': ('finance',)},
-        {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
-        {'label': 'KPI tổng', 'href': '/kpi/tong', 'prefixes': ('/kpi/tong',), 'roles': ('director',)},
-        {'label': 'Mục tiêu KPI', 'href': '/kpi/muc-tieu', 'prefixes': ('/kpi/muc-tieu',), 'roles': ('director',)},
+    # Xếp theo vòng tháng: duyệt công → bảng công → KPI → hoa hồng → lương → chi lương.
+    {'label': 'Nhân sự & lương', 'section': 'Quản lý', 'items': (
         {'label': 'Duyệt chấm công', 'href': '/cham-cong/duyet', 'prefixes': ('/cham-cong/duyet',), 'roles': ('director',)},
         {'label': 'Bảng công', 'href': '/cham-cong/bang', 'prefixes': ('/cham-cong/bang',), 'roles': ('finance',)},
+        {'label': 'KPI tổng', 'href': '/kpi/tong', 'prefixes': ('/kpi/tong',), 'roles': ('director',)},
+        {'label': 'Hoa hồng tháng', 'href': '/hoa-hong/thang', 'prefixes': ('/hoa-hong/thang',), 'roles': ('finance',)},
+        {'label': 'Bảng lương', 'href': '/luong', 'prefixes': ('/luong',), 'roles': ('director',), 'payroll_page': True},
+        {'label': 'Chi lương', 'href': '/luong/chi', 'prefixes': ('/luong/chi',), 'roles': ('finance',), 'payroll_page': True},
+    )},
+    {'label': 'Quản trị', 'section': 'Thiết lập', 'items': (
+        {'label': 'Hồ sơ nhân viên', 'href': '/nhan-su', 'prefixes': ('/nhan-su',), 'roles': ('admin','director')},
+        {'label': 'Mục tiêu KPI', 'href': '/kpi/muc-tieu', 'prefixes': ('/kpi/muc-tieu',), 'roles': ('director',)},
+        {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
-        {'label': 'Nhân sự', 'href': '/nhan-su', 'prefixes': ('/nhan-su',), 'roles': ('admin','director')},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
         {'label': 'Phiếu lương', 'href': '/phieu-luong', 'prefixes': ('/phieu-luong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},
@@ -179,6 +187,8 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     'Tài chính': 'M3 6h18v12H3zM3 10h18M7 15h3',
     'Báo cáo': 'M4 20V10M10 20V4M16 20v-7M22 20H2',
     'Danh mục': 'M4 5h16v14H4zM8 9h8M8 13h8M8 17h5',
+    'Khách hàng': 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z',
+    'Nhân sự & lương': 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8',
     'Quản trị': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     '/viec-cua-toi': 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     '/tong-quan': 'M3 12l9-8 9 8M5 10v10h14V10',
@@ -204,17 +214,23 @@ def technician_shell(user, path, query=None):
     return (path.startswith('/giao-don/') or path.startswith('/tho-tra-hang')) and (query or {}).get('return_to') == 'tho'
 
 
+# Việc riêng của thợ và con số của chính mình: giám đốc xem ở trang tổng, không cần trên menu.
+DIRECTOR_HIDDEN = ('/kpi', '/hoa-hong', '/tien-toi-giu', '/hang-toi-giu')
+
+
 def menu(user, path, query=None):
     current = matching(path, query)
     groups = []
     shell = technician_shell(user, path, query)
     if shell:
-        groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in TECH_LINKS], active=False)]
+        groups = [dict(label='', section='Của tôi', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in TECH_LINKS], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
-        visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in DIRECTOR_HIDDEN and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
+            if len(visible) == 1 and visible[0].get('solo'): visible[0]['label'] = visible[0]['solo']  # Mục lẻ đứng riêng phải tự đủ nghĩa.
             for item in visible: item['icon'] = NAV_ICONS.get(item['href'], NAV_ICONS.get(group['label'], ''))
-            groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible), icon=NAV_ICONS.get(group['label'], '')))
+            groups.append(dict(label=group['label'], section=group['section'], items=visible, active=any(item['active'] for item in visible), icon=NAV_ICONS.get(group['label'], '')))
+    groups.sort(key=lambda g: SECTIONS.index(g['section']))
     shown = {item['href']: item for group in groups for item in group['items']}
     tabs = [dict(href=href, label=label, icon=shown[href]['icon'], active=shown[href]['active']) for href, label in PHONE_TABS if href in shown][:3]
     crumb = next(((group['label'] or 'Của tôi', item['label']) for group in groups for item in group['items'] if item['active']), None)
