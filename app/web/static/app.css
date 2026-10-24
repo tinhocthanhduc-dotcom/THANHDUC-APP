@@ -2236,7 +2236,7 @@ main:has(> .page-mid) { max-width: 752px; }
 .sk-dest { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
 .sk-dest legend { padding: 0; font-weight: 600; margin-bottom: 4px; }
 .sk-party { position: relative; display: grid; gap: 6px; }
-.sk-party[data-picked="1"] .po-picked { display: flex; }
+.sk-party[data-picked="1"] .po-picked, .tc-pick[data-picked="1"] .po-picked { display: flex; }
 .sk-party[data-picked="1"] .sk-party-find, .sk-party[data-picked="1"] .sk-party-options { display: none; }
 .sk-party .product-options:not(:empty), .skl-item .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: max(100%, 320px); max-width: 90vw; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
 .skl-head { display: none; }
@@ -2272,3 +2272,42 @@ main:has(> .page-mid) { max-width: 752px; }
   .skl > .pol-del:hover { color: var(--bad); background: var(--bad-bg); }
 }
 @media (max-width: 600px) { .sk-next .sk-post-note { display: none; } }
+
+/* Đợt 3 · khuôn 5: phiếu thu chi một cột vừa */
+.tc-page { max-width: 760px; }
+.tc-form { display: grid; gap: 12px; }
+.tc-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.tc-kinds { margin: 4px 0 12px; flex-wrap: nowrap; }
+.tc-kinds .tc-k-code { font-weight: inherit; }
+.tc-money, .tc-who { display: grid; gap: 12px; }
+.tc-money .check { margin: 0; }
+.tc-kinds .btn.on { background: var(--sel); border-color: var(--accent); color: var(--accent); }
+.tc-top { display: grid; gap: 12px; }
+.tc-amount input { height: 56px; font-size: 1.6rem; font-weight: 800; text-align: right; }
+.tc-date { display: grid; gap: 6px; align-content: start; }
+.tc-date .qf-quick { margin: 0; display: flex; gap: 6px; }
+.tc-date .chip { min-height: 34px; padding: 0 12px; }
+.tc-pick { position: relative; display: grid; gap: 6px; }
+.tc-pick[data-picked="1"] .tc-pick-find, .tc-pick[data-picked="1"] .cash-options { display: none; }
+.tc-pick .product-options:not(:empty) { position: absolute; left: 0; top: 100%; z-index: 15; width: 100%; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+.tc-party { margin: 0; }
+.tc-next { display: grid; gap: 8px; }
+.tc-next .workflow-checks { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .9rem; }
+.tc-bar { margin: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px 12px; }
+.tc-bar .tc-total { display: none; }
+.tc-bar .cash-actions { grid-template-columns: auto auto; }
+.tc-bar .cash-actions button { min-width: 140px; }
+.tc-bar [data-tc-missing] { grid-column: 1 / -1; }
+@media (min-width: 640px) { .tc-top { grid-template-columns: minmax(0,1fr) 220px; align-items: start; } }
+@media (max-width: 600px) {
+  .tc-next { padding: 0; border: 0; background: none; }
+  .tc-kinds .tc-k-code { display: none; }
+  .tc-next .workflow-checks [data-ok="1"] { display: none; }
+  .tc-bar { grid-template-columns: minmax(0,1fr); margin: 0 -16px; }
+  .tc-bar .tc-total { display: flex; justify-content: space-between; align-items: baseline; }
+  .tc-bar .tc-total span { color: var(--muted); font-size: .85rem; }
+  .tc-bar .tc-total strong { font-size: 1.2rem; font-weight: 800; }
+  .tc-bar > .hint:not([data-tc-missing]) { display: none; }
+  .tc-bar .cash-actions { grid-template-columns: 1fr 1.4fr; }
+  .tc-bar .cash-actions button { min-width: 0; }
+}
