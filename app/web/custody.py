@@ -10,7 +10,7 @@ from .. import attachments, equipment_custody as svc, service_tickets
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, EquipmentCustody, User
+from ..models import Customer, Equipment, EquipmentCustody, User
 from ..schemas import CustodyHandover, CustodyIntake
 from ..security import has_role
 from . import checked_form, render, web_user
@@ -117,8 +117,53 @@ async def photo(request:Request,ticket_id:int,form=Depends(checked_form),session
     return after_post(request,session,request.state.user,ticket_id,f'/giu-may/{ticket_id}?da_luu=1#may-khach')
 
 
+# Đợt 6: mỗi máy đủ khách, model, lỗi, nơi giữ, hẹn trả và Bước tiếp · ai làm. Chỉ đọc, quyền xem như cũ.
+VIEWS={'cho-nhan':'Chờ nhận','qua-han':'Quá hạn giữ'}
+
+
 @router.get('/may-dang-giu')
-def held(request:Request,location:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
-    rows=svc.held(session,user,location)
-    return render(request,'may_dang_giu.jinja',rows=rows,locations=svc.LOCATIONS,selected_location=location,
-        users=dict(session.execute(select(User.id,User.full_name)).all()))
+def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from .. import service_sla
+    from ..models import Product
+    from ..text import fold
+    from . import nav
+    from .customer_overview import _service_next
+    location=location if location in svc.LOCATIONS and location!='TAI_KHACH' else ''
+    xem=xem if xem in VIEWS else ''
+    q=q[:200]
+    everything=svc.held(session,user)
+    users=dict(session.execute(select(User.id,User.full_name)).all())
+    serials=[r['machine'].serial for r in everything]
+    models=dict(session.execute(select(Equipment.serial,Product.name).join(Product,Product.code==Equipment.product_code).where(Equipment.serial.in_(serials))).all()) if serials else {}
+    codes={r['ticket'].customer_code for r in everything}
+    customers=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_(codes))).all()) if codes else {}
+    pending={c.serial:c for c in session.scalars(select(EquipmentCustody).where(EquipmentCustody.serial.in_(serials),EquipmentCustody.status=='CHO_NHAN'))} if serials else {}
+    today=svc._now().astimezone(service_sla.TZ).date()
+    see_ticket=nav.allowed(user,'/dich-vu')
+    for r in everything:
+        eq,t,wait=r['machine'],r['ticket'],pending.get(r['machine'].serial)
+        r.update(model=models.get(eq.serial,''),customer=customers.get(t.customer_code,t.customer_code),pending=wait,
+            holder=users.get(eq.custody_holder_id,'') if eq.custody_location=='THO_GIU' else (r['row'].partner_name or '') if eq.custody_location=='DOI_TAC' else '',
+            return_late=bool(t.promised_return_on and t.promised_return_on<today and t.status in service_tickets.OPEN))
+        if wait:
+            to={'THO_GIU':'thợ '+users.get(wait.holder_id,''),'KHO_KY_THUAT':'kho','DOI_TAC':'điều phối'}.get(wait.location,'')
+            r['next']=(to.strip(),'Nhận máy vào '+svc.LOCATIONS.get(wait.location,'').lower() if wait.location!='THO_GIU' else 'Thợ nhận máy')
+            r['action'],r['href']='Nhận máy',f'/giu-may/{t.id}'
+        else:
+            r['next']=_service_next(t,users)
+            label='Xử lý' if t.hold_reason=='CHO_SUA_XUONG' and t.status=='TAM_DUNG' else 'Hẹn trả máy' if t.hold_reason=='SUA_XONG_CHO_TRA' and t.status=='TAM_DUNG' else 'Mở phiếu'
+            r['action'],r['href']=(label,f'/dich-vu/{t.id}') if see_ticket else ('Xem máy',f'/giu-may/{t.id}')
+    counts={code:sum(1 for r in everything if r['machine'].custody_location==code) for code in svc.LOCATIONS if code!='TAI_KHACH'}
+    waiting=sum(1 for r in everything if r['pending']);late=sum(1 for r in everything if r['overdue'])
+    rows=[r for r in everything if (not location or r['machine'].custody_location==location) and
+        (xem!='cho-nhan' or r['pending']) and (xem!='qua-han' or r['overdue'])]
+    if q:
+        needle=fold(q)
+        rows=[r for r in rows if needle in fold(' '.join((r['machine'].serial,r['ticket'].number,r['customer'],r['model'],r['holder'])))]
+    tiles=[dict(label='Đang giữ',n=len(everything),href='/may-dang-giu',on=not location and not xem)]+[
+        dict(label=label,n=counts[code],href=f'/may-dang-giu?location={code}',on=location==code) for code,label in svc.LOCATIONS.items() if code!='TAI_KHACH']+[
+        dict(label='Chờ nhận',n=waiting,href='/may-dang-giu?xem=cho-nhan',on=xem=='cho-nhan',sub='Bàn giao chưa xác nhận'),
+        dict(label='Quá hạn giữ',n=late,href='/may-dang-giu?xem=qua-han',on=xem=='qua-han',tone='huy' if late else '',sub='Quá 7 ngày hoặc quá ngày về')]
+    keep={k:v for k,v in dict(location=location,xem=xem).items() if v}
+    return render(request,'may_dang_giu.jinja',rows=rows,locations=svc.LOCATIONS,selected_location=location,xem=xem,q=q,keep=keep,
+        tiles=tiles,users=users,can_dispatch=nav.allowed(user,'/dieu-phoi'),total=len(everything))

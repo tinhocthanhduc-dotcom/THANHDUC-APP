@@ -20,7 +20,7 @@ LEGACY_H1 = frozenset((
     'cho_xu_ly_duyet_huy.jinja', 'cho_xu_ly_duyet_tra_ncc.jinja', 'chot_so.jinja',
     'cong_no_ncc_chi_tiet.jinja', 'cong_no_ncc_ds.jinja', 'dang_nhap.jinja', 'danh_muc_ds.jinja',
     'danh_muc_form.jinja', 'dich_vu_bien_ban.jinja', 'dich_vu_can_thu.jinja',
-    'dich_vu_ds.jinja', 'dieu_chinh.jinja',
+    'dieu_chinh.jinja',
     'dieu_phoi_bao_cao.jinja', 'doi_mat_khau.jinja', 'don_ban_can_thu.jinja', 'don_ban_ds.jinja',
     'don_ban_form.jinja', 'don_ban_in.jinja', 'don_ban_tu_bao_gia.jinja',
     'don_mua_form.jinja', 'don_mua_in.jinja', 'don_mua_nhan_trang.jinja', 'don_mua_tra_form.jinja',
@@ -28,7 +28,7 @@ LEGACY_H1 = frozenset((
     'hang_lich_su.jinja', 'hang_phieu_ck.jinja', 'hang_toi_giu.jinja', 'ho_so_cua_toi.jinja',
     'hoa_hong.jinja', 'hoa_hong_quy_tac.jinja', 'hoa_hong_thang.jinja', 'hoan_tien_ds.jinja', 'kho_giao.jinja', 'kpi.jinja', 'kpi_chi_tiet.jinja',
     'kpi_muc_tieu.jinja', 'kpi_tong.jinja', 'linh_kien_ds.jinja', 'loi.jinja',
-    'luong.jinja', 'luong_chi.jinja', 'may_dang_giu.jinja', 'nhan_su_chi_tiet.jinja',
+    'luong.jinja', 'luong_chi.jinja', 'nhan_su_chi_tiet.jinja',
     'nhan_su_moi.jinja', 'nhom_hang.jinja', 'phieu_luong.jinja',
     'phieu_luong_chi_tiet.jinja', 'so_quy.jinja', 'tai_khoan_chi_tiet.jinja', 'tai_khoan_ds.jinja',
     'tai_khoan_khoa.jinja', 'tai_khoan_mat_khau.jinja', 'tai_khoan_sua.jinja', 'tam_ung.jinja',
@@ -36,7 +36,7 @@ LEGACY_H1 = frozenset((
     'tho_phieu.jinja', 'tho_tra_hang.jinja', 'tho_tra_hang_moi.jinja', 'thu_chi_in.jinja', 'tien_toi_giu.jinja', 'tom_tat_ngay.jinja',
     'tom_tat_ngay_list.jinja', 'ton_dau_ky.jinja', 'ton_dau_ky_ket_qua.jinja', 'ton_ds.jinja',
     'tong_quan.jinja', 'tra_hang_chi_tiet.jinja', 'tra_hang_form.jinja', 'tra_hang_in.jinja',
-    'viec_cua_toi.jinja', 'xin_linh_kien.jinja',
+    'xin_linh_kien.jinja',
 ))
 
 
