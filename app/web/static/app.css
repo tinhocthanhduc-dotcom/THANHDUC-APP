@@ -2436,3 +2436,8 @@ main:has(> .page-mid) { max-width: 752px; }
 .photo-wide .tech-photo { width: 100%; }
 .photo-wide .tech-photo img { aspect-ratio: auto; max-height: 70vh; object-fit: contain; background: var(--surface); }
 img.delivery-photo { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; border-radius: 8px; margin: 6px 0; }
+/* MM1: chọn nhiều máy, nhận máy theo chuyến. */
+.machine-split-on { color: var(--text); font-weight: 700; }
+.tho-trip-title { font-size: 17px; margin: 14px 0 6px; }
+.tho-trip-title small { font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tho-trip-machine { border-top: 2px solid var(--line); padding-top: 6px; margin-top: 10px; display: grid; gap: 10px; }

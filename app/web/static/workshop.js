@@ -9,8 +9,9 @@
   });
   document.querySelectorAll('#workshop-bring,[data-workshop-return]').forEach(function(form) {
     form.addEventListener('change',function(e) {
-      if(e.target.name==='accessories' && e.target.checked) {
-        form.querySelectorAll('[name=accessories]').forEach(function(input) {
+      // Mỗi máy (kể cả máy tách trip-<id>-accessories) có nhóm phụ kiện riêng; "Không kèm" loại trừ các ô khác.
+      if(/(^|-)accessories$/.test(e.target.name) && e.target.checked) {
+        form.querySelectorAll('[name="'+e.target.name+'"]').forEach(function(input) {
           if(e.target.value==='KHONG_CO' ? input!==e.target : input.value==='KHONG_CO')input.checked=false;
         });
       }
