@@ -1,62 +1,67 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% set ro = not can_write or c.status == "DA_GOP" %}
+{% set fe = field_errors %}
 {% block title %}{{ c.name or "Khách mới" }}{% endblock %}
 {% block main %}
-<div class="bar">
-  <h1>{% if c.code %}{{ c.code }} · {{ c.name }}{% else %}Thêm khách{% endif %}</h1>
-  <a href="/khach-hang">← Danh sách</a>
-</div>
+{# Đợt 3 · khuôn 5: thêm/sửa khách một cột vừa: Khách là ai · Địa chỉ và liên hệ · Công nợ. Trùng số báo ngay dưới ô SĐT. #}
+<div class="doc-detail kh-page">
+{{ ui.page_head(c.code ~ ' · ' ~ c.name if c.code else 'Thêm khách', sub=('Khách hàng' if c.code else 'Khách hàng · tạo mới'), back=return_to or '/khach-hang', kicker=('Đang tạo cho ' ~ return_labels[return_to]) if return_to else '', badge_label={'NGUNG':'Ngừng','DA_GOP':'Đã gộp'}.get(c.status, ''), badge_tone='huy') }}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% for code, other in warnings or [] %}
 <p class="alert warn">{{ WARNING_LABELS[code] }} <a href="/khach-hang/{{ other }}">{{ other }}</a>. Kiểm tra xem có phải cùng một khách không.</p>
 {% endfor %}
-{% if error %}
-<p class="alert bad">{{ error }}
-  {% if error_detail and error_detail.existing %}Khách đó là <a href="/khach-hang/{{ error_detail.existing }}" target="_blank">{{ error_detail.existing }} · {{ error_detail.name }}</a>.
-  {% if return_to %}<a class="btn primary" data-use-customer href="{{ return_to }}?customer_code={{ error_detail.existing | urlencode }}">Dùng khách này</a>{% endif %}{% endif %}
-</p>
-{% endif %}
-<form method="post" class="card form" data-dup-form data-dup-except="{{ c.code }}" data-dup-return="{{ return_to or '' }}">
+{% if error %}<p class="alert bad form-alert" role="alert"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+<form method="post" class="form kh-form" data-dup-form data-dup-except="{{ c.code }}" data-dup-return="{{ return_to or '' }}">
   {% if return_to %}<input type="hidden" name="quay_ve" value="{{ return_to }}">{% endif %}
   <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
   <input type="hidden" name="version" value="{{ c.version }}">
-  <fieldset {% if ro %}disabled{% endif %}>
-  <div class="field">
-    <span class="label">Loại khách</span>
-    <div class="seg">
-      {% for k, label in KIND_LABELS.items() %}
-      <label><input type="radio" name="kind" value="{{ k }}" data-kind {% if c.kind == k %}checked{% endif %}><span>{{ label }}</span></label>
+  <fieldset class="kh-fields" {% if ro %}disabled{% endif %}>
+  <section class="card qf-card kh-card"><h2 class="qf-h">Khách là ai</h2>
+    <div class="seg stock-seg kh-kind" role="group" aria-label="Loại khách">
+      {% for k, label in KIND_LABELS.items() %}<label><input type="radio" name="kind" value="{{ k }}" data-kind {% if c.kind == k %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+    </div>
+    <label class="{{ ui.invalid(fe,'name') }}">Tên khách<input name="name" value="{{ c.name }}" required maxlength="300" placeholder="Họ tên hoặc tên công ty"{{ ui.described(fe,'name') }}>{{ ui.field_error(fe,'name') }}</label>
+    <div class="row2">
+      <label class="{{ ui.invalid(fe,'phones') }}">Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Nhiều số cách nhau bằng dấu phẩy" data-dup-check="phone" data-dup-target="#dup-main"{{ ui.described(fe,'phones') }}>{{ ui.field_error(fe,'phones') }}</label>
+      <label class="{{ ui.invalid(fe,'tax_code') }}">MST<input name="tax_code" value="{{ c.tax_code }}" inputmode="numeric" placeholder="Công ty cần MST hoặc SĐT" data-dup-check="tax" data-dup-target="#dup-main"{{ ui.described(fe,'tax_code') }}>{{ ui.field_error(fe,'tax_code') }}</label>
+    </div>
+    {% if error_detail and error_detail.existing %}<div class="kh-dup" role="status"><span aria-hidden="true">!</span><div><b>Trùng với {{ error_detail.existing }} · {{ error_detail.name }}</b><small>Cùng một người thì dùng khách cũ, khỏi tạo trùng.</small>
+      <div class="kh-dup-actions">{% if return_to %}<a class="btn btn-new" data-use-customer href="{{ return_to }}?customer_code={{ error_detail.existing | urlencode }}">Dùng khách này</a>{% endif %}<a class="btn btn-ghost" href="/khach-hang/{{ error_detail.existing }}" target="_blank">Mở khách cũ</a></div></div></div>{% endif %}
+    <div id="dup-main" data-dup-result aria-live="polite"></div>
+    {% if ask_confirm %}
+    <div class="confirm">
+      <p>Số này đang thuộc <a href="/khach-hang/{{ ask_confirm.existing }}" target="_blank">{{ ask_confirm.existing }} · {{ ask_confirm.name }}</a>. Nếu đúng là hai khách khác nhau dùng chung số (ví dụ hai công ty cùng người liên hệ), xác nhận và ghi lý do.</p>
+      <label class="check"><input type="checkbox" name="confirm_separate" value="1" required> Vẫn lưu riêng</label>
+      <label class="{{ ui.invalid(fe,'confirm_reason') }}">Lý do<input name="confirm_reason" required minlength="3">{{ ui.field_error(fe,'confirm_reason') }}</label>
+    </div>
+    {% endif %}
+  </section>
+  <section class="card qf-card kh-card"><h2 class="qf-h">Địa chỉ và liên hệ</h2>
+    <label class="{{ ui.invalid(fe,'address') }}">Địa chỉ<input name="address" value="{{ c.address }}" placeholder="Số nhà, đường, phường, quận">{{ ui.field_error(fe,'address') }}</label>
+    <label class="{{ ui.invalid(fe,'email') }}">Email<input name="email" type="email" value="{{ c.email }}" placeholder="Dùng để gửi báo giá, hóa đơn">{{ ui.field_error(fe,'email') }}</label>
+    <div class="field contacts{{ ui.invalid(fe,'contacts') }}">
+      <span class="label">Người liên hệ</span>
+      {% for x in c.contacts %}
+      <div class="contact">
+        <input name="contact_name" value="{{ x.name }}" placeholder="Tên" aria-label="Tên người liên hệ">
+        <input name="contact_phones" value="{{ x.phones | join(', ') }}" placeholder="SĐT" inputmode="tel" data-dup-check="phone" data-dup-target="#dup-contacts" aria-label="SĐT người liên hệ">
+        <input name="contact_note" value="{{ x.note }}" placeholder="Chức vụ, ghi chú" aria-label="Chức vụ, ghi chú">
+      </div>
       {% endfor %}
+      <div id="dup-contacts" data-dup-result aria-live="polite"></div>
+      {% if not ro %}<button type="button" class="btn btn-ghost kh-add" data-add-row="#contact-row">+ Thêm người liên hệ</button>{% endif %}
+      {{ ui.field_error(fe,'contacts') }}
     </div>
-  </div>
-  <label>Tên khách<input name="name" value="{{ c.name }}" required maxlength="300"></label>
-  <div class="row2">
-    <label>Số điện thoại<input name="phones" value="{{ c.phones | join(', ') }}" inputmode="tel" placeholder="Nhiều số cách nhau bằng dấu phẩy" data-dup-check="phone" data-dup-target="#dup-main"></label>
-    <label>MST<input name="tax_code" value="{{ c.tax_code }}" inputmode="numeric" placeholder="Công ty cần MST hoặc SĐT" data-dup-check="tax" data-dup-target="#dup-main"></label>
-  </div>
-  <div id="dup-main" data-dup-result aria-live="polite"></div>
-  <label>Địa chỉ<input name="address" value="{{ c.address }}"></label>
-  <label>Email<input name="email" type="email" value="{{ c.email }}"></label>
-  <label>Ghi chú<textarea name="note" rows="2">{{ c.note }}</textarea></label>
-
-  <div class="field contacts">
-    <span class="label">Người liên hệ</span>
-    {% for x in c.contacts %}
-    <div class="contact">
-      <input name="contact_name" value="{{ x.name }}" placeholder="Tên">
-      <input name="contact_phones" value="{{ x.phones | join(', ') }}" placeholder="SĐT" inputmode="tel" data-dup-check="phone" data-dup-target="#dup-contacts">
-      <input name="contact_note" value="{{ x.note }}" placeholder="Chức vụ, ghi chú">
-    </div>
-    {% endfor %}
-    <div id="dup-contacts" data-dup-result aria-live="polite"></div>
-    {% if not ro %}<button type="button" class="link" data-add-row="#contact-row">+ Thêm người liên hệ</button>{% endif %}
-  </div>
-
+    <label>Ghi chú<textarea name="note" rows="2" placeholder="Giờ nhận máy, lưu ý khi đến…">{{ c.note }}</textarea></label>
+  </section>
   {% if can_credit %}
-  <div class="field credit">
-    <span class="label">Công nợ (kế toán, giám đốc)</span>
-    <label class="check"><input type="checkbox" name="allow_debt" value="1" {% if c.allow_debt %}checked{% endif %}> Cho nợ</label>
-    <label>Hạn mức nợ (đồng)<input name="credit_limit" value="{{ c.credit_limit | money }}" inputmode="numeric" data-money></label>
+  <section class="card qf-card kh-card credit" data-kh-credit><h2 class="qf-h">Công nợ · chỉ kế toán, giám đốc thấy</h2>
+    <div class="seg stock-seg kh-debt" role="group" aria-label="Cho nợ">
+      <label><input type="radio" name="allow_debt" value="0" data-kh-debt {% if not c.allow_debt %}checked{% endif %}><span>Không cho nợ</span></label>
+      <label><input type="radio" name="allow_debt" value="1" data-kh-debt {% if c.allow_debt %}checked{% endif %}><span>Cho nợ</span></label>
+    </div>
+    <label class="{{ ui.invalid(fe,'credit_limit') }}" data-kh-limit {% if not c.allow_debt and not c.credit_limit %}hidden{% endif %}>Hạn mức nợ (đồng)<input name="credit_limit" value="{{ c.credit_limit | money }}" inputmode="numeric" data-money>{{ ui.field_error(fe,'credit_limit') }}</label>
     {% if c.code %}
     <label>Trạng thái
       <select name="status">
@@ -65,30 +70,23 @@
       </select>
     </label>
     {% endif %}
-  </div>
+  </section>
   {% elif c.code and (c.allow_debt or c.credit_limit) %}
   <p class="hint">Cho nợ, hạn mức {{ c.credit_limit | money }} đ. Chỉ kế toán hoặc giám đốc sửa được.</p>
-  {% endif %}
-
-  {% if ask_confirm %}
-  <div class="confirm">
-    <p>Số này đang thuộc <a href="/khach-hang/{{ ask_confirm.existing }}" target="_blank">{{ ask_confirm.existing }} · {{ ask_confirm.name }}</a>. Nếu đúng là hai khách khác nhau dùng chung số (ví dụ hai công ty cùng người liên hệ), xác nhận và ghi lý do.</p>
-    <label class="check"><input type="checkbox" name="confirm_separate" value="1" required> Vẫn lưu riêng</label>
-    <label>Lý do<input name="confirm_reason" required minlength="3"></label>
-  </div>
   {% endif %}
   </fieldset>
   {% if c.old_codes %}<p class="hint">Mã cũ: {{ c.old_codes | join(", ") }}</p>{% endif %}
   {% if c.status == "DA_GOP" %}<p class="hint">Khách này đã gộp, không sửa được.</p>{% endif %}
-  {% if not ro %}<button class="primary">Lưu</button>{% endif %}
+  {% if not ro %}<div class="action-bar kh-bar"><p class="hint">{% if return_to %}Lưu xong quay lại {{ return_labels[return_to] }} với khách này.{% elif c.code %}Lưu thay đổi của khách.{% else %}Lưu xong mở trang khách.{% endif %}</p><button class="btn-ok next-primary">{{ 'Lưu và quay lại đơn' if return_to else ('Lưu' if c.code else 'Lưu khách') }}</button></div>{% endif %}
 </form>
 <template id="contact-row">
   <div class="contact">
-    <input name="contact_name" placeholder="Tên">
-    <input name="contact_phones" placeholder="SĐT" inputmode="tel" data-dup-check="phone" data-dup-target="#dup-contacts">
-    <input name="contact_note" placeholder="Chức vụ, ghi chú">
+    <input name="contact_name" placeholder="Tên" aria-label="Tên người liên hệ">
+    <input name="contact_phones" placeholder="SĐT" inputmode="tel" data-dup-check="phone" data-dup-target="#dup-contacts" aria-label="SĐT người liên hệ">
+    <input name="contact_note" placeholder="Chức vụ, ghi chú" aria-label="Chức vụ, ghi chú">
   </div>
 </template>
 {% if c.code %}{% include "dia_diem_khach.jinja" %}{% endif %}
 {% if not ro %}<script src="{{ asset('customer-dup.js') }}" defer></script>{% endif %}
+</div>
 {% endblock %}

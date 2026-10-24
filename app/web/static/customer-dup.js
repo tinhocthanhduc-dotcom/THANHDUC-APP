@@ -56,3 +56,12 @@
     });
   });
 })();
+/* Đợt 3: Cho nợ mới hiện ô Hạn mức nợ. */
+(function () {
+  var box = document.querySelector("[data-kh-credit]");
+  if (!box) return;
+  var limit = box.querySelector("[data-kh-limit]");
+  box.addEventListener("change", function (e) {
+    if (e.target.matches("[data-kh-debt]")) limit.hidden = e.target.value !== "1" && !limit.querySelector("input").value.replace(/[0.]/g, "");
+  });
+})();

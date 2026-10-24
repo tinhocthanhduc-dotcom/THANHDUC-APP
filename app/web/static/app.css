@@ -2246,7 +2246,7 @@ main:has(> .page-mid) { max-width: 752px; }
 .skl-item { grid-area: item; position: relative; min-width: 0; display: grid; gap: 2px; }
 .skl-stock { grid-area: stock; font-size: .8rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .skl-stock:not(:empty)::before { content: 'Tồn '; font-weight: 500; }
-.skl-stock.is-out { color: var(--bad-t); }
+.skl-stock.is-out { color: var(--bad); }
 .skl-qty { grid-area: qty; } .skl-cost { grid-area: cost; } .skl-serial { grid-area: serial; } .skl-note { grid-area: note; } .skl > .pol-del, .skl > span:last-child { grid-area: del; }
 .skl .qstep input { flex: 1; min-width: 0; width: auto; }
 .skl-cost input { text-align: right; }
@@ -2281,7 +2281,7 @@ main:has(> .page-mid) { max-width: 752px; }
 .tc-kinds .tc-k-code { font-weight: inherit; }
 .tc-money, .tc-who { display: grid; gap: 12px; }
 .tc-money .check { margin: 0; }
-.tc-kinds .btn.on { background: var(--sel); border-color: var(--accent); color: var(--accent); }
+.tc-kinds .btn.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent); }
 .tc-top { display: grid; gap: 12px; }
 .tc-amount input { height: 56px; font-size: 1.6rem; font-weight: 800; text-align: right; }
 .tc-date { display: grid; gap: 6px; align-content: start; }
@@ -2310,4 +2310,28 @@ main:has(> .page-mid) { max-width: 752px; }
   .tc-bar > .hint:not([data-tc-missing]) { display: none; }
   .tc-bar .cash-actions { grid-template-columns: 1fr 1.4fr; }
   .tc-bar .cash-actions button { min-width: 0; }
+}
+
+/* Đợt 3 · khuôn 5: thêm khách một cột vừa, 3 thẻ */
+.kh-page { max-width: 760px; }
+.kh-form { display: grid; gap: 12px; }
+.kh-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.kh-card { display: grid; gap: 12px; }
+.kh-card.credit { border-top: 1px solid var(--line); padding-top: 14px; }
+.kh-kind { margin: 0; } .kh-kind label { flex: 1 1 0; }
+.kh-debt { margin: 0; }
+.kh-dup { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; background: var(--warn-bg); }
+.kh-dup > span { font-weight: 800; color: var(--warn); }
+.kh-dup > div { display: grid; gap: 4px; min-width: 0; }
+.kh-dup small { color: var(--muted); }
+.kh-dup-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.kh-dup-actions .btn { width: auto; min-height: 36px; padding: 0 12px; }
+.kh-add { justify-self: start; width: auto; }
+.contacts .field-error { display: block; }
+.kh-bar { margin: 0; display: flex; align-items: center; gap: 12px; }
+.kh-bar .hint { flex: 1; margin: 0; }
+.kh-bar .next-primary { width: auto; min-width: 200px; }
+@media (max-width: 600px) {
+  .kh-bar { margin: 0 -16px; display: grid; }
+  .kh-bar .next-primary { width: 100%; }
 }
