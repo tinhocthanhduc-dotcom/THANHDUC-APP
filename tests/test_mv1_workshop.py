@@ -199,7 +199,7 @@ def test_workshop_web_success_and_second_intake_hidden(client,db,onsite):
     db.expire_all();db.refresh(t)
     page=client.get(f'/tho/phieu/{t.id}');assert page.status_code==200,page.text
     assert 'Máy khách' in page.text and 'workshop-bring' not in page.text
-    assert '/sua-xong-cho-tra' in page.text and 'Sửa xong, chờ trả máy' in page.text
+    assert f'/tho/phieu/{t.id}/ban-giao-xuong' in page.text and 'Bàn giao máy về xưởng' in page.text
     assert balance(db,a.code)==2
 
 
@@ -471,7 +471,7 @@ def test_mang_ve_ticket_starts_with_bring_step_not_money(client,db,onsite):
     db.expire_all();db.refresh(t);eq=db.get(Equipment,t.serial)
     assert t.kind=='MANG_VE' and t.status=='DANG_LAM' and eq.custody_location=='THO_GIU'
     page=client.get(f'/tho/phieu/{t.id}').text
-    assert 'Sửa xong, chờ trả máy' in page and 'Nhận máy mang về xưởng' not in page
+    assert 'Bàn giao máy về xưởng' in page and 'Nhận máy mang về xưởng' not in page
 
 
 def test_machine_photos_on_technician_screen_are_one_tap_uploads(client,db,onsite):

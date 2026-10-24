@@ -39,7 +39,7 @@ FLOW = {
 }
 # Phiếu đã hoàn thành chỉ điều phối được mở lại, hủy hoặc đóng; hủy lúc đó trả vật tư về kho.
 CANCELLABLE = OPEN + ("HOAN_THANH", "DA_DONG")
-HOLD_REASONS = {"CHO_KHACH_DUYET": "Chờ khách duyệt", "CHO_KY_THUAT_KHAC": "Chờ kỹ thuật khác",
+HOLD_REASONS = {"CHO_SUA_XUONG": "Chờ sửa ở xưởng", "CHO_KHACH_DUYET": "Chờ khách duyệt", "CHO_KY_THUAT_KHAC": "Chờ kỹ thuật khác",
                 "CHO_DOI_TAC": "Chờ đối tác", "HEN_NGAY_KHAC": "Hẹn ngày khác", "KHAC": "Khác", "SUA_XONG_CHO_TRA": "Sửa xong, chờ trả máy"}
 NEEDS_REASON = ("KHONG_LAM_DUOC", "DA_HUY")
 ASSIGNABLE = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
@@ -238,6 +238,8 @@ def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int,
     if _technician_transfer and ("technician" not in user.roles or t.assignee_id!=user.id or t.status not in ("DA_GIAO","DA_NHAN","DA_HEN","DANG_LAM","CHO_LINH_KIEN","TAM_DUNG")):
         raise BusinessError("FORBIDDEN","Không được chuyển phiếu này.",status=403)
     _check_version(t, version)
+    if t.status=='TAM_DUNG' and t.hold_reason=='CHO_SUA_XUONG':
+        raise BusinessError('BAD_STATUS','Phiếu đang sửa ở xưởng; dùng Giao thợ trả máy khi xong.',status=409)
     if t.status not in ASSIGNABLE:
         raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không giao thợ được.", {"status": t.status}, status=409)
     tech = _technician(session, assignee_id)
@@ -286,6 +288,9 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     note = (note or "").strip()
     is_dispatcher = has_role(user, *DISPATCHERS)
     ready=t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA'
+    if t.status=='TAM_DUNG' and t.hold_reason=='CHO_SUA_XUONG':
+        if not is_dispatcher:raise BusinessError('FORBIDDEN','Phiếu đang do điều phối xử lý tại xưởng.',status=403)
+        if to_status!='DA_HUY':raise BusinessError('BAD_TRANSITION','Dùng Khách đồng ý, Sửa xong hoặc Khách không sửa tại xưởng.',status=409)
     if t.status=='TAM_DUNG' and to_status=='DA_HEN':
         if not is_dispatcher:raise BusinessError('FORBIDDEN','Chỉ điều phối được hẹn trả máy.',status=403)
         if not ready:raise BusinessError('BAD_TRANSITION','Chỉ hẹn trả khi máy đã sửa xong chờ trả.',status=409)
@@ -327,7 +332,10 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         from .service_appointments import validate
         validate(appointment_at, appointment_slot, _now())
     if to_status == "TAM_DUNG":
-        if hold_reason=='SUA_XONG_CHO_TRA' and (t.repaired_by is None or t.priced_at is None):
+        from .service_charges import return_locked
+        if hold_reason=='CHO_SUA_XUONG' and _action!='workshop_handover':
+            raise BusinessError('WORKSHOP_REQUIRED','Dùng thao tác Bàn giao máy về xưởng.')
+        if hold_reason=='SUA_XONG_CHO_TRA' and not return_locked(t):
             raise BusinessError('WORKSHOP_REQUIRED','Dùng thao tác Sửa xong, chờ trả máy để chốt kết quả và tiền.')
         if hold_reason not in HOLD_REASONS:
             raise BusinessError("HOLD_REASON_REQUIRED", "Phải chọn lý do tạm dừng.")
@@ -338,7 +346,9 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     if to_status == "HOAN_THANH":
         from .attachments import has_visible  # attachments cũng dùng module này
 
-        if not has_visible(session, "service_ticket", t.id, "SAU"):
+        from .service_workshop import check_handover_record
+        check_handover_record(session,t)
+        if t.declined_at is None and not has_visible(session, "service_ticket", t.id, "SAU"):
             raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
     reopening = t.status in ('HOAN_THANH','DA_DONG') and to_status in ("DANG_LAM", "DA_HUY")
     if reopening and session.scalar(select(SalesReceipt.id).where(
@@ -366,7 +376,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         outcome = {'HOAN_THANH': 'XONG', 'DA_HEN': 'HEN_LAI', 'DA_HUY': 'HUY'}.get(to_status, to_status)
         service_visits.close_visit(session, t, outcome, stamp, note, appointment_at if returning else None)
     if to_status == 'DANG_LAM':
-        if t.repaired_by is not None and t.priced_at is not None:
+        if service_charges.return_locked(t):
             from . import equipment_custody
             eq=equipment_custody._machine(session,t.serial,lock=True)
             if eq.custody_ticket_id!=t.id or eq.custody_location!='THO_GIU' or eq.custody_holder_id!=t.assignee_id or equipment_custody.pending(session,t.serial):
@@ -469,7 +479,7 @@ def _search_stmt(user: User, status: str | None = None, assignee_id: int | None 
                  q: str | None = None, statuses=None, kind=_ANY, unassigned: bool = False):
     stmt = select(ServiceTicket)
     if _own_only(user):
-        stmt = stmt.where(ServiceTicket.assignee_id == user.id)
+        stmt = stmt.where(ServiceTicket.assignee_id == user.id, ~((ServiceTicket.status=='TAM_DUNG') & (ServiceTicket.hold_reason=='CHO_SUA_XUONG')))
     if status is not None:
         stmt = stmt.where(ServiceTicket.status == status)
     if statuses is not None:

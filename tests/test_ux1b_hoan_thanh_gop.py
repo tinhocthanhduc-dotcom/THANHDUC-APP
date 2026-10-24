@@ -45,7 +45,7 @@ def snapshot(db, t):
         *(db.scalar(select(func.count()).select_from(model)) for model in (StockDoc, StockLedger, SalesReceipt, FundLedger, AuditLog)))
 
 
-def unchanged_error(client, db, t, data, code):
+def unchanged_error(client, db, t, data, code, *, shows_money=True):
     before = snapshot(db, t)
     response = post(client, t, data)
     assert response.status_code in (400, 409)
@@ -55,7 +55,8 @@ def unchanged_error(client, db, t, data, code):
     from app.service_charges import _round
     total=sum(_round(Decimal(qty)*int(price.replace('.','')))+_round(Decimal(_round(Decimal(qty)*int(price.replace('.',''))))*int(data[f'vat_{i}'])/100) for i,(qty,price) in enumerate(zip(data['line_qty'],data['line_price'])))
     # TUẤN 22/10: bỏ ô ghi chú hoàn thành trên màn thợ, chỉ kiểm số tiền vẫn giữ.
-    assert f'{total:,}'.replace(',','.') in response.text
+    if shows_money:
+        assert f'{total:,}'.replace(',','.') in response.text
     assert snapshot(db, t) == before
     return response
 
@@ -117,11 +118,16 @@ def test_free_reason_required(client, db, job):
 
 def test_machine_must_be_returned(client, db, job):
     p, _, t = job
+    data = form(client, p, t)
     eq = equipment.create(db, p['dispatcher'], EquipmentIn(serial='UX1B-MACHINE', product_code='TD-0001', customer_code=t.customer_code))
     t.kind = 'MANG_VE'; t.serial = eq.serial; db.commit()
     attachments.add(db, p['technician'], 'equipment_custody', str(t.id), 'NHAN_MAY', 'may.png', d5_image())
     equipment_custody.receive(db, p['technician'], t.id, CustodyIntake(version=eq.version, accessories=[], condition_note='Vỏ trầy'))
-    unchanged_error(client, db, t, form(client, p, t), 'MACHINE_NOT_RETURNED')
+    data['version'] = str(t.version)
+    # XG1: sau nhận máy, màn thợ là bàn giao xưởng; gửi lại form cũ
+    # vẫn phải bị chặn và rollback toàn bộ tiền/kho/lượt như trước.
+    response = unchanged_error(client, db, t, data, 'MACHINE_NOT_RETURNED', shows_money=False)
+    assert 'id="workshop-handover"' in response.text
 
 
 def test_other_technician_forbidden(client, db, job):

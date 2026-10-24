@@ -151,7 +151,7 @@ def detail_context(session, user, ticket, ctx):
     if ticket.status=='TAM_DUNG' and ticket.hold_reason=='SUA_XONG_CHO_TRA':target=None
     if ticket.status=='DA_NHAN' and ticket.appointment_at: target='DANG_LAM'
     labels={'DA_GIAO':'Nhận đơn','DA_NHAN':'Hẹn khách','DA_HEN':'Đã đến khách','DANG_LAM':'Hoàn thành','CHO_LINH_KIEN':'Tiếp tục làm','TAM_DUNG':'Tiếp tục làm'}
-    if workshop_repair:labels['DANG_LAM']='Sửa xong, chờ trả máy'
+    if workshop_repair:labels['DANG_LAM']='Bàn giao máy về xưởng'
     if ticket.status=='DA_NHAN' and ticket.appointment_at: labels['DA_NHAN']='Đã đến khách'
     primary = dict(form='service-complete' if ticket.status=='DANG_LAM' else 'service-'+target,label=labels[ticket.status]) if target else (ctx.get('next_step') or {}).get('primary')
     exceptions=[s for s in ctx['transitions'] if s!=target and s in (
@@ -165,15 +165,21 @@ def detail_context(session, user, ticket, ctx):
         returned=bool(eq and eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))
         checks=[dict(key='return-photo',label='Có ảnh trả máy',ok=returned or any(x.tag=='TRA_MAY' for x in ctx.get('files',[])+ctx.get('custody_files',[]))),
             dict(key='holder',label='Đã nhận máy để trả khách',ok=returned or bool(ctx.get('can_custody_return')))]
+    if return_job and (ticket.declined_at is not None or ticket.warranty_months is not None):
+        checks.append(dict(key='handover-record',label='Có biên bản ký nhận',ok=attachments.has_visible(session,'service_ticket',ticket.id,'BIEN_BAN')))
     # Phiếu Mang về, máy còn ở chỗ khách: bước này là nhận máy về xưởng, chưa báo cáo/thu tiền.
     bring_stage=bool(can_bring and ticket.kind=='MANG_VE')
     if bring_stage:
         checks=[dict(key='machine',label='Chọn máy trước khi mang về',ok=bool(ticket.serial))]
         primary=dict(form='workshop-bring' if ticket.serial else None,label='Mang máy về xưởng')
+    if workshop_repair:
+        primary=dict(form='workshop-handover',label='Bàn giao máy về xưởng')
+        checks=[]
+    if ticket.status=='TAM_DUNG' and ticket.hold_reason=='CHO_SUA_XUONG':primary=None;target=None
     issued_rows=[dict(product=x.product_code,name=x.description or x.product_code,warehouse=x.warehouse_code,qty=x.qty) for x in ticket.lines if x.stock_doc_id is not None]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
-    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),workshop_materials=materials,issued_materials=issued_rows,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),workshop_materials=materials,issued_materials=issued_rows,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=product.name if product else '',**contact(ctx['customer'],ctx['site']))
 
@@ -190,7 +196,7 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
     now=service_tickets._now(); jobs=[]
     rows=session.execute(select(ServiceTicket,Customer,CustomerSite,Product.name).join(Customer,Customer.code==ServiceTicket.customer_code)
         .outerjoin(CustomerSite,CustomerSite.id==ServiceTicket.site_id).outerjoin(Equipment,Equipment.serial==ServiceTicket.serial)
-        .outerjoin(Product,Product.code==Equipment.product_code).where(ServiceTicket.assignee_id==user.id,ServiceTicket.status.in_(service_tickets.OPEN))).all()
+        .outerjoin(Product,Product.code==Equipment.product_code).where(ServiceTicket.assignee_id==user.id,ServiceTicket.status.in_(service_tickets.OPEN),~((ServiceTicket.status=='TAM_DUNG')&(ServiceTicket.hold_reason=='CHO_SUA_XUONG')))).all()
     for ticket,customer,site,machine in rows:
         action=next_steps.service(session,user,ticket)
         if action and ticket.status=='DA_GIAO':action={**action,'primary':{**action['primary'],'label':'Nhận đơn'}}

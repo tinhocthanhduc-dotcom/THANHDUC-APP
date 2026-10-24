@@ -1,6 +1,6 @@
 {% extends "base.jinja" %}
 {% block title %}Biên bản {{ t.number }}{% endblock %}
-{% block main %}
+{% block main %}<p>{{ warranty_terms }}</p>
 <div class="bar report-tools"><a href="/dich-vu/{{ t.id }}">← Phiếu dịch vụ</a><button type="button" onclick="window.print()">In biên bản</button></div>
 <article class="acceptance-report">
 <header><p>THÀNH ĐỨC</p><h1>BIÊN BẢN NGHIỆM THU DỊCH VỤ</h1><p>Số phiếu: <strong>{{ t.number }}</strong></p></header>

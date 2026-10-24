@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from .. import service_tickets as svc, work_watch
+from .. import service_tickets as svc, work_watch, service_workshop
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog, ServiceStep, ServiceTicket, ServiceVisit, User
@@ -245,8 +245,9 @@ def _report_context(request, session):
     selected = request.query_params.get('status', '')
     if selected not in ('', 'TAM_DUNG'):
         raise BusinessError('BAD_STATUS', 'Bộ lọc trạng thái chưa hợp lệ.')
+    workshop=service_workshop.queue_query(_now())
     return dict(start=start.isoformat(), end=end.isoformat(), technicians=technicians, daily=daily, error=None,
-        selected_status=selected, paused=_paused(session,since,until) if selected else [],
+        workshop_overdue=list(session.execute(workshop.where(workshop.selected_columns.overdue.is_(True))).mappings()),selected_status=selected, paused=_paused(session,since,until) if selected else [],
         users=dict(session.execute(select(User.id,User.full_name)).all()))
 
 
