@@ -38,7 +38,7 @@
 (function () {
   document.querySelectorAll('[data-workshop-handover]').forEach(function(form) {
     const partner=form.querySelector('[data-workshop-partner]');
-    function update() { const chosen=form.querySelector('[name=location]:checked'); partner.hidden=partner.disabled=!(chosen && chosen.value==='DOI_TAC'); }
+    function update() { const chosen=form.querySelector('[name=location]:checked'); const off=!(chosen && chosen.value==='DOI_TAC'); partner.hidden=off; partner.querySelectorAll('input').forEach(function(input){ input.disabled=off; }); }
     form.addEventListener('change',update);update();
   });
 })();
