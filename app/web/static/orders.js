@@ -303,6 +303,14 @@
       var receiving={TAI_QUAY:'Chốt xong giữ hàng, sẵn sàng giao tại quầy.',KHACH_LAY_SAU:'Chốt xong giữ hàng, chờ khách đến lấy; nhắc khi quá ngày hẹn.',THO_GIAO:'Chốt xong giữ hàng; đơn có nhãn thợ giao để xử lý tiếp.',VAN_CHUYEN:'Giao hàng theo số thực và ghi đơn vị vận chuyển, mã vận đơn.'};
       var payment={TRA_NGAY:'Trả ngay: báo thu khi nhận tiền; tại quầy có thể dùng một nút để chốt, giao, báo thu.',DAT_COC:'Nhắc thu cọc, không chặn giao. Số cọc dự kiến chưa ghi tiền.',CONG_NO:'Chốt kiểm hạn mức; hạn thanh toán tính từ ngày giao đầu còn hiệu lực.'};
       block.querySelector('[data-terms-hint]').textContent=receiving[fulfillment.value]+' '+payment[term.value];
+      // Tại quầy + Trả ngay: nút chính thành Bán tại quầy (chốt + giao đủ + báo thu một lần).
+      var primary=block.querySelector('[data-counter-label]');
+      if (primary) {
+        var counter=fulfillment.value==='TAI_QUAY' && term.value==='TRA_NGAY';
+        primary.textContent=counter ? primary.dataset.counterLabel : primary.dataset.normalLabel;
+        primary.value=counter ? 'counter' : primary.dataset.normalThen;
+        block.querySelectorAll('[data-counter-sale],[data-counter-alt]').forEach(function (el) { el.hidden=!counter; });
+      }
     }
     block.addEventListener('change',update); update();
   });

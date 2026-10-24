@@ -461,6 +461,8 @@ main:has(> .work-page) { max-width: 1240px; }
 
 .workflow-buttons {display:flex;gap:.4rem;}
 .workflow-buttons>* {flex:1;min-width:0;white-space:normal;}
+.counter-pay {display:grid;gap:6px;margin-bottom:10px;}
+.counter-pay[hidden], .workflow-buttons>[hidden] {display:none;}
 
 @media(max-width:600px){
  .workflow-action>[data-workflow-checks] {min-height:0;overflow:auto;}
@@ -823,6 +825,8 @@ a.tho-job { gap: 2px; padding: 12px; }
 .tho-job b { font-size: 17px; }
 .tho-job .tho-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 .tho-job .tho-foot .tho-next { margin: 0; padding: 0; border: 0; text-align: right; }
+.tho-unreported { border-left: 4px solid var(--warn-solid); }
+.tho-job .tho-foot .tho-due { font-weight: 800; color: var(--warn); }
 .tho-money-rows { display: grid; gap: 8px; }
 a.tho-money-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; color: var(--text); text-decoration: none; }
 .tho-money-row > span { min-width: 0; display: flex; flex-direction: column; }

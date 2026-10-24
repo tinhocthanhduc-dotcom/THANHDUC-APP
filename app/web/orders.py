@@ -202,7 +202,10 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
         note='',carrier_name='',tracking_code='',**{'deliver_'+str(n):_quantity(v['remaining']) for n,v in remaining.items()})
     from .technician_deliveries import context as delivery_context
     tech_delivery=delivery_context(session,user,order) if order.fulfillment=='THO_GIAO' else None
-    return render(request,'kho_giao.jinja',o=order,customer=customer,tech_delivery=tech_delivery,
+    # Trả ngay chỉ nhắc kho số khách còn phải trả (đã báo thu thì tính là đã trả); không chặn giao.
+    money=svc.summaries(session,[order])[order.id]
+    pay_due=max(0,svc.effective_total(order)-money['paid']-money['pending']) if order.payment_term=='TRA_NGAY' else 0
+    return render(request,'kho_giao.jinja',o=order,customer=customer,tech_delivery=tech_delivery,pay_due=pay_due,
         phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
         remaining=remaining,reservations=stock_reservations.for_order(session,order),
         stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),
@@ -322,6 +325,21 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
         message,code,status=_error(exc)
         raw['service_ticket_id']=trip
         return _form(request,session,raw,error=message,code=code,status=status)
+    if form.get('then')=='counter':
+        return _counter_after_save(request,session,user,order,form)
+    return RedirectResponse(f'/don-ban/{order.id}?da_luu=1',status_code=303)
+
+
+def _counter_after_save(request,session,user,order,form):
+    """Đơn đã lưu nháp; Bán tại quầy = lõi counter_sale với số tiền bằng tổng đơn vừa lưu."""
+    try:
+        body=SalesCounterSale(version=order.version,method=str(form.get('counter_method','TIEN_MAT')),amount=order.total)
+        svc.counter_sale(session,user,order.id,body)
+    except (BusinessError,ValidationError) as exc:
+        # Giữ đơn nháp và nói rõ vì sao chưa bán được, như màn Tạo đơn từ báo giá.
+        message,code,status=_error(exc)
+        return _form(request,session,order=svc.load(session,user,order.id),error=f'Đã lưu đơn nháp {order.number} nhưng chưa bán tại quầy được: {message}',
+                     code=code,status=status,action_form=dict(form),action='counter-sale')
     return RedirectResponse(f'/don-ban/{order.id}?da_luu=1',status_code=303)
 
 
@@ -405,6 +423,8 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         return _form(request,session,raw,order=svc.load(session,user,order_id),error=message,code=code,status=status)
+    if form.get('then')=='counter':
+        return _counter_after_save(request,session,user,svc.load(session,user,order_id),form)
     return RedirectResponse(f'/don-ban/{order_id}?da_luu=1',status_code=303)
 
 
