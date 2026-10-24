@@ -1,7 +1,7 @@
 {% extends "base.jinja" %}
 {% block title %}Báo giá{% endblock %}
 {% block main %}<div class="stock-page doc-page quote-list-page">
-<div class="list-top"><div><h1>Báo giá</h1><p class="hint">Gửi giá cho khách, khách đồng ý thì chuyển thành đơn bán.</p></div>{% if can_write %}<a class="btn btn-ok" href="/bao-gia/moi">+ Tạo báo giá</a>{% endif %}</div>
+<div class="list-top"><div><h1>Báo giá</h1><p class="hint">Gửi giá cho khách, khách đồng ý thì chuyển thành đơn bán.</p></div>{% if can_write %}<a class="btn btn-new" href="/bao-gia/moi">+ Tạo báo giá</a>{% endif %}</div>
 <div class="list-tiles">
 <a class="list-tile{% if selected_status=='DA_GUI' and not soon %} on{% endif %}" href="/bao-gia?status=DA_GUI"><small>Đang chờ khách trả lời</small><strong class="t-accent">{{ stats.waiting }}</strong><span>{{ stats.waiting_sum|money }} đ</span></a>
 <a class="list-tile{% if soon %} on{% endif %}" href="/bao-gia?han=1"><small>Sắp hết hạn / đã hết hạn</small><strong class="{{ 't-bad' if stats.soon else '' }}">{{ stats.soon }}</strong><span>{{ 'Gọi lại khách hôm nay' if stats.soon else 'Không có báo giá sắp hết hạn' }}</span></a>

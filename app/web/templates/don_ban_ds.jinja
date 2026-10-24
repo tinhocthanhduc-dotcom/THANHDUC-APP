@@ -1,7 +1,7 @@
 {% extends 'base.jinja' %}
 {% block title %}Đơn bán{% endblock %}
 {% block main %}<div class="stock-page doc-page quote-list-page order-list-page">
-<div class="list-top"><div><h1>Đơn bán</h1><p class="hint">Chốt đơn, giao hàng và theo dõi tiền khách của từng đơn.</p></div><div class="list-top-actions">{% if can_receivables %}<a class="btn" href="/don-ban/can-thu">Đơn cần thu</a>{% endif %}{% if can_write %}<a class="btn btn-ok" href="/don-ban/moi">+ Tạo đơn bán</a>{% endif %}</div></div>
+<div class="list-top"><div><h1>Đơn bán</h1><p class="hint">Chốt đơn, giao hàng và theo dõi tiền khách của từng đơn.</p></div><div class="list-top-actions">{% if can_receivables %}<a class="btn" href="/don-ban/can-thu">Đơn cần thu</a>{% endif %}{% if can_write %}<a class="btn btn-new" href="/don-ban/moi">+ Tạo đơn bán</a>{% endif %}</div></div>
 <div class="list-tiles">
 <a class="list-tile" href="/don-ban?status=DA_CHOT"><small>Đã chốt · chờ giao</small><strong class="t-accent">{{ stats.waiting }}</strong><span>{{ stats.waiting_sum|money }} đ</span></a>
 <div class="list-tile"><small>Quá hẹn giao</small><strong class="{{ 't-bad' if stats.late else '' }}">{{ stats.late }}</strong><span>{{ 'Gọi khách, hẹn lại ngày giao' if stats.late else 'Không có đơn quá hẹn' }}</span></div>

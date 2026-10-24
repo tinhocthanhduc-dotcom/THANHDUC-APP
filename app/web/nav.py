@@ -11,6 +11,8 @@ from ..security import has_role
 GROUPS = (
     {'label': '', 'items': (
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
+        # Màn kho giao mở từ Việc của tôi: giữ quyền chỉ thủ kho như trước, menu sáng Việc của tôi (không sáng Danh mục › Kho).
+        {'label': 'Giao hàng', 'href': '/viec-cua-toi', 'prefixes': ('/kho/giao',), 'roles': ('warehouse',), 'hidden': True, 'highlight': '/viec-cua-toi'},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
@@ -201,7 +203,7 @@ def menu(user, path, query=None):
     if shell:
         groups = [dict(label='', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in TECH_LINKS], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
-        visible = [dict(item, active=item is current) for item in group['items'] if not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in ('/kpi','/hoa-hong') and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             for item in visible: item['icon'] = NAV_ICONS.get(item['href'], NAV_ICONS.get(group['label'], ''))
             groups.append(dict(label=group['label'], items=visible, active=any(item['active'] for item in visible), icon=NAV_ICONS.get(group['label'], '')))
