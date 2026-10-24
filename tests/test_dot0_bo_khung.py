@@ -27,7 +27,7 @@ LEGACY_H1 = frozenset((
     'ghep_tai_chinh.jinja', 'giao_don.jinja', 'giu_may.jinja', 'hang_form.jinja',
     'hang_lich_su.jinja', 'hang_phieu_ck.jinja', 'hang_toi_giu.jinja', 'ho_so_cua_toi.jinja',
     'hoa_hong.jinja', 'hoa_hong_quy_tac.jinja', 'hoa_hong_thang.jinja', 'hoan_tien_ds.jinja', 'kho_giao.jinja', 'kpi.jinja', 'kpi_chi_tiet.jinja',
-    'kpi_muc_tieu.jinja', 'kpi_tong.jinja', 'linh_kien_ds.jinja', 'loi.jinja',
+    'kpi_muc_tieu.jinja', 'kpi_tong.jinja', 'loi.jinja',
     'luong.jinja', 'luong_chi.jinja', 'nhan_su_chi_tiet.jinja',
     'nhan_su_moi.jinja', 'nhom_hang.jinja', 'phieu_luong.jinja',
     'phieu_luong_chi_tiet.jinja', 'so_quy.jinja', 'tai_khoan_chi_tiet.jinja', 'tai_khoan_ds.jinja',
