@@ -14,8 +14,8 @@ from .config import get_settings
 from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, CustomerSite, Equipment, SalesReceipt, ServiceStep, ServiceTicket, User
-from .schemas import ServiceKindSet, ServiceTicketIn, ServiceTicketOut
+from .models import Customer, CustomerSite, Equipment, EquipmentCustody, SalesReceipt, ServiceStep, ServiceTicket, User
+from .schemas import ServiceKindSet, ServiceMachineSet, ServiceTicketIn, ServiceTicketOut
 from .security import has_role
 from .stock_docs import _transaction
 from .text import fold
@@ -128,7 +128,7 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn) -> Service
     if customer is None or customer.status != "DANG_DUNG":
         details = {"merged_into": customer.merged_into} if customer is not None and customer.merged_into else {}
         raise BusinessError("BAD_CUSTOMER", "Khách hàng không tồn tại hoặc đã ngừng/gộp.", details)
-    serial = _serial(body.serial)
+    serial = _machine_serial(session, user, customer.code, body.site_id, body.serial, body.new_machine, body.kind)
     _check_site_and_serial(session, customer.code, body.site_id, serial)
     now = _now()
     if body.appointment_at is not None or body.appointment_slot is not None:
@@ -146,6 +146,46 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn) -> Service
     session.add(t)
     session.flush()
     _record(session, user, t, "create", None, None)
+    return t
+
+
+def _machine_serial(session, user, customer_code, site_id, serial, new_machine, kind):
+    serial = _serial(serial)
+    if new_machine is not None:
+        from . import equipment
+        machine = equipment.create_in_tx(session, user, new_machine.model_copy(update={
+            'customer_code': customer_code,
+            'site_id': new_machine.site_id if new_machine.site_id is not None else site_id,
+        }))
+        serial = machine.serial
+    if kind == 'MANG_VE' and serial is None:
+        raise BusinessError('SERIAL_REQUIRED', 'Phiếu Mang về phải chọn máy của khách.')
+    return serial
+
+
+def set_machine(session: Session, user: User, ticket_id: int, body: ServiceMachineSet) -> ServiceTicket:
+    _require(user, (*DISPATCHERS, TECHNICIAN), 'Chỉ điều phối, giám đốc hoặc thợ được giao được chọn máy.')
+    with _transaction(session):
+        t = session.scalar(select(ServiceTicket).where(ServiceTicket.id == ticket_id)
+                           .with_for_update().execution_options(populate_existing=True))
+        if t is None:
+            raise BusinessError('NOT_FOUND', 'Không tìm thấy phiếu dịch vụ.', status=404)
+        if not has_role(user, *DISPATCHERS) and t.assignee_id != user.id:
+            raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao được chọn máy cho phiếu này.', status=403)
+        _check_version(t, body.version)
+        if t.status not in OPEN:
+            raise BusinessError('BAD_STATUS', 'Chỉ chọn máy khi phiếu còn mở.', status=409)
+        if session.scalar(select(EquipmentCustody.id).where(EquipmentCustody.ticket_id == t.id).limit(1)) is not None:
+            raise BusinessError('SERIAL_LOCKED', 'Máy đã được nhận về xưởng, không đổi máy được.', status=409)
+        if t.warranty_of_id is not None or t.warranty_basis is not None:
+            raise BusinessError('WARRANTY_MISMATCH', 'Phiếu đã có căn cứ bảo hành, không đổi máy được.')
+        before = snapshot(t)
+        serial = _machine_serial(session, user, t.customer_code, t.site_id, body.serial, body.new_machine, t.kind)
+        _check_site_and_serial(session, t.customer_code, t.site_id, serial)
+        if t.serial != serial:
+            t.serial = serial
+            t.version += 1
+            _record(session, user, t, 'set_machine', before, t.status)
     return t
 
 

@@ -74,13 +74,29 @@ def _save(session, user, row, before):
 
 
 def create(session: Session, user, body):
+    from .stock_docs import _transaction
+    with _transaction(session):
+        return create_in_tx(session, user, body)
+
+
+def create_in_tx(session: Session, user, body):
+    """Caller owns the transaction, including rollback on a duplicate serial."""
     check_writer(user)
     data = body.model_dump()
     data['serial'] = normalize_serial(data['serial'])
+    if session.get(Equipment, data['serial']) is not None:
+        raise BusinessError('DUPLICATE_SERIAL', 'Số sê-ri đã có trong danh mục thiết bị.', status=409)
     data['search_text'] = _validate_and_search_text(session, data, data['serial'])
     row = Equipment(**data, created_by=user.id)
     session.add(row)
-    return _save(session, user, row, None)
+    try:
+        session.flush()
+    except IntegrityError as exc:
+        if getattr(getattr(exc.orig, 'diag', None), 'constraint_name', None) == 'equipment_pkey':
+            raise BusinessError('DUPLICATE_SERIAL', 'Số sê-ri đã có trong danh mục thiết bị.', status=409) from exc
+        raise
+    audit.record(session, user, 'equipment.create', 'equipment', row.serial, None, snapshot(row))
+    return row
 
 
 def update(session: Session, user, serial, body):

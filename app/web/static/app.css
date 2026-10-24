@@ -1960,3 +1960,12 @@ main:has(> .svl) { max-width: none; }
   .oq-wh .stock-seg { flex-wrap: nowrap; justify-content: center; }
   .oq-wh .stock-seg span { min-height: 34px; padding: 0 10px; }
 }
+
+/* SV1: the same compact machine editor in dispatch, workshop and intake. */
+.service-machine-editor { margin-top: .5rem; min-width: 0; }
+.service-machine-editor > form { margin-top: .75rem; }
+.service-machine-editor fieldset, .machine-new-fields { min-width: 0; }
+.machine-new-fields { border: 0; padding: 0; margin: .75rem 0; }
+.machine-new-fields [data-picker] { min-width: 0; }
+.machine-choices { flex-wrap: wrap; }
+.machine-choices .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }

@@ -225,7 +225,13 @@ def test_api_phieu_dich_vu(client, login, db):
     db.add(Customer(code="KTD-000001", name="Minh Phát"))
     db.commit()
     kd, dp, tho = login("kd", "sales"), login("dp", "dispatcher"), login("tho", "technician")
-    r = client.post("/service-tickets", json={"customer_code": "KTD-000001", "kind": "MANG_VE", "symptom": "Kẹt giấy"}, headers=kd)
+    from app.models import User
+    db.add(Product(code='TD-0001', name='Máy in'))
+    db.flush()
+    db.add(Equipment(serial='API-MAY', product_code='TD-0001', customer_code='KTD-000001',
+                     created_by=db.scalar(select(User.id).where(User.username == 'dp'))))
+    db.commit()
+    r = client.post("/service-tickets", json={"customer_code": "KTD-000001", "kind": "MANG_VE", "serial": "API-MAY", "symptom": "Kẹt giấy"}, headers=kd)
     assert r.status_code == 201, r.text
     tid = r.json()["id"]
     tho_id = client.get("/auth/me", headers=tho).json()["id"]

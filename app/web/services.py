@@ -21,6 +21,7 @@ from ..security import has_role
 from . import checked_form, render, templates, web_user, nav
 
 from . import next_steps, picked, steps
+from . import service_machines
 
 router = APIRouter()
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -35,7 +36,7 @@ TRANSITIONS = {
     "DA_NHAN": "Nhận đơn", "DA_HEN": "Hẹn khách", "DANG_LAM": "Đã đến khách", "CHO_LINH_KIEN": "Chờ linh kiện",
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
-STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ",
+STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
@@ -189,7 +190,7 @@ def listing(request: Request, q: str = "", status: str = "", assignee_id: str = 
                   can_create=has_role(user, *svc.CREATORS), can_receivables=nav.allowed(user, "/dich-vu/can-thu"))
 
 
-def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None, custody_shown=None, technician_view=False, completion_form=None, return_form=None, workshop_form=None):
+def _detail(request, session, user, ticket_id, form=None, failed_action="", error=None, error_code="", status=200, photo_form=None, charge_shown=None, recovered_form=None, warranty_form=None, receipt_form=None, receipt_decision=None, failed_receipt_id=None, failed_receipt_action="", part_form=None, custody_shown=None, technician_view=False, completion_form=None, return_form=None, workshop_form=None, machine_form=None):
     from .recovered_parts import detail_context as recovered_context
     from .custody import context as custody_context
     from .parts import detail_context as part_context
@@ -222,7 +223,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         labels["DA_HEN"] = "Dời hẹn"
     can_no_show = (dispatcher or own) and (t.status == "DA_HEN" or (t.status == "DA_NHAN" and t.appointment_at is not None))
     visible_actions = {"transition:" + target for target in targets}
-    visible_actions.update(("workshop","repair-done","schedule-return","kind"))
+    visible_actions.update(("workshop","repair-done","schedule-return","kind","machine"))
     if can_no_show:
         visible_actions.add("no-show")
     if dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'): visible_actions.add('reschedule')
@@ -269,6 +270,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   **part_context(session, user, t, part_form),
                   **custody_context(session,user,t,custody_shown),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
+    ctx.update(service_machines.context(session,user,t,machine_form))
     if not technician_view:
         ctx['workflow']=steps.service(t)
         ctx['check_heading']=''
@@ -304,7 +306,7 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     can_create=has_role(request.state.user, *svc.CREATORS)
     return render(request, "dich_vu_moi.jinja", appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, sites_main_address=customer.address if customer else '', machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
-                  can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
+                  can_create_machine=service_machines.can_create(request.state.user),can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
 
 @router.get("/dich-vu/tim-khach")
@@ -317,7 +319,7 @@ def pick_customer(request: Request, q: str = "", user: User = Depends(web_user),
 def pick_choices(request: Request, customer_code: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
     sites, machines = _choices(session, customer_code)
     customer = session.get(Customer, customer_code[:50]) if customer_code else None
-    return render(request, "dich_vu_chon_may.jinja", sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial=machines[0][0].serial if len(machines)==1 else ''))
+    return render(request, "dich_vu_chon_may.jinja", can_create_machine=service_machines.can_create(user),sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial=machines[0][0].serial if len(machines)==1 else ''))
 
 
 @router.get("/dich-vu/moi")
@@ -333,11 +335,12 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id")}
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q")}
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id')},
-                                 "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": data['serial'] or None, "warranty_of_id": data['warranty_of_id'] or None})
+        new_machine=service_machines.intake(form)
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q')},
+                                 "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
         assignee=str(form.get('assignee_id','')).strip()
         if assignee:
             if not assignee.isdigit() or len(assignee)>18 or int(assignee)<1: raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
@@ -420,6 +423,23 @@ def workshop_schedule(request:Request,ticket_id:int,form=Depends(checked_form),s
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,form=form,failed_action='schedule-return',error=message,error_code=code,status=status)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
+
+
+@router.post('/dich-vu/{ticket_id}/may')
+@router.post('/tho/phieu/{ticket_id}/may')
+def set_machine(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
+    user=request.state.user
+    technician_view=request.url.path.startswith('/tho/') and 'technician' in user.roles
+    shown={key:str(form.get(key,'')) for key in service_machines.FORM_FIELDS}
+    try:
+        svc.set_machine(session,user,ticket_id,service_machines.body(form,_version(form)))
+    except (BusinessError,ValidationError) as exc:
+        if isinstance(exc,BusinessError) and exc.status in (403,404):
+            return render(request,'loi.jinja',error=exc,status=exc.status)
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,failed_action='machine',error=message,error_code=code,status=status,
+                       technician_view=technician_view,machine_form=shown)
+    return RedirectResponse(f'/tho/phieu/{ticket_id}?da_luu=1' if technician_view else f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
 
 
 @router.post('/dich-vu/{ticket_id}/kind')
