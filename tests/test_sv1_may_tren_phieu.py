@@ -301,7 +301,7 @@ def test_legacy_mang_ve_select_create_then_bring_full_flow(client, db, job):
     assert t.kind == 'MANG_VE' and t.status == 'DANG_LAM'
     assert eq.custody_location == 'THO_GIU' and eq.custody_holder_id == p['technician'].id
     assert db.query(EquipmentCustody).filter_by(ticket_id=t.id).count() == 1
-    assert 'Sửa xong, chờ trả máy' in r.text
+    assert 'Bàn giao máy về xưởng' in r.text
     assert all(db.query(m).count() == 0 for m in (StockDoc, StockLedger, SalesReceipt, FundLedger))
 
 

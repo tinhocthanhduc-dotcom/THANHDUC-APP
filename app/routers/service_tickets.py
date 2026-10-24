@@ -125,3 +125,27 @@ def recovered_parts(ticket_id: int, user: User = Depends(current_user), session:
 def recover_part(ticket_id: int, body: RecoveredPartIn, user: User = Depends(current_user), session: Session = Depends(get_session)):
     from .. import service_recovered_parts
     return service_recovered_parts.create(session, user, ticket_id, body)
+
+
+from ..schemas import WorkshopApproval, WorkshopDecline, WorkshopRepair, WorkshopHandover
+from .. import service_workshop as workshop
+
+
+@router.post('/{ticket_id}/workshop-handover', response_model=ServiceTicketOut)
+def workshop_handover(ticket_id: int, body: WorkshopHandover, user: User=Depends(current_user), session: Session=Depends(get_session)):
+    return workshop.hand_to_workshop(session,user,ticket_id,body.version,body.custody)
+
+
+@router.post('/{ticket_id}/quote-approve', response_model=ServiceTicketOut)
+def quote_approve(ticket_id: int, body: WorkshopApproval, user: User=Depends(current_user), session: Session=Depends(get_session)):
+    return workshop.quote_approve(session,user,ticket_id,**body.model_dump())
+
+
+@router.post('/{ticket_id}/quote-decline', response_model=ServiceTicketOut)
+def quote_decline(ticket_id: int, body: WorkshopDecline, user: User=Depends(current_user), session: Session=Depends(get_session)):
+    return workshop.quote_decline(session,user,ticket_id,**body.model_dump())
+
+
+@router.post('/{ticket_id}/workshop-repaired', response_model=ServiceTicketOut)
+def workshop_repaired(ticket_id: int, body: WorkshopRepair, user: User=Depends(current_user), session: Session=Depends(get_session)):
+    return workshop.workshop_repaired(session,user,ticket_id,**body.model_dump())

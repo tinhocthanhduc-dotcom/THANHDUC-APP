@@ -504,6 +504,12 @@ class ServiceTicketOut(BaseModel):
     total: int | None
     receivable: int | None
     repaired_by: int | None
+    quote_approved_at: datetime | None = None
+    quote_approved_by: int | None = None
+    promised_return_on: date | None = None
+    declined_at: datetime | None = None
+    warranty_months: Literal[0,1,2,3,6,12] | None = None
+    warranty_scope: str | None = None
     priced_at: datetime | None
     created_by: int
     created_at: datetime
@@ -1374,3 +1380,36 @@ class SalesRefundIn(SalesOrderVersion):
     amount: int = Field(strict=True,gt=0,le=9_223_372_036_854_775_807)
     method: Literal['TIEN_MAT','CHUYEN_KHOAN']
     reason: str = Field(min_length=1,max_length=2000)
+
+
+class WorkshopApproval(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    promised_return_on: date | None = None
+    note: str = Field(default='', max_length=2000)
+
+
+class WorkshopDecline(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    mode: str = 'FULL'
+    fee: int = Field(default=0, ge=0)
+    reason: str = Field(default='', max_length=2000)
+
+
+class WorkshopRepair(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(ge=1)
+    repaired_by: int | None = None
+    mode: str = 'FULL'
+    reason: str = Field(default='', max_length=2000)
+    fault: str = Field(default='', max_length=2000)
+    fix: str = Field(default='', max_length=2000)
+    warranty_months: int | None = Field(default=None, strict=True)
+    warranty_scope: str = Field(default='', max_length=200)
+
+
+class WorkshopHandover(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    version: int = Field(ge=1)
+    custody: CustodyHandover

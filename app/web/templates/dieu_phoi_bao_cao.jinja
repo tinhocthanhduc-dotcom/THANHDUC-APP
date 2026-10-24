@@ -11,6 +11,7 @@
 </form>
 <p class="hint">Khoảng ngày tính từ 00:00 ngày đầu đến hết ngày cuối theo giờ Việt Nam.</p>
 {% if not error %}
+<section class="card" id="workshop-overdue"><h2>Máy ở xưởng quá hẹn · {{ workshop_overdue|length }}</h2><p class="hint">Tình trạng hiện tại, theo ngày hẹn trả, ngày về từ đối tác hoặc chưa duyệt quá 2 ngày.</p>{% for row in workshop_overdue %}<p><a href="/dich-vu/{{ row.id }}">{{ row.number }} · {{ row.customer }} · {{ row.workshop_serial }}</a> · {{ row.workshop_stage }}</p>{% endfor %}</section>
 <a class="btn" href="/dieu-phoi/bao-cao.csv?from={{ start }}&amp;to={{ end }}&amp;status={{ selected_status }}">Tải CSV (cả hai bảng)</a>
 {% if selected_status=='TAM_DUNG' %}<h2>Phiếu đang tạm dừng · bước tạm dừng trong kỳ</h2><ul class="list">{% for t in paused %}<li><a href="/dich-vu/{{ t.id }}">{{ t.number }} · {{ users.get(t.assignee_id,'Chưa giao') }} · {{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</a></li>{% else %}<li>Không có phiếu tạm dừng phù hợp.</li>{% endfor %}</ul>{% else %}
 <table class="dispatch-table" id="report-technicians"><caption>Theo thợ</caption>
