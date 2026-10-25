@@ -150,7 +150,7 @@ def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(w
             r['next']=(to.strip(),'Nhận máy vào '+svc.LOCATIONS.get(wait.location,'').lower() if wait.location!='THO_GIU' else 'Thợ nhận máy')
             r['action'],r['href']='Nhận máy',f'/giu-may/{t.id}'
         else:
-            r['next']=_service_next(t,users)
+            r['next']=_service_next(t,users,session)
             label='Xử lý' if t.hold_reason=='CHO_SUA_XUONG' and t.status=='TAM_DUNG' else 'Hẹn trả máy' if t.hold_reason=='SUA_XONG_CHO_TRA' and t.status=='TAM_DUNG' else 'Mở phiếu'
             r['action'],r['href']=(label,f'/dich-vu/{t.id}') if see_ticket else ('Xem máy',f'/giu-may/{t.id}')
     counts={code:sum(1 for r in everything if r['machine'].custody_location==code) for code in svc.LOCATIONS if code!='TAI_KHACH'}

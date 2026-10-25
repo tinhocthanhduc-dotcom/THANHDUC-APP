@@ -97,7 +97,7 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
                                    ('workshop', extra[1], 'Ở xưởng'), ('return_ready', extra[2], 'Sửa xong chờ trả'),
                                    ('parts', count_parts, 'Chờ linh kiện'), ('paused', count_paused, 'Tạm dừng'))]
     return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,tiles=tiles,customer_names=customer_names,
-                  next_of={t.id: _service_next(t, users) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
+                  next_of={t.id: _service_next(t, users, session) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, view=view, title=title,
                   users=users, open_counts=svc.open_counts(session),
                   now=now, delay=_delay, watch=dict(url='/dieu-phoi/moi', stamp=work_watch.dispatch(session)))
 
