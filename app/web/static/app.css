@@ -760,7 +760,7 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: calc(180px + env(safe
 .kpi-meter.good::-moz-meter-bar{background:#238347}.kpi-meter.warn::-moz-meter-bar{background:#a76a00}.kpi-meter.bad::-moz-meter-bar{background:#b52e2e}
 
 /* NS4: immutable commission summaries, phone-friendly tables and signed adjustments. */
-.commission-scroll{overflow-x:auto;max-width:100%;margin-block:16px;border:1px solid var(--line);border-radius:8px}
+.commission-scroll{position:relative;overflow-x:auto;max-width:100%;margin-block:16px;border:1px solid var(--line);border-radius:8px}
 .commission-table{width:100%;min-width:650px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
 .commission-table th,.commission-table td{padding:12px;min-width:125px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .commission-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface);min-width:130px;max-width:180px;overflow-wrap:anywhere}
@@ -819,7 +819,8 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: calc(180px + env(safe
 .tho-app .tho-hang-actions .btn { font-size: 16px; }
 
 /* NS5: salary grids stay inside their own phone scroll frame. */
-.payroll-scroll{max-width:100%;overflow-x:auto;margin-block:16px;border:1px solid var(--line);border-radius:8px}
+/* F8: nhãn .sr-only (position:absolute) trong bảng phải nằm trong khung cuộn, nếu không document rộng theo bảng. */
+.payroll-scroll{position:relative;max-width:100%;overflow-x:auto;margin-block:16px;border:1px solid var(--line);border-radius:8px}
 .payroll-table{border-collapse:separate;border-spacing:0;min-width:1100px;width:100%;font-variant-numeric:tabular-nums}
 .payroll-table th,.payroll-table td{padding:12px;min-width:120px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
 .payroll-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface);min-width:150px;max-width:190px;overflow-wrap:anywhere}
@@ -1983,7 +1984,7 @@ main:has(> .page-mid) { max-width: 752px; }
 .empty-state { display: grid; gap: 8px; justify-items: center; text-align: center; padding: 28px 16px; color: var(--muted); }
 .empty-state p { margin: 0; }
 /* Bảng danh sách chung. */
-.table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.table-scroll { position: relative; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .list-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
 .list-table th { text-align: left; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--bg); padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .list-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }

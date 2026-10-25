@@ -297,7 +297,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     ctx.update(service_machines.context(session,user,t,machine_form))
     if not technician_view:
         from .customer_overview import _service_next
-        ctx['svc_next']=_service_next(t,ctx['users'])
+        ctx['svc_next']=_service_next(t,ctx['users'],session)
         ctx['workflow']=steps.service(t)
         ctx['check_heading']=''
         ctx['primary_checks']=steps.service_checks(session,t,ctx['next_step']['primary'] if ctx['next_step'] else None)

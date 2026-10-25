@@ -37,6 +37,7 @@ def _month(request,session,user):
     if has_role(user,'finance') and not has_role(user,'director') and request.url.path!='/hoa-hong':
         last=session.scalar(select(func.max(CommissionMonth.month)))
         if last:return last
+        if request.url.path=='/hoa-hong/thang':return None  # chưa có tháng khóa: màn trạng thái chờ, không 403
     return svc._now().astimezone(svc.TZ).date().replace(day=1)
 
 
@@ -76,7 +77,10 @@ def _board(request,session,user,month,error=None,form=None):
 
 @router.get('/hoa-hong/thang')
 def board(request:Request,user:User=Depends(reader_user),session:Session=Depends(get_session)):
-    return _board(request,session,user,_month(request,session,user))
+    month=_month(request,session,user)
+    if month is None:
+        return _render(request,'hoa_hong_thang.jinja',month=svc._now().astimezone(svc.TZ).date().replace(day=1),rows=[],total=0,summary=[],selected=None,locked=None,is_director=False,accounts=[],d={},error=None,error_code='',status=200,waiting_lock=True)
+    return _board(request,session,user,month)
 
 
 @router.get('/hoa-hong/thang.csv')

@@ -23,8 +23,9 @@ SERVICE_TONE = {'MOI': 'cho', 'DA_GIAO': 'lam', 'DA_NHAN': 'lam', 'DA_HEN': 'lam
                 'TAM_DUNG': 'cho', 'HOAN_THANH': 'xong', 'DA_DONG': 'xong', 'KHONG_LAM_DUOC': 'huy', 'DA_HUY': 'huy'}
 
 
-def _service_next(t, names):
-    """Bước tiếp của phiếu dịch vụ: (ai, việc). Chỉ để nhắc, không thay luật chuyển trạng thái."""
+def _service_next(t, names, session=None):
+    """Bước tiếp của phiếu dịch vụ: (ai, việc). Chỉ để nhắc, không thay luật chuyển trạng thái.
+    Có session thì phiếu HOAN_THANH nói đúng điều kiện tự đóng (AD1) còn thiếu."""
     tho = names.get(t.assignee_id) or 'thợ'
     if t.status == 'MOI':
         return 'điều phối', 'Giao thợ'
@@ -48,10 +49,26 @@ def _service_next(t, names):
     if t.status == 'TAM_DUNG':
         return 'điều phối', svc.HOLD_REASONS.get(t.hold_reason, 'Tạm dừng')
     if t.status == 'HOAN_THANH':
-        return 'điều phối', 'Kiểm tra tiền rồi đóng phiếu'
+        return _auto_close_next(t, tho, session)
     if t.status == 'DA_HUY':
         return 'không ai', 'Đã hủy'
     return 'không ai', 'Đã đóng'
+
+
+def _auto_close_next(t, tho, session):
+    # AD1: phiếu tự đóng khi máy đã về tay khách và linh kiện thu hồi đã nộp. Tiền còn thiếu là công nợ, ở hàng đợi thu tiền riêng.
+    if session is None:
+        return tho, 'Trả máy, nộp thu hồi để phiếu tự đóng'
+    from . import steps
+    from ..models import Equipment
+    missing = {c['key'] for c in steps.service_checks(session, t, None)}
+    if 'machine' in missing:
+        machine = session.get(Equipment, t.serial) if t.serial else None
+        who = tho if machine is not None and machine.custody_location == 'THO_GIU' else 'kho' if machine is not None and machine.custody_location == 'KHO_KY_THUAT' else 'điều phối'
+        return who, ('Trả máy cho khách và nộp linh kiện thu hồi' if 'recovered' in missing else 'Trả máy cho khách') + ', phiếu tự đóng'
+    if 'recovered' in missing:
+        return tho, 'Nộp linh kiện thu hồi cho kho, phiếu tự đóng'
+    return 'điều phối', 'Đủ điều kiện đóng, mở phiếu để đóng'
 
 
 def build(request, session, user, c, tab='mo', trang='', so='', saved=False, warnings=()):
@@ -99,7 +116,7 @@ def build(request, session, user, c, tab='mo', trang='', so='', saved=False, war
                              who=who, next=title, late=bool(late), amount=o.total, open=is_open))
     if see_services:
         for t in session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code == code)):
-            who, title = _service_next(t, names)
+            who, title = _service_next(t, names, session)
             symptom = (t.symptom or '').strip()
             docs.append(dict(kind='DV', label='Dịch vụ', no=t.number, href=f'/dich-vu/{t.id}', at=t.created_at,
                              status=SERVICE_STATUSES.get(t.status, t.status), tone=SERVICE_TONE.get(t.status, 'nhap'),
