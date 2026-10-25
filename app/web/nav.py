@@ -34,6 +34,8 @@ GROUPS = (
     {'label': 'Dịch vụ', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
         {'label': 'Phiếu dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
+        # F2: bản xem chỉ đọc phiếu dịch vụ cho kế toán (đối chiếu báo thu) và kho (linh kiện, máy đang giữ); không giá vốn, không thao tác.
+        {'label': 'Xem phiếu dịch vụ', 'href': '/xem-dich-vu', 'prefixes': ('/xem-dich-vu',), 'roles': ('finance', 'warehouse'), 'hidden': True},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
@@ -146,6 +148,13 @@ def allowed(user, path, query=None):
     item = matching(path, query)
     if item and item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles:return False
     return item is not None and (not item.get('technician_page') or 'technician' in user.roles) and has_role(user, *item['roles'])
+
+
+def ticket_url(user, ticket_id, anchor=''):
+    """F2: link phiếu dịch vụ mở được theo vai: trang đầy đủ, bản xem chỉ đọc, hoặc None (hiện chữ)."""
+    if allowed(user, '/dich-vu'): return f'/dich-vu/{ticket_id}{anchor}'
+    if allowed(user, '/xem-dich-vu'): return f'/xem-dich-vu/{ticket_id}'
+    return None
 
 
 def check_access(user, path, query=None):

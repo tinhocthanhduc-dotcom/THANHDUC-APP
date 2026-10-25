@@ -152,7 +152,7 @@ def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(w
         else:
             r['next']=_service_next(t,users,session)
             label='Xử lý' if t.hold_reason=='CHO_SUA_XUONG' and t.status=='TAM_DUNG' else 'Hẹn trả máy' if t.hold_reason=='SUA_XONG_CHO_TRA' and t.status=='TAM_DUNG' else 'Mở phiếu'
-            r['action'],r['href']=(label,f'/dich-vu/{t.id}') if see_ticket else ('Xem máy',f'/giu-may/{t.id}')
+            r['action'],r['href']=(label,f'/dich-vu/{t.id}') if see_ticket else ('Xem phiếu',nav.ticket_url(user,t.id)) if nav.ticket_url(user,t.id) else ('Xem máy',f'/giu-may/{t.id}')
     counts={code:sum(1 for r in everything if r['machine'].custody_location==code) for code in svc.LOCATIONS if code!='TAI_KHACH'}
     waiting=sum(1 for r in everything if r['pending']);late=sum(1 for r in everything if r['overdue'])
     rows=[r for r in everything if (not location or r['machine'].custody_location==location) and

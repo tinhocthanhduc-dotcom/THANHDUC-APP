@@ -15,7 +15,7 @@ from ..errors import BusinessError
 from ..models import CashDoc, Customer, SalesOrder, SalesReceipt, ServiceTicket, User
 from ..schemas import SalesReceiptReport
 from ..security import has_role
-from . import checked_form, money, render, web_user
+from . import checked_form, money, nav, render, web_user
 
 from . import next_steps
 
@@ -148,7 +148,7 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
     tickets={t.id:t for t in session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_({r.ticket_id for r in sources if r.ticket_id})))}
     parents={r.id:(orders[r.order_id] if r.order_id else tickets[r.ticket_id]) for r in sources}
     receipt_sources={r.id:dict(number=parents[r.id].number,customer_code=parents[r.id].customer_code,
-                              url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else f"/dich-vu/{r.ticket_id}#thu-tien") for r in sources}
+                              url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else nav.ticket_url(user,r.ticket_id,"#thu-tien")) for r in sources}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({p.customer_code for p in parents.values()}))).all())
     cash_groups={}
     for row in rows:

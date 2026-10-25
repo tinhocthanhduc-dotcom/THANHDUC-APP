@@ -38,7 +38,7 @@
 {% if xg_panel %}{% include 'xuong_khung.jinja' %}{% if custody_action %}{% include 'may_khach.jinja' %}{% endif %}{% endif %}
 <section class="card doc-card service-summary" aria-label="Khách và máy"><h2 class="doc-h">Khách và máy</h2>
   <dl class="doc-kv">
-    <dt>Khách hàng</dt><dd><a href="/khach-hang/{{ t.customer_code }}"><b>{{ t.customer_code }} · {{ customer.name }}</b></a></dd>
+    <dt>Khách hàng</dt><dd>{% if can_open('/khach-hang') %}<a href="/khach-hang/{{ t.customer_code }}"><b>{{ t.customer_code }} · {{ customer.name }}</b></a>{% else %}<b>{{ t.customer_code }} · {{ customer.name }}</b>{% endif %}</dd>
     <dt>Địa điểm</dt><dd>{% if site %}{{ site.name }}{% if site.address %} — {{ site.address }}{% endif %}{% else %}Địa chỉ chính{% if customer.address %} — {{ customer.address }}{% endif %}{% endif %}</dd>
     <dt>Máy</dt><dd>{% if t.serial %}<a href="/thiet-bi/{{ t.serial|urlquote }}">{{ t.serial }}</a>{% else %}Chưa chọn máy{% endif %}</dd>{% set machine_html %}{% include 'dich_vu_may.jinja' %}{% endset %}{% if machine_html|trim %}<div class="service-machine-row">{{ machine_html }}</div>{% endif %}
     <dt>Loại dịch vụ</dt><dd>{{ service_kinds[t.kind] }} · ưu tiên {{ service_priorities[t.priority]|lower }}</dd>
