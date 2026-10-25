@@ -4,7 +4,7 @@
 <div class="bar device-header"><h1>{{ d.serial if not is_new else 'Thêm thiết bị' }}</h1><a href="/thiet-bi">← Thiết bị</a></div>
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
-<form method="post" class="card form" data-device-form action="{% if is_new %}/thiet-bi/moi{% else %}/thiet-bi/{{ d.serial | urlquote }}{% endif %}">
+<form method="post" class="card form device-form" data-device-form action="{% if is_new %}/thiet-bi/moi{% else %}/thiet-bi/{{ d.serial | urlquote }}{% endif %}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 <fieldset {% if not can_device_write %}disabled{% endif %}>
 <div data-picker>
