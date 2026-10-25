@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -506,13 +506,20 @@ def set_machine(request:Request,ticket_id:int,form=Depends(checked_form),session
 @router.post('/dich-vu/{ticket_id}/kind')
 def set_kind(request: Request, ticket_id: int, form=Depends(checked_form), session: Session=Depends(get_session)):
     user=request.state.user
+    # F5 (báo cáo đồng bộ 25/10/2026): đổi loại tại chỗ, không tải lại trang để không mất tiền/nội dung/vật tư đang nhập.
+    inline=request.headers.get('x-inline')=='1'
     try:
-        svc.set_kind(session,user,ticket_id,ServiceKindSet(kind=form.get('kind'),version=_version(form)))
+        t=svc.set_kind(session,user,ticket_id,ServiceKindSet(kind=form.get('kind'),version=_version(form)))
     except (BusinessError,ValidationError) as exc:
+        error,code,status=_message(exc)
+        if inline:
+            return JSONResponse(dict(error=error,code=code),status_code=status)
         if isinstance(exc,BusinessError) and exc.status in (403,404):
             return render(request,'loi.jinja',error=exc,status=exc.status)
-        error,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,form,failed_action='kind',error=error,error_code=code,status=status)
+    if inline:
+        from .. import form_keys
+        return JSONResponse(dict(ok=True,version=t.version,form_key=form_keys.form_key(),kind=t.kind,label=KINDS[t.kind]))
     from .technician import after_post
     return after_post(request,session,user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1')
 
