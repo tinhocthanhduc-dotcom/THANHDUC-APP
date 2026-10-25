@@ -316,7 +316,8 @@ def _choices(session, customer_code):
     from ..models import CustomerSite, Equipment, Product
     sites = list(session.scalars(select(CustomerSite).where(CustomerSite.customer_code == customer_code,
                                  CustomerSite.active.is_(True)).order_by(CustomerSite.id))) if customer_code else []
-    machines = list(session.execute(select(Equipment, Product.name).join(Product)
+    # F4: máy ngoài danh mục (không có mã hàng) cũng phải chọn được khi nhận đơn, cùng cách lấy tên với service_machines.
+    machines = list(session.execute(select(Equipment, equipment.name_column()).outerjoin(Product, Product.code == Equipment.product_code)
                                     .where(Equipment.customer_code == customer_code, Equipment.active.is_(True))
                                     .order_by(Equipment.serial))) if customer_code else []
     return sites, machines

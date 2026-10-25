@@ -40,7 +40,7 @@ LOOKUPS = {
         '/cho-xu-ly/{id}'),
     'PURCHASE_RECEIPT': ('lần nhận đơn mua', '/don-mua',
         'select o.id, o.number from purchase_orders o join purchase_receipts r on r.order_id=o.id where r.stock_doc_id=:id order by r.id limit 1',
-        '/don-mua/{id}/nhan#nhan-hang'),
+        '/don-mua/{id}#lan-nhan'),  # F9: bản xem lịch sử nhận; nút Nhận hàng là hành động riêng
     'PURCHASE_RETURN': ('phiếu trả NCC trên đơn mua', '/don-mua',
         'select order_id as id, number from purchase_returns where stock_doc_id=:id order by id limit 1',
         '/don-mua/{id}'),
