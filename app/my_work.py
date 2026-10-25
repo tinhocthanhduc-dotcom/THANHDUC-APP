@@ -64,7 +64,9 @@ def _specs(user, today, now):
     t = ServiceTicket
     overdue = (t.status.in_(service_tickets.OPEN)) & t.due_at.is_not(None) & (t.due_at < now)
     service = select(t.id, t.number, t.status, Customer.name.label('customer'),
-        func.coalesce(t.total, 0).label('amount'), overdue.label('overdue')).join(Customer, Customer.code == t.customer_code)
+        func.coalesce(t.total, 0).label('amount'), overdue.label('overdue'),
+        # Chỉ để màn Việc của tôi ghi "Trễ x giờ" / "Hẹn hh:mm"; không đổi điều kiện lọc.
+        t.due_at.label('due_at'), t.appointment_at.label('appointment_at')).join(Customer, Customer.code == t.customer_code)
     service = service.order_by(overdue.desc(), case((t.priority=='KHAN', 0), (t.priority=='GAP', 1), else_=2),
                                t.due_at.asc().nulls_last(), t.created_at, t.id)
     start = datetime.combine(today, time.min, service_sla.TZ)

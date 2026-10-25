@@ -1,4 +1,6 @@
 """U2: chỉ đọc nhóm việc và dẫn tới chứng từ có sẵn."""
+from urllib.parse import urlencode
+
 from fastapi import Request
 
 from .. import payroll, attendance, alerts, my_work, quotes, service_tickets, work_watch
@@ -44,6 +46,40 @@ def _area(user, key):
 NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhận báo thu.', 'rejected':'Đã từ chối báo thu.'}
 
 
+# Mẫu ưu tiên (2026-10-25): ba khung theo độ gấp thay cho khung theo phân hệ.
+# Làm ngay: việc có khách/thợ đang chờ hoặc có hẹn; mọi dòng quá hạn của nhóm khác cũng kéo lên đây.
+URGENT = ('service_appointment_overdue', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
+    'orders_pickup_late', 'orders_cancel_requested', 'technician_deliveries', 'delivery_handover', 'orders_waiting',
+    'parts_pending', 'machines_pending', 'machines_warehouse')
+# Tiền · làm sau: báo thu, xác nhận thu, trả NCC; gập sẵn khi còn việc gấp.
+MONEY = ('orders_unreported', 'service_unreported', 'receipts_pending', 'supplier_debts_due')
+WHY = dict(service_appointment_overdue='Hẹn ngày trước', service_today='Hẹn hôm nay', service_unassigned='Chưa giao thợ',
+    service_assigned='Chờ nhận việc', service_return_ready='Khách chờ máy', orders_pickup_late='Hẹn lấy quá ngày',
+    orders_cancel_requested='Đề nghị hủy', technician_deliveries='Cần giao', delivery_handover='Bàn giao thợ',
+    orders_waiting='Chờ giao', parts_pending='Thợ chờ linh kiện', machines_pending='Chờ nhận máy', machines_warehouse='Chờ nhận máy')
+AREA_NAMES = {code: name for code, name, _ in AREAS}
+BANDS = ('now', 'day', 'money')
+SHOWN = 5
+NOW_SHOWN = 15
+
+
+def _band(key):
+    return 'now' if key in URGENT else 'money' if key in MONEY else 'day'
+
+
+def _when(row, key, now):
+    """Chữ đậm đầu dòng Làm ngay: trễ bao lâu, hẹn mấy giờ, hoặc lý do gấp."""
+    due, appt = row.get('due_at'), row.get('appointment_at')
+    if row.get('overdue') and due:
+        hours = int((now - due).total_seconds() // 3600)
+        return 'Trễ %d giờ' % max(hours, 1) if hours < 24 else 'Trễ %d ngày' % (hours // 24)
+    if appt and key != 'service_appointment_overdue':
+        local = appt.astimezone(now.tzinfo)
+        return 'Hẹn ' + local.strftime('%H:%M' if local.date() == now.date() else '%d/%m %H:%M')
+    if row.get('overdue') and key not in WHY:return 'Quá hạn'
+    return WHY.get(key, 'Quá hạn')
+
+
 def page(request: Request, user, session):
     key = request.query_params.get('nhom', '')
     try:
@@ -56,24 +92,47 @@ def page(request: Request, user, session):
     groups.sort(key=lambda group: (group['count'] == 0, not any(row.get('overdue') for row in group['rows'])))
     icons = {g['key']: nav.NAV_ICONS[next((label for part, label in ICON_BY if part in g['key']), 'Kho')] for g in groups}
     area_key = request.query_params.get('khu', '')
+    view = request.query_params.get('xem', '')
+    if area_key == 'late':area_key, view = '', 'now'
+    known = {_area(user, g['key']) for g in groups}
+    if area_key not in known:area_key = ''
+    if view not in BANDS:view = ''
     busy = [g for g in groups if g['count']]
-    # Việc quá hạn gom lên khung "Làm trước"; nhóm bên dưới không lặp lại dòng đó.
-    first = [] if key else [dict(row, group_title=g['title'], verb=row.get('next_label') or VERBS.get(g['key'], 'Mở'))
-        for g in busy for row in g['rows'] if row.get('overdue')]
-    areas = []
-    for code, name, hint in AREAS:
-        mine = [g for g in busy if _area(user, g['key']) == code]
-        if mine or any(_area(user, g['key']) == code for g in groups):
-            areas.append(dict(key=code, name=name, hint=hint, groups=mine, count=sum(g['count'] for g in mine)))
-    if area_key not in {a['key'] for a in areas} | {'late'}:area_key = ''
     total = sum(g['count'] for g in busy)
-    tiles = [dict(label='Tất cả', n=total, href='/viec-cua-toi', on=not area_key),
-        dict(label='Quá hạn · làm trước', n=len(first), href='/viec-cua-toi?khu=late', on=area_key == 'late', tone='huy' if first else '')] + [
-        dict(label=a['name'], n=a['count'], href='/viec-cua-toi?khu=' + a['key'], on=area_key == a['key'], tone='area-' + a['key']) for a in areas]
+    shown = [g for g in busy if not area_key or _area(user, g['key']) == area_key]
+    clock = my_work._now()
+    hot = []
+    for g in shown:
+        urgent = g['key'] in URGENT
+        for row in g['rows']:
+            if urgent or row.get('overdue'):
+                red = bool(row.get('overdue')) or g['key'] == 'service_appointment_overdue'
+                hot.append(dict(row, group_key=g['key'], group_title=g['title'], verb=row.get('next_label') or VERBS.get(g['key'], 'Mở'),
+                    when=_when(row, g['key'], clock), red=red, area=_area(user, g['key']), area_name=AREA_NAMES[_area(user, g['key'])]))
+    order = {k: i for i, k in enumerate(URGENT)}
+    hot.sort(key=lambda r: (not r['red'], order.get(r['group_key'], -1), r.get('appointment_at') or r.get('due_at') or clock))
+    # Nhóm gấp có nhiều hơn số dòng đang hiện thì có link Xem tất cả.
+    shown_hot = hot[:NOW_SHOWN]
+    now_more = [g for g in shown if g['key'] in URGENT and g['count'] > sum(1 for r in shown_hot if r['group_key'] == g['key'])]
+    late_left = lambda g: sum(1 for r in g['rows'] if r.get('overdue'))
+    day = [g for g in shown if _band(g['key']) == 'day' and g['count'] > late_left(g)]
+    money = [g for g in shown if _band(g['key']) == 'money' and g['count'] > late_left(g)]
+    counts = dict(now=sum(g['count'] for g in shown if g['key'] in URGENT) + sum(late_left(g) for g in shown if g['key'] not in URGENT),
+        day=sum(g['count'] - late_left(g) for g in day), money=sum(g['count'] - late_left(g) for g in money))
+    link = lambda xem, khu: '/viec-cua-toi' + ('?' + urlencode({k: v for k, v in (('xem', xem), ('khu', khu)) if v}) if xem or khu else '')
+    tiles = [dict(label=label, n=counts[band], sub=sub, href=link('' if view == band else band, area_key),
+        on=view == band, tone='hot' if band == 'now' and counts['now'] else band)
+        for band, label, sub in (('now', 'Làm ngay', 'Quá hạn, có hẹn, khách chờ'), ('day', 'Trong ngày', 'Cần làm, chưa trễ'),
+            ('money', 'Tiền · làm sau', 'Báo thu, xác nhận, trả NCC'))]
+    chips = [dict(label='Tất cả', href=link(view, ''), on=not area_key, key='')] + [
+        dict(label=name, href=link(view, code), on=area_key == code, key=code)
+        for code, name, _ in AREAS if code in known]
+    money_open = view == 'money' or not (counts['now'] or counts['day'])
     shortcuts = [(label, href) for label, href, roles in (
         ('Tạo báo giá','/bao-gia/moi',quotes.WRITERS),
         ('Nhận đơn dịch vụ','/dich-vu/moi',service_tickets.CREATORS),
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
-    return render(request, 'viec_cua_toi.jinja', groups=groups, areas=areas, first=first, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
+    return render(request, 'viec_cua_toi.jinja', groups=groups, hot=shown_hot, now_more=now_more, day=day, money=money, counts=counts, view=view,
+        chips=chips, money_open=money_open, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
         advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))

@@ -400,6 +400,52 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .wk-no { grid-area: no; } .work-main { grid-area: main; } .wk-money { grid-area: money; } .wk-st { grid-area: st; display: flex; align-items: center; gap: 6px; } .work-go { grid-area: go; min-height: 40px; }
   .wk-area-h small { display: none; }
 }
+/* Mẫu ưu tiên Việc của tôi: Làm ngay viền đỏ trên cùng, Trong ngày, Tiền · làm sau gập dưới cùng. */
+.tile.t-hot { border-color: var(--bad); background: var(--bad-bg); } .tile.t-hot .t-label, .tile.t-hot .t-n { color: var(--bad); }
+.work-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: -4px; }
+.work-chips > span { color: var(--muted); font-size: .85rem; }
+.work-chip { padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: .85rem; font-weight: 600; text-decoration: none; }
+.work-chip.on { background: var(--info-bg, var(--tag)); border-color: var(--accent); color: var(--accent); }
+.work-chip.wc-sv::before, .work-chip.wc-sa::before, .work-chip.wc-kh::before, .work-chip.wc-tc::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.wc-sv::before { background: var(--area-sv); } .wc-sa::before { background: var(--area-sa); } .wc-kh::before { background: var(--area-kh); } .wc-tc::before { background: var(--area-tc); }
+.work-now, .work-day, .work-cash { --a: var(--accent); --a-bg: var(--tag); margin: 0; padding: 0; overflow: hidden; }
+.work-now { border: 2px solid var(--bad); }
+.work-cash { border-style: dashed; }
+.wk-band-h { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.wk-band-h b { font-size: 1.05rem; }
+.wk-band-h small { color: var(--muted); font-size: .82rem; }
+.work-now .wk-band-h { background: var(--bad-bg); } .work-now .wk-band-h b, .work-now .wk-n { color: var(--bad); }
+.work-day .wk-ico { background: var(--tag); color: var(--accent); }
+.work-cash .wk-ico { background: var(--ok-bg, var(--tag)); color: var(--ok); } .work-cash .wk-n { color: var(--ok); }
+.work-cash > summary { cursor: pointer; list-style: none; } .work-cash > summary::-webkit-details-marker { display: none; }
+.work-cash:not([open]) > summary { border-bottom: 0; }
+.wk-sum { display: flex; flex-wrap: wrap; gap: 4px; }
+.wk-sum span { padding: 1px 9px; border-radius: 999px; background: var(--ok-bg, var(--tag)); color: var(--ok); font-size: .78rem; font-weight: 600; }
+.wk-toggle { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; font-size: .85rem; font-weight: 600; color: var(--text); }
+.wk-toggle::after { content: "Mở ra"; } .work-cash[open] .wk-toggle::after { content: "Thu gọn"; }
+.work-hot { display: grid; grid-template-columns: 150px 130px minmax(0, 1fr) 150px 160px; gap: 14px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.wk-band-h + .work-list .work-hot:first-child { border-top: 0; }
+.work-hot:hover { background: var(--tag); }
+.work-hot.work-overdue { box-shadow: inset 4px 0 0 var(--bad); }
+.wh-when { display: grid; gap: 1px; min-width: 0; }
+.wh-when b { color: var(--warn); font-size: .95rem; } .work-hot.work-overdue .wh-when b { color: var(--bad); }
+.wh-when small { color: var(--muted); font-size: .78rem; }
+.wh-no { color: var(--accent); font-weight: 700; }
+.wh-area { display: inline-block; padding: 0 7px; margin-right: 6px; border-radius: 6px; font-size: .72rem; font-weight: 700; vertical-align: 1px; }
+.wa-sv { background: var(--area-sv-bg); color: var(--area-sv); } .wa-sa { background: var(--area-sa-bg); color: var(--area-sa); }
+.wa-kh { background: var(--area-kh-bg); color: var(--area-kh); } .wa-tc { background: var(--area-tc-bg); color: var(--area-tc); }
+.work-hot .work-go { min-height: 40px; padding: 0 14px; border-width: 1.5px; border-radius: 10px; font-size: .9rem; }
+.work-hot:hover .work-go { background: var(--accent); color: var(--accent-text); }
+.wk-more { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+.work-calm { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--ok-bg, var(--tag)); color: var(--ok); font-weight: 600; }
+.work-day .wk-grp, .work-cash .wk-grp { background: var(--tag); } .work-day .wk-grp b, .work-cash .wk-grp b { color: var(--text); }
+@media (max-width: 760px) {
+  .work-hot { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "when no" "main main" "money money" "go go"; gap: 4px 8px; padding: 10px 12px; }
+  .wh-when { grid-area: when; } .wh-no { grid-area: no; } .work-hot .work-main { grid-area: main; } .work-hot .wk-money { grid-area: money; text-align: left; }
+  .work-hot .work-go { grid-area: go; justify-self: stretch; justify-content: center; }
+  .wk-band-h small, .wk-sum, .work-page .tile .t-sub { display: none; }
+  .wk-band-h { padding: 10px 12px; }
+}
 .next-step { display:grid; gap:10px; }
 .next-step h2 { margin:0; font-size:1.1rem; }
 .next-step .next-primary { width:100%; min-height:48px; text-align:center; }
