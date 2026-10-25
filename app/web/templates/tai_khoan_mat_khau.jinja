@@ -1,2 +1,6 @@
-{% extends 'base.jinja' %}{% block title %}Mật khẩu tạm{% endblock %}
-{% block main %}<h1>Mật khẩu tạm</h1><section class="card form"><h2>{{ employee.full_name }} · {{ employee.username }}</h2><label>Mật khẩu tạm<input readonly value="{{ temp_password }}" class="account-secret" data-temp-password autocomplete="off" spellcheck="false"></label><button type="button" class="btn-ghost" data-copy-password>Sao chép</button><p>Chỉ hiện một lần. Gửi cho nhân viên qua Zalo.</p><p>Nhân viên phải đổi mật khẩu khi đăng nhập.</p><a href="/tai-khoan/{{ employee.id }}">Về tài khoản nhân viên</a></section><script src="{{ asset('accounts.js') }}" defer></script>{% endblock %}
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Mật khẩu tạm{% endblock %}
+{% block main %}<div class="page-wide">
+{% call ui.page_head('Mật khẩu tạm', kicker='Tài khoản nhân viên', back='/tai-khoan/' ~ employee.id, sub=employee.full_name ~ ' · ' ~ employee.username) %}{% endcall %}
+<section class="card done-state"><b>Chỉ hiện một lần. Gửi cho nhân viên qua Zalo.</b><label>Mật khẩu tạm<input readonly value="{{ temp_password }}" class="account-secret" data-temp-password autocomplete="off" spellcheck="false"></label><div class="ph-actions"><button type="button" class="btn btn-new" data-copy-password>Sao chép</button><a class="btn btn-ghost" href="/tai-khoan/{{ employee.id }}">Về tài khoản nhân viên</a></div><p class="hint">Nhân viên phải đổi mật khẩu khi đăng nhập.</p></section>
+</div><script src="{{ asset('accounts.js') }}" defer></script>{% endblock %}

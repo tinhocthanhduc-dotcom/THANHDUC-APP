@@ -1,2 +1,10 @@
-{% extends 'base.jinja' %}{% from '_commissions.jinja' import month_filter,documents %}
-{% block title %}Hoa hồng của tôi{% endblock %}{% block main %}<h1>Hoa hồng của tôi</h1>{{ month_filter(month) }}<p><strong>{{ 'Đã khóa' if locked else 'Nháp' }} · {{ month.strftime('%m/%Y') }}</strong></p><p class="commission-total">Tổng tháng: {{ total|money }} đồng</p><p>Chỉ tính phần khách đã trả và kế toán đã xác nhận. Số nháp có thể thay đổi cho tới khi khóa tháng.</p>{{ documents(rows) }}{% endblock %}
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}{% from '_commissions.jinja' import documents %}
+{% block title %}Hoa hồng của tôi{% endblock %}
+{% block main %}<div class="page-wide">
+{% call ui.page_head('Hoa hồng của tôi', sub='Tháng ' ~ month.strftime('%m/%Y') ~ ' · chỉ tính phần khách đã trả và kế toán đã xác nhận · số nháp có thể đổi tới khi khóa tháng', badge_label='Đã khóa' if locked else 'Nháp', badge_tone='xong' if locked else 'cho') %}{% endcall %}
+{{ ui.tiles([dict(label='Tổng tháng ' ~ month.strftime('%m/%Y'), n=total|money, on=true), dict(label='Số dòng', n=rows|length)]) }}
+<section class="card frame">
+{% call ui.month_bar('/hoa-hong', month) %}{{ 'Tháng đã khóa, số không đổi nữa' if locked else 'Số nháp, đổi tới khi giám đốc khóa tháng' }}{% endcall %}
+{{ documents(rows) }}
+</section>
+</div>{% endblock %}

@@ -51,7 +51,9 @@ def _secret(request,user,password):
 
 @router.get('/tai-khoan')
 def listing(request:Request,q:str='',status:str='',user:User=Depends(admin_user),session:Session=Depends(get_session)):
-    return _render(request,'tai_khoan_ds.jinja',rows=svc.search(session,user,q[:200],status),q=q[:200],selected_status=status)
+    rows=svc.search(session,user,q[:200],status);everyone=svc.search(session,user,q[:200],'') if status else rows
+    counts=dict(all=len(everyone),active=sum(1 for row in everyone if row.active),locked=sum(1 for row in everyone if not row.active))
+    return _render(request,'tai_khoan_ds.jinja',rows=rows,q=q[:200],selected_status=status,counts=counts)
 
 
 @router.get('/tai-khoan/moi')

@@ -32,7 +32,6 @@ a { color: var(--accent); }
 main { max-width: 860px; margin: 0 auto; padding: 16px; }
 h1 { font-size: 1.3rem; margin: 0; }
 
-
 .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .login { max-width: 360px; margin: 10vh auto 0; display: grid; gap: 12px; }
@@ -124,7 +123,6 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .card { padding: 12px; }
   main input, main select, main textarea { min-width: 0; max-width: 100%; }
 }
-
 
 /* Bảng lỗi CSV vừa màn hình điện thoại, kể cả mã hoặc lời lỗi dài. */
 .opening-errors { margin-bottom: 16px; }
@@ -580,9 +578,7 @@ main:has(> .rq-page) { max-width: 960px; }
 .tech-photo-list {display:flex;flex-wrap:wrap;gap:.5rem;}.tech-photo {width:calc(50% - .25rem);display:flex;flex-direction:column;gap:.2rem;margin-top:.5rem;}.tech-photo a {display:block;}.tech-photo img {width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:8px;display:block;}.tech-photo button {padding:.35rem;min-height:36px;}.tech-photo small {font-size:.8rem;}
 @media(max-width:400px){.tech-material {align-items:flex-start;flex-direction:column;}.tech-stepper {align-self:flex-end;}}
 
-.account-list {display:grid;gap:.6rem;margin-top:1rem;}.account-row {display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:.6rem;align-items:center;overflow-wrap:anywhere;}.account-row h2 {font-size:1.1rem;margin:0;}.account-row>* {min-width:0;}
-.account-actions {display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0;}.account-actions form {margin:0;}.account-roles label {flex:0 1 auto;}.account-secret {font-family:monospace;font-size:1.7rem;letter-spacing:.12em;text-align:center;}.who [data-account-item] {font-size:.9rem;}
-@media(max-width:600px){.account-row {grid-template-columns:1fr 1fr;}.account-row h2,.account-row small {grid-column:1/-1;}.account-actions>* {flex:1 1 100%;}.account-actions button {width:100%;}}
+.account-secret {font-family:monospace;font-size:1.7rem;letter-spacing:.12em;text-align:center;}.who [data-account-item] {font-size:.9rem;}
 
 .pending-totals {display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;}.pending-totals>.card {display:flex;flex:1 1 150px;flex-direction:column;gap:.3rem;min-width:0;}.pending-list {display:grid;gap:.6rem;margin-top:1rem;}.pending-row {display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;overflow-wrap:anywhere;}.pending-row h2 {width:100%;font-size:1.05rem;margin:0;}.pending-overdue {color:#a20e16;border:1px solid currentColor;border-radius:6px;padding:.2rem .4rem;}.pending-groups label {flex:0 1 auto;}.pending-photos {display:flex;gap:.5rem;flex-wrap:wrap;}.pending-photos img {width:100px;height:100px;object-fit:cover;}[data-pending-supplier][hidden] {display:none;}
 @media(max-width:400px){.pending-row>span,.pending-row>strong {width:100%;}.pending-totals>.card {flex-basis:130px;}}
@@ -785,16 +781,10 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: calc(180px + env(safe
 
 /* NS3: scoped KPI cards and horizontally scrollable, sticky-name matrices. */
 
-
 /* NS4: immutable commission summaries, phone-friendly tables and signed adjustments. */
-.commission-scroll{position:relative;overflow-x:auto;max-width:100%;margin-block:16px;border:1px solid var(--line);border-radius:8px}
-.commission-table{width:100%;min-width:650px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
-.commission-table th,.commission-table td{padding:12px;min-width:125px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-.commission-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface);min-width:130px;max-width:180px;overflow-wrap:anywhere}
-.commission-negative{color:var(--bad-solid);font-weight:700}.commission-total{font-size:1.4rem;font-weight:700}
-.commission-picker{min-width:0}.commission-people{max-height:240px;overflow-y:auto;padding:8px 0}.commission-people [hidden]{display:none}
-.commission-lock-form>.action-bar{margin-inline:0}.commission-lock-form{min-width:0}
-@media(max-width:600px){.commission-table tr>:first-child{min-width:110px;max-width:130px}}
+
+.commission-picker{min-width:0}.commission-people{max-height:240px;overflow-y:auto}.commission-people [hidden]{display:none}
+
 /* Hàng tôi giữ / Trả kho / Xin linh kiện: gọn, chữ vừa phải, việc chính lên trước. */
 .tho-app .tho-wh h2 { font-size: 15px; font-weight: 800; color: var(--muted); margin: 4px 0 0; }
 .tho-app .work-rows { gap: 10px; }
@@ -847,15 +837,8 @@ body.tho-app:has(.tho-hang-actions) main { padding-bottom: calc(180px + env(safe
 
 /* NS5: salary grids stay inside their own phone scroll frame. */
 /* F8: nhãn .sr-only (position:absolute) trong bảng phải nằm trong khung cuộn, nếu không document rộng theo bảng. */
-.payroll-scroll{position:relative;max-width:100%;overflow-x:auto;margin-block:16px;border:1px solid var(--line);border-radius:8px}
-.payroll-table{border-collapse:separate;border-spacing:0;min-width:1100px;width:100%;font-variant-numeric:tabular-nums}
-.payroll-table th,.payroll-table td{padding:12px;min-width:120px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
-.payroll-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--surface);min-width:150px;max-width:190px;overflow-wrap:anywhere}
-.payroll-table input:not([type=hidden]):not([type=checkbox]),.payroll-table textarea{min-width:130px;width:100%}
-.payroll-total{font-size:1.4rem;font-weight:700}.payroll-form,.payroll-approve-form{min-width:0}.payroll-form>.action-bar,.payroll-approve-form>.action-bar{margin-inline:0}
-.payslip dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.payslip dd{margin:0;text-align:right}.payslip dt,.payslip dd{overflow-wrap:anywhere}
-@media(max-width:600px){.payroll-table tr>:first-child{min-width:115px;max-width:140px}}
-@media print{body:has(.payslip) header,body:has(.payslip) nav,body:has(.payslip) button{display:none!important}.payslip{border:0;box-shadow:none;background:white;color:black}}
+
+@media print{body:has(.payslip) header,body:has(.payslip) nav,body:has(.payslip) button,body:has(.payslip) .ph-back{display:none!important}.payslip .card{border:0;box-shadow:none;background:white;color:black}}
 /* UX5a: bộ chọn hàng gọn */
 .pick-box{display:grid;gap:8px;margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:12px}
 .pick-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
@@ -2645,3 +2628,58 @@ input::-webkit-date-and-time-value { text-align: left; }
 .sec-risky { border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
 .sec-risky > b { font-size: .95rem; }
 .sec-risky textarea { min-height: 64px; }
+
+/* Đợt A2 · hoa hồng, tạm ứng, lương, tài khoản */
+.hr-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .95rem; font-variant-numeric: tabular-nums; }
+.hr-table th { text-align: left; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--bg); padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.hr-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; min-width: 0; }
+.hr-table tbody tr:last-child td { border-bottom: 0; }
+.hr-table .num { text-align: right; white-space: nowrap; }
+.hr-table tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 150px; max-width: 200px; overflow-wrap: anywhere; box-shadow: 1px 0 0 var(--line); }
+.hr-table th:first-child { background: var(--bg); }
+.hr-table td a { color: var(--info-solid); text-decoration: none; }
+.hr-table .hr-sub, .advance-row .hr-sub { display: block; font-size: .85rem; color: var(--muted); font-weight: 400; }
+.hr-table .hr-bad, .advance-row .hr-bad { color: var(--bad); font-weight: 600; }
+.hr-table .hr-note { white-space: normal; min-width: 160px; color: var(--muted); }
+.hr-table .hr-negative, .hr-table tr.hr-negative td b, .totals dd.hr-negative { color: var(--bad); font-weight: 700; }
+.hr-table tr.hr-total td { background: var(--bg); font-weight: 700; border-top: 2px solid var(--line); }
+.hr-table tr.hr-total td:first-child { background: var(--bg); }
+.hr-table tr.hr-muted td { color: var(--muted); }
+.hr-table tr.hr-muted td b { font-weight: 500; }
+.hr-no { color: var(--info-solid); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.hr-table .chip { margin: 0; }
+.hr-edit input:not([type=hidden]), .hr-edit textarea { min-width: 120px; width: 100%; min-height: 40px; padding: 6px 8px; font-size: 16px; }
+.hr-edit input[data-money] { text-align: right; }
+.hr-edit textarea { min-width: 160px; resize: vertical; }
+.hr-form { margin: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.hr-form > .table-scroll { border: 0; border-radius: 0; }
+.hr-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.hr-pay { display: grid; gap: 12px; width: 100%; }
+.hr-pay .action-bar { margin: 0; padding: 0; background: none; border: 0; }
+.hr-pay label { display: grid; gap: 4px; font-weight: 600; max-width: 240px; }
+.hr-dl { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+.hr-dl dd { text-align: left; }
+.hr-request > summary.btn { display: inline-flex; align-items: center; min-height: 44px; list-style: none; cursor: pointer; }
+.hr-request > summary.btn::-webkit-details-marker { display: none; }
+.hr-request[open] > summary.btn { margin-bottom: 12px; }
+.hr-request .form { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.advance-row { display: grid; grid-template-columns: 150px 1.1fr 1.6fr 150px 220px; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); align-items: start; min-width: 0; }
+.advance-row > div { min-width: 0; overflow-wrap: anywhere; }
+.advance-row .hr-amount { font-size: 1.05rem; color: var(--text); }
+.advance-row .ar-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.advance-row .ar-acts form { margin: 0; }
+.advance-row .ar-acts details { flex: 1 1 100%; }
+.advance-row .ar-acts details > summary.btn { display: inline-flex; align-items: center; min-height: 44px; list-style: none; cursor: pointer; }
+.advance-row .ar-acts details > summary.btn::-webkit-details-marker { display: none; }
+.advance-row .ar-acts details .form { margin-top: 8px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; }
+.sec-risky .ph-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sec-risky form { margin: 0; }
+.page-head .ph-actions button.btn { font: inherit; }
+@media (max-width: 760px) {
+  .hr-two { grid-template-columns: minmax(0, 1fr); }
+  .advance-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .advance-row > div:nth-child(3) { grid-column: 1 / -1; }
+  .advance-row .ar-acts { grid-column: 1 / -1; }
+  .hr-table tr > :first-child { min-width: 120px; max-width: 150px; }
+  .hr-pay label { max-width: none; }
+}
