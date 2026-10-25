@@ -77,12 +77,12 @@ def listing(request: Request, q: str = '', phan: int = 0, tt: str = '', bh: str 
 
 @router.get('/thiet-bi/tim-hang')
 def pick_product(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return render(request, 'thiet_bi_chon.jinja', rows=products.search(session, q[:200], active_only=False, limit=20), field='product_code')
+    return render(request, 'thiet_bi_chon.jinja', rows=products.search(session, q[:200], active_only=False, limit=20), field='product_code', q=q[:160].strip())
 
 
 @router.get('/thiet-bi/tim-khach')
 def pick_customer(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return render(request, 'thiet_bi_chon.jinja', rows=customers.search(session, q[:200]), field='customer_code')
+    return render(request, 'thiet_bi_chon.jinja', rows=customers.search(session, q[:200]), field='customer_code', q='')
 
 
 @router.get('/thiet-bi/dia-diem')
@@ -124,28 +124,29 @@ def _picked(session, model, code, text):
 
 
 def _equipment_data(form, session):
-    # Máy ngoài danh mục Hàng hóa (loại công ty không bán): không cần mã hàng, chỉ ghi tên máy.
-    outside = str(form.get('product_source', '')) == 'TEN'
-    model_name = str(form.get('model_name', '')).strip() if outside else ''
-    product = None if outside else _picked(session, Product, form.get('product_code'), form.get('product_q'))
+    # Một ô duy nhất: bấm chọn hàng trong danh mục thì có mã hàng; không chọn thì tên đã gõ là tên máy ngoài danh mục.
+    text = str(form.get('product_q', '')).strip()
+    product = _picked(session, Product, form.get('product_code'), text)
+    model_name = '' if product else text[:160]
     customer = _picked(session, Customer, form.get('customer_code'), form.get('customer_q'))
-    if outside and not model_name:
-        raise BusinessError('MODEL_NAME_REQUIRED', 'Chưa nhập tên máy (hãng và model) cho máy ngoài danh mục.')
-    if not outside and not product:
-        raise BusinessError('PRODUCT_NOT_PICKED', 'Chưa chọn hàng: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
+    if not product and not model_name:
+        raise BusinessError('PRODUCT_NOT_PICKED', 'Chưa có máy: gõ tên hoặc mã máy, có trong Hàng hóa thì bấm chọn một dòng.')
     if customer is None:
         raise BusinessError('CUSTOMER_NOT_PICKED', 'Chưa chọn khách: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
-    return dict(product_code=product or None, model_name=model_name, customer_code=customer or None,
-                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None,
+    data = dict(product_code=product or None, model_name=model_name, customer_code=customer or None,
+                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None,
                 condition=str(form.get('condition', 'MOI')), note=str(form.get('note', '')), active=form.get('active') == '1')
+    # Hỗ trợ tận nơi không còn trên form (kho giao máy bán tự ghi); giữ nguyên giá trị đang có khi sửa.
+    if 'support_until' in form:
+        data['support_until'] = form.get('support_until') or None
+    return data
 
 
 @router.post('/thiet-bi/moi')
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     customer_sites.check_writer(request.state.user)
     shown = dict(serial=str(form.get('serial', '')), product_code=str(form.get('product_code', '')),
-                 product_source=str(form.get('product_source', '')), model_name=str(form.get('model_name', '')),
-                 customer_code=form.get('customer_code') or None, site_id=form.get('site_id') or None,
+                 model_name='', customer_code=form.get('customer_code') or None, site_id=form.get('site_id') or None,
                  warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None, condition=str(form.get('condition', 'MOI')),
                  note=str(form.get('note', '')), active=form.get('active') == '1', version=0,
                  product_q=str(form.get('product_q', '')), customer_q=str(form.get('customer_q', '')))
@@ -167,7 +168,6 @@ def update(request: Request, serial: str, form=Depends(checked_form), session: S
     customer_sites.check_writer(request.state.user)
     shown = {**equipment.snapshot(equipment.load(session, serial)), 'version': form.get('version', ''),
              'product_code': str(form.get('product_code', '')), 'customer_code': form.get('customer_code') or None,
-             'product_source': str(form.get('product_source', '')), 'model_name': str(form.get('model_name', '')),
              'product_q': str(form.get('product_q', '')), 'customer_q': str(form.get('customer_q', ''))}
     try:
         data = _equipment_data(form, session)

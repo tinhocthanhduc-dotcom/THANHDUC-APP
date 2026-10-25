@@ -11,17 +11,34 @@ from test_web import d1_catalog, device_form, service_form, service_login, web_l
 
 
 def outside_form(csrf, **kw):
-    data = device_form(csrf, serial='NGOAI-01', product_source='TEN', model_name='Canon LBP 2900', product_code='', product_q='')
+    # Một ô duy nhất: không bấm chọn hàng (product_code trống) thì tên đã gõ là tên máy.
+    data = device_form(csrf, serial='NGOAI-01', product_code='', product_q='Canon LBP 2900')
     data.update(kw)
     return data
 
 
-def test_form_has_no_summary_line_and_offers_outside_catalog(client, web_login, d1_catalog):
+def test_form_is_one_machine_box_with_customer_first(client, web_login, d1_catalog):
     web_login('dieu.phoi', 'dispatcher')
     page = client.get('/thiet-bi/moi').text
     assert 'Bảo hành đến —' not in page and 'hỗ trợ tận nơi đến —' not in page
-    assert 'Không có trong danh mục' in page and 'name="model_name"' in page
-    assert 'Có trong Hàng hóa' in page and 'name="product_q"' in page
+    assert 'name="product_q"' in page and 'name="product_source"' not in page and 'name="model_name"' not in page
+    assert 'lưu là máy ngoài danh mục' in page
+    # Thứ tự: khách hàng, máy, rồi serial; địa điểm chỉ hiện khi khách có địa điểm.
+    assert page.index('name="customer_q"') < page.index('name="product_q"') < page.index('name="serial"')
+    assert 'Địa điểm của khách' not in page
+    # Danh sách gợi ý có dòng "Ngoài danh mục" để bấm dùng tên đã gõ.
+    options = client.get('/thiet-bi/tim-hang?q=brother+hl').text
+    assert 'data-device-free' in options and 'Ngoài danh mục' in options and 'brother hl' in options
+    assert 'data-device-free' not in client.get('/thiet-bi/tim-hang?q=').text
+
+
+def test_site_block_only_when_customer_has_sites(client, web_login, d1_catalog, db):
+    from app.models import CustomerSite
+    web_login('dieu.phoi', 'dispatcher')
+    assert 'Địa điểm của khách' not in client.get('/thiet-bi/dia-diem?customer_code=KTD-000001').text
+    db.add(CustomerSite(customer_code='KTD-000001', name='Chi nhánh 58', created_by=1)); db.commit()
+    page = client.get('/thiet-bi/dia-diem?customer_code=KTD-000001').text
+    assert 'Địa điểm của khách' in page and 'Chi nhánh 58' in page and '<fieldset' not in page
 
 
 def test_create_outside_catalog_device_without_product(client, web_login, d1_catalog, db):
@@ -32,11 +49,11 @@ def test_create_outside_catalog_device_without_product(client, web_login, d1_cat
     assert eq.product_code is None and eq.model_name == 'Canon LBP 2900' and eq.customer_code == 'KTD-000001'
     assert 'canon lbp 2900' in eq.search_text and eq.warranty_until.isoformat() == '2027-12-31'
     assert db.scalar(select(AuditLog).where(AuditLog.entity == 'equipment', AuditLog.entity_id == 'NGOAI-01')).action == 'equipment.create'
-    # Form sửa mở lại đúng nhánh "Không có trong danh mục" và tên máy.
+    # Form sửa mở lại với tên máy trong ô máy, không có mã hàng.
     page = client.get('/thiet-bi/NGOAI-01').text
     parsed = Tags(page)
-    assert 'checked' in parsed.find('input', name='product_source', value='TEN')[0]
-    assert parsed.find('input', name='model_name', value='Canon LBP 2900')
+    assert parsed.find('input', name='product_q', value='Canon LBP 2900') and 'Máy ngoài danh mục: Canon LBP 2900' in page
+    assert parsed.find('input', name='product_code', value='')
     # Danh sách và tìm kiếm theo tên máy tự nhập.
     listing = client.get('/thiet-bi').text
     assert 'Canon LBP 2900' in listing and 'Ngoài danh mục' in listing
@@ -46,25 +63,27 @@ def test_create_outside_catalog_device_without_product(client, web_login, d1_cat
     assert 'Canon LBP 2900' in client.get('/khach-hang/KTD-000001?tab=may').text
 
 
-def test_outside_catalog_requires_model_name_and_keeps_form(client, web_login, d1_catalog, db):
+def test_empty_machine_box_keeps_form_and_exact_name_picks_product(client, web_login, d1_catalog, db):
     csrf = web_login('dieu.phoi', 'dispatcher')
-    r = client.post('/thiet-bi/moi', data=outside_form(csrf, model_name='   ', note='Giữ ghi chú'))
-    assert r.status_code == 400 and 'Chưa nhập tên máy' in r.text and 'Giữ ghi chú' in r.text
+    r = client.post('/thiet-bi/moi', data=outside_form(csrf, product_q='   ', note='Giữ ghi chú'))
+    assert r.status_code == 400 and 'Chưa có máy' in r.text and 'Giữ ghi chú' in r.text
     assert db.get(Equipment, 'NGOAI-01') is None
-    # Nhánh "Có trong Hàng hóa" vẫn bắt buộc chọn hàng dù có gõ tên máy.
-    r = client.post('/thiet-bi/moi', data=outside_form(csrf, product_source='DM'))
-    assert r.status_code == 400 and 'Chưa chọn hàng' in r.text
+    # Gõ đúng tên hoặc mã của một hàng trong danh mục (không bấm chọn) vẫn ra mã hàng, không thành máy ngoài danh mục.
+    r = client.post('/thiet-bi/moi', data=outside_form(csrf, serial='EXACT-1', product_q='td-0001'), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    eq = db.get(Equipment, 'EXACT-1')
+    assert eq.product_code == 'TD-0001' and eq.model_name == ''
 
 
 def test_switch_between_catalog_and_free_text_on_update(client, web_login, d1_catalog, db):
     csrf = web_login('dieu.phoi', 'dispatcher')
     assert client.post('/thiet-bi/moi', data=device_form(csrf, serial='SW-01'), follow_redirects=False).status_code == 303
-    r = client.post('/thiet-bi/SW-01', data=outside_form(csrf, version=1, model_name='HP LaserJet 1020'), follow_redirects=False)
+    r = client.post('/thiet-bi/SW-01', data=outside_form(csrf, version=1, serial='SW-01', product_q='HP LaserJet 1020'), follow_redirects=False)
     assert r.status_code == 303, r.text
     db.expire_all()
     eq = db.get(Equipment, 'SW-01')
     assert eq.product_code is None and eq.model_name == 'HP LaserJet 1020' and 'laserjet' in eq.search_text
-    r = client.post('/thiet-bi/SW-01', data=device_form(csrf, version=2, serial='SW-01', product_source='DM', model_name='bỏ qua'), follow_redirects=False)
+    r = client.post('/thiet-bi/SW-01', data=device_form(csrf, version=2, serial='SW-01'), follow_redirects=False)
     assert r.status_code == 303, r.text
     db.expire_all()
     eq = db.get(Equipment, 'SW-01')
@@ -80,8 +99,8 @@ def test_schema_requires_product_or_model_name():
 def test_service_intake_new_machine_outside_catalog(client, db, people):
     p = people
     csrf = service_login(client, p['dispatcher'])
-    data = service_form(csrf, kind='MANG_VE', create_machine='1', new_serial='DV-NGOAI-1', new_machine_source='TEN',
-                        new_model_name='Epson L3110', new_product_code='', new_product_q='', symptom='Kẹt giấy')
+    data = service_form(csrf, kind='MANG_VE', create_machine='1', new_serial='DV-NGOAI-1',
+                        new_product_code='', new_product_q='Epson L3110', symptom='Kẹt giấy')
     r = client.post('/dich-vu/moi', data=data, follow_redirects=False)
     assert r.status_code == 303, r.text
     db.expire_all()
@@ -92,6 +111,20 @@ def test_service_intake_new_machine_outside_catalog(client, db, people):
     assert 'Epson L3110' in page
     assert 'Epson L3110' in client.get('/dich-vu?phan=1').text
     # Thiếu tên máy thì giữ form, không tạo gì.
-    bad = client.post('/dich-vu/moi', data={**data, 'new_serial': 'DV-NGOAI-2', 'new_model_name': ''})
-    assert bad.status_code == 400 and 'Chưa nhập tên máy' in bad.text
+    bad = client.post('/dich-vu/moi', data={**data, 'new_serial': 'DV-NGOAI-2', 'new_product_q': ''})
+    assert bad.status_code == 400 and 'Chưa có máy' in bad.text
     assert db.get(Equipment, 'DV-NGOAI-2') is None
+
+
+def test_support_until_hidden_on_form_and_kept_on_edit(client, web_login, d1_catalog, db):
+    from datetime import date
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    assert 'support_until' not in client.get('/thiet-bi/moi').text
+    assert client.post('/thiet-bi/moi', data=device_form(csrf, serial='HT-01'), follow_redirects=False).status_code == 303
+    eq = db.get(Equipment, 'HT-01'); eq.support_until = date(2027, 1, 31); db.commit()
+    # Form sửa không có ô hỗ trợ tận nơi, lưu lại không được xóa ngày kho đã ghi.
+    r = client.post('/thiet-bi/HT-01', data=device_form(csrf, version=eq.version, serial='HT-01', note='Sửa ghi chú'), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    db.expire_all()
+    eq = db.get(Equipment, 'HT-01')
+    assert eq.support_until == date(2027, 1, 31) and eq.note == 'Sửa ghi chú'

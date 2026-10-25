@@ -54,6 +54,9 @@ fieldset:disabled input, fieldset:disabled select, fieldset:disabled textarea { 
 .form { display: grid; gap: 12px; }
 .form label, .login label { display: grid; gap: 4px; font-size: .9rem; color: var(--muted); }
 .form label input, .form label select, .form label textarea, .login input { color: var(--text); font-size: 1rem; }
+/* Form thiết bị: tiêu đề ô in đậm, rõ hơn trên điện thoại (TUẤN 2026-10-25). */
+.device-form label, .device-form .group-label { font-weight: 700; color: var(--text); }
+.device-form label.check { font-weight: 500; }
 /* iOS Safari cho ô ngày/giờ một bề rộng riêng nên tràn khỏi khung; ép theo bề rộng nhãn. */
 .form label input[type=date], .form label input[type=datetime-local], .form label input[type=time], .form label input[type=month] { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; display: block; -webkit-appearance: none; appearance: none; }
 label.check { display: flex; align-items: center; gap: 8px; color: var(--text); }
@@ -637,6 +640,8 @@ body.tho-app { --bg: #fff; --surface: #f1f3f6; --surface2: #e2e6ec; --text: #0b0
 .tho-account-menu .me-item { min-height: 52px; padding: 10px 12px; }
 .tho-account-menu button.me-item { width: 100%; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; text-align: left; font: inherit; font-weight: 700; color: var(--bad); justify-content: flex-start; }
 .tho-back { min-height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 6px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: var(--text); font-weight: 800; font-size: 16px; text-decoration: none; flex: none; }
+/* Bàn phím iPhone đang mở thì ẩn thanh menu dưới, tránh thanh nhảy lên đè ô đang nhập. */
+body.kb-open .tho-tabs, body.kb-open .phone-tabs, body.kb-open .menu-toggle, body.kb-open .tho-hang-actions { display: none !important; }
 .tho-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); background: var(--bg); border-top: 2px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tho-tabs a { min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: none; text-align: center; }
 .tho-tabs a.on { color: var(--text); box-shadow: inset 0 4px 0 var(--ok-solid); }

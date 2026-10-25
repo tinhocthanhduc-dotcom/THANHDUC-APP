@@ -7,7 +7,7 @@ from ..models import Equipment, EquipmentCustody, Product, ServiceTicket
 from ..schemas import EquipmentIn, ServiceMachineSet
 from ..security import has_role
 
-FORM_FIELDS = ('machine_pick', 'serial', 'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'new_machine_source', 'new_model_name', 'version')
+FORM_FIELDS = ('machine_pick', 'serial', 'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'version')
 
 
 def can_create(user):
@@ -15,16 +15,14 @@ def can_create(user):
 
 
 def new_machine(form):
-    # Máy ngoài danh mục Hàng hóa (loại công ty không bán): chỉ ghi tên máy, không cần mã hàng.
-    if str(form.get('new_machine_source', '')) == 'TEN':
-        name = str(form.get('new_model_name', '')).strip()
-        if not name:
-            raise BusinessError('BAD_MODEL_NAME', 'Chưa nhập tên máy (hãng và model) cho máy ngoài danh mục.')
-        return EquipmentIn(serial=str(form.get('new_serial', '')), model_name=name[:160])
+    # Bấm chọn hàng trong danh mục thì có mã hàng; không chọn thì tên đã gõ là tên máy ngoài danh mục.
     code = str(form.get('new_product_code', '')).strip()
-    if not code:
-        raise BusinessError('BAD_PRODUCT', 'Chưa chọn mã hàng cho máy mới, hãy bấm chọn một kết quả tìm.')
-    return EquipmentIn(serial=str(form.get('new_serial', '')), product_code=code)
+    if code:
+        return EquipmentIn(serial=str(form.get('new_serial', '')), product_code=code)
+    name = str(form.get('new_product_q', '')).strip()
+    if not name:
+        raise BusinessError('BAD_PRODUCT', 'Chưa có máy: gõ tên hoặc mã máy, có trong Hàng hóa thì bấm chọn một dòng.')
+    return EquipmentIn(serial=str(form.get('new_serial', '')), model_name=name[:160])
 
 
 def intake(form):

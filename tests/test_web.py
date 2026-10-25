@@ -3141,8 +3141,11 @@ def test_d1_product_typed_but_not_picked(client, web_login, d1_catalog, db):
     csrf = web_login('dieu.phoi', 'dispatcher')
     page = client.get('/thiet-bi/moi').text
     assert 'name="product_q"' in page and 'type="hidden" name="product_code"' in page
-    r = client.post('/thiet-bi/moi', data=device_form(csrf, product_code='', product_q='Máy in Canon LBP-2900 dài quá'))
-    assert r.status_code == 400 and 'Chưa chọn hàng' in r.text and 'Máy in Canon LBP-2900 dài quá' in r.text
+    # Gõ tên không khớp hàng nào và không bấm chọn: lưu là máy ngoài danh mục với tên đã gõ (PR #169).
+    r = client.post('/thiet-bi/moi', data=device_form(csrf, serial='NGOAI-DM', product_code='', product_q='Máy in Canon LBP-2900 dài quá'), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    free = db.get(Equipment, 'NGOAI-DM')
+    assert free.product_code is None and free.model_name == 'Máy in Canon LBP-2900 dài quá'
     r = client.post('/thiet-bi/moi', data=device_form(csrf, product_code='', product_q='máy PHOTO', customer_code='', customer_q='Minh Phát'), follow_redirects=False)
     assert r.status_code == 303
     row = db.get(Equipment, 'AB123')
