@@ -13,14 +13,13 @@
 <span class="hint" data-picked-label>{% if d.customer_code and customer_name %}Đã chọn: {{ d.customer_code }}{% endif %}</span><div class="device-options" aria-live="polite"></div>
 </div>
 <div data-customer-sites aria-live="polite">{% include 'thiet_bi_dia_diem.jinja' %}</div>
-<label>Serial{% if is_new %}<input name="serial" value="{{ d.serial }}" required maxlength="128" autocapitalize="characters">{% else %}<input value="{{ d.serial }}" readonly>{% endif %}</label>
-{% if is_new %}<p class="hint">Serial lưu chữ hoa và bỏ mọi khoảng trắng. Serial đã lưu không đổi.</p>{% endif %}
 <div data-picker>
 <label>Máy (gõ tên hoặc mã; có trong Hàng hóa thì bấm chọn)<input type="search" name="product_q" value="{{ d.get('product_q') or (d.product_code ~ ' · ' ~ product_name if d.product_code else (d.get('model_name') or '')) }}" required maxlength="160" autocomplete="off" placeholder="Ví dụ: Canon LBP 2900, Epson L3110…" data-live=".device-options" data-source="/thiet-bi/tim-hang"></label>
 <input type="hidden" name="product_code" value="{{ d.product_code or '' }}" data-picked-code>
 <span class="hint" data-picked-label>{% if d.product_code and product_name %}Đã chọn: {{ d.product_code }}{% elif d.get('model_name') %}Máy ngoài danh mục: {{ d.model_name }}{% else %}Không chọn dòng nào thì tên đã gõ được lưu là máy ngoài danh mục.{% endif %}</span><div class="device-options" aria-live="polite"></div>
 </div>
-<label>Hỗ trợ tận nơi đến<input type="date" name="support_until" value="{{ d.support_until or '' }}"></label>
+<label>Serial{% if is_new %}<input name="serial" value="{{ d.serial }}" required maxlength="128" autocapitalize="characters">{% else %}<input value="{{ d.serial }}" readonly>{% endif %}</label>
+{% if is_new %}<p class="hint">Serial lưu chữ hoa và bỏ mọi khoảng trắng. Serial đã lưu không đổi.</p>{% endif %}
 <label>Hết bảo hành<input type="date" name="warranty_until" value="{{ d.warranty_until or '' }}"></label>
 <fieldset><legend>Tình trạng</legend><div class="seg stock-seg">
 <label><input type="radio" name="condition" value="MOI" {% if d.condition == 'MOI' %}checked{% endif %}><span>Mới</span></label>

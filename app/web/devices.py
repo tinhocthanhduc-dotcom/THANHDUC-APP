@@ -133,9 +133,13 @@ def _equipment_data(form, session):
         raise BusinessError('PRODUCT_NOT_PICKED', 'Chưa có máy: gõ tên hoặc mã máy, có trong Hàng hóa thì bấm chọn một dòng.')
     if customer is None:
         raise BusinessError('CUSTOMER_NOT_PICKED', 'Chưa chọn khách: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
-    return dict(product_code=product or None, model_name=model_name, customer_code=customer or None,
-                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None,
+    data = dict(product_code=product or None, model_name=model_name, customer_code=customer or None,
+                site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None,
                 condition=str(form.get('condition', 'MOI')), note=str(form.get('note', '')), active=form.get('active') == '1')
+    # Hỗ trợ tận nơi không còn trên form (kho giao máy bán tự ghi); giữ nguyên giá trị đang có khi sửa.
+    if 'support_until' in form:
+        data['support_until'] = form.get('support_until') or None
+    return data
 
 
 @router.post('/thiet-bi/moi')

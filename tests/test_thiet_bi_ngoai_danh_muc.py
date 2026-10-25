@@ -23,8 +23,8 @@ def test_form_is_one_machine_box_with_customer_first(client, web_login, d1_catal
     assert 'Bảo hành đến —' not in page and 'hỗ trợ tận nơi đến —' not in page
     assert 'name="product_q"' in page and 'name="product_source"' not in page and 'name="model_name"' not in page
     assert 'lưu là máy ngoài danh mục' in page
-    # Khách hàng đứng trước serial và máy; địa điểm chỉ hiện khi khách có địa điểm.
-    assert page.index('name="customer_q"') < page.index('name="serial"') < page.index('name="product_q"')
+    # Thứ tự: khách hàng, máy, rồi serial; địa điểm chỉ hiện khi khách có địa điểm.
+    assert page.index('name="customer_q"') < page.index('name="product_q"') < page.index('name="serial"')
     assert 'Địa điểm của khách' not in page
     # Danh sách gợi ý có dòng "Ngoài danh mục" để bấm dùng tên đã gõ.
     options = client.get('/thiet-bi/tim-hang?q=brother+hl').text
@@ -114,3 +114,17 @@ def test_service_intake_new_machine_outside_catalog(client, db, people):
     bad = client.post('/dich-vu/moi', data={**data, 'new_serial': 'DV-NGOAI-2', 'new_product_q': ''})
     assert bad.status_code == 400 and 'Chưa có máy' in bad.text
     assert db.get(Equipment, 'DV-NGOAI-2') is None
+
+
+def test_support_until_hidden_on_form_and_kept_on_edit(client, web_login, d1_catalog, db):
+    from datetime import date
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    assert 'support_until' not in client.get('/thiet-bi/moi').text
+    assert client.post('/thiet-bi/moi', data=device_form(csrf, serial='HT-01'), follow_redirects=False).status_code == 303
+    eq = db.get(Equipment, 'HT-01'); eq.support_until = date(2027, 1, 31); db.commit()
+    # Form sửa không có ô hỗ trợ tận nơi, lưu lại không được xóa ngày kho đã ghi.
+    r = client.post('/thiet-bi/HT-01', data=device_form(csrf, version=eq.version, serial='HT-01', note='Sửa ghi chú'), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    db.expire_all()
+    eq = db.get(Equipment, 'HT-01')
+    assert eq.support_until == date(2027, 1, 31) and eq.note == 'Sửa ghi chú'
