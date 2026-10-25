@@ -2516,7 +2516,8 @@ input::-webkit-date-and-time-value { text-align: left; }
 .month-bar .mb-month { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
 .month-bar .mb-step { width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 700; color: var(--info-solid); text-decoration: none; }
 .month-bar .mb-step.off { color: var(--line); }
-.month-bar .mb-month input, .month-bar .mb-month select { width: auto; min-width: 128px; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 0; margin: 0; text-align: center; font-weight: 700; }
+.month-bar .mb-month { flex: 0 0 auto; }
+.month-bar .mb-month input[type=month], .month-bar .mb-month select, .form .month-bar .mb-month input[type=month] { width: auto; max-width: 170px; flex: 0 0 auto; min-width: 128px; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 0; margin: 0; text-align: center; font-weight: 700; }
 .month-bar .mb-now { font-size: .9rem; font-weight: 600; }
 .month-bar .mb-extra { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: .9rem; }
 .month-bar .mb-extra b { color: var(--text); }
@@ -2529,7 +2530,7 @@ input::-webkit-date-and-time-value { text-align: left; }
 .frame-group h2 { margin: 0; font-size: 1.05rem; }
 .frame-group .fg-note { margin-left: auto; color: var(--muted); font-size: .85rem; }
 .frame-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
-.frame-foot .action-bar, .frame-foot form { margin: 0; }
+.frame-foot .action-bar, .frame-foot form { margin: 0; padding: 0; background: none; border: 0; }
 .legend-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
 .legend-chips span { font-size: .8rem; color: var(--muted); padding: 2px 9px; border-radius: 999px; background: var(--tag); }
 .legend-chips span b { color: var(--text); }
@@ -2552,6 +2553,8 @@ input::-webkit-date-and-time-value { text-align: left; }
 .attendance-board th.ab-today { color: var(--info-solid); }
 .attendance-board .num { text-align: right; padding-right: 12px; }
 .attendance-board .ab-sum { font-weight: 700; }
+.attendance-board .ab-phone-total { display: none; }
+@media (max-width: 600px) { .attendance-board .ab-phone-total { display: table-cell; background: var(--bg); } }
 .attendance-board .ab-sub { display: block; font-size: .8rem; color: var(--muted); font-weight: 400; }
 @media (max-width: 600px) { .attendance-board tr > :first-child { min-width: 110px; max-width: 130px; } .attendance-board th, .attendance-board td { padding: 8px 5px; } }
 /* Duyệt chấm công: mỗi yêu cầu một dòng, Duyệt xanh lá, Từ chối mở ô ghi chú. */
@@ -2615,9 +2618,11 @@ input::-webkit-date-and-time-value { text-align: left; }
 .kpi-table tr.kt-common td { background: var(--bg); }
 .kpi-table input:not([type=hidden]) { min-width: 120px; width: 100%; }
 .kpi-table .field-invalid { border-color: var(--bad); }
+.kpi-target-form { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.kpi-target-form > .table-scroll, .kpi-target-form > .frame-group { border-top: 1px solid var(--line); }
 .kpi-cell { display: grid; gap: 4px; text-decoration: none; color: inherit; }
 .kpi-cell b { font-weight: 700; }
-.kpi-pill { display: inline-block; justify-self: start; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: var(--tag); color: var(--muted); }
+.kpi-pill { display: inline-block; justify-self: start; padding: 1px 8px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: var(--tag); color: var(--muted); white-space: nowrap; }
 .kpi-pill.good { background: var(--ok-bg); color: var(--ok); } .kpi-pill.warn { background: var(--warn-bg); color: var(--warn); } .kpi-pill.bad { background: var(--bad-bg); color: var(--bad); }
 .kpi-cards { padding: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin: 0; }
 .kpi-card { --k: var(--muted); display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; box-shadow: inset 4px 0 0 var(--k); background: var(--surface); }
