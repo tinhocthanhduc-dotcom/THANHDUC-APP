@@ -2524,3 +2524,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 /* Ô ngày/giờ ngoài form chính (bộ lọc Từ/Đến): iOS cho bề rộng riêng nên tràn khung và lệch chữ giữa. */
 input[type=date], input[type=datetime-local], input[type=time], input[type=month] { min-width: 0; max-width: 100%; min-height: 44px; -webkit-appearance: none; appearance: none; }
 input::-webkit-date-and-time-value { text-align: left; }
+
+/* Nhắc chấm công trên màn Hôm nay của thợ: nút nhỏ, nằm cạnh chữ. */
+.tho-screen .tho-clock { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; }
+.tho-screen .tho-clock .btn { min-height: 36px; padding: 6px 14px; font-size: 15px; flex: 0 0 auto; }

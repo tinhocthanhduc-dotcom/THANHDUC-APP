@@ -27,8 +27,13 @@ class Settings(BaseSettings):
     advance_max_pct: int = Field(default=50, ge=0, le=100)
     commission_start: date = date(2027, 1, 1)
     service_warranty_days: int = Field(default=90, ge=0, le=36500)
-    work_start: time = time(8, 0)
+    # Lịch làm việc chuẩn (TUẤN 25/10/2026): sáng 07:30–11:30, chiều 13:30–17:30, thứ 2 – thứ 7,
+    # Chủ nhật và ngày lễ nghỉ (ngày lễ nhập ở Nhân sự > Chấm công > Ngày lễ).
+    work_start: time = time(7, 30)
     work_end: time = time(17, 30)
+    lunch_start: time = time(11, 30)   # cuối ca sáng
+    lunch_end: time = time(13, 30)     # đầu ca chiều
+    punch_early_minutes: int = Field(default=30, ge=0, le=180)  # nút Vào ca hiện trước ca bấy nhiêu phút
     work_days: tuple[int, ...] = (0, 1, 2, 3, 4, 5)  # TD_WORK_DAYS='[0,1,2,3,4,5]', Monday=0
     late_grace_minutes: int = Field(default=10, ge=0, le=120)
     off_hours_start: time = time(6, 0)
@@ -38,13 +43,15 @@ class Settings(BaseSettings):
     def valid_work_schedule(self):
         if self.work_start >= self.work_end or self.off_hours_start >= self.off_hours_end:
             raise ValueError('Giờ bắt đầu phải trước giờ kết thúc')
+        if not self.work_start < self.lunch_start < self.lunch_end < self.work_end:
+            raise ValueError('Giờ nghỉ trưa phải nằm trong giờ làm việc')
         if not self.work_days or any(d < 0 or d > 6 for d in self.work_days):
             raise ValueError('Ngày làm việc từ 0 (thứ 2) đến 6 (Chủ nhật)')
         return self
 
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'
-    slot_sang: str = '08:00-12:00'
+    slot_sang: str = '07:30-11:30'
     slot_chieu: str = '13:30-17:30'
 
     @field_validator('slot_sang', 'slot_chieu')

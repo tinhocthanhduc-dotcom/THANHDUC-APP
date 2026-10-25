@@ -99,7 +99,7 @@ def test_morning_deadline_not_start(client,db,people,monkeypatch):
     p=people;t=scheduled(db,p,'SANG');svc.assign(db,p['dispatcher'],t.id,p['technician'].id,t.version)
     svc.transition(db,p['technician'],t.id,'DA_NHAN',t.version)
     day=t.appointment_at.astimezone(svc.service_sla.TZ)
-    for hour,minute,overdue in ((11,59,False),(12,1,True)):
+    for hour,minute,overdue in ((11,29,False),(11,31,True)):
         now=day.replace(hour=hour,minute=minute);monkeypatch.setattr(svc,'_now',lambda:now);monkeypatch.setattr(dispatch,'_now',lambda:now)
         service_login(client,p['technician']);page=client.get('/tho')
         assert ('service-overdue' in page.text)==overdue and 'Sáng' in page.text
@@ -125,7 +125,7 @@ def test_return_tomorrow_morning_keeps_money_and_stock(client,db,supplied):
     db.expire_all();db.refresh(t)
     assert t.status=='DA_HEN' and t.appointment_slot=='SANG'
     last=db.scalars(select(ServiceVisit).where(ServiceVisit.ticket_id==t.id).order_by(ServiceVisit.id.desc())).first()
-    assert last.outcome=='HEN_LAI' and last.next_appointment_at.astimezone(svc.service_sla.TZ)==NOW.replace(hour=8)+timedelta(days=1)
+    assert last.outcome=='HEN_LAI' and last.next_appointment_at.astimezone(svc.service_sla.TZ)==NOW.replace(hour=7,minute=30)+timedelta(days=1)
     assert [(l.id,l.description,l.unit_price,l.qty) for l in t.lines]==before and balance(db,own.code)==stock
     assert t.priced_at is None and db.query(StockDoc).filter_by(kind='PX').count()==0
 

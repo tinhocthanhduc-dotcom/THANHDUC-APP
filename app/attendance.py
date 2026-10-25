@@ -99,6 +99,21 @@ def _off_hours(session,stamp):
     return clock<cfg.off_hours_start or clock>cfg.off_hours_end or local.weekday() not in cfg.work_days or session.get(Holiday,local.date()) is not None
 
 
+def punch_hint(session,ident,now=None):
+    """Nút gợi ý trên màn Hôm nay của thợ. 'IN' từ trước ca sáng/ca chiều `punch_early_minutes` phút tới cuối ca khi chưa vào ca;
+    'OUT' từ cuối ca sáng (nếu vào ca từ sáng) hoặc từ cuối ca chiều khi còn đang trong ca; None ngoài khung, Chủ nhật/ngày lễ (trừ khi còn trong ca)."""
+    local=(now or _now()).astimezone(TZ);cfg=get_settings();clock=local.time();day=local.date()
+    rows=_punches(session,ident,day);opened=rows[-1] if rows and rows[-1].kind=='IN' else None
+    if opened:
+        in_at=opened.at.astimezone(TZ).time()
+        return 'OUT' if clock>=cfg.work_end or (clock>=cfg.lunch_start and in_at<cfg.lunch_start) else None
+    if day.weekday() not in cfg.work_days or session.get(Holiday,day) is not None:return None
+    early=timedelta(minutes=cfg.punch_early_minutes)
+    def before(t):return (datetime.combine(day,t)-early).time()
+    if before(cfg.work_start)<=clock<cfg.lunch_start or before(cfg.lunch_end)<=clock<cfg.work_end:return 'IN'
+    return None
+
+
 def _punches(session,ident,day):
     start,end=_bounds(day)
     return list(session.scalars(select(Punch).where(Punch.user_id==ident,Punch.at>=start,Punch.at<end).order_by(Punch.at,Punch.id)))

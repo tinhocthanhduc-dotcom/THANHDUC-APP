@@ -233,14 +233,14 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
             href=f'/giao-don/{order.id}?return_to=tho',action=action['primary'],status='CHO_HUY' if cancel_asked else 'GIAO_DON',created=order.created_at,group='upcoming',sort=_schedule(appointment,'DA_HEN',now),**contact(customer,address=order.delivery_address)))
     jobs.sort(key=lambda row:(row['sort'],row['kind'],row['id']))
     day=now.astimezone(service_tickets.service_sla.TZ).date()
-    # Chỉ nhắc, không chặn: thợ có hồ sơ nhân sự mà hôm nay chưa bấm Vào ca.
-    not_clocked_in=session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None and not attendance._punches(session,user.id,day)
+    # Chỉ nhắc, không chặn: thợ có hồ sơ nhân sự thì gợi ý Vào ca (trước ca 30 phút) hoặc Ra ca (từ cuối ca) theo giờ làm việc.
+    punch_hint=attendance.punch_hint(session,user.id,now) if session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None else None
     # Phiếu đã xong/đã đóng còn tiền chưa báo: cùng điều kiện nhóm service_unreported của Việc của tôi.
     t=ServiceTicket;due=my_work._available(t)
     unreported=[dict(id=row.id,number=row.number,status=row.status,customer=row.name,due=int(row.due),href=f'/tho/phieu/{row.id}#thu-tien')
         for row in session.execute(select(t.id,t.number,t.status,Customer.name,due.label('due')).join(Customer,Customer.code==t.customer_code).where(
             t.assignee_id==user.id,t.status.in_(('HOAN_THANH','DA_DONG')),t.billing=='THU_TIEN',t.priced_at.is_not(None),due>0).order_by(t.id))]
-    return render(request,'tho_hom_nay.jinja',jobs=jobs,today=day,not_clocked_in=not_clocked_in,unreported=unreported,
+    return render(request,'tho_hom_nay.jinja',jobs=jobs,today=day,punch_hint=punch_hint,unreported=unreported,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))
 
 
