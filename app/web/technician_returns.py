@@ -19,7 +19,7 @@ def detail(request, session, user, ident, error=None, code='', status=200, shown
     def doc_link(ident):
         return f'/phieu-kho/{ident}' if has_role(user,'warehouse') else f'/hang-toi-giu/phieu/{ident}' if 'technician' in user.roles else None
     return render(request,'tho_tra_hang.jinja',photos=photos,doc_link=doc_link,doc_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_([row.stock_doc_id,row.defect_stock_doc_id]))).all()),row=row,names=dict(session.execute(select(Product.code,Product.name)).all()),
-        doc_url=(f'/phieu-kho/{row.stock_doc_id}' if has_role(user,'warehouse') else f'/hang-toi-giu/phieu/{row.stock_doc_id}' if 'technician' in user.roles else None),statuses=svc.STATUSES,can_receive=has_role(user,'warehouse'),error=error,error_code=code,status=status,d=shown or {},saved=request.query_params.get('da_luu')=='1')
+        doc_url=(f'/phieu-kho/{row.stock_doc_id}' if has_role(user,'warehouse') else f'/hang-toi-giu/phieu/{row.stock_doc_id}' if 'technician' in user.roles else None),statuses=svc.STATUSES,can_receive=has_role(user,'warehouse'),can_cancel=has_role(user,'warehouse','dispatcher') or row.technician_id==user.id,error=error,error_code=code,status=status,d=shown or {},saved=request.query_params.get('da_luu')=='1')
 
 
 def new_form(request,session,user,shown=None,error=None,code='',status=200):

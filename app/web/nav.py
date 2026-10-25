@@ -102,7 +102,8 @@ ROLE_LABELS = {'director': 'Giám đốc', 'finance': 'Kế toán', 'dispatcher'
                'reception': 'Lễ tân', 'technician': 'Kỹ thuật', 'sales': 'Kinh doanh',
                'warehouse': 'Thủ kho', 'admin': 'Quản trị'}
 HOME_PAGES = (('finance', '/tong-quan'), ('dispatcher', '/dieu-phoi'), ('reception', '/dich-vu'),
-              ('technician', '/viec-cua-toi'), ('sales', '/viec-cua-toi'), ('warehouse', '/viec-cua-toi'))
+              ('technician', '/viec-cua-toi'), ('sales', '/viec-cua-toi'), ('warehouse', '/viec-cua-toi'),
+              ('admin', '/tai-khoan'))  # F3: tài khoản chỉ có vai Quản trị không vào Việc của tôi (403)
 
 
 def items():
