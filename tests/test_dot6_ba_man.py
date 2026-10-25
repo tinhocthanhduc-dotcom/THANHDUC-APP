@@ -30,21 +30,39 @@ def test_held_list_shows_customer_fault_place_next_step_and_filters(client, db, 
     assert client.get('/may-dang-giu?location=XYZ&xem=abc').status_code == 200
 
 
-def test_my_work_groups_by_area_and_pulls_overdue_first(client, db, machine):
+def test_my_work_urgent_band_on_top_money_band_collapsed_last(client, db, machine):
     p, eq = machine
     late = service_tickets.create(db, p['dispatcher'], ServiceTicketIn(customer_code='KTD-000001', serial='AB123', kind='MANG_VE', symptom='In mờ'))
     late.due_at = NOW - timedelta(hours=3)
     db.commit()
     service_login(client, p['dispatcher'])
     page = client.get('/viec-cua-toi').text
-    first = page[page.index('class="card work-first"'):page.index('</section>', page.index('class="card work-first"'))]
-    assert late.number in first and 'class="work-item work-overdue"' in first and 'data-work-group' not in first
-    assert 'class="card work-area wk-sv"' in page and 'Quá hạn · làm trước' in page
-    assert 'href="/viec-cua-toi?khu=late"' in page and 'href="/viec-cua-toi?khu=sv"' in page
-    only_late = client.get('/viec-cua-toi?khu=late').text
-    assert 'work-first' in only_late and 'class="card work-area' not in only_late
-    assert 'work-first' not in client.get('/viec-cua-toi?khu=sv').text
-    assert client.get('/viec-cua-toi?khu=xyz').status_code == 200
+    hot = page[page.index('class="card work-now"'):page.index('</section>', page.index('class="card work-now"'))]
+    # Phiếu quá hạn lên khung Làm ngay, ghi trễ bao lâu, không lặp ở khung bên dưới.
+    assert late.number in hot and 'class="work-hot work-overdue"' in hot and 'Trễ 3 giờ' in hot and 'data-work-group' not in hot
+    assert '<span class="t-label">Làm ngay</span>' in page and 'href="/viec-cua-toi?xem=now"' in page and 'href="/viec-cua-toi?khu=sv"' in page
+    only_now = client.get('/viec-cua-toi?xem=now').text
+    assert 'work-now' in only_now and 'work-day' not in only_now and 'work-cash' not in only_now
+    assert 'work-now' in client.get('/viec-cua-toi?khu=late').text
+    assert late.number in client.get('/viec-cua-toi?khu=sv').text
+    assert client.get('/viec-cua-toi?khu=xyz&xem=abc').status_code == 200
+
+
+def test_money_groups_sit_below_and_open_only_when_nothing_urgent(client, db, people, configured_finance):
+    from test_my_work import order, report
+    p = people
+    o = order(db, p, status='DA_GIAO', amount=50000)
+    report(db, p, o, 20000)
+    service_login(client, p['director'])
+    page = client.get('/viec-cua-toi').text
+    money = page.index('class="card work-cash"')
+    assert 'data-work-group="receipts_pending"' in page[money:] and 'data-work-group="orders_unreported"' in page[money:]
+    assert 'work-now' not in page[money:] and 'Tiền · làm sau' in page
+    # Không có việc gấp nào: khung tiền tự mở.
+    if 'class="card work-now"' not in page:
+        assert 'id="tien-lam-sau" open' in page and 'Không có việc gấp' in page
+    else:
+        assert page.index('class="card work-now"') < money
 
 
 def test_service_list_uses_list_frame_without_pink_rows(client, db, machine):

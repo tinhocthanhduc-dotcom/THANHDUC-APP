@@ -2,7 +2,7 @@
 {% import '_ui.jinja' as ui %}
 {% block title %}Việc của tôi{% endblock %}
 {% block main %}
-{# Đợt 6: ô đếm theo phân hệ thay hàng nút lọc; khung "Làm trước" gom việc quá hạn; mỗi phân hệ một khung vạch màu, mỗi việc một dòng gọn. #}
+{# Mẫu ưu tiên: ba khung theo độ gấp. Làm ngay (quá hạn, có hẹn, khách chờ) trên cùng; Trong ngày; Tiền · làm sau gập dưới cùng. #}
 {% macro item(row, verb, kind_label, show_group='') %}<a class="work-item{% if row.overdue %} work-overdue{% endif %}" href="{{ row.link }}">
 <span class="wk-no"><strong>{{ row.number }}</strong>{% if show_group %}<small>{{ show_group }}</small>{% endif %}</span>
 <span class="work-main"><span class="work-who">{{ row.customer }}</span>
@@ -15,11 +15,25 @@
 <span class="wk-money">{% if row.kind in ['quote','order','purchase','receipt','delivery','refund','pending_disposition','pending_supplier_return','supplier_debt'] %}<strong class="work-money">{{ row.amount|money }} đồng</strong>{% endif %}</span>
 <span class="wk-st"><span class="tag">{{ kind_label }}</span>{% if row.overdue %}<small class="wk-late">Quá hạn</small>{% endif %}</span>
 <span class="work-go">{{ verb }} ›</span></a>{% endmacro %}
+{% macro box(group) %}{% set rest = group.rows|rejectattr('overdue')|list %}{% set late_n = group.rows|selectattr('overdue')|list|length %}<div class="work-box" data-work-group="{{ group.key }}">
+<div class="wk-grp"><b>{{ group.title }} · <span class="work-count" data-work-count>{{ group.count - late_n }}</span></b>{% if hints.get(group.key) %}<small>{{ hints[group.key] }}</small>{% endif %}{% if group.count > 5 %}<a class="wk-all" href="{{ group.link }}">Xem tất cả {{ group.count }} ›</a>{% endif %}</div>
+<div class="work-list">{% for row in rest[:5] %}{{ item(row, row.next_label or verbs.get(group.key, 'Mở'), labels[row.kind].get(row.status,row.status)) }}{% endfor %}{% if late_n %}<p class="wk-moved">{{ late_n }} việc quá hạn của nhóm này ở khung Làm ngay.</p>{% endif %}</div>
+</div>{% endmacro %}
+{% macro hot_row(row) %}<a class="work-hot{% if row.red %} work-overdue{% endif %}" href="{{ row.link }}">
+<span class="wh-when"><b>{{ row.when }}</b><small>{{ row.group_title }}</small></span>
+<span class="wh-no">{{ row.number }}</span>
+<span class="work-main"><span class="work-who"><span class="wh-area wa-{{ row.area }}">{{ row.area_name }}</span>{{ row.customer }}</span>
+{% if row.workshop_stage %}<span class="work-sub">{{ row.workshop_serial }} · {{ row.workshop_machine }} · {{ row.workshop_stage }}</span>{% endif %}
+{% if row.address %}<span class="work-sub">{{ row.address }}</span>{% endif %}{% if row.reason %}<span class="work-sub">{{ row.reason }}</span>{% endif %}
+{% if row.kind=='supplier_debt' and row.oldest_debt_date %}<span class="work-sub">Nợ từ {{ row.oldest_debt_date.strftime('%d/%m/%Y') }}</span>{% endif %}
+{% if row.kind=='stock' %}<span class="work-sub">{{ row.warehouse_code }} · Tồn {{ row.qty }} · Mức tối thiểu {{ row.min_qty }}</span>{% endif %}
+{% if row.damaged %}<span class="chip-bad">Hư hỏng · Thợ báo hư</span>{% endif %}</span>
+<span class="wk-money">{% if row.amount %}<strong class="work-money">{{ row.amount|money }} đồng</strong>{% endif %}</span>
+<span class="work-go">{{ row.verb }} ›</span></a>{% endmacro %}
 {% set idle = groups|rejectattr('count')|list %}
 <div class="page-wide work-page">
 {% call ui.page_head('Việc của tôi', sub=('Đang xem một nhóm việc' if selected_group else '')) %}{% if selected_group %}<a class="btn btn-ghost" href="/viec-cua-toi">Tất cả nhóm việc</a>{% elif shortcuts %}<details class="work-new"><summary class="btn btn-new">+ Tạo mới</summary><div class="work-new-menu">{% for label,href in shortcuts %}<a href="{{ href }}" data-work-shortcut>{{ label }}</a>{% endfor %}</div></details>{% endif %}{% endcall %}
-{% if not selected_group %}<p class="hint work-summary"><span class="work-total" data-work-total>Cần làm · {{ total }}</span>{% if first %} · <b class="work-late-n">{{ first|length }} việc quá hạn, làm trước</b>{% endif %} · Bấm vào việc để làm bước tiếp theo. Giờ Việt Nam.</p>{% endif %}
-{% if pending_notices or attendance_pending or advance_pending %}<section class="card"><h2>Cần xử lý</h2>{% if advance_pending %}<p><a href="/tam-ung">Tạm ứng chờ duyệt · {{ advance_pending }} yêu cầu</a></p>{% endif %}{% if attendance_pending %}<p><a href="/cham-cong/duyet">Chấm công chờ duyệt · {{ attendance_pending }} yêu cầu</a></p>{% endif %}{% for kind,label in [('CHO_XU_LY_QUA_HAN','Hàng chờ xử lý quá hạn'),('CHO_NCC_QUA_HAN','Hàng gửi NCC quá hạn')] %}{% if pending_notices.counts.get(kind) %}<p class="alert bad" data-alert-kind="{{ kind }}"><a href="{{ '/cho-xu-ly?view=ncc' if kind=='CHO_NCC_QUA_HAN' else pending_notices[0].link }}">{{ label }} · {{ pending_notices.counts[kind] }} hồ sơ</a></p>{% endif %}{% endfor %}</section>{% endif %}
+{% if not selected_group %}<p class="hint work-summary"><span class="work-total" data-work-total>Cần làm · {{ total }}</span>{% if counts.now %} · <b class="work-late-n">{{ counts.now }} việc làm ngay</b>{% endif %} · Bấm vào việc để làm bước tiếp theo. Giờ Việt Nam.</p>{% endif %}
 {% if notice %}<p class="alert ok" role="status">{{ notice }}</p>{% endif %}
 {% if selected_group %}
 {% for group in groups %}<section class="card work-area work-one" data-work-group="{{ group.key }}">
@@ -28,18 +42,22 @@
 <nav class="bar work-pages" aria-label="Phân trang việc">{% if page>1 %}<a class="btn" href="{{ group.link }}&trang={{ page-1 }}">Trang trước</a>{% endif %}<span>Trang {{ page }}</span>{% if page*group.page_size<group.count %}<a class="btn" href="{{ group.link }}&trang={{ page+1 }}">Trang sau</a>{% endif %}</nav>
 </section>{% endfor %}
 {% else %}
-{% if total %}{{ ui.tiles(tiles, keep_phone=true) }}{% endif %}
-{% if first and area_key in ['', 'late'] %}{% set shown_first = first %}<section class="card work-first" aria-label="Làm trước · quá hạn">
-<div class="wk-area-h"><span class="wk-ico">!</span><b>Làm trước · quá hạn</b><small>Gom từ mọi nhóm việc</small><strong class="wk-n">{{ shown_first|length }}</strong></div>
-<div class="work-list">{% for row in shown_first %}{{ item(row, row.verb, labels[row.kind].get(row.status,row.status), row.group_title) }}{% endfor %}</div>
+{% if total %}{{ ui.tiles(tiles, keep_phone=true) }}
+<nav class="work-chips" aria-label="Lọc theo khu"><span>Lọc theo khu:</span>{% for c in chips %}<a class="work-chip{{ ' on' if c.on }}{{ ' wc-'~c.key if c.key }}" href="{{ c.href }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.label }}</a>{% endfor %}</nav>{% endif %}
+{% if view in ['', 'now'] and hot %}<section class="card work-now" id="lam-ngay" aria-label="Làm ngay">
+<div class="wk-band-h"><span class="wk-ico">!</span><b>Làm ngay</b><small>Quá hạn, có hẹn, khách đang chờ · trễ nhất lên đầu</small><strong class="wk-n">{{ counts.now }}</strong></div>
+<div class="work-list">{% for row in hot %}{{ hot_row(row) }}{% endfor %}</div>
+{% if now_more %}<p class="wk-more">Xem tất cả: {% for g in now_more %}<a href="{{ g.link }}">{{ g.title }} · {{ g.count }}</a>{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+</section>{% elif view in ['', 'now'] and total and counts.now == 0 %}<p class="work-calm">✓ Không có việc gấp.{% if counts.money %} Phần tiền bên dưới làm khi rảnh.{% endif %}</p>{% endif %}
+{% if view in ['', 'day'] and not selected_group %}{% if pending_notices or attendance_pending or advance_pending %}<section class="card"><h2>Cần xử lý</h2>{% if advance_pending %}<p><a href="/tam-ung">Tạm ứng chờ duyệt · {{ advance_pending }} yêu cầu</a></p>{% endif %}{% if attendance_pending %}<p><a href="/cham-cong/duyet">Chấm công chờ duyệt · {{ attendance_pending }} yêu cầu</a></p>{% endif %}{% for kind,label in [('CHO_XU_LY_QUA_HAN','Hàng chờ xử lý quá hạn'),('CHO_NCC_QUA_HAN','Hàng gửi NCC quá hạn')] %}{% if pending_notices.counts.get(kind) %}<p class="alert bad" data-alert-kind="{{ kind }}"><a href="{{ '/cho-xu-ly?view=ncc' if kind=='CHO_NCC_QUA_HAN' else pending_notices[0].link }}">{{ label }} · {{ pending_notices.counts[kind] }} hồ sơ</a></p>{% endif %}{% endfor %}</section>{% endif %}{% endif %}
+{% if view in ['', 'day'] and day %}<section class="card work-day" id="trong-ngay" aria-label="Trong ngày">
+<div class="wk-band-h"><span class="wk-ico">◷</span><b>Trong ngày</b><small>Cần làm hôm nay, chưa trễ</small><strong class="wk-n">{{ counts.day }}</strong></div>
+{% for group in day %}{{ box(group) }}{% endfor %}
 </section>{% endif %}
-{% if area_key != 'late' %}{% for a in areas if a.groups and (not area_key or area_key == a.key) %}<section class="card work-area wk-{{ a.key }}" aria-label="{{ a.name }}">
-<div class="wk-area-h"><b>{{ a.name }}</b><small>{{ a.hint }}</small><strong class="wk-n">{{ a.count }}</strong></div>
-{% for group in a.groups %}{% set rest = group.rows|rejectattr('overdue')|list %}{% set late_n = group.rows|selectattr('overdue')|list|length %}<div class="work-box" data-work-group="{{ group.key }}">
-<div class="wk-grp"><b>{{ group.title }} · <span class="work-count" data-work-count>{{ group.count }}</span></b>{% if hints.get(group.key) %}<small>{{ hints[group.key] }}</small>{% endif %}{% if group.count > 5 %}<a class="wk-all" href="{{ group.link }}">Xem tất cả {{ group.count }} ›</a>{% endif %}</div>
-<div class="work-list">{% for row in rest[:5] %}{{ item(row, row.next_label or verbs.get(group.key, 'Mở'), labels[row.kind].get(row.status,row.status)) }}{% endfor %}{% if late_n %}<p class="wk-moved">{{ late_n }} việc quá hạn của nhóm này ở khung Làm trước.</p>{% endif %}</div>
-</div>{% endfor %}
-</section>{% endfor %}{% endif %}
+{% if view in ['', 'money'] and money %}<details class="card work-cash" id="tien-lam-sau"{% if money_open %} open{% endif %}>
+<summary class="wk-band-h"><span class="wk-ico">₫</span><b>Tiền · làm sau</b><span class="wk-sum">{% for g in money %}<span>{{ g.title }} · {{ g.count - g.rows|selectattr('overdue')|list|length }}</span>{% endfor %}</span><strong class="wk-n">{{ counts.money }}</strong><span class="wk-toggle" aria-hidden="true"></span></summary>
+{% for group in money %}{{ box(group) }}{% endfor %}
+</details>{% endif %}
 {% if groups and not total %}<section class="card work-clear"><h2>Đã xử lý hết việc</h2><p>Không có việc nào đang chờ bạn lúc này.</p></section>{% elif not groups %}<p class="card">Không có nhóm việc phù hợp với vai trò hiện tại.</p>{% endif %}
 {% if idle %}<details class="card work-idle"><summary>Nhóm không có việc · {{ idle|length }}</summary><ul>{% for group in idle %}<li><a href="{{ group.link }}">{{ group.title }}</a> · 0</li>{% endfor %}</ul></details>{% endif %}
 {% endif %}
