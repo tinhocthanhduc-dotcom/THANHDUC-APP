@@ -150,9 +150,9 @@ def test_role_page_groups_and_no_redirect(client, db, people, role, required):
 def test_admin_default_no_500_and_no_business_menu(client, make_user, db):
     user=make_user('u2.admin','admin')
     assert nav.work_url(user)=='/viec-cua-toi'
-    response=client.post('/dang-nhap',data={'username':user.username,'password':PASSWORD})
-    assert response.status_code==403  # U1 không cấp quyền nghiệp vụ cho admin-only.
-    assert client.get('/viec-cua-toi').status_code==403
+    response=client.post('/dang-nhap',data={'username':user.username,'password':PASSWORD},follow_redirects=False)
+    assert response.status_code==303 and response.headers['location']=='/tai-khoan'  # F3: trang đích quản trị, không rơi vào 403.
+    assert client.get('/viec-cua-toi').status_code==403  # U1 không cấp quyền nghiệp vụ cho admin-only.
     assert svc.collect(db,user)==[]
 
 
