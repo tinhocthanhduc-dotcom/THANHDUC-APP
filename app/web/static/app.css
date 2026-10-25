@@ -696,7 +696,7 @@ a.tho-job:active { transform: scale(.99); }
 .tho-money { font-size: 32px; font-weight: 800; letter-spacing: -.01em; }
 .tho-app .stock-actions.tho-hang-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom)); z-index: 19; width: 100%; max-width: 560px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 16px; margin: 0; background: var(--bg); border-top: 2px solid var(--line); }
 .tho-app .stock-actions.tho-hang-actions .btn { min-height: 52px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 800; border-radius: 14px; }
-body.tho-app:has(.tho-hang-actions) main { padding-bottom: 180px; }
+body.tho-app:has(.tho-hang-actions) main { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
 .tho-stock-row .tho-qty small { font-size: 13px; font-weight: 700; color: var(--muted); }
 .tho-app [data-customer-charge] .stock-actions button, .tho-app .fill-chips .chip-btn { min-height: 48px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--text); padding: 0 14px; font-weight: 700; }
 .tho-app [data-customer-charge] input { font-size: 26px; font-weight: 800; text-align: right; min-height: 56px; border: 2px solid var(--text); border-radius: 12px; }
@@ -1441,7 +1441,7 @@ a.list-tile:hover { border-color: var(--accent); }
   .list-tabs span { white-space: nowrap; }
   .list-search { width: 100%; order: 1; }
   .list-selects { order: 3; margin: 0 0 6px; flex-basis: 100%; }
-  .list-selects label, .list-selects select { flex: 1; max-width: none; }
+  .list-selects label, .list-selects select { flex: 1; min-width: 0; max-width: none; }
   .list-tile strong { font-size: 1.25rem; }
 }
 
@@ -2043,7 +2043,7 @@ main:has(> .page-mid) { max-width: 752px; }
 .serial-boxes{display:grid;gap:8px;margin-block:8px}.serial-boxes input{min-width:0;width:100%;box-sizing:border-box}
 .recv-form > .action-bar{margin-inline:0;min-width:0}
 /* ===== Đợt 2: khung danh sách (khuôn 3) ===== */
-.list-frame { padding: 0; overflow: hidden; display: grid; }
+.list-frame { padding: 0; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); }
 .list-frame > .filter-chips { padding: 0 14px 12px; }
 .ltabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .ltab { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; text-decoration: none; white-space: nowrap; }
@@ -2459,3 +2459,14 @@ img.delivery-photo { display: block; width: 100%; height: auto; max-height: 70vh
   .part-table .part-next { min-width: 0; }
   .part-table .part-supply button { flex: 1 1 auto; min-height: 48px; }
 }
+
+/* iPhone (kiểm trên iPhone 11, 25/10): viewport-fit=cover để env(safe-area-inset-*) có giá trị thật,
+   thanh tab dưới không nằm dưới vạch vuốt; khi xoay ngang, chừa chỗ tai thỏ hai bên. */
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+/* Safari iOS tự phóng to trang khi chạm ô nhập chữ nhỏ hơn 16px và không thu lại; máy cảm ứng giữ ô nhập tối thiểu 16px. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea { font-size: max(16px, 1em) !important; }
+}
+/* Ô ngày/giờ ngoài form chính (bộ lọc Từ/Đến): iOS cho bề rộng riêng nên tràn khung và lệch chữ giữa. */
+input[type=date], input[type=datetime-local], input[type=time], input[type=month] { min-width: 0; max-width: 100%; min-height: 44px; -webkit-appearance: none; appearance: none; }
+input::-webkit-date-and-time-value { text-align: left; }
