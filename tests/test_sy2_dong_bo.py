@@ -52,6 +52,6 @@ def test_commission_finance_without_locked_month_sees_waiting_state(client, db, 
 
 def test_f8_scroll_frames_are_positioned():
     css = Path('app/web/static/app.css').read_text(encoding='utf-8')
-    for cls in ('.payroll-scroll{', '.commission-scroll{', '.table-scroll {'):
+    for cls in ('.table-scroll {',):  # Đợt A2: bảng lương và hoa hồng dùng chung .table-scroll
         rule = css[css.index(cls):]
         assert 'position' in rule[:rule.index('}')] and 'relative' in rule[:rule.index('}')], cls
