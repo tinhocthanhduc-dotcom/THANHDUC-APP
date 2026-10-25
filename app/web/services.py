@@ -361,11 +361,11 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q", "new_machine_source", "new_model_name")}
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q")}
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
         new_machine=service_machines.intake(form)
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','new_machine_source','new_model_name')},
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
         assignee=str(form.get('assignee_id','')).strip()
         if assignee:

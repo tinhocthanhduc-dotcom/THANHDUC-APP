@@ -116,6 +116,13 @@ document.addEventListener('submit', function(event) {
 window.addEventListener('pageshow', function(event) {
   if (event.persisted && document.querySelector('form[data-submitting]')) location.reload();
 });
+// Bàn phím điện thoại: khi đang gõ vào ô nhập thì ẩn thanh menu dưới (iOS đẩy thanh cố định lên trên bàn phím).
+(function() {
+  var timer;
+  function typing(el) { return el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), textarea, select, [contenteditable]'); }
+  document.addEventListener('focusin', function(e) { if (!typing(e.target)) return; clearTimeout(timer); document.body.classList.add('kb-open'); });
+  document.addEventListener('focusout', function(e) { if (!typing(e.target)) return; clearTimeout(timer); timer = setTimeout(function() { if (!typing(document.activeElement)) document.body.classList.remove('kb-open'); }, 150); });
+})();
 // Tìm sống dùng chung cho danh sách và ô tìm/chọn hàng.
 window.bindLive = function(input) {
   if (input.dataset.liveBound) return;
