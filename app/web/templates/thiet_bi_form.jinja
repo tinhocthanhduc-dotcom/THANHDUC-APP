@@ -21,6 +21,7 @@
 <label>Serial{% if is_new %}<input name="serial" value="{{ d.serial }}" required maxlength="128" autocapitalize="characters">{% else %}<input value="{{ d.serial }}" readonly>{% endif %}</label>
 {% if is_new %}<p class="hint">Serial lưu chữ hoa và bỏ mọi khoảng trắng. Serial đã lưu không đổi.</p>{% endif %}
 <label>Hết bảo hành<input type="date" name="warranty_until" value="{{ d.warranty_until or '' }}"></label>
+{% if d.get('support_until') %}<p class="hint">Hỗ trợ tận nơi đến {{ d.support_until|day_label }} (kho ghi khi giao máy bán).</p>{% endif %}
 <fieldset><legend>Tình trạng</legend><div class="seg stock-seg">
 <label><input type="radio" name="condition" value="MOI" {% if d.condition == 'MOI' %}checked{% endif %}><span>Mới</span></label>
 <label><input type="radio" name="condition" value="CU" {% if d.condition == 'CU' %}checked{% endif %}><span>Cũ</span></label>
