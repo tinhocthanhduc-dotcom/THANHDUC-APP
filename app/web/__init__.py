@@ -125,8 +125,11 @@ def _viewer(ctx):
 @jinja2.pass_context
 def _can_open(ctx, path):
     """F2: chỉ render link khi người xem mở được trang đích; không thì hiện chữ tĩnh."""
+    target = path.split("#")[0].split("?")[0]
+    if not target:
+        return True  # Neo trong trang (#…) hoặc lọc trên chính trang này: luôn mở được.
     user = _viewer(ctx)
-    return bool(user) and nav.allowed(user, path.split("#")[0].split("?")[0])
+    return bool(user) and nav.allowed(user, target)
 
 
 @jinja2.pass_context
