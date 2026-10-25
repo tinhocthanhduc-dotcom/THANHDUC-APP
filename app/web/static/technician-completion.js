@@ -116,6 +116,12 @@
       update();
     });
     document.addEventListener("tech-photo-change", update);
+    // Lỗi chạy thử 25/10: chọn Loại dịch vụ lưu tại chỗ (service-kind.js) nhưng mục "Đã chọn loại dịch vụ" vẫn ✗, khóa nút Hoàn thành.
+    document.addEventListener("service-kind-saved", (e) => {
+      const check = document.querySelector("[data-check=kind]");
+      if (check) check.dataset.ok = e.detail && e.detail.ok === false ? "0" : "1";
+      update();
+    });
     update();
   }
   document.querySelectorAll("[data-failure-options]").forEach((box) => {
