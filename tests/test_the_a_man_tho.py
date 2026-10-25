@@ -37,8 +37,10 @@ def test_working_ticket_has_bottom_bar_and_swipe_to_complete(client, db, held):
     tones = {label: tone for tone, label in swipe_buttons(html)}
     assert tones.get('Vuốt để đóng phiếu: Không làm được') == 'danger'
     assert tones.get('Vuốt để Chuyển thợ') == 'info'
-    # Chip điền nhanh lý do cho ô ghi chú, ô lý do miễn phí và lý do chuyển thợ.
-    assert 'data-fill="note"' in html and 'data-fill="free_reason"' in html and 'data-fill="reason"' in html
+    # Chip điền nhanh lý do cho ô ghi chú và lý do chuyển thợ.
+    # TUẤN 25/10: Miễn phí chỉ cần bấm, không còn chip lý do miễn phí (xem test_tho_mien_phi_gon).
+    assert 'data-fill="note"' in html and 'data-fill="reason"' in html
+    assert 'data-fill="free_reason"' not in html
 
 
 def test_assigned_ticket_primary_is_tap_not_swipe(client, db, held):
