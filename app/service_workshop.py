@@ -120,7 +120,10 @@ def workshop_repaired(session,user,ident,version,repaired_by,mode,reason,fault,f
 
 def check_handover_record(session,t):
     """Trả máy sửa ở xưởng cần một ảnh: ảnh biên bản riêng hoặc ảnh trả máy chụp kèm biên bản đã ký (TUẤN 24/10)."""
-    if t.declined_at is not None or t.warranty_months is not None:
+    # Chỉ phiếu đã chốt ở xưởng (Sửa xong hoặc Khách không sửa). Sửa tại chỗ giờ cũng ghi tháng bảo hành (TUẤN 24/10)
+    # nên không dựa vào warranty_months, nếu không phiếu sửa tại chỗ bị đòi ảnh trả máy và không hoàn thành được.
+    from .service_charges import return_locked
+    if return_locked(t):
         from .attachments import has_visible
         if not has_visible(session,'service_ticket',t.id,'BIEN_BAN'):
             custody._photo(session,t.id,'TRA_MAY')

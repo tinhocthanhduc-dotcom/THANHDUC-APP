@@ -33,3 +33,20 @@ def test_bad_months_rolls_back(client, db, job, months):
     before = snapshot(db, t)
     r = post(client, t, form)
     assert r.status_code == 400 and 'WARRANTY_REQUIRED' in r.text and snapshot(db, t) == before
+
+
+def test_only_after_photos_complete_with_warranty(client, db, held):
+    # Lỗi chạy thử DV-26-00027 (25/10): đủ 2 ảnh nghiệm thu, không có ảnh biên bản, chọn 1 tháng bảo hành
+    # vẫn báo "Cần chụp ảnh sau sửa": kiểm tra ảnh trả máy của xưởng bắt nhầm phiếu sửa tại chỗ.
+    from app import attachments
+    from test_my_work import ticket
+    from test_web import d5_image
+    p, _, _ = held
+    transfer(db, p)
+    t = ticket(db, p, 'DANG_LAM')
+    for name in ('sau-1.png', 'sau-2.png'):
+        attachments.add(db, p['technician'], 'service_ticket', str(t.id), 'SAU', name, d5_image())
+    r = post(client, t, data(client, p, t, warranty_months='1'))
+    assert r.status_code == 303, r.text[:300]
+    db.expire_all()
+    assert t.status in ('HOAN_THANH', 'DA_DONG') and t.warranty_months == 1
