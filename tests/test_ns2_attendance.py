@@ -93,10 +93,10 @@ def test_web_server_time_ignores_fake_browser_clock_and_no_gps_still_works(clien
 
 
 def test_late_early_missing_out_then_approved_supplement(db,p,clock):
-    tap(db,p,clock,'IN','2026-11-02T08:09');tap(db,p,clock,'OUT','2026-11-02T17:00')
+    tap(db,p,clock,'IN','2026-11-02T07:39');tap(db,p,clock,'OUT','2026-11-02T17:00')
     data=svc.day_summary(db,p['technician'].id,DAY)
     assert data['late_minutes']==0 and data['early_minutes']==30 and data['cong']==1
-    tap(db,p,clock,'IN','2026-11-03T08:11');clock['at']=stamp('2026-11-03T19:00')
+    tap(db,p,clock,'IN','2026-11-03T07:41');clock['at']=stamp('2026-11-03T19:00')
     data=svc.day_summary(db,p['technician'].id,DAY+timedelta(days=1))
     assert data['status']=='THIEU_GIO_RA' and data['late_minutes']==11 and data['cong']==0
     row=req(db,p,'BO_SUNG_RA',punch_at='2026-11-03T17:30');svc.approve(db,p['director'],row.id,row.version)
@@ -201,7 +201,7 @@ def test_vietnam_day_boundary_off_hours_and_immutable_sql(db,p,clock):
 
 
 def test_month_board_csv_same_totals_and_finance_read_only(client,db,p,clock):
-    tap(db,p,clock,'IN','2026-11-02T08:11');tap(db,p,clock,'OUT','2026-11-02T17:00')
+    tap(db,p,clock,'IN','2026-11-02T07:41');tap(db,p,clock,'OUT','2026-11-02T17:00')
     leave(db,p,start=date(2026,11,3),end=date(2026,11,3));svc.set_holiday(db,p['director'],'2026-11-04','Lễ')
     clock['at']=stamp('2026-11-30T23:59');total=svc.month_summary(db,p['technician'].id,DAY)
     assert total['cong']==3 and total['work_days']==1 and total['holiday_days']==1 and total['paid_leave_days']==1

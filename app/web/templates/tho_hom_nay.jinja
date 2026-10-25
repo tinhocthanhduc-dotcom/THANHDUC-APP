@@ -4,7 +4,8 @@
 {% block title %}Hôm nay{% endblock %}
 {% block main %}<div class="tho-screen tho-list"><h1 class="tho-dup">Hôm nay · {{ today.strftime('%d/%m/%Y') }}</h1>
 <p class="tho-date">{{ weekdays[today.weekday()] }} {{ today.strftime('%d/%m') }} · {{ jobs|length }} việc đang mở</p>
-{% if not_clocked_in %}<p class="alert bad tho-clock" role="status" data-not-clocked-in>Bạn chưa vào ca hôm nay. <a class="btn btn-ok" href="/cham-cong">Vào ca</a></p>{% endif %}
+{% if punch_hint=='IN' %}<p class="alert bad tho-clock" role="status" data-not-clocked-in data-punch-hint="IN">Bạn chưa vào ca. <a class="btn btn-ok" href="/cham-cong">Vào ca</a></p>
+{% elif punch_hint=='OUT' %}<p class="alert warn tho-clock" role="status" data-punch-hint="OUT">Hết ca, nhớ bấm ra ca. <a class="btn btn-danger" href="/cham-cong">Ra ca</a></p>{% endif %}
 {% if unreported %}<h2 class="tho-grp" data-unreported-title>Còn tiền chưa báo · {{ unreported|length }} phiếu</h2>
 <div class="tho-jobs">{% for row in unreported %}<a class="card tho-job tho-unreported" href="{{ row.href }}" data-unreported="{{ row.id }}">
 <span class="cardtop"><span>{{ row.number }}</span><span class="tag tone-{{ tones.get(row.status,'mute') }}">{{ service_statuses[row.status] }}</span></span>
