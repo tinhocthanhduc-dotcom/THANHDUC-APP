@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .. import part_requests as svc, products, technician_stock
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import PartRequest, Product, ServiceTicket, StockBalance, StockDoc, User, Warehouse
+from ..models import PartRequest, Product, ServiceTicket, StockDoc, User, Warehouse
 from ..schemas import PartRequestIn, PartStockIn
 from ..security import has_role
 from . import checked_form, render, web_user
@@ -17,8 +17,11 @@ router = APIRouter()
 
 
 def _stocks(session, codes, warehouses):
-    return {(r.warehouse_code, r.product_code): r.qty for r in session.scalars(select(StockBalance).where(
-        StockBalance.product_code.in_(codes), StockBalance.warehouse_code.in_(warehouses)))}
+    """F6 (báo cáo đồng bộ 25/10/2026): số hiện và nút Cấp dùng khả dụng của lõi (tồn − đã giữ cho đơn), không dùng tồn vật lý.
+    Lõi vẫn chặn RESERVED_STOCK lần hai khi cấp; đây chỉ là gợi ý đọc từ cùng một hàm."""
+    from .. import stock_reservations
+    found = stock_reservations.quantities(session, [(w, c) for w in warehouses for c in codes])
+    return {key: dict(qty=v['qty'], reserved=v['reserved'], available=max(v['available'], 0)) for key, v in found.items()}
 
 
 def detail_context(session, user, ticket, shown=None):
@@ -130,7 +133,7 @@ def _queue(request, session, user, error=None, code='', status=200, failed_id=No
     customers = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in tickets.values()}))).all()) if tickets else {}
     stocks = _stocks(session, list(names), [w.code for w in warehouses]) if names else {}
     tech = lambda r: tickets[r.ticket_id].assignee_id if r.ticket_id and r.ticket_id in tickets else r.requester_id
-    enough = lambda r: any(stocks.get((w.code, r.product_code), 0) >= r.qty for w in warehouses)
+    enough = lambda r: any(stocks.get((w.code, r.product_code), {}).get('available', 0) >= r.qty for w in warehouses)
 
     def matches(r):
         if loai and (loai == 'phieu') != bool(r.ticket_id):
