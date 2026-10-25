@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments, attendance, my_work, service_appointments, service_tickets, technician_stock, work_watch
+from .. import attachments, attendance, equipment as equipment_svc, my_work, service_appointments, service_tickets, technician_stock, work_watch
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, CustomerSite, Employee, Equipment, Product, SalesOrder, ServiceTicket, User
@@ -77,7 +77,7 @@ def detail_context(session, user, ticket, ctx):
     ctx['charge_default_warehouse'] = warehouse.code if warehouse else ''
     ctx.update(can_assign=False,can_hide=False,can_relink=False,can_decide=False,can_void=False,can_view_receipt_receivables=False)
     eq = session.get(Equipment,ticket.serial) if ticket.serial else None
-    product = session.get(Product,eq.product_code) if eq else None
+    product = session.get(Product,eq.product_code) if eq and eq.product_code else None
     from .. import technician_work
     from ..config import get_settings,DEFAULT_VAT_RATE
     from ..models import StockBalance
@@ -180,8 +180,8 @@ def detail_context(session, user, ticket, ctx):
                 ServiceTicket.assignee_id==ticket.assignee_id).order_by(ServiceTicket.id)):
             ceq=session.get(Equipment,child.serial) if child.serial else None
             if ceq is None or ceq.custody_location!='TAI_KHACH':continue
-            cp=session.get(Product,ceq.product_code)
-            trip_machines.append(dict(t=child,eq=ceq,name=cp.name if cp else '',
+            cp=session.get(Product,ceq.product_code) if ceq.product_code else None
+            trip_machines.append(dict(t=child,eq=ceq,name=equipment_svc.display_name(ceq,cp),
                 files=attachments.list_for(session,user,'service_ticket',str(child.id))+attachments.list_for(session,user,'equipment_custody',str(child.id))))
     if workshop_repair:
         primary=dict(form='workshop-handover',label='Bàn giao máy về xưởng')
@@ -192,7 +192,7 @@ def detail_context(session, user, ticket, ctx):
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
     return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
-        machine_name=product.name if product else '',**contact(ctx['customer'],ctx['site']))
+        machine_name=equipment_svc.display_name(eq,product) if eq else '',**contact(ctx['customer'],ctx['site']))
 
 
 def _schedule(appointment,status,now):
@@ -205,7 +205,7 @@ def _schedule(appointment,status,now):
 @router.get('/tho')
 def today(request:Request,user:User=Depends(technician_user),session:Session=Depends(get_session)):
     now=service_tickets._now(); jobs=[]
-    rows=session.execute(select(ServiceTicket,Customer,CustomerSite,Product.name).join(Customer,Customer.code==ServiceTicket.customer_code)
+    rows=session.execute(select(ServiceTicket,Customer,CustomerSite,equipment_svc.name_column()).join(Customer,Customer.code==ServiceTicket.customer_code)
         .outerjoin(CustomerSite,CustomerSite.id==ServiceTicket.site_id).outerjoin(Equipment,Equipment.serial==ServiceTicket.serial)
         .outerjoin(Product,Product.code==Equipment.product_code).where(ServiceTicket.assignee_id==user.id,ServiceTicket.status.in_(service_tickets.OPEN),~((ServiceTicket.status=='TAM_DUNG')&(ServiceTicket.hold_reason=='CHO_SUA_XUONG')))).all()
     for ticket,customer,site,machine in rows:

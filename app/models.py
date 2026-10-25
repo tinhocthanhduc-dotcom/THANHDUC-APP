@@ -554,11 +554,14 @@ class Equipment(Base):
         CheckConstraint("condition in ('MOI','CU')", name="ck_equipment_condition"),
         CheckConstraint("custody_location in ('TAI_KHACH','THO_GIU','KHO_KY_THUAT','DOI_TAC')", name="ck_equipment_custody_location"),
         CheckConstraint("(custody_location = 'THO_GIU') = (custody_holder_id is not null)", name="ck_equipment_custody_holder"),
+        CheckConstraint("product_code is not null or model_name <> ''", name="ck_equipment_model"),
         Index("ix_equipment_search", "search_text", postgresql_using="gin", postgresql_ops={"search_text": "gin_trgm_ops"}),
     )
 
     serial: Mapped[str] = mapped_column(String(64), primary_key=True)
-    product_code: Mapped[str] = mapped_column(ForeignKey("products.code"))
+    # Máy không có trong Hàng hóa (loại công ty không bán): product_code trống, tên máy ghi ở model_name.
+    product_code: Mapped[str | None] = mapped_column(ForeignKey("products.code"))
+    model_name: Mapped[str] = mapped_column(String(160), default="", server_default="")
     customer_code: Mapped[str | None] = mapped_column(ForeignKey("customers.code"), index=True)
     site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
     warranty_until: Mapped[date | None] = mapped_column(Date)

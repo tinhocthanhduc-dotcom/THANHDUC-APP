@@ -187,5 +187,5 @@ def devices_page(request, session, user, q='', tt='', bh='', o='', trang='', so=
             dict(label='Tất cả', n=len(found), href=link(tt='tat-ca'), on=tt == 'tat-ca')]
     chips = [dict(label=label, href=link(**{key: ''})) for key, label in (('bh', WARRANTY.get(bh, '')), ('o', 'Chưa gắn khách' if o == 'CHUA_GAN' else 'Đang ở: ' + LOCATIONS.get(o, ''))) if query.get(key)]
     return render(request, 'thiet_bi_ds.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, q=q, tt=tt, bh=bh, o=o,
-                  warranty=warranty, place=place, warranties=WARRANTY, locations=LOCATIONS, tickets=tickets, product_names=products,
+                  warranty=warranty, place=place, warranties=WARRANTY, locations=LOCATIONS, tickets=tickets, product_names={**products, None: ''},
                   customer_names=customers, sites=sites, holders=holders, held_tickets=held_tickets, today=today, can_device_write=can_write)

@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, service_appointments, service_charges, service_visits, service_warranty, technician_returns
+from .. import attachments, equipment, service_appointments, service_charges, service_visits, service_warranty, technician_returns
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -134,7 +134,7 @@ def _list_rows(session, rows):
     site_ids = {t.site_id for t in rows if t.site_id}
     sites = dict(session.execute(select(CustomerSite.id, CustomerSite.name).where(CustomerSite.id.in_(site_ids))).all()) if site_ids else {}
     serials = {t.serial for t in rows if t.serial}
-    machines = dict(session.execute(select(Equipment.serial, Product.name).join(Product, Product.code == Equipment.product_code)
+    machines = dict(session.execute(select(Equipment.serial, equipment.name_column()).outerjoin(Product, Product.code == Equipment.product_code)
                                     .where(Equipment.serial.in_(serials))).all()) if serials else {}
     return customers, phones, sites, machines
 
@@ -361,11 +361,11 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q")}
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q", "new_machine_source", "new_model_name")}
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
         new_machine=service_machines.intake(form)
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q')},
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','new_machine_source','new_model_name')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
         assignee=str(form.get('assignee_id','')).strip()
         if assignee:
@@ -623,13 +623,14 @@ def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web
     from ..models import CustomerSite, Equipment, Product
     t = svc.load(session, user, ticket_id)
     machine = session.get(Equipment, t.serial) if t.serial else None
-    product = session.get(Product, machine.product_code) if machine else None
+    product = session.get(Product, machine.product_code) if machine and machine.product_code else None
     completion = next((step for step in reversed(t.steps) if step.to_status == "HOAN_THANH"), None)
     last = t.steps[-1] if t.steps else None
     photos = [a for a in attachments.list_for(session, user, "service_ticket", str(t.id))
               if a.tag == "SAU" and a.content_type.startswith("image/")]
     return render(request, "dich_vu_bien_ban.jinja", t=t, customer=session.get(Customer, t.customer_code),
                   site=session.get(CustomerSite, t.site_id) if t.site_id else None, product=product,
+                  machine_name=equipment.display_name(machine, product) if machine else '',
                   technician=session.get(User, t.assignee_id) if t.assignee_id else None,
                   work_note=completion.note if completion and t.status in ('HOAN_THANH','DA_DONG') else last.note if last else "",
                   completed_at=completion.at if completion else None, photos=photos,warranty_terms=service_warranty.terms(session,t))

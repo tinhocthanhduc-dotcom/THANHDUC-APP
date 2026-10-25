@@ -1,11 +1,20 @@
 <fieldset class="machine-new-fields" data-machine-new-fields {% if not new_machine_selected %}hidden disabled{% endif %}>
 <label>Serial máy mới<input name="new_serial" value="{{ mf.get('new_serial','') }}" required maxlength="64" autocomplete="off" {% if error_code=='DUPLICATE_SERIAL' or (error_code=='BAD_FORM' and 'Serial' in (error or '')) %}aria-invalid="true"{% endif %}></label>
 {% if error_code=='DUPLICATE_SERIAL' or (error_code=='BAD_FORM' and 'Serial' in (error or '')) %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
-<div data-picker data-machine-product-picker>
-<label>Hàng (gõ tên hoặc mã rồi bấm chọn)<input type="search" name="new_product_q" value="{{ mf.get('new_product_q') or mf.get('new_product_code','') }}" required autocomplete="off" placeholder="Tìm mã hoặc tên hàng…" data-live=".machine-product-options" data-source="/thiet-bi/tim-hang" {% if error_code=='BAD_PRODUCT' %}aria-invalid="true"{% endif %}></label>
-<input type="hidden" name="new_product_code" value="{{ mf.get('new_product_code','') }}" data-machine-product-code>
+{% set new_source = 'TEN' if mf.get('new_machine_source')=='TEN' else 'DM' %}
+<div class="field-group" role="group" aria-label="Loại máy"><p class="group-label">Máy</p><div class="seg stock-seg" data-machine-source>
+<label><input type="radio" name="new_machine_source" value="DM" {% if new_source=='DM' %}checked{% endif %}><span>Có trong Hàng hóa</span></label>
+<label><input type="radio" name="new_machine_source" value="TEN" {% if new_source=='TEN' %}checked{% endif %}><span>Không có trong danh mục</span></label>
+</div></div>
+<div data-picker data-machine-product-picker data-machine-source-block="DM" {% if new_source!='DM' %}hidden{% endif %}>
+<label>Hàng (gõ tên hoặc mã rồi bấm chọn)<input type="search" name="new_product_q" value="{{ mf.get('new_product_q') or mf.get('new_product_code','') }}" required autocomplete="off" placeholder="Tìm mã hoặc tên hàng…" data-live=".machine-product-options" data-source="/thiet-bi/tim-hang" {% if new_source!='DM' %}disabled{% endif %} {% if error_code=='BAD_PRODUCT' %}aria-invalid="true"{% endif %}></label>
+<input type="hidden" name="new_product_code" value="{{ mf.get('new_product_code','') }}" data-machine-product-code {% if new_source!='DM' %}disabled{% endif %}>
 <span class="hint" data-machine-picked-label>{% if mf.get('new_product_code') %}Đã chọn: {{ mf.new_product_code }}{% else %}Bấm chọn một kết quả tìm.{% endif %}</span>
 <div class="machine-product-options device-options" aria-live="polite"></div>
 {% if error_code=='BAD_PRODUCT' %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}</div>
+<div data-machine-source-block="TEN" {% if new_source!='TEN' %}hidden{% endif %}>
+<label>Tên máy (hãng và model)<input name="new_model_name" value="{{ mf.get('new_model_name','') }}" required maxlength="160" autocomplete="off" placeholder="Ví dụ: Canon LBP 2900, Epson L3110…" {% if new_source!='TEN' %}disabled{% endif %} {% if error_code=='BAD_MODEL_NAME' %}aria-invalid="true"{% endif %}></label>
+<p class="hint">Dùng cho loại máy công ty không kinh doanh; máy vẫn được theo dõi theo serial.</p>
+{% if error_code=='BAD_MODEL_NAME' %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}</div>
 <p class="hint">Máy mới được gắn đúng khách và mặc định địa điểm của phiếu.</p>
 </fieldset>
