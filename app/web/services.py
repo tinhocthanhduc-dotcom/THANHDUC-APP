@@ -102,7 +102,8 @@ def _validation_message(exc):
 def _message(exc):
     if isinstance(exc, ValidationError):
         return _validation_message(exc), "BAD_FORM", 400
-    message = "Cần chụp ảnh sau sửa trước khi hoàn thành" if exc.code == "PHOTO_REQUIRED" else exc.message
+    # Chỉ đổi chữ cho lỗi thiếu ảnh nghiệm thu; ảnh nhận/trả máy, giao hàng giữ đúng câu báo của mình (lỗi DV-26-00027).
+    message = "Cần chụp ảnh sau sửa trước khi hoàn thành" if exc.code == "PHOTO_REQUIRED" and "sau khi sửa" in exc.message else exc.message
     if exc.code == "NEGATIVE_STOCK":
         d = exc.details
         message = f"Không đủ tồn cho {d.get('product', '')} tại kho {d.get('warehouse', '')}: tồn hiện có {d.get('available', '')}, số cần {d.get('requested', '')}."
