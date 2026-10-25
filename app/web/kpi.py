@@ -100,7 +100,9 @@ def targets(request:Request,user:User=Depends(director_user),session:Session=Dep
 def save(request:Request,form=Depends(checked_form),user:User=Depends(director_user),session:Session=Depends(get_session)):
     month=_month(request)
     try:
-        if form.get('action')=='copy':svc.save_targets(session,user,month,[],copy=True)
+        if form.get('action')=='copy':
+            svc.save_targets(session,user,month,[],copy=True)
+            return RedirectResponse('/kpi/muc-tieu?thang='+month.strftime('%Y-%m')+'&da_chep=1',status_code=303)
         else:
             changes=[]
             for name,raw in form.items():
@@ -113,4 +115,4 @@ def save(request:Request,form=Depends(checked_form),user:User=Depends(director_u
                 changes.append(dict(user_id=uid,metric_key=key,target=value,version=form.get(name.replace('target:','version:',1))))
             svc.save_targets(session,user,month,changes)
     except BusinessError as exc:return _targets(request,session,month,exc,form)
-    return RedirectResponse('/kpi/muc-tieu?thang='+month.strftime('%Y-%m'),status_code=303)
+    return RedirectResponse('/kpi/muc-tieu?thang='+month.strftime('%Y-%m')+'&da_luu=1',status_code=303)

@@ -139,6 +139,25 @@ def _ticket_url(ctx, ticket_id, anchor=""):
 
 
 templates.env.globals["can_open"] = _can_open
+
+
+def month_nav(month, months=None):
+    """Đợt A: thanh tháng dùng chung (‹ MM/YYYY ›). Trả về giá trị ô chọn, tháng trước/sau và tháng này (giờ Việt Nam)."""
+    from datetime import date, datetime, timedelta
+    from zoneinfo import ZoneInfo
+    first = month.replace(day=1)
+    prev = (first - timedelta(days=1)).replace(day=1)
+    nxt = (first + timedelta(days=32)).replace(day=1)
+    today = datetime.now(ZoneInfo('Asia/Ho_Chi_Minh')).date().replace(day=1)
+    allowed = [m.replace(day=1) for m in months] if months is not None else None
+    return dict(value=first.strftime('%Y-%m'), label=first.strftime('%m/%Y'),
+                prev=prev.strftime('%Y-%m') if allowed is None or prev in allowed else '',
+                next=nxt.strftime('%Y-%m') if allowed is None or nxt in allowed else '',
+                now=today.strftime('%Y-%m') if first != today and (allowed is None or today in allowed) else '',
+                options=[(m.strftime('%Y-%m'), m.strftime('%m/%Y')) for m in (allowed or [])])
+
+
+templates.env.globals["month_nav"] = month_nav
 templates.env.globals["ticket_url"] = _ticket_url
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 

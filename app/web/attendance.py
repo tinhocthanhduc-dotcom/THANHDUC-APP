@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import attendance as svc
+from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import AttendanceHoliday,AttendanceMonthLock,AttendancePunch,Employee,User
@@ -18,6 +19,7 @@ from . import checked_form,render,web_user
 from .dispatch import _csv_text
 
 router=APIRouter()
+WEEKDAYS=('T2','T3','T4','T5','T6','T7','CN')
 TOTAL_LABELS=('Tổng công','Ngày đi làm','Ngày lễ','Ngày phép','Ngày không lương','Ngày không phép','Lần trễ','Phút trễ','Lần về sớm','Phút về sớm','Ngày thiếu giờ ra','Lần ngoài giờ')
 
 
@@ -34,7 +36,9 @@ def _month(request):
 
 
 def _render(request,template,**context):
+    cfg=get_settings()
     context.update(kinds=svc.KINDS,statuses=svc.STATUSES,tz=svc.TZ,total_columns=tuple(zip(svc.TOTAL_FIELDS,TOTAL_LABELS)),
+        slots=dict(sang=cfg.slot_sang.replace('-','–'),chieu=cfg.slot_chieu.replace('-','–')),grace=cfg.late_grace_minutes,weekday=lambda d:WEEKDAYS[d.weekday()],
         fmt=lambda stamp:stamp.astimezone(svc.TZ).strftime('%H:%M') if stamp else '—')
     response=render(request,template,**context);response.headers['Cache-Control']='no-store';return response
 
@@ -97,9 +101,11 @@ def decide(request:Request,ident:int,action:str,form=Depends(checked_form),user:
 @router.get('/cham-cong/bang')
 def board(request:Request,user:User=Depends(reader_user),session:Session=Depends(get_session)):
     month=_month(request)
+    is_director=has_role(user,'director')
     return _render(request,'cham_cong_bang.jinja',month=month,rows=svc.board(session,user,month),
         dates=list(svc._days(month,svc.month_end(month))),locked=svc.is_locked(session.get(AttendanceMonthLock,month)),
-        lock=session.get(AttendanceMonthLock,month),is_director=has_role(user,'director'))
+        lock=session.get(AttendanceMonthLock,month),is_director=is_director,today=svc.today(),
+        pending=svc.pending_count(session,user) if is_director else 0)
 
 
 @router.get('/cham-cong/bang.csv')
