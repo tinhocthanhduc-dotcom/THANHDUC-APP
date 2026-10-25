@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from . import nav
 from .. import payroll, attendance, alerts, dashboard as svc
 from ..db import get_session
 from ..models import User
@@ -19,6 +20,8 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
     notices=alerts.collect(session,user,today=data['today'])
     groups={}
     for notice in notices:
+        # R2: cảnh báo chỉ dẫn tới trang người xem mở được (kế toán xem phiếu dịch vụ qua bản chỉ đọc).
+        notice=dict(notice,link=nav.visible_link(user,notice.get('link')))
         groups.setdefault(notice['kind'],[]).append(notice)
     def period(start,end):return urlencode({'from':start.isoformat(),'to':end.isoformat()})
     # SVG chỉ dùng tọa độ, số tiền vẫn là int ở tầng dữ liệu và nhãn.

@@ -1995,7 +1995,8 @@ def test_b3_sales_creates_confirms_delivers_two_lines(client,db,web_login,b3_cat
     db.expire_all()
     px=db.query(StockDoc).filter_by(kind='PX').one()
     assert order.status=='DA_GIAO' and px.status=='DA_GHI'
-    assert px.number in response.text and f'href="/phieu-kho/{px.id}"' in response.text
+    # R2: kinh doanh không mở được /phieu-kho nên chỉ thấy số phiếu, không có link dẫn vào 403.
+    assert px.number in response.text and f'href="/phieu-kho/{px.id}"' not in response.text
     assert db.get(StockBalance,('K58','TD-0001')).qty==Decimal(3)
     assert db.query(StockLedger).filter_by(doc_id=px.id).count()==1
     assert order.number in client.get('/don-ban?q=minh phat&status=DA_GIAO&phan=1').text

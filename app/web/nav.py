@@ -3,6 +3,7 @@
 Prefix khớp ranh giới đường dẫn, ưu tiên mục cụ thể nhất; điều kiện query
 phân biệt Sắp hết với Tồn kho. Mục chưa khai báo bị chặn mặc định.
 """
+import re
 from pydantic import TypeAdapter, ValidationError
 
 from ..errors import BusinessError
@@ -148,6 +149,20 @@ def allowed(user, path, query=None):
     item = matching(path, query)
     if item and item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles:return False
     return item is not None and (not item.get('technician_page') or 'technician' in user.roles) and has_role(user, *item['roles'])
+
+
+_TICKET_PATH = re.compile(r'^/dich-vu/(\d+)$')
+
+
+def visible_link(user, link):
+    """Link cảnh báo/nguồn chỉ giữ khi người xem mở được; link phiếu dịch vụ đổi sang bản xem theo quyền; không thì None (R2)."""
+    if not link:
+        return None
+    target = link.split('#')[0].split('?')[0]
+    if allowed(user, target):
+        return link
+    m = _TICKET_PATH.match(target)
+    return ticket_url(user, int(m.group(1))) if m else None
 
 
 def ticket_url(user, ticket_id, anchor=''):
