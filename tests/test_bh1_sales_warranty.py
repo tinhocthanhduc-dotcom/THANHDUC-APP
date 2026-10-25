@@ -150,7 +150,6 @@ def test_product_warranty_only_director(db,people):
 
 
 def care(db,p):
-    products.create(db,p['director'],ProductIn(code='MAY-CU-CARE',name='Máy cũ CARE'))
     db.add(CustomerPhone(customer_code='KTD-000001',phone='0901234567'));db.commit()
     return dict(serial='CARE-A',phone='+84 901234567',model='Không khớp model',warranty_until='31/12/2027',care_ref='SC001')
 
@@ -162,8 +161,8 @@ def test_care_dry_run_apply_idempotent_unmatched_and_expired(db,people,tmp_path)
     assert [r['status'] for r in report]==['TAO_MOI','KHONG_KHOP_KHACH','BO_QUA_HET_HAN','BO_QUA_THIEU_SERIAL']
     assert db.query(Equipment).count()==0
     import_rows(db,p['director'],rows,apply=True,today=date(2026,10,24));db.commit()
-    eq=db.get(Equipment,'CARE-A');assert eq.customer_code=='KTD-000001' and eq.product_code=='MAY-CU-CARE' and eq.warranty_until==date(2027,12,31)
-    assert 'Nhập từ CARE SC001' in eq.note
+    eq=db.get(Equipment,'CARE-A');assert eq.customer_code=='KTD-000001' and eq.product_code is None and eq.model_name=='Không khớp model' and eq.warranty_until==date(2027,12,31)
+    assert report[0]['model_name']=='Không khớp model' and 'Nhập từ CARE SC001' in eq.note
     again=import_rows(db,p['director'],rows,apply=True,today=date(2026,10,24));db.commit()
     assert again[0]['status']=='DA_CO' and db.query(Equipment).count()==1
     csv=tmp_path/'care.csv';csv.write_text('serial,SĐT,model,ngày hết hạn bảo hành,mã phiếu CARE\nCSV-A,0901234567,ABC,31/12/2027,SC002\n',encoding='utf-8-sig')
@@ -179,8 +178,11 @@ def test_care_existing_only_fills_blank_expiry(db,people):
     assert eq.warranty_until==date(2027,12,31)
 
 
-def test_care_missing_fallback_stops(db,people):
-    with pytest.raises(ValueError,match='MAY-CU-CARE'):import_rows(db,people['director'],[],apply=True)
+def test_care_model_matching_catalogue_uses_product_code(db,people):
+    p=people;record=care(db,p)
+    rep=import_rows(db,p['director'],[{**record,'serial':'CARE-B','model':'TD-0001'}],apply=True,today=date(2026,10,24));db.commit();assert rep[0]['status']=='TAO_MOI',rep
+    eq=db.get(Equipment,'CARE-B');assert eq.product_code=='TD-0001' and not eq.model_name
+    assert db.query(Product).filter_by(code='MAY-CU-CARE').count()==0
 
 
 def test_web_warehouse_serial_paste_error_preserved_and_delivery(db,machine,client):
@@ -247,7 +249,7 @@ def test_clear_pilot_removes_generated_keeps_care_manual_and_product_config(db,m
     clear_pilot_data.main();db.expire_all()
     assert db.get(Equipment,'GENERATED') is None
     assert db.get(Equipment,'CARE-A') is not None and db.get(Equipment,'MANUAL') is not None
-    assert db.get(Product,'TD-0001').warranty_months==12 and db.get(Product,'MAY-CU-CARE') is not None
+    assert db.get(Product,'TD-0001').warranty_months==12 and db.get(Equipment,'CARE-A').model_name=='Không khớp model'
     assert db.query(SalesDeliverySerial).count()==0
     assert db.scalar(text("select count(*) from pg_trigger where not tgisinternal and tgenabled <> 'O'"))==0
 

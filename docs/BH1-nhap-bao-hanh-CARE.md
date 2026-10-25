@@ -6,7 +6,7 @@ Serial đang thuộc khách khác hoặc khác mã hàng không dùng lại đư
 
 ## Nhập từ CARE
 
-1. Giám đốc tạo mã hàng `MAY-CU-CARE` để nhận các model chưa khớp danh mục. Đây là mã ngoại lệ, các mã hàng khác vẫn theo dạng `TD-0001`.
+1. Không cần tạo mã hàng chung. Model không khớp danh mục được lưu là thiết bị ngoài danh mục (`product_code` trống, `model_name` = tên máy trong CARE, migration 0062). Mã `MAY-CU-CARE` chỉ còn là ngoại lệ cũ trong ràng buộc mã hàng, script không dùng nữa.
 2. Xuất CSV UTF-8 từ sheet **Máy đã bán** và **Sửa chữa**, với các cột:
 
 ```csv
@@ -14,7 +14,7 @@ serial,SĐT,tên khách,model,ngày hết hạn bảo hành,mã phiếu CARE
 CARE-DEMO-001,0901234567,Khách mẫu,Model máy,31/12/2027,SC0001
 ```
 
-Ngày chấp nhận `dd/mm/yyyy` hoặc `yyyy-mm-dd`. SĐT được chuẩn hóa theo quy tắc Danh bạ của app. Tên khách chỉ giúp đối chiếu; script chỉ ghép bằng SĐT đã có trong app. Model khớp chính xác tên hoặc mã hàng thì dùng mã đó, các trường hợp còn lại dùng `MAY-CU-CARE`.
+Ngày chấp nhận `dd/mm/yyyy` hoặc `yyyy-mm-dd`. SĐT được chuẩn hóa theo quy tắc Danh bạ của app. Tên khách chỉ giúp đối chiếu; script chỉ ghép bằng SĐT đã có trong app. Model khớp chính xác tên hoặc mã hàng đang bán thì dùng mã đó, các trường hợp còn lại ghi tên máy tự do vào `model_name` (cột `model` trống → "Máy nhập từ CARE").
 
 3. Chạy thử trên môi trường đã cấu hình kết nối app:
 

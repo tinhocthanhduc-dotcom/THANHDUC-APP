@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Import current CARE warranties. Dry run unless --apply; never creates customers."""
+"""Import current CARE warranties. Dry run unless --apply; never creates customers.
+
+Model khớp đúng tên hoặc mã hàng đang bán → gắn mã đó; không khớp → thiết bị ngoài danh mục với tên máy tự do (model_name)."""
 import argparse
 import csv
 from datetime import date, datetime
@@ -49,8 +51,6 @@ def _date(raw):
 
 def import_rows(session,user,rows,*,apply=False,today=None):
     if not has_role(user,'director'):raise BusinessError('FORBIDDEN','Chỉ giám đốc nhập bảo hành CARE.',status=403)
-    fallback=session.get(Product,'MAY-CU-CARE')
-    if fallback is None:raise ValueError('Giám đốc cần tạo mã MAY-CU-CARE trước khi nhập.')
     today=today or datetime.now(ZoneInfo('Asia/Ho_Chi_Minh')).date()
     report=[];seen=set()
     products=list(session.scalars(select(Product).where(Product.active.is_(True))))
@@ -83,13 +83,17 @@ def import_rows(session,user,rows,*,apply=False,today=None):
                     from app import audit
                     audit.record(session,user,'equipment.care_import','equipment',serial,before,equipment.snapshot(eq))
             else:
-                model=fold(record.get('model',''))
+                raw_model=' '.join(record.get('model','').split());model=fold(raw_model)
                 matches=[p for p in products if model and model in (fold(p.name),fold(p.code))]
-                product=matches[0] if len(matches)==1 else fallback
-                result.update(status='TAO_MOI',product_code=product.code,warranty_until=expiry.isoformat())
+                if len(matches)==1:
+                    product_code,model_name=matches[0].code,''
+                else:
+                    # Model không khớp danh mục → thiết bị ngoài danh mục, ghi tên máy tự do (không tạo mã chung).
+                    product_code,model_name=None,(raw_model or 'Máy nhập từ CARE')[:160]
+                result.update(status='TAO_MOI',product_code=product_code,model_name=model_name or None,warranty_until=expiry.isoformat())
                 if apply:
                     with session.begin_nested():
-                        equipment.create_in_tx(session,user,EquipmentIn(serial=serial,product_code=product.code,customer_code=customer.code,
+                        equipment.create_in_tx(session,user,EquipmentIn(serial=serial,product_code=product_code,model_name=model_name,customer_code=customer.code,
                             warranty_until=expiry,condition='CU',note=note))
         except (ValueError,BusinessError) as exc:
             result.update(status='LOI',message=getattr(exc,'message',str(exc)))
