@@ -8,8 +8,9 @@
     function say(text, bad) { if (status) { status.textContent = text; status.classList.toggle('lt-bad', !!bad); } }
     select.addEventListener('change', function () {
       if (busy) return;
-      busy = true; select.disabled = true; say('Đang lưu loại…');
+      // Lấy dữ liệu form TRƯỚC khi khóa ô chọn: control disabled không được đưa vào FormData (R1, báo cáo 25/10).
       var body = new URLSearchParams(new FormData(form));
+      busy = true; select.disabled = true; say('Đang lưu loại…');
       fetch(form.action, { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-Inline': '1', 'Accept': 'application/json' } })
         .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
         .then(function (res) {
