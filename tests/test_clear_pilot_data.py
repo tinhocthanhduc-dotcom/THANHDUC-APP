@@ -8,7 +8,7 @@ from test_ns5_payroll import money, p, paid_advance  # noqa: F401
 
 from app import attachments
 from app.config import get_settings
-from app.models import Customer, Product
+from app.models import Customer, Product, Warehouse
 from scripts import clear_pilot_data as clear
 
 
@@ -65,3 +65,19 @@ def test_xoa_ca_khach_va_hang(db, ticket, monkeypatch):  # noqa: F811
     db.close()
     run(monkeypatch, "--yes", "--xoa-khach", "--xoa-hang")
     assert n(db, "customers") == 0 and n(db, "products") == 0 and n(db, "users") > 0
+
+
+def test_xoa_khi_co_ho_so_cho_xu_ly(db, ticket, monkeypatch):  # noqa: F811
+    # Hồ sơ chờ xử lý có constraint trigger hoãn; trước đây xóa xong bật lại trigger bị lỗi "pending trigger events".
+    db.add(Product(code="TD-0001", name="Mực thật", unit="hộp"))
+    db.add(Warehouse(code="CXL", name="Chờ xử lý", kind="LOI"))
+    db.flush()
+    db.execute(text("insert into stock_balances(warehouse_code, product_code, qty, value, avg_cost) values ('CXL', 'TD-0001', 3, 300, 100)"))
+    db.execute(text(
+        "insert into pending_items(number, warehouse_code, product_code, qty_in, qty_left, unit_cost, group_code, source, source_ref, "
+        "reason, entered_at, status, version) values ('CXL-26-00001', 'CXL', 'TD-0001', 3, 3, 100, 'HANG_LOI', 'TON_CU', '', 'thử', now(), 'DANG_CHO', 1)"))
+    db.commit()
+    db.close()
+    run(monkeypatch, "--yes", "--xoa-khach", "--xoa-hang")
+    assert n(db, "pending_items") == 0 and n(db, "stock_balances") == 0 and n(db, "warehouses") == 1
+    assert db.execute(text("select count(*) from pg_trigger where not tgisinternal and tgenabled <> 'O'")).scalar_one() == 0

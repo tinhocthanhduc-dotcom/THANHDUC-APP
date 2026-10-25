@@ -132,6 +132,9 @@ def _run(session, args) -> None:
         session.execute(text(f'alter table {t} disable trigger "{g}"'))
     for t in order:
         session.execute(text(f"delete from {t}"))
+    # Hồ sơ chờ xử lý có constraint trigger hoãn đến cuối giao dịch; còn sự kiện chờ thì Postgres không cho
+    # ALTER TABLE bật lại trigger. Cho chạy ngay (bảng đã trống nên luôn đạt) rồi mới bật.
+    session.execute(text("set constraints all immediate"))
     for t, g in guards:
         session.execute(text(f'alter table {t} enable trigger "{g}"'))
     if 'equipment' not in wipe and sale_equipment:
