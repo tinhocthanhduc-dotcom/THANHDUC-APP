@@ -21,9 +21,12 @@ router = APIRouter(include_in_schema=False)
 def _error(exc):
     if isinstance(exc, BusinessError):
         return exc.message
-    fields = {'name': 'Tên địa điểm', 'product_code': 'Mã hàng', 'customer_code': 'Mã khách', 'site_id': 'Địa điểm',
+    fields = {'name': 'Tên địa điểm', 'product_code': 'Mã hàng', 'model_name': 'Tên máy', 'customer_code': 'Mã khách', 'site_id': 'Địa điểm',
               'serial': 'Số sê-ri', 'warranty_until': 'Ngày hết bảo hành', 'version': 'Phiên bản', 'condition': 'Tình trạng'}
-    return fields.get(str(exc.errors()[0]['loc'][-1]), 'Dữ liệu') + ' chưa hợp lệ, hãy kiểm tra lại.'
+    where = exc.errors()[0]['loc']
+    if not where:
+        return 'Cần chọn hàng trong danh mục hoặc nhập tên máy.'
+    return fields.get(str(where[-1]), 'Dữ liệu') + ' chưa hợp lệ, hãy kiểm tra lại.'
 
 
 def _site_data(form):
@@ -67,7 +70,7 @@ def listing(request: Request, q: str = '', phan: int = 0, tt: str = '', bh: str 
         return devices_page(request, session, user, q, tt, bh, o, trang, so, can_write=has_role(user, *customer_sites.WRITERS))
     rows = equipment.search(session, q[:200])
     return render(request, 'thiet_bi_dong.jinja' if phan else 'thiet_bi_ds.jinja', rows=rows, q=q,
-                  product_names={code: name for code, name in session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows])))},
+                  product_names={code: name for code, name in session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows if r.product_code])))},
                   customer_names={code: name for code, name in session.execute(select(Customer.code, Customer.name).where(Customer.code.in_([r.customer_code for r in rows if r.customer_code])))},
                   can_device_write=has_role(user, *customer_sites.WRITERS))
 
@@ -105,7 +108,7 @@ def _form(request, session, data, is_new=False, error=None, status=200, saved=Fa
 
 @router.get('/thiet-bi/moi')
 def new(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return _form(request, session, dict(serial='', product_code='', customer_code=None, site_id=None, warranty_until=None,
+    return _form(request, session, dict(serial='', product_code='', model_name='', customer_code=None, site_id=None, warranty_until=None,
                                       condition='MOI', note='', active=True, version=0), is_new=True)
 
 
@@ -121,13 +124,18 @@ def _picked(session, model, code, text):
 
 
 def _equipment_data(form, session):
-    product = _picked(session, Product, form.get('product_code'), form.get('product_q'))
+    # Máy ngoài danh mục Hàng hóa (loại công ty không bán): không cần mã hàng, chỉ ghi tên máy.
+    outside = str(form.get('product_source', '')) == 'TEN'
+    model_name = str(form.get('model_name', '')).strip() if outside else ''
+    product = None if outside else _picked(session, Product, form.get('product_code'), form.get('product_q'))
     customer = _picked(session, Customer, form.get('customer_code'), form.get('customer_q'))
-    if product is None or product == '':
+    if outside and not model_name:
+        raise BusinessError('MODEL_NAME_REQUIRED', 'Chưa nhập tên máy (hãng và model) cho máy ngoài danh mục.')
+    if not outside and not product:
         raise BusinessError('PRODUCT_NOT_PICKED', 'Chưa chọn hàng: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
     if customer is None:
         raise BusinessError('CUSTOMER_NOT_PICKED', 'Chưa chọn khách: gõ tên hoặc mã rồi bấm chọn một dòng trong danh sách hiện ra.')
-    return dict(product_code=product, customer_code=customer or None,
+    return dict(product_code=product or None, model_name=model_name, customer_code=customer or None,
                 site_id=form.get('site_id') or None, warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None,
                 condition=str(form.get('condition', 'MOI')), note=str(form.get('note', '')), active=form.get('active') == '1')
 
@@ -136,6 +144,7 @@ def _equipment_data(form, session):
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     customer_sites.check_writer(request.state.user)
     shown = dict(serial=str(form.get('serial', '')), product_code=str(form.get('product_code', '')),
+                 product_source=str(form.get('product_source', '')), model_name=str(form.get('model_name', '')),
                  customer_code=form.get('customer_code') or None, site_id=form.get('site_id') or None,
                  warranty_until=form.get('warranty_until') or None, support_until=form.get('support_until') or None, condition=str(form.get('condition', 'MOI')),
                  note=str(form.get('note', '')), active=form.get('active') == '1', version=0,
@@ -158,6 +167,7 @@ def update(request: Request, serial: str, form=Depends(checked_form), session: S
     customer_sites.check_writer(request.state.user)
     shown = {**equipment.snapshot(equipment.load(session, serial)), 'version': form.get('version', ''),
              'product_code': str(form.get('product_code', '')), 'customer_code': form.get('customer_code') or None,
+             'product_source': str(form.get('product_source', '')), 'model_name': str(form.get('model_name', '')),
              'product_q': str(form.get('product_q', '')), 'customer_q': str(form.get('customer_q', ''))}
     try:
         data = _equipment_data(form, session)

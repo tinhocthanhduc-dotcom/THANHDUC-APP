@@ -1,13 +1,13 @@
 """Shared machine selection for intake, dispatch and the technician workshop step."""
 from sqlalchemy import or_, select
 
-from .. import customer_sites, service_tickets
+from .. import customer_sites, equipment, service_tickets
 from ..errors import BusinessError
 from ..models import Equipment, EquipmentCustody, Product, ServiceTicket
 from ..schemas import EquipmentIn, ServiceMachineSet
 from ..security import has_role
 
-FORM_FIELDS = ('machine_pick', 'serial', 'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'version')
+FORM_FIELDS = ('machine_pick', 'serial', 'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'new_machine_source', 'new_model_name', 'version')
 
 
 def can_create(user):
@@ -15,6 +15,12 @@ def can_create(user):
 
 
 def new_machine(form):
+    # Máy ngoài danh mục Hàng hóa (loại công ty không bán): chỉ ghi tên máy, không cần mã hàng.
+    if str(form.get('new_machine_source', '')) == 'TEN':
+        name = str(form.get('new_model_name', '')).strip()
+        if not name:
+            raise BusinessError('BAD_MODEL_NAME', 'Chưa nhập tên máy (hãng và model) cho máy ngoài danh mục.')
+        return EquipmentIn(serial=str(form.get('new_serial', '')), model_name=name[:160])
     code = str(form.get('new_product_code', '')).strip()
     if not code:
         raise BusinessError('BAD_PRODUCT', 'Chưa chọn mã hàng cho máy mới, hãy bấm chọn một kết quả tìm.')
@@ -47,7 +53,7 @@ def context(session, user, ticket, shown=None):
     warranty = ticket.warranty_of_id is not None or ticket.warranty_basis is not None
     editable = permitted and ticket.status in service_tickets.OPEN and not locked and not warranty
     data = dict(shown) if shown is not None else dict(machine_pick='SERIAL:' + ticket.serial if ticket.serial else 'NONE', version=ticket.version)
-    machines = list(session.execute(select(Equipment, Product.name).join(Product).where(
+    machines = list(session.execute(select(Equipment, equipment.name_column()).outerjoin(Product, Product.code == Equipment.product_code).where(
         Equipment.active.is_(True), or_(Equipment.customer_code == ticket.customer_code, Equipment.serial == ticket.serial))
         .order_by(Equipment.serial))) if editable else []
     # Máy đang được giữ theo phiếu khác: hiện mờ, không chọn được (server cũng chặn MACHINE_HELD).

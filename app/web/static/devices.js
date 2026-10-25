@@ -11,6 +11,17 @@
     });
   });
   customer.addEventListener('input', function() { sequence++; sites.textContent = 'Chọn khách để xem địa điểm.'; });
+  // Máy ngoài danh mục Hàng hóa: ẩn ô tìm hàng, bật ô tên máy; ô đang ẩn bị disabled để không chặn gửi form.
+  function source() {
+    var picked = form.querySelector('[name=product_source]:checked'), value = picked ? picked.value : 'DM';
+    form.querySelectorAll('[data-device-source-block]').forEach(function(block) {
+      var on = block.dataset.deviceSourceBlock === value;
+      block.hidden = !on;
+      block.querySelectorAll('input').forEach(function(el) { el.disabled = !on; });
+    });
+  }
+  form.querySelectorAll('[name=product_source]').forEach(function(radio) { radio.addEventListener('change', source); });
+  if (form.querySelector('[name=product_source]')) source();
   form.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-device-pick]');
     if (!btn) return;

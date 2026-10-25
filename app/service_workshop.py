@@ -1,5 +1,5 @@
 """MV1: one dossier from onsite intake through workshop repair and return."""
-from . import equipment_custody as custody, part_requests, service_charges, service_tickets as tickets, technician_work
+from . import equipment, equipment_custody as custody, part_requests, service_charges, service_tickets as tickets, technician_work
 from .errors import BusinessError
 from .models import ServiceLine
 from .schemas import CustodyHandover
@@ -274,8 +274,8 @@ def queue_query(now):
     stage=case((t.quote_approved_at.is_not(None),literal('Khách đã đồng ý · hẹn trả ')+func.coalesce(func.to_char(t.promised_return_on,'DD/MM'),'')),
         (priced,'Chờ khách duyệt'),else_='Chờ báo giá')
     return select(t.id,t.number,t.status,Customer.name.label('customer'),func.coalesce(t.total,0).label('amount'),
-        func.coalesce(late,False).label('overdue'),Equipment.serial.label('workshop_serial'),Product.name.label('workshop_machine'),
+        func.coalesce(late,False).label('overdue'),Equipment.serial.label('workshop_serial'),equipment.name_column().label('workshop_machine'),
         place.label('workshop_location'),current.partner_name.label('workshop_partner'),stage.label('workshop_stage'),
         func.greatest(0,func.floor(func.extract('epoch',now-since)/86400)).label('workshop_days')).select_from(t).join(Customer,Customer.code==t.customer_code).join(
-        Equipment,Equipment.serial==t.serial).join(Product,Product.code==Equipment.product_code).outerjoin(current,current.id==last).where(
+        Equipment,Equipment.serial==t.serial).outerjoin(Product,Product.code==Equipment.product_code).outerjoin(current,current.id==last).where(
         t.status=='TAM_DUNG',t.hold_reason==WAITING).order_by(func.coalesce(late,False).desc(),since,t.id)

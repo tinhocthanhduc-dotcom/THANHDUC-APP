@@ -1,5 +1,5 @@
 """Thiết bị theo serial, địa điểm phải thuộc đúng khách hàng đang gán."""
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -28,8 +28,17 @@ def load(session: Session, serial: str) -> Equipment:
     return row
 
 
+def name_column():
+    """Tên máy để hiện: tên hàng trong danh mục, hoặc tên tự nhập với máy ngoài danh mục (dùng sau outerjoin Product)."""
+    return func.coalesce(Product.name, Equipment.model_name)
+
+
+def display_name(row, product=None) -> str:
+    return product.name if product is not None else (row.model_name if row is not None else '')
+
+
 def search(session: Session, q='', active_only=False, limit: int | None = 50):
-    stmt = select(Equipment).join(Product, Product.code == Equipment.product_code).outerjoin(Customer, Customer.code == Equipment.customer_code)
+    stmt = select(Equipment).outerjoin(Product, Product.code == Equipment.product_code).outerjoin(Customer, Customer.code == Equipment.customer_code)
     if active_only:
         stmt = stmt.where(Equipment.active.is_(True))
     if fold(q):
@@ -40,9 +49,15 @@ def search(session: Session, q='', active_only=False, limit: int | None = 50):
 
 
 def _validate_and_search_text(session, data, serial):
-    product = session.get(Product, data['product_code'])
-    if product is None:
+    model_name = str(data.get('model_name') or '').strip()
+    data['model_name'] = model_name
+    product = session.get(Product, data['product_code']) if data.get('product_code') else None
+    if data.get('product_code') and product is None:
         raise BusinessError('BAD_PRODUCT', 'Mã hàng không có trong danh mục.')
+    if product is None and not model_name:
+        raise BusinessError('PRODUCT_NOT_PICKED', 'Chưa chọn hàng: bấm chọn một dòng trong danh sách, hoặc chọn "Không có trong danh mục" và nhập tên máy.')
+    if product is not None:
+        data['model_name'] = ''
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     if data['customer_code'] and customer is None:
         raise BusinessError('BAD_CUSTOMER', 'Mã khách không tồn tại.')
@@ -50,7 +65,7 @@ def _validate_and_search_text(session, data, serial):
         site = session.get(CustomerSite, data['site_id'])
         if site is None or not customer or site.customer_code != customer.code:
             raise BusinessError('BAD_SITE', 'Địa điểm phải thuộc đúng khách hàng đã chọn.')
-    return fold(' '.join([serial, product.name, customer.name if customer else '']))
+    return fold(' '.join([serial, product.name if product else model_name, customer.name if customer else '']))
 
 
 def _save(session, user, row, before):
@@ -105,7 +120,7 @@ def update(session: Session, user, serial, body):
     if row.version != body.version:
         raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa thiết bị, hãy tải lại.', status=409)
     before = snapshot(row)
-    data = {field: getattr(row, field) for field in ('product_code', 'customer_code', 'site_id', 'warranty_until', 'support_until', 'condition', 'note', 'active')}
+    data = {field: getattr(row, field) for field in ('product_code', 'model_name', 'customer_code', 'site_id', 'warranty_until', 'support_until', 'condition', 'note', 'active')}
     data.update(body.model_dump(exclude_unset=True, exclude={'version'}))
     search_text = _validate_and_search_text(session, data, row.serial)
     for field, value in data.items():

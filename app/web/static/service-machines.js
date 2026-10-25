@@ -28,10 +28,19 @@
       var fields = intake.querySelector('[data-machine-new-fields]');
       if (fields) fields.hidden = fields.disabled = !isNew;
     }
+    // Máy ngoài danh mục: ẩn ô tìm hàng, bật ô tên máy (ô ẩn bị disabled để không chặn gửi form).
+    root.querySelectorAll('[data-machine-source]').forEach(function(seg) {
+      var picked = seg.querySelector('input:checked'), source = picked ? picked.value : 'DM', scope = seg.closest('[data-machine-new-fields]') || root;
+      scope.querySelectorAll('[data-machine-source-block]').forEach(function(block) {
+        var on = block.dataset.machineSourceBlock === source;
+        block.hidden = !on;
+        block.querySelectorAll('input').forEach(function(el) { el.disabled = !on; });
+      });
+    });
     if (window.bindLive) root.querySelectorAll('[data-machine-product-picker] [data-live]').forEach(window.bindLive);
   }
   document.addEventListener('change', function(event) {
-    if (event.target.matches('[name=machine_pick], [name=create_machine], [name=kind]')) refresh(document);
+    if (event.target.matches('[name=machine_pick], [name=create_machine], [name=kind], [name=new_machine_source]')) refresh(document);
   });
   document.addEventListener('input', function(event) {
     var picker = event.target.closest('[data-machine-product-picker]');

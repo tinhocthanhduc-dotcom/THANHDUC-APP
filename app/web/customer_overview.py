@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
-from .. import customer_sites as site_svc, customers as customer_svc, finance_reports, service_tickets as svc
+from .. import customer_sites as site_svc, customers as customer_svc, equipment as equipment_svc, finance_reports, service_tickets as svc
 from ..equipment_custody import LOCATIONS
 from ..routers.customers import WRITERS as CUSTOMER_WRITERS
 from ..models import Equipment, Product, Quote, SalesOrder, ServiceTicket, User
@@ -109,7 +109,7 @@ def build(request, session, user, c, tab='mo', trang='', so='', saved=False, war
 
     machines = []
     if see_machines:
-        rows = session.execute(select(Equipment, Product.name).join(Product, Product.code == Equipment.product_code)
+        rows = session.execute(select(Equipment, equipment_svc.name_column()).outerjoin(Product, Product.code == Equipment.product_code)
                                .where(Equipment.customer_code == code).order_by(Equipment.active.desc(), Equipment.serial))
         for eq, product in rows:
             if eq.custody_location != 'TAI_KHACH':

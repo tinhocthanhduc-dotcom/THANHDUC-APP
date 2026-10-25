@@ -54,6 +54,8 @@ fieldset:disabled input, fieldset:disabled select, fieldset:disabled textarea { 
 .form { display: grid; gap: 12px; }
 .form label, .login label { display: grid; gap: 4px; font-size: .9rem; color: var(--muted); }
 .form label input, .form label select, .form label textarea, .login input { color: var(--text); font-size: 1rem; }
+/* iOS Safari cho ô ngày/giờ một bề rộng riêng nên tràn khỏi khung; ép theo bề rộng nhãn. */
+.form label input[type=date], .form label input[type=datetime-local], .form label input[type=time], .form label input[type=month] { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; display: block; -webkit-appearance: none; appearance: none; }
 label.check { display: flex; align-items: center; gap: 8px; color: var(--text); }
 label.check input { width: auto; }
 .label { font-size: .9rem; color: var(--muted); }

@@ -6,11 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, equipment_custody as svc, service_tickets
+from .. import attachments, equipment, equipment_custody as svc, service_tickets
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import Customer, Equipment, EquipmentCustody, User
+from ..models import Customer, Equipment, EquipmentCustody, Product, User
 from ..schemas import CustodyHandover, CustodyIntake
 from ..security import has_role
 from . import checked_form, render, web_user
@@ -134,7 +134,7 @@ def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(w
     everything=svc.held(session,user)
     users=dict(session.execute(select(User.id,User.full_name)).all())
     serials=[r['machine'].serial for r in everything]
-    models=dict(session.execute(select(Equipment.serial,Product.name).join(Product,Product.code==Equipment.product_code).where(Equipment.serial.in_(serials))).all()) if serials else {}
+    models=dict(session.execute(select(Equipment.serial,equipment.name_column()).outerjoin(Product,Product.code==Equipment.product_code).where(Equipment.serial.in_(serials))).all()) if serials else {}
     codes={r['ticket'].customer_code for r in everything}
     customers=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_(codes))).all()) if codes else {}
     pending={c.serial:c for c in session.scalars(select(EquipmentCustody).where(EquipmentCustody.serial.in_(serials),EquipmentCustody.status=='CHO_NHAN'))} if serials else {}

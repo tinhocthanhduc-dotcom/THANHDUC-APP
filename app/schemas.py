@@ -615,7 +615,9 @@ class CustomerSiteOut(CustomerSiteIn):
 class EquipmentFields(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    product_code: str = Field(min_length=1, max_length=16)
+    # Máy có trong Hàng hóa: product_code. Máy ngoài danh mục: product_code trống và model_name là tên máy.
+    product_code: str | None = Field(default=None, min_length=1, max_length=16)
+    model_name: str = Field(default="", max_length=160)
     customer_code: str | None = Field(default=None, min_length=1, max_length=16)
     site_id: int | None = Field(default=None, ge=1)
     warranty_until: date | None = None
@@ -625,14 +627,21 @@ class EquipmentFields(BaseModel):
     active: bool = True
 
 
-    @field_validator('customer_code', 'site_id', 'warranty_until', 'support_until', mode='before')
+    @field_validator('product_code', 'customer_code', 'site_id', 'warranty_until', 'support_until', mode='before')
     @classmethod
     def blank_optional(cls, value):
         return None if value == '' else value
 
 
+
 class EquipmentIn(EquipmentFields):
     serial: str = Field(min_length=1, max_length=64)
+
+    @model_validator(mode='after')
+    def product_or_model(self):
+        if not self.product_code and not self.model_name:
+            raise ValueError('Cần chọn mã hàng hoặc nhập tên máy.')
+        return self
 
     @field_validator('serial', mode='before')
     @classmethod
@@ -659,7 +668,6 @@ class ServiceMachineSet(BaseModel):
 
 class EquipmentPatch(EquipmentFields):
     version: int = Field(ge=1)
-    product_code: str = Field(default="", min_length=1, max_length=16)
 
 
 class EquipmentOut(EquipmentFields):
