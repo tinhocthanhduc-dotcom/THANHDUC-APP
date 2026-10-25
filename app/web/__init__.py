@@ -1,5 +1,6 @@
 """Giao diện web cho nhân viên: đăng nhập, khách hàng, hàng hóa. Mọi quy tắc nằm ở tầng nghiệp vụ, trang web chỉ gọi vào."""
 from datetime import date
+import contextvars
 import hashlib
 import re
 import hmac
@@ -7,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit
 
+import jinja2
 import jwt
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.exception_handlers import http_exception_handler
@@ -110,6 +112,34 @@ templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key
 templates.env.globals["asset"] = asset
+
+
+# Người đang xem trang, đặt trong render(): macro import từ _ui.jinja (không `with context`) không thấy biến user.
+_RENDER_USER = contextvars.ContextVar("render_user", default=None)
+
+
+def _viewer(ctx):
+    return ctx.get("user") or _RENDER_USER.get()
+
+
+@jinja2.pass_context
+def _can_open(ctx, path):
+    """F2: chỉ render link khi người xem mở được trang đích; không thì hiện chữ tĩnh."""
+    target = path.split("#")[0].split("?")[0]
+    if not target:
+        return True  # Neo trong trang (#…) hoặc lọc trên chính trang này: luôn mở được.
+    user = _viewer(ctx)
+    return bool(user) and nav.allowed(user, target)
+
+
+@jinja2.pass_context
+def _ticket_url(ctx, ticket_id, anchor=""):
+    user = _viewer(ctx)
+    return nav.ticket_url(user, ticket_id, anchor) if user else None
+
+
+templates.env.globals["can_open"] = _can_open
+templates.env.globals["ticket_url"] = _ticket_url
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
@@ -181,7 +211,11 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
         request.state.form_business_error = True
     ctx.setdefault("user", getattr(request.state, "user", None))
     ctx.setdefault("csrf", getattr(request.state, "csrf", ""))
-    return templates.TemplateResponse(request, name, ctx, status_code=status)
+    token = _RENDER_USER.set(ctx.get("user"))
+    try:
+        return templates.TemplateResponse(request, name, ctx, status_code=status)
+    finally:
+        _RENDER_USER.reset(token)
 
 
 def watch_response(stamp: str) -> JSONResponse:
@@ -795,6 +829,9 @@ router.include_router(technician_returns_router)
 
 from .users import router as users_router
 router.include_router(users_router)
+
+from .service_view import router as service_view_router
+router.include_router(service_view_router)
 
 from .pending_items import router as pending_items_router
 router.include_router(pending_items_router)

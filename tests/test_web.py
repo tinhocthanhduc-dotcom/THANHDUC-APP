@@ -2694,7 +2694,9 @@ def test_t3_web_service_collection_queue_source_pt_link_and_paid_disappears(clie
     csrf=service_login(client,p['finance'])
     queue=client.get('/bao-thu')
     assert queue.status_code==200 and o.number in queue.text and t.number in queue.text and 'Nguồn:' in queue.text
-    assert f'href="/dich-vu/{t.id}#thu-tien"' in queue.text and f'href="/don-ban/{o.id}#thu-tien"' in queue.text
+    # F2: kế toán không mở được /dich-vu nên hàng chờ trỏ sang trang xem phiếu chỉ đọc.
+    assert f'href="/xem-dich-vu/{t.id}"' in queue.text and f'href="/dich-vu/{t.id}' not in queue.text and f'href="/don-ban/{o.id}#thu-tien"' in queue.text
+    assert client.get(f'/xem-dich-vu/{t.id}').status_code==200
     assert client.post(f'/bao-thu/{receipt.id}/confirm',data=dict(csrf=csrf,version=1)).status_code==200
     db.expire_all();pt=db.get(CashDoc,receipt.cash_doc_id)
     assert client.get(f'/dich-vu/{t.id}').status_code==403  # Finance xem tiền qua Báo thu, không mở phiếu DV.

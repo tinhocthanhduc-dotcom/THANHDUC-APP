@@ -13,7 +13,7 @@ from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog,PendingDisposition,PendingItem,Product,SalesReturn,ServiceTicket,StockDoc,Supplier,TechnicianReturn,User,Warehouse
 from ..security import has_role
-from . import checked_form,money,render,web_user
+from . import checked_form,money,nav,render,web_user
 
 router=APIRouter()
 
@@ -26,9 +26,13 @@ def qty_text(value):
 def context(user):return dict(groups=svc.GROUPS,sources=svc.SOURCES,can_edit=has_role(user,'warehouse'),can_value=svc.can_value(user),qty_text=qty_text)
 
 
-def source_links(session,items):
+def source_links(session,items,user=None):
+    # F2: chỉ trả link người xem mở được; thiếu link thì template hiện số chứng từ dạng chữ.
     refs={row.source_ref for row in items};links={}
     for model,prefix in ((ServiceTicket,'/dich-vu/'),(TechnicianReturn,'/tho-tra-hang/'),(SalesReturn,'/tra-hang/'),(StockDoc,'/phieu-kho/')):
+        if user is not None and not nav.allowed(user,prefix.rstrip('/')):
+            if model is ServiceTicket and nav.allowed(user,'/xem-dich-vu'):prefix='/xem-dich-vu/'
+            else:continue
         links.update({number:prefix+str(ident) for number,ident in session.execute(select(model.number,model.id).where(model.number.in_(refs)))})
     return links
 
@@ -72,7 +76,7 @@ def listing(request:Request,group:str='',warehouse:str='',min_days:str='',q:str=
         ('min_days',f'Nằm kho quá {days} ngày')) if query.get(key) not in ('',None)]
     notices=alerts.pending_notices(session,user)
     return render(request,'cho_xu_ly_ds.jinja',**context(user),rows=shown,page=page,tabs=tabs,tiles=tiles,chips=chips,link=link,totals=totals,
-        source_links=source_links(session,[row['item'] for row in shown]),
+        source_links=source_links(session,[row['item'] for row in shown],user),
         warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='LOI').order_by(Warehouse.code))),
         sold_quantities=pending_liquidation.sold_quantities(session,[r['item'].id for r in shown]),view=view,supplier_names=dict(session.execute(select(Supplier.code,Supplier.name)).all()),
         selected_group=group,selected_warehouse=warehouse,min_days=days,q=q[:200],selected_status=status,notices=notices,config_pending_days=get_settings().pending_alert_days,
@@ -131,7 +135,7 @@ def detail_page(request,session,user,ident,error=None,code='',status=200):
         treatments=treatments,disposition_photos=disposition_photos,disposition_kinds=dispositions.KINDS,disposition_statuses=dispositions.STATUSES,can_decide_return=has_role(user,'finance'),can_approve=has_role(user,'director'),
         destinations=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI'))).order_by(Warehouse.code))),
         default_warehouse=get_settings().sales_default_warehouse,product=session.get(Product,row.product_code),
-        photos=attachments.list_for(session,user,'pending_item',str(ident)),history=history,source_links=source_links(session,[row]),
+        photos=attachments.list_for(session,user,'pending_item',str(ident)),history=history,source_links=source_links(session,[row],user),
         suppliers=list(session.scalars(select(Supplier).where(Supplier.active.is_(True)).order_by(Supplier.code))),
         stock_doc=session.get(StockDoc,row.stock_doc_id) if row.stock_doc_id else None,
         creator=session.scalar(select(User.full_name).where(User.id==row.created_by)) if row.created_by else None,

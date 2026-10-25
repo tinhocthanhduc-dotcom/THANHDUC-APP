@@ -1,0 +1,43 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}{{ t.number }} · xem{% endblock %}
+{% block main %}
+{# F2: bản xem chỉ đọc cho kế toán và kho. Không giá vốn, không nút thao tác. #}
+<div class="page-wide">
+{% call ui.page_head(t.number ~ ' · Phiếu dịch vụ', sub='Bản xem chỉ đọc · ' ~ service_statuses[t.status] ~ ' · ' ~ service_kinds[t.kind], back=back, badge_label=service_statuses[t.status], badge_tone={'HOAN_THANH':'xong','DA_DONG':'xong','DA_HUY':'huy','KHONG_LAM_DUOC':'huy'}.get(t.status,'lam')) %}{% if full_url %}<a class="btn btn-ghost" href="{{ full_url }}">Mở phiếu đầy đủ</a>{% endif %}{% endcall %}
+<div class="doc-grid">
+<div class="doc-main">
+<section class="card doc-card" aria-label="Khách và máy"><h2 class="doc-h">Khách và máy</h2>
+  <dl class="doc-kv">
+    <dt>Khách hàng</dt><dd>{% if can_open('/khach-hang') %}<a href="/khach-hang/{{ t.customer_code }}"><b>{{ t.customer_code }} · {{ customer.name }}</b></a>{% else %}<b>{{ t.customer_code }} · {{ customer.name }}</b>{% endif %}</dd>
+    <dt>Địa điểm</dt><dd>{% if site %}{{ site.name }}{% if site.address %} — {{ site.address }}{% endif %}{% else %}Địa chỉ chính{% if customer.address %} — {{ customer.address }}{% endif %}{% endif %}</dd>
+    <dt>Máy</dt><dd>{% if machine %}{{ machine.serial }}{% if machine_name %} · {{ machine_name }}{% endif %}{% if machine.custody_location != 'TAI_KHACH' %} · {{ custody_locations[machine.custody_location] }}{% if machine.custody_holder_id %} ({{ users.get(machine.custody_holder_id,'') }}){% endif %}{% endif %}{% else %}Chưa chọn máy{% endif %}</dd>
+    <dt>Thợ</dt><dd>{{ users.get(t.assignee_id, 'Chưa giao') }}</dd>
+    <dt>Hẹn khách</dt><dd>{{ t.appointment_at|appointment_label(t.appointment_slot) }}</dd>
+    <dt>Bước tiếp · ai làm</dt><dd data-next-step><b>{{ next_title }}</b> · {{ next_who }}</dd>
+  </dl>
+</section>
+<section class="card doc-card" aria-label="Lỗi và kết quả"><h2 class="doc-h">Lỗi và kết quả</h2>
+  <div><b>Khách báo:</b> <span class="service-text">{{ t.symptom }}</span></div>
+  {% if t.fault_found %}<div><b>Lỗi thợ gặp:</b> <span class="service-text">{{ t.fault_found }}</span></div>{% endif %}
+  {% if t.fix_done %}<div><b>Cách xử lý:</b> <span class="service-text">{{ t.fix_done }}</span></div>{% endif %}
+  {% if t.hold_reason %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
+  {% if t.status_reason %}<div><b>Lý do:</b> <span class="service-text">{{ t.status_reason }}</span></div>{% endif %}
+</section>
+{% if parts or recovered %}<section class="card doc-card" aria-label="Linh kiện"><h2 class="doc-h">Linh kiện</h2>
+  {% if parts %}<table class="list-table"><thead><tr><th>Yêu cầu</th><th>Linh kiện</th><th class="num">SL</th><th>Trạng thái</th></tr></thead><tbody>{% for r in parts %}<tr><td>{{ r.number }}</td><td>{{ names.get(r.product_code, r.product_code) }}</td><td class="num">{{ r.qty|qty }}</td><td>{{ part_statuses[r.status] }}{% if r.from_warehouse_code %} · {{ r.from_warehouse_code }}{% endif %}</td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% if recovered %}<p class="hint">Thu hồi</p><ul>{% for r in recovered %}<li>{{ names.get(r.product_code, r.product_code) }} · {{ r.qty }} · {{ {'CHO_NOP':'Chờ nộp','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'}[r.status] }}</li>{% endfor %}</ul>{% endif %}
+</section>{% endif %}
+</div>
+<aside class="doc-side">
+{% if money %}<section class="card doc-card money-box" id="thu-tien" aria-label="Tiền"><h2 class="doc-h">Tiền</h2>
+  <dl class="doc-kv">
+    <dt>Tiền phiếu</dt><dd>{{ money.total|money }} đồng</dd>
+    <dt>Khách phải trả</dt><dd>{{ money.receivable|money }} đồng</dd>
+    <dt>Đã xác nhận thu</dt><dd>{{ money.paid|money }} đồng</dd>
+    {% if money.pending %}<dt>Báo thu chờ xác nhận</dt><dd>{{ money.pending|money }} đồng</dd>{% endif %}
+    <dt>Còn thiếu</dt><dd><b>{{ money.remaining|money }} đồng</b></dd>
+  </dl>
+  {% if receipts %}<table class="list-table"><thead><tr><th>Báo thu</th><th class="num">Tiền</th><th>Trạng thái</th></tr></thead><tbody>{% for r in receipts %}<tr><td><a href="/bao-thu/{{ r.id }}">{{ r.number }}</a><span class="lt-sub">{{ receipt_methods[r.method] }} · {{ r.received_at.strftime('%d/%m/%Y') }} · {{ users.get(r.reported_by,'') }}</span></td><td class="num">{{ r.amount|money }}</td><td>{{ receipt_statuses[r.status] }}</td></tr>{% endfor %}</tbody></table>{% else %}<p class="hint">Chưa có báo thu.</p>{% endif %}
+</section>{% elif t.billing == 'MIEN_PHI' %}<section class="card doc-card" aria-label="Tiền"><h2 class="doc-h">Tiền</h2><p>Miễn phí{% if t.free_reason %} · {{ t.free_reason }}{% endif %}</p></section>{% endif %}
+</aside>
+</div></div>{% endblock %}

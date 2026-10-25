@@ -181,7 +181,7 @@ def devices_page(request, session, user, q='', tt='', bh='', o='', trang='', so=
     n_soon = sum(1 for e in alls if warranty(e) == 'sap')
     tiles = [dict(label='Còn bảo hành', n=sum(1 for e in alls if warranty(e) in ('con', 'sap')), sub='Máy bán ra và máy sửa có bảo hành', href='/thiet-bi?bh=con', on=bh == 'con', tone='xong'),
              dict(label='Sắp hết bảo hành', n=n_soon, sub=f'Trong {SOON_DAYS} ngày tới', href='/thiet-bi?bh=sap', on=bh == 'sap', tone='cho' if n_soon else ''),
-             dict(label='Đang ở công ty', n=sum(1 for e in alls if place(e) in ('THO_GIU', 'KHO_KY_THUAT', 'DOI_TAC')), sub='Thợ giữ, kho kỹ thuật, đối tác', href='/may-dang-giu', on=False),
+             dict(label='Đang ở công ty', n=sum(1 for e in alls if place(e) in ('THO_GIU', 'KHO_KY_THUAT', 'DOI_TAC')), sub='Thợ giữ, kho kỹ thuật, đối tác', href='/may-dang-giu' if nav.allowed(user, '/may-dang-giu') else '', on=False),
              dict(label='Chưa gắn khách', n=sum(1 for e in alls if not e.customer_code), sub='Cần bổ sung khách', href='/thiet-bi?o=CHUA_GAN', on=o == 'CHUA_GAN')]
     tabs = [dict(label='Đang dùng', n=counts['dung'], href=link(tt=''), on=not tt), dict(label='Ngừng dùng', n=counts['ngung'], href=link(tt='ngung'), on=tt == 'ngung'),
             dict(label='Tất cả', n=len(found), href=link(tt='tat-ca'), on=tt == 'tat-ca')]

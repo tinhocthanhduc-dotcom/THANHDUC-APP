@@ -1,5 +1,5 @@
 {% extends 'base.jinja' %}
-{% macro tile(label,value,link,money=true,detail='',main=false) %}<a class="overview-tile{% if main %} overview-main{% endif %}{% if not value %} overview-zero{% endif %}" href="{{ link }}"><span>{{ label }}</span><strong>{{ value|money if money else value }}</strong>{% if detail %}<small>{{ detail }}</small>{% endif %}</a>{% endmacro %}
+{% macro tile(label,value,link,money=true,detail='',main=false) %}{% set tag = 'a' if link and can_open(link) else 'div' %}<{{ tag }} class="overview-tile{% if main %} overview-main{% endif %}{% if not value %} overview-zero{% endif %}"{% if tag == 'a' %} href="{{ link }}"{% endif %}><span>{{ label }}</span><strong>{{ value|money if money else value }}</strong>{% if detail %}<small>{{ detail }}</small>{% endif %}</{{ tag }}>{% endmacro %}
 {% block title %}Tổng quan{% endblock %}
 {% block main %}<div class="overview-page">
 <div class="overview-head"><div><h1>Tổng quan</h1><p class="hint">{{ s.today.strftime('%d/%m/%Y') }} · Giờ Việt Nam</p></div><a class="btn btn-ghost" href="/tong-quan/ngay">Các ngày trước</a>{% if can_save %}<form method="post" action="/tong-quan/ngay"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn-ghost">Lưu tóm tắt hôm nay</button></form>{% endif %}</div>
