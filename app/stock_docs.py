@@ -68,7 +68,7 @@ def _active(session: Session, model, code):
     return session.scalars(select(model).where(model.code == code, model.active.is_(True)).with_for_update(read=True)).first()
 
 
-def _validate(session: Session, body: StockDocIn, *, _sales_return=False, _recovered_part=False, _technician_return=False, _pending_disposition=False):
+def _validate(session: Session, body: StockDocIn, *, source_kind=None, _sales_return=False, _recovered_part=False, _technician_return=False, _pending_disposition=False):
     customer_receipt = _sales_return or _recovered_part
     if _recovered_part and (body.kind != 'PN' or body.supplier_code or
             not session.scalar(select(Warehouse.code).where(Warehouse.code==body.warehouse_code,Warehouse.kind=='LOI',Warehouse.recovered_only.is_(True),Warehouse.supplier_hold.is_(False))) or any(line.unit_cost != 0 for line in body.lines)):
@@ -98,7 +98,7 @@ def _validate(session: Session, body: StockDocIn, *, _sales_return=False, _recov
         damage_return = _technician_return and kinds[body.warehouse_code]=='THO' and kinds[body.to_warehouse_code]=='LOI'
         if set(kinds.values())=={'LOI','THO'} and not damage_return:
             raise BusinessError('BAD_WAREHOUSE','Không chuyển hàng lỗi sang kho thợ.')
-    if body.kind == "PN" and not body.supplier_code and not customer_receipt:
+    if body.kind == "PN" and not body.supplier_code and not customer_receipt and source_kind != 'SAN_XUAT':
         raise BusinessError("BAD_SUPPLIER", "Phiếu nhập cần nhà cung cấp đang sử dụng.")
     if body.supplier_code is not None and not _active(session, Supplier, body.supplier_code):
         raise BusinessError("BAD_SUPPLIER", "Nhà cung cấp không tồn tại hoặc đã ngừng sử dụng.")
@@ -138,7 +138,7 @@ def create(session: Session, user: User, body: StockDocIn, *, source_kind=None) 
 
 def insert(session: Session, user: User, body: StockDocIn, *, source_kind=None, _sales_return=False, _recovered_part=False, _technician_return=False, _pending_disposition=False) -> StockDoc:
     """Lập phiếu trong transaction của nơi gọi, không kiểm vai trò (nơi gọi đã kiểm). Dùng cho phiếu sinh tự động."""
-    _validate(session, body, _sales_return=_sales_return, _recovered_part=_recovered_part, _technician_return=_technician_return, _pending_disposition=_pending_disposition)
+    _validate(session, body, source_kind=source_kind, _sales_return=_sales_return, _recovered_part=_recovered_part, _technician_return=_technician_return, _pending_disposition=_pending_disposition)
     doc = StockDoc(**body.model_dump(exclude={"lines"}), source_kind=source_kind, created_by=user.id,
                    number=next_number(session, body.kind, body.doc_date), lines=_lines(body))
     session.add(doc)

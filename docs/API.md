@@ -977,3 +977,19 @@ Migration `0035` nối `0034`: `technician_return_lines.condition` (`TOT` mặc 
 - Thợ vẫn được hủy yêu cầu của chính mình khi `CHO_NHAN`, bắt buộc lý do; thợ khác 403. Hủy không tạo CK, hàng vẫn ở kho thợ. Thợ không xác nhận nhận. Các thao tác tiếp tục dùng CSRF, version, `form_key`; yêu cầu và dòng hàng không xóa.
 
 Hạ `0035` trên dữ liệu chỉ có dạng UX1c vẫn sạch. Dữ liệu có yêu cầu không gắn phiếu hoặc hai dòng cùng mã không biểu diễn được ở UX1c sẽ bị ràng buộc cũ chặn, không tự gộp/xóa lịch sử để hạ phiên bản.
+
+## SX1 — Phiếu sản xuất
+
+API JSON dưới `/production-orders` (Bearer token), màn web dưới `/san-xuat`.
+
+- `GET /production-orders[?status=MOI]`, `GET /production-orders/{number}`: thợ chỉ xem của mình; điều phối/kho/giám đốc xem toàn bộ. Không trả `material_cost`, `unit_cost` cho thợ hoặc điều phối. Kinh doanh không được đọc.
+- `POST /production-orders`: `{kind, product_code, qty_plan, technician_id?, from_warehouse_code?, to_warehouse_code, note?, lines:[{product_code,qty_plan,note?}]}`. Thợ tự lập dùng kho của mình.
+- `POST /production-orders/{number}/giao`: `{version,technician_id}`.
+- `POST /production-orders/{number}/bat-dau`: `{version}`.
+- `POST /production-orders/{number}/hoan-thanh`: `{version,qty_good,qty_scrap,void_reason?,lines:[{line_no?,product_code?,qty_used}]}`. Dòng cũ dùng `line_no`; dòng mới cần `product_code`; ít nhất một dòng thực dùng > 0 để lập PX. Phần chưa làm không chuyển sang phiếu mới.
+- `POST /production-orders/{number}/nhan-kho`: `{version,qty_received,serials:[],note?}`. Nhận ít hơn số tốt cần ghi chú; kho phụ trách đích hoặc giám đốc nhận. `qty_good` sau nhận bằng số thực nhận; phần chênh chuyển hỏng. Serial chỉ lưu trên PN, BH1 tạo hồ sơ Thiết bị khi bán.
+- `POST /production-orders/{number}/huy`: `{version,reason}`; chỉ trước xuất vật tư.
+
+Các action ghi một transaction bao gồm audit/PX/PN. `SOURCE_LOCKED` chặn hủy PX/PN rời. Giá vốn đơn vị làm tròn nguyên đồng như lõi kho, nên ví dụ 790.000/9 → 87.778; PN 9 chiếc có giá trị 790.002 theo đơn giá làm tròn. Không sửa giá bình quân để bù 2 đồng. Hỏng hết vẫn giữ PX và tổng giá vốn vật tư, không sinh PN hay chi tiền/quỹ.
+
+`PHIEU_SX` dùng ngày nhận theo Việt Nam, chỉ tính hoa hồng cố định mỗi thành phẩm thực nhận; không lấy phần trăm, không tính lại số đã khóa. KPI `tho_san_xuat` dùng cùng số thực nhận. Nhóm việc sản xuất ở Trong ngày, không ở Làm ngay/Tiền.

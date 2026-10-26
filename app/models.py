@@ -1684,6 +1684,57 @@ class KpiTarget(Base):
     __mapper_args__ = {'version_id_col': version}
 
 
+class ProductionOrder(Base):
+    __tablename__ = 'production_orders'
+    __table_args__ = (
+        CheckConstraint("kind in ('DO_MUC','TAN_TRANG','LAP_RAP')", name='ck_production_kind'),
+        CheckConstraint("status in ('MOI','DANG_LAM','HOAN_THANH','DA_NHAP','DA_HUY')", name='ck_production_status'),
+        CheckConstraint('qty_plan>0 and qty_good>=0 and qty_scrap>=0 and qty_good+qty_scrap<=qty_plan', name='ck_production_qty'),
+        CheckConstraint('material_cost>=0 and unit_cost>=0', name='ck_production_cost'),
+        CheckConstraint("status not in ('HOAN_THANH','DA_NHAP') or px_doc_id is not null", name='ck_production_px'),
+        CheckConstraint("status<>'DA_NHAP' or pn_doc_id is not null", name='ck_production_pn'),
+        CheckConstraint("status<>'DA_HUY' or length(trim(void_reason))>0", name='ck_production_void'),
+        Index('ix_production_technician_status', 'technician_id', 'status'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(24), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty_plan: Mapped[int] = mapped_column(Integer)
+    qty_good: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    qty_scrap: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    technician_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    from_warehouse_code: Mapped[str | None] = mapped_column(ForeignKey('warehouses.code'))
+    to_warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
+    status: Mapped[str] = mapped_column(String(16), default='MOI', server_default='MOI')
+    px_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
+    pn_doc_id: Mapped[int | None] = mapped_column(ForeignKey('stock_docs.id'), unique=True)
+    material_cost: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    unit_cost: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    received_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    void_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+    lines: Mapped[list['ProductionOrderLine']] = relationship(order_by='ProductionOrderLine.line_no', cascade='all, delete-orphan')
+
+
+class ProductionOrderLine(Base):
+    __tablename__ = 'production_order_lines'
+    __table_args__ = (CheckConstraint('qty_plan>=0 and qty_used>=0', name='ck_production_line_qty'),)
+    order_id: Mapped[int] = mapped_column(ForeignKey('production_orders.id'), primary_key=True)
+    line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty_plan: Mapped[Decimal] = mapped_column(Numeric(14,3), default=0, server_default='0')
+    qty_used: Mapped[Decimal] = mapped_column(Numeric(14,3), default=0, server_default='0')
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+
+
 class CommissionRule(Base):
     __tablename__ = 'commission_rules'
     __table_args__ = (
@@ -1691,7 +1742,7 @@ class CommissionRule(Base):
         CheckConstraint('pct between 0 and 50 and fixed_amount >= 0',name='ck_commission_rule_money'),
         CheckConstraint("target <> 'KINH_DOANH' or (fixed_amount=0 and service_kind is null)",name='ck_commission_rule_sales'),
         CheckConstraint("length(trim(reason))>0",name='ck_commission_rule_reason'),
-        CheckConstraint(_in('service_kind',SERVICE_KINDS),name='ck_commission_rule_kind'),
+        CheckConstraint(_in('service_kind',(*SERVICE_KINDS,'SAN_XUAT')),name='ck_commission_rule_kind'),
         Index('uq_commission_rule_effective','target',text('coalesce(user_id,0)'),text("coalesce(service_kind,'')"),'effective_from',unique=True,postgresql_where=text('replaced_at is null')),
     )
     id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
@@ -1721,11 +1772,12 @@ class CommissionLine(Base):
     __tablename__ = 'commission_lines'
     __table_args__ = (
         CheckConstraint('extract(day from month)=1',name='ck_commission_line_month'),
-        CheckConstraint("(source='DON_BAN' and order_id is not null and ticket_id is null) or (source='PHIEU_DV' and ticket_id is not null and order_id is null) or (source='DIEU_CHINH' and order_id is null and ticket_id is null and length(trim(note))>0)",name='ck_commission_line_source'),
+        CheckConstraint("(source='DON_BAN' and order_id is not null and ticket_id is null and production_id is null) or (source='PHIEU_DV' and ticket_id is not null and order_id is null and production_id is null) or (source='PHIEU_SX' and production_id is not null and order_id is null and ticket_id is null) or (source='DIEU_CHINH' and order_id is null and ticket_id is null and production_id is null and length(trim(note))>0)",name='ck_commission_line_source'),
         CheckConstraint('pct between 0 and 50 and fixed_amount>=0 and paid_ratio between 0 and 1',name='ck_commission_line_values'),
         CheckConstraint('amount=entitled-previous and amount<>0',name='ck_commission_line_amount'),
         Index('uq_commission_line_order','month','order_id',unique=True,postgresql_where=text("source='DON_BAN'")),
         Index('uq_commission_line_ticket','month','ticket_id',unique=True,postgresql_where=text("source='PHIEU_DV'")),
+        Index('uq_commission_line_production','month','production_id',unique=True,postgresql_where=text("source='PHIEU_SX'")),
         Index('ix_commission_line_user_month','user_id','month'),
     )
     id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
@@ -1734,6 +1786,7 @@ class CommissionLine(Base):
     source: Mapped[str] = mapped_column(String(16))
     order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'))
     ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    production_id: Mapped[int | None] = mapped_column(ForeignKey('production_orders.id'))
     rule_id: Mapped[int | None] = mapped_column(ForeignKey('commission_rules.id'))
     base: Mapped[int] = mapped_column(BigInteger)
     pct: Mapped[Decimal] = mapped_column(Numeric(5,2))

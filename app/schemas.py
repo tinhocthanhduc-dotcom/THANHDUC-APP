@@ -7,6 +7,58 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 from .config import DEFAULT_VAT_RATE
 
 
+class ProductionLineIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    product_code: str = Field(min_length=1, max_length=16)
+    qty_plan: Decimal = Field(default=0, ge=0, max_digits=14, decimal_places=3)
+    note: str = Field(default='', max_length=2000)
+
+
+class ProductionIn(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    kind: Literal['DO_MUC', 'TAN_TRANG', 'LAP_RAP']
+    product_code: str = Field(min_length=1, max_length=16)
+    qty_plan: int = Field(gt=0, le=2147483647)
+    technician_id: int | None = None
+    from_warehouse_code: str | None = None
+    to_warehouse_code: str = Field(min_length=1, max_length=16)
+    note: str = Field(default='', max_length=2000)
+    lines: list[ProductionLineIn] = Field(default_factory=list, max_length=200)
+
+
+class ProductionVersion(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    version: int = Field(gt=0)
+
+
+class ProductionAssign(ProductionVersion):
+    technician_id: int
+
+
+class ProductionUsed(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    line_no: int | None = Field(default=None, gt=0)
+    product_code: str | None = None
+    qty_used: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
+
+
+class ProductionComplete(ProductionVersion):
+    qty_good: int = Field(ge=0, le=2147483647)
+    qty_scrap: int = Field(ge=0, le=2147483647)
+    void_reason: str = Field(default='', max_length=2000)
+    lines: list[ProductionUsed] = Field(default_factory=list, max_length=200)
+
+
+class ProductionReceive(ProductionVersion):
+    qty_received: int = Field(gt=0, le=2147483647)
+    note: str = Field(default="", max_length=2000)
+    serials: list[str] = Field(default_factory=list, max_length=1000)
+
+
+class ProductionVoid(ProductionVersion):
+    reason: str = Field(min_length=3, max_length=2000)
+
+
 class ContactIn(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 

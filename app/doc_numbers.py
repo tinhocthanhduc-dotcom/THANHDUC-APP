@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .errors import BusinessError
 
 PREFIXES = {
+    "SX": "Phiếu sản xuất",
     "TU": "Tạm ứng lương",
     "CC": "Yêu cầu chấm công",
     "XL": "Phiếu xử lý hàng",

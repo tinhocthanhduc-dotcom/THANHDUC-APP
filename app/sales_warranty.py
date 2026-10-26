@@ -32,18 +32,26 @@ def _save(session,user,row,action,before):
     audit.record(session,user,action,'equipment',row.serial,before,equipment.snapshot(row))
 
 
+def checked_serials(serials, qty, required):
+    """Shared normalization/count/duplicate rules for delivery and production receipts."""
+    values = [equipment.normalize_serial(s) for s in serials]
+    if required:
+        if qty != int(qty) or len(values) != int(qty) or any(not s or len(s)>64 for s in values):
+            raise BusinessError('SERIAL_REQUIRED', 'Cần đúng số serial cho số máy, mỗi serial tối đa 64 ký tự.')
+    elif values:
+        raise BusinessError('SERIAL_REQUIRED', 'Chỉ nhập serial cho mã hàng có cấu hình bảo hành.')
+    if len(set(values)) != len(values):
+        raise BusinessError('SERIAL_DUPLICATE', 'Serial bị trùng.')
+    return values
+
+
 def enroll_in_tx(session,user,order,delivery,parts,quantities,inputs):
     by_no={p.order_line_no:p.serials for p in (inputs or [])}
     jobs=[];seen=set()
     for line in parts:
         p=session.scalar(select(Product).where(Product.code==line.product_code).with_for_update(read=True)) if line.kind=='HANG' else None
-        values=[equipment.normalize_serial(s) for s in by_no.get(line.line_no,[])]
         qty=quantities[line.line_no]
-        if p and p.warranty_months>0:
-            if qty!=int(qty) or len(values)!=int(qty) or any(not s or len(s)>64 for s in values):
-                raise BusinessError('SERIAL_REQUIRED',f'{line.product_code}: cần đúng {qty:g} serial cho số máy giao.')
-        elif values:
-            raise BusinessError('SERIAL_REQUIRED','Chỉ nhập serial cho mã hàng có cấu hình bảo hành.')
+        values=checked_serials(by_no.get(line.line_no,[]),qty,bool(p and p.warranty_months>0))
         for serial in values:
             if serial in seen:raise BusinessError('SERIAL_DUPLICATE','Serial bị trùng trong lần giao.')
             seen.add(serial);jobs.append((serial,line,p))

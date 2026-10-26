@@ -8,6 +8,8 @@ from . import equipment_custody, sales_receipts, sales_orders, service_sla, serv
 from .config import get_settings
 from .errors import BusinessError
 from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from sqlalchemy import String
+from .models import ProductionOrder
 from .security import has_role
 
 LIMIT = 20
@@ -242,6 +244,17 @@ def _specs(user, today, now):
     if has_role(user,'finance'):
         pending_returns=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),PendingDisposition.total.label('amount'),literal(False).label('overdue')).join(PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)
         add('pending_supplier_returns','Trả hàng lỗi NCC chờ duyệt',pending_returns,'pending_supplier_return','/cho-xu-ly/duyet-tra-ncc')
+    sx = ProductionOrder
+    production_docs = select(sx.id, sx.number, sx.status,
+        (literal('Làm hàng: ') + sx.qty_plan.cast(String) + literal(' ') + Product.name).label('customer'),
+        literal(0).label('amount'), literal(False).label('overdue')).join(Product, Product.code==sx.product_code)
+    if 'technician' in user.roles:
+        add('production_work','Hàng sản xuất',production_docs.where(sx.technician_id==user.id,sx.status.in_(('MOI','DANG_LAM'))).order_by(sx.id), 'production','/san-xuat')
+    if has_role(user,'warehouse'):
+        waiting = production_docs.with_only_columns(sx.id,sx.number,sx.status,
+            (literal('Nhận thành phẩm ') + sx.number).label('customer'),literal(0).label('amount'),literal(False).label('overdue')).where(sx.status=='HOAN_THANH')
+        if user.warehouse_codes and not director: waiting=waiting.where(sx.to_warehouse_code.in_(user.warehouse_codes))
+        add('production_receive','Nhận thành phẩm',waiting.order_by(sx.id),'production','/san-xuat?status=HOAN_THANH')
     return specs
 
 
@@ -258,8 +271,9 @@ def _group(session, spec, page=1):
                 # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
                 link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
-            prefix = {'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
+            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
+            if kind=='production': row['link']='/san-xuat/'+row['number']
             if kind=='supplier_debt':row['link']='/cong-no-ncc/'+quote(row['number'],safe='')+'#tra-tien'
             if kind=='pending_supplier_return':row['link']=f"/cho-xu-ly/duyet-tra-ncc#xl-{row['id']}"
             if kind=='pending_disposition':row['link']=f"/cho-xu-ly/duyet-huy#xl-{row['id']}"
