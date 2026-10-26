@@ -174,3 +174,33 @@ def test_web_summary_home_redirects_menu_svg_and_role_permissions(client,people)
         else:assert page.status_code==403
     client.cookies.clear()
     assert client.get('/',follow_redirects=False).headers['location']=='/dang-nhap'
+
+
+def test_day_board_technicians_sales_counts_reasons_and_roles(client,db,people,monkeypatch):
+    # Tổng quan điều hành (26/10/2026): bảng thợ / kinh doanh trong ngày, chỉ giám đốc; số đếm chung cho kế toán.
+    from test_web import service_login
+    # Bước phiếu và ngày tạo ghi theo giờ máy chủ thật, nên bảng ngày xem theo ngày Việt Nam thật (không phải DAY đóng băng).
+    p=people;received(db,p,qty=10);monkeypatch.setattr(sales_orders,'datetime',datetime)
+    today=datetime.now(svc.TZ).date()
+    completed(db,p)
+    t=service_tickets.create(db,p['sales'],ServiceTicketIn(customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Mờ bản in'))
+    service_tickets.assign(db,p['director'],t.id,p['technician'].id,t.version)
+    service_tickets.transition(db,p['technician'],t.id,'DA_NHAN',t.version)
+    service_tickets.transition(db,p['technician'],t.id,'DA_HEN',t.version,appointment_at=service_tickets._now()+timedelta(hours=2))
+    service_tickets.transition(db,p['technician'],t.id,'DANG_LAM',t.version)
+    service_tickets.transition(db,p['technician'],t.id,'TAM_DUNG',t.version,note='Chờ khách',hold_reason='CHO_KHACH_DUYET')
+    sold(db,p)
+    board=svc.day_board(db,p['director'],today)
+    c=board['counts']
+    assert c['received']==2 and c['done']==1 and c['failed']==0 and c['open']==1 and c['unassigned']==0
+    assert c['orders']==1 and c['orders_delivered']==1 and c['orders_waiting']==0 and c['orders_amount']==250000
+    tech=[r for r in board['technicians'] if r['user_id']==p['technician'].id][0]
+    assert tech['assigned']==2 and tech['done']==1 and tech['open']==1 and tech['overdue']==0
+    assert [i['reason'] for i in tech['items']]==['Chờ khách duyệt'] and tech['items'][0]['number']==t.number
+    sales=board['sales'];assert len(sales)==1 and sales[0]['name']==p['sales'].full_name and sales[0]['orders']==1 and sales[0]['delivered']==1 and sales[0]['amount']==250000
+    assert 'technicians' not in svc.day_board(db,p['finance'],today) and svc.day_board(db,p['finance'],today)['counts']['received']==2
+    service_login(client,p['director']);page=client.get('/tong-quan').text
+    assert 'Thợ hôm nay' in page and 'Chờ khách duyệt' in page and 'Kinh doanh hôm nay' in page
+    assert page.index('Cần để mắt ngay')<page.index('Thợ hôm nay')<page.index('Tiền · tháng này')<page.index('Doanh thu 30 ngày gần nhất')
+    service_login(client,p['finance']);page=client.get('/tong-quan').text
+    assert 'Thợ hôm nay' not in page and 'Kinh doanh hôm nay' not in page and 'Hôm nay nhìn nhanh' in page

@@ -1,38 +1,71 @@
 {% extends 'base.jinja' %}
 {% macro tile(label,value,link,money=true,detail='',main=false) %}{% set tag = 'a' if link and can_open(link) else 'div' %}<{{ tag }} class="overview-tile{% if main %} overview-main{% endif %}{% if not value %} overview-zero{% endif %}"{% if tag == 'a' %} href="{{ link }}"{% endif %}><span>{{ label }}</span><strong>{{ value|money if money else value }}</strong>{% if detail %}<small>{{ detail }}</small>{% endif %}</{{ tag }}>{% endmacro %}
+{% macro alert_rows(groups) %}{% for kind,rows in groups.items() %}<details class="alert-group" data-alert-kind="{{ kind }}"{% if loop.first and rows[0].level=='DO' %} open{% endif %}><summary><span class="alert-n{% if rows[0].level=='DO' %} alert-n-red{% endif %}">{{ alert_counts[kind] }}</span>{{ alert_labels[kind] }}{% if kind=='DUOI_TON_TOI_THIEU' and can_open('/ton-kho') %}<a class="alert-go" href="/ton-kho?canh-bao=1">Hàng sắp hết ›</a>{% endif %}</summary><ul>
+{% for a in rows %}<li>{% set tag = 'a' if a.link else 'span' %}<{{ tag }}{% if a.link %} href="{{ a.link }}"{% else %} class="alert-static"{% endif %} data-alert-level="{{ a.level }}"><span class="alert-dot {{ 'alert-dot-red' if a.level=='DO' else 'alert-dot-yellow' }}" aria-label="{{ 'Đỏ' if a.level=='DO' else 'Vàng' }}"></span><span><strong>{{ a.title }}</strong><span class="alert-detail">{{ a.detail }}</span></span></{{ tag }}></li>{% endfor %}
+</ul>{% if alert_counts[kind]>rows|length %}<p class="alert-more">và {{ alert_counts[kind]-rows|length }} mục khác</p>{% endif %}</details>{% endfor %}{% endmacro %}
 {% block title %}Tổng quan{% endblock %}
-{% block main %}<div class="overview-page">
-<div class="overview-head"><div><h1>Tổng quan</h1><p class="hint">{{ s.today.strftime('%d/%m/%Y') }} · Giờ Việt Nam</p></div><a class="btn btn-ghost" href="/tong-quan/ngay">Các ngày trước</a>{% if can_save %}<form method="post" action="/tong-quan/ngay"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn-ghost">Lưu tóm tắt hôm nay</button></form>{% endif %}</div>
-<h2 class="overview-label">Doanh thu</h2>
-<div class="overview-grid">
-{{ tile('Doanh thu hôm nay',s.revenue_today,'/bao-cao/ban-hang?'+today_query,detail='Chưa VAT · gồm dịch vụ',main=true) }}
-{{ tile('Doanh thu tháng này',s.revenue_month,'/bao-cao/ban-hang?'+month_query,detail='Từ ngày 1 đến hôm nay · gồm dịch vụ') }}
-{{ tile('Doanh thu tháng trước',s.revenue_last_month,'/bao-cao/ban-hang?'+last_query,detail='Cả tháng · gồm dịch vụ') }}
-{% if 'gross_margin_month' in s %}{{ tile('Lãi gộp tháng này',s.gross_margin_month,'/bao-cao-mua-hang?tab=lai-gop&'+month_query) }}{% endif %}
+{% block main %}{% set c = board.counts %}{% set red = alert_counts.values()|list %}{% set red_total = eye_groups.values()|map('selectattr','level','equalto','DO')|map('list')|map('length')|sum + c.unassigned %}<div class="overview-page page-wide">
+<div class="overview-head"><div><h1>Tổng quan điều hành</h1><p class="hint">{{ s.today.strftime('%d/%m/%Y') }} · Giờ Việt Nam · tự cập nhật khi mở lại</p></div><a class="btn btn-ghost" href="/tong-quan/ngay">Các ngày trước</a>{% if can_save %}<form method="post" action="/tong-quan/ngay"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn-ghost">Lưu tóm tắt hôm nay</button></form>{% endif %}</div>
+
+<h2 class="overview-label">Hôm nay nhìn nhanh</h2>
+<div class="overview-grid overview-six">
+{{ tile('Doanh thu hôm nay',s.revenue_today,'/bao-cao/ban-hang?'+today_query,detail='Chưa VAT · gồm dịch vụ · TB 30 ngày '+(avg30|money),main=true) }}
+{{ tile('Tiền đã thu hôm nay',c.collected,'/bao-thu',detail='Báo thu đã xác nhận · '+(s.pending_receipts.count|string)+' chờ xác nhận '+(s.pending_receipts.amount|money)) }}
+{{ tile('Đơn bán chốt hôm nay',(c.orders|string)+' đơn','/don-ban',false,detail=(c.orders_amount|money)+' chưa VAT · '+(c.orders_delivered|string)+' đã giao · '+(c.orders_waiting|string)+' chờ giao') }}
+{{ tile('Phiếu dịch vụ hôm nay',(c.received|string)+' nhận · '+(c.done|string)+' xong','/dieu-phoi',false,detail='Dịch vụ đang mở '+(s.services.open|string)+' · '+(s.services.overdue|string)+' quá hạn'+(' · '+(c.failed|string)+' không làm được' if c.failed else '')) }}
+{{ tile('Máy nhận về xưởng',(c.brought_in|string)+' máy','/dieu-phoi?view=workshop',false,detail=('Đang ở xưởng '+(board.workshop|length|string)+' · '+(board.workshop|selectattr('overdue')|list|length|string)+' trễ hẹn' if 'workshop' in board else 'Bàn giao vào Kho kỹ thuật hôm nay')) }}
+<div class="overview-tile overview-red{% if not red_total %} overview-zero{% endif %}"><span>Cần xử lý ngay</span><strong>{{ red_total }} việc đỏ</strong><small>{% if c.unassigned %}{{ c.unassigned }} phiếu chưa giao thợ · {% endif %}{{ s.services.overdue }} dịch vụ quá hạn · {{ advance_pending+attendance_pending }} chờ duyệt</small></div>
 </div>
-<p class="hint">Doanh thu chưa VAT gồm đơn Đã giao và dịch vụ Có thu tiền đã chốt giá. Các khoản quỹ, nợ và tồn là số hiện tại.</p>
-{% include 'canh_bao.jinja' %}
-<h2 class="overview-label">Tiền và nợ</h2>
-<div class="overview-grid">
+<p class="hint">Doanh thu chưa VAT gồm đơn Đã giao và dịch vụ Có thu tiền đã chốt giá. Tiền đã thu gồm VAT, theo ngày thu. Các khoản quỹ, nợ và tồn là số hiện tại.</p>
+
+<div class="overview-two">
+<section class="sales-report-section card overview-alerts" aria-labelledby="alerts-title"><h2 id="alerts-title">Cần để mắt ngay</h2><p class="hint">Việc đỏ lên đầu · bấm từng dòng để mở</p>
+{% if c.unassigned %}<p class="alert-line"><a href="/dieu-phoi"><span class="alert-n alert-n-red">{{ c.unassigned }}</span>Phiếu chưa giao thợ</a></p>{% endif %}
+{% if advance_pending %}<p class="alert-line"><a href="/tam-ung"><span class="alert-n">{{ advance_pending }}</span>Tạm ứng chờ duyệt · {{ advance_pending }} yêu cầu</a></p>{% endif %}{% if attendance_pending %}<p class="alert-line"><a href="/cham-cong/duyet"><span class="alert-n">{{ attendance_pending }}</span>Chấm công chờ duyệt · {{ attendance_pending }} yêu cầu</a></p>{% endif %}
+{{ alert_rows(eye_groups) }}
+{% if not eye_groups and not calm_groups and not attendance_pending and not advance_pending and not c.unassigned %}<p class="alert-empty">Không có việc cần xử lý</p>{% elif not eye_groups and not attendance_pending and not advance_pending and not c.unassigned %}<p class="alert-empty">Không có việc đỏ</p>{% endif %}</section>
+<section class="sales-report-section card overview-alerts"><h2>Kho · mua hàng · theo dõi</h2><p class="hint">Không gấp · gọn một dòng mỗi loại</p>
+{{ alert_rows(calm_groups) }}{% if not calm_groups %}<p class="alert-empty">Kho và mua hàng không có gì cần theo dõi</p>{% endif %}</section>
+</div>
+
+{% if 'technicians' in board %}<section class="sales-report-section card overview-techs"><h2>Thợ hôm nay</h2><p class="hint">Bấm tên để xem từng phiếu chưa xong và lý do · Chưa xong tính mọi phiếu đang mở của thợ, không chỉ hôm nay</p>
+<div class="overview-tbwrap"><table class="overview-table"><thead><tr><th>Thợ</th><th>Vào ca</th><th class="c">Được giao</th><th class="c">Hoàn thành</th><th>Chưa xong · lý do</th><th class="c">Lượt đến khách</th><th class="c">Máy mang về</th><th class="num">Tiền thu khách</th></tr></thead><tbody>
+{% for r in board.technicians %}{% set open_items = r['items'] %}<tr class="ov-tech"><td><details class="ov-tech-d"><summary><strong>{{ r.name }}</strong>{% if open_items %}<small>{{ open_items|length }} phiếu ›</small>{% endif %}</summary>{% if open_items %}<ul class="ov-items">{% for i in open_items %}{% set url = ticket_url(i.id) %}<li>{% if url %}<a href="{{ url }}">{{ i.number }}</a>{% else %}{{ i.number }}{% endif %} · {{ i.customer }} · <span class="chip {{ 'chip-red' if i.overdue or i.status=='KHONG_LAM_DUOC' else 'chip-yel' if i.status in ('TAM_DUNG','CHO_LINH_KIEN') else 'chip-gr' }}">{{ service_labels.get(i.status,i.status) }}{% if i.overdue %} · quá hạn{% endif %}</span>{% if i.reason %} · {{ i.reason }}{% endif %}{% if i.appointment_at and i.status=='DA_HEN' %} · hẹn {{ i.appointment_at|vn_date }}{% endif %}</li>{% endfor %}</ul>{% else %}<p class="hint">Không còn phiếu mở.</p>{% endif %}</details></td>
+<td>{% if r.first_in %}<span class="{{ 'ov-late' if r.late_minutes else 'ov-ok' }}">{{ r.first_in.strftime('%H:%M') }}</span>{% if r.late_minutes %}<small>trễ {{ r.late_minutes }} phút</small>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+<td class="c"><strong>{{ r.assigned }}</strong></td>
+<td class="c"><strong class="ov-ok">{{ r.done }}</strong>{% if r.failed %}<small class="ov-late">{{ r.failed }} không làm được</small>{% endif %}</td>
+<td>{% if r.overdue %}<span class="chip chip-red">{{ r.overdue }} quá hạn</span>{% endif %}{% set paused = open_items|selectattr('status','in',('TAM_DUNG','CHO_LINH_KIEN'))|list|length %}{% if paused %}<span class="chip chip-yel">{{ paused }} chờ</span>{% endif %}{% set working = r.open-r.overdue-paused %}{% if working>0 %}<span class="chip chip-gr">{{ working }} đang làm · hẹn</span>{% endif %}{% if not r.open %}<span class="muted">Không còn phiếu mở</span>{% endif %}</td>
+<td class="c">{{ r.visits }}{% if r.visits %}<small>{{ r.visits_done }} xong · {{ r.visits_return }} hẹn lại · {{ r.visits_no_show }} không gặp</small>{% endif %}</td>
+<td class="c">{{ r.brought_in or '—' }}</td>
+<td class="num"><strong>{{ r.collected|money }}</strong>{% if r.pending %}<small>chờ XN {{ r.pending|money }}</small>{% endif %}</td></tr>{% else %}<tr><td colspan="8">Chưa có tài khoản thợ đang hoạt động.</td></tr>{% endfor %}
+{% if board.technicians %}<tr class="ov-total"><td>Cả đội</td><td></td><td class="c">{{ board.technicians|sum(attribute='assigned') }}</td><td class="c">{{ board.technicians|sum(attribute='done') }}</td><td>{{ board.technicians|sum(attribute='open') }} phiếu đang mở · {{ board.technicians|sum(attribute='overdue') }} quá hạn · {{ board.technicians|sum(attribute='failed') }} không làm được</td><td class="c">{{ board.technicians|sum(attribute='visits') }}</td><td class="c">{{ board.technicians|sum(attribute='brought_in') }}</td><td class="num">{{ board.technicians|sum(attribute='collected')|money }}</td></tr>{% endif %}
+</tbody></table></div></section>
+
+<div class="overview-two">
+<section class="sales-report-section card"><h2>Kinh doanh hôm nay</h2><p class="hint">Theo người tạo đơn · đơn chốt hôm nay, báo giá gửi hôm nay</p>
+<div class="overview-tbwrap"><table class="overview-table"><thead><tr><th>Người</th><th class="c">Báo giá gửi</th><th class="c">Đơn chốt</th><th class="num">Tiền chốt (chưa VAT)</th><th class="c">Đã giao</th><th class="c">Chờ giao</th><th class="num">Tiền thu</th></tr></thead><tbody>
+{% for r in board.sales %}<tr><td><strong>{{ r.name }}</strong></td><td class="c">{{ r.quotes }}</td><td class="c"><strong>{{ r.orders }}</strong></td><td class="num"><strong>{{ r.amount|money }}</strong></td><td class="c">{{ r.delivered }}</td><td class="c">{{ r.waiting }}</td><td class="num">{{ r.collected|money }}</td></tr>{% else %}<tr><td colspan="7">Hôm nay chưa chốt đơn, chưa gửi báo giá.</td></tr>{% endfor %}
+</tbody></table></div><p class="hint">Tháng này: doanh thu {{ s.revenue_month|money }} chưa VAT · <a href="/bao-cao/ban-hang?{{ month_query }}">Báo cáo bán hàng ›</a></p></section>
+<section class="sales-report-section card"><h2>Máy khách đang ở xưởng</h2><p class="hint">{{ board.workshop|length }} máy · {{ board.workshop|selectattr('overdue')|list|length }} trễ hẹn</p>
+{% for w in board.workshop %}{% set url = ticket_url(w.id) %}<p class="alert-line{% if w.overdue %} ov-late-line{% endif %}"><a href="{{ url or '/dieu-phoi?view=workshop' }}"><span class="alert-n{% if w.overdue %} alert-n-red{% endif %}">{{ w.workshop_days }}</span><span><strong>{{ w.workshop_machine or 'Máy' }}{% if w.workshop_serial %} · {{ w.workshop_serial }}{% endif %}</strong><span class="alert-detail">{{ w.customer }} · {{ w.workshop_stage }}{% if w.workshop_location=='DOI_TAC' %} · ở đối tác {{ w.workshop_partner }}{% endif %}{% if w.overdue %} · <b class="ov-late">trễ hẹn</b>{% endif %} · {{ w.number }}</span></span></a></p>{% else %}<p class="alert-empty">Không có máy nào ở xưởng.</p>{% endfor %}</section>
+</div>{% endif %}
+
+<h2 class="overview-label">Tiền · tháng này (số hiện tại)</h2>
+<div class="overview-grid overview-six">
+{{ tile('Doanh thu tháng này',s.revenue_month,'/bao-cao/ban-hang?'+month_query,detail='Từ ngày 1 đến hôm nay · gồm dịch vụ · tháng trước '+(s.revenue_last_month|money)) }}
+{% if 'gross_margin_month' in s %}{{ tile('Lãi gộp tháng này',s.gross_margin_month,'/bao-cao-mua-hang?tab=lai-gop&'+month_query) }}{% endif %}
 {{ tile('Tổng quỹ',s.fund_total,'/bao-cao/tai-chinh#quy') }}
-{{ tile('Khách còn nợ',s.customer_debt,'/bao-cao/tai-chinh#cong-no') }}
+{{ tile('Khách còn nợ',s.customer_debt,'/cong-no-khach-hang' if can_open('/cong-no-khach-hang') else '/bao-cao/tai-chinh#cong-no') }}
 {{ tile('Nợ nhà cung cấp',s.supplier_debt,'/bao-cao-mua-hang?tab=tuoi-no') }}
 {% if 'inventory_total' in s %}{{ tile('Giá trị tồn kho',s.inventory_total,'/ton-kho',detail='Số lượng × giá vốn bình quân') }}{% endif %}
-</div>
-<h2 class="overview-label">Đang chờ</h2>
-<div class="overview-grid overview-small">
-{{ tile('Báo thu chờ xác nhận',s.pending_receipts.count,'/bao-thu',false) }}
-{{ tile('Tiền báo thu chờ',s.pending_receipts.amount,'/bao-thu') }}
-{{ tile('Dịch vụ đang mở',s.services.open,'/dich-vu',false) }}
-{{ tile('Dịch vụ quá hạn',s.services.overdue,'/dich-vu?overdue=1',false) }}
 {% if s.pending_items is defined %}{{ tile('Hàng chờ xử lý',s.pending_items.value,'/bao-cao/cho-xu-ly#tuoi-hang',detail=(s.pending_items.overdue|string)+' hồ sơ quá hạn') }}{% endif %}
 {% if s.damage_cost_month is defined %}{{ tile('Chi phí hàng hư hỏng (không dùng tiền)',s.damage_cost_month,'/bao-cao/cho-xu-ly?'+month_query+'#thang') }}{% endif %}
 </div>
 
-<section class="sales-report-section card overview-chart-card"><h2>Doanh thu 30 ngày gần nhất</h2><p class="hint">{{ s.chart_start.strftime('%d/%m/%Y') }} – {{ s.today.strftime('%d/%m/%Y') }} · Chưa VAT · gồm đơn bán và dịch vụ</p>
+<section class="sales-report-section card overview-chart-card"><details open><summary><h2>Doanh thu 30 ngày gần nhất</h2></summary><p class="hint">{{ s.chart_start.strftime('%d/%m/%Y') }} – {{ s.today.strftime('%d/%m/%Y') }} · Chưa VAT · gồm đơn bán và dịch vụ</p>
 <svg class="overview-chart" viewBox="0 0 900 235" role="img" aria-labelledby="revenue-title revenue-description"><title id="revenue-title">Doanh thu chưa VAT 30 ngày</title><desc id="revenue-description">Mỗi cột là một ngày; bảng số liệu bên dưới có đủ 30 ngày.</desc><line x1="30" y1="190" x2="885" y2="190" stroke="currentColor"/>
 {% for b in bars %}<rect x="{{ b.x }}" y="{{ 190-b.height }}" width="20" height="{{ b.height }}" fill="currentColor"><title>{{ b.day.strftime('%d/%m/%Y') }}: {{ b.amount|money }} đồng</title></rect>{% if (loop.index0%7==0 and loop.index0<25) or loop.last %}<text x="{{ b.x+10 }}" y="215" text-anchor="{{ 'end' if loop.last else 'middle' }}">{{ b.day.strftime('%d/%m') }}</text>{% endif %}{% endfor %}</svg>
-<details><summary>Xem số liệu từng ngày</summary><div class="overview-days">{% for b in bars %}<a href="/bao-cao/ban-hang?from={{ b.day.isoformat() }}&to={{ b.day.isoformat() }}"><span>{{ b.day.strftime('%d/%m') }}</span><strong>{{ b.amount|money }}</strong></a>{% endfor %}</div></details></section>
-<section class="sales-report-section"><h2 class="overview-label">Số dư từng quỹ</h2><div class="overview-grid overview-small">{% for f in s.funds %}{{ tile(f.code+' · '+f.name,f.balance,'/so-quy/'+(f.code|urlquote),detail='Ngừng dùng' if not f.active else '') }}{% else %}<p>Chưa có quỹ.</p>{% endfor %}</div></section>
-{% if 'inventory' in s %}<section class="sales-report-section"><h2 class="overview-label">Giá trị tồn theo kho</h2><div class="overview-grid overview-small">{% for w in s.inventory %}{{ tile(w.warehouse_code+' · '+w.name,w.value,'/ton-kho?kho='+(w.warehouse_code|urlquote)) }}{% else %}<p>Chưa có kho.</p>{% endfor %}</div></section>{% endif %}
+<details><summary>Xem số liệu từng ngày</summary><div class="overview-days">{% for b in bars %}<a href="/bao-cao/ban-hang?from={{ b.day.isoformat() }}&to={{ b.day.isoformat() }}"><span>{{ b.day.strftime('%d/%m') }}</span><strong>{{ b.amount|money }}</strong></a>{% endfor %}</div></details></details></section>
+<section class="sales-report-section card overview-fold"><details><summary><h2 class="overview-label">Số dư từng quỹ ({{ s.funds|length }})</h2></summary><div class="overview-grid overview-small">{% for f in s.funds %}{{ tile(f.code+' · '+f.name,f.balance,'/so-quy/'+(f.code|urlquote),detail='Ngừng dùng' if not f.active else '') }}{% else %}<p>Chưa có quỹ.</p>{% endfor %}</div></details></section>
+{% if 'inventory' in s %}<section class="sales-report-section card overview-fold"><details><summary><h2 class="overview-label">Giá trị tồn theo kho ({{ s.inventory|length }})</h2></summary><div class="overview-grid overview-small">{% for w in s.inventory %}{{ tile(w.warehouse_code+' · '+w.name,w.value,'/ton-kho?kho='+(w.warehouse_code|urlquote)) }}{% else %}<p>Chưa có kho.</p>{% endfor %}</div></details></section>{% endif %}
 </div>{% endblock %}

@@ -5,7 +5,7 @@ from sqlalchemy import Date, and_, func, select
 
 from . import finance_reports, purchase_reports, sales_reports, service_tickets
 from .errors import BusinessError
-from .models import SalesReceipt, ServiceTicket, StockBalance, Warehouse
+from .models import SalesReceipt, ServiceTicket, StockBalance, User, Warehouse
 from .security import has_role
 
 TZ = finance_reports.TZ
@@ -89,3 +89,132 @@ def _summary(session,user,today):
         groups=pending_items.totals(session,user,now=now)
         result['pending_items']=dict(value=sum(g['value'] for g in groups.values()),overdue=sum(g['overdue'] for g in groups.values()))
     return result
+
+
+# ---- Tổng quan điều hành (TUẤN duyệt 26/10/2026): bảng thợ, kinh doanh, xưởng trong ngày. Chỉ SELECT gộp, không nạp từng chứng từ.
+
+def _day_window(column,today):
+    from .sales_reports import _window
+    return _window(column,today,today)
+
+
+def _day_counts(session,today,now):
+    from .models import EquipmentCustody, Quote, SalesOrder, ServiceStep
+    t=ServiceTicket
+    final=select(func.max(ServiceStep.id)).where(ServiceStep.to_status.in_(('HOAN_THANH','KHONG_LAM_DUOC')),ServiceStep.action=='transition').group_by(ServiceStep.ticket_id)
+    done=(select(func.count().filter(ServiceStep.to_status=='HOAN_THANH').label('done'),
+        func.count().filter(ServiceStep.to_status=='KHONG_LAM_DUOC').label('failed'))
+        .select_from(ServiceStep).join(t,t.id==ServiceStep.ticket_id)
+        .where(ServiceStep.id.in_(final),*_day_window(ServiceStep.at,today),
+            ((ServiceStep.to_status=='HOAN_THANH')&t.status.in_(('HOAN_THANH','DA_DONG')))|((ServiceStep.to_status=='KHONG_LAM_DUOC')&(t.status=='KHONG_LAM_DUOC'))))
+    row=dict(_rows(session,done)[0])
+    opened=t.status.in_(service_tickets.OPEN)
+    row.update(_rows(session,select(func.count().filter(*_day_window(t.created_at,today)).label('received'),
+        func.count().filter(opened).label('open'),func.count().filter(opened,t.due_at<now).label('overdue'),
+        func.count().filter(t.status=='MOI').label('unassigned')))[0])
+    o=SalesOrder
+    row.update(_rows(session,select(func.count().label('orders'),func.coalesce(func.sum(o.subtotal),0).label('orders_amount'),
+        func.count().filter(o.status=='DA_GIAO').label('orders_delivered'),
+        func.count().filter(o.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))).label('orders_waiting'))
+        .where(o.status!='DA_HUY',o.confirmed_at.is_not(None),*_day_window(o.confirmed_at,today)))[0])
+    r=SalesReceipt
+    row.update(_rows(session,select(func.coalesce(func.sum(r.amount),0).label('collected'))
+        .where(r.status=='DA_XAC_NHAN',r.received_at==today))[0])
+    c=EquipmentCustody
+    row.update(_rows(session,select(func.count().label('brought_in')).where(c.status=='DA_NHAN',c.location=='KHO_KY_THUAT',*_day_window(c.confirmed_at,today)))[0])
+    row.update(_rows(session,select(func.count().label('quotes_sent')).where(Quote.status.in_(('DA_GUI','CHAP_NHAN')),*_day_window(Quote.created_at,today)))[0])
+    return {k:int(v) for k,v in row.items()}
+
+
+def _technicians(session,today,now):
+    from .models import AttendancePunch, Customer, EquipmentCustody, ServiceStep, ServiceVisit
+    from .config import get_settings
+    t=ServiceTicket
+    users=_rows(session,select(User.id,User.full_name).where(User.active.is_(True),User.roles.any('technician')).order_by(User.full_name))
+    rows={u['id']:dict(user_id=u['id'],name=u['full_name'],first_in=None,late_minutes=0,assigned=0,done=0,failed=0,visits=0,visits_done=0,
+        visits_return=0,visits_no_show=0,brought_in=0,collected=0,pending=0,items=[],open=0,overdue=0) for u in users}
+    def put(key,stmt):
+        for r in _rows(session,stmt):
+            row=rows.get(r.pop('uid'))
+            if row is not None:row[key]=int(r[key])
+    s=ServiceStep
+    put('assigned',select(s.assignee_id.label('uid'),func.count(func.distinct(s.ticket_id)).label('assigned'))
+        .where(s.action.in_(('assign','reassign')),*_day_window(s.at,today)).group_by(s.assignee_id))
+    final=select(func.max(s.id)).where(s.to_status.in_(('HOAN_THANH','KHONG_LAM_DUOC')),s.action=='transition').group_by(s.ticket_id)
+    ending=(select(s.assignee_id.label('uid'),func.count().filter(s.to_status=='HOAN_THANH').label('done'),
+        func.count().filter(s.to_status=='KHONG_LAM_DUOC').label('failed')).join(t,t.id==s.ticket_id)
+        .where(s.id.in_(final),*_day_window(s.at,today),
+            ((s.to_status=='HOAN_THANH')&t.status.in_(('HOAN_THANH','DA_DONG')))|((s.to_status=='KHONG_LAM_DUOC')&(t.status=='KHONG_LAM_DUOC'))).group_by(s.assignee_id))
+    for r in _rows(session,ending):
+        row=rows.get(r['uid'])
+        if row is not None:row['done'],row['failed']=int(r['done']),int(r['failed'])
+    v=ServiceVisit
+    for r in _rows(session,select(v.technician_id.label('uid'),func.count().label('visits'),
+            func.count().filter(v.outcome=='XONG').label('visits_done'),func.count().filter(v.outcome=='HEN_LAI').label('visits_return'),
+            func.count().filter(v.outcome=='KHONG_GAP_KHACH').label('visits_no_show')).where(*_day_window(v.started_at,today)).group_by(v.technician_id)):
+        row=rows.get(r.pop('uid'))
+        if row is not None:row.update({k:int(x) for k,x in r.items()})
+    c=EquipmentCustody
+    put('brought_in',select(c.created_by.label('uid'),func.count().label('brought_in'))
+        .where(c.status=='DA_NHAN',c.location=='KHO_KY_THUAT',*_day_window(c.confirmed_at,today)).group_by(c.created_by))
+    r=SalesReceipt
+    for row_ in _rows(session,select(r.reported_by.label('uid'),func.coalesce(func.sum(r.amount).filter(r.status=='DA_XAC_NHAN'),0).label('collected'),
+            func.coalesce(func.sum(r.amount).filter(r.status=='CHO_XAC_NHAN'),0).label('pending'))
+            .where(r.status.in_(('DA_XAC_NHAN','CHO_XAC_NHAN')),r.received_at==today).group_by(r.reported_by)):
+        row=rows.get(row_['uid'])
+        if row is not None:row['collected'],row['pending']=int(row_['collected']),int(row_['pending'])
+    p=AttendancePunch
+    cfg=get_settings();start=datetime.combine(today,cfg.work_start,TZ)+timedelta(minutes=cfg.late_grace_minutes)
+    for r in _rows(session,select(p.user_id.label('uid'),func.min(p.at).label('first_in')).where(p.kind=='IN',*_day_window(p.at,today)).group_by(p.user_id)):
+        row=rows.get(r['uid'])
+        if row is not None:
+            first=r['first_in'].astimezone(TZ);row['first_in']=first
+            row['late_minutes']=int((first-start).total_seconds()//60)+cfg.late_grace_minutes if first>start else 0
+    # Phiếu đang mở của thợ (mọi ngày) và phiếu không làm được hôm nay: một SELECT, đủ số, trạng thái, lý do.
+    failed_today=select(s.ticket_id).where(s.id.in_(final),s.to_status=='KHONG_LAM_DUOC',*_day_window(s.at,today))
+    items=_rows(session,select(t.id,t.number,t.assignee_id,t.status,t.hold_reason,t.status_reason,t.due_at,t.appointment_at,Customer.name.label('customer'))
+        .join(Customer,Customer.code==t.customer_code)
+        .where(t.assignee_id.is_not(None),t.status.in_(service_tickets.OPEN)|((t.status=='KHONG_LAM_DUOC')&t.id.in_(failed_today)))
+        .order_by(t.due_at.nulls_last(),t.id))
+    for it in items:
+        row=rows.get(it['assignee_id'])
+        if row is None:continue
+        it['overdue']=bool(it['due_at'] and it['status'] in service_tickets.OPEN and it['due_at']<now)
+        it['reason']=service_tickets.HOLD_REASONS.get(it['hold_reason'],'') if it['status']=='TAM_DUNG' else (it['status_reason'] or '')
+        row['items'].append(it)
+        if it['status'] in service_tickets.OPEN:
+            row['open']+=1;row['overdue']+=it['overdue']
+    return list(rows.values())
+
+
+def _sales(session,today):
+    from .models import Quote, SalesOrder
+    o=SalesOrder;r=SalesReceipt
+    orders=(select(o.created_by.label('uid'),func.count().label('orders'),func.coalesce(func.sum(o.subtotal),0).label('amount'),
+        func.count().filter(o.status=='DA_GIAO').label('delivered'),func.count().filter(o.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))).label('waiting'))
+        .where(o.status!='DA_HUY',o.confirmed_at.is_not(None),*_day_window(o.confirmed_at,today)).group_by(o.created_by)).subquery()
+    quotes=(select(Quote.created_by.label('uid'),func.count().label('quotes')).where(Quote.status.in_(('DA_GUI','CHAP_NHAN')),*_day_window(Quote.created_at,today))
+        .group_by(Quote.created_by)).subquery()
+    receipts=(select(r.reported_by.label('uid'),func.coalesce(func.sum(r.amount),0).label('collected'))
+        .where(r.status=='DA_XAC_NHAN',r.received_at==today,r.order_id.is_not(None)).group_by(r.reported_by)).subquery()
+    from sqlalchemy import union
+    ids=union(select(orders.c.uid),select(quotes.c.uid),select(receipts.c.uid)).subquery()
+    rows=_rows(session,select(User.id.label('user_id'),User.full_name.label('name'),func.coalesce(orders.c.orders,0).label('orders'),func.coalesce(orders.c.amount,0).label('amount'),
+        func.coalesce(orders.c.delivered,0).label('delivered'),func.coalesce(orders.c.waiting,0).label('waiting'),func.coalesce(quotes.c.quotes,0).label('quotes'),
+        func.coalesce(receipts.c.collected,0).label('collected')).join(ids,ids.c.uid==User.id)
+        .outerjoin(orders,orders.c.uid==User.id).outerjoin(quotes,quotes.c.uid==User.id).outerjoin(receipts,receipts.c.uid==User.id).order_by(User.full_name))
+    return [{k:(int(v) if k not in ('name',) else v) for k,v in r.items()} for r in rows]
+
+
+def day_board(session,user,today=None,now=None) -> dict:
+    """Bảng ngày cho giám đốc: số đếm chung (mọi người đọc Tổng quan), bảng thợ / kinh doanh / xưởng chỉ giám đốc."""
+    from . import service_workshop
+    with session.no_autoflush:
+        check_reader(user)
+        now=now or _now();today=today or now.astimezone(TZ).date()
+        result=dict(counts=_day_counts(session,today,now))
+        if has_role(user,'director'):
+            result['technicians']=_technicians(session,today,now)
+            result['sales']=_sales(session,today)
+            result['workshop']=_rows(session,service_workshop.queue_query(now))
+        return result

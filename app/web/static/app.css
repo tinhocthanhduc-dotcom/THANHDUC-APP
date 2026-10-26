@@ -2736,4 +2736,35 @@ input::-webkit-date-and-time-value { text-align: left; }
 .tho-app .sx-view .doc-grid, .tho-app .sx-new .doc-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
 .tho-app .sx-view .doc-main .doc-card:not(:first-child), .tho-app .sx-view .doc-main details { font-size: .95rem; }
 .tho-sx .tho-job p { margin: 0; }
+
+/* Tổng quan điều hành (TUẤN duyệt 26/10/2026): sáu ô ngày, hai khung cảnh báo, bảng thợ / kinh doanh / xưởng, tiền tháng xuống dưới. */
+.overview-six { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 760px) { .overview-page .overview-six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .overview-page .overview-six { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.overview-red { border-color: var(--bad); } .overview-red strong { color: var(--bad); } .overview-red.overview-zero { border-color: var(--line); } .overview-red.overview-zero strong { color: var(--ok); }
+.overview-two { display: grid; gap: 12px; margin-top: 16px; } @media (min-width: 900px) { .overview-two { grid-template-columns: 3fr 2fr; } }
+.overview-page .overview-alerts { margin-top: 0; } .overview-page .card > h2 { font-size: 1.05rem; margin: 0; } .overview-page .card > .hint { margin: 2px 0 6px; font-size: .8rem; }
+.overview-page .alert-group { margin-top: 0; } .overview-page .alert-group > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 600; }
+.alert-n { min-width: 26px; height: 26px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center; font-size: .85rem; font-weight: 700; background: var(--warn-bg); color: var(--warn); }
+.alert-n-red { background: var(--bad-bg); color: var(--bad); } .alert-go { margin-left: auto; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.alert-line { margin: 0; border-top: 1px solid var(--line); } .alert-line > a { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 0; text-decoration: none; color: var(--text); font-weight: 600; }
+.alert-line .alert-detail { display: block; font-weight: 400; font-size: .85rem; color: var(--muted); } .alert-line:first-of-type { border-top: 0; }
+.alert-empty { margin: 8px 0 0; color: var(--muted); }
+.overview-techs { margin-top: 16px; } .overview-tbwrap { overflow-x: auto; }
+.overview-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.overview-table th { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.overview-table td { padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .95rem; }
+.overview-table td small { display: block; font-size: .78rem; color: var(--muted); font-weight: 400; }
+.overview-table .c { text-align: center; } .overview-table .num { text-align: right; white-space: nowrap; }
+.overview-table .ov-total td { font-weight: 700; background: var(--tag, var(--bg)); }
+.ov-ok { color: var(--ok); font-weight: 700; } .ov-late { color: var(--bad); font-weight: 700; }
+.ov-tech-d > summary { cursor: pointer; list-style: none; min-height: 32px; } .ov-tech-d > summary::-webkit-details-marker { display: none; } .ov-tech-d > summary strong { color: var(--info-solid); }
+.ov-items { margin: 6px 0 0; padding: 0 0 0 4px; list-style: none; display: grid; gap: 4px; font-size: .85rem; } .ov-items li { white-space: normal; }
+.overview-table .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .78rem; font-weight: 700; white-space: nowrap; margin: 0 4px 2px 0; }
+.chip-red { background: var(--bad-bg); color: var(--bad); } .chip-yel { background: var(--warn-bg); color: var(--warn); } .chip-gr { background: var(--tag, var(--bg)); color: var(--text); }
+.ov-items .chip { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+.overview-page .overview-chart-card summary, .overview-fold summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; } .overview-fold summary h2 { margin: 0; } .overview-chart-card summary h2 { margin: 0; }
+.overview-fold { padding-top: 8px; padding-bottom: 8px; margin-top: 12px; }
+@media (max-width: 600px) { .overview-techs .overview-table th:nth-child(6), .overview-techs .overview-table td:nth-child(6) { display: none; } }
+
 .tho-screen .tho-lunch, .attendance-lunch { color: var(--bad); font-weight: 600; margin: 0 0 12px; }
