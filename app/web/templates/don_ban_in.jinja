@@ -1,6 +1,7 @@
 {% extends "in_khung.jinja" %}
 {% import '_in.jinja' as f %}
 {% set basis = 'đã gồm VAT' if o.price_includes_vat else 'chưa VAT' %}
+{% set back_label = 'Về Việc của tôi' if warehouse_return else '' %}
 {% block title %}Phiếu giao {{ gh.number }}{% endblock %}
 {% block tools_sub %}Đơn bán {{ o.number }} · {{ customer.name }}{% endblock %}
 {% block doc_title %}PHIẾU GIAO HÀNG{% endblock %}

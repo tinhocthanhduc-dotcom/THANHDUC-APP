@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="{{ asset('print.css') }}">
 </head>
 <body>
-<div class="in-tools"><a class="back" href="{{ back }}" aria-label="Quay lại">←</a><div class="ttl"><b>{{ self.title() }}</b><span>{% block tools_sub %}{% endblock %}</span></div><button type="button" class="print" onclick="window.print()">In / Lưu PDF</button></div>
+<div class="in-tools"><a class="back" href="{{ back }}" aria-label="Quay lại">{{ back_label or "←" }}</a><div class="ttl"><b>{{ self.title() }}</b><span>{% block tools_sub %}{% endblock %}</span></div><button type="button" class="print" onclick="window.print()">In / Lưu PDF</button></div>
 <p class="in-hint">Xem đúng tờ A4 sẽ in. Trên điện thoại tờ phiếu thu nhỏ vừa màn, bấm In / Lưu PDF rồi chọn máy in hoặc Lưu PDF.</p>
 <div class="in-stage" data-print-stage>
 <article class="in-page">
