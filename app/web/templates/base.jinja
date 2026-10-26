@@ -12,6 +12,18 @@
 <meta name="apple-mobile-web-app-title" content="Thành Đức">
 <script>
 // Sáng/Tối người dùng chọn trên máy này; đặt trước khi vẽ trang để không nháy màu.
+// Safari iOS dưới 16 chưa có form.requestSubmit (vuốt xác nhận, Vào ca/Ra ca dùng nó).
+// Thay bằng nút gửi tạm: vẫn kiểm ô bắt buộc, chạy sự kiện submit và mang theo tên/giá trị, formaction của nút được bấm.
+if (window.HTMLFormElement && !HTMLFormElement.prototype.requestSubmit) HTMLFormElement.prototype.requestSubmit = function (submitter) {
+  var form = this, temp = document.createElement('input'), extra = null;
+  temp.type = 'submit'; temp.hidden = true;
+  if (submitter) {
+    ['formaction', 'formmethod', 'formenctype', 'formnovalidate', 'formtarget'].forEach(function (a) { if (submitter.hasAttribute(a)) temp.setAttribute(a, submitter.getAttribute(a)); });
+    if (submitter.name) { extra = document.createElement('input'); extra.type = 'hidden'; extra.name = submitter.name; extra.value = submitter.value; form.appendChild(extra); }
+  }
+  form.appendChild(temp); temp.click(); form.removeChild(temp);
+  if (extra && !form.dataset.submitting) form.removeChild(extra);
+};
 try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || tdTheme === 'light') document.documentElement.dataset.theme = tdTheme; if (localStorage.getItem('td-nav-mini') === '1') document.documentElement.classList.add('nav-mini'); } catch (e) {}
 </script>
 <script src="{{ asset('ui.js') }}" defer></script>

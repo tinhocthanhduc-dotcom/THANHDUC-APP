@@ -6,7 +6,7 @@
   <input type="hidden" name="form_key" value="{{ form_key() }}">
   {% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
   <input type="hidden" name="next" value="{{ next }}">
-  <label>Tên đăng nhập<input name="username" value="{{ username }}" autocomplete="username" autocapitalize="none" required autofocus></label>
+  <label>Tên đăng nhập<input name="username" value="{{ username }}" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus></label>
   <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label>
   <button class="primary">Đăng nhập</button>
 </form>
