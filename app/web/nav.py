@@ -56,6 +56,7 @@ GROUPS = (
     {'label': 'Tài chính', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo thu', 'href': '/bao-thu', 'prefixes': ('/bao-thu', '/hoan-tien', '/dich-vu/can-thu'), 'roles': ('finance',)},
         {'label': 'Thu chi · Sổ quỹ', 'href': '/thu-chi', 'prefixes': ('/thu-chi', '/so-quy'), 'roles': ('finance',)},
+        {'label': 'Công nợ khách hàng', 'href': '/cong-no-khach-hang', 'prefixes': ('/cong-no-khach-hang',), 'roles': ('finance',)},
         {'label': 'Công nợ nhà cung cấp', 'href': '/cong-no-ncc', 'prefixes': ('/cong-no-ncc',), 'roles': ('finance',)},
         {'label': 'Điều chỉnh sổ', 'href': '/dieu-chinh', 'prefixes': ('/dieu-chinh',), 'roles': ('finance',)},
         {'label': 'Chốt sổ', 'href': '/chot-so', 'prefixes': ('/chot-so',), 'roles': ('finance',)},

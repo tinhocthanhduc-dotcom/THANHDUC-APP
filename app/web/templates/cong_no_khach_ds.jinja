@@ -1,0 +1,30 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Công nợ khách hàng{% endblock %}
+{% block main %}<div class="page-wide list-page" data-list-page="cong-no-khach-hang">
+{# Khuôn 3. Cùng nguồn với thẻ Công nợ trang khách và Báo cáo tài chính: Còn nợ = phải thu chứng từ đã giao / đã xong − đã xác nhận thu (gồm VAT). Chỉ kế toán, giám đốc. #}
+{% call ui.page_head('Công nợ khách hàng', sub='Còn nợ = hàng đã giao, dịch vụ đã xong − tiền đã xác nhận thu (gồm VAT). Bấm dòng để mở trang khách; bấm số chứng từ để Báo thu ngay trên đơn.') %}<a class="btn btn-ghost" href="/bao-thu">Báo thu chờ xác nhận</a>{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/cong-no-khach-hang', q, 'Tìm tên, mã khách, số điện thoại, số đơn (không dấu)…', active=chips|length + (1 if xep != 'no' else 0)) %}{% if tab != 'no' %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+<label>Sắp xếp<select name="xep">{% for k, label in sorts.items() %}<option value="{{ '' if k == 'no' else k }}"{% if k == xep %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Loại khách<select name="loai"><option value="">Tất cả</option>{% for k, label in kinds.items() %}<option value="{{ k }}"{% if k == loai %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>{% endcall %}
+{{ ui.filter_chips(chips, link(loai='')) }}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Khách hàng</th><th>Chứng từ còn nợ · bấm để Báo thu</th><th>Nợ từ</th><th>Hạn mức</th><th>Thu gần nhất</th><th class="num">Còn nợ · thu tiền</th></tr></thead><tbody>
+{% for r in rows %}<tr data-href="/khach-hang/{{ r.code }}" data-debt-row="{{ r.code }}"{% if r.old or r.over %} class="lt-alert"{% endif %}>
+<td class="lt-first"><b>{{ r.name }}</b><span class="lt-sub"><a class="lt-no" href="/khach-hang/{{ r.code }}">{{ r.code }}</a></span>{% if r.phones %}<span class="lt-sub">{{ r.phones|join(', ') }}</span>{% endif %}</td>
+<td>{% for d in r.docs[:doc_limit] %}{% if d.href %}<a class="cnk-doc{% if d.kind != 'DB' %} cnk-dv{% endif %}" href="{{ d.href }}">{{ d.number }}</a>{% else %}<span class="cnk-doc">{{ d.number }}</span>{% endif %} {% endfor %}{% if r.docs|length > doc_limit %}<a class="lt-sub" href="/khach-hang/{{ r.code }}#cong-no">+{{ r.docs|length - doc_limit }} chứng từ khác</a>{% endif %}<span class="lt-sub">{% if r.orders %}{{ r.orders }} đơn bán{% endif %}{% if r.orders and r.tickets %} · {% endif %}{% if r.tickets %}{{ r.tickets }} phiếu dịch vụ{% endif %}</span></td>
+<td><span class="cnk-ph">Nợ từ </span>{% if r.old %}<b class="lt-bad">{{ r.since.strftime('%d/%m/%Y') }}</b>{% else %}{{ r.since.strftime('%d/%m/%Y') }}{% endif %}<span class="lt-sub{% if r.old %} lt-bad{% endif %}"><span class="cnk-ph">Đã nợ </span>{{ r.days }} ngày</span></td>
+<td><span class="cnk-ph">Hạn mức </span>{% if r.allow_debt %}{{ r.limit|money }}<span class="lt-sub{% if r.over %} lt-bad{% endif %}">{% if r.over %}Vượt {{ (-r.left)|money }}{% else %}Còn {{ r.left|money }}{% endif %}</span>{% else %}Không cho nợ<span class="lt-sub lt-bad">Đang nợ · vượt</span>{% endif %}</td>
+<td>{% if r.last %}<span class="cnk-ph">Thu gần nhất </span>{{ r.last[0].strftime('%d/%m/%Y') }}<span class="lt-sub">Thu {{ r.last[1]|money }}</span>{% else %}<span class="lt-sub">Chưa thu lần nào</span>{% endif %}</td>
+<td class="num lt-st cnk-left"><b class="lt-bad">{{ r.remaining|money }}</b>{% if r.pending %}<span class="lt-sub cnk-pend">Chờ xác nhận {{ ui.badge(r.pending|money, 'cho') }}</span>{% endif %}<span class="cnk-acts">{% if r.pay_href %}<a class="btn btn-new cnk-sm cnk-pay" href="{{ r.pay_href }}">Báo thu ›</a>{% endif %}{% if r.pending %}<a class="btn btn-ghost cnk-sm" href="/bao-thu">Xác nhận thu ›</a>{% endif %}<a class="btn btn-ghost cnk-sm" href="/bao-cao/tai-chinh?khach={{ r.code|urlencode }}#chung-tu">Sổ nợ ›</a></span></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có khách nào khớp "' ~ q ~ '".' if q else ('Không có khách nào trong nhóm này.' if tab != 'no' or chips else 'Không có khách nào còn nợ. Khách xuất hiện ở đây khi đơn đã giao hoặc phiếu dịch vụ đã xong mà chưa thu đủ; báo thu chờ xác nhận chưa trừ nợ.'), link(q='', tab='', loai='') if q or tab != 'no' or chips else '/bao-thu', 'Xóa lọc' if q or tab != 'no' or chips else 'Xem Báo thu') }}{% endif %}
+{% call ui.list_foot(page, 'khách') %}Còn nợ <b>{{ debt_sum|money }}</b> đ{% if pending_sum %} · chờ xác nhận <b>{{ pending_sum|money }}</b> đ{% endif %}{% endcall %}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}
