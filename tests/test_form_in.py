@@ -137,3 +137,29 @@ def test_acceptance_report_preview_then_repaired_money_and_warranty(client, db, 
     # Thợ khác không xem được phiếu không phải của mình.
     service_login(client, p['technician'])
     assert client.get(f'/dich-vu/{t.id}/bien-ban').status_code in (403, 404)
+
+
+# ---- Bổ sung 26/10 chiều (TUẤN): in phiếu giao hàng trước khi giao để thợ mang theo ----
+from test_technician_deliveries import setup, assigned, move  # noqa: E402,F401
+
+
+def test_pending_delivery_print_for_technician_trip(client, db, setup):
+    from app.models import User
+    p = setup
+    o = assigned(db, p)
+    service_login(client, p['sales'])
+    page = client.get(f'/don-ban/{o.id}').text
+    assert f'href="/giao-don/{o.id}/in"' in page
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert 'PHIẾU GIAO HÀNG' in html and o.number in html and 'chưa ghi nhận giao' in html and 'TD-0001' in html
+    # 4 cái × 200 đồng chưa VAT; chưa thu gì nên thu khi giao = cả đơn.
+    assert 'Tiền hàng chưa VAT' in html and '800 đồng' in html and 'Thu khi giao' in html and 'Đã thanh toán' in html
+    assert 'Tám trăm đồng' in html and html.count('<td><b>') == 4 and 'Khách hàng ký nhận' in html
+    assert 'ĐÃ HỦY' not in html and 'BẢN NHÁP' not in html
+    assert f'href="/giao-don/{o.id}/in"' in client.get(f'/giao-don/{o.id}').text
+    # Thợ được giao in được (về trang giao đơn của thợ); thợ khác không.
+    service_login(client, p['technician'])
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert 'PHIẾU GIAO HÀNG' in html and f'href="/giao-don/{o.id}?return_to=tho"' in html
+    service_login(client, p['other_tech'])
+    assert client.get(f'/giao-don/{o.id}/in').status_code == 403
