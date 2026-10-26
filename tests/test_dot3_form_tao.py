@@ -114,3 +114,10 @@ def test_service_intake_head_matches_quote(client, web_login):
     page = client.get('/dich-vu/moi').text
     assert 'class="page-head"' in page and 'Dịch vụ · phiếu mới' in page and 'steps-bar' in page
     assert 'Khách hàng (tìm và chọn)' in page and 'Có thể tìm bằng tên, mã khách hàng hoặc số điện thoại.' in page
+
+
+def test_purchase_compose_has_keyboard_entry_like_sales(client, db, purchase_people):
+    service_login(client, purchase_people['warehouse'])
+    page = client.get('/don-mua/moi').text
+    assert 'data-po-keys' in page and 'Enter thêm' in page
+    assert re.search(r'<input name="qty"[^>]*enterkeyhint="next"', page) and re.search(r'<input name="unit_cost"[^>]*enterkeyhint="next"', page)

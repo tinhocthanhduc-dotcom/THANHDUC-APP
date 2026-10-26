@@ -88,29 +88,57 @@
     var opts=row.querySelector('.product-options'); if (opts) opts.replaceChildren();
   }
   // Ô "+ Tìm hàng để thêm"
-  var find=form.querySelector('[data-po-find]'), q=find.querySelector('[data-po-q]'), list=find.querySelector('[data-po-list]'), timer, seq=0;
-  function load() {
-    var cur=++seq;
-    fetch('/don-mua/san-pham?'+new URLSearchParams({q:q.value}),{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); })
-      .then(function(html){ if (cur!==seq) return; list.innerHTML=html; list.hidden=false; })
-      .catch(function(){ list.textContent='Không tải được kết quả, hãy thử lại.'; list.hidden=false; });
+  // Nhập nhanh như Đơn bán: ↑↓ chọn, Enter thêm rồi nhảy xuống Số lượng → Giá → về ô tìm; "3*mã" thêm 3 cái.
+  var find=form.querySelector('[data-po-find]'), q=find.querySelector('[data-po-q]'), list=find.querySelector('[data-po-list]'), timer, seq=0, hl=0, latest=Promise.resolve();
+  function typed() { var m=/^\s*(\d{1,4})\s*\*\s*(\S.*)$/.exec(q.value); return m ? {count:Number(m[1])||1,q:m[2]} : {count:1,q:q.value}; }
+  function choices() { return [].slice.call(list.querySelectorAll('[data-po-add]')); }
+  function mark(scroll) {
+    var all=choices(); hl=Math.max(0,Math.min(hl,all.length-1));
+    all.forEach(function(b,i){ var item=b.closest('.qb-item')||b; item.classList.toggle('qb-hl',i===hl); if (i===hl && scroll) item.scrollIntoView({block:'nearest'}); });
   }
-  function add(button) {
+  function load(show) {
+    var cur=++seq, text=typed().q;
+    latest=fetch('/don-mua/san-pham?'+new URLSearchParams({q:text}),{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); })
+      .then(function(html){ if (cur!==seq) return; list.innerHTML=html; hl=0; if (window.tdMarkHits) window.tdMarkHits(list,text); mark(false); if (show!==false) list.hidden=false; })
+      .catch(function(){ list.textContent='Không tải được kết quả, hãy thử lại.'; list.hidden=false; });
+    return latest;
+  }
+  function focusQty(row) { var input=row.querySelector('[name=qty]'); input.focus(); input.select(); input.scrollIntoView({block:'nearest'}); }
+  function add(button,count) {
+    count=count||typed().count;
     var data={code:button.dataset.code,name:button.dataset.name,unit:button.dataset.unit,cost:button.dataset.cost,stock:button.dataset.stock};
     var wh=whAll && whAll.value!=='*' ? whAll.value : form.dataset.defaultWarehouse;
     var dup=rows().filter(function(row){ var r=row.querySelector('[data-purchase-warehouse]:checked'); return row.querySelector('[name=product_code]').value===data.code && (!r || r.value===wh); })[0];
-    if (dup) { var input=dup.querySelector('[name=qty]'); input.value=String((num(input.value)||0)+1).replace('.',','); window.tdToast && window.tdToast(data.name+': đã có trong đơn, tăng số lượng lên '+input.value); }
-    else addRow(data);
-    q.value=''; list.hidden=true; update(); q.focus();
+    var row=dup;
+    if (dup) { var input=dup.querySelector('[name=qty]'); input.value=String(Math.round(((num(input.value)||0)+count)*1000)/1000).replace('.',','); window.tdToast && window.tdToast(data.name+': đã có trong đơn, tăng số lượng lên '+input.value); }
+    else { row=addRow(data); if (count!==1) row.querySelector('[name=qty]').value=String(count); }
+    q.value=''; clearTimeout(timer); timer=null; load(false); list.hidden=true; update(); focusQty(row);
   }
-  q.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(load,200); });
+  q.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(function(){ timer=null; load(); },200); });
   q.addEventListener('focus',function(){ if (!list.innerHTML) load(); else list.hidden=false; });
   q.addEventListener('keydown',function(e) {
-    if (e.key==='Escape') list.hidden=true;
+    if (e.key==='Escape') { list.hidden=true; return; }
+    if (e.key==='ArrowDown' || e.key==='ArrowUp') { e.preventDefault(); list.hidden=false; hl+=e.key==='ArrowDown' ? 1 : -1; mark(true); return; }
     if (e.key!=='Enter') return;
-    e.preventDefault(); var first=list.querySelector('[data-po-add]'); if (first && !list.hidden) add(first);
+    e.preventDefault();
+    if (!q.value.trim() && list.hidden) return;
+    var count=typed().count;
+    // Gõ nhanh rồi Enter ngay (máy quét mã): chờ kết quả của chữ vừa gõ rồi mới thêm.
+    if (timer) { clearTimeout(timer); timer=null; load(); }
+    latest.then(function(){ var b=choices()[hl]; if (b) add(b,count); else if (window.tdToast) window.tdToast('Không có mã nào khớp "'+typed().q+'".','bad'); });
   });
   list.addEventListener('click',function(e){ var b=e.target.closest('[data-po-add]'); if (b) add(b); });
+  // Enter trong dòng: Số lượng → Giá → về ô tìm; không gửi form.
+  lines.addEventListener('keydown',function(e) {
+    if (e.key!=='Enter' || !e.target.matches('input')) return;
+    var row=e.target.closest('[data-purchase-line]'); if (!row) return;
+    if (e.target.name==='product_code') return; // ô chọn hàng tự xử lý Enter (base.jinja)
+    e.preventDefault();
+    if (e.target.name==='qty') { var price=row.querySelector('[name=unit_cost]'); price.focus(); price.select(); return; }
+    if (e.target.name==='unit_cost') { q.focus(); q.select(); list.hidden=false; return; }
+    focusQty(row);
+  });
+  document.addEventListener('keydown',function(e){ if (e.key==='F2') { e.preventDefault(); q.focus(); q.select(); list.hidden=false; } });
   document.addEventListener('click',function(e){ if (!find.contains(e.target)) list.hidden=true; });
   form.addEventListener('click',function(event) {
     if (event.target.closest('[data-purchase-add]')) { var row=addRow(); update(); row.querySelector('[name=product_code]').focus(); return; }
