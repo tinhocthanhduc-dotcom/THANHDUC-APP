@@ -209,7 +209,7 @@ def test_today_reminds_technician_to_clock_in_without_blocking(client, db, held,
     at('07:30'); attendance.punch(db, tech, 'IN')
     assert 'data-punch-hint' not in at('09:00')
     # Giờ nghỉ trưa: chỉ hiện dòng báo, không nhắc ra ca/vào ca; sau trưa vẫn trong ca thì không nhắc.
-    html = at('11:30'); assert 'data-punch-hint="LUNCH"' in html and 'Giờ nghỉ trưa từ 11:30 đến 13:30' in html and 'href="/cham-cong"' not in html.split('data-punch-hint')[1].split('</p>')[0]
+    html = at('11:30'); assert 'data-punch-hint="LUNCH"' in html and 'Nghỉ trưa từ 11:30 đến 13:30' in html and 'Giờ nghỉ trưa' not in html and 'href="/cham-cong"' not in html.split('data-punch-hint')[1].split('</p>')[0]
     assert 'data-punch-hint="LUNCH"' in at('13:29')
     assert 'data-punch-hint' not in at('13:30')
     assert 'data-punch-hint' not in at('15:00')

@@ -100,7 +100,7 @@ def _off_hours(session,stamp):
 
 
 def lunch_label():
-    cfg=get_settings();return f"Giờ nghỉ trưa từ {cfg.lunch_start.strftime('%H:%M')} đến {cfg.lunch_end.strftime('%H:%M')}"
+    cfg=get_settings();return f"Nghỉ trưa từ {cfg.lunch_start.strftime('%H:%M')} đến {cfg.lunch_end.strftime('%H:%M')}"
 
 
 def punch_hint(session,ident,now=None):
