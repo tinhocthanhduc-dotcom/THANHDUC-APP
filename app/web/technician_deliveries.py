@@ -74,6 +74,40 @@ def page(request,session,user,order,raw=None,error=None,code='',status=200):
         raw=raw or {},error=error,error_code=code,status=status)
 
 
+@router.get('/giao-don/{order_id}/in')
+def print_pending(request: Request,order_id: int,user: User=Depends(web_user),session: Session=Depends(get_session)):
+    """Phiếu giao hàng in trước khi giao (thợ mang theo): hàng còn phải giao, tiền thu khi giao; không ghi nhận gì."""
+    from decimal import ROUND_HALF_UP
+    from ..models import Quote
+    from ..money_words import money_words
+    from .orders import FULFILLMENTS, PAYMENTS, STATUSES, _quantity
+    order=svc.load(session,user,order_id)
+    remaining=sales_orders.remaining_lines(session,order)
+    warranty=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines if l.product_code]))).all())
+    lines=[]
+    for line in order.lines:
+        rem=remaining[line.line_no]['remaining']
+        if rem<=0:continue
+        share=(Decimal(rem)/line.qty) if line.qty else Decimal(0)
+        lines.append(dict(product_code=line.product_code,description=line.description,unit=line.unit,qty=rem,unit_price=line.unit_price,vat_rate=line.vat_rate,
+            amount=int((Decimal(line.amount)*share).quantize(Decimal(1),ROUND_HALF_UP)),vat_amount=int((Decimal(line.vat_amount)*share).quantize(Decimal(1),ROUND_HALF_UP)),
+            warranty_months=warranty.get(line.product_code) or 0))
+    if not lines:
+        raise BusinessError('BAD_STATUS','Đơn đã giao hết, in phiếu giao theo từng lần giao.',status=409)
+    subtotal=sum(l['amount'] for l in lines);vat_total=sum(l['vat_amount'] for l in lines)
+    balance=sales_receipts.balance(order)
+    delivered=[g for g in sales_orders.deliveries(session,order.id) if g.status=='DA_GIAO']
+    customer=session.get(Customer,order.customer_code)
+    assignee=session.get(User,order.delivery_assignee_id) if order.delivery_assignee_id else None
+    technician_view='technician' in user.roles and order.delivery_assignee_id==user.id and not has_role(user,'dispatcher','sales','warehouse','finance')
+    return render(request,'giao_don_in.jinja',o=order,customer=customer,lines=lines,subtotal=subtotal,vat_total=vat_total,total=subtotal+vat_total,
+        balance=balance,effective_total=int(sales_orders.effective_total(order)),words=money_words(int(balance['available'])),quantity=_quantity,statuses=STATUSES,
+        company=get_settings(),today=attendance.today(),technician_view=technician_view,back=f'/giao-don/{order.id}'+('?return_to=tho' if technician_view else ''),
+        phones=', '.join(p.phone for p in customer.phones) if customer else '',quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',
+        fulfillment=FULFILLMENTS.get(order.fulfillment,order.fulfillment),payment=PAYMENTS.get(order.payment_term,order.payment_term),
+        assignee=assignee.full_name if assignee else '',delivered_before=(str(len(delivered))+' lần · '+', '.join(g.number for g in delivered)) if delivered else '')
+
+
 @router.get('/giao-don/{order_id}')
 def view(request: Request,order_id: int,user: User=Depends(web_user),session: Session=Depends(get_session)):
     return page(request,session,user,svc.load(session,user,order_id))
