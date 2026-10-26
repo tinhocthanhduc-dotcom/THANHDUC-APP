@@ -25,9 +25,7 @@ def _item(key, ident, title, text, link, info=False):
 
 def items(session, user):
     out = []
-    for group in my_work.collect(session, user):
-        if group['key'] not in INCOMING:
-            continue
+    for group in my_work.collect(session, user, keys=INCOMING):
         for row in group['rows']:
             text = ' · '.join(str(part) for part in (row.get('number'), row.get('customer')) if part)
             link = row['link']

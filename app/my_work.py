@@ -2,7 +2,7 @@
 from datetime import datetime, time, timedelta
 from urllib.parse import quote, urlencode
 
-from sqlalchemy import String, case, func, literal, or_, select, union_all
+from sqlalchemy import Select, String, case, func, literal, or_, select, union_all
 
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels, supplier_debts, service_workshop
 from .config import get_settings
@@ -261,10 +261,17 @@ def _specs(user, today, now):
 def _group(session, spec, page=1):
     stmt = spec['statement']
     page_size = spec.get('page_size', LIMIT)
-    count = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())))
+    # TD2: đếm tổng bằng count() over() ngay trong câu lấy dòng, mỗi nhóm một truy vấn thay vì hai.
+    windowed = isinstance(stmt, Select)
+    query = stmt.add_columns(func.count().over().label('_total')) if windowed else stmt
+    records = [dict(r) for r in session.execute(query.offset((page-1)*page_size).limit(page_size)).mappings()]
+    if windowed and (records or page == 1):
+        count = int(records[0]['_total']) if records else 0
+    else:
+        count = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())))
     rows = []
-    for record in session.execute(stmt.offset((page-1)*page_size).limit(page_size)).mappings():
-        row = dict(record)
+    for row in records:
+        row.pop('_total', None)
         kind = spec['kind']
         if kind=='stock':
             row.update(id=row['warehouse_code']+'/'+row['product_code'], number=row['product_code'], customer=row['name'], amount=None, status='SAP_HET', overdue=row['qty']<=0,
@@ -301,10 +308,11 @@ def _group(session, spec, page=1):
         link='/viec-cua-toi?'+urlencode({'nhom':spec['key']}), list_link=spec['link'])
 
 
-def collect(session, user, today=None):
+def collect(session, user, today=None, keys=None):
+    """keys: chỉ tính các nhóm này (chuông thông báo chỉ cần nhóm việc người khác đẩy tới)."""
     with session.no_autoflush:
         now = _now()
-        return [_group(session, spec) for spec in _specs(user, today or now.date(), now).values()]
+        return [_group(session, spec) for spec in _specs(user, today or now.date(), now).values() if keys is None or spec['key'] in keys]
 
 
 def filtered(session, user, key, page=1, today=None):
