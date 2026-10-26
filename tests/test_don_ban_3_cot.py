@@ -25,3 +25,24 @@ def test_new_order_form_has_three_columns_and_keeps_fields(client,db,stocked):
     assert '<select' not in html
     # Ô tìm của cột tra giá không có name, không lẫn vào dữ liệu gửi lên.
     assert re.search(r'<input type="search" data-browse-q[^>]*>',html) and 'name="q"' not in html
+
+
+def test_product_search_matches_words_in_any_order_and_ranks_exact_code_first(db):
+    from app import products
+    from app.models import Product
+    from app.text import fold
+    for code,name in [('TD-0107','Mực HP 107A'),('TD-0731','Máy in HP M107a'),('TD-1070','Giấy in 1070'),('TD-0010','Mực HP 10A')]:
+        db.add(Product(code=code,name=name,unit='cái',sale_price=1,search_text=fold(f'{code} {name}')))
+    db.commit()
+    assert [p.code for p in products.search(db,'107 hp')]==['TD-0107','TD-0731']
+    # Mã trùng đúng → mã bắt đầu bằng chữ gõ → từ trong tên bắt đầu bằng chữ gõ → chỉ chứa ở giữa.
+    assert [p.code for p in products.search(db,'td-0107')][0]=='TD-0107'
+    assert [p.code for p in products.search(db,'107')]==['TD-0107','TD-1070','TD-0731']
+    assert [p.code for p in products.search(db,'muc hp')]==['TD-0010','TD-0107']
+
+
+def test_new_order_form_has_keyboard_entry_hints(client,db,stocked):
+    service_login(client,stocked['sales'])
+    html=client.get('/don-ban/moi').text
+    assert 'data-browse-keys' in html and 'Enter thêm' in html
+    assert 'name="qty"' in html and 'enterkeyhint="next"' in html

@@ -1727,6 +1727,10 @@ main:has(> .quote-form-page) { max-width: none; }
 .qf-find input { height: 42px; border-style: dashed; border-color: var(--accent); }
 .qf-find-drop { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; max-height: 340px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
 .qf-find-drop .qb-item { padding: 8px 12px; }
+.qf-find-drop .qb-item.qb-hl { background: var(--sel); box-shadow: inset 3px 0 0 var(--accent); }
+.qf-keys { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -2px 0 8px; font-size: .76rem; color: var(--muted); }
+.qf-keys kbd { display: inline-block; min-width: 1.4em; margin-right: 2px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--tag); color: var(--text); font: 700 .72rem/1.5 ui-monospace, Consolas, monospace; text-align: center; }
+@media (hover: none) { .qf-keys { display: none; } }
 .qf-note { margin-top: 10px; }
 .qf-note textarea { min-height: 44px; }
 .qf-terms .qf-pick { margin-top: 2px; }

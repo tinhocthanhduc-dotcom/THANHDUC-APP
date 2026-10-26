@@ -1,7 +1,7 @@
 """Nghiệp vụ danh mục hàng mã TD. API và giao diện web cùng gọi vào đây."""
 import re
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -32,9 +32,16 @@ def search(session: Session, q: str, active_only: bool = True, limit: int = 50, 
         stmt = stmt.where(Product.group_name == group)
     if active_only:
         stmt = stmt.where(Product.active.is_(True))
-    if fold(q):
-        stmt = stmt.where(Product.search_text.like(like_pattern(fold(q))))
-    return list(session.scalars(stmt.order_by(Product.code).limit(limit)).all())
+    needle = fold(q)
+    if not needle:
+        return list(session.scalars(stmt.order_by(Product.code).limit(limit)).all())
+    # Nhiều chữ khớp theo thứ tự bất kỳ ("107 hp" ra "Mực HP 107A"); mã trùng đúng lên đầu,
+    # rồi mã bắt đầu bằng chữ gõ, rồi tên có từ bắt đầu bằng chữ gõ, cuối cùng chỉ chứa ở giữa.
+    stmt = stmt.where(*(Product.search_text.like(like_pattern(w)) for w in needle.split()))
+    code = func.lower(Product.code)
+    rank = case((code == needle, 0), (code.like(like_pattern(needle)[1:]), 1),
+                (or_(Product.search_text.like(like_pattern(needle)[1:]), Product.search_text.like(like_pattern(" " + needle))), 2), else_=3)
+    return list(session.scalars(stmt.order_by(rank, Product.code).limit(limit)).all())
 
 
 def load(session: Session, code: str) -> Product:
