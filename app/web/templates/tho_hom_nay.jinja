@@ -21,5 +21,9 @@
 {% if job.priority and job.priority!='THUONG' %}<span class="tag tone-bad" style="align-self:flex-start">{{ service_priorities[job.priority] }}</span>{% endif %}
 <span class="tho-foot">{% if job.created %}<span class="tho-created">Tạo {{ job.created|service_time }}</span>{% endif %}{% if job.action %}<span class="tho-next">{{ job.action.label }} ›</span>{% endif %}</span>
 </a>{% if job.trips %}{% for trip in job.trips %}<a class="tho-trip" href="{{ trip.href }}" data-trip="{{ trip.number }}"><span>🚚 Kèm giao đơn <b>{{ trip.number }}</b></span><span class="tho-next">{{ trip.action.label if trip.action else 'Giao hàng' }} ›</span></a>{% endfor %}</div>{% endif %}{% endfor %}</div>{% endif %}{% endfor %}
-{% if production_jobs %}<section class="tho-production"><h2>Hàng sản xuất</h2>{% for r,name in production_jobs %}<a class="card tho-job" href="/san-xuat/{{ r.number }}"><b>{{ r.number }}</b><p>Làm hàng: {{ r.qty_plan }} {{ name }}</p><span>{{ 'Bắt đầu làm' if r.status=='MOI' else 'Hoàn thành' }}</span></a>{% endfor %}</section>{% endif %}
+{% if production_jobs %}<h2 class="tho-grp">Hàng sản xuất · {{ production_jobs|length }} phiếu</h2>
+<div class="tho-jobs tho-sx">{% for r,name in production_jobs %}<a class="card tho-job" href="/san-xuat/{{ r.number }}" data-job="production:{{ r.id }}">
+<span class="cardtop"><span>{{ r.number }}</span><span class="tag tone-{{ 'info' if r.status=='MOI' else 'warn' }}">{{ 'Mới' if r.status=='MOI' else 'Đang làm' }}</span></span>
+<b>Làm hàng: {{ r.qty_plan }} {{ name }}</b><span class="mu">{{ {'DO_MUC':'Đổ mực','TAN_TRANG':'Tân trang máy cũ','LAP_RAP':'Lắp ráp / khác'}[r.kind] }} · về kho {{ r.to_warehouse_code }}</span>
+<span class="tho-foot"><span class="tho-created">Tạo {{ r.created_at|service_time }}</span><span class="tho-next">{{ 'Bắt đầu làm' if r.status=='MOI' else 'Hoàn thành' }} ›</span></span></a>{% endfor %}</div>{% endif %}
 {% if not jobs and not unreported and not production_jobs %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}

@@ -2706,3 +2706,31 @@ input::-webkit-date-and-time-value { text-align: left; }
   .list-table.lt-cards td .lt-sub { display: inline; margin-left: 4px; }
   .list-table.lt-cards td.lt-first .lt-sub { display: block; margin-left: 0; }
 }
+
+/* ---- SX1 · Sản xuất ---- */
+.sx-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sx-row:last-of-type { border-bottom: 0; }
+.sx-row-main { flex: 1; min-width: 0; display: block; cursor: pointer; }
+.sx-row-main input[type=radio] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sx-row-main:has(input[type=radio]) b::before { content: '✓ '; color: var(--ok); }
+.sx-row-main b, .sx-row-main small { display: block; overflow-wrap: anywhere; }
+.sx-row-main small { color: var(--muted); font-size: .85rem; }
+.sx-row .stepper input { width: 4rem; text-align: center; }
+@media (max-width: 430px) { .sx-row .stepper button { width: 40px; height: 40px; } .sx-row .stepper input { width: 3.2rem; } .sx-row { gap: 6px; } }
+.sx-remove { min-height: 36px; padding: 0 10px; }
+.sx-pick { border: 0; padding: 0; margin: 0; min-width: 0; }
+.sx-pick > legend { padding: 0; margin-bottom: 6px; }
+.sx-plan .stepper, .sx-goodbad .stepper { display: inline-flex; }
+.sx-goodbad { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.sx-goodbad input { font-size: 1.15rem; font-weight: 700; text-align: right; }
+.sx-unit { font-size: 1.25rem; color: var(--info-solid); }
+.sx-howto { margin: 0; padding-left: 1.1rem; display: grid; gap: 6px; color: var(--muted); font-size: .92rem; }
+.sx-history { margin: 0; padding: 0 14px 12px 1.6rem; display: grid; gap: 4px; }
+.sx-act { display: grid; gap: 10px; margin-top: 6px; }
+.sx-act .sx-primary, .sx-new .sx-primary { width: 100%; min-height: 48px; }
+.sx-ph { display: none; color: var(--muted); }
+@media (max-width: 767px) { .sx-table .sx-ph { display: inline; } .sx-table td.num { text-align: left; } }
+.tho-app .sx-view .doc-side, .tho-app .sx-new .doc-side { order: -1; }
+.tho-app .sx-view .doc-grid, .tho-app .sx-new .doc-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+.tho-app .sx-view .doc-main .doc-card:not(:first-child), .tho-app .sx-view .doc-main details { font-size: .95rem; }
+.tho-sx .tho-job p { margin: 0; }
