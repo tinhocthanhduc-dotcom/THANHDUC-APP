@@ -110,9 +110,9 @@ def order_checks(session,user,data,stock_values,customer):
         checks.append(check('stock-'+wh+'-'+product,
             f'{product} ở kho {wh}: thiếu {missing.normalize():f} · Sẽ giữ thiếu' if missing else f'{product} ở kho {wh}: đủ tồn khả dụng',not missing,bool(session.get(Warehouse,wh) and session.get(Warehouse,wh).kind=='LOI')))
     if data.get('payment_term')=='CONG_NO' and customer:
-        state=sales_orders.credit_state(session,customer,total)
-        override=has_role(user,'director') and 1<=len(data.get('credit_override_reason','').strip())<=2000
-        checks.append(check('credit','Công nợ trong hạn mức' if state['allowed'] else 'Chưa được nợ hoặc vượt hạn mức'+(' · Giám đốc cần ghi lý do' if has_role(user,'director') else ''),state['allowed'],not override))
+        # Chỉ cảnh báo (TUẤN 2026-10-26): chưa được nợ / vượt hạn mức không chặn nút Lưu và chốt.
+        warning=sales_orders.credit_warning(session,customer,total)
+        checks.append(check('credit',warning or 'Công nợ trong hạn mức',not warning,False))
     return checks
 
 

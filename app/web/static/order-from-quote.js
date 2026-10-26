@@ -42,6 +42,7 @@
     var pay = checked('payment_term');
     var debt = form.querySelector('[data-debt-days]'), dep = form.querySelector('[data-deposit-amount]');
     if (debt) debt.hidden = pay !== 'CONG_NO';
+    form.querySelectorAll('[data-credit-note]').forEach(function (box) { box.hidden = pay !== 'CONG_NO'; });
     if (dep) dep.hidden = pay !== 'DAT_COC';
     setCheck('wh', !unset, unset ? 'Còn ' + unset + ' dòng hàng chưa chọn kho' : 'Mọi dòng hàng đã có kho');
     setCheck('stock', !short, short ? short + ' dòng thiếu hàng ở kho đã chọn' : 'Đủ tồn khả dụng');

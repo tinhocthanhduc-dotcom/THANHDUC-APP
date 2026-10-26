@@ -164,7 +164,8 @@ def test_credit_limit_uses_discounted_total_and_closed_commitments(db,people):
     orders.confirm(db,p['sales'],row.id,row.version)
     assert orders.credit_state(db,c,0)['committed']==980000
     other=make(db,p,price=1,discount=0,included=False,rate=0,payment_term='CONG_NO')
-    fail('CREDIT_LIMIT',orders.confirm,db,p['sales'],other.id,other.version)
+    credit=next(check for check in steps.order_checks(db,p['sales'],orders.snapshot(other),{},c) if check['key']=='credit')
+    assert not credit['ok'] and not credit['blocking'] and 'đơn chốt chưa giao: 980.000' in credit['label']
     orders.deliver(db,p['sales'],row.id,row.version,[dict(order_line_no=1,qty=1)])
     state=orders.credit_state(db,c,0)
     assert (state['actual_debt'],state['committed'])==(326667,653333)

@@ -32,7 +32,7 @@
 <dt>Thanh toán</dt><dd>{{ payments[o.payment_term] }}{% if o.payment_term=='CONG_NO' %} · {{ o.due_days }} ngày nợ{% elif o.payment_term=='DAT_COC' %} · cọc dự kiến {{ o.deposit_amount|money }} đồng{% endif %}</dd>
 {% if order_summary and order_summary.due_date %}<dt>Hạn thanh toán</dt><dd class="{{ 'tot-due' if order_summary.overdue_days>0 }}">{{ order_summary.due_date.strftime('%d/%m/%Y') }}{% if order_summary.overdue_days>0 %} · Quá hạn {{ order_summary.overdue_days }} ngày{% endif %}</dd>{% endif %}
 </dl>
-{% if o.credit_override_by %}<p class="alert warn">Giám đốc chốt vượt hạn mức: {{ o.credit_override_reason }}</p>{% endif %}
+{% if o.credit_override_by %}<p class="alert warn">Đơn chốt khi khách chưa được nợ hoặc vượt hạn mức{% if o.credit_override_reason %} · Ghi chú: {{ o.credit_override_reason }}{% endif %}</p>{% endif %}
 {% if o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
 </section>
 
