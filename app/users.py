@@ -13,6 +13,7 @@ from .models import ROLES, User, Warehouse, StockBalance, Product, ServiceTicket
 from .security import hash_password, verify_password, issue_token
 from .stock_docs import _transaction
 from .text import fold
+from . import search as tim
 
 _ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
 # Serializes lifecycle changes, including concurrent attempts to remove the last active admin.
@@ -233,4 +234,4 @@ def search(session,admin,q='',status=''):
     elif status=='locked':stmt=stmt.where(User.active.is_(False))
     elif status:raise BusinessError('BAD_STATUS','Trạng thái tài khoản chưa hợp lệ.')
     needle=fold(q)
-    return [row for row in session.scalars(stmt) if not needle or needle in fold(' '.join([row.full_name,row.username,row.phone]))]
+    return [row for row in session.scalars(stmt) if not needle or tim.text_matches(q,' '.join([row.full_name,row.username,row.phone]))]

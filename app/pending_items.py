@@ -14,6 +14,7 @@ from .models import PendingItem,Product,StockBalance,StockLedger,Supplier,Wareho
 from .security import has_role
 from .stock_docs import _transaction
 from .text import fold
+from . import search as tim
 
 GROUPS={'HANG_LOI':'Hàng lỗi','CHO_BH_NCC':'Chờ BH NCC','THANH_LY':'Thanh lý','THU_HOI':'Thu hồi','CHUA_PHAN_LOAI':'Chưa phân loại'}
 SOURCES={'THU_HOI':'Linh kiện thu hồi','THO_BAO_HU':'Thợ báo hư','KHACH_TRA':'Khách trả','CHUYEN_TAY':'Chuyển tay','KIEM_KE':'Kiểm kê','TON_CU':'Tồn cũ'}
@@ -189,7 +190,7 @@ def search(session,user,group=None,warehouse=None,min_days=None,q='',status='DAN
     if min_days is not None:stmt=stmt.where(PendingItem.entered_at<now-timedelta(days=min_days))
     needle=fold(q)
     return [dict(item=row,name=name,sent_days=max(0,(now-row.sent_at).days) if row.sent_at else None,days=max(0,(now-row.entered_at).days),overdue=(bool(row.sent_at and now-row.sent_at>timedelta(days=get_settings().supplier_hold_alert_days)) if holding else now-row.entered_at>timedelta(days=get_settings().pending_alert_days)))
-        for row,name,holding in session.execute(stmt) if not needle or needle in fold(' '.join((row.number,row.product_code,name,row.source_ref)))]
+        for row,name,holding in session.execute(stmt) if not needle or tim.text_matches(q,' '.join((row.number,row.product_code,name,row.source_ref)))]
 
 
 def totals(session,user,now=None):

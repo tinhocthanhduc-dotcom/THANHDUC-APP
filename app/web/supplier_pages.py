@@ -1,16 +1,16 @@
 """Đợt 7: danh sách Nhà cung cấp theo khuôn 3 và trang tổng quan một NCC (giống trang khách Đợt 4). Chỉ đọc."""
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 
 from .. import inventory_catalogs as catalog_svc, supplier_debts
-from ..customers import like_pattern
 from ..models import Product, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Supplier
 from ..security import has_role
 from ..text import fold
 from . import money, nav, paging, render
 from .lists import _today
 from .purchases import OPEN, STATUSES as PO_STATUSES, TONES as PO_TONES
+from .. import search as tim
 
 TABS = {'dang-dung': 'Đang dùng', 'ngung': 'Ngừng sử dụng', 'tat-ca': 'Tất cả'}
 PO_TABS = {'mo': 'Đang mở', 'DA_NHAN': 'Đã nhận đủ', 'DA_HUY': 'Đã hủy', 'tat-ca': 'Tất cả'}
@@ -32,7 +32,7 @@ def list_page(request, session, user, q='', tt='', ve='', no=''):
     ve, no = ('1' if ve else ''), ('1' if no and debts is not None else '')
     stmt = select(Supplier)
     if fold(q):
-        stmt = stmt.where(Supplier.search_text.like(like_pattern(fold(q))))
+        stmt = stmt.where(and_(*tim.like_all(Supplier.search_text, q)))
     found = list(session.scalars(stmt.order_by(Supplier.code)))
     orders = list(session.scalars(select(PurchaseOrder).where(PurchaseOrder.status != 'DA_HUY')))
     last, coming = {}, {}

@@ -203,7 +203,7 @@
     function load() {
       var current=++seq, params=new URLSearchParams({q:typed().q, nhom:group, customer_code:form.querySelector('[name=customer_code]').value, warehouse:warehouse()});
       var done=fetch('/don-ban/san-pham?'+params,{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); })
-        .then(function(html){ if (current===seq) { list.innerHTML=html; hl=0; moved=false; mark(); } })
+        .then(function(html){ if (current===seq) { list.innerHTML=html; hl=0; moved=false; if (window.tdMarkHits) window.tdMarkHits(list,typed().q); mark(); } })
         .catch(function(){ if (current===seq) list.textContent='Không tải được danh sách, hãy thử lại.'; });
       latest=done;
       return done;
@@ -239,7 +239,7 @@
       if (e.key!=='Enter' || !e.target.matches('input')) return;
       var row=e.target.closest('[data-order-line]'); if (!row) return;
       e.preventDefault();
-      if (e.target.name==='product_code') { var first=row.querySelector('[data-order-pick]'); if (first) first.click(); return; }
+      if (e.target.name==='product_code') return; // ô chọn hàng tự xử lý Enter (base.jinja)
       if (e.target.name==='qty') { var price=row.querySelector('[name=unit_price]'); price.focus(); price.select(); return; }
       if (e.target.name==='unit_price') { bq.focus(); bq.select(); list.hidden=false; return; }
       var qty=row.querySelector('[name=qty]'); qty.focus(); qty.select();

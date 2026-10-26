@@ -8,7 +8,7 @@ import re
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import checked_form, render, web_user
@@ -23,6 +23,7 @@ from ..money_words import money_words
 from ..schemas import StockDocCancel, StockDocIn, StockDocPatch, StockMinLevelIn
 from ..security import has_role
 from ..text import fold
+from .. import search as tim
 
 router = APIRouter(include_in_schema=False)
 VN = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -239,7 +240,7 @@ def pick_customer(request: Request, q: str = '', user: User = Depends(web_user),
 def pick_tech_warehouse(request: Request,q: str='',user: User=Depends(web_user),session: Session=Depends(get_session)):
     rows = [dict(code=w.code,name=w.name,holder=u.full_name) for w,u in session.execute(select(Warehouse,User).join(User,User.id==Warehouse.holder_id).where(
         Warehouse.kind=='THO',Warehouse.active.is_(True)).order_by(User.full_name,Warehouse.code))
-        if fold(q[:200]) in fold(w.code+' '+w.name+' '+u.full_name+' '+u.username)][:20]
+        if tim.text_matches(q[:200],w.code+' '+w.name+' '+u.full_name+' '+u.username)][:20]
     return render(request,'phieu_chon_kho_tho.jinja',rows=rows)
 
 
@@ -433,7 +434,7 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: 
         if nhom:
             stmt = stmt.where(Product.group_name == nhom)
         if fold(q):
-            stmt = stmt.where(or_(Product.search_text.like(like_pattern(fold(q))), Product.code.ilike(like_pattern(q))))
+            stmt = stmt.where(or_(and_(*tim.like_all(Product.search_text, q)), Product.code.ilike(like_pattern(q))))
         return stmt
     rows = list(session.execute(narrow(stmt, warehouse_column)).mappings())
     values=stock_reservations.quantities(session,[(r['warehouse_code'],r['product_code']) for r in rows])

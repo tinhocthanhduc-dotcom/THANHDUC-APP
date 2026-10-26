@@ -13,6 +13,7 @@ from .models import AuditLog, Employee, EmployeePay, EmployeeSalaryVersion as Sa
 from .security import has_role
 from .stock_docs import _transaction
 from .text import fold
+from . import search as tim
 
 POSITIONS = ('Kỹ thuật','Kinh doanh','Kho','Kế toán','Điều phối','Lễ tân','Quản lý','Khác')
 MONEY_FIELDS = ('base_salary','meal_allowance','fuel_allowance','phone_allowance','other_allowance')
@@ -249,7 +250,7 @@ def search(session,actor,q='',position='',status=''):
     with session.no_autoflush:
         for result in session.execute(stmt.order_by(Employee.code)):
             employee,account=result[:2];data=_public(employee,account)
-            if needle and needle not in fold(' '.join((employee.code,account.full_name,account.username,account.phone))):continue
+            if needle and not tim.text_matches(q,' '.join((employee.code,account.full_name,account.username,account.phone))):continue
             last=min(employee.end_date or day,day)
             months=max(0,(last.year-employee.start_date.year)*12+last.month-employee.start_date.month-(last.day<employee.start_date.day))
             data['tenure']=f'{months//12} năm {months%12} tháng'
@@ -261,4 +262,4 @@ def search(session,actor,q='',position='',status=''):
 def available_users(session,actor,q=''):
     manager(actor);needle=fold(q)
     rows=session.execute(select(User.id,User.username,User.full_name,User.phone).where(~select(Employee.id).where(Employee.user_id==User.id).exists()).order_by(User.full_name,User.id)).mappings()
-    return [dict(r) for r in rows if not needle or needle in fold(' '.join((r['full_name'],r['username'],r['phone'])))][:20]
+    return [dict(r) for r in rows if not needle or tim.text_matches(q,' '.join((r['full_name'],r['username'],r['phone'])))][:20]

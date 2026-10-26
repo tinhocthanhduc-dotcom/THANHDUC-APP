@@ -175,16 +175,28 @@
       list.appendChild(b);
     });
     if (!list.children.length) list.innerHTML = '<p class="hint">Không có mã nào khớp.</p>';
+    else { list.firstElementChild.classList.add('pick-hl'); if (window.tdMarkHits) window.tdMarkHits(list, search.value); }
   }
   document.querySelectorAll('[data-item-picker]').forEach(function (root) {
     pickerRows(root).forEach(function (row) { if (row.hasAttribute('data-pick-extra')) row.hidden = true; });
     renderPicker(root);
     root.addEventListener('input', function (event) { if (event.target.closest('[data-pick-search]')) renderPicker(root); });
     root.addEventListener('keydown', function (event) {
-      if (event.key === 'Enter' && event.target.closest('[data-pick-search]')) {
+      if (!event.target.closest('[data-pick-search]')) return;
+      var all = Array.prototype.slice.call(root.querySelectorAll('[data-pick-take]'));
+      var at = all.findIndex(function (b) { return b.classList.contains('pick-hl'); });
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (!all.length) return;
         event.preventDefault();
-        var first = root.querySelector('[data-pick-take]');
-        if (first) first.click();
+        at = Math.max(0, Math.min(all.length - 1, (at < 0 ? -1 : at) + (event.key === 'ArrowDown' ? 1 : -1)));
+        all.forEach(function (b, i) { b.classList.toggle('pick-hl', i === at); });
+        all[at].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        var chosen = all[at < 0 ? 0 : at];
+        if (chosen) chosen.click();
       }
     });
     root.addEventListener('click', function (event) {

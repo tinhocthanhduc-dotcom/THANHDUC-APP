@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse, Response
 from pydantic import ValidationError
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from .. import products, service_charges, service_tickets, technician_stock, stock_reservations
@@ -20,6 +20,7 @@ from ..models import Customer, Product, StockBalance, StockDoc, User, Warehouse
 from ..schemas import ServiceCharges, ServiceLineOut
 from ..security import has_role
 from . import checked_form, money, render, web_user
+from .. import search as tim
 
 router = APIRouter()
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -84,10 +85,9 @@ def pick_material(request: Request, q: str = '', warehouse: str = '', user: User
     held_qty = {}
     if own:
         from ..customers import like_pattern
-        from ..text import fold
         found = list(session.execute(select(Product,StockBalance.qty).join(StockBalance,StockBalance.product_code == Product.code).where(
             StockBalance.warehouse_code == own.code,StockBalance.qty > 0,Product.active.is_(True),
-            or_(Product.search_text.like(like_pattern(fold(q[:200]))),Product.code.ilike(like_pattern(q[:200])))).order_by(Product.code).limit(20)))
+            or_(and_(*tim.like_all(Product.search_text, q[:200])),Product.code.ilike(like_pattern(q[:200])))).order_by(Product.code).limit(20)))
         rows = [p for p,qty in found]; held_qty = {p.code:qty for p,qty in found}
     else:rows = products.search(session,q[:200],active_only=True,limit=20)
     warehouse=own.code if own else warehouse

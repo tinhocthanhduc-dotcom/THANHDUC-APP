@@ -14,6 +14,7 @@ from ..models import Customer, Equipment, EquipmentCustody, Product, User
 from ..schemas import CustodyHandover, CustodyIntake
 from ..security import has_role
 from . import checked_form, render, web_user
+from .. import search as tim
 
 router=APIRouter()
 
@@ -128,7 +129,6 @@ VIEWS={'cho-nhan':'Chờ nhận','qua-han':'Quá hạn giữ'}
 def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
     from .. import service_sla
     from ..models import Product
-    from ..text import fold
     from . import nav
     from .customer_overview import _service_next
     location=location if location in svc.LOCATIONS and location!='TAI_KHACH' else ''
@@ -161,8 +161,7 @@ def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(w
     rows=[r for r in everything if (not location or r['machine'].custody_location==location) and
         (xem!='cho-nhan' or r['pending']) and (xem!='qua-han' or r['overdue'])]
     if q:
-        needle=fold(q)
-        rows=[r for r in rows if needle in fold(' '.join((r['machine'].serial,r['ticket'].number,r['customer'],r['model'],r['holder'])))]
+        rows=[r for r in rows if tim.text_matches(q,' '.join((r['machine'].serial,r['ticket'].number,r['customer'],r['model'],r['holder'])))]
     tiles=[dict(label='Đang giữ',n=len(everything),href='/may-dang-giu',on=not location and not xem)]+[
         dict(label=label,n=counts[code],href=f'/may-dang-giu?location={code}',on=location==code) for code,label in svc.LOCATIONS.items() if code!='TAI_KHACH']+[
         dict(label='Chờ nhận',n=waiting,href='/may-dang-giu?xem=cho-nhan',on=xem=='cho-nhan',sub='Bàn giao chưa xác nhận'),

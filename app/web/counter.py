@@ -22,6 +22,7 @@ from . import checked_form, paging, picked, render, web_user
 from .custody import _accessory_values
 from .services import _choices, _message, intake_print_page
 from . import service_machines
+from .. import search as tim
 
 router = APIRouter()
 TABS = (('xuong', 'Đang ở xưởng'), ('cho-lay', 'Chờ khách lấy'), ('tho-tra', 'Thợ mang trả'), ('da-tra', 'Đã trả'))
@@ -58,8 +59,7 @@ def index(request: Request, tab: str = 'xuong', q: str = '', user: User = Depend
     rows = counter.rows(session, user)
     key = q.strip()[:100].lower()
     if key:
-        from ..text import fold
-        rows = [r for r in rows if fold(key) in fold(' '.join((r['ticket'].number, r['customer'] or '', r['machine'] or '', r['ticket'].serial or '')))]
+        rows = [r for r in rows if tim.text_matches(key, ' '.join((r['ticket'].number, r['customer'] or '', r['machine'] or '', r['ticket'].serial or '')))]
     counts = {k: 0 for k, _ in TABS}
     for r in rows:counts[_tab(r['ticket'])] += 1
     tab = tab if tab in counts else 'xuong'

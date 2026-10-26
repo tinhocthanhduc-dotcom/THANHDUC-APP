@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -17,6 +17,7 @@ from .models import Customer, Product, Quote, QuoteLine, QUOTE_STATUSES
 from .schemas import QuoteIn, QuoteLineIn, QuoteOut, QuoteUpdate
 from .security import has_role
 from .text import fold
+from . import search as tim
 
 WRITERS = ('sales',)
 VIEWERS = ('sales', 'finance')
@@ -76,7 +77,7 @@ def search(session: Session, user, q='', status=None):
     stmt = select(Quote).options(selectinload(Quote.lines)).join(Customer, Quote.customer_code == Customer.code)
     needle = fold(q)
     if needle:
-        stmt = stmt.where(or_(Quote.number.ilike(like_pattern(needle)), Customer.search_text.like(like_pattern(needle))))
+        stmt = stmt.where(or_(Quote.number.ilike(like_pattern(needle)), and_(*tim.like_all(Customer.search_text, q))))
     if status:
         stmt = stmt.where(Quote.status == status)
     return list(session.scalars(stmt.order_by(Quote.id.desc()).limit(get_settings().search_limit * 5)))

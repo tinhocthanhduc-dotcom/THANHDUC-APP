@@ -15,6 +15,7 @@ from ..schemas import RecoveredPartIn, RecoveredPartReceive, ServiceWarrantyLink
 from ..security import has_role
 from ..text import fold
 from . import checked_form, nav, render, web_user
+from .. import search as tim
 
 router = APIRouter()
 VN = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -43,7 +44,7 @@ def _page(request, session, user, holder=None, ticket_id=None, selected='CHO_NOP
     numbers = dict(session.execute(select(ServiceTicket.id, ServiceTicket.number).where(ServiceTicket.id.in_({r.ticket_id for r in found}))).all()) if found else {}
     if fold(q):
         key = fold(q)
-        found = [r for r in found if key in fold(' '.join((r.product_code, names.get(r.product_code, ''), numbers.get(r.ticket_id, ''), r.note or '')))]
+        found = [r for r in found if tim.text_matches(key, ' '.join((r.product_code, names.get(r.product_code, ''), numbers.get(r.ticket_id, ''), r.note or '')))]
     rows = [r for r in found if (not selected or r.status == selected) and (not tre or late(r))]
     query = dict(q=q[:200], tho=holder or '', ticket_id=ticket_id or '', status='tat-ca' if not selected else '' if selected == 'CHO_NOP' else selected, tre='1' if tre else '')
     page, shown = paging.slice_rows(rows, trang, so, query)

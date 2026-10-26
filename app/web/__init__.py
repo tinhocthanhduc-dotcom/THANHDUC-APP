@@ -34,6 +34,7 @@ from ..schemas import (Confirmation, CustomerCreate, CustomerIn, CustomerPatch, 
                        SupplierIn, SupplierPatch, WarehouseIn, WarehousePatch)
 from ..security import has_role, issue_token, verify_password
 from . import nav
+from .. import search as tim
 
 HERE = Path(__file__).parent
 COOKIE = "td_session"
@@ -672,9 +673,8 @@ def _catalog_data(form, supplier):
 
 @router.get("/kho/tim-tho")
 def pick_warehouse_holder(request: Request, q: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
-    from ..text import fold
     catalog_svc.check_writer(user)
-    rows = [u for u in session.scalars(select(User).where(User.active.is_(True), User.roles.contains(["technician"])).order_by(User.full_name)) if fold(q[:200]) in fold(u.full_name+" "+u.username+" "+str(u.id))][:20]
+    rows = [u for u in session.scalars(select(User).where(User.active.is_(True), User.roles.contains(["technician"])).order_by(User.full_name)) if tim.text_matches(q[:200], u.full_name+" "+u.username+" "+str(u.id))][:20]
     return render(request, "kho_chon_tho.jinja", rows=rows)
 
 

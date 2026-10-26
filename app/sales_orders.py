@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from zoneinfo import ZoneInfo
 from datetime import UTC, date, datetime, time, timedelta
 
-from sqlalchemy import or_, select, func, Date, cast, case, literal, union_all
+from sqlalchemy import Date, and_, case, cast, func, literal, or_, select, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
@@ -20,6 +20,7 @@ from .schemas import (QuoteLineIn, SalesOrderFromQuote, SalesOrderIn, SalesOrder
                       SalesOrderOut, SalesOrderUpdate, StockDocIn, StockDocLineIn)
 from .security import has_role
 from .text import fold
+from . import search as tim
 
 WRITERS = ('sales',)
 DELIVERERS = ('sales', 'warehouse')
@@ -99,7 +100,7 @@ def search(session: Session, user, q='', status=None, customer_code=None, from_d
         stmt=stmt.where(SalesOrder.status.in_(('GIAO_MOT_PHAN','DA_GIAO')),SalesOrder.receivable>paid,due_date_sql()<literal(today or _today(),type_=Date))
     needle = fold(q)
     if needle:
-        stmt = stmt.where(or_(SalesOrder.number.ilike(like_pattern(needle)), Customer.search_text.like(like_pattern(needle))))
+        stmt = stmt.where(or_(SalesOrder.number.ilike(like_pattern(needle)), and_(*tim.like_all(Customer.search_text, q))))
     for column, value in ((SalesOrder.status, status), (SalesOrder.customer_code, customer_code)):
         if value:
             stmt = stmt.where(column == value)

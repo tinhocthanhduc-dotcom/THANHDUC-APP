@@ -140,20 +140,61 @@ window.bindLive = function(input) {
     if (wh) params.set('warehouse', wh.value);
     if (form && form.matches('[data-order-form], [data-quote-form]') && input.name==='product_code') params.set('customer_code', form.querySelector('[name=customer_code]').value);
     params.set('phan', '1');
-    fetch((input.dataset.source || form.action) + '?' + params, {credentials: 'same-origin'})
+    return fetch((input.dataset.source || form.action) + '?' + params, {credentials: 'same-origin'})
       .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
       .then(function(html) {
         if (current !== sequence) return;
         target.innerHTML = html;
+        if (input.dataset.source) { hl = 0; window.tdMarkHits(target, input.value); mark(); }
         var summary = scope.querySelector('[data-availability-summary]');
         var selected = target.querySelector('[data-availability-text]');
         if (summary) summary.textContent = selected ? selected.dataset.availabilityText : '';
         if (!input.dataset.source) { params.delete('phan'); history.replaceState(null, '', form.action + '?' + params); }
       }).catch(function() { target.textContent = 'Không tải được kết quả, hãy thử lại.'; });
   }
-  input.addEventListener('input', function() { sequence++; clearTimeout(timer); timer = setTimeout(load, 250); });
+  // Ô chọn (có data-source): ↑ ↓ chọn dòng, Enter lấy dòng đang sáng; gõ xong Enter ngay thì chờ kết quả mới.
+  var hl = 0, latest = null;
+  function choices() { return Array.prototype.slice.call(target.querySelectorAll('button')); }
+  function mark() {
+    var all = choices(); hl = Math.max(0, Math.min(hl, all.length - 1));
+    all.forEach(function(b, i) { b.classList.toggle('pick-hl', i === hl); if (i === hl && b.scrollIntoView) b.scrollIntoView({block: 'nearest'}); });
+  }
+  if (input.dataset.source) input.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!choices().length) return;
+      e.preventDefault(); hl += e.key === 'ArrowDown' ? 1 : -1; mark(); return;
+    }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    var take = function() { var b = choices()[hl]; if (b) b.click(); };
+    if (timer) { clearTimeout(timer); timer = null; latest = load(); }
+    if (latest) latest.then(take); else take();
+  });
+  input.addEventListener('input', function() { sequence++; clearTimeout(timer); timer = setTimeout(function() { timer = null; latest = load(); }, 200); });
   if (!input.dataset.source) form.querySelectorAll('input[type=checkbox],input[type=radio]').forEach(function(cb) { cb.addEventListener('change', load); });
   input.addEventListener('stock-picked', function() { sequence++; clearTimeout(timer); });
+};
+// Tô vàng chữ khớp trong kết quả tìm (không dấu, từng chữ gõ). Chỉ sửa nút chữ, không đụng thuộc tính.
+window.tdMarkHits = function(root, q) {
+  function fold1(ch) { return ch.normalize('NFD').charAt(0).replace(/đ/i, 'd').toLowerCase(); }
+  var words = Array.prototype.map.call(String(q || '').trim(), fold1).join('').split(/\s+/).filter(function(w) { return w.length > 1; });
+  if (!words.length) return;
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (walker.nextNode()) if (!walker.currentNode.parentNode.closest('mark, script, style')) nodes.push(walker.currentNode);
+  nodes.forEach(function(node) {
+    var text = node.nodeValue, folded = Array.prototype.map.call(text, fold1).join(''), hits = [];
+    words.forEach(function(w) { var i = folded.indexOf(w); while (i >= 0) { hits.push([i, i + w.length]); i = folded.indexOf(w, i + w.length); } });
+    if (!hits.length) return;
+    hits.sort(function(a, b) { return a[0] - b[0]; });
+    var frag = document.createDocumentFragment(), at = 0;
+    hits.forEach(function(h) {
+      if (h[0] < at) return;
+      frag.appendChild(document.createTextNode(text.slice(at, h[0])));
+      var m = document.createElement('mark'); m.textContent = text.slice(h[0], h[1]); frag.appendChild(m); at = h[1];
+    });
+    frag.appendChild(document.createTextNode(text.slice(at)));
+    node.parentNode.replaceChild(frag, node);
+  });
 };
 document.querySelectorAll('[data-live]').forEach(window.bindLive);
 window.pickAvailability = function(button) {

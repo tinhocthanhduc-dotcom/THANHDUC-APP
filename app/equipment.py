@@ -1,10 +1,11 @@
 """Thiết bị theo serial, địa điểm phải thuộc đúng khách hàng đang gán."""
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from . import audit
+from . import search as tim
 from .customer_sites import check_writer
 from .customers import like_pattern
 from .errors import BusinessError
@@ -42,9 +43,8 @@ def search(session: Session, q='', active_only=False, limit: int | None = 50):
     if active_only:
         stmt = stmt.where(Equipment.active.is_(True))
     if fold(q):
-        pattern = like_pattern(fold(q))
-        stmt = stmt.where(or_(Equipment.search_text.like(pattern), Equipment.serial.ilike(like_pattern(normalize_serial(q))),
-                             Product.search_text.like(pattern), Customer.search_text.like(pattern)))
+        stmt = stmt.where(or_(and_(*tim.like_all(Equipment.search_text, q)), Equipment.serial.ilike(like_pattern(normalize_serial(q))),
+                             and_(*tim.like_all(Product.search_text, q)), and_(*tim.like_all(Customer.search_text, q))))
     return list(session.scalars(stmt.order_by(Equipment.serial).limit(limit)))
 
 
