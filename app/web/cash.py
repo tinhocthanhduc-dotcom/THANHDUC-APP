@@ -251,8 +251,14 @@ def cancel(request: Request,doc_id: int,form=Depends(checked_form),session: Sess
 def print_doc(request: Request,doc_id: int,user: User=Depends(finance_user),session: Session=Depends(get_session)):
     doc=docs.load(session,user,doc_id)
     partner=session.get(Customer,doc.customer_code) if doc.customer_code else session.get(Supplier,doc.supplier_code) if doc.supplier_code else None
-    return render(request,'thu_chi_in.jinja',d=doc,kinds=docs.KINDS,states=docs.STATES,company=get_settings(),
-                  fund=session.get(Fund,doc.fund_code),partner=partner,words=money_words(doc.amount))
+    maker=session.get(User,doc.created_by);poster=session.get(User,doc.posted_by) if doc.posted_by else None
+    source=f'{doc.source_type} {doc.source_id}' if doc.source_type and doc.source_id else ''
+    phones=', '.join(p.phone for p in partner.phones) if doc.customer_code and partner else ', '.join(partner.phones) if partner else ''
+    return render(request,'thu_chi_in.jinja',d=doc,kinds=docs.KINDS,states=docs.STATES,company=get_settings(),back=f'/thu-chi/{doc.id}',
+                  fund=session.get(Fund,doc.fund_code),to_fund=session.get(Fund,doc.to_fund_code) if doc.to_fund_code else None,
+                  category=session.get(CashCategory,doc.category_code) if doc.category_code else None,partner=partner,source=source,phones=phones,
+                  maker=maker.full_name if maker else '',poster=poster.full_name if poster else '',words=money_words(doc.amount),
+                  watermark={'NHAP':'BẢN NHÁP','DA_HUY':'ĐÃ HỦY'}.get(doc.status,''))
 
 
 @router.get('/so-quy/{fund}')

@@ -1,10 +1,24 @@
-{% extends 'base.jinja' %}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set titles = {'PT': 'PHIẾU THU', 'PC': 'PHIẾU CHI', 'CQ': 'PHIẾU CHUYỂN QUỸ'} %}
+{% set who = 'Người nộp tiền' if d.kind == 'PT' else 'Người nhận tiền' %}
 {% block title %}{{ kinds[d.kind] }} {{ d.number }}{% endblock %}
-{% block main %}
-<div class="bar report-tools"><a href="/thu-chi/{{ d.id }}">← Phiếu</a><button onclick="window.print()">In / Lưu PDF</button></div>
-<article class="acceptance-report cash-print"><header><h2>{{ company.company_name }}</h2><p>{{ company.company_address }}</p><p>MST: {{ company.company_tax_code }} · Tel: {{ company.company_phone }} · Hotline: {{ company.company_hotline }}</p><h1>{{ kinds[d.kind]|upper }}</h1><p>Số: <strong>{{ d.number }}</strong> · Ngày {{ d.doc_date.strftime('%d/%m/%Y') }}</p></header>
-<p>Trạng thái: {{ states[d.status] }}{% if d.is_opening %} · Số dư đầu kỳ{% endif %}</p>
-<dl><dt>Quỹ</dt><dd>{{ d.fund_code }} · {{ fund.name }}</dd>{% if d.to_fund_code %}<dt>Quỹ đích</dt><dd>{{ d.to_fund_code }}</dd>{% endif %}<dt>{{ 'Người nộp' if d.kind=='PT' else 'Người nhận' }}</dt><dd>{{ d.partner_name or (partner.name if partner else '—') }}</dd><dt>Nội dung</dt><dd class="service-text">{{ d.description }}</dd><dt>Số tiền</dt><dd><strong>{{ d.amount|money }} đồng</strong></dd></dl><p><strong>Bằng chữ:</strong> {{ words }}.</p>
-<div class="cash-signatures"><section><h2>Người lập</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Thủ quỹ</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>{{ 'Người nộp' if d.kind=='PT' else 'Người nhận' }}</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
-</article>
+{% block tools_sub %}{{ fund.name }} · {{ states[d.status] }}{% endblock %}
+{% block doc_title %}{{ titles[d.kind] }}{% endblock %}
+{% block doc_sub %}{{ d.doc_date|vn_long_date|capitalize }}{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', d.number) }}{{ f.meta('Quỹ chuyển' if d.kind == 'CQ' else 'Quỹ', fund.name) }}{% if to_fund %}{{ f.meta('Quỹ nhận', to_fund.name) }}{% endif %}{% endblock %}
+{% block body %}
+<div class="in-cards">{% if d.kind == 'CQ' %}{{ f.card('Chuyển quỹ', fund.name ~ ' → ' ~ to_fund.name, [('Quỹ chuyển', fund.name ~ (' · ' ~ fund.bank_name if fund.bank_name else '')), ('Quỹ nhận', to_fund.name ~ (' · ' ~ to_fund.bank_name if to_fund.bank_name else ''))]) }}
+{% else %}{{ f.card(who, d.partner_name or (partner.name if partner else '—'), [('Mã ' ~ ('khách' if d.customer_code else 'NCC'), partner.code if partner else ''), ('Mã số thuế', partner.tax_code if partner else ''), ('Địa chỉ', partner.address if partner else ''), ('Điện thoại', phones)]) }}{% endif %}
+{{ f.card('Thông tin phiếu', '', [('Loại ' ~ ('thu' if d.kind == 'PT' else 'chi'), category.name if category else ''), ('Chứng từ gốc', source), ('Số dư đầu kỳ', 'Có' if d.is_opening else ''), ('Trạng thái', states[d.status]), ('Người lập', maker), ('Ghi sổ', (poster ~ ' · ' ~ d.posted_at|vn_date) if d.posted_at else 'Chưa ghi sổ'), ('Lý do hủy', d.void_reason)]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:40mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Nội dung {{ 'thu' if d.kind == 'PT' else 'chi' if d.kind == 'PC' else 'chuyển' }}</th><th class="m">Số tiền</th></tr></thead><tbody>
+<tr><td class="c">1</td><td class="n">{{ d.description or kinds[d.kind] }}</td><td class="m">{{ d.amount|money }}</td></tr>
+</tbody></table>
+<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-note"><h4>Ghi chú</h4><ul><li>Kèm theo: ............ chứng từ gốc.</li>{% if d.kind != 'CQ' %}<li>Phiếu này không thay thế biên nhận giao hàng; công nợ theo đơn hàng, phiếu dịch vụ.</li>{% endif %}</ul></div></div>
+{{ f.totals([], ('TỔNG SỐ TIỀN', d.amount|money ~ ' đồng')) }}</div>
 {% endblock %}
+{% block signatures %}<div class="in-sd">{{ d.doc_date|vn_long_date|capitalize }}</div>
+{% if d.kind == 'CQ' %}{{ f.signatures([('Người lập phiếu', '(Ký, họ tên)'), ('Thủ quỹ giao', '(Ký, họ tên)'), ('Thủ quỹ nhận', '(Ký, họ tên)'), ('Giám đốc', '(Ký, họ tên)')]) }}
+{% else %}{{ f.signatures([('Người lập phiếu', '(Ký, họ tên)'), ('Thủ quỹ', '(Ký, họ tên)'), (who, '(Ký, họ tên)'), ('Giám đốc', '(Ký, họ tên)')]) }}{% endif %}{% endblock %}

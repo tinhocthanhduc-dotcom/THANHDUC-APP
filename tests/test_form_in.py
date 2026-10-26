@@ -49,3 +49,50 @@ def test_stock_issue_print_hides_cost_and_posted_has_no_watermark(client, web_lo
 def test_stock_print_missing_doc_is_404(client, web_login, stock_catalog):
     web_login('thu.kho', 'warehouse')
     assert client.get('/phieu-kho/999999/in').status_code == 404
+
+
+# ---- Đợt 2: Phiếu thu/chi, Đơn mua NCC, Phiếu trả hàng trên cùng khuôn A4 ----
+from tests.test_cash import cash_people, make_doc  # noqa: E402,F401
+from tests.test_web import service_login, purchase_people, purchase_form  # noqa: E402,F401
+
+
+def test_cash_print_pt_pc_cq_signatures_watermark_and_partner(client, db, cash_people):
+    p = cash_people
+    pt = make_doc(db, p['finance'], partner_name='Nguyễn Văn An', description='Thu tiền hộp mực')
+    pc = make_doc(db, p['finance'], kind='PC', amount=250000, partner_name='Trần B', description='Chi tiền xăng')
+    cq = make_doc(db, p['director'], kind='CQ', amount=3000000, to_fund_code='TK-ACB', description='Nộp tiền vào ngân hàng')
+    service_login(client, p['finance'])
+    html = client.get(f'/thu-chi/{pt.id}/in').text
+    assert 'PHIẾU THU' in html and pt.number in html and 'BẢN NHÁP' in html and 'logo-thanh-duc.jpg' in html
+    assert 'Nguyễn Văn An' in html and 'Thu tiền hộp mực' in html and 'Thu bán hàng' in html
+    assert 'Một triệu đồng' in html and 'TỔNG SỐ TIỀN' in html and '1.000.000 đồng' in html
+    for who in ('Người lập phiếu', 'Thủ quỹ', 'Người nộp tiền', 'Giám đốc'):
+        assert who in html
+    assert html.count('<td><b>') == 4 and 'Người nhận tiền' not in html
+    html = client.get(f'/thu-chi/{pc.id}/in').text
+    assert 'PHIẾU CHI' in html and 'Người nhận tiền' in html and 'Chi khác' in html and 'Hai trăm năm mươi nghìn đồng' in html
+    html = client.get(f'/thu-chi/{cq.id}/in').text
+    assert 'PHIẾU CHUYỂN QUỸ' in html and 'Thủ quỹ giao' in html and 'Thủ quỹ nhận' in html and 'QUY-TM → TK-ACB' in html
+    # Nhân viên bán hàng không mở được phiếu thu chi; chưa đăng nhập thì về đăng nhập.
+    service_login(client, p['sales'])
+    assert client.get(f'/thu-chi/{pt.id}/in').status_code == 403
+    client.cookies.clear()
+    assert client.get(f'/thu-chi/{pt.id}/in', follow_redirects=False).status_code in (302, 303)
+
+
+def test_purchase_order_print_uses_frame_with_supplier_and_totals(client, db, purchase_people):
+    from sqlalchemy import select
+    from app.models import PurchaseOrder
+    p = purchase_people
+    csrf = service_login(client, p['warehouse'])
+    assert client.post('/don-mua/moi', data=purchase_form(csrf, qty='2', vat_0='8')).status_code == 200
+    o = db.scalar(select(PurchaseOrder))
+    html = client.get(f'/don-mua/{o.id}/in').text
+    assert 'ĐƠN ĐẶT HÀNG' in html and o.number in html and 'BẢN NHÁP' in html and 'Minh Phát' in html and 'NCC-0001' in html
+    assert 'Kho 58' in html and 'TD-0001' in html and '120.000' in html and '240.000 đồng' in html and '8%' in html
+    assert 'Tiền hàng chưa VAT' in html and 'Thuế GTGT' in html and 'TỔNG THANH TOÁN' in html and 'Bằng chữ' in html
+    assert html.count('<td><b>') == 2 and 'Nhà cung cấp' in html and 'Đại diện Công ty Thành Đức' in html
+    assert re.search(r'ngày 18 tháng 10 năm 2026', html)
+    assert client.post(f'/don-mua/{o.id}/order', data={'csrf': csrf, 'version': o.version}).status_code == 200
+    html = client.get(f'/don-mua/{o.id}/in').text
+    assert 'BẢN NHÁP' not in html and 'Đã đặt' in html
