@@ -14,7 +14,7 @@
 <p class="in-hint">Xem đúng tờ A4 sẽ in. Trên điện thoại tờ phiếu thu nhỏ vừa màn, bấm In / Lưu PDF rồi chọn máy in hoặc Lưu PDF.</p>
 <div class="in-stage" data-print-stage>
 <article class="in-page">
-{% if watermark %}<div class="in-wm" aria-hidden="true">{{ watermark }}</div>{% endif %}
+{% if watermark %}<div class="in-wm{% if watermark|length > 9 %} long{% endif %}" aria-hidden="true">{{ watermark }}</div>{% endif %}
 <div class="in-hd"><img src="{{ asset('logo-thanh-duc.jpg') }}" alt="Logo Thành Đức"><div class="ci"><p class="nm">{{ company.company_name }}</p>{% if company.company_address %}<p>{{ company.company_address }}</p>{% endif %}<p><b>MST:</b> {{ company.company_tax_code }}{% if company.company_phone %} &nbsp;|&nbsp; <b>Tel:</b> {{ company.company_phone }}{% endif %}{% if company.company_hotline %} &nbsp;|&nbsp; <b>Hotline:</b> {{ company.company_hotline }}{% endif %}</p>{% if company.company_website or company.company_email %}<p>{% if company.company_website %}<b>Website:</b> {{ company.company_website }}{% endif %}{% if company.company_website and company.company_email %} &nbsp;|&nbsp; {% endif %}{% if company.company_email %}<b>Email:</b> {{ company.company_email }}{% endif %}</p>{% endif %}</div></div>
 <div class="in-ttl"><h1>{% block doc_title %}{% endblock %}</h1>{% if self.doc_sub()|trim %}<p>{% block doc_sub %}{% endblock %}</p>{% endif %}</div>
 <div class="in-meta">{% block meta %}{% endblock %}</div>
