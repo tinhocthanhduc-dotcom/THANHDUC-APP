@@ -187,7 +187,7 @@ def test_fifo_is_one_set_query_and_never_writes(db, two_receipts):
         assert group(db, p)['rows'][0]['oldest_debt_date'] == DAY - timedelta(days=5)
     finally:
         event.remove(db.get_bind(), 'before_cursor_execute', capture)
-    assert len(sql) == 2  # The normal group count and paginated row query.
+    assert len(sql) == 1  # TD2: tổng đếm bằng count() over() ngay trong câu lấy dòng.
     assert all(s.lstrip().upper().startswith('SELECT') for s in sql)
     assert 'sum(' in sql[-1].lower() and ' over (' in sql[-1].lower()
     assert [db.query(m).count() for m in (AuditLog, CashDoc, FundLedger, StockDoc, StockLedger)] == before
