@@ -96,7 +96,7 @@ def _specs(user, today, now):
         add('service_workshop','Máy chờ sửa ở xưởng',service_workshop.queue_query(now),'service','/dich-vu')
         add('service_return_ready','Máy sửa xong chờ trả',service.where(t.status=='TAM_DUNG',t.hold_reason=='SUA_XONG_CHO_TRA'), 'service','/dich-vu')
         recent=select(ServiceStep.ticket_id).join(User,User.id==ServiceStep.actor_id).where(ServiceStep.action=='reassign',ServiceStep.at>=now-timedelta(days=7),User.roles.contains(['technician']),ServiceStep.note.startswith('Thợ '))
-        add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent)), 'service','/dich-vu')
+        add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent),t.status.in_(service_tickets.OPEN)), 'service','/dich-vu')
         recovered_count=select(func.count()).where(ServiceRecoveredPart.ticket_id==t.id,
             ServiceRecoveredPart.status=='CHO_NOP').correlate(t).scalar_subquery()
         recovered_holders=select(func.string_agg(func.distinct(User.full_name),', ')).join(

@@ -135,6 +135,17 @@ def test_direct_transfer_clears_charges_returns_stock_preserves_appointment(clie
     service_login(client,p['dispatcher']);assert 'Phiếu vừa chuyển thợ' in client.get('/viec-cua-toi').text
 
 
+def test_transferred_queue_drops_closed_or_cancelled_tickets(client,db,held):
+    # TUẤN 2026-10-26: phiếu đã đóng vẫn hiện ở "Phiếu vừa chuyển thợ".
+    from app import my_work
+    p,_,_=held;t=ticket(db,p,'DA_GIAO')
+    assert client.post(f'/tho/phieu/{t.id}/chuyen-tho',data=transfer_form(client,p,t),follow_redirects=False).status_code==303
+    queue=lambda:{g['key']:g for g in my_work.collect(db,p['dispatcher'])}['service_transferred']
+    db.expire_all();assert [r['id'] for r in queue()['rows']]==[t.id]
+    for status in ('DA_DONG','DA_HUY'):
+        t.status=status;db.commit();assert queue()['count']==0,status
+
+
 @pytest.mark.parametrize('change',[dict(reason=''),dict(assignee_id='SELF'),dict(failed='0')])
 def test_transfer_invalid_rolls_back(client,db,job,change):
     p,_,t=job;form=transfer_form(client,p,t,True)|change
