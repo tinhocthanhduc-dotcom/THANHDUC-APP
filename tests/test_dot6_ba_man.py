@@ -74,3 +74,16 @@ def test_service_list_uses_list_frame_without_pink_rows(client, db, machine):
     page = client.get('/dich-vu').text
     assert 'class="page-head"' in page and 'class="card list-frame"' in page and 'class="list-table lt-cards svl-table"' in page
     assert f'data-href="/dich-vu/{t.id}"' in page and 'svl-row' not in page
+
+
+def test_out_of_stock_rows_stay_in_day_band_not_urgent(client, db, people):
+    # TUẤN 2026-10-26: mua hàng chưa phải gấp; tồn bằng 0 không kéo lên Làm ngay.
+    from app import stock_min_levels
+    from app.schemas import StockMinLevelIn
+    p = people
+    stock_min_levels.set_level(db, p['warehouse'], 'K58', 'TD-0001', StockMinLevelIn(min_qty=2, version=0))
+    service_login(client, p['warehouse'])
+    page = client.get('/viec-cua-toi').text
+    assert 'class="card work-now"' not in page or 'TD-0001' not in page[page.index('class="card work-now"'):page.index('</section>', page.index('class="card work-now"'))]
+    day = page[page.index('class="card work-day"'):]
+    assert 'data-work-group="stock_low"' in day and 'TD-0001' in day and 'Hết hàng' in day and 'ở khung Làm ngay' not in day
