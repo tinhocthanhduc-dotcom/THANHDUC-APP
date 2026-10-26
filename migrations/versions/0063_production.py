@@ -24,9 +24,11 @@ def upgrade():
 
 
 def downgrade():
-    # Remove the new immutable snapshots before restoring the old source constraint.
+    # Preserve locked commission amounts/totals when the old schema loses the SX source.
     op.execute("alter table commission_lines disable trigger commission_lines_guard")
-    op.execute("delete from commission_lines where source='PHIEU_SX'")
+    op.execute("update commission_lines l set source='DIEU_CHINH', production_id=null, rule_id=null, "
+               "note='Hoa hồng sản xuất ' || p.number || ' (hạ migration SX1). ' || l.note "
+               "from production_orders p where l.source='PHIEU_SX' and l.production_id=p.id")
     op.execute("alter table commission_lines enable trigger commission_lines_guard")
     op.drop_index('uq_commission_line_production',table_name='commission_lines')
     op.drop_constraint('ck_commission_line_source','commission_lines',type_='check')

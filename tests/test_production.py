@@ -243,3 +243,24 @@ def test_clear_pilot_registration_and_delete_guard(db,shop):
     r=create(db,shop)
     with pytest.raises(DBAPIError):db.execute(text('delete from production_orders where id=:id'),dict(id=r.id))
     db.rollback();assert db.get(ProductionOrder,r.id)
+
+
+def test_populated_migration_downgrade_preserves_locked_commission(db,engine,shop):
+    from alembic import command
+    from alembic.config import Config
+    p,_,_,_=shop;r=finish(db,shop);receive(db,shop,r)
+    commissions.add_rule(db,p['director'],dict(target='THO',service_kind='SAN_XUAT',pct=0,
+        fixed_amount=5000,effective_from=JAN,reason='Sản xuất'))
+    commissions.lock(db,p['director'],JAN)
+    ledger=db.execute(select(StockLedger.id,StockLedger.amount,StockLedger.balance_qty,StockLedger.balance_value).order_by(StockLedger.id)).all()
+    db.close()  # No open transaction may hold schema locks while Alembic runs.
+    cfg=Config('alembic.ini');cfg.attributes['database_url']=engine.url.render_as_string(hide_password=False)
+    command.downgrade(cfg,'0062')
+    try:
+        with engine.connect() as conn:
+            rows=conn.execute(text("select source,amount from commission_lines where month='2027-01-01'")).all()
+            assert rows==[('DIEU_CHINH',45000)]
+            assert conn.scalar(text("select total from commission_months where month='2027-01-01'"))==45000
+            assert conn.execute(select(StockLedger.id,StockLedger.amount,StockLedger.balance_qty,StockLedger.balance_value).order_by(StockLedger.id)).all()==ledger
+    finally:
+        command.upgrade(cfg,'head')
