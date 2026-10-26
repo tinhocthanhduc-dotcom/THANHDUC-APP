@@ -2683,3 +2683,18 @@ input::-webkit-date-and-time-value { text-align: left; }
   .hr-table tr > :first-child { min-width: 120px; max-width: 150px; }
   .hr-pay label { max-width: none; }
 }
+
+/* Công nợ khách hàng: chip chứng từ bấm để Báo thu, nút Sổ nợ gọn trong bảng. */
+.cnk-doc { display: inline-block; padding: 1px 8px; border-radius: 6px; background: var(--tag, var(--bg)); color: var(--info-solid); font-weight: 600; font-size: .85rem; text-decoration: none; margin: 0 2px 4px 0; white-space: nowrap; }
+.cnk-doc.cnk-dv { background: var(--info-bg); }
+.list-table .cnk-sm { min-height: 30px; padding: 0 10px; font-size: .8rem; border-radius: 8px; border-color: var(--info-solid); color: var(--info-solid); white-space: nowrap; margin-top: 6px; }
+.list-table .cnk-left b { display: block; white-space: nowrap; }
+.list-table .cnk-left .lt-bad { font-size: 1.05rem; }
+.cnk-ph { display: none; }
+@media (max-width: 640px) {
+  .cnk-ph { display: inline; color: var(--muted); font-size: .85rem; }
+  .list-table.lt-cards td.cnk-left { grid-row: 1 / span 3; align-self: start; }
+  .list-table.lt-cards td.cnk-left .cnk-sm { margin-top: 4px; }
+  .list-table.lt-cards td .lt-sub { display: inline; margin-left: 4px; }
+  .list-table.lt-cards td.lt-first .lt-sub { display: block; margin-left: 0; }
+}

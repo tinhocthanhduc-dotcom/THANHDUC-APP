@@ -146,6 +146,19 @@ def customer_docs(session, user, customer_code):
                  .order_by(debts.c.day, debts.c.kind, debts.c.id))
 
 
+def last_receipts(session, user):
+    """Lần thu đã xác nhận gần nhất của từng khách: {mã khách: (ngày thu, số tiền)}. Chỉ đọc, dùng cho màn Công nợ khách hàng."""
+    check_reader(user)
+    customer = func.coalesce(SalesOrder.customer_code, ServiceTicket.customer_code).label('customer_code')
+    stmt = (select(customer, SalesReceipt.received_at, SalesReceipt.amount)
+            .outerjoin(SalesOrder, SalesOrder.id == SalesReceipt.order_id)
+            .outerjoin(ServiceTicket, ServiceTicket.id == SalesReceipt.ticket_id)
+            .where(SalesReceipt.status == 'DA_XAC_NHAN')
+            .distinct(customer).order_by(customer, SalesReceipt.received_at.desc(), SalesReceipt.decided_at.desc(), SalesReceipt.id.desc()))
+    with session.no_autoflush:
+        return {code: (day, int(amount)) for code, day, amount in session.execute(stmt)}
+
+
 def pending_return_difference(session,user,start=None,end=None):
     check_reader(user);start,end=date_range(start,end)
     day=cast(func.timezone('Asia/Ho_Chi_Minh',PendingDisposition.decided_at),Date)
