@@ -15,7 +15,9 @@ from .services import STATUSES as SERVICE_STATUSES
 
 router=APIRouter()
 # Cảnh báo kho · mua hàng: không gấp, đứng sau việc cần để mắt (TUẤN 26/10/2026: mua hàng chưa phải gấp).
-CALM_KINDS=('DUOI_TON_TOI_THIEU','CHAM_LUAN_CHUYEN','DON_MUA_TRE','NCC_NO_QUA_HAN','CHO_XU_LY_QUA_HAN','CHO_NCC_QUA_HAN','THU_HOI_CHUA_NOP')
+CALM_KINDS=('DUOI_TON_TOI_THIEU','CHAM_LUAN_CHUYEN','DON_MUA_TRE','CHO_XU_LY_QUA_HAN','CHO_NCC_QUA_HAN','THU_HOI_CHUA_NOP')
+# Công nợ theo dõi: TUẤN 26/10/2026 "những việc này không cần ưu tiên" → gập gọn, cuối trang cùng kho · mua hàng.
+DEBT_KINDS=('KHACH_VUOT_HAN_MUC','KHACH_NO_QUA_HAN','NCC_NO_QUA_HAN')
 
 
 @router.get('/tong-quan')
@@ -35,9 +37,10 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
     board=svc.day_board(session,user,today=data['today'])
     # Hai khung cảnh báo: việc cần để mắt (đỏ nhiều lên đầu) và kho · mua hàng (không gấp, cuối trang).
     calm={k:v for k,v in groups.items() if k in CALM_KINDS}
-    eye=dict(sorted(((k,v) for k,v in groups.items() if k not in CALM_KINDS),key=lambda kv:(-sum(1 for a in kv[1] if a['level']=='DO'),-notices.counts[kv[0]])))
+    debt={k:v for k,v in groups.items() if k in DEBT_KINDS}
+    eye=dict(sorted(((k,v) for k,v in groups.items() if k not in CALM_KINDS+DEBT_KINDS),key=lambda kv:(-sum(1 for a in kv[1] if a['level']=='DO'),-notices.counts[kv[0]])))
     avg30=sum(r['amount'] for r in data['revenue_daily'])//max(1,len(data['revenue_daily']))
-    return render(request,'tong_quan.jinja',s=data,bars=bars,board=board,eye_groups=eye,calm_groups=calm,avg30=avg30,
+    return render(request,'tong_quan.jinja',s=data,bars=bars,board=board,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
         service_labels=SERVICE_STATUSES,advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,can_save=has_role(user,'director'),alert_groups=groups,alert_counts=notices.counts,alert_labels=alerts.LABELS,
         today_query=period(data['today'],data['today']),month_query=period(data['month_start'],data['today']),
         last_query=period(data['last_month_start'],data['last_month_end']))

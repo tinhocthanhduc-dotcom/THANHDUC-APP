@@ -2742,7 +2742,8 @@ input::-webkit-date-and-time-value { text-align: left; }
 @media (min-width: 760px) { .overview-page .overview-six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1100px) { .overview-page .overview-six { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .overview-red { border-color: var(--bad); } .overview-red strong { color: var(--bad); } .overview-red.overview-zero { border-color: var(--line); } .overview-red.overview-zero strong { color: var(--ok); }
-.overview-two { display: grid; gap: 12px; margin-top: 16px; } @media (min-width: 900px) { .overview-two { grid-template-columns: 3fr 2fr; } }
+.overview-two { display: grid; gap: 12px; margin-top: 16px; } @media (min-width: 900px) { .overview-two { grid-template-columns: 3fr 2fr; } .overview-two.overview-calm { grid-template-columns: 1fr 1fr; } }
+.overview-eye { margin-top: 16px; }
 .overview-page .overview-alerts { margin-top: 0; } .overview-page .card > h2 { font-size: 1.05rem; margin: 0; } .overview-page .card > .hint { margin: 2px 0 6px; font-size: .8rem; }
 .overview-page .alert-group { margin-top: 0; } .overview-page .alert-group > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 600; }
 .alert-n { min-width: 26px; height: 26px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center; font-size: .85rem; font-weight: 700; background: var(--warn-bg); color: var(--warn); }
