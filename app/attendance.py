@@ -99,18 +99,22 @@ def _off_hours(session,stamp):
     return clock<cfg.off_hours_start or clock>cfg.off_hours_end or local.weekday() not in cfg.work_days or session.get(Holiday,local.date()) is not None
 
 
+def lunch_label():
+    cfg=get_settings();return f"Giờ nghỉ trưa từ {cfg.lunch_start.strftime('%H:%M')} đến {cfg.lunch_end.strftime('%H:%M')}"
+
+
 def punch_hint(session,ident,now=None):
-    """Nút gợi ý trên màn Hôm nay của thợ. 'IN' từ trước ca sáng/ca chiều `punch_early_minutes` phút tới cuối ca khi chưa vào ca;
-    'OUT' từ cuối ca sáng (nếu vào ca từ sáng) hoặc từ cuối ca chiều khi còn đang trong ca; None ngoài khung, Chủ nhật/ngày lễ (trừ khi còn trong ca)."""
+    """Gợi ý trên màn Hôm nay của thợ. 'LUNCH' trong giờ nghỉ trưa (không cần ra/vào ca, chỉ hiện dòng báo);
+    'IN' từ trước ca sáng `punch_early_minutes` phút tới cuối ca sáng, hoặc từ đầu ca chiều tới cuối ca chiều, khi chưa vào ca;
+    'OUT' từ cuối ca chiều khi còn đang trong ca; None ngoài khung và Chủ nhật/ngày lễ (trừ khi còn trong ca)."""
     local=(now or _now()).astimezone(TZ);cfg=get_settings();clock=local.time();day=local.date()
-    rows=_punches(session,ident,day);opened=rows[-1] if rows and rows[-1].kind=='IN' else None
-    if opened:
-        in_at=opened.at.astimezone(TZ).time()
-        return 'OUT' if clock>=cfg.work_end or (clock>=cfg.lunch_start and in_at<cfg.lunch_start) else None
+    rows=_punches(session,ident,day);opened=rows and rows[-1].kind=='IN'
+    if opened and clock>=cfg.work_end:return 'OUT'
     if day.weekday() not in cfg.work_days or session.get(Holiday,day) is not None:return None
-    early=timedelta(minutes=cfg.punch_early_minutes)
-    def before(t):return (datetime.combine(day,t)-early).time()
-    if before(cfg.work_start)<=clock<cfg.lunch_start or before(cfg.lunch_end)<=clock<cfg.work_end:return 'IN'
+    if cfg.lunch_start<=clock<cfg.lunch_end:return 'LUNCH'
+    if opened:return None
+    before=(datetime.combine(day,cfg.work_start)-timedelta(minutes=cfg.punch_early_minutes)).time()
+    if before<=clock<cfg.lunch_start or cfg.lunch_end<=clock<cfg.work_end:return 'IN'
     return None
 
 
@@ -299,9 +303,13 @@ def _day(data,ident,day):
     employee=data['employees'].get(ident);rows=data['punches'][(ident,day)];leaves=data['leaves'][(ident,day)];cfg=get_settings()
     ins=[r.at for r in rows if r.kind=='IN'];outs=[r.at for r in rows if r.kind=='OUT'];first=min(ins) if ins else None;last=max(outs) if outs else None
     opened=None;seconds=0
+    # Giờ nghỉ trưa không tính vào số giờ làm: một cặp vào sáng/ra chiều trừ phần trùng với khung trưa.
+    lunch=(datetime.combine(day,cfg.lunch_start,TZ),datetime.combine(day,cfg.lunch_end,TZ))
     for row in rows:
         if row.kind=='IN':opened=row.at
-        elif opened:seconds+=(row.at-opened).total_seconds();opened=None
+        elif opened:
+            overlap=max(timedelta(0),min(row.at,lunch[1])-max(opened,lunch[0]))
+            seconds+=(row.at-opened-overlap).total_seconds();opened=None
     paid=sum(Decimal(1) if r.part=='CA_NGAY' else Decimal('0.5') for r in leaves if r.kind=='NGHI_PHEP')
     unpaid=sum(Decimal(1) if r.part=='CA_NGAY' else Decimal('0.5') for r in leaves if r.kind=='NGHI_KHONG_LUONG')
     start=datetime.combine(day,cfg.work_start,TZ);end=datetime.combine(day,cfg.work_end,TZ)
