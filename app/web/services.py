@@ -38,7 +38,7 @@ TRANSITIONS = {
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
-         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy",
+         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
 
@@ -655,20 +655,23 @@ def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web
 
 @router.get("/dich-vu/{ticket_id}/phieu-nhan-may")
 def intake_print(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    """Phiếu tiếp nhận máy: lần nhận máy đầu tiên của phiếu (thợ nhận tại khách, mang về xưởng)."""
+    return intake_print_page(request, session, svc.load(session, user, ticket_id), back=f"/dich-vu/{ticket_id}")
+
+
+def intake_print_page(request, session, t, back):
+    """Phiếu tiếp nhận máy: lần nhận máy đầu tiên của phiếu (thợ nhận tại khách, hoặc quầy nhận máy khách mang tới)."""
     from ..config import get_settings
     from ..models import CustomerSite, Equipment, EquipmentCustody, Product
     from .. import equipment_custody
-    t = svc.load(session, user, ticket_id)
     intake = session.scalar(select(EquipmentCustody).where(EquipmentCustody.ticket_id == t.id, EquipmentCustody.status == 'DA_NHAN',
-                                                           EquipmentCustody.location == 'THO_GIU').order_by(EquipmentCustody.id).limit(1))
+                                                           EquipmentCustody.location.in_(('THO_GIU', 'KHO_KY_THUAT'))).order_by(EquipmentCustody.id).limit(1))
     if intake is None:
         raise BusinessError('NO_INTAKE', 'Phiếu chưa nhận máy của khách, chưa có phiếu tiếp nhận.', status=404)
     machine = session.get(Equipment, t.serial) if t.serial else None
     product = session.get(Product, machine.product_code) if machine and machine.product_code else None
     receiver = session.get(User, intake.holder_id or intake.confirmed_by or intake.created_by)
     return render(request, "dich_vu_nhan_may_in.jinja", t=t, intake=intake, customer=session.get(Customer, t.customer_code), company=get_settings(),
-                  back=f"/dich-vu/{t.id}", site=session.get(CustomerSite, t.site_id) if t.site_id else None, machine=machine,
+                  back=back, site=session.get(CustomerSite, t.site_id) if t.site_id else None, machine=machine,
                   machine_name=equipment.display_name(machine, product) if machine else '', receiver=receiver.full_name if receiver else '',
                   accessories=', '.join(equipment_custody.ACCESSORIES.get(code, code) for code in intake.accessories),
                   locations=equipment_custody.LOCATIONS, watermark='ĐÃ HỦY' if t.status == 'DA_HUY' else '')

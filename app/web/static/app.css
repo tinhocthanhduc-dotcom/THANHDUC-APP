@@ -2769,3 +2769,9 @@ input::-webkit-date-and-time-value { text-align: left; }
 @media (max-width: 600px) { .overview-techs .overview-table th:nth-child(6), .overview-techs .overview-table td:nth-child(6) { display: none; } }
 
 .tho-screen .tho-lunch, .attendance-lunch { color: var(--bad); font-weight: 600; margin: 0 0 12px; }
+/* Khách mang máy tới (TUẤN 26/10/2026): nút chọn Cách nhận máy trên Nhận đơn dịch vụ, nút trả tại quầy trong khung xưởng. */
+.svn-how-seg { align-items: stretch; }
+.svn-how-link { flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); font-weight: 600; text-decoration: none; min-height: 44px; box-sizing: border-box; }
+.xg-counter { display: grid; gap: 4px; margin: 0 0 12px; padding-bottom: 12px; border-bottom: 1px dashed var(--line); }
+.quay-days { flex-wrap: wrap; }
+.quay-days label { flex: 1 0 auto; }

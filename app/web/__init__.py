@@ -789,6 +789,10 @@ from .services import router as services_router
 
 router.include_router(services_router)
 
+from .counter import router as counter_router
+
+router.include_router(counter_router)
+
 from .dispatch import router as dispatch_router
 
 router.include_router(dispatch_router)

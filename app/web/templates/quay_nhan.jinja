@@ -1,0 +1,50 @@
+{% extends "base.jinja" %}
+{% block title %}Nhận máy khách mang tới{% endblock %}
+{% import 'da_chon.jinja' as picked %}
+{% block main %}
+{# TUẤN duyệt 26/10/2026: khách mang máy tới quầy. Máy vào thẳng Kho kỹ thuật, không giao thợ, không ghi lượt đến khách. #}
+{% import '_ui.jinja' as ui %}
+{% set cust_bad = error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error) %}
+<div class="svn-head">{{ ui.page_head('Nhận máy khách mang tới', sub='Máy khách tại quầy · phiếu mới', back='/quay-sua') }}
+{{ ui.steps([('Nhận máy tại quầy','cur'),('Báo giá',''),('Khách đồng ý',''),('Sửa xong',''),('Khách lấy máy','')]) }}</div>
+{% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+<form id="counter-intake" method="post" action="/quay-sua/nhan" enctype="multipart/form-data" class="form quay-form" data-service-form data-choices-source="/quay-sua/chon-khach" data-busy>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="kind" value="MANG_VE">
+<div class="svn-grid">
+<div class="svn-main">
+<section class="card qf-card"><h2 class="qf-h">Khách hàng</h2>
+{% call picked.block(text=picked.card(customer_card), invalid=cust_bad) %}<div class="service-picker" data-picker>
+  <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" placeholder="Tên, mã hoặc số điện thoại" data-live=".service-options" data-source="/quay-sua/tim-khach"{% if cust_bad %} aria-invalid="true"{% endif %}></label>
+  <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
+  {% if cust_bad %}<small class="field-error">{{ error }}</small>{% endif %}
+  <a href="/khach-hang/moi?quay_ve=/quay-sua/nhan" class="btn" data-new-customer>+ Tạo mới khách hàng</a>
+  <p class="hint svn-cust-hint">Có thể tìm bằng tên, mã khách hàng hoặc số điện thoại.</p>
+</div>{% endcall %}
+</section>
+<section class="card qf-card"><h2 class="qf-h">Máy</h2>
+<div data-service-choices aria-live="polite">{% if d.customer_code %}{% include 'quay_chon_may.jinja' %}{% else %}<p class="svn-note">Chọn khách để xem máy.</p>{% endif %}</div>
+<label><b>Mô tả lỗi</b><textarea name="symptom" required minlength="3" maxlength="4000" placeholder="Khách báo gì, máy báo lỗi gì…">{{ d.symptom }}</textarea></label>
+</section>
+<section class="card qf-card"><h2 class="qf-h">Tình trạng khi nhận</h2>
+<div class="field-group" role="group"><p class="group-label"><b>Phụ kiện kèm theo</b></p><div class="chips acc-chips">{% for code,label in accessories.items() %}<label class="chip"><input type="checkbox" name="accessories" value="{{ code }}" {% if code in d.get('accessories',[]) %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}<label class="chip"><input type="checkbox" name="accessories" value="KHONG_CO" {% if 'KHONG_CO' in d.get('accessories',[]) %}checked{% endif %}><span>Không kèm phụ kiện</span></label></div></div>
+<label><b>Ghi chú phụ kiện</b><input name="accessories_note" maxlength="2000" value="{{ d.accessories_note }}"></label>
+<label><b>Tình trạng bên ngoài</b><textarea name="condition_note" required maxlength="2000" placeholder="Vỏ trầy, nắp lỏng, thiếu ốc…">{{ d.condition_note }}</textarea></label>
+<label{% if error_code in ['PHOTO_REQUIRED','BAD_FILE_TYPE','FILE_TOO_LARGE'] %} class="field-invalid"{% endif %}><b>Ảnh máy lúc nhận (1 ảnh)</b><input type="file" name="photo" accept="image/*" capture="environment" required></label>
+<div class="field-group" role="group"><p class="group-label"><b>Hẹn khách quay lại (dự kiến)</b></p><div class="seg quay-days">{% for label, day in days %}<label><input type="radio" name="expected" value="{{ day.isoformat() }}" {% if d.get('expected')==day.isoformat() %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Hoặc chọn ngày<input type="date" name="expected_pick" value="{{ d.get('expected_pick','') }}"></label>
+<p class="hint">Chưa phải ngày hẹn trả chính thức. Ngày hẹn trả chốt khi khách đồng ý báo giá.</p>
+</section>
+</div>
+<aside class="qf-side svn-side">
+<section class="card qf-card"><h2 class="qf-h">Tóm tắt</h2>
+<dl class="svn-dl"><dt>Cách nhận</dt><dd>Khách mang máy tới</dd><dt>Máy ở</dt><dd>Kho kỹ thuật</dd><dt>Người nhận</dt><dd>{{ user.full_name }}</dd></dl>
+</section>
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · quầy</span>
+<button class="btn btn-new">Nhận máy · In phiếu nhận máy</button>
+<p class="hint">Phiếu vào hàng chờ sửa ở xưởng của điều phối. In phiếu nhận máy đưa khách giữ để lấy máy.</p></section>
+</aside>
+</div>
+</form>
+<script src="{{ asset('picked.js') }}" defer></script>
+<script src="{{ asset('services.js') }}" defer></script>
+<script src="{{ asset('service-machines.js') }}" defer></script>{% endblock %}

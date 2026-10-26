@@ -572,6 +572,7 @@ class ServiceTicketOut(BaseModel):
     quote_approved_by: int | None = None
     promised_return_on: date | None = None
     declined_at: datetime | None = None
+    counter_intake: bool = False
     warranty_months: Literal[0,1,2,3,6,12] | None = None
     warranty_scope: str | None = None
     priced_at: datetime | None

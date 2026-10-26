@@ -38,6 +38,8 @@ EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan
 EXPECTED['director'].difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu'))  # Việc riêng của thợ không lên menu giám đốc.
 for _role in ('technician','dispatcher','warehouse','director'):
     EXPECTED[_role].add('/san-xuat')
+for _role in ('dispatcher','sales','director'):
+    EXPECTED[_role].add('/quay-sua')  # TUẤN 26/10: máy khách mang tới quầy
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',

@@ -94,9 +94,9 @@ def create(session: Session, user, body):
         return create_in_tx(session, user, body)
 
 
-def create_in_tx(session: Session, user, body):
+def create_in_tx(session: Session, user, body, check=True):
     """Caller owns the transaction, including rollback on a duplicate serial."""
-    check_writer(user)
+    if check:check_writer(user)
     data = body.model_dump()
     data['serial'] = normalize_serial(data['serial'])
     if session.get(Equipment, data['serial']) is not None:

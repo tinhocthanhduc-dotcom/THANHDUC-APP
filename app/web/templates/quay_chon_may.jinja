@@ -1,0 +1,11 @@
+{# Quầy nhận máy: chỉ chọn máy, không địa điểm (khách mang tới cửa hàng). #}
+{% set new_machine_selected=d.get('create_machine')=='1' %}
+<label class="svn-fld{% if error_code is defined and error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD'] %} svn-bad{% endif %}"><span>Máy của khách <small data-machine-required-label>(bắt buộc)</small></span>
+<select name="serial" {% if new_machine_selected %}disabled{% else %}required{% endif %} {% if error_code is defined and error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD'] %}aria-invalid="true"{% endif %}>
+<option value="" {% if not d.get('serial') %}selected{% endif %}>— Không chọn máy —</option>
+{% for machine, product_name in machines %}<option value="{{ machine.serial }}" {% if d.get('serial') == machine.serial %}selected{% endif %}>{{ machine.serial }} · {{ product_name }}</option>{% endfor %}
+</select></label>
+{% if error_code is defined and error_code=='SERIAL_REQUIRED' %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+{% if can_create_machine %}<div data-machine-intake><label class="chip"><input type="checkbox" name="create_machine" value="1" {% if new_machine_selected %}checked{% endif %}><span>+ Máy mới</span></label>
+{% with mf=d %}{% include 'dich_vu_may_moi.jinja' %}{% endwith %}</div>{% endif %}
+<p class="svn-note">{% if machines %}Chọn máy khách mang tới. Máy chưa có thì bấm + Máy mới.{% else %}Khách chưa có máy nào: bấm + Máy mới để ghi máy khách mang tới.{% endif %}</p>
