@@ -40,13 +40,12 @@ GROUPS = (
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
-    {'label': 'Sản xuất', 'section': 'Nghiệp vụ', 'items': (
-        {'label': 'Sản xuất', 'href': '/san-xuat', 'prefixes': ('/san-xuat',), 'roles': ('technician','dispatcher','warehouse')},
-    )},
     {'label': 'Kho', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Tồn kho', 'href': '/ton-kho', 'prefixes': ('/ton-kho', '/the-kho'), 'roles': ('sales', 'warehouse', 'finance')},
         {'label': 'Hàng sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}},
         {'label': 'Phiếu nhập xuất kho', 'href': '/phieu-kho', 'prefixes': ('/phieu-kho',), 'roles': ('warehouse', 'finance')},
+        # SX1: TUẤN 26/10 muốn Sản xuất nằm trong nhóm Kho (hàng làm xong nhập kho), không đứng riêng.
+        {'label': 'Sản xuất', 'href': '/san-xuat', 'prefixes': ('/san-xuat',), 'roles': ('technician','dispatcher','warehouse')},
         {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
         {'label':'Hàng chờ xử lý','href':'/cho-xu-ly','prefixes':('/cho-xu-ly',),'roles':('warehouse','finance','dispatcher')},
         {'label': 'Linh kiện thu hồi', 'href': '/linh-kien-thu-hoi', 'prefixes': ('/linh-kien-thu-hoi',), 'roles': ('technician','warehouse','dispatcher','finance')},
