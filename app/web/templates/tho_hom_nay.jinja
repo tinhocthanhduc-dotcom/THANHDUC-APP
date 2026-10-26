@@ -21,4 +21,5 @@
 {% if job.priority and job.priority!='THUONG' %}<span class="tag tone-bad" style="align-self:flex-start">{{ service_priorities[job.priority] }}</span>{% endif %}
 <span class="tho-foot">{% if job.created %}<span class="tho-created">Tạo {{ job.created|service_time }}</span>{% endif %}{% if job.action %}<span class="tho-next">{{ job.action.label }} ›</span>{% endif %}</span>
 </a>{% if job.trips %}{% for trip in job.trips %}<a class="tho-trip" href="{{ trip.href }}" data-trip="{{ trip.number }}"><span>🚚 Kèm giao đơn <b>{{ trip.number }}</b></span><span class="tho-next">{{ trip.action.label if trip.action else 'Giao hàng' }} ›</span></a>{% endfor %}</div>{% endif %}{% endfor %}</div>{% endif %}{% endfor %}
-{% if not jobs and not unreported %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}
+{% if production_jobs %}<section class="tho-production"><h2>Hàng sản xuất</h2>{% for r,name in production_jobs %}<a class="card tho-job" href="/san-xuat/{{ r.number }}"><b>{{ r.number }}</b><p>Làm hàng: {{ r.qty_plan }} {{ name }}</p><span>{{ 'Bắt đầu làm' if r.status=='MOI' else 'Hoàn thành' }}</span></a>{% endfor %}</section>{% endif %}
+{% if not jobs and not unreported and not production_jobs %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}

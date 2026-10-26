@@ -15,6 +15,8 @@ HANDOVER_REFERENCE = """
 """
 
 LOOKUPS = {
+    'SAN_XUAT': ('phiếu sản xuất', '/san-xuat',
+        'select number as id, number from production_orders where px_doc_id=:id or pn_doc_id=:id limit 1', '/san-xuat/{id}'),
     'PART_REQUEST': ('yêu cầu linh kiện', '/yeu-cau-linh-kien',
         'select id, number from part_requests where stock_doc_id=:id order by id limit 1',
         '/yeu-cau-linh-kien?status=DA_CAP#yc-{id}'),

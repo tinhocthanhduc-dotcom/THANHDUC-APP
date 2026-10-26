@@ -36,6 +36,7 @@ def _aggregate(source):
 
 
 METRICS = (
+    _metric('tho_san_xuat','technician','Thành phẩm làm ra','cái',True,'Số thành phẩm tốt đã nhập kho trong tháng.'),
     _metric('tho_hoan_thanh','technician','Phiếu hoàn thành','lần',True,'Đếm phiếu khác nhau có bước Hoàn thành do bạn thực hiện trong tháng.'),
     _metric('tho_dung_hen','technician','Đến đúng hẹn','%',True,'Phiếu hoàn thành có hẹn và lượt đến: lượt đầu không trễ quá 30 phút.',mode='ratio'),
     _metric('tho_nhan_viec','technician','Thời gian nhận việc','phút',False,'Trung vị từ mỗi lần giao trong tháng đến bước nhận kế tiếp của chính thợ, trước lần giao mới.',mode='median'),
@@ -99,6 +100,8 @@ def _sources(month, keys=None):
     def add(key, owner, number, stamp, value, tail, denominator='0'):
         sources[key]=(f"select '{key}'::text as key, ({owner})::integer as owner, ({number})::text as number, "
                       f"({stamp})::timestamptz as day, ({value})::numeric as value, ({denominator})::numeric as denominator {tail}")
+    add('tho_san_xuat','x.technician_id','x.number','x.received_at','x.qty_good',
+        "from production_orders x where x.status='DA_NHAP' and x.received_at>=:lo and x.received_at<:hi")
     # Distinct ticket/actor pairs avoid counting reopen/completion cycles twice.
     completed="""select distinct s.ticket_id,s.actor_id from service_steps s join service_tickets t on t.id=s.ticket_id
         where s.to_status='HOAN_THANH' and s.at>=:lo and s.at<:hi and t.status<>'DA_HUY'"""

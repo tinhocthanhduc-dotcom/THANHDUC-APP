@@ -9,8 +9,11 @@ from .db import get_session
 from .errors import BusinessError, business_error_handler
 from .routers import sales_returns, equipment_custody, part_requests, purchase_returns, supplier_debts, purchase_receipts, purchase_orders, attachments, auth, customers, products, quotes, sales_orders, sales_receipts, service_tickets, stock_docs, suppliers, warehouses
 
+from .routers import production
+
 app = FastAPI(title="Thành Đức Core", version="0.2.0")
 form_keys.install(app)
+app.include_router(production.router)
 from .routers import recovered_parts
 app.include_router(recovered_parts.router)
 app.include_router(auth.router)

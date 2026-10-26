@@ -891,3 +891,6 @@ router.include_router(commissions_router)
 
 from .payroll import router as payroll_router
 router.include_router(payroll_router)
+
+from .production import router as production_router
+router.include_router(production_router)

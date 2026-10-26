@@ -40,6 +40,9 @@ GROUPS = (
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
+    {'label': 'Sản xuất', 'section': 'Nghiệp vụ', 'items': (
+        {'label': 'Sản xuất', 'href': '/san-xuat', 'prefixes': ('/san-xuat',), 'roles': ('technician','dispatcher','warehouse')},
+    )},
     {'label': 'Kho', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Tồn kho', 'href': '/ton-kho', 'prefixes': ('/ton-kho', '/the-kho'), 'roles': ('sales', 'warehouse', 'finance')},
         {'label': 'Hàng sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}},

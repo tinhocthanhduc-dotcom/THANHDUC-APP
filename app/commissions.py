@@ -14,7 +14,7 @@ from . import audit, kpi, sales_receipts
 from .config import get_settings
 from .errors import BusinessError
 from .models import (CommissionLine as Line, CommissionMonth as Month, CommissionRule as Rule,
-                     SalesOrder, ServiceTicket, User, SERVICE_KINDS)
+                     SalesOrder, ServiceTicket, ProductionOrder, User, SERVICE_KINDS)
 from .security import has_role
 from .stock_docs import _transaction
 
@@ -55,7 +55,7 @@ def _record(session,user,action,row,before=None):
 
 def _rule_values(session,data):
     target=data.get('target');kind=data.get('service_kind') or None;uid=data.get('user_id') or None
-    if target not in TARGETS or kind is not None and kind not in SERVICE_KINDS:raise BusinessError('BAD_RULE','Vai trò hoặc loại phiếu không hợp lệ.')
+    if target not in TARGETS or kind is not None and kind not in (*SERVICE_KINDS,'SAN_XUAT'):raise BusinessError('BAD_RULE','Vai trò hoặc loại phiếu không hợp lệ.')
     try:
         uid=int(uid) if uid is not None else None
         pct=Decimal(str(data.get('pct',0)));fixed=Decimal(str(data.get('fixed_amount',0)))
@@ -130,14 +130,14 @@ def _draft_query(month):
     query="""
     with margin as (select order_id,sum(profit) base,sum(receivable) receivable,
          bool_or(kind='TH' and day>=:month) returned from (__MARGINS__) d group by order_id),
-    prior as (select l.source,l.order_id,l.ticket_id,sum(l.amount) previous from commission_lines l
+    prior as (select l.source,l.order_id,l.ticket_id,l.production_id,sum(l.amount) previous from commission_lines l
          join commission_months m on m.month=l.month where l.month<:month and l.source<>'DIEU_CHINH'
-         group by l.source,l.order_id,l.ticket_id),
+         group by l.source,l.order_id,l.ticket_id,l.production_id),
     finished as (select distinct on (s.ticket_id) s.ticket_id,s.actor_id,s.at from service_steps s
          where s.to_status='HOAN_THANH' and s.at<:hi order by s.ticket_id,s.at,s.id),
     fees as (select ticket_id,sum(amount) base from service_lines where kind='PHI' group by ticket_id),
     sources as (
-      select 'DON_BAN'::text source,'KINH_DOANH'::text target,o.created_by user_id,o.id order_id,null::bigint ticket_id,
+      select 'DON_BAN'::text source,'KINH_DOANH'::text target,o.created_by user_id,o.id order_id,null::bigint ticket_id,null::bigint production_id,1::integer units,
         o.number,(o.created_at at time zone 'Asia/Ho_Chi_Minh')::date source_day,null::text service_kind,
         coalesce(m.base,0) base,coalesce(m.receivable,0) receivable,coalesce(paid.paid,0) paid,false free,
         (o.status='DA_HUY' or exists(select 1 from pending_dispositions x join sales_deliveries g on g.id=x.delivery_id
@@ -149,7 +149,7 @@ def _draft_query(month):
       left join prior p on p.order_id=o.id and p.source='DON_BAN'
       where o.created_at>=:start_at and o.created_at<:hi and (m.order_id is not null or p.order_id is not null)
       union all
-      select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.actor_id),null,t.id,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
+      select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.actor_id),null,t.id,null,1,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
         coalesce(fee.base,0),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
         t.status='DA_HUY' or w.number is not null or t.declined_at is not null,
         case when t.declined_at is not null then 'Khách không sửa' when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,
@@ -162,19 +162,25 @@ def _draft_query(month):
         and w.warranty_basis='PHIEU_TRUOC' and w.status<>'DA_HUY' and w.created_at>=f.at
         and w.created_at<=f.at+interval '90 days' and w.created_at<:hi order by w.created_at,w.id limit 1) w on true
       where t.created_at>=:start_at and t.created_at<:hi
+      union all
+      select 'PHIEU_SX','THO',x.technician_id,null,null,x.id,x.qty_good,x.number,
+        (x.received_at at time zone 'Asia/Ho_Chi_Minh')::date,'SAN_XUAT',
+        0,0,0,false,false,''::text,coalesce(p.previous,0)
+      from production_orders x left join prior p on p.production_id=x.id and p.source='PHIEU_SX'
+      where x.status='DA_NHAP' and x.received_at>=:start_at and x.received_at<:hi
     ), selected as (
-      select s.*,r.id rule_id,coalesce(r.pct,0) pct,coalesce(r.fixed_amount,0) fixed_amount,
+      select s.*,r.id rule_id,case when s.source='PHIEU_SX' then 0 else coalesce(r.pct,0) end pct,coalesce(r.fixed_amount,0) fixed_amount,
         case when s.free or s.receivable=0 then 1::numeric else least(1::numeric,greatest(0::numeric,s.paid)/s.receivable) end paid_ratio
       from sources s left join lateral (select r.* from commission_rules r where r.target=s.target and r.replaced_at is null
         and (r.user_id is null or r.user_id=s.user_id) and (r.service_kind is null or r.service_kind=s.service_kind)
         and r.effective_from<=s.source_day
-        order by (r.user_id is not null) desc,(r.service_kind is not null) desc,r.effective_from desc,r.id desc limit 1) r on true
+        order by (case when s.source='PHIEU_SX' then r.service_kind='SAN_XUAT' else false end) desc nulls last,(r.user_id is not null) desc,(r.service_kind is not null) desc,r.effective_from desc,r.id desc limit 1) r on true
     ), earned as (
-      select s.*,case when excluded then 0 else round((fixed_amount+pct/100*
+      select s.*,case when excluded then 0 when source='PHIEU_SX' then fixed_amount*units else round((fixed_amount+pct/100*
         case when source='DON_BAN' then greatest(0,base) when free then 0 else base end)*paid_ratio) end::bigint entitled
       from selected s
     )
-    select cast(:month as date) as month,user_id,source,order_id,ticket_id,rule_id,base,pct,fixed_amount,round(paid_ratio,6) paid_ratio,
+    select cast(:month as date) as month,user_id,source,order_id,ticket_id,production_id,rule_id,base,pct,fixed_amount,round(paid_ratio,6) paid_ratio,
       entitled,previous,(entitled-previous)::bigint amount,
       case when rule_id is null and not excluded then 'Chưa có quy tắc' when note<>'' then note when excluded and source='DON_BAN' then 'Đơn có hàng thanh lý' when entitled<previous then 'Chênh lệch quy tắc / tiền đã thu' when free and source='PHIEU_DV' then 'Miễn phí: chỉ tiền cố định' else '' end note,
       (rule_id is null and not excluded) missing_rule,number,source_day
@@ -185,8 +191,8 @@ def _draft_query(month):
 
 
 def _stored(session,month,user_ids=None,*,adjustments=False):
-    q=select(Line,User.full_name,func.coalesce(SalesOrder.number,ServiceTicket.number,'Điều chỉnh').label('number')).join(User,User.id==Line.user_id)\
-        .outerjoin(SalesOrder,SalesOrder.id==Line.order_id).outerjoin(ServiceTicket,ServiceTicket.id==Line.ticket_id).where(Line.month==month)
+    q=select(Line,User.full_name,func.coalesce(SalesOrder.number,ServiceTicket.number,ProductionOrder.number,'Điều chỉnh').label('number')).join(User,User.id==Line.user_id)\
+        .outerjoin(SalesOrder,SalesOrder.id==Line.order_id).outerjoin(ServiceTicket,ServiceTicket.id==Line.ticket_id).outerjoin(ProductionOrder,ProductionOrder.id==Line.production_id).where(Line.month==month)
     if adjustments:q=q.where(Line.source=='DIEU_CHINH')
     if user_ids is not None:q=q.where(Line.user_id.in_(user_ids))
     return [dict({c.key:getattr(r,c.key) for c in r.__table__.columns},number=number,full_name=name,missing_rule=False) for r,name,number in session.execute(q.order_by(Line.user_id,Line.id))]
@@ -219,7 +225,7 @@ def lock(session,user,month):
         rows=draft(session,month)
         for data in rows:
             if data['source']=='DIEU_CHINH' or not data['amount']:continue
-            keys=('user_id','source','order_id','ticket_id','rule_id','base','pct','fixed_amount','paid_ratio','entitled','previous','amount','note')
+            keys=('user_id','source','order_id','ticket_id','production_id','rule_id','base','pct','fixed_amount','paid_ratio','entitled','previous','amount','note')
             session.add(Line(month=month,created_by=user.id,created_at=_now(),**{k:data[k] for k in keys}))
         session.flush()
         total=session.scalar(select(func.coalesce(func.sum(Line.amount),0)).where(Line.month==month))
@@ -238,7 +244,7 @@ def month_total(session,user_id,month):
 
 
 def _public(row):
-    allowed=('source','order_id','ticket_id','number','paid_ratio','amount','note','user_id','full_name','missing_rule')
+    allowed=('source','order_id','ticket_id','production_id','number','paid_ratio','amount','note','user_id','full_name','missing_rule')
     if row['source']=='PHIEU_DV':allowed+=('base','fixed_amount','pct')
     return {k:row[k] for k in allowed if k in row}
 

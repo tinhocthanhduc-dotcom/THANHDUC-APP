@@ -61,7 +61,7 @@ def err(code,fn,*args,**kw):
 
 def test_empty_all_metrics_and_eligibility(db,p,make_user):
     rows=svc.compute(db,MONTH)
-    assert len(svc.METRICS)==18 and p['director'].id not in rows
+    assert len(svc.METRICS)==19 and p['director'].id not in rows
     assert p['admin'].id not in rows and p['reception'].id not in rows
     for m in svc.METRICS:
         role=m['group'];value=rows[p[role].id][m['key']]
