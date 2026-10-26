@@ -1,0 +1,25 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Máy khách tại quầy{% endblock %}
+{# TUẤN duyệt 26/10/2026: máy khách mang tới cửa hàng, theo dõi từ lúc nhận tới lúc khách lấy. #}
+{% block main %}<div class="page-wide list-page quay-page" data-list-page="quay-sua">
+{% call ui.page_head('Máy khách tại quầy', sub='Khách mang máy tới sửa · nhận tại quầy, khách tới lấy tại quầy') %}<a class="btn btn-new" href="/quay-sua/nhan">+ Nhận máy khách mang tới</a>{% endcall %}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+<form class="filter-bar lf-bar" method="get" action="/quay-sua" role="search"><input type="hidden" name="tab" value="{{ tab }}"><input type="search" name="q" value="{{ q }}" placeholder="Tìm số DV, tên khách, máy, serial (không dấu)…" aria-label="Tìm" autocomplete="off"><noscript><button>Tìm</button></noscript></form>
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Máy</th><th>Khách · phiếu</th><th>Lỗi khách báo</th><th>Đang ở đâu</th><th>Hẹn trả</th><th></th></tr></thead><tbody>
+{% for item in rows %}{% set t = item.ticket %}
+<tr data-href="/quay-sua/{{ t.id }}">
+<td class="lt-first"><b>{{ item.machine or t.serial }}</b><span class="lt-sub">{{ t.serial }}</span></td>
+<td><b>{{ item.customer }}</b><span class="lt-sub">{{ t.number }}{% if not item.walk_in %} · thợ mang về{% endif %}</span></td>
+<td>{{ t.symptom|truncate(70) }}</td>
+<td>{{ ui.badge(item.stage, 'xong' if tab in ['cho-lay','da-tra'] else 'cho') }}</td>
+<td>{% if t.promised_return_on %}{{ t.promised_return_on|vn_date }}{% else %}<span class="lt-sub">Chưa hẹn</span>{% endif %}</td>
+<td class="num"><a class="btn btn-ghost" href="/quay-sua/{{ t.id }}{{ '#tra' if tab == 'cho-lay' else '' }}">{{ 'Trả máy' if tab == 'cho-lay' else 'Xem' }} ›</a></td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Không có máy nào khớp tìm kiếm.' if q else 'Chưa có máy nào ở mục này.', '/quay-sua?tab=' ~ tab if q else '', 'Xem tất cả') }}{% endif %}
+{% call ui.list_foot(p, 'máy') %}{{ p.total }} máy{% endcall %}
+</section>
+</div>
+{% endblock %}

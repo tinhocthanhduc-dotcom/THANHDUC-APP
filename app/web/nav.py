@@ -37,6 +37,8 @@ GROUPS = (
         {'label': 'Phiếu dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
         # F2: bản xem chỉ đọc phiếu dịch vụ cho kế toán (đối chiếu báo thu) và kho (linh kiện, máy đang giữ); không giá vốn, không thao tác.
         {'label': 'Xem phiếu dịch vụ', 'href': '/xem-dich-vu', 'prefixes': ('/xem-dich-vu',), 'roles': ('finance', 'warehouse'), 'hidden': True},
+        # TUẤN 26/10: khách mang máy tới cửa hàng; kinh doanh (Thanh) nhận, trả máy và thu tiền tại quầy.
+        {'label': 'Máy khách tại quầy', 'href': '/quay-sua', 'prefixes': ('/quay-sua',), 'roles': ('dispatcher', 'sales')},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},

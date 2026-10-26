@@ -75,6 +75,8 @@ def can_confirm(user, row):
 
 def can_view(session, user, ticket, machine=None):
     if has_role(user, 'dispatcher', 'warehouse'):return True
+    from .service_counter import can_counter
+    if can_counter(session, user, ticket):return True
     if 'technician' not in user.roles:return False
     if ticket.assignee_id == user.id:return True
     machine = machine or _machine(session, ticket.serial)
@@ -97,6 +99,11 @@ def check_photo(session, user, ticket_id, write=False, tag=None):
     if tag == 'NHAN_MAY' and (has_role(user,'dispatcher') or ('technician' in user.roles and t.assignee_id == user.id)):
         return
     if tag == 'TRA_MAY' and eq.custody_ticket_id == t.id and eq.custody_location == 'THO_GIU' and eq.custody_holder_id == user.id:
+        return
+    # Khách mang máy tới / tới lấy tại quầy: người ở quầy chụp ảnh nhận và trả.
+    from .service_counter import can_counter
+    if ((tag == 'NHAN_MAY' and eq.custody_location == 'TAI_KHACH') or (tag == 'TRA_MAY' and eq.custody_ticket_id == t.id and
+            eq.custody_location == 'KHO_KY_THUAT')) and can_counter(session, user, t):
         return
     _forbidden()
 
@@ -227,6 +234,11 @@ def return_customer_in_tx(session,user,ticket_id,body):
     """Cùng luật KT4; caller quản lý transaction, không commit tại đây."""
     t = _ticket(session,ticket_id,lock=True);eq = _machine(session,t.serial,lock=True)
     if eq.custody_location != 'THO_GIU' or eq.custody_holder_id != user.id or 'technician' not in user.roles:_forbidden()
+    return return_machine_in_tx(session,user,t,eq,body)
+
+
+def return_machine_in_tx(session,user,t,eq,body):
+    """Dòng TAI_KHACH chung cho thợ trả tại khách và quầy trả khách tới lấy; caller đã khóa phiếu, máy và kiểm quyền."""
     _version(eq,body.version)
     if eq.custody_ticket_id != t.id:raise BusinessError('BAD_STATUS','Máy không đang giữ theo phiếu này.',status=409)
     from .service_workshop import check_handover_record

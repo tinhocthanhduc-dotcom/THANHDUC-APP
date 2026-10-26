@@ -14,6 +14,9 @@
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <fieldset class="svn-grid" {% if not can_create %}disabled{% endif %}>
 <div class="svn-main">
+{% if can_open('/quay-sua/nhan') %}<section class="card qf-card svn-how"><h2 class="qf-h">Cách nhận máy</h2>
+<div class="seg svn-how-seg"><label><input type="radio" checked aria-label="Thợ đến khách"><span>Thợ đến khách</span></label><a class="svn-how-link" href="/quay-sua/nhan{{ '?customer_code=' ~ d.customer_code if d.customer_code }}">Khách mang máy tới ›</a></div>
+<p class="svn-note">Khách mang máy tới cửa hàng: nhận tại quầy, máy vào thẳng Kho kỹ thuật, không cần giao thợ.</p></section>{% endif %}
 <div class="svn-top">
 <section class="card qf-card svn-cust"><h2 class="qf-h">Khách hàng</h2>
 {% call picked.block(text=picked.card(customer_card), invalid=cust_bad, locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>

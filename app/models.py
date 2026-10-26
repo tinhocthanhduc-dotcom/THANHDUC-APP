@@ -351,7 +351,7 @@ class ServiceTicket(Base):
         CheckConstraint("kind is null or " + _in("kind", SERVICE_KINDS), name="ck_service_tickets_kind"),
         CheckConstraint(_in("priority", SERVICE_PRIORITIES), name="ck_service_tickets_priority"),
         CheckConstraint(_in("status", SERVICE_STATUSES), name="ck_service_tickets_status"),
-        CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY'", name="ck_service_tickets_assignee"),
+        CheckConstraint("status = 'MOI' or assignee_id is not null or status = 'DA_HUY' or counter_intake", name="ck_service_tickets_assignee"),
         CheckConstraint("(warranty_of_id is null and warranty_basis is null) or (kind is not null and kind = 'BAO_HANH' and warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN','HET_HAN'))", name='ck_service_tickets_warranty'),
         CheckConstraint("warranty_of_id is null or warranty_of_id <> id", name='ck_service_tickets_warranty_self'),
         CheckConstraint("appointment_slot in ('SANG','CHIEU','GIO') and appointment_at is not null or appointment_slot is null", name='ck_service_tickets_slot'),
@@ -398,6 +398,8 @@ class ServiceTicket(Base):
     quote_approved_by: Mapped[int | None] = mapped_column(ForeignKey('users.id', name='fk_service_tickets_quote_approved_by'))
     promised_return_on: Mapped[date | None] = mapped_column(Date)
     declined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Khách mang máy tới quầy (TUẤN 26/10/2026): nhận và trả tại quầy, không bắt buộc thợ được giao.
+    counter_intake: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
     warranty_months: Mapped[int | None] = mapped_column(SmallInteger)
     warranty_scope: Mapped[str | None] = mapped_column(String(200), default='', server_default='')
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))

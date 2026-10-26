@@ -128,7 +128,7 @@ def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket
         return create_in_tx(session,user,body)
 
 
-def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_from=None) -> ServiceTicket:
+def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_from=None, _counter=False) -> ServiceTicket:
     if _split_from is None:
         _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
     else:
@@ -140,7 +140,7 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_
     if customer is None or customer.status != "DANG_DUNG":
         details = {"merged_into": customer.merged_into} if customer is not None and customer.merged_into else {}
         raise BusinessError("BAD_CUSTOMER", "Khách hàng không tồn tại hoặc đã ngừng/gộp.", details)
-    serial = _machine_serial(session, user, customer.code, body.site_id, body.serial, body.new_machine, body.kind)
+    serial = _machine_serial(session, user, customer.code, body.site_id, body.serial, body.new_machine, body.kind, check=not _counter)
     _check_site_and_serial(session, customer.code, body.site_id, serial)
     now = _now()
     if _split_from is None and (body.appointment_at is not None or body.appointment_slot is not None):
@@ -162,14 +162,15 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_
     return t
 
 
-def _machine_serial(session, user, customer_code, site_id, serial, new_machine, kind):
+def _machine_serial(session, user, customer_code, site_id, serial, new_machine, kind, check=True):
     serial = _serial(serial)
     if new_machine is not None:
         from . import equipment
+        # Quầy nhận máy khách mang tới (kể cả kinh doanh) được ghi máy mới của khách ngay lúc nhận.
         machine = equipment.create_in_tx(session, user, new_machine.model_copy(update={
             'customer_code': customer_code,
             'site_id': new_machine.site_id if new_machine.site_id is not None else site_id,
-        }))
+        }), check=check)
         serial = machine.serial
     if kind == 'MANG_VE' and serial is None:
         raise BusinessError('SERIAL_REQUIRED', 'Phiếu Mang về phải chọn máy của khách.')
@@ -379,6 +380,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     note = (note or "").strip()
     is_dispatcher = has_role(user, *DISPATCHERS)
     ready=t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA'
+    # Khách tới lấy tại quầy: service_counter đã kiểm quyền quầy, máy ở Kho kỹ thuật, không qua thợ.
+    counter=_action=='counter_return' and ready and to_status=='HOAN_THANH'
     if t.status=='TAM_DUNG' and t.hold_reason=='CHO_SUA_XUONG':
         if not is_dispatcher:raise BusinessError('FORBIDDEN','Phiếu đang do điều phối xử lý tại xưởng.',status=403)
         if to_status!='DA_HUY':raise BusinessError('BAD_TRANSITION','Dùng Khách đồng ý, Sửa xong hoặc Khách không sửa tại xưởng.',status=409)
@@ -394,7 +397,7 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
                               t.status not in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG')):
         raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao được hủy khi đang làm, chờ linh kiện hoặc tạm dừng.', status=403)
     if to_status in ('HOAN_THANH','KHONG_LAM_DUOC','DA_HUY','DA_DONG') and (
-            is_dispatcher or (t.assignee_id == user.id and t.status not in ('HOAN_THANH','DA_DONG'))):
+            is_dispatcher or counter or (t.assignee_id == user.id and t.status not in ('HOAN_THANH','DA_DONG'))):
         if to_status == 'HOAN_THANH':
             require_kind(t)
         from .equipment_custody import check_returned
@@ -403,10 +406,10 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         if t.status not in CANCELLABLE:
             raise BusinessError("BAD_STATUS", "Phiếu đã đóng, không hủy được.", {"status": t.status}, status=409)
     else:
-        if not is_dispatcher and (t.assignee_id != user.id or t.status in ('HOAN_THANH','DA_DONG')):
+        if not is_dispatcher and not counter and (t.assignee_id != user.id or t.status in ('HOAN_THANH','DA_DONG')):
             raise BusinessError("FORBIDDEN", "Chỉ thợ được giao hoặc điều phối được cập nhật phiếu này.", status=403)
         direct_arrival = t.status == "DA_NHAN" and to_status == "DANG_LAM" and t.appointment_at is not None
-        if not direct_arrival and to_status not in FLOW.get(t.status, ()):
+        if not direct_arrival and not counter and to_status not in FLOW.get(t.status, ()):
             raise BusinessError("BAD_TRANSITION", "Không chuyển được sang trạng thái này.",
                                 {"from": t.status, "to": to_status, "allowed": sorted(FLOW.get(t.status, ()))}, status=409)
     if to_status == 'DA_DONG':
