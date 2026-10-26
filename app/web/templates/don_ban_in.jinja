@@ -1,15 +1,29 @@
-{% extends 'base.jinja' %}
-{% block title %}Phiếu giao {{ o.number }}{% endblock %}
-{% block main %}
-<div class="bar report-tools">{% if warehouse_return %}<a class="btn" href="/viec-cua-toi">Về Việc của tôi</a>{% endif %}<a href="/don-ban/{{ o.id }}">← Đơn bán</a><button type="button" onclick="window.print()">In / Lưu PDF</button></div>
-<article class="acceptance-report quote-print">
-<header><h2>{{ company.company_name }}</h2><p>{{ company.company_address }}</p><p>MST: {{ company.company_tax_code }} · Tel: {{ company.company_phone }} · Hotline: {{ company.company_hotline }}</p><h1>PHIẾU GIAO HÀNG</h1><p>Số giao: <strong>{{ gh.number }}</strong> · Số đơn: <strong>{{ o.number }}</strong> · Ngày: {{ issued }}</p></header>
-<p>Đơn vị vận chuyển: {{ gh.carrier_name or '—' }} · Mã vận đơn: {{ gh.tracking_code or '—' }}</p><p>Người nhận: {{ gh.receiver_name or '—' }}</p><p>Trạng thái: {{ statuses[o.status] }}</p><dl><dt>Khách hàng</dt><dd>{{ customer.name }}</dd><dt>Mã khách hàng</dt><dd>{{ customer.code }}</dd><dt>Người liên hệ</dt><dd>{{ o.contact_name or '—' }}</dd><dt>Địa chỉ giao</dt><dd class="service-text">{{ o.delivery_address or '—' }}</dd></dl>
-<table class="quote-print-table"><thead><tr><th>STT</th><th>Hàng hóa / dịch vụ</th><th>Số lượng</th><th>ĐVT</th><th>Đơn giá</th><th>VAT</th><th>Tiền dòng</th></tr></thead><tbody>
-{% for line in lines %}<tr><td data-label="STT">{{ line.line_no }}</td><td data-label="Hàng hóa / dịch vụ">{% if line.product_code %}{{ line.product_code }} · {% endif %}{{ line.description }}</td><td data-label="Số lượng">{{ quantity(line.qty) }}</td><td data-label="ĐVT">{{ line.unit }}</td><td data-label="Đơn giá">{{ line.unit_price|money }}</td><td data-label="VAT">{{ line.vat_rate }}%</td><td data-label="Tiền dòng">{{ line.amount|money }}</td></tr>{% endfor %}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set basis = 'đã gồm VAT' if o.price_includes_vat else 'chưa VAT' %}
+{% block title %}Phiếu giao {{ gh.number }}{% endblock %}
+{% block tools_sub %}Đơn bán {{ o.number }} · {{ customer.name }}{% endblock %}
+{% block doc_title %}PHIẾU GIAO HÀNG{% endblock %}
+{% block doc_sub %}{{ gh.delivered_at|vn_long_date|capitalize }}{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu giao', gh.number) }}{{ f.meta('Đơn bán', o.number) }}{{ f.meta('Lần giao', delivery_index ~ '/' ~ delivery_count) }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Người nhận', gh.receiver_name or o.contact_name), ('Mã số thuế', customer.tax_code)]) }}
+{{ f.card('Thông tin giao', '', [('Theo báo giá', quote_number), ('Người giao', deliverer), ('Vận chuyển', (gh.carrier_name ~ (' · ' ~ gh.tracking_code if gh.tracking_code else '')) if gh.carrier_name else gh.tracking_code), ('Trạng thái đơn', statuses[o.status])]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
+{% for line in lines %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description }}{% if serials.get(line.line_no) %}<span class="cd">Serial: {{ serials[line.line_no] }}</span>{% endif %}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_price|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
-<dl>{% if o.price_includes_vat %}<dt>Cộng tiền hàng (đã gồm VAT)</dt><dd>{{ entered_total|money }} đồng</dd>{% elif o.discount_amount>0 %}<dt>Cộng tiền hàng (chưa VAT)</dt><dd>{{ entered_total|money }} đồng</dd>{% endif %}{% if o.discount_amount>0 %}<dt>Giảm giá</dt><dd>{{ '−' if delivery_discount else '' }}{{ delivery_discount|money }} đồng</dd>{% endif %}<dt>Tiền hàng chưa VAT</dt><dd>{{ gh.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ gh.vat_total|money }} đồng</dd><dt><strong>Tổng cộng</strong></dt><dd><strong>{{ gh.total|money }} đồng</strong></dd></dl>
-<p><strong>Bằng chữ:</strong> {{ words }}.</p>{% if gh.note %}<h2>Ghi chú lần giao</h2><p class="service-text">{{ gh.note }}</p>{% endif %}{% if o.note %}<h2>Ghi chú</h2><p class="service-text">{{ o.note }}</p>{% endif %}
-<div class="report-signatures"><section><h2>Người giao</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Người nhận</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
-</article>
+{% set rows = [] %}
+{% if o.price_includes_vat %}{% do rows.append(('Cộng tiền hàng (đã gồm VAT)', entered_total|money ~ ' đồng')) %}{% elif o.discount_amount > 0 %}{% do rows.append(('Cộng tiền hàng (chưa VAT)', entered_total|money ~ ' đồng')) %}{% endif %}
+{% if o.discount_amount > 0 %}{% do rows.append(('Giảm giá', ('−' if delivery_discount else '') ~ delivery_discount|money ~ ' đồng')) %}{% endif %}
+{% do rows.append(('Tiền hàng chưa VAT', gh.subtotal|money ~ ' đồng')) %}{% do rows.append(('Thuế GTGT', gh.vat_total|money ~ ' đồng')) %}
+{% set extra = [] %}
+{% if balance %}{% do extra.append(('Cả đơn ' ~ o.number ~ ' phải thu', balance.receivable|money ~ ' đồng', '')) %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else '')) %}{% endif %}
+<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-note"><h4>Ghi chú</h4>{% if gh.note %}{{ gh.note }}
+{% endif %}{% if o.note %}{{ o.note }}
+{% endif %}Quý khách vui lòng kiểm tra hàng và ký nhận.</div></div>
+{{ f.totals(rows, ('TỔNG LẦN GIAO', gh.total|money ~ ' đồng'), extra) }}</div>
 {% endblock %}
+{% block signatures %}<div class="in-sd">{{ gh.delivered_at|vn_long_date|capitalize }}</div>
+{{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}

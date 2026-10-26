@@ -276,7 +276,7 @@ def test_many_tiny_deliveries_never_go_negative_and_reconcile(client,db,people):
     assert sum(orders.delivery_discount(db,row,g) for g in shipments)==2
     no_share=next(g for g in shipments if orders.delivery_discount(db,row,g)==0)
     service_login(client,p['sales']);html=client.get(f'/don-ban/{row.id}/giao/{no_share.id}/in').text
-    assert 'Giảm giá' in html and '<dd>0 đồng</dd>' in html
+    assert '<td class="l">Giảm giá</td><td class="v">0 đồng</td>' in html  # Form in: ô tổng khuôn A4, lần giao không chia giảm giá vẫn in 0.
 
 
 @pytest.mark.parametrize('changes,code',[(dict(discount_amount='-1'),'BAD_DISCOUNT'),(dict(discount_amount='1.00'),'BAD_DISCOUNT'),(dict(price_includes_vat='2'),'BAD_PRICE_MODE'),(dict(discount_amount='1.080.001'),'DISCOUNT_TOO_LARGE')])

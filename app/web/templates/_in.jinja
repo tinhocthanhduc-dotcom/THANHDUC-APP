@@ -1,0 +1,6 @@
+{# Macro cho khuôn in A4. #}
+{% macro card(title, big='', rows=[]) %}<div class="in-card"><h3>{{ title }}</h3>{% if big %}<p class="big">{{ big }}</p>{% endif %}{% if rows %}<dl>{% for label, value in rows %}{% if value %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endif %}{% endfor %}</dl>{% endif %}</div>{% endmacro %}
+{% macro meta(label, value) %}{% if value %}<span>{{ label }}: <b>{{ value }}</b></span>{% endif %}{% endmacro %}
+{# Ô tổng: rows = [(nhãn, giá trị)], grand = (nhãn, giá trị), extra = [(nhãn, giá trị, lớp ok/due/'')]. #}
+{% macro totals(rows, grand, extra=[]) %}<table class="in-tt">{% for label, value in rows %}<tr><td class="l">{{ label }}</td><td class="v">{{ value }}</td></tr>{% endfor %}<tr class="g"><td class="l">{{ grand[0] }}</td><td class="v">{{ grand[1] }}</td></tr>{% for label, value, tone in extra %}<tr class="p"><td class="l">{{ label }}</td><td class="v {{ tone }}">{{ value }}</td></tr>{% endfor %}</table>{% endmacro %}
+{% macro signatures(cols) %}<table class="in-sg"><tr>{% for title, hint in cols %}<td><b>{{ title }}</b><i>{{ hint }}</i><span class="ln"></span></td>{% endfor %}</tr></table>{% endmacro %}

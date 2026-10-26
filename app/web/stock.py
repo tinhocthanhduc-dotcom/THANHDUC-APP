@@ -17,7 +17,9 @@ from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
 from ..inventory_catalogs import check_writer
-from ..models import Customer, Product, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, TechnicianReturn, TechnicianReturnLine, User, Warehouse
+from ..config import get_settings
+from ..models import Customer, Product, PurchaseReceipt, PurchaseOrder, StockBalance, StockDoc, StockLedger, StockMinLevel, Supplier, TechnicianReturn, TechnicianReturnLine, User, Warehouse
+from ..money_words import money_words
 from ..schemas import StockDocCancel, StockDocIn, StockDocPatch, StockMinLevelIn
 from ..security import has_role
 from ..text import fold
@@ -344,6 +346,30 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
 @router.get('/phieu-kho/{doc_id}')
 def view(request: Request, doc_id: int, da_luu: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
     return _form(request, session, stock_docs.snapshot(stock_docs.load(session, doc_id)), saved=bool(da_luu))
+
+
+@router.get('/phieu-kho/{doc_id}/in')
+def print_doc(request: Request, doc_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Form in phiếu kho (khuôn A4 chung). Chỉ đọc; PX/CK không in giá vốn, PN in giá nhập chưa VAT."""
+    doc = stock_docs.load(session, doc_id)
+    codes = [l.product_code for l in doc.lines]
+    rows = session.execute(select(Product.code, Product.name, Product.unit).where(Product.code.in_(codes))).all() if codes else []
+    amounts = {l.line_no: int((l.qty or 0) * (l.unit_cost or 0)) for l in doc.lines}
+    people = dict(session.execute(select(User.id, User.full_name).where(User.id.in_({doc.created_by, doc.posted_by or doc.created_by}))).all())
+    to_warehouse = session.get(Warehouse, doc.to_warehouse_code) if doc.to_warehouse_code else None
+    holder = session.get(User, to_warehouse.holder_id).full_name if to_warehouse and to_warehouse.holder_id else ''
+    receipt = session.scalar(select(PurchaseReceipt).where(PurchaseReceipt.stock_doc_id == doc.id, PurchaseReceipt.status == 'DA_GHI')) if doc.kind == 'PN' else None
+    subtotal = receipt.amount if receipt else sum(amounts.values())
+    return render(request, 'phieu_kho_in.jinja', d=doc, kinds=KINDS, states=STATES, company=get_settings(), back=f'/phieu-kho/{doc.id}',
+                  warehouse=session.get(Warehouse, doc.warehouse_code), to_warehouse=to_warehouse, holder=holder,
+                  supplier=session.get(Supplier, doc.supplier_code) if doc.supplier_code else None,
+                  customer=session.get(Customer, doc.customer_code) if doc.customer_code else None,
+                  source=stock_sources.describe(session, doc), maker=people.get(doc.created_by, ''), poster=people.get(doc.posted_by, ''),
+                  product_names={code: name for code, name, _ in rows}, units={code: unit for code, _, unit in rows},
+                  amounts=amounts, subtotal=subtotal, total_qty=sum((l.qty or 0) for l in doc.lines),
+                  receipt=receipt, receipt_order=session.get(PurchaseOrder, receipt.order_id).number if receipt else '',
+                  words=money_words(int(receipt.total if receipt else subtotal)),
+                  watermark={'NHAP': 'BẢN NHÁP', 'DA_HUY': 'ĐÃ HỦY'}.get(doc.status, ''))
 
 
 @router.post('/phieu-kho/{doc_id}')
