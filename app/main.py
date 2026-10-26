@@ -13,6 +13,25 @@ from .routers import production
 
 app = FastAPI(title="Thành Đức Core", version="0.2.0")
 form_keys.install(app)
+
+
+@app.middleware("http")
+async def force_https(request: Request, call_next):
+    """Khách vào bằng http:// qua Cloudflare (Safari iOS cũ hay tự mở http) thì chuyển sang https.
+
+    Cookie đăng nhập có cờ Secure nên trên http trình duyệt không lưu, đăng nhập xong lại bị đẩy về trang đăng nhập.
+    Chỉ tin header Cloudflare/proxy ghi rõ http; chạy thử trên máy (không header) giữ nguyên.
+    """
+    from .config import get_settings
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    if '"scheme":"http"' in request.headers.get("cf-visitor", "").replace(" ", ""):
+        proto = "http"
+    if proto == "http" and get_settings().cookie_secure:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(str(request.url.replace(scheme="https", port=None)), status_code=308)
+    return await call_next(request)
+
+
 app.include_router(production.router)
 from .routers import recovered_parts
 app.include_router(recovered_parts.router)
