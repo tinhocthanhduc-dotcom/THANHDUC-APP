@@ -2736,3 +2736,4 @@ input::-webkit-date-and-time-value { text-align: left; }
 .tho-app .sx-view .doc-grid, .tho-app .sx-new .doc-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
 .tho-app .sx-view .doc-main .doc-card:not(:first-child), .tho-app .sx-view .doc-main details { font-size: .95rem; }
 .tho-sx .tho-job p { margin: 0; }
+.tho-screen .tho-lunch, .attendance-lunch { color: var(--bad); font-weight: 600; margin: 0 0 12px; }

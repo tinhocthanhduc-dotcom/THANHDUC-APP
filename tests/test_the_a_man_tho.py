@@ -208,13 +208,15 @@ def test_today_reminds_technician_to_clock_in_without_blocking(client, db, held,
     assert 'data-punch-hint' not in at('08:00', '2026-10-25')
     at('07:30'); attendance.punch(db, tech, 'IN')
     assert 'data-punch-hint' not in at('09:00')
-    # Cuối ca sáng còn trong ca thì nhắc Ra ca; ra ca rồi thì trưa không nhắc, 13:00 nhắc Vào ca lại.
-    assert 'data-punch-hint="OUT"' in at('11:30')
-    at('11:31'); attendance.punch(db, tech, 'OUT')
-    assert 'data-punch-hint' not in at('12:00')
-    assert 'data-punch-hint="IN"' in at('13:00')
-    at('13:30'); attendance.punch(db, tech, 'IN')
+    # Giờ nghỉ trưa: chỉ hiện dòng báo, không nhắc ra ca/vào ca; sau trưa vẫn trong ca thì không nhắc.
+    html = at('11:30'); assert 'data-punch-hint="LUNCH"' in html and 'Giờ nghỉ trưa từ 11:30 đến 13:30' in html and 'href="/cham-cong"' not in html.split('data-punch-hint')[1].split('</p>')[0]
+    assert 'data-punch-hint="LUNCH"' in at('13:29')
+    assert 'data-punch-hint' not in at('13:30')
     assert 'data-punch-hint' not in at('15:00')
     assert 'data-punch-hint="OUT"' in at('17:30')
     at('17:35'); attendance.punch(db, tech, 'OUT')
     assert 'data-punch-hint' not in at('18:00')
+    # Nghỉ trưa không nhắc Vào ca; chưa vào ca mà tới đầu ca chiều thì nhắc.
+    day2 = '2026-10-27'
+    assert 'data-punch-hint="LUNCH"' in at('12:00', day2)
+    assert 'data-punch-hint="IN"' in at('13:30', day2)

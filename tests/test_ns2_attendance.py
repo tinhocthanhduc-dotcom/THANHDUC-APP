@@ -77,8 +77,12 @@ def test_duplicate_60_second_rule_and_state_errors(db,p,clock):
     fail('CHUA_VAO_CA',tap,db,p,clock,'OUT','2026-11-02T12:01')
     tap(db,p,clock,'IN','2026-11-02T13:30');tap(db,p,clock,'OUT','2026-11-02T17:30')
     day=svc.day_summary(db,p['technician'].id,DAY)
-    assert day['hours']==8 and day['cong']==1 and len(day['punches'])==4
+    assert day['hours']==Decimal('7.5') and day['cong']==1 and len(day['punches'])==4  # 08:00–12:00 trừ 30 phút trùng giờ trưa + 13:30–17:30
     assert db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='attendance.punch'))==4
+    # Chỉ bấm vào sáng và ra chiều: giờ nghỉ trưa 11:30–13:30 không tính vào số giờ, công vẫn 1, không thiếu giờ ra.
+    tap(db,p,clock,'IN','2026-11-03T07:30');tap(db,p,clock,'OUT','2026-11-03T17:30')
+    day=svc.day_summary(db,p['technician'].id,DAY+timedelta(days=1))
+    assert day['hours']==8 and day['cong']==1 and not day['missing_out'] and day['late_minutes']==0 and day['early_minutes']==0
 
 
 def test_web_server_time_ignores_fake_browser_clock_and_no_gps_still_works(client,db,p,clock):
