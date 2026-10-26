@@ -25,17 +25,17 @@ def upgrade():
 
 def downgrade():
     # Remove the new immutable snapshots before restoring the old source constraint.
-    op.execute("alter table commission_lines disable trigger all")
+    op.execute("alter table commission_lines disable trigger commission_lines_guard")
     op.execute("delete from commission_lines where source='PHIEU_SX'")
-    op.execute("alter table commission_lines enable trigger all")
+    op.execute("alter table commission_lines enable trigger commission_lines_guard")
     op.drop_index('uq_commission_line_production',table_name='commission_lines')
     op.drop_constraint('ck_commission_line_source','commission_lines',type_='check')
     op.drop_constraint('fk_commission_production','commission_lines',type_='foreignkey')
     op.drop_column('commission_lines','production_id')
     op.create_check_constraint('ck_commission_line_source','commission_lines',"(source='DON_BAN' and order_id is not null and ticket_id is null) or (source='PHIEU_DV' and ticket_id is not null and order_id is null) or (source='DIEU_CHINH' and order_id is null and ticket_id is null and length(trim(note))>0)")
-    op.execute("alter table commission_rules disable trigger all")
+    op.execute("alter table commission_rules disable trigger commission_rules_guard")
     op.execute("delete from commission_rules where service_kind='SAN_XUAT'")
-    op.execute("alter table commission_rules enable trigger all")
+    op.execute("alter table commission_rules enable trigger commission_rules_guard")
     op.drop_constraint('ck_commission_rule_kind','commission_rules',type_='check')
     op.create_check_constraint('ck_commission_rule_kind','commission_rules',"service_kind in ('SUA_TAI_CHO','MANG_VE','BAO_HANH','MUC_DINH_KY')")
     op.drop_table('production_order_lines')
