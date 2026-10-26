@@ -96,6 +96,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
+        {'label': 'Tốc độ app', 'href': '/toc-do', 'prefixes': ('/toc-do',), 'roles': ('director','admin')},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
         {'label': 'Phiếu lương', 'href': '/phieu-luong', 'prefixes': ('/phieu-luong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},
         {'label': 'Tạm ứng', 'href': '/tam-ung', 'prefixes': ('/tam-ung',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},

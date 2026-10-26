@@ -32,6 +32,11 @@ async def force_https(request: Request, call_next):
     return await call_next(request)
 
 
+# TD1: đo tốc độ, đặt ngoài cùng để tính cả thời gian các middleware khác.
+from . import perf
+app.add_middleware(perf.Middleware)
+
+
 app.include_router(production.router)
 from .routers import recovered_parts
 app.include_router(recovered_parts.router)

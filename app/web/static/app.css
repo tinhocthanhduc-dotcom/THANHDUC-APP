@@ -2784,3 +2784,6 @@ input::-webkit-date-and-time-value { text-align: left; }
 mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) mark { background: #7a5c00; } }
 :root[data-theme="dark"] mark { background: #7a5c00; }
+
+/* TD1: trang Tốc độ app */
+.perf-sql { display: block; max-width: 640px; white-space: pre-wrap; word-break: break-word; font-size: 12px; }

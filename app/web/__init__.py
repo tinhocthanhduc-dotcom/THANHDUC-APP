@@ -877,6 +877,8 @@ router.include_router(pending_items_router)
 
 from .ui_guide import router as ui_guide_router
 router.include_router(ui_guide_router)
+from .speed import router as speed_router
+router.include_router(speed_router)
 
 from .pending_reports import router as pending_reports_router
 router.include_router(pending_reports_router)
