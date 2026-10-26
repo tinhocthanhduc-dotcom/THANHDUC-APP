@@ -10,6 +10,8 @@ from .. import sales_orders, sales_receipts, sales_returns as svc, sales_refunds
 from ..sales_warranty import parse_serials
 from ..models import SalesDeliverySerial, SalesReturnLine, SalesReturn
 from ..config import get_settings
+from ..money_words import money_words
+from ..models import User
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, SalesOrder, Warehouse
@@ -81,16 +83,23 @@ def detail(request: Request,return_id: int,user=Depends(web_user),session: Sessi
     return _detail(request,session,user,row)
 
 
-def _detail(request,session,user,row,error=None,code='',status=200,raw=None,printable=False):
+def _detail(request,session,user,row,error=None,code='',status=200,raw=None):
     order=sales_orders.load(session,user,row.order_id)
-    return render(request,'tra_hang_in.jinja' if printable else 'tra_hang_chi_tiet.jinja',r=row,o=order,
+    return render(request,'tra_hang_chi_tiet.jinja',r=row,o=order,
         lines={l.line_no:l for l in order.lines},customer=session.get(Customer,order.customer_code),company=get_settings(),
         can_void=has_role(user,'director') and row.status=='DA_NHAN',error=error,error_code=code,status=status,raw=raw or {})
 
 
 @router.get('/tra-hang/{return_id}/in')
 def print_return(request: Request,return_id: int,user=Depends(web_user),session: Session=Depends(get_session)):
-    return _detail(request,session,user,svc.load(session,user,return_id),printable=True)
+    row=svc.load(session,user,return_id)
+    order=sales_orders.load(session,user,row.order_id)
+    codes=[c for c in {l.warehouse_code for l in row.lines} if c]
+    maker=session.get(User,row.created_by)
+    return render(request,'tra_hang_in.jinja',r=row,o=order,lines={l.line_no:l for l in order.lines},customer=session.get(Customer,order.customer_code),
+        company=get_settings(),back=f'/tra-hang/{row.id}',maker=maker.full_name if maker else '',words=money_words(row.total),
+        warehouses={w.code:w.name for w in session.scalars(select(Warehouse).where(Warehouse.code.in_(codes)))} if codes else {},
+        watermark='ĐÃ HỦY' if row.status=='DA_HUY' else '')
 
 
 @router.post('/tra-hang/{return_id}/void')

@@ -23,7 +23,7 @@ LEGACY_H1 = frozenset((
     'dieu_chinh.jinja',
     'dieu_phoi_bao_cao.jinja', 'doi_mat_khau.jinja', 'don_ban_can_thu.jinja', 'don_ban_ds.jinja',
     'don_ban_form.jinja', 'don_ban_tu_bao_gia.jinja',
-    'don_mua_form.jinja', 'don_mua_in.jinja', 'don_mua_nhan_trang.jinja', 'don_mua_tra_form.jinja',
+    'don_mua_form.jinja', 'don_mua_nhan_trang.jinja', 'don_mua_tra_form.jinja',
     'ghep_tai_chinh.jinja', 'giao_don.jinja', 'giu_may.jinja', 'hang_form.jinja',
     'hang_lich_su.jinja', 'hang_phieu_ck.jinja', 'hang_toi_giu.jinja', 'ho_so_cua_toi.jinja',
     'hoan_tien_ds.jinja', 'kho_giao.jinja',
@@ -32,9 +32,9 @@ LEGACY_H1 = frozenset((
     'nhan_su_moi.jinja', 'nhom_hang.jinja', 
     'so_quy.jinja', 
     'the_kho.jinja', 'thiet_bi_form.jinja', 'tho_giao_don.jinja', 'tho_hom_nay.jinja',
-    'tho_phieu.jinja', 'tho_tra_hang.jinja', 'tho_tra_hang_moi.jinja', 'thu_chi_in.jinja', 'tien_toi_giu.jinja', 'tom_tat_ngay.jinja',
+    'tho_phieu.jinja', 'tho_tra_hang.jinja', 'tho_tra_hang_moi.jinja', 'tien_toi_giu.jinja', 'tom_tat_ngay.jinja',
     'tom_tat_ngay_list.jinja', 'ton_dau_ky.jinja', 'ton_dau_ky_ket_qua.jinja', 'ton_ds.jinja',
-    'tong_quan.jinja', 'tra_hang_chi_tiet.jinja', 'tra_hang_form.jinja', 'tra_hang_in.jinja',
+    'tong_quan.jinja', 'tra_hang_chi_tiet.jinja', 'tra_hang_form.jinja',
     'xin_linh_kien.jinja',
 ))
 

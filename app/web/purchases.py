@@ -334,9 +334,13 @@ def action(request: Request, order_id: int, action: str, form=Depends(checked_fo
 def print_order(request: Request, order_id: int, user: User=Depends(purchase_user), session: Session=Depends(get_session)):
     row=svc.load(session,user,order_id)
     codes={line.product_code for line in row.lines}
-    return render(request,'don_mua_in.jinja',o=row,supplier=session.get(Supplier,row.supplier_code),company=get_settings(),
+    wh_codes=[c for c in dict.fromkeys(line.warehouse_code for line in row.lines) if c]
+    names={w.code:w.name for w in session.scalars(select(Warehouse).where(Warehouse.code.in_(wh_codes)))} if wh_codes else {}
+    maker=session.get(User,row.created_by);orderer=session.get(User,row.ordered_by) if row.ordered_by else None
+    return render(request,'don_mua_in.jinja',o=row,supplier=session.get(Supplier,row.supplier_code),company=get_settings(),back=f'/don-mua/{row.id}',
         products={p.code:p for p in session.scalars(select(Product).where(Product.code.in_(codes)))},
-        words=money_words(row.total),quantity=_quantity,statuses=STATUSES)
+        warehouses=[names.get(c,c) for c in wh_codes],maker=maker.full_name if maker else '',orderer=orderer.full_name if orderer else '',
+        words=money_words(row.total),quantity=_quantity,statuses=STATUSES,watermark={'NHAP':'BẢN NHÁP','DA_HUY':'ĐÃ HỦY'}.get(row.status,''))
 
 
 @router.get('/don-mua/{order_id}/nhan')

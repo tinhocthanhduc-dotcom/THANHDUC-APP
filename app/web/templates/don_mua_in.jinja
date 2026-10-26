@@ -1,23 +1,20 @@
-{% extends "base.jinja" %}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
 {% block title %}Đơn đặt hàng {{ o.number }}{% endblock %}
-{% block main %}
-<div class="bar report-tools"><a href="/don-mua/{{ o.id }}">← Đơn đặt hàng</a><button type="button" onclick="window.print()">In / Lưu PDF</button></div>
-<article class="acceptance-report quote-print">
-<header><h2>{{ company.company_name }}</h2>{% if company.company_address %}<p>{{ company.company_address }}</p>{% endif %}
-<p>{% if company.company_tax_code %}MST: {{ company.company_tax_code }}{% endif %}{% if company.company_phone %} · Tel: {{ company.company_phone }}{% endif %}{% if company.company_hotline %} · Hotline: {{ company.company_hotline }}{% endif %}</p>
-<h1>ĐƠN ĐẶT HÀNG</h1><p>Số: <strong>{{ o.number }}</strong> · Ngày đơn: {{ o.order_date.strftime('%d/%m/%Y') }}</p></header>
-<p>Trạng thái: {{ statuses[o.status] }}</p>
-{% if o.cancel_reason %}<p>Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
-<dl><dt>Nhà cung cấp</dt><dd>{{ supplier.name }}</dd><dt>Mã nhà cung cấp</dt><dd>{{ supplier.code }}</dd>
-{% if supplier.tax_code %}<dt>MST nhà cung cấp</dt><dd>{{ supplier.tax_code }}</dd>{% endif %}
-{% if supplier.address %}<dt>Địa chỉ</dt><dd>{{ supplier.address }}</dd>{% endif %}
-{% if o.expected_date %}<dt>Ngày dự kiến nhận</dt><dd>{{ o.expected_date.strftime('%d/%m/%Y') }}</dd>{% endif %}</dl>
-<table class="quote-print-table"><thead><tr><th>STT</th><th>Hàng hóa / dịch vụ</th><th>Số lượng</th><th>ĐVT</th><th>Đơn giá</th><th>VAT</th><th>Tiền dòng</th></tr></thead><tbody>
-{% for line in o.lines %}<tr><td data-label="STT">{{ line.line_no }}</td><td data-label="Hàng hóa / dịch vụ">{% if line.product_code %}{{ line.product_code }} · {% endif %}{{ products[line.product_code].name }}</td><td data-label="Số lượng">{{ quantity(line.qty) }}</td><td data-label="ĐVT">{{ products[line.product_code].unit }}</td><td data-label="Đơn giá">{{ line.unit_cost|money }}</td><td data-label="VAT">{{ line.vat_rate }}%</td><td data-label="Tiền dòng">{{ line.amount|money }}</td></tr>{% endfor %}
+{% block tools_sub %}{{ supplier.name }} · {{ statuses[o.status] }}{% endblock %}
+{% block doc_title %}ĐƠN ĐẶT HÀNG{% endblock %}
+{% block doc_sub %}Kính gửi Quý nhà cung cấp{% endblock %}
+{% block meta %}{{ f.meta('Số', o.number) }}{{ f.meta('Ngày đơn', o.order_date|vn_date) }}{{ f.meta('Dự kiến nhận', o.expected_date|vn_date if o.expected_date else '') }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Nhà cung cấp', supplier.name, [('Mã NCC', supplier.code), ('Mã số thuế', supplier.tax_code), ('Địa chỉ', supplier.address), ('Điện thoại', supplier.phones|join(', '))]) }}
+{{ f.card('Thông tin đơn', '', [('Trạng thái', statuses[o.status]), ('Người lập', maker), ('Đặt hàng', (orderer ~ ' · ' ~ o.ordered_at|vn_date) if o.ordered_at else 'Chưa gửi đặt'), ('Giao về kho', warehouses|join(', ')), ('Lý do hủy', o.cancel_reason), ('Lý do đóng', o.close_reason)]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
+{% for line in o.lines %}{% set p = products.get(line.product_code) %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code }}</td><td class="n">{{ p.name if p else line.product_code }}{% if line.received_qty %}<span class="cd">Đã nhận {{ quantity(line.received_qty) }}</span>{% endif %}</td><td class="c">{{ p.unit if p else '' }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_cost|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
-<dl><dt>Tiền hàng</dt><dd>{{ o.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ o.vat_total|money }} đồng</dd><dt><strong>Tổng cộng</strong></dt><dd><strong>{{ o.total|money }} đồng</strong></dd></dl>
-<p><strong>Bằng chữ:</strong> {{ words }}.</p>
-{% if o.note %}<h2>Ghi chú</h2><p class="service-text">{{ o.note }}</p>{% endif %}
-<div class="report-signatures"><section><h2>Nhà cung cấp</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Đại diện công ty</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
-</article>
+<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-note"><h4>Ghi chú</h4><ul><li>Đơn giá trên chưa bao gồm thuế GTGT.</li><li>Vui lòng ghi số đơn đặt hàng trên phiếu giao và hóa đơn.</li>{% if o.expected_date %}<li>Ngày dự kiến nhận hàng: {{ o.expected_date|vn_date }}.</li>{% endif %}{% if o.note %}<li><span class="q">Ghi chú đơn:</span> {{ o.note }}</li>{% endif %}</ul></div></div>
+{{ f.totals([('Tiền hàng chưa VAT', o.subtotal|money ~ ' đồng'), ('Thuế GTGT', o.vat_total|money ~ ' đồng')], ('TỔNG THANH TOÁN', o.total|money ~ ' đồng')) }}</div>
 {% endblock %}
+{% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ o.order_date|vn_long_date }}</div>
+{{ f.signatures([('Nhà cung cấp', '(Ký, ghi rõ họ tên)'), ('Đại diện Công ty Thành Đức', '(Ký, ghi rõ họ tên và đóng dấu)')]) }}{% endblock %}

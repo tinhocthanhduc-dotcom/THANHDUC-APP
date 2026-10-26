@@ -1,4 +1,20 @@
-{% extends 'base.jinja' %}
-{% block title %}In {{ r.number }}{% endblock %}
-{% block main %}<article class="card"><h1>PHIẾU TRẢ HÀNG {{ r.number }}</h1><p>{{ company.company_name }}</p><p>{{ company.company_address }}</p><p>Đơn gốc {{ o.number }} · Ngày nhận {{ r.returned_at|service_time }}</p><p>Khách: {{ customer.name }}</p><p>Lý do: {{ r.reason }}</p>{% if r.status=='DA_HUY' %}<p>ĐÃ HỦY · {{ r.void_reason }}</p>{% endif %}
-{% for line in r.lines %}<section><h2>{{ lines[line.order_line_no].product_code or '' }} · {{ lines[line.order_line_no].description }}</h2><p>{{ line.qty|qty }} {{ lines[line.order_line_no].unit }} · {{ 'Tốt' if line.condition=='TOT' else 'Lỗi' }} · {{ line.warehouse_code or '' }}</p><p>Tiền hàng {{ line.amount|money }} · VAT {{ line.vat_amount|money }} đồng</p></section>{% endfor %}<p><strong>Tổng trả: {{ r.total|money }} đồng</strong></p><div class="row2"><section><h2>Khách hàng</h2><p>Ký, ghi rõ họ tên</p><br><br><br></section><section><h2>Người nhận hàng</h2><p>Ký, ghi rõ họ tên</p><br><br><br></section></div></article>{% endblock %}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% block title %}Phiếu trả hàng {{ r.number }}{% endblock %}
+{% block tools_sub %}{{ customer.name }} · {{ 'Đã hủy' if r.status == 'DA_HUY' else 'Đã nhận' }}{% endblock %}
+{% block doc_title %}PHIẾU TRẢ HÀNG{% endblock %}
+{% block doc_sub %}Khách trả lại hàng theo đơn bán {{ o.number }}{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', r.number) }}{{ f.meta('Ngày nhận', r.returned_at|vn_date) }}{{ f.meta('Đơn gốc', o.number) }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address), ('Điện thoại', customer.phones|map(attribute='phone')|join(', '))]) }}
+{{ f.card('Thông tin trả hàng', '', [('Lý do trả', r.reason), ('Người nhận hàng', maker), ('Trạng thái', 'Đã hủy' if r.status == 'DA_HUY' else 'Đã nhận'), ('Lý do hủy', r.void_reason)]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:17mm"><col style="width:24mm"><col style="width:27mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL</th><th class="c">Tình trạng</th><th>Kho nhận</th><th class="m">Tiền hàng<small>chưa VAT</small></th></tr></thead><tbody>
+{% for line in r.lines %}{% set ol = lines[line.order_line_no] %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ ol.product_code or '' }}</td><td class="n">{{ ol.description }}{% if line.serials %}<span class="cd">Serial: {{ line.serials|join(', ') }}</span>{% endif %}</td><td class="c">{{ ol.unit }}</td><td class="c">{{ line.qty|qty }}</td><td class="c">{{ 'Tốt' if line.condition == 'TOT' else 'Lỗi' }}</td><td>{{ warehouses.get(line.warehouse_code, line.warehouse_code or '') }}</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
+</tbody></table>
+<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-note"><h4>Ghi chú</h4><ul><li>Tiền trả hàng được trừ vào công nợ đơn {{ o.number }}; nếu khách đã trả dư thì hoàn tiền theo phiếu chi riêng.</li><li>Hàng tình trạng Lỗi nhập về kho chờ xử lý, không bán lại khi chưa kiểm tra.</li></ul></div></div>
+{{ f.totals([('Tiền hàng chưa VAT', r.subtotal|money ~ ' đồng'), ('Thuế GTGT', r.vat_total|money ~ ' đồng')], ('TỔNG TIỀN TRẢ', r.total|money ~ ' đồng')) }}</div>
+{% endblock %}
+{% block signatures %}<div class="in-sd">{{ r.returned_at|vn_long_date|capitalize }}</div>
+{{ f.signatures([('Khách hàng', '(Người trả hàng ký, họ tên)'), ('Người nhận hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)')]) }}{% endblock %}
