@@ -72,6 +72,7 @@ table.in-sg{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6p
 .in-ft{margin-top:auto;border-top:1px solid var(--in-line);padding-top:7px;display:flex;justify-content:space-between;gap:12px;font-size:10px;color:var(--in-mute)}
 .in-ft b{color:var(--in-navy);font-weight:600}
 .in-wm{position:absolute;left:0;right:0;top:44%;text-align:center;font-size:88px;font-weight:800;color:rgba(200,16,46,.09);transform:rotate(-22deg);pointer-events:none;letter-spacing:8px;z-index:0}
+.in-wm.long{font-size:62px;letter-spacing:4px;white-space:nowrap}
 @page{size:A4;margin:10mm}
 @media print{
   html{background:#fff}
@@ -80,3 +81,12 @@ table.in-sg{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6p
   .in-page{width:auto;min-height:0;margin:0;padding:0;box-shadow:none;transform:none!important}
   .in-stage{height:auto!important}
 }
+/* Đợt 3: đoạn văn bản (mô tả lỗi, việc đã làm) và ảnh nghiệm thu trên biên bản / phiếu nhận máy. */
+.in-secs{display:grid;grid-template-columns:1fr;gap:8px;margin:0 0 12px}
+.in-sec{border:1px solid var(--in-line);border-left:3px solid var(--in-navy);border-radius:4px;padding:7px 10px;font-size:12px;white-space:pre-line;overflow-wrap:anywhere;break-inside:avoid}
+.in-sec h4{margin:0 0 3px;font-size:10.5px;font-weight:700;color:var(--in-navy);text-transform:uppercase;letter-spacing:.8px}
+
+.in-photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 12px;break-inside:avoid}
+.in-photos figure{margin:0;border:1px solid var(--in-line);border-radius:4px;padding:4px;text-align:center}
+.in-photos img{width:100%;height:38mm;object-fit:cover;display:block;border-radius:2px}
+.in-photos figcaption{font-size:9.5px;color:var(--in-mute);margin-top:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}

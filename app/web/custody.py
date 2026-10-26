@@ -24,7 +24,10 @@ def context(session,user,t,shown=None):
     row=svc.latest(session,eq.serial);pending=svc.pending(session,eq.serial)
     allowed=svc.can_view(session,user,t,eq)
     own=eq.custody_location=='THO_GIU' and eq.custody_holder_id==user.id and 'technician' in user.roles
-    return dict(custody_machine=eq,custody_current=row,custody_pending=pending,
+    from ..models import EquipmentCustody
+    intake=session.scalar(select(EquipmentCustody).where(EquipmentCustody.ticket_id==t.id,EquipmentCustody.status=='DA_NHAN',
+        EquipmentCustody.location=='THO_GIU').order_by(EquipmentCustody.id).limit(1))
+    return dict(custody_machine=eq,custody_current=row,custody_pending=pending,custody_intake=intake,
         custody_ticket=dict(id=t.id,number=t.number,serial=t.serial),custody_locations=svc.LOCATIONS,
         custody_accessories=svc.ACCESSORIES,custody_statuses=svc.STATUSES,
         custody_users=dict(session.execute(select(User.id,User.full_name)).all()),

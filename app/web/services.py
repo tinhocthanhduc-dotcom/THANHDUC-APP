@@ -628,20 +628,50 @@ def photo_hide(request: Request, ticket_id: int, attachment_id: int, form=Depend
 
 @router.get("/dich-vu/{ticket_id}/bien-ban")
 def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from ..config import get_settings
     from ..models import CustomerSite, Equipment, Product
+    from ..money_words import money_words
+    from .. import sales_receipts
     t = svc.load(session, user, ticket_id)
     machine = session.get(Equipment, t.serial) if t.serial else None
     product = session.get(Product, machine.product_code) if machine and machine.product_code else None
     completion = next((step for step in reversed(t.steps) if step.to_status == "HOAN_THANH"), None)
     last = t.steps[-1] if t.steps else None
+    done = t.status in ('HOAN_THANH', 'DA_DONG')
     photos = [a for a in attachments.list_for(session, user, "service_ticket", str(t.id))
               if a.tag == "SAU" and a.content_type.startswith("image/")]
-    return render(request, "dich_vu_bien_ban.jinja", t=t, customer=session.get(Customer, t.customer_code),
-                  site=session.get(CustomerSite, t.site_id) if t.site_id else None, product=product,
+    codes = {line.product_code for line in t.lines if line.product_code}
+    repairer = session.get(User, t.repaired_by) if t.repaired_by else None
+    return render(request, "dich_vu_bien_ban.jinja", t=t, customer=session.get(Customer, t.customer_code), company=get_settings(),
+                  back=f"/dich-vu/{t.id}", site=session.get(CustomerSite, t.site_id) if t.site_id else None, product=product,
                   machine_name=equipment.display_name(machine, product) if machine else '',
-                  technician=session.get(User, t.assignee_id) if t.assignee_id else None,
-                  work_note=completion.note if completion and t.status in ('HOAN_THANH','DA_DONG') else last.note if last else "",
-                  completed_at=completion.at if completion else None, photos=photos,warranty_terms=service_warranty.terms(session,t))
+                  technician=session.get(User, t.assignee_id) if t.assignee_id else None, repairer=repairer.full_name if repairer else '',
+                  work_note=completion.note if completion and done else last.note if last else "",
+                  completed_at=completion.at if completion else None, photos=photos, warranty_terms=service_warranty.terms(session, t),
+                  products={p.code: p for p in session.scalars(select(Product).where(Product.code.in_(codes)))} if codes else {},
+                  balance=sales_receipts.balance(t) if done and t.billing == 'THU_TIEN' else None,
+                  words=money_words(t.total or 0), watermark='ĐÃ HỦY' if t.status == 'DA_HUY' else '' if done else 'BẢN XEM TRƯỚC')
+
+
+@router.get("/dich-vu/{ticket_id}/phieu-nhan-may")
+def intake_print(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Phiếu tiếp nhận máy: lần nhận máy đầu tiên của phiếu (thợ nhận tại khách, mang về xưởng)."""
+    from ..config import get_settings
+    from ..models import CustomerSite, Equipment, EquipmentCustody, Product
+    from .. import equipment_custody
+    t = svc.load(session, user, ticket_id)
+    intake = session.scalar(select(EquipmentCustody).where(EquipmentCustody.ticket_id == t.id, EquipmentCustody.status == 'DA_NHAN',
+                                                           EquipmentCustody.location == 'THO_GIU').order_by(EquipmentCustody.id).limit(1))
+    if intake is None:
+        raise BusinessError('NO_INTAKE', 'Phiếu chưa nhận máy của khách, chưa có phiếu tiếp nhận.', status=404)
+    machine = session.get(Equipment, t.serial) if t.serial else None
+    product = session.get(Product, machine.product_code) if machine and machine.product_code else None
+    receiver = session.get(User, intake.holder_id or intake.confirmed_by or intake.created_by)
+    return render(request, "dich_vu_nhan_may_in.jinja", t=t, intake=intake, customer=session.get(Customer, t.customer_code), company=get_settings(),
+                  back=f"/dich-vu/{t.id}", site=session.get(CustomerSite, t.site_id) if t.site_id else None, machine=machine,
+                  machine_name=equipment.display_name(machine, product) if machine else '', receiver=receiver.full_name if receiver else '',
+                  accessories=', '.join(equipment_custody.ACCESSORIES.get(code, code) for code in intake.accessories),
+                  locations=equipment_custody.LOCATIONS, watermark='ĐÃ HỦY' if t.status == 'DA_HUY' else '')
 
 
 def return_lines(form, photos=True):

@@ -1,0 +1,18 @@
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% block title %}Phiếu tiếp nhận máy {{ t.number }}{% endblock %}
+{% block tools_sub %}{{ customer.name }} · {{ machine_name or t.serial }}{% endblock %}
+{% block doc_title %}PHIẾU TIẾP NHẬN MÁY{% endblock %}
+{% block doc_sub %}Nhận máy của khách mang về xưởng sửa chữa{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', t.number) }}{{ f.meta('Ngày nhận', intake.confirmed_at|vn_date) }}{{ f.meta('Hẹn trả', t.promised_return_on|vn_date if t.promised_return_on else '') }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Địa điểm', (site.name ~ (' · ' ~ site.address if site.address else '')) if site else customer.address), ('Điện thoại', customer.phones|map(attribute='phone')|join(', '))]) }}
+{{ f.card('Máy tiếp nhận', machine_name or 'Máy ngoài danh mục', [('Serial', t.serial), ('Phụ kiện kèm', accessories or 'Không kèm phụ kiện'), ('Ghi chú phụ kiện', intake.accessories_note), ('Người nhận máy', receiver), ('Nơi giữ máy', locations.get(machine.custody_location, '') if machine and machine.custody_ticket_id == t.id else 'Đã trả khách')]) }}</div>
+<div class="in-secs"><div class="in-sec"><h4>Tình trạng máy khi nhận</h4>{{ intake.condition_note }}</div>
+<div class="in-sec"><h4>Yêu cầu · lỗi khách báo</h4>{{ t.symptom }}</div>
+{% if t.fault_found %}<div class="in-sec"><h4>Lỗi tìm thấy</h4>{{ t.fault_found }}</div>{% endif %}</div>
+<div class="in-sum"><div class="left"><div class="in-note"><h4>Ghi chú</h4><ul><li>Khách giữ phiếu này và xuất trình khi nhận lại máy.</li><li>Phụ kiện không ghi trên phiếu xem như không kèm theo máy.</li><li>Sau khi kiểm tra, cửa hàng báo giá; khách đồng ý mới sửa. Khách không sửa có thể tính phí kiểm tra theo thỏa thuận.</li>{% if t.quote_approved_at %}<li>Khách đã đồng ý báo giá ngày {{ t.quote_approved_at|vn_date }}.</li>{% elif t.declined_at %}<li><span class="q">Khách không sửa</span> (ngày {{ t.declined_at|vn_date }}).</li>{% endif %}</ul></div></div>
+{% if t.priced_at and t.total %}{{ f.totals([], ('BÁO GIÁ SỬA (gồm VAT)', t.total|money ~ ' đồng')) }}{% endif %}</div>
+{% endblock %}
+{% block signatures %}<div class="in-sd">{{ intake.confirmed_at|vn_long_date|capitalize }}</div>
+{{ f.signatures([('Khách hàng', '(Người giao máy ký, họ tên)'), ('Người nhận máy', '(Ký, họ tên)')]) }}{% endblock %}

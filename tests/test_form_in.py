@@ -96,3 +96,44 @@ def test_purchase_order_print_uses_frame_with_supplier_and_totals(client, db, pu
     assert client.post(f'/don-mua/{o.id}/order', data={'csrf': csrf, 'version': o.version}).status_code == 200
     html = client.get(f'/don-mua/{o.id}/in').text
     assert 'BẢN NHÁP' not in html and 'Đã đặt' in html
+
+
+# ---- Đợt 3: Phiếu tiếp nhận máy và Biên bản nghiệm thu dịch vụ ----
+from test_my_work import people, purchase_people as mw_purchase_people  # noqa: E402,F401
+from test_technician_stock import held  # noqa: E402,F401
+from test_mv1_workshop import onsite, brought, repaired  # noqa: E402,F401
+
+
+def test_intake_print_shows_machine_condition_accessories_and_link(client, db, brought):
+    p, a, b, t, eq = brought
+    service_login(client, p['technician'])
+    html = client.get(f'/dich-vu/{t.id}/phieu-nhan-may').text
+    assert 'PHIẾU TIẾP NHẬN MÁY' in html and t.number in html and 'MV1-MAY' in html and 'Vỏ xước nhẹ' in html
+    assert 'Không kèm phụ kiện' in html and 'Máy bị kẹt giấy' in html and 'Người nhận máy' in html and 'logo-thanh-duc.jpg' in html
+    assert html.count('<td><b>') == 2 and 'Thợ giữ' in html
+    assert re.search(r'[Nn]gày \d{2} tháng \d{2} năm 20\d{2}', html)
+    detail = client.get(f'/dich-vu/{t.id}').text
+    assert f'href="/dich-vu/{t.id}/phieu-nhan-may"' in detail
+    # Phiếu chưa nhận máy không có phiếu tiếp nhận.
+    other = ticket_without_intake(db, p)
+    assert client.get(f'/dich-vu/{other.id}/phieu-nhan-may').status_code == 404
+
+
+def ticket_without_intake(db, p):
+    from test_my_work import ticket
+    return ticket(db, p, 'DANG_LAM')
+
+
+def test_acceptance_report_preview_then_repaired_money_and_warranty(client, db, repaired):
+    p, a, b, t, eq = repaired
+    service_login(client, p['other_tech'])
+    html = client.get(f'/dich-vu/{t.id}/bien-ban').text
+    assert 'BIÊN BẢN NGHIỆM THU DỊCH VỤ' in html and t.number in html and 'BẢN XEM TRƯỚC' in html
+    assert 'Máy bị kẹt giấy' in html and 'Đã sửa xong' in html and 'Chưa hoàn thành' in html
+    # Tiền: dòng chưa VAT, ô tổng có VAT và tổng đã gồm VAT; chưa hoàn thành nên chưa có Đã thanh toán.
+    assert '500.000 đồng' in html and '40.000 đồng' in html and '540.000 đồng' in html and 'Năm trăm bốn mươi nghìn đồng' in html
+    assert 'Đã thanh toán' not in html and 'Bảo hành' in html
+    assert html.count('<td><b>') == 2 and 'Đại diện khách hàng' in html and 'Kỹ thuật viên' in html
+    # Thợ khác không xem được phiếu không phải của mình.
+    service_login(client, p['technician'])
+    assert client.get(f'/dich-vu/{t.id}/bien-ban').status_code in (403, 404)
