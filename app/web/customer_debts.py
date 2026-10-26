@@ -9,6 +9,7 @@ from ..models import Customer, CustomerPhone, User
 from ..text import fold
 from . import money, nav, paging, render, web_user
 from .lists import KINDS, OLD_DEBT_DAYS, _today
+from .. import search as tim
 
 router = APIRouter()
 TABS = {'no': 'Còn nợ', 'qua-han': f'Quá {OLD_DEBT_DAYS} ngày', 'vuot': 'Vượt hạn mức', 'cho': 'Có chờ xác nhận'}
@@ -60,7 +61,7 @@ def _match(row, q):
     if not needle:
         return True
     digits = ''.join(ch for ch in q if ch.isdigit())
-    return needle in row['search'] or (len(digits) >= 3 and any(digits in p for p in row['phones']))
+    return tim.text_matches(q, row['search']) or (len(digits) >= 3 and any(digits in p for p in row['phones']))
 
 
 @router.get('/cong-no-khach-hang')

@@ -2,17 +2,17 @@
 from contextlib import contextmanager
 import re
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
 
 from . import audit
 from .config import get_settings
-from .customers import like_pattern
 from .errors import BusinessError
 from .models import Fund, CashCategory, FinanceMapping
 from .security import has_role
 from .text import fold
+from . import search as tim
 
 WRITERS = ('finance',)
 
@@ -84,7 +84,7 @@ def search(session,user,model,q='',*,active=None,kind=None,direction=None):
     check_reader(user)
     stmt = select(model)
     if fold(q):
-        stmt = stmt.where(model.search_text.like(like_pattern(fold(q))))
+        stmt = stmt.where(and_(*tim.like_all(model.search_text, q)))
     if active is not None:
         stmt = stmt.where(model.active==active)
     if model is Fund and kind:

@@ -2,7 +2,7 @@
 from datetime import timedelta
 from calendar import monthrange
 
-from sqlalchemy import case, or_, select
+from sqlalchemy import and_, case, or_, select
 
 from . import audit, service_sla
 from .config import get_settings
@@ -11,7 +11,7 @@ from .errors import BusinessError
 from .models import Customer, Equipment, ServiceStep, ServiceTicket
 from .security import has_role
 from .stock_docs import _transaction
-from .text import fold
+from . import search as tim
 
 
 def today():
@@ -103,7 +103,7 @@ def suggestions(session, customer_code, serial=None, q=''):
     if q.strip():
         needle = like_pattern(q.strip())
         stmt = stmt.where(or_(ServiceTicket.number.ilike(needle), ServiceTicket.serial.ilike(needle),
-            Customer.search_text.like(like_pattern(fold(q)))))
+            and_(*tim.like_all(Customer.search_text, q))))
     # Ngày hoàn thành quyết định thứ tự, không dựa vào ngày nhận đơn.
     ended = select(ServiceStep.at).where(ServiceStep.ticket_id == ServiceTicket.id,
         ServiceStep.to_status == 'HOAN_THANH', ServiceStep.from_status.is_distinct_from('HOAN_THANH')).order_by(

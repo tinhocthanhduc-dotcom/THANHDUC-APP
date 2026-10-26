@@ -1,17 +1,17 @@
 """Danh mục kho và nhà cung cấp: dùng chung cho API và web."""
-from sqlalchemy import select, text
+from sqlalchemy import and_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
 from . import audit
 from .config import get_settings
-from .customers import like_pattern
 from .errors import BusinessError
 from .models import StockBalance, Supplier, User, Warehouse
 from .schemas import SupplierOut, WarehouseOut
 from .security import has_role
 from .text import fold, phones, tax_code
+from . import search as tim
 
 WRITERS = ("warehouse",)
 
@@ -36,7 +36,7 @@ def load(session: Session, model, code):
 def search(session: Session, model, q=""):
     stmt = select(model)
     if model is Supplier and fold(q):
-        stmt = stmt.where(Supplier.search_text.like(like_pattern(fold(q))))
+        stmt = stmt.where(and_(*tim.like_all(Supplier.search_text, q)))
     stmt = stmt.order_by(model.code)
     if model is Supplier:
         stmt = stmt.limit(get_settings().search_limit)

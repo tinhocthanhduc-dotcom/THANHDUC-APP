@@ -6,12 +6,11 @@ Mỗi thay đổi ghi một dòng service_steps (chỉ thêm) và một dòng au
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import audit, service_sla, service_visits
 from .config import get_settings
-from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
 from .models import Customer, CustomerSite, Equipment, EquipmentCustody, SalesReceipt, ServiceStep, ServiceTicket, User
@@ -19,6 +18,7 @@ from .schemas import ServiceKindSet, ServiceMachineSet, ServiceTicketIn, Service
 from .security import has_role
 from .stock_docs import _transaction
 from .text import fold
+from . import search as tim
 
 CREATORS = ("dispatcher", "sales", "reception")
 DISPATCHERS = ("dispatcher",)
@@ -597,7 +597,7 @@ def _search_stmt(user: User, status: str | None = None, assignee_id: int | None 
         stmt = stmt.join(Customer, Customer.code == ServiceTicket.customer_code).where(or_(
             ServiceTicket.number.ilike(f"%{needle}%"),
             ServiceTicket.serial.ilike(f"%{needle}%"),
-            Customer.search_text.like(like_pattern(needle)),
+            and_(*tim.like_all(Customer.search_text, q)),
         ))
     return stmt
 

@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from decimal import Decimal, localcontext
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -15,7 +15,7 @@ from .errors import BusinessError
 from .models import Product, PurchaseOrder, PurchaseOrderLine, PURCHASE_ORDER_STATUSES, Supplier, Warehouse
 from .schemas import PurchaseOrderLineIn, PurchaseOrderOut
 from .security import has_role
-from .text import fold
+from . import search as tim
 
 WRITERS = ('warehouse',)
 VIEWERS = ('warehouse', 'finance')
@@ -79,7 +79,7 @@ def search(session, user, q='', status=None, supplier_code=None, from_date=None,
     if q.strip():
         # Số đơn, tên/mã NCC (không dấu) hoặc mã hàng trên dòng.
         stmt = stmt.where(or_(PurchaseOrder.number.ilike(like_pattern(q.strip())),
-            PurchaseOrder.supplier_code.in_(select(Supplier.code).where(Supplier.search_text.like(like_pattern(fold(q))))),
+            PurchaseOrder.supplier_code.in_(select(Supplier.code).where(and_(*tim.like_all(Supplier.search_text, q)))),
             PurchaseOrder.id.in_(select(PurchaseOrderLine.order_id).where(PurchaseOrderLine.product_code.ilike(like_pattern(q.strip()))))))
     if from_date:
         stmt = stmt.where(PurchaseOrder.order_date >= from_date)

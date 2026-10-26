@@ -1,16 +1,16 @@
 """M3: công nợ NCC, trả tiền qua PC; không ghi trực tiếp sổ quỹ/kho."""
 from datetime import UTC, date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, String, cast, func, literal, select, union_all
+from sqlalchemy import BigInteger, Date, DateTime, String, and_, cast, func, literal, select, union_all
 
 from . import audit, cash_docs, cash_posting, day_closings, finance_mappings
-from .customers import like_pattern
 from .doc_numbers import next_number
 from .errors import BusinessError
 from .models import CashDoc, PurchaseOrder, PurchaseReceipt, PurchaseReturn, StockDoc, Supplier, SupplierOpeningDebt, SupplierPayment,PendingDisposition
 from .schemas import CashDocIn, SupplierOpeningDebtIn, SupplierOpeningDebtOut, SupplierPaymentIn, SupplierPaymentOut
 from .security import has_role
 from .text import fold
+from . import search as tim
 
 
 def check_reader(user):
@@ -86,7 +86,7 @@ def search(session,user,q=''):
     b=_balances().subquery()
     stmt=select(b).where(b.c.remaining!=0)
     if fold(q):
-        stmt=stmt.join(Supplier,Supplier.code==b.c.supplier_code).where(Supplier.search_text.like(like_pattern(fold(q))))
+        stmt=stmt.join(Supplier,Supplier.code==b.c.supplier_code).where(and_(*tim.like_all(Supplier.search_text, q)))
     return _rows(session,stmt.order_by(b.c.remaining.desc(),b.c.supplier_code))
 
 
@@ -94,7 +94,7 @@ def totals(session,user,q=''):
     check_reader(user)
     b=_balances().subquery()
     stmt=select(*[func.coalesce(func.sum(b.c[k]),0).label(k) for k in ('opening','received','returned','paid','remaining')]).where(b.c.remaining!=0)
-    if fold(q):stmt=stmt.join(Supplier,Supplier.code==b.c.supplier_code).where(Supplier.search_text.like(like_pattern(fold(q))))
+    if fold(q):stmt=stmt.join(Supplier,Supplier.code==b.c.supplier_code).where(and_(*tim.like_all(Supplier.search_text, q)))
     return _rows(session,stmt)[0]
 
 

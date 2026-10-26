@@ -1,10 +1,11 @@
 """Nghiệp vụ Danh bạ khách: tạo, sửa, tìm, chống trùng. Quy tắc giữ đúng như app Danh bạ khách trên Apps Script."""
-from sqlalchemy import or_, select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
 from . import audit
+from . import search as tim
 from .config import get_settings
 from .errors import BusinessError
 from .models import Customer, CustomerContact, CustomerPhone, User
@@ -231,7 +232,9 @@ def search(session: Session, q: str, include_test: bool = True) -> list[Customer
     if not include_test:
         stmt = stmt.where(Customer.is_test.is_(False))
     stmt = stmt.where(*matches(q))
-    stmt = stmt.order_by(Customer.updated_at.desc()).limit(limit)
+    # Mã trùng đúng → mã bắt đầu bằng chữ gõ → tên có từ bắt đầu bằng chữ gõ → chứa ở giữa; cùng hạng thì khách mới cập nhật lên trước.
+    order = (tim.rank(Customer.code, Customer.search_text, q), Customer.updated_at.desc()) if fold(q) else (Customer.updated_at.desc(),)
+    stmt = stmt.order_by(*order).limit(limit)
     return list(session.scalars(stmt).all())
 
 
@@ -241,8 +244,10 @@ def matches(q: str) -> list:
     digits = digits_query(q)
     if not needle:
         return []
-    conds = [Customer.search_text.like(like_pattern(needle))]
-    if digits and len(digits) >= 3 and not any(ch.isalpha() for ch in needle):
+    phone_like = digits and len(digits) >= 3 and not any(ch.isalpha() for ch in needle)
+    # Gõ toàn số ("0903 112"): coi là một số SĐT/MST liền, không tách thành nhiều chữ.
+    conds = [Customer.search_text.like(like_pattern(digits))] if phone_like else [and_(*tim.like_all(Customer.search_text, q))]
+    if phone_like:
         conds.append(Customer.code.in_(select(CustomerPhone.customer_code).where(CustomerPhone.phone.like("%" + digits + "%"))))
         conds.append(Customer.tax_code.like("%" + digits + "%"))
     return [or_(*conds)]

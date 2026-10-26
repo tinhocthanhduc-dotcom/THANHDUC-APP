@@ -52,7 +52,8 @@ if (webMenu) {
     let hits = 0;
     webMenu.querySelectorAll('[data-nav-item]').forEach((link) => {
       const group = link.closest('[data-nav-group]');
-      const ok = !q || fold(link.textContent).includes(q) || (group && fold(group.dataset.navGroup).includes(q));
+      const text = fold(link.textContent + ' ' + (group ? group.dataset.navGroup : ''));
+      const ok = !q || q.split(/\s+/).every((w) => text.includes(w));
       link.hidden = !ok;
       if (ok) hits++;
     });

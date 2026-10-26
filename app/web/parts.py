@@ -12,6 +12,7 @@ from ..models import PartRequest, Product, ServiceTicket, StockDoc, User, Wareho
 from ..schemas import PartRequestIn, PartStockIn
 from ..security import has_role
 from . import checked_form, render, web_user
+from .. import search as tim
 
 router = APIRouter()
 
@@ -114,7 +115,6 @@ def _queue(request, session, user, error=None, code='', status=200, failed_id=No
     """Đợt 7: danh sách Yêu cầu linh kiện theo khuôn 3. Chỉ đọc; cấp và báo hết hàng vẫn qua lõi part_requests."""
     from datetime import UTC, datetime
     from ..models import Customer
-    from ..text import fold
     from .. import service_sla
     from . import paging
     params = request.query_params
@@ -144,7 +144,7 @@ def _queue(request, session, user, error=None, code='', status=200, failed_id=No
             t = tickets.get(r.ticket_id)
             text = ' '.join([r.number, r.product_code, names.get(r.product_code, ''), users.get(tech(r), ''), users.get(r.requester_id, ''),
                              t.number if t else '', customers.get(t.customer_code, '') if t else ''])
-            return fold(q) in fold(text)
+            return tim.text_matches(q, text)
         return True
     # Tab đếm trên tập đã lọc (ô tìm, thợ, loại); ô số đếm trên toàn bộ, bấm là lọc.
     filtered = [r for r in found if matches(r)]

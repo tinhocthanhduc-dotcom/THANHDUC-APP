@@ -6,12 +6,11 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from .. import cash_docs as docs, cash_posting as posting, day_closings
 from ..config import get_settings
-from ..customers import like_pattern
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import CashCategory, CashCorrection, CashDoc, Customer, Fund, Supplier, User
@@ -21,6 +20,7 @@ from ..security import has_role
 from ..text import fold
 from . import checked_form, money, render
 from .finance import finance_user, _version
+from .. import search as tim
 
 router = APIRouter()
 
@@ -123,7 +123,7 @@ def listing(request: Request,user: User=Depends(finance_user),session: Session=D
         error=exc
     if fold(filters['q']):
         key=fold(filters['q'])
-        found=[d for d in found if key in fold(' '.join((d.number,d.partner_name or '',d.description or '',d.customer_code or '',d.supplier_code or '')))]
+        found=[d for d in found if tim.text_matches(key,' '.join((d.number,d.partner_name or '',d.description or '',d.customer_code or '',d.supplier_code or '')))]
     rows=[d for d in found if not filters['trang_thai'] or d.status==filters['trang_thai']]
     query={k:v for k,v in filters.items() if k not in ('trang','so')}
     page,shown=paging.slice_rows(rows,filters['trang'],filters['so'],query)
@@ -163,7 +163,7 @@ def options(request: Request,target: str,q: str='',kind: str='PT',user: User=Dep
     else:
         stmt=stmt.where(Supplier.active.is_(True))
     if fold(q):
-        stmt=stmt.where(model.search_text.like(like_pattern(fold(q[:200]))))
+        stmt=stmt.where(and_(*tim.like_all(model.search_text, q[:200])))
     return render(request,'thu_chi_chon.jinja',rows=list(session.scalars(stmt.order_by(model.code).limit(get_settings().search_limit))))
 
 
