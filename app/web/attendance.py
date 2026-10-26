@@ -55,6 +55,7 @@ def _home(request,session,user,error=None,data=None):
         locked=svc.is_locked(session.get(AttendanceMonthLock,day.replace(day=1))),
         days=svc.month_days(session,user.id,month) if employee else [],requests=svc.requests(session,user),
         punch_kind='OUT' if current and current['missing_out'] else 'IN',punched=punched,
+        lunch_label=svc.lunch_label() if svc.punch_hint(session,user.id)=='LUNCH' else None,
         d=data or {},error=error.message if error else None,error_code=error.code if error else '',status=error.status if error else 200)
 
 

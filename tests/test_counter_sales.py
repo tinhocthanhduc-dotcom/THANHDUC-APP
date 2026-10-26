@@ -152,27 +152,34 @@ def test_web_counter_double_click_same_key_creates_one_set_and_csrf_checked(db,c
     assert db.query(StockDoc).filter_by(kind='PX').count()==1
 
 
-def test_credit_forbidden_sale_and_director_override_requires_reason_and_audit(db,people):
-    p=people;o=draft(db,p,payment_term='CONG_NO')
-    exc=fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],o.id,o.version)
-    assert exc.status==409 and 'Cần giám đốc chốt' in exc.message
-    fail('REASON_REQUIRED',svc.confirm,db,p['director'],o.id,o.version)
-    svc.confirm(db,p['director'],o.id,o.version,'Khách quen được giám đốc duyệt')
-    assert o.credit_override_by==p['director'].id and o.credit_override_reason=='Khách quen được giám đốc duyệt'
+def test_credit_forbidden_customer_only_warns_and_keeps_trace(db,people):
+    # Khách chưa được nợ: vẫn chốt bình thường, chỉ cảnh báo (TUẤN 2026-10-26).
+    p=people;o=draft(db,p,payment_term='CONG_NO');c=db.get(Customer,'KTD-000001')
+    warning=svc.credit_warning(db,c,o.total,exclude_order_id=o.id)
+    assert warning.startswith('Khách chưa được nợ') and 'hạn mức: 0' in warning
+    svc.confirm(db,p['sales'],o.id,o.version)
+    assert o.status=='DA_CHOT' and o.credit_override_by==p['sales'].id and o.credit_override_reason==''
     log=db.scalar(select(AuditLog).where(AuditLog.entity_id==str(o.id),AuditLog.action=='sales_order.confirm'))
-    assert log.before['credit_override_by'] is None and log.after['credit_override_by']==p['director'].id
-    assert log.reason==o.credit_override_reason
+    assert log.before['credit_override_by'] is None and log.after['credit_override_by']==p['sales'].id
+    assert log.reason.startswith('Chốt khi khách chưa được nợ.')
+    other=draft(db,p,payment_term='CONG_NO')
+    svc.confirm(db,p['director'],other.id,other.version,'Khách quen được giám đốc duyệt')
+    assert other.credit_override_by==p['director'].id and other.credit_override_reason=='Khách quen được giám đốc duyệt'
+    log=db.scalar(select(AuditLog).where(AuditLog.entity_id==str(other.id),AuditLog.action=='sales_order.confirm'))
+    assert log.reason.endswith('Ghi chú: Khách quen được giám đốc duyệt')
 
 
-def test_credit_current_debt_eight_million_new_three_fails_two_passes(db,people):
-    p=people;stock(db,p,20);credit(db,p)
+def test_credit_current_debt_eight_million_new_three_warns_two_clean(db,people):
+    p=people;stock(db,p,20);credit(db,p);c=db.get(Customer,'KTD-000001')
     old=draft(db,p,amount=8000000);svc.confirm(db,p['sales'],old.id,old.version);svc.deliver(db,p['sales'],old.id,old.version)
-    over=draft(db,p,amount=3000000,payment_term='CONG_NO')
-    exc=fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],over.id,over.version)
-    assert exc.details['remaining']==8000000
     equal=draft(db,p,amount=2000000,payment_term='CONG_NO')
+    assert svc.credit_state(db,c,2000000)['remaining']==8000000 and svc.credit_warning(db,c,2000000)==''
     svc.confirm(db,p['sales'],equal.id,equal.version)
     assert equal.status=='DA_CHOT' and equal.credit_override_by is None
+    over=draft(db,p,amount=3000000,payment_term='CONG_NO')
+    assert 'Khách vượt hạn mức nợ' in svc.credit_warning(db,c,3000000)
+    svc.confirm(db,p['sales'],over.id,over.version)
+    assert over.status=='DA_CHOT' and over.credit_override_by==p['sales'].id
     # Chốt chưa giao không tăng nợ (S2).
     assert equal.receivable==0
 

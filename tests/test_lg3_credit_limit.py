@@ -48,6 +48,11 @@ def state(db,customer):
     return svc.credit_state(db,customer,0)
 
 
+def warned(db,customer,total):
+    """Chưa được nợ / vượt hạn mức chỉ cảnh báo (TUẤN 2026-10-26), không còn CREDIT_LIMIT."""
+    return svc.credit_warning(db,customer,total)!=''
+
+
 def paid(db,p,order,amount,*,confirm=True):
     row=sales_receipts.report(db,p['sales'],order.id,SalesReceiptReport(
         version=order.version,method='TIEN_MAT',amount=amount))
@@ -60,37 +65,50 @@ def counts(db):
         (SalesOrder,StockDoc,StockLedger,StockReservation,FundLedger,AuditLog))
 
 
-def test_second_commitment_blocked_and_director_can_override(db,people,credit_customer):
+def test_second_commitment_only_warns_and_sales_confirms_with_trace(db,people,credit_customer):
     p=people;confirmed(db,p)
-    b=draft(db,p);before=counts(db)
-    exc=fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],b.id,b.version)
-    assert exc.status==409 and exc.details==dict(remaining=100,actual_debt=0,
-        committed=100,total=100,credit_limit=100,allow_debt=True)
-    assert all(label in exc.message for label in ('Nợ thực tế: 0','đơn chốt chưa giao: 100',
+    b=draft(db,p)
+    exposure=svc.credit_state(db,credit_customer,100,exclude_order_id=b.id)
+    assert exposure==dict(remaining=100,actual_debt=0,committed=100,allowed=False)
+    warning=svc.credit_warning(db,credit_customer,100,exclude_order_id=b.id)
+    assert warning.startswith('Khách vượt hạn mức nợ')
+    assert all(label in warning for label in ('Nợ thực tế: 0','đơn chốt chưa giao: 100',
         'đơn này: 100','hạn mức: 100'))
-    assert counts(db)==before and b.status=='NHAP' and b.receivable is None
-    fail('REASON_REQUIRED',svc.confirm,db,p['director'],b.id,b.version,' ')
-    assert counts(db)==before
-    svc.confirm(db,p['director'],b.id,b.version,'Duyệt thêm cho khách quen')
-    assert b.credit_override_by==p['director'].id
-    assert b.credit_override_reason=='Duyệt thêm cho khách quen'
+    # Kinh doanh chốt được, không cần giám đốc, không cần lý do.
+    svc.confirm(db,p['sales'],b.id,b.version)
+    assert b.status=='DA_CHOT' and b.credit_override_by==p['sales'].id and b.credit_override_reason==''
     log=db.scalar(select(AuditLog).where(AuditLog.action=='sales_order.confirm',AuditLog.entity_id==str(b.id)))
-    assert log.reason==b.credit_override_reason and log.after['credit_override_by']==p['director'].id
-    # Delivery honours approval even if exposure subsequently exceeds the limit.
+    assert log.after['credit_override_by']==p['sales'].id
+    assert 'Chốt khi khách vượt hạn mức nợ' in log.reason and 'đơn chốt chưa giao: 100' in log.reason
+    # Ghi chú (không bắt buộc) được lưu kèm, mọi vai trò.
+    c=draft(db,p,5)
+    svc.confirm(db,p['director'],c.id,c.version,'  Khách quen  ')
+    assert c.credit_override_by==p['director'].id and c.credit_override_reason=='Khách quen'
+    log=db.scalar(select(AuditLog).where(AuditLog.action=='sales_order.confirm',AuditLog.entity_id==str(c.id)))
+    assert log.reason.endswith('Ghi chú: Khách quen')
+    # Giao không kiểm lại hạn mức.
     svc.deliver(db,p['sales'],b.id,b.version)
     assert b.status=='DA_GIAO' and b.receivable==100
-    assert state(db,credit_customer)['remaining']==200
+    assert state(db,credit_customer)['remaining']==205
+
+
+def test_within_limit_confirm_leaves_no_trace(db,people,credit_customer):
+    p=people;a=confirmed(db,p,60)
+    assert a.credit_override_by is None and a.credit_override_reason==''
+    assert not warned(db,credit_customer,40)
+    assert svc.credit_warning(db,None,40)==''
 
 
 def test_partial_delivery_counts_actual_plus_only_unshipped_and_closing_releases_it(db,people,credit_customer):
     p=people;stock(db,p,10);a=confirmed(db,p,goods=True,qty=10)
     svc.deliver(db,p['warehouse'],a.id,a.version,[dict(order_line_no=1,qty=4)])
     assert state(db,credit_customer)==dict(actual_debt=40,committed=60,remaining=100,allowed=True)
-    b=draft(db,p,1);fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],b.id,b.version)
+    b=draft(db,p,1);assert warned(db,credit_customer,1)
     svc.close_remaining(db,p['sales'],a.id,'Khách không lấy thêm',a.version)
     assert state(db,credit_customer)['committed']==0 and a.receivable==40
+    assert not warned(db,credit_customer,1)
     svc.confirm(db,p['sales'],b.id,b.version)
-    assert state(db,credit_customer)['remaining']==41
+    assert state(db,credit_customer)['remaining']==41 and b.credit_override_by is None
 
 
 def test_cancelled_and_draft_orders_do_not_consume_commitment(db,people,credit_customer):
@@ -117,13 +135,12 @@ def test_confirmed_advance_only_offsets_its_own_order_once(db,people,credit_cust
 def test_pending_or_voided_receipt_does_not_reduce_commitment(db,people,credit_customer,configured_finance):
     p=people;a=confirmed(db,p);r=paid(db,p,a,100,confirm=False)
     b=draft(db,p)
-    assert state(db,credit_customer)['committed']==100
-    fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],b.id,b.version)
+    assert state(db,credit_customer)['committed']==100 and warned(db,credit_customer,100)
     sales_receipts.confirm(db,p['finance'],r.id,r.version)
-    assert state(db,credit_customer)['committed']==0
+    assert state(db,credit_customer)['committed']==0 and not warned(db,credit_customer,100)
     sales_receipts.void(db,p['director'],r.id,'Nhầm khoản thu',r.version)
-    assert state(db,credit_customer)['committed']==100
-    fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],b.id,b.version)
+    assert state(db,credit_customer)['committed']==100 and warned(db,credit_customer,100)
+    assert b.status=='NHAP'
 
 
 @pytest.mark.parametrize('partial',[False,True])
@@ -137,7 +154,7 @@ def test_sales_return_releases_actual_debt_without_readding_returned_delivery(db
     assert exposure['actual_debt']==(30 if partial else 90)
     assert exposure['committed']==(60 if partial else 0)
     assert confirmed(db,p,10).status=='DA_CHOT'
-    b=draft(db,p,1);fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],b.id,b.version)
+    assert warned(db,credit_customer,1)
 
 
 def test_vat_rounding_and_voided_delivery_keep_exact_exposure(db,people,credit_customer):
@@ -184,7 +201,7 @@ def test_actual_debt_keeps_noncredit_sales_and_service_less_confirmed_receipts(d
     sales_receipts.confirm(db,p['finance'],report.id,report.version)
     assert state(db,credit_customer)['actual_debt']==70
     assert confirmed(db,p,30).status=='DA_CHOT'
-    b=draft(db,p,1);fail('CREDIT_LIMIT',svc.confirm,db,p['sales'],b.id,b.version)
+    assert warned(db,credit_customer,1)
 
 
 @pytest.mark.parametrize('flow',['confirm','save_new','save_update'])
@@ -209,10 +226,12 @@ def test_parallel_confirms_serialize_customer_without_share_lock_upgrade_deadloc
     db.rollback()
     with ThreadPoolExecutor(max_workers=2) as pool:
         results=list(pool.map(run,ids))
-    assert sorted(results)==['CREDIT_LIMIT','OK']
-    assert db.query(SalesOrder).filter_by(status='DA_CHOT').count()==1
-    assert state(db,credit_customer)['remaining']==100
-    assert db.query(AuditLog).filter_by(action='sales_order.confirm').count()==1
+    # Không còn chặn: cả hai chốt, không kẹt khóa; đơn thứ hai mang dấu vượt hạn mức.
+    assert results==['OK','OK']
+    flags=[row.credit_override_by for row in db.query(SalesOrder).filter_by(status='DA_CHOT')]
+    assert sorted(flags,key=lambda v:v is not None)==[None,uid]  # khóa khách: đúng một đơn thấy đơn kia đã chốt
+    assert state(db,credit_customer)['remaining']==200
+    assert db.query(AuditLog).filter_by(action='sales_order.confirm').count()==2
 
 
 def test_confirmed_prices_and_payment_terms_remain_locked(db,people,credit_customer):
@@ -224,31 +243,39 @@ def test_confirmed_prices_and_payment_terms_remain_locked(db,people,credit_custo
     assert a.total==100 and a.payment_term=='TRA_NGAY' and counts(db)==before
 
 
-def test_api_and_web_credit_error_show_breakdown_and_preserve_draft(db,client,people,credit_customer):
-    p=people;confirmed(db,p);b=draft(db,p,1);before=counts(db)
-    h={'Authorization':'Bearer '+issue_token(p['sales'])}
-    r=client.post(f'/sales-orders/{b.id}/confirm',headers=h,json=dict(version=b.version))
-    assert r.status_code==409 and r.json()['error']=='CREDIT_LIMIT'
-    assert r.json()['details']['committed']==100 and r.json()['details']['actual_debt']==0
+def test_api_and_web_show_warning_and_confirm_anyway(db,client,people,credit_customer):
+    p=people;confirmed(db,p);b=draft(db,p,1);c=draft(db,p,1)
     csrf=service_login(client,p['sales'])
-    r=client.post(f'/don-ban/{b.id}/confirm',data=dict(csrf=csrf,version=b.version))
-    assert r.status_code==409 and 'đơn chốt chưa giao: 100' in r.text
-    assert counts(db)==before and b.status=='NHAP'
+    page=client.get(f'/don-ban/{b.id}')
+    assert 'data-credit-warning' in page.text and 'Khách vượt hạn mức nợ' in page.text
+    assert 'đơn chốt chưa giao: 100' in page.text and 'name="credit_override_reason"' in page.text
+    conditions=client.get('/don-ban/dieu-kien',params=dict(customer_code=credit_customer.code,payment_term='CONG_NO',
+        due_days='30',fulfillment='TAI_QUAY',kind_0='KHAC',product_code='',description='Công',qty='1',unit='lần',unit_price='1',vat_0='0'))
+    assert conditions.status_code==200
+    assert 'data-condition="credit" data-ok="0" data-blocking="0">⚠ Khách vượt hạn mức nợ' in conditions.text
+    r=client.post(f'/don-ban/{b.id}/confirm',data=dict(csrf=csrf,version=b.version,credit_override_reason='Khách quen'),follow_redirects=False)
+    assert r.status_code==303
+    db.expire_all()
+    assert b.status=='DA_CHOT' and b.credit_override_by==p['sales'].id and b.credit_override_reason=='Khách quen'
+    assert 'Đơn chốt khi khách chưa được nợ hoặc vượt hạn mức · Ghi chú: Khách quen' in client.get(f'/don-ban/{b.id}').text
+    h={'Authorization':'Bearer '+issue_token(p['sales'])}
+    r=client.post(f'/sales-orders/{c.id}/confirm',headers=h,json=dict(version=c.version))
+    assert r.status_code==200 and r.json()['status']=='DA_CHOT' and r.json()['credit_override_by']==p['sales'].id
 
 
 @pytest.mark.parametrize('new',[False,True])
-def test_save_and_confirm_credit_failure_rolls_back_the_entire_save(db,people,credit_customer,new):
+def test_save_and_confirm_over_limit_confirms_and_flags(db,people,credit_customer,new):
     p=people;confirmed(db,p)
     b=None if new else draft(db,p,20)
-    before=counts(db)
     if new:
-        fail('CREDIT_LIMIT',svc.save_and_confirm,db,p['sales'],body())
+        row=svc.save_and_confirm(db,p['sales'],body())
+        assert row.total==100
     else:
-        fail('CREDIT_LIMIT',svc.save_and_confirm,db,p['sales'],
-             SalesOrderUpdate(version=b.version,lines=body(50).lines),b.id)
-        db.refresh(b)
-        assert b.status=='NHAP' and b.total==20 and b.lines[0].unit_price==20 and b.version==1
-    assert counts(db)==before
+        row=svc.save_and_confirm(db,p['sales'],SalesOrderUpdate(version=b.version,lines=body(50).lines),b.id)
+        db.refresh(row)
+        assert row.total==50 and row.lines[0].unit_price==50
+    assert row.status=='DA_CHOT' and row.credit_override_by==p['sales'].id
+    assert state(db,credit_customer)['remaining']==100+row.total
 
 
 def test_commitments_are_scoped_to_each_customer_in_batched_read(db,people,credit_customer):

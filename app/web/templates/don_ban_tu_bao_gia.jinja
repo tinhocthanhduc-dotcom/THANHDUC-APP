@@ -54,7 +54,7 @@
 <div class="qf-grand"><dt>Tổng thanh toán</dt><dd>{{ q.total|money }}</dd></div></dl>
 <p class="hint">Đơn vị: đồng.</p>
 </section>
-{% if live %}{% if is_director %}<label class="card qf-override">Lý do chốt vượt hạn mức<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
+{% if live %}{% if credit_warning %}<div data-credit-note {% if pay!='CONG_NO' %}hidden{% endif %}><p class="alert warn" data-credit-warning>{{ credit_warning }}</p><label class="card qf-override">Ghi chú khi chốt vượt hạn mức (không bắt buộc)<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label></div>{% endif %}
 <section class="card oq-act"><ul class="oq-checks" data-oq-checks>
 <li data-ok="1">Báo giá đã được khách chấp nhận</li>
 <li data-oq-check="wh" data-ok="0">Mọi dòng hàng đã có kho</li>
@@ -62,7 +62,7 @@
 <li data-oq-check="addr" data-ok="1">Có địa chỉ giao</li></ul>
 <button class="primary oq-main" name="then" value="confirm" form="order-from-quote" data-oq-confirm data-next-primary data-next-route="/don-ban/tu-bao-gia/{{ q.id }}">Tạo đơn và chốt (giữ hàng)</button>
 <button class="oq-draft">Chỉ tạo đơn nháp</button>
-<p class="hint">Chốt = kiểm tồn và hạn mức, giữ hàng ở kho đã chọn. Kho nào thiếu hàng thì đổi kho ở dòng đó. Đơn nháp có thể chưa chọn kho.</p>
+<p class="hint">Chốt = kiểm tồn, giữ hàng ở kho đã chọn; chưa được nợ hay vượt hạn mức chỉ cảnh báo, không chặn. Kho nào thiếu hàng thì đổi kho ở dòng đó. Đơn nháp có thể chưa chọn kho.</p>
 </section>{% endif %}
 </aside>
 </form>

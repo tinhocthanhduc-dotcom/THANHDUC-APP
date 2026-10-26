@@ -278,11 +278,11 @@ def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
     before = snapshot(order)
     quotes._totals(order)
     _apply_terms(order,order)
-    _check_credit(session,user,order,credit_override_reason)
+    credit_note=_check_credit(session,user,order,credit_override_reason)
     order.status, order.receivable = 'DA_CHOT', 0
     order.confirmed_at, order.confirmed_by = datetime.now(UTC), user.id
     stock_reservations.keep_in_tx(session, user, order)
-    _record(session, user, order, 'confirm', before, order.credit_override_reason)
+    _record(session, user, order, 'confirm', before, credit_note)
     return order
 
 
@@ -626,26 +626,38 @@ def _apply_terms(order, body, partial=False):
         order.deposit_amount=None
 
 
-def _check_credit(session,user,order,reason):
-    if order.payment_term!='CONG_NO':
-        return
-    customer=quotes._customer(session,order.customer_code,for_update=True)
-    state=credit_state(session,customer,order.total,exclude_order_id=order.id)
-    remaining=state['remaining']
-    if state['allowed']:return
-    details=dict(remaining=remaining,actual_debt=state['actual_debt'],committed=state['committed'],
-                 total=order.total,credit_limit=customer.credit_limit,allow_debt=customer.allow_debt)
+def credit_breakdown(state,customer,total):
     def money(value):
         return format(value,',').replace(',','.')
-    breakdown=(f"Nợ thực tế: {money(state['actual_debt'])}; đơn chốt chưa giao: {money(state['committed'])}; "
-               f'đơn này: {money(order.total)}; hạn mức: {money(customer.credit_limit)}.')
-    if not has_role(user,'director'):
-        message=f'Khách chưa được nợ hoặc vượt hạn mức. {breakdown} Cần giám đốc chốt.'
-        raise BusinessError('CREDIT_LIMIT',message,details,status=409)
+    return (f"Nợ thực tế: {money(state['actual_debt'])}; đơn chốt chưa giao: {money(state['committed'])}; "
+            f'đơn này: {money(total)}; hạn mức: {money(customer.credit_limit)}.')
+
+
+def credit_warning(session,customer,total,*,exclude_order_id=None):
+    """Cảnh báo công nợ (không chặn, TUẤN 2026-10-26): '' khi khách được nợ và còn trong hạn mức."""
+    if customer is None:
+        return ''
+    state=credit_state(session,customer,total,exclude_order_id=exclude_order_id)
+    if state['allowed']:
+        return ''
+    head='Khách chưa được nợ' if not customer.allow_debt else 'Khách vượt hạn mức nợ'
+    return f'{head}. {credit_breakdown(state,customer,total)} Vẫn chốt được, đơn sẽ ghi dấu chốt vượt hạn mức để theo dõi.'
+
+
+def _check_credit(session,user,order,reason):
+    """Chỉ cảnh báo: khách chưa được nợ hay vượt hạn mức vẫn chốt được (mọi vai trò).
+    Đơn ghi người chốt + ghi chú (không bắt buộc) vào credit_override_*; audit ghi số liệu lúc chốt."""
     reason=(reason or '').strip()
-    if not reason:
-        raise BusinessError('REASON_REQUIRED',f'Giám đốc phải nhập lý do chốt vượt hạn mức. {breakdown}',details)
+    if order.payment_term!='CONG_NO':
+        return ''
+    customer=quotes._customer(session,order.customer_code,for_update=True)
+    state=credit_state(session,customer,order.total,exclude_order_id=order.id)
+    if state['allowed']:
+        return ''
     order.credit_override_by,order.credit_override_reason=user.id,reason
+    head='chưa được nợ' if not customer.allow_debt else 'vượt hạn mức nợ'
+    note=f'Chốt khi khách {head}. {credit_breakdown(state,customer,order.total)}'
+    return note+(f' Ghi chú: {reason}' if reason else '')
 
 
 def change_options(session,user,order_id,body):

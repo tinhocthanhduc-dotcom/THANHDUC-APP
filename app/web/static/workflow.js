@@ -14,13 +14,16 @@
       checks.querySelectorAll('[data-blocking="1"][data-ok="0"]'),
     );
     primary.disabled = missing.length > 0;
+    // Ghi chú chốt vượt hạn mức chỉ hiện khi điều kiện công nợ đang cảnh báo.
+    var credit = checks.querySelector('[data-condition="credit"][data-ok="0"]');
+    form.querySelectorAll("[data-credit-note]").forEach(function (box) { box.hidden = !credit; });
     var hint = action.querySelector("[data-primary-missing]");
     hint.hidden = !missing.length;
     hint.textContent =
       "Còn thiếu: " +
       missing
         .map(function (c) {
-          return c.textContent.replace(/^[✓✗]\s*/, "");
+          return c.textContent.replace(/^[✓✗⚠]\s*/, "");
         })
         .join(" · ");
   }
@@ -29,7 +32,7 @@
     if (item) {
       item.dataset.ok = ok ? "1" : "0";
       item.textContent =
-        (ok ? "✓" : "✗") + " " + item.textContent.replace(/^[✓✗]\s*/, "");
+        (ok ? "✓" : "✗") + " " + item.textContent.replace(/^[✓✗⚠]\s*/, "");
     }
   }
   function update() {

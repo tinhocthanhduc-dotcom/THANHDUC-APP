@@ -7,6 +7,7 @@
 {% block tho_top %}<a class="tho-back" href="/tho" aria-label="Về danh sách hôm nay"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Hôm nay</a><h1 class="tho-title">{{ order.number }}</h1>{% endblock %}
 {% block tho_tabs %}{% endblock %}
 {% block main %}<div class="tho-screen tho-delivery">
+{% if can_deliver %}<p class="tho-print"><a class="btn btn-ghost" href="/giao-don/{{ order.id }}/in" data-print-delivery>In phiếu giao hàng</a></p>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }} Nếu có ảnh, hãy chụp lại ảnh.</p>{% endif %}
 {% if request.query_params.get('da_luu') %}<p class="alert ok">Đã lưu.</p>{% endif %}
 <section class="card tho-info"><div class="tho-head"><b>{{ customer.name }}</b><span class="tag tone-info">{{ label }}</span></div>
