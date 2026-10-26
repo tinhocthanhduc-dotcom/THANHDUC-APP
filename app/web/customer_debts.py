@@ -46,7 +46,8 @@ def _rows(session, user, today):
         if c is None:
             continue
         limit = c.credit_limit if c.allow_debt else 0
-        rows.append(dict(x, c=c, name=c.name, kind=c.kind, phones=phones.get(code, []), days=(today - x['since']).days,
+        pay = next((doc['href'] for doc in x['docs'] if doc['href']), '')  # chứng từ cũ nhất còn nợ: Báo thu ngay trên đó
+        rows.append(dict(x, c=c, name=c.name, kind=c.kind, phones=phones.get(code, []), days=(today - x['since']).days, pay_href=pay,
                          old=(today - x['since']).days > OLD_DEBT_DAYS, limit=limit, allow_debt=c.allow_debt,
                          over=x['remaining'] > limit, left=limit - x['remaining'], last=last.get(code),
                          orders=sum(1 for doc in x['docs'] if doc['kind'] == 'DB'), tickets=sum(1 for doc in x['docs'] if doc['kind'] != 'DB'),

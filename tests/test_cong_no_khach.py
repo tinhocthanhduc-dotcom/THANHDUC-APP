@@ -44,6 +44,9 @@ def test_finance_sees_tiles_rows_doc_links_last_receipt_and_totals(client, db, p
     assert '2 khách' in page and '570 đ' in page and '>20<' in page
     assert 'Còn nợ <b>570</b> đ' in page and 'chờ xác nhận <b>20</b> đ' in page
     assert f'href="/don-ban/{o1.id}#thu-tien"' in page and f'href="/don-ban/{o2.id}#thu-tien"' in page
+    # Nút thu tiền: Báo thu mở đúng chứng từ còn nợ; Xác nhận thu chỉ khi có báo thu chờ.
+    assert page.count('Báo thu ›') == 2 and f'class="btn btn-new cnk-sm cnk-pay" href="/don-ban/{o1.id}#thu-tien"' in page
+    assert page.count('Xác nhận thu ›') == 1
     assert 'Thu 30' in page and 'Chưa thu lần nào' in page and 'Không cho nợ' in page and 'Còn 930' in page
     assert 'href="/bao-cao/tai-chinh?khach=KTD-000002#chung-tu"' in page and 'href="/khach-hang/KTD-000001"' in page
     # Nợ nhiều nhất lên trước.
