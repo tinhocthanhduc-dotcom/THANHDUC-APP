@@ -719,11 +719,11 @@ hoặc tự chọn thứ tự giữ cho các đơn cũ.
 - `payment_term`: `TRA_NGAY` (mặc định), `DAT_COC`, `CONG_NO`.
 - `due_days`: 0–180, mặc định 30 khi chọn công nợ; trả ngay/đặt cọc được chuẩn hóa thành 0.
 - `deposit_amount`: cọc dự kiến, chỉ với DAT_COC, số nguyên >0 và ≤ tổng đơn; không tự ghi tiền.
-- `credit_override_by`, `credit_override_reason`: chỉ lõi ghi khi giám đốc chốt vượt hạn mức.
+- `credit_override_by`, `credit_override_reason`: lõi ghi khi đơn CONG_NO được chốt lúc khách chưa được nợ hoặc vượt hạn mức (người chốt, ghi chú không bắt buộc).
 
 `PATCH /sales-orders/{id}/options`: `version` và các trường điều kiện cần đổi. NHAP đổi đủ bốn trường; DA_CHOT/GIAO_MOT_PHAN chỉ được gửi `fulfillment`. Đã giao đủ/đã hủy không đổi. Đổi cách nhận vẫn kiểm version và ghi audit trước/sau. `PUT .../lines` giữ điều kiện cũ nếu API không gửi trường điều kiện đó.
 
-`POST /sales-orders/{id}/confirm` nhận thêm `credit_override_reason`. Chốt CONG_NO kiểm `Customer.allow_debt` và nợ hiện tại của khách (dùng `_debts` tài chính, gồm DB và DV) + tổng đơn ≤ credit_limit. Kinh doanh bị `CREDIT_LIMIT` (409), câu “Cần giám đốc chốt”. Giám đốc vượt hạn mức phải có lý do (`REASON_REQUIRED` nếu thiếu); người và lý do được lưu trong đơn và audit. TRA_NGAY/DAT_COC không kiểm hạn mức.
+`POST /sales-orders/{id}/confirm` nhận thêm `credit_override_reason` (ghi chú, không bắt buộc). Chốt CONG_NO tính `credit_state` (nợ thực tế + đơn chốt chưa giao + đơn này so với `Customer.allow_debt`/`credit_limit`) nhưng **chỉ cảnh báo, không chặn** (TUẤN 2026-10-26): mọi vai trò chốt được; khi chưa được nợ hay vượt hạn mức, đơn ghi `credit_override_by` = người chốt, `credit_override_reason` = ghi chú, audit ghi số liệu lúc chốt. Màn web hiện cảnh báo (`sales_orders.credit_warning`) ở điều kiện chốt, nút Chốt đơn và đơn từ báo giá. Không còn trả `CREDIT_LIMIT`/`REASON_REQUIRED` cho hạn mức. TRA_NGAY/DAT_COC không kiểm hạn mức.
 
 `POST /sales-orders/{id}/counter-sale` nhận `version`, `method` (TIEN_MAT/CHUYEN_KHOAN), `amount`, `received_at` tùy chọn, `note`. Chỉ sales/director, đơn NHAP TAI_QUAY + TRA_NGAY; amount phải bằng đúng tổng đơn. Một transaction ngoài gọi `confirm_in_tx` → `deliver_in_tx` giao đủ một GH → `sales_receipts.report_in_tx` tạo BT CHO_XAC_NHAN. Các hàm công khai confirm/deliver/report vẫn dùng cùng phần thân và tự commit như trước. Không tạo PT/quỹ tới khi kế toán xác nhận BT. Bất kỳ lỗi nào trả lại cả trạng thái, giữ hàng, GH/PX/BT, audit và bộ đếm. Form web có CSRF và form_key S0 nên gửi lại cùng khóa chỉ chuyển về kết quả cũ.
 
@@ -735,7 +735,7 @@ Việc của tôi thêm “Chưa thu cọc”: đơn DAT_COC đã chốt còn th
 
 `SalesDeliveryIn`/Out và snapshot GH thêm `carrier_name` (≤200), `tracking_code` (≤100), tùy chọn, chỉ dùng khi VAN_CHUYEN. Form giao/chi tiết/in GH giữ và hiện hai trường; lỗi giữ lại dữ liệu. THO_GIAO hiện là lựa chọn/nhãn, chưa tự điều phối thợ.
 
-Mã lỗi mới: `BAD_TERMS`, `BAD_DEPOSIT`, `BAD_FULFILLMENT`, `BAD_COUNTER_SALE` (409), `BAD_AMOUNT`, `CREDIT_LIMIT` (409). Tiếp tục dùng `PRICE_LOCKED`, `VERSION_CONFLICT`, `REASON_REQUIRED`, `NEGATIVE_STOCK`, `RESERVED_STOCK`, `FORBIDDEN` như các bước trước.
+Mã lỗi mới: `BAD_TERMS`, `BAD_DEPOSIT`, `BAD_FULFILLMENT`, `BAD_COUNTER_SALE` (409), `BAD_AMOUNT` (`CREDIT_LIMIT` đã bỏ, hạn mức chỉ cảnh báo). Tiếp tục dùng `PRICE_LOCKED`, `VERSION_CONFLICT`, `REASON_REQUIRED`, `NEGATIVE_STOCK`, `RESERVED_STOCK`, `FORBIDDEN` như các bước trước.
 
 Migration 0029 sau 0028 đặt mọi đơn cũ TAI_QUAY + CONG_NO + 30 ngày, giữ kết quả cảnh báo 30/60 ngày cũ; đơn tạo mới mặc định TRA_NGAY. Không thay số liệu sổ kho, sổ quỹ hay báo thu cũ.
 

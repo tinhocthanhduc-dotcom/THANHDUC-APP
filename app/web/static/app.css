@@ -504,6 +504,7 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .workflow-action {padding:.75rem 0;}
 .workflow-checks {list-style:none;padding:0;margin:0 0 .5rem;}
 .workflow-checks [data-ok="0"] {color:#b91c1c;}
+.workflow-checks [data-ok="0"][data-blocking="0"] {color:#b45309;}
 .workflow-action button:disabled {opacity:.5;}
 .workflow-other-content {display:grid;gap:.7rem;margin-top:.7rem;}
 .workflow-terminal {background:#e5e7eb;color:#991b1b;}
@@ -1539,6 +1540,7 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .qf-side .workflow-action h2 { margin: 0 0 8px; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .qf-side .workflow-checks li { padding: 2px 0; font-size: .9rem; }
 .qf-side .workflow-checks [data-ok="0"] { color: var(--bad); }
+.qf-side .workflow-checks [data-ok="0"][data-blocking="0"] { color: #b45309; }
 .qf-side .workflow-buttons { flex-direction: column; }
 .qf-side .next-primary { min-height: 50px; font-size: 1.02rem; }
 .workflow-total { display: none; }

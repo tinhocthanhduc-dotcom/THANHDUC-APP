@@ -140,7 +140,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
         if viewing:
             frame.update(doc_next=doc_frame.order_next(order,receipt_ctx.get('collection'),receipt_ctx['available']),
                          progress=doc_frame.line_progress(order,reservations,delivery_state))
-    return render(request,'don_ban_xem.jinja' if viewing else 'don_ban_form.jinja',**frame,trip_ticket=trip_ticket,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+    # Cảnh báo công nợ trên đơn nháp đã lưu (nút Chốt đơn): không chặn, chỉ nhắc.
+    credit_warning=svc.credit_warning(session,customer,order.total,exclude_order_id=order.id) if order is not None and order.status=='NHAP' and order.payment_term=='CONG_NO' else ''
+    return render(request,'don_ban_xem.jinja' if viewing else 'don_ban_form.jinja',**frame,trip_ticket=trip_ticket,credit_warning=credit_warning,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=delivery_state,
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
@@ -375,7 +377,7 @@ def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
     # Tồn khả dụng từng kho cho mỗi dòng hàng, để chọn kho ngay trên trang.
     stock_by_line={l.line_no:{w:float(stock.get((w,l.product_code),{}).get('available',0)) for w in active} for l in quote.lines if l.product_code}
     card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None
-    return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,customer_card=card,quantity=_quantity,
+    return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,customer_card=card,quantity=_quantity,credit_warning=svc.credit_warning(session,customer,quote.total),
                   liquidation_warehouses=pending_liquidation.choices(session,list(codes)),warehouses=warehouses,linked=_active_order(session,quote.id),
                   stock_by_line=stock_by_line,goods_count=len(codes),fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   error=error,error_code=code,status=status)

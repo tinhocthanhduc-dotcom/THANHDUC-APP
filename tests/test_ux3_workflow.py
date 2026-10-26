@@ -79,14 +79,15 @@ def test_order_missing_warehouse_rolls_back_save(client,db,stocked,new):
     assert 'Dòng mới' in r.text and db.query(StockReservation).count()==0
 
 
-def test_order_credit_error_and_director_override(client,db,stocked):
+def test_order_credit_warning_does_not_block_sales(client,db,stocked):
     csrf=service_login(client,stocked['sales'])
     raw=order_form(csrf,payment_term='CONG_NO',due_days=30)
-    r=client.post('/don-ban/moi',data=raw);assert r.status_code==409 and 'CREDIT_LIMIT' in r.text
-    assert db.query(SalesOrder).count()==0
-    csrf=service_login(client,stocked['director'])
-    r=client.post('/don-ban/moi',data=raw|dict(csrf=csrf,credit_override_reason='Khách quen được duyệt'))
-    assert r.status_code==200 and db.query(SalesOrder).one().status=='DA_CHOT'
+    conditions=client.get('/don-ban/dieu-kien',params={k:v for k,v in raw.items() if k not in ('csrf','then')})
+    assert 'data-condition="credit" data-ok="0" data-blocking="0">⚠ Khách chưa được nợ' in conditions.text
+    r=client.post('/don-ban/moi',data=raw|dict(credit_override_reason='Khách quen'))
+    assert r.status_code==200
+    order=db.query(SalesOrder).one()
+    assert order.status=='DA_CHOT' and order.credit_override_by==stocked['sales'].id and order.credit_override_reason=='Khách quen'
 
 
 @pytest.mark.parametrize('valid',[True,False])
