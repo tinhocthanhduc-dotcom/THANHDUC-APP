@@ -14,7 +14,7 @@ KIT = ('badge', 'page_head', 'tiles', 'filter_chips', 'filter_bar', 'totals', 's
 # Màn cũ còn tự vẽ <h1>. Mỗi đợt chuyển màn sang page_head thì xóa tên khỏi đây; màn mới không được thêm vào.
 LEGACY_H1 = frozenset((
     'bao_cao_ban_hang.jinja', 'bao_cao_cho_xu_ly.jinja', 'bao_cao_mua_hang.jinja', 'bao_cao_tai_chinh.jinja',
-    'bao_gia_ds.jinja', 'bao_gia_form.jinja', 'bao_gia_in.jinja', 'bao_thu_chi_tiet.jinja',
+    'bao_gia_ds.jinja', 'bao_gia_form.jinja', 'bao_thu_chi_tiet.jinja',
     'bao_thu_ds.jinja', 'ca_nhan.jinja',
     'cho_xu_ly_chi_tiet.jinja', 'cho_xu_ly_chuyen.jinja',
     'cho_xu_ly_duyet_huy.jinja', 'cho_xu_ly_duyet_tra_ncc.jinja', 'chot_so.jinja',
@@ -22,7 +22,7 @@ LEGACY_H1 = frozenset((
     'danh_muc_form.jinja', 'dich_vu_bien_ban.jinja', 'dich_vu_can_thu.jinja',
     'dieu_chinh.jinja',
     'dieu_phoi_bao_cao.jinja', 'doi_mat_khau.jinja', 'don_ban_can_thu.jinja', 'don_ban_ds.jinja',
-    'don_ban_form.jinja', 'don_ban_in.jinja', 'don_ban_tu_bao_gia.jinja',
+    'don_ban_form.jinja', 'don_ban_tu_bao_gia.jinja',
     'don_mua_form.jinja', 'don_mua_in.jinja', 'don_mua_nhan_trang.jinja', 'don_mua_tra_form.jinja',
     'ghep_tai_chinh.jinja', 'giao_don.jinja', 'giu_may.jinja', 'hang_form.jinja',
     'hang_lich_su.jinja', 'hang_phieu_ck.jinja', 'hang_toi_giu.jinja', 'ho_so_cua_toi.jinja',
@@ -80,7 +80,8 @@ def test_templates_follow_button_rules():
 
 
 def test_new_screens_use_page_head():
-    raw = {p.name for p in TEMPLATES.glob('*.jinja') if '<h1' in p.read_text()} - {'base.jinja', '_ui.jinja'}
+    # in_khung.jinja là khuôn in A4 đứng một mình (tiêu đề phiếu là <h1>), không dùng page_head của app.
+    raw = {p.name for p in TEMPLATES.glob('*.jinja') if '<h1' in p.read_text()} - {'base.jinja', '_ui.jinja', 'in_khung.jinja'}
     new = raw - LEGACY_H1
     assert not new, f'Màn mới hãy dùng page_head trong _ui.jinja thay vì tự vẽ <h1>: {sorted(new)}'
     moved = LEGACY_H1 - raw
