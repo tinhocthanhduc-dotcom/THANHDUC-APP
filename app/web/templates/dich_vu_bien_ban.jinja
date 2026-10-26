@@ -8,7 +8,7 @@
 {% block meta %}{{ f.meta('Số phiếu', t.number) }}{{ f.meta('Ngày hoàn thành', completed_at|vn_date if completed_at else 'Chưa hoàn thành') }}{{ f.meta('Kỹ thuật viên', repairer or (technician.full_name if technician else '')) }}{% endblock %}
 {% block body %}
 <div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa điểm', (site.name ~ (' · ' ~ site.address if site.address else '')) if site else customer.address), ('Điện thoại', customer.phones|map(attribute='phone')|join(', '))]) }}
-{{ f.card('Máy và dịch vụ', machine_name or 'Máy ngoài danh mục', [('Serial', t.serial), ('Loại dịch vụ', service_kinds[t.kind]), ('Thợ thực hiện', repairer or (technician.full_name if technician else 'Chưa giao')), ('Hoàn thành lúc', completed_at|service_time if completed_at else ''), ('Trạng thái', service_statuses[t.status]), ('Bảo hành', warranty_terms)]) }}</div>
+{{ f.card('Máy và dịch vụ', machine_name or 'Máy ngoài danh mục', [('Serial', t.serial), ('Loại dịch vụ', service_kinds[t.kind]), ('Thợ thực hiện', repairer or (technician.full_name if technician else 'Chưa giao')), ('Ngày giờ hoàn thành', completed_at|service_time if completed_at else ''), ('Trạng thái', service_statuses[t.status]), ('Bảo hành', warranty_terms)]) }}</div>
 <div class="in-secs"><div class="in-sec"><h4>Mô tả lỗi khách báo</h4>{{ t.symptom }}</div>
 {% if t.fault_found %}<div class="in-sec"><h4>Lỗi tìm thấy</h4>{{ t.fault_found }}</div>{% endif %}
 <div class="in-sec"><h4>Việc đã làm</h4>{{ t.fix_done or work_note or 'Chưa có ghi chú ở bước cuối.' }}</div></div>
