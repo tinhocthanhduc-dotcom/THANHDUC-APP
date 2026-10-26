@@ -157,14 +157,20 @@ def complete(session, user, ident, body: ProductionComplete):
         for item in body.lines:
             line = existing.get(item.line_no) if item.line_no is not None else None
             if item.line_no is not None and line is None: raise BusinessError('BAD_MATERIAL', 'Không tìm thấy dòng vật tư.')
+            if item.line_no is None and item.product_code:
+                matches = [l for l in existing.values() if l.product_code == item.product_code]
+                if len(matches) > 1: raise BusinessError('BAD_MATERIAL', 'Mã vật tư có nhiều dòng, hãy gửi số dòng.')
+                if matches: line = matches[0]
             if line is not None:
                 if line.line_no in seen or (item.product_code and item.product_code != line.product_code): raise BusinessError('BAD_MATERIAL', 'Dòng vật tư trùng hoặc sai mã hàng.')
                 seen.add(line.line_no)
             else:
                 if not item.product_code: raise BusinessError('BAD_MATERIAL', 'Dòng mới phải có mã vật tư.')
+                if item.qty_used == 0: continue
                 _product(session, item.product_code)
                 line = Line(line_no=max(existing, default=0)+1, product_code=item.product_code, qty_plan=0)
                 row.lines.append(line); existing[line.line_no] = line
+                seen.add(line.line_no)
             line.qty_used = item.qty_used
         used = [dict(product_code=l.product_code, qty=l.qty_used) for l in row.lines if l.qty_used > 0]
         if not used: raise BusinessError('MATERIAL_REQUIRED', 'Nhập ít nhất một vật tư thực dùng để lập phiếu xuất.')

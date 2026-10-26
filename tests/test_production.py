@@ -211,6 +211,14 @@ def test_assignment_new_materials_and_version_conflicts(db,shop):
     assert len(db.get(StockDoc,r.px_doc_id).lines)==1 and r.material_cost==300000
 
 
+def test_material_product_identifier_updates_planned_line_and_skips_new_zero(db,shop):
+    p,_,_,_=shop;r=create(db,shop);svc.start(db,p['technician'],r.id,r.version)
+    svc.complete(db,p['technician'],r.id,ProductionComplete(version=r.version,qty_good=1,qty_scrap=0,
+        lines=[dict(product_code='TD-0101',qty_used='.5'),dict(product_code='TD-0001',qty_used=0)]))
+    assert len(r.lines)==3 and r.lines[0].qty_used==Decimal('.5') and r.lines[0].qty_plan==1
+    assert r.material_cost==300000 and len(db.get(StockDoc,r.px_doc_id).lines)==1
+
+
 def test_concurrent_receive_only_one_pn(db,engine,shop):
     p,_,_,_=shop;r=finish(db,shop);version=r.version;uid=p['warehouse'].id;ident=r.id;db.rollback()
     barrier=Barrier(2)

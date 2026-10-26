@@ -986,7 +986,7 @@ API JSON dưới `/production-orders` (Bearer token), màn web dưới `/san-xua
 - `POST /production-orders`: `{kind, product_code, qty_plan, technician_id?, from_warehouse_code?, to_warehouse_code, note?, lines:[{product_code,qty_plan,note?}]}`. Thợ tự lập dùng kho của mình.
 - `POST /production-orders/{number}/giao`: `{version,technician_id}`.
 - `POST /production-orders/{number}/bat-dau`: `{version}`.
-- `POST /production-orders/{number}/hoan-thanh`: `{version,qty_good,qty_scrap,void_reason?,lines:[{line_no?,product_code?,qty_used}]}`. Dòng cũ dùng `line_no`; dòng mới cần `product_code`; ít nhất một dòng thực dùng > 0 để lập PX. Phần chưa làm không chuyển sang phiếu mới.
+- `POST /production-orders/{number}/hoan-thanh`: `{version,qty_good,qty_scrap,void_reason?,lines:[{line_no?,product_code?,qty_used}]}`. Dòng cũ dùng `line_no` hoặc `product_code` nếu mã chỉ có một dòng; dòng mới cần `product_code`; ít nhất một dòng thực dùng > 0 để lập PX. Phần chưa làm không chuyển sang phiếu mới.
 - `POST /production-orders/{number}/nhan-kho`: `{version,qty_received,serials:[],note?}`. Nhận ít hơn số tốt cần ghi chú; kho phụ trách đích hoặc giám đốc nhận. `qty_good` sau nhận bằng số thực nhận; phần chênh chuyển hỏng. Serial chỉ lưu trên PN, BH1 tạo hồ sơ Thiết bị khi bán.
 - `POST /production-orders/{number}/huy`: `{version,reason}`; chỉ trước xuất vật tư.
 
