@@ -201,6 +201,8 @@ def test_day_board_technicians_sales_counts_reasons_and_roles(client,db,people,m
     assert 'technicians' not in svc.day_board(db,p['finance'],today) and svc.day_board(db,p['finance'],today)['counts']['received']==2
     service_login(client,p['director']);page=client.get('/tong-quan').text
     assert 'Thợ hôm nay' in page and 'Chờ khách duyệt' in page and 'Kinh doanh hôm nay' in page
-    assert page.index('Cần để mắt ngay')<page.index('Thợ hôm nay')<page.index('Tiền · tháng này')<page.index('Doanh thu 30 ngày gần nhất')
+    assert page.index('Cần để mắt ngay')<page.index('Thợ hôm nay')<page.index('Theo dõi · không gấp')<page.index('Tiền · tháng này')<page.index('Doanh thu 30 ngày gần nhất')
+    # Khách vượt hạn mức là việc theo dõi, gập sẵn ở cuối, không tính vào việc đỏ (TUẤN 26/10/2026).
+    assert page.index('Theo dõi · không gấp')<page.index('data-alert-kind="KHACH_VUOT_HAN_MUC"') and '<details class="alert-group" data-alert-kind="KHACH_VUOT_HAN_MUC" open' not in page
     service_login(client,p['finance']);page=client.get('/tong-quan').text
     assert 'Thợ hôm nay' not in page and 'Kinh doanh hôm nay' not in page and 'Hôm nay nhìn nhanh' in page

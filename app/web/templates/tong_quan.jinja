@@ -1,6 +1,6 @@
 {% extends 'base.jinja' %}
 {% macro tile(label,value,link,money=true,detail='',main=false) %}{% set tag = 'a' if link and can_open(link) else 'div' %}<{{ tag }} class="overview-tile{% if main %} overview-main{% endif %}{% if not value %} overview-zero{% endif %}"{% if tag == 'a' %} href="{{ link }}"{% endif %}><span>{{ label }}</span><strong>{{ value|money if money else value }}</strong>{% if detail %}<small>{{ detail }}</small>{% endif %}</{{ tag }}>{% endmacro %}
-{% macro alert_rows(groups) %}{% for kind,rows in groups.items() %}<details class="alert-group" data-alert-kind="{{ kind }}"{% if loop.first and rows[0].level=='DO' %} open{% endif %}><summary><span class="alert-n{% if rows[0].level=='DO' %} alert-n-red{% endif %}">{{ alert_counts[kind] }}</span>{{ alert_labels[kind] }}{% if kind=='DUOI_TON_TOI_THIEU' and can_open('/ton-kho') %}<a class="alert-go" href="/ton-kho?canh-bao=1">Hàng sắp hết ›</a>{% endif %}</summary><ul>
+{% macro alert_rows(groups,open_red=false) %}{% for kind,rows in groups.items() %}<details class="alert-group" data-alert-kind="{{ kind }}"{% if open_red and loop.first and rows[0].level=='DO' %} open{% endif %}><summary><span class="alert-n{% if rows[0].level=='DO' %} alert-n-red{% endif %}">{{ alert_counts[kind] }}</span>{{ alert_labels[kind] }}{% if kind=='DUOI_TON_TOI_THIEU' and can_open('/ton-kho') %}<a class="alert-go" href="/ton-kho?canh-bao=1">Hàng sắp hết ›</a>{% endif %}</summary><ul>
 {% for a in rows %}<li>{% set tag = 'a' if a.link else 'span' %}<{{ tag }}{% if a.link %} href="{{ a.link }}"{% else %} class="alert-static"{% endif %} data-alert-level="{{ a.level }}"><span class="alert-dot {{ 'alert-dot-red' if a.level=='DO' else 'alert-dot-yellow' }}" aria-label="{{ 'Đỏ' if a.level=='DO' else 'Vàng' }}"></span><span><strong>{{ a.title }}</strong><span class="alert-detail">{{ a.detail }}</span></span></{{ tag }}></li>{% endfor %}
 </ul>{% if alert_counts[kind]>rows|length %}<p class="alert-more">và {{ alert_counts[kind]-rows|length }} mục khác</p>{% endif %}</details>{% endfor %}{% endmacro %}
 {% block title %}Tổng quan{% endblock %}
@@ -18,15 +18,11 @@
 </div>
 <p class="hint">Doanh thu chưa VAT gồm đơn Đã giao và dịch vụ Có thu tiền đã chốt giá. Tiền đã thu gồm VAT, theo ngày thu. Các khoản quỹ, nợ và tồn là số hiện tại.</p>
 
-<div class="overview-two">
-<section class="sales-report-section card overview-alerts" aria-labelledby="alerts-title"><h2 id="alerts-title">Cần để mắt ngay</h2><p class="hint">Việc đỏ lên đầu · bấm từng dòng để mở</p>
+<section class="sales-report-section card overview-alerts overview-eye" aria-labelledby="alerts-title"><h2 id="alerts-title">Cần để mắt ngay</h2><p class="hint">Việc đỏ lên đầu · bấm từng dòng để mở</p>
 {% if c.unassigned %}<p class="alert-line"><a href="/dieu-phoi"><span class="alert-n alert-n-red">{{ c.unassigned }}</span>Phiếu chưa giao thợ</a></p>{% endif %}
 {% if advance_pending %}<p class="alert-line"><a href="/tam-ung"><span class="alert-n">{{ advance_pending }}</span>Tạm ứng chờ duyệt · {{ advance_pending }} yêu cầu</a></p>{% endif %}{% if attendance_pending %}<p class="alert-line"><a href="/cham-cong/duyet"><span class="alert-n">{{ attendance_pending }}</span>Chấm công chờ duyệt · {{ attendance_pending }} yêu cầu</a></p>{% endif %}
-{{ alert_rows(eye_groups) }}
-{% if not eye_groups and not calm_groups and not attendance_pending and not advance_pending and not c.unassigned %}<p class="alert-empty">Không có việc cần xử lý</p>{% elif not eye_groups and not attendance_pending and not advance_pending and not c.unassigned %}<p class="alert-empty">Không có việc đỏ</p>{% endif %}</section>
-<section class="sales-report-section card overview-alerts"><h2>Kho · mua hàng · theo dõi</h2><p class="hint">Không gấp · gọn một dòng mỗi loại</p>
-{{ alert_rows(calm_groups) }}{% if not calm_groups %}<p class="alert-empty">Kho và mua hàng không có gì cần theo dõi</p>{% endif %}</section>
-</div>
+{{ alert_rows(eye_groups,true) }}
+{% if not eye_groups and not calm_groups and not debt_groups and not attendance_pending and not advance_pending and not c.unassigned %}<p class="alert-empty">Không có việc cần xử lý</p>{% elif not eye_groups and not attendance_pending and not advance_pending and not c.unassigned %}<p class="alert-empty">Không có việc đỏ</p>{% endif %}</section>
 
 {% if 'technicians' in board %}<section class="sales-report-section card overview-techs"><h2>Thợ hôm nay</h2><p class="hint">Bấm tên để xem từng phiếu chưa xong và lý do · Chưa xong tính mọi phiếu đang mở của thợ, không chỉ hôm nay</p>
 <div class="overview-tbwrap"><table class="overview-table"><thead><tr><th>Thợ</th><th>Vào ca</th><th class="c">Được giao</th><th class="c">Hoàn thành</th><th>Chưa xong · lý do</th><th class="c">Lượt đến khách</th><th class="c">Máy mang về</th><th class="num">Tiền thu khách</th></tr></thead><tbody>
@@ -49,6 +45,14 @@
 <section class="sales-report-section card"><h2>Máy khách đang ở xưởng</h2><p class="hint">{{ board.workshop|length }} máy · {{ board.workshop|selectattr('overdue')|list|length }} trễ hẹn</p>
 {% for w in board.workshop %}{% set url = ticket_url(w.id) %}<p class="alert-line{% if w.overdue %} ov-late-line{% endif %}"><a href="{{ url or '/dieu-phoi?view=workshop' }}"><span class="alert-n{% if w.overdue %} alert-n-red{% endif %}">{{ w.workshop_days }}</span><span><strong>{{ w.workshop_machine or 'Máy' }}{% if w.workshop_serial %} · {{ w.workshop_serial }}{% endif %}</strong><span class="alert-detail">{{ w.customer }} · {{ w.workshop_stage }}{% if w.workshop_location=='DOI_TAC' %} · ở đối tác {{ w.workshop_partner }}{% endif %}{% if w.overdue %} · <b class="ov-late">trễ hẹn</b>{% endif %} · {{ w.number }}</span></span></a></p>{% else %}<p class="alert-empty">Không có máy nào ở xưởng.</p>{% endfor %}</section>
 </div>{% endif %}
+
+<h2 class="overview-label">Theo dõi · không gấp</h2>
+<div class="overview-two overview-calm">
+<section class="sales-report-section card overview-alerts"><h2>Công nợ cần theo dõi</h2><p class="hint">Gập sẵn · bấm từng dòng để xem</p>
+{{ alert_rows(debt_groups) }}{% if not debt_groups %}<p class="alert-empty">Không có khách hay nhà cung cấp nào cần theo dõi</p>{% endif %}</section>
+<section class="sales-report-section card overview-alerts"><h2>Kho · mua hàng</h2><p class="hint">Gập sẵn · bấm từng dòng để xem</p>
+{{ alert_rows(calm_groups) }}{% if not calm_groups %}<p class="alert-empty">Kho và mua hàng không có gì cần theo dõi</p>{% endif %}</section>
+</div>
 
 <h2 class="overview-label">Tiền · tháng này (số hiện tại)</h2>
 <div class="overview-grid overview-six">
