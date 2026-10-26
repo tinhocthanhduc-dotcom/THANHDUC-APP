@@ -97,6 +97,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 {% endif %}
 <script src="{{ asset('nav.js') }}" defer></script>
 <script src="{{ asset('notify.js') }}" defer></script>
+{% if request.scope.get('route') %}<span hidden data-perf-route="{{ request.scope.get('route').path }}" data-csrf="{{ csrf }}"></span><script src="{{ asset('perf.js') }}" defer></script>{% endif %}
 <noscript><style>.menu-shell > .menu-toggle { display: flex; }</style></noscript>
 {% endif %}
 <div class="toast-stack" data-toast-stack aria-live="polite"></div>

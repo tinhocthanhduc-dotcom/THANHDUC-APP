@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     # Vòng gửi Web Push (thông báo khi tắt màn hình). Test tắt để không chạy luồng nền.
     push_loop: bool = True
+    # TD1: ghi số đo tốc độ mở màn (trang /toc-do). Tắt bằng TD_PERF_LOG=false nếu cần.
+    perf_log: bool = True
     # Thư mục lưu tệp đính kèm (ảnh nghiệm thu, biên bản). Sao lưu cùng database.
     files_dir: str = "data/files"
     max_upload_mb: int = 15

@@ -40,10 +40,12 @@ HERE = Path(__file__).parent
 COOKIE = "td_session"
 router = APIRouter(include_in_schema=False)
 class _Static(StaticFiles):
-    """CSS/JS luôn hỏi lại máy chủ (ETag, 304 nếu chưa đổi): cập nhật app là điện thoại thấy giao diện mới ngay."""
-    def file_response(self, *args, **kwargs):
-        response = super().file_response(*args, **kwargs)
-        response.headers["Cache-Control"] = "no-cache"
+    """CSS/JS gọi qua asset() có ?v=<dấu nội dung>: trình duyệt giữ 1 năm, không hỏi lại (TD3); bản mới là URL mới.
+    Tệp gọi thẳng không có ?v (manifest, biểu tượng) vẫn hỏi lại máy chủ (ETag, 304 nếu chưa đổi)."""
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        versioned = b"v=" in scope.get("query_string", b"") and response.status_code == 200
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if versioned else "no-cache"
         return response
 
 
@@ -877,6 +879,8 @@ router.include_router(pending_items_router)
 
 from .ui_guide import router as ui_guide_router
 router.include_router(ui_guide_router)
+from .speed import router as speed_router
+router.include_router(speed_router)
 
 from .pending_reports import router as pending_reports_router
 router.include_router(pending_reports_router)

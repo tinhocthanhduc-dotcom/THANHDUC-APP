@@ -1,0 +1,41 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Tốc độ app{% endblock %}
+{% block main %}<div class="page-wide list-page">
+{{ ui.page_head('Tốc độ app', sub='Mỗi lần mở màn được bấm giờ ở máy chủ và trên máy người dùng. Dùng để biết màn nào chậm nhất trước khi sửa.') }}
+{% if not enabled %}<p class="card hint">Đang tắt ghi số đo (TD_PERF_LOG=false).</p>{% endif %}
+<nav class="ltabs" aria-label="Khoảng thời gian">{% for key, (label, days) in periods.items() %}<a class="ltab{{ ' on' if key == ky }}" href="/toc-do?ky={{ key }}"{% if key == ky %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{{ ui.tiles([
+  dict(label='Mở màn trong ' ~ (target // 1000) ~ ' giây', n=(d.browser_ok ~ '%') if d.browser_ok is not none else '—', sub='Đo trên máy người dùng · ' ~ d.browser_n ~ ' lượt', tone='xong' if d.browser_ok is not none and d.browser_ok >= 95 else ('cho' if d.browser_ok is not none else '')),
+  dict(label='Máy chủ xử lý 95% lượt', n=(d.open_p95|round|int) ~ ' ms', sub='Lượt mở màn · ' ~ d.open_n ~ ' lượt'),
+  dict(label='Hỏi nền 15 giây', n=d.polling_share ~ '%', sub='Thời gian máy chủ · ' ~ d.polling_n ~ ' lượt', tone='cho' if d.polling_share >= 30 else ''),
+  dict(label='Truy vấn chậm', n=d.slow_n, sub='Mỗi câu từ ' ~ slow_ms ~ ' ms', tone='huy' if d.slow_n else ''),
+], keep_phone=true) }}
+
+<section class="card list-frame">
+<h2>Trên máy người dùng</h2>
+<p class="hint">"Thao tác được" là lúc trang đã hiện đủ và bấm được, tính từ lúc bấm mở, gồm cả đường mạng. Màn chậm nhất lên đầu.</p>
+{% if d.screens %}<div class="table-scroll"><table class="list-table">
+<thead><tr><th>Màn</th><th class="num">Lượt</th><th class="num">Trung bình (giữa)</th><th class="num">95% lượt dưới</th><th class="num">Trong {{ target // 1000 }} giây</th><th class="num">Chờ máy chủ</th><th class="num">KB tải</th></tr></thead>
+<tbody>{% for s in d.screens %}<tr><td><code>{{ s.route }}</code></td><td class="num">{{ s.n }}</td><td class="num">{{ s.p50|int }} ms</td><td class="num">{{ s.p95|int }} ms</td><td class="num">{{ s.ok }}%</td><td class="num">{{ s.ttfb|int }} ms</td><td class="num">{{ s.kb }}</td></tr>{% endfor %}</tbody>
+</table></div>{% else %}{{ ui.empty('Chưa có số đo từ trình duyệt trong khoảng này. Mở vài màn trên điện thoại rồi xem lại.') }}{% endif %}
+</section>
+
+<section class="card list-frame">
+<h2>Ở máy chủ</h2>
+<p class="hint">Xếp theo tổng thời gian máy chủ bỏ ra (lượt × thời gian): dòng trên cùng là chỗ nên sửa trước. "Truy vấn" là số câu hỏi database mỗi lượt.</p>
+{% if d.pages %}<div class="table-scroll"><table class="list-table">
+<thead><tr><th>Đường dẫn</th><th>Loại</th><th class="num">Lượt</th><th class="num">Giữa</th><th class="num">95%</th><th class="num">Chậm nhất</th><th class="num">Truy vấn TB (max)</th><th class="num">Database TB</th><th class="num">KB TB</th><th class="num">Tổng giây</th></tr></thead>
+<tbody>{% for p in d.pages %}<tr><td><code>{{ p.method }} {{ p.route }}</code></td><td>{{ p.kind }}</td><td class="num">{{ p.n }}</td><td class="num">{{ p.p50|int }} ms</td><td class="num">{{ p.p95|int }} ms</td><td class="num">{{ p.max|int }} ms</td><td class="num">{{ p.q }} ({{ p.qmax }})</td><td class="num">{{ p.db|int }} ms</td><td class="num">{{ p.kb }}</td><td class="num">{{ p.total }}</td></tr>{% endfor %}</tbody>
+</table></div>{% else %}{{ ui.empty('Chưa có số đo trong khoảng này.') }}{% endif %}
+</section>
+
+<section class="card list-frame">
+<h2>Truy vấn chậm (từ {{ slow_ms }} ms)</h2>
+{% if d.slow %}<div class="table-scroll"><table class="list-table">
+<thead><tr><th>Câu truy vấn</th><th>Ở màn</th><th class="num">Số lần</th><th class="num">TB</th><th class="num">Chậm nhất</th></tr></thead>
+<tbody>{% for s in d.slow %}<tr><td><code class="perf-sql">{{ s.sql }}</code></td><td>{{ s.routes }}</td><td class="num">{{ s.n }}</td><td class="num">{{ s.avg }} ms</td><td class="num">{{ s.max }} ms</td></tr>{% endfor %}</tbody>
+</table></div>{% else %}{{ ui.empty('Không có câu truy vấn nào chậm trong khoảng này.') }}{% endif %}
+</section>
+<p class="hint">Số đo giữ {{ periods['14-ngay'][1] }} ngày, không chứa nội dung chứng từ hay giá trị khách nhập.</p>
+</div>{% endblock %}
