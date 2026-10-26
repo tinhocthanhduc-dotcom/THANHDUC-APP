@@ -77,6 +77,8 @@ class Settings(BaseSettings):
     company_phone: str = '028 6266 1869'
     company_hotline: str = '0888 304 668'
     company_tax_code: str = '0313015734'
+    company_website: str = 'www.thanhduc.vn'
+    company_email: str = 'info@thanhduc.vn'
 
 
 @lru_cache

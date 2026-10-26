@@ -5,7 +5,7 @@
 {# Đợt 3 · khuôn 5: phiếu kho cùng bố cục Đơn bán: thông tin phiếu + dòng hàng gọn bên trái, tóm tắt và Bước tiếp bên phải. #}
 {% set live = can_write and d.status == 'NHAP' %}
 <div class="doc-detail quote-form-page sk-compose">
-{{ ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · nhập, xuất, chuyển, kiểm kê', back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) }}
+{% call ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · nhập, xuất, chuyển, kiểm kê', back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) %}{% if d.id %}<a class="btn btn-ghost doc-print" href="/phieu-kho/{{ d.id }}/in">In phiếu</a>{% endif %}{% endcall %}
 {% if d.status != 'DA_HUY' %}{{ ui.steps([('Nháp','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{% if live and not action_reason %}<b>Chưa lưu được.</b> {% endif %}{{ error }}</p>{% endif %}

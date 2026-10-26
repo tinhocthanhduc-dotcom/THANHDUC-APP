@@ -1,0 +1,33 @@
+{# Khuôn in A4 chung (duyệt 26/10/2026): logo + công ty giữa, tiêu đề, số/ngày, thẻ thông tin, bảng hàng, ô tổng, bằng chữ, ghi chú, chữ ký ngay sau nội dung, chân trang ở đáy. Trang đứng một mình, không menu. #}
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}Phiếu in{% endblock %} · Thành Đức</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap">
+<link rel="stylesheet" href="{{ asset('print.css') }}">
+</head>
+<body>
+<div class="in-tools"><a class="back" href="{{ back }}" aria-label="Quay lại">{{ back_label or "←" }}</a><div class="ttl"><b>{{ self.title() }}</b><span>{% block tools_sub %}{% endblock %}</span></div><button type="button" class="print" onclick="window.print()">In / Lưu PDF</button></div>
+<p class="in-hint">Xem đúng tờ A4 sẽ in. Trên điện thoại tờ phiếu thu nhỏ vừa màn, bấm In / Lưu PDF rồi chọn máy in hoặc Lưu PDF.</p>
+<div class="in-stage" data-print-stage>
+<article class="in-page">
+{% if watermark %}<div class="in-wm" aria-hidden="true">{{ watermark }}</div>{% endif %}
+<div class="in-hd"><img src="{{ asset('logo-thanh-duc.jpg') }}" alt="Logo Thành Đức"><div class="ci"><p class="nm">{{ company.company_name }}</p>{% if company.company_address %}<p>{{ company.company_address }}</p>{% endif %}<p><b>MST:</b> {{ company.company_tax_code }}{% if company.company_phone %} &nbsp;|&nbsp; <b>Tel:</b> {{ company.company_phone }}{% endif %}{% if company.company_hotline %} &nbsp;|&nbsp; <b>Hotline:</b> {{ company.company_hotline }}{% endif %}</p>{% if company.company_website or company.company_email %}<p>{% if company.company_website %}<b>Website:</b> {{ company.company_website }}{% endif %}{% if company.company_website and company.company_email %} &nbsp;|&nbsp; {% endif %}{% if company.company_email %}<b>Email:</b> {{ company.company_email }}{% endif %}</p>{% endif %}</div></div>
+<div class="in-ttl"><h1>{% block doc_title %}{% endblock %}</h1>{% if self.doc_sub()|trim %}<p>{% block doc_sub %}{% endblock %}</p>{% endif %}</div>
+<div class="in-meta">{% block meta %}{% endblock %}</div>
+{% block body %}{% endblock %}
+{% block signatures %}{% endblock %}
+<div class="in-ft"><span><b>Thành Đức</b> · Máy tính · Máy in · Mực in</span><span>{% if company.company_hotline %}Hotline {{ company.company_hotline }}{% endif %}{% if company.company_website %} · {{ company.company_website }}{% endif %}</span><span>{{ self.title() }}</span></div>
+</article>
+</div>
+<script>
+// Điện thoại: thu nhỏ tờ A4 vừa bề ngang màn hình; khi in trình duyệt bỏ phép thu nhỏ (print.css).
+(function(){var stage=document.querySelector('[data-print-stage]'),page=stage&&stage.querySelector('.in-page');if(!page)return;
+function fit(){var avail=stage.clientWidth-24,w=page.offsetWidth,k=avail<w?avail/w:1;page.style.transform=k<1?'scale('+k+')':'';page.style.marginLeft=k<1?'0':'';stage.style.height=k<1?(page.offsetHeight*k+24)+'px':'';}
+fit();window.addEventListener('resize',fit);window.addEventListener('beforeprint',function(){page.style.transform='';stage.style.height='';});window.addEventListener('afterprint',fit);})();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import customers, products, quotes, sales_orders as svc, stock_reservations
+from .. import customers, products, quotes, sales_orders as svc, sales_receipts, stock_reservations
 from ..config import get_settings
 from ..config import DEFAULT_VAT_RATE
 from ..db import get_session
@@ -531,9 +531,20 @@ def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=De
         unit_price=original[l.order_line_no].unit_price,vat_rate=original[l.order_line_no].vat_rate,
         amount=l.amount) for l in gh.lines]
     discount=svc.delivery_discount(session,order,gh)
-    return render(request,'don_ban_in.jinja',warehouse_return=request.query_params.get('return_to')=='kho' and has_role(user,'warehouse'),o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
+    shipments=[g for g in svc.deliveries(session,order.id) if g.status=='DA_GIAO' or g.id==gh.id]
+    serials={}
+    for row,_,line_no in serials_for_order(session,order.id):
+        if row.delivery_id==gh.id: serials[line_no]=(serials[line_no]+', ' if line_no in serials else '')+row.serial
+    deliverer=session.get(User,gh.delivered_by)
+    warehouse_return=request.query_params.get('return_to')=='kho' and has_role(user,'warehouse')
+    return render(request,'don_ban_in.jinja',warehouse_return=warehouse_return,o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
+                  back='/viec-cua-toi' if warehouse_return else f'/don-ban/{order.id}',
                   delivery_discount=discount,entered_total=(gh.total if order.price_includes_vat else gh.subtotal)+discount,
                   company=get_settings(),quantity=_quantity,words=money_words(gh.total),statuses=STATUSES,
+                  delivery_index=next((i for i,g in enumerate(shipments,1) if g.id==gh.id),1),delivery_count=len(shipments),
+                  quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',deliverer=deliverer.full_name if deliverer else '',
+                  serials=serials,balance=sales_receipts.balance(order) if gh.status=='DA_GIAO' else None,
+                  watermark='ĐÃ HỦY' if gh.status!='DA_GIAO' else '',
                   issued=gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
 
 

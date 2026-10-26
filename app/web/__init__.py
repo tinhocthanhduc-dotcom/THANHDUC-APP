@@ -108,6 +108,20 @@ def vn_date(value) -> str:
 
 
 templates.env.filters["vn_date"] = vn_date
+
+
+def vn_long_date(value) -> str:
+    """Ngày viết dài trên phiếu in: 'ngày 26 tháng 10 năm 2026' (giờ Việt Nam)."""
+    if getattr(value, 'tzinfo', None) is not None:
+        from zoneinfo import ZoneInfo
+        value = value.astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
+    if not hasattr(value, 'strftime'):
+        return ''
+    return f'ngày {value.day:02d} tháng {value.month:02d} năm {value.year}'
+
+
+templates.env.filters["vn_long_date"] = vn_long_date
+templates.env.add_extension("jinja2.ext.do")
 templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key

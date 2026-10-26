@@ -1,23 +1,25 @@
-{% extends "base.jinja" %}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set basis = 'đã gồm VAT' if q.price_includes_vat else 'chưa VAT' %}
 {% block title %}Báo giá {{ q.number }}{% endblock %}
-{% block main %}
-<div class="bar report-tools"><a href="/bao-gia/{{ q.id }}">← Báo giá</a><button type="button" onclick="window.print()">In / Lưu PDF</button></div>
-<article class="acceptance-report quote-print">
-<header><h2>{{ company.company_name }}</h2>{% if company.company_address %}<p>{{ company.company_address }}</p>{% endif %}
-<p>{% if company.company_tax_code %}MST: {{ company.company_tax_code }}{% endif %}{% if company.company_phone %} · Tel: {{ company.company_phone }}{% endif %}{% if company.company_hotline %} · Hotline: {{ company.company_hotline }}{% endif %}</p>
-<h1>BÁO GIÁ</h1><p>Số: <strong>{{ q.number }}</strong> · Ngày lập: {{ issued }}</p></header>
-<p>Trạng thái: {{ statuses[q.status] }}{% if expired %} — Hết hạn{% endif %}</p>
-{% if q.cancel_reason %}<p>Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
-<dl><dt>Khách hàng</dt><dd>{{ customer.name }}</dd><dt>Mã khách hàng</dt><dd>{{ customer.code }}</dd>
-{% if customer.tax_code %}<dt>MST khách hàng</dt><dd>{{ customer.tax_code }}</dd>{% endif %}
-{% if customer.address %}<dt>Địa chỉ</dt><dd>{{ customer.address }}</dd>{% endif %}
-<dt>Người liên hệ</dt><dd>{{ q.contact_name or '—' }}</dd><dt>Hạn báo giá</dt><dd>{{ q.valid_until.strftime('%d/%m/%Y') }}</dd></dl>
-<table class="quote-print-table"><thead><tr><th>STT</th><th>Hàng hóa / dịch vụ</th><th>Số lượng</th><th>ĐVT</th><th>Đơn giá</th><th>VAT</th><th>Tiền dòng</th></tr></thead><tbody>
-{% for line in q.lines %}<tr><td data-label="STT">{{ line.line_no }}</td><td data-label="Hàng hóa / dịch vụ">{% if line.product_code %}{{ line.product_code }} · {% endif %}{{ line.description }}</td><td data-label="Số lượng">{{ quantity(line.qty) }}</td><td data-label="ĐVT">{{ line.unit }}</td><td data-label="Đơn giá">{{ line.unit_price|money }}</td><td data-label="VAT">{{ line.vat_rate }}%</td><td data-label="Tiền dòng">{{ line.amount|money }}</td></tr>{% endfor %}
+{% block tools_sub %}{{ customer.name }} · {{ statuses[q.status] }}{% if expired %} · hết hạn{% endif %}{% endblock %}
+{% block doc_title %}BÁO GIÁ{% endblock %}
+{% block doc_sub %}Trân trọng gửi đến Quý khách hàng{% endblock %}
+{% block meta %}{{ f.meta('Số', q.number) }}{{ f.meta('Ngày báo giá', issued) }}{{ f.meta('Hiệu lực đến', q.valid_until|vn_date) }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address), ('Người liên hệ', q.contact_name)]) }}
+{{ f.card('Thông tin báo giá', '', [('Chính sách giá', 'Giá đã gồm VAT' if q.price_includes_vat else 'Giá chưa gồm VAT'), ('Trạng thái', statuses[q.status] ~ (' · hết hạn' if expired else '')), ('Người lập', maker), ('Lý do hủy', q.cancel_reason)]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
+{% for line in q.lines %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description }}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_price|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
-<dl>{% if q.price_includes_vat %}<dt>Cộng tiền hàng (đã gồm VAT)</dt><dd>{{ entered_total|money }} đồng</dd>{% elif q.discount_amount>0 %}<dt>Cộng tiền hàng (chưa VAT)</dt><dd>{{ entered_total|money }} đồng</dd>{% endif %}{% if q.discount_amount>0 %}<dt>Giảm giá</dt><dd>−{{ q.discount_amount|money }} đồng</dd>{% endif %}<dt>Tiền hàng chưa VAT</dt><dd>{{ q.subtotal|money }} đồng</dd><dt>VAT</dt><dd>{{ q.vat_total|money }} đồng</dd><dt><strong>Tổng cộng</strong></dt><dd><strong>{{ q.total|money }} đồng</strong></dd></dl>
-<p><strong>Bằng chữ:</strong> {{ words }}.</p><p>Báo giá có hiệu lực đến hết ngày {{ q.valid_until.strftime('%d/%m/%Y') }}.</p>
-{% if q.note %}<h2>Ghi chú</h2><p class="service-text">{{ q.note }}</p>{% endif %}
-<div class="report-signatures"><section><h2>Khách hàng</h2><p>(Ký, ghi rõ họ tên)</p></section><section><h2>Đại diện công ty</h2><p>(Ký, ghi rõ họ tên)</p></section></div>
-</article>
+{% set rows = [] %}
+{% if q.price_includes_vat %}{% do rows.append(('Cộng tiền hàng (đã gồm VAT)', entered_total|money ~ ' đồng')) %}{% elif q.discount_amount > 0 %}{% do rows.append(('Cộng tiền hàng (chưa VAT)', entered_total|money ~ ' đồng')) %}{% endif %}
+{% if q.discount_amount > 0 %}{% do rows.append(('Giảm giá', '−' ~ q.discount_amount|money ~ ' đồng')) %}{% endif %}
+{% do rows.append(('Tiền hàng chưa VAT', q.subtotal|money ~ ' đồng')) %}{% do rows.append(('Thuế GTGT', q.vat_total|money ~ ' đồng')) %}
+<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-note"><h4>Ghi chú</h4><ul><li>{{ 'Đơn giá trên đã bao gồm thuế GTGT.' if q.price_includes_vat else 'Đơn giá trên chưa bao gồm thuế GTGT.' }}</li><li>Báo giá có hiệu lực đến hết ngày {{ q.valid_until|vn_date }}.</li><li>Giá có thể thay đổi theo thời điểm và số lượng đặt hàng.</li>{% if q.note %}<li><span class="q">Ghi chú báo giá:</span> {{ q.note }}</li>{% endif %}</ul></div></div>
+{{ f.totals(rows, ('TỔNG THANH TOÁN', q.total|money ~ ' đồng')) }}</div>
 {% endblock %}
+{% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ q.created_at|vn_long_date }}</div>
+{{ f.signatures([('Đại diện khách hàng', '(Ký và ghi rõ họ tên)'), ('Đại diện Công ty Thành Đức', '(Ký tên và đóng dấu)')]) }}{% endblock %}

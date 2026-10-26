@@ -1,0 +1,33 @@
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set titles = {'PN': 'PHIẾU NHẬP KHO', 'PX': 'PHIẾU XUẤT KHO', 'CK': 'PHIẾU CHUYỂN KHO', 'KK': 'PHIẾU KIỂM KÊ'} %}
+{% set show_cost = d.kind in ['PN', 'KK'] %}
+{% block title %}{{ kinds[d.kind] }} kho {{ d.number }}{% endblock %}
+{% block tools_sub %}{{ warehouse.name }} · {{ states[d.status] }}{% endblock %}
+{% block doc_title %}{{ titles[d.kind] }}{% endblock %}
+{% block doc_sub %}{{ d.doc_date|vn_long_date|capitalize }}{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', d.number) }}{{ f.meta('Kho xuất' if d.kind in ['PX', 'CK'] else 'Kho', warehouse.name) }}{% if to_warehouse %}{{ f.meta('Kho nhận', to_warehouse.name) }}{% endif %}{{ f.meta('Nguồn', source.label if source else '') }}{% endblock %}
+{% block body %}
+<div class="in-cards">{% if supplier %}{{ f.card('Nhà cung cấp', supplier.name, [('Mã NCC', supplier.code), ('Mã số thuế', supplier.tax_code), ('Địa chỉ', supplier.address), ('Điện thoại', supplier.phones|join(', '))]) }}
+{% elif customer %}{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address)]) }}
+{% elif to_warehouse %}{{ f.card('Chuyển đến', to_warehouse.name, [('Mã kho', to_warehouse.code), ('Người giữ', holder), ('Địa chỉ', to_warehouse.address)]) }}
+{% else %}{{ f.card('Lý do', d.reason or '—', []) }}{% endif %}
+{{ f.card('Phiếu kho', '', [('Lý do', d.reason if (supplier or customer or to_warehouse) else ''), ('Người lập', maker), ('Ghi sổ', (poster ~ ' · ' ~ d.posted_at|vn_date) if d.posted_at else 'Chưa ghi sổ'), ('Trạng thái', states[d.status]), ('Lý do hủy', d.void_reason)]) }}</div>
+{% if show_cost %}<table class="in-it"><colgroup><col style="width:9mm"><col style="width:22mm"><col><col style="width:13mm"><col style="width:16mm"><col style="width:27mm"><col style="width:29mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Giá nhập<small>chưa VAT</small></th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
+{% for line in d.lines %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code }}</td><td class="n">{{ product_names.get(line.product_code, line.product_code) }}{% if line.serial or line.note %}<span class="cd">{% if line.serial %}Serial: {{ line.serial }}{% endif %}{% if line.serial and line.note %} · {% endif %}{{ line.note }}</span>{% endif %}</td><td class="c">{{ units.get(line.product_code, '') }}</td><td class="c">{{ line.qty|qty }}</td><td class="m">{{ line.unit_cost|money if line.unit_cost is not none else '' }}</td><td class="m">{{ amounts[line.line_no]|money }}</td></tr>{% endfor %}
+<tr class="tot"><td colspan="4" style="text-align:right">Cộng</td><td class="c">{{ total_qty|qty }}</td><td></td><td class="m">{{ subtotal|money }}</td></tr></tbody></table>
+{% else %}<table class="in-it"><colgroup><col style="width:9mm"><col style="width:22mm"><col><col style="width:13mm"><col style="width:18mm"><col style="width:50mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">Số lượng</th><th>Serial / Ghi chú</th></tr></thead><tbody>
+{% for line in d.lines %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code }}</td><td class="n">{{ product_names.get(line.product_code, line.product_code) }}</td><td class="c">{{ units.get(line.product_code, '') }}</td><td class="c">{{ line.qty|qty }}</td><td>{{ line.serial or '' }}{% if line.serial and line.note %} · {% endif %}{{ line.note }}</td></tr>{% endfor %}
+<tr class="tot"><td colspan="4" style="text-align:right">Tổng số lượng</td><td class="c">{{ total_qty|qty }}</td><td></td></tr></tbody></table>{% endif %}
+<div class="in-sum"><div class="left">{% if show_cost %}<div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>{% endif %}
+<div class="in-note"><h4>Ghi chú</h4>{% if d.note %}{{ d.note }}
+{% endif %}{% if not show_cost %}Phiếu {{ kinds[d.kind]|lower }} kho không in giá vốn.{% elif receipt %}Tiền hàng theo lần nhận {{ receipt_order }}; thuế GTGT và tổng ghi nhận vào công nợ nhà cung cấp.{% else %}Giá nhập chưa gồm thuế GTGT.{% endif %}</div></div>
+{% if show_cost %}{% if receipt %}{{ f.totals([('Cộng tiền hàng (chưa VAT)', receipt.amount|money ~ ' đồng'), ('Thuế GTGT', receipt.vat_amount|money ~ ' đồng')], ('TỔNG THANH TOÁN', receipt.total|money ~ ' đồng')) }}{% else %}{{ f.totals([], ('CỘNG TIỀN HÀNG', subtotal|money ~ ' đồng')) }}{% endif %}{% endif %}</div>
+{% endblock %}
+{% block signatures %}<div class="in-sd">{{ d.doc_date|vn_long_date|capitalize }}</div>
+{% if d.kind == 'PN' %}{{ f.signatures([('Người giao hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Người lập phiếu', '(Ký, họ tên)')]) }}
+{% elif d.kind == 'CK' %}{{ f.signatures([('Thủ kho xuất', '(Ký, họ tên)'), ('Người vận chuyển', '(Ký, họ tên)'), ('Thủ kho nhận', '(Ký, họ tên)')]) }}
+{% elif d.kind == 'KK' %}{{ f.signatures([('Người kiểm kê', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Giám đốc', '(Ký, họ tên)')]) }}
+{% else %}{{ f.signatures([('Người lập phiếu', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Người nhận hàng', '(Ký, họ tên)')]) }}{% endif %}{% endblock %}

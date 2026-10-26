@@ -279,7 +279,9 @@ def action(request: Request,quote_id: int,action: str,form=Depends(checked_form)
 def print_quote(request: Request,quote_id: int,user: User=Depends(quote_user),session: Session=Depends(get_session)):
     from zoneinfo import ZoneInfo
     quote=svc.load(session,user,quote_id)
-    return render(request,'bao_gia_in.jinja',q=quote,customer=session.get(Customer,quote.customer_code),company=get_settings(),
-                  entered_total=svc.entered_total(quote),
+    maker=session.get(User,quote.created_by)
+    return render(request,'bao_gia_in.jinja',q=quote,customer=session.get(Customer,quote.customer_code),company=get_settings(),back=f'/bao-gia/{quote.id}',
+                  entered_total=svc.entered_total(quote),maker=maker.full_name if maker else '',
                   words=money_words(quote.total),quantity=_quantity,statuses=STATUSES,expired=_expired(quote),
+                  watermark={'NHAP':'BẢN NHÁP','DA_HUY':'ĐÃ HỦY','TU_CHOI':'TỪ CHỐI'}.get(quote.status,''),
                   issued=quote.created_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
