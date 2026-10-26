@@ -13,9 +13,9 @@
 {% if row.address %}<span class="work-sub">{{ row.address }}</span>{% endif %}{% if row.reason %}<span class="work-sub">{{ row.reason }}</span>{% endif %}
 {% if row.damaged %}<span class="chip-bad">Hư hỏng · Thợ báo hư</span><span class="work-sub">{{ row.damage_reason }}</span>{% if row.damage_photos %}<span class="work-photos">{% for photo_id in row.damage_photos %}<img class="return-damage-photo" src="/attachments/{{ photo_id }}/file" alt="Ảnh hàng hư {{ row.number }}">{% endfor %}</span>{% endif %}{% endif %}</span>
 <span class="wk-money">{% if row.kind in ['quote','order','purchase','receipt','delivery','refund','pending_disposition','pending_supplier_return','supplier_debt'] %}<strong class="work-money">{{ row.amount|money }} đồng</strong>{% endif %}</span>
-<span class="wk-st"><span class="tag">{{ kind_label }}</span>{% if row.overdue %}<small class="wk-late">Quá hạn</small>{% endif %}</span>
+<span class="wk-st"><span class="tag">{{ kind_label }}</span>{% if row.overdue %}<small class="wk-late">{{ 'Hết hàng' if row.kind=='stock' else 'Quá hạn' }}</small>{% endif %}</span>
 <span class="work-go">{{ verb }} ›</span></a>{% endmacro %}
-{% macro box(group) %}{% set rest = group.rows|rejectattr('overdue')|list %}{% set late_n = group.rows|selectattr('overdue')|list|length %}<div class="work-box" data-work-group="{{ group.key }}">
+{% macro box(group) %}{% if group.key in calm %}{% set rest = group.rows %}{% set late_n = 0 %}{% else %}{% set rest = group.rows|rejectattr('overdue')|list %}{% set late_n = group.rows|selectattr('overdue')|list|length %}{% endif %}<div class="work-box" data-work-group="{{ group.key }}">
 <div class="wk-grp"><b>{{ group.title }} · <span class="work-count" data-work-count>{{ group.count - late_n }}</span></b>{% if hints.get(group.key) %}<small>{{ hints[group.key] }}</small>{% endif %}{% if group.count > 5 %}<a class="wk-all" href="{{ group.link }}">Xem tất cả {{ group.count }} ›</a>{% endif %}</div>
 <div class="work-list">{% for row in rest[:5] %}{{ item(row, row.next_label or verbs.get(group.key, 'Mở'), labels[row.kind].get(row.status,row.status)) }}{% endfor %}{% if late_n %}<p class="wk-moved">{{ late_n }} việc quá hạn của nhóm này ở khung Làm ngay.</p>{% endif %}</div>
 </div>{% endmacro %}

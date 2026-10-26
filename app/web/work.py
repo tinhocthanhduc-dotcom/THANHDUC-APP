@@ -57,6 +57,9 @@ WHY = dict(service_appointment_overdue='Hẹn ngày trước', service_today='H�
     service_assigned='Chờ nhận việc', service_return_ready='Khách chờ máy', orders_pickup_late='Hẹn lấy quá ngày',
     orders_cancel_requested='Đề nghị hủy', technician_deliveries='Cần giao', delivery_handover='Bàn giao thợ',
     orders_waiting='Chờ giao', parts_pending='Thợ chờ linh kiện', machines_pending='Chờ nhận máy', machines_warehouse='Chờ nhận máy')
+# Mua hàng chưa phải gấp (TUẤN 2026-10-26): dòng "quá hạn" của các nhóm này (vd. tồn bằng 0) không kéo lên Làm ngay,
+# nhóm nằm cuối khung Trong ngày.
+CALM = ('stock_low', 'purchases_waiting', 'pending_supplier_returns')
 AREA_NAMES = {code: name for code, name, _ in AREAS}
 BANDS = ('now', 'day', 'money')
 SHOWN = 5
@@ -105,7 +108,7 @@ def page(request: Request, user, session):
     for g in shown:
         urgent = g['key'] in URGENT
         for row in g['rows']:
-            if urgent or row.get('overdue'):
+            if urgent or (row.get('overdue') and g['key'] not in CALM):
                 red = bool(row.get('overdue')) or g['key'] == 'service_appointment_overdue'
                 hot.append(dict(row, group_key=g['key'], group_title=g['title'], verb=row.get('next_label') or VERBS.get(g['key'], 'Mở'),
                     when=_when(row, g['key'], clock), red=red, area=_area(user, g['key']), area_name=AREA_NAMES[_area(user, g['key'])]))
@@ -114,8 +117,8 @@ def page(request: Request, user, session):
     # Nhóm gấp có nhiều hơn số dòng đang hiện thì có link Xem tất cả.
     shown_hot = hot[:NOW_SHOWN]
     now_more = [g for g in shown if g['key'] in URGENT and g['count'] > sum(1 for r in shown_hot if r['group_key'] == g['key'])]
-    late_left = lambda g: sum(1 for r in g['rows'] if r.get('overdue'))
-    day = [g for g in shown if _band(g['key']) == 'day' and g['count'] > late_left(g)]
+    late_left = lambda g: 0 if g['key'] in CALM else sum(1 for r in g['rows'] if r.get('overdue'))
+    day = sorted((g for g in shown if _band(g['key']) == 'day' and g['count'] > late_left(g)), key=lambda g: g['key'] in CALM)
     money = [g for g in shown if _band(g['key']) == 'money' and g['count'] > late_left(g)]
     counts = dict(now=sum(g['count'] for g in shown if g['key'] in URGENT) + sum(late_left(g) for g in shown if g['key'] not in URGENT),
         day=sum(g['count'] - late_left(g) for g in day), money=sum(g['count'] - late_left(g) for g in money))
@@ -133,6 +136,6 @@ def page(request: Request, user, session):
         ('Nhận đơn dịch vụ','/dich-vu/moi',service_tickets.CREATORS),
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
     return render(request, 'viec_cua_toi.jinja', groups=groups, hot=shown_hot, now_more=now_more, day=day, money=money, counts=counts, view=view,
-        chips=chips, money_open=money_open, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
+        chips=chips, money_open=money_open, calm=CALM, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
         advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))
