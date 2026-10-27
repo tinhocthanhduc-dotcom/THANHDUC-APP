@@ -187,10 +187,13 @@ def detail_context(session, user, ticket, ctx):
         primary=dict(form='workshop-handover',label='Bàn giao máy về xưởng')
         checks=[]
     if ticket.status=='TAM_DUNG' and ticket.hold_reason=='CHO_SUA_XUONG':primary=None;target=None
+    # Phiếu trả máy đã sửa: không có bước nhận máy về; chỉ trả khách ở màn Trả máy sau khi đến khách (TUẤN 27/10/2026, DV-26-00008).
+    return_lock=dict(can_custody_receive=False,can_custody_photo_receive=False)
+    if ticket.status not in ('DA_HEN','DANG_LAM'):return_lock.update(can_custody_return=False,can_custody_photo_return=False)
     issued_rows=[dict(product=x.product_code,name=x.description or x.product_code,warehouse=x.warehouse_code,qty=x.qty) for x in ticket.lines if x.stock_doc_id is not None]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
-    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=equipment_svc.display_name(eq,product) if eq else '',**contact(ctx['customer'],ctx['site']))
 

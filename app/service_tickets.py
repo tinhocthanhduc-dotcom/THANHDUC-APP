@@ -473,7 +473,10 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         if service_charges.return_locked(t):
             from . import equipment_custody
             eq=equipment_custody._machine(session,t.serial,lock=True)
-            if eq.custody_ticket_id!=t.id or eq.custody_location!='THO_GIU' or eq.custody_holder_id!=t.assignee_id or equipment_custody.pending(session,t.serial):
+            last=equipment_custody.latest(session,t.serial)
+            # Máy đã trả khách theo phiếu này trước khi bấm Đã đến khách (DV-26-00008): cho vào bước Hoàn thành để thu tiền.
+            returned=eq.custody_location=='TAI_KHACH' and last is not None and last.ticket_id==t.id and last.location=='TAI_KHACH'
+            if not returned and (eq.custody_ticket_id!=t.id or eq.custody_location!='THO_GIU' or eq.custody_holder_id!=t.assignee_id or equipment_custody.pending(session,t.serial)):
                 raise BusinessError('MACHINE_NOT_RECEIVED','Thợ đi trả cần xác nhận đã nhận máy trước khi đến khách.',status=409)
         visit_stamp=stamp
         if _split_from is not None:
