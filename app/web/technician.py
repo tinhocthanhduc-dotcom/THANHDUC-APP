@@ -235,11 +235,12 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
     day=now.astimezone(service_tickets.service_sla.TZ).date()
     # Chỉ nhắc, không chặn: thợ có hồ sơ nhân sự thì gợi ý Vào ca (trước ca 30 phút) hoặc Ra ca (từ cuối ca) theo giờ làm việc.
     punch_hint=attendance.punch_hint(session,user.id,now) if session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None else None
-    # Phiếu đã xong/đã đóng còn tiền chưa báo: cùng điều kiện nhóm service_unreported của Việc của tôi.
+    # Phiếu đã xong còn tiền chưa báo: cùng điều kiện nhóm service_unreported của Việc của tôi (với thợ).
+    # TUẤN 27/10: phiếu đã đóng thì phần khách còn thiếu đã là công nợ, văn phòng thu qua Công nợ khách hàng; không treo ở màn thợ.
     t=ServiceTicket;due=my_work._available(t)
     unreported=[dict(id=row.id,number=row.number,status=row.status,customer=row.name,due=int(row.due),href=f'/tho/phieu/{row.id}#thu-tien')
         for row in session.execute(select(t.id,t.number,t.status,Customer.name,due.label('due')).join(Customer,Customer.code==t.customer_code).where(
-            t.assignee_id==user.id,t.status.in_(('HOAN_THANH','DA_DONG')),t.billing=='THU_TIEN',t.priced_at.is_not(None),due>0).order_by(t.id))]
+            t.assignee_id==user.id,t.status=='HOAN_THANH',t.billing=='THU_TIEN',t.priced_at.is_not(None),due>0).order_by(t.id))]
     from ..models import ProductionOrder
     production_jobs=list(session.execute(select(ProductionOrder,Product.name).join(Product,Product.code==ProductionOrder.product_code).where(ProductionOrder.technician_id==user.id,ProductionOrder.status.in_(('MOI','DANG_LAM'))).order_by(ProductionOrder.id)))
     return render(request,'tho_hom_nay.jinja',production_jobs=production_jobs,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,

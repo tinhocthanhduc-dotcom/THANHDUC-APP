@@ -56,7 +56,8 @@ def test_technician_completion_closes_after_receipt_and_keeps_debt(client,db,job
         if reports:sales_receipts.confirm(db,p['finance'],reports[0].id,reports[0].version)
         owing=next(r for r in service_charges.receivables(db,p['finance']) if r.id==t.id)
         assert owing.remaining==540000-amount
-        assert any(r['id']==t.id for g in my_work.collect(db,p['technician']) if g['key']=='service_unreported' for r in g['rows'])
+        assert not any(r['id']==t.id for g in my_work.collect(db,p['technician']) if g['key']=='service_unreported' for r in g['rows'])
+        assert any(r['id']==t.id for g in my_work.collect(db,p['dispatcher']) if g['key']=='service_unreported' for r in g['rows'])
         extra=sales_receipts.report_for_ticket(db,p['technician'],t.id,
             SalesReceiptReport(version=t.version,amount=540000-amount,method='TIEN_MAT'))
         assert extra.amount==540000-amount and t.status=='DA_DONG'
