@@ -2825,3 +2825,16 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 .cnn-view .doc-money .doc-total small { font-size: .8rem; font-weight: 600; }
 .cnn-view .cnn-pay > .primary { width: 100%; }
 @media (max-width: 640px) { .cnn-view .cnn-void form { min-width: 0; } }
+/* Mẫu LoaiDvTho TUẤN duyệt 27/10/2026: chip lỗi gặp · đã làm, khung hạn bảo hành, linh kiện cũ mang về kho. */
+.tho-report-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tho-screen .tho-report-chips .chip span { min-height: 40px; padding: 6px 12px; font-weight: 600; border-width: 1px; border-radius: 999px; }
+.tho-screen .tho-report-chips .chip input:checked + span { background: var(--info-bg); color: var(--text); border-color: var(--info-solid); }
+.tho-warranty-box h2 { margin: 0 0 4px; font-size: 1.05rem; }
+.tho-warranty-box p { margin: 0; }
+.tho-warranty-box.tone-ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.tho-warranty-box.tone-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+.tho-recover-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line, #ddd); }
+.tho-recover-row span { min-width: 0; overflow-wrap: anywhere; }
+.tho-recover-row .btn { flex: none; min-height: 44px; }
+.tho-recover-other { margin-top: 8px; }
+.tho-recover-other summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }

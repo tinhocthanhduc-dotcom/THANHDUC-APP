@@ -47,8 +47,7 @@
         else el.value = data[el.name];
       }
     });
-    var picker = complete.querySelector('[data-item-picker]');
-    if (picker) picker.dispatchEvent(new Event('item-picker-refresh'));
+    document.querySelectorAll('[data-item-picker]').forEach(function (picker) { picker.dispatchEvent(new Event('item-picker-refresh')); });
     complete.dispatchEvent(new Event('change', { bubbles: true }));
   }
   try { var saved = JSON.parse(box.dataset.draft || 'null'); if (saved) { restore(saved); status.textContent = 'Đã mở lại nháp đang làm dở.'; } } catch (e) {}
@@ -72,4 +71,11 @@
   complete.addEventListener('submit', function () { clearTimeout(timer); });
   // Đổi loại dịch vụ ở màn thợ phải tải lại trang để hiện đúng nội dung theo loại: lưu nháp ngay trước khi tải lại.
   window.thoSaveDraft = function () { clearTimeout(timer); return save(); };
+  // Form nhỏ trên phiếu (vd. Mang linh kiện cũ về kho) tải lại trang: lưu nháp trước để không mất số đang nhập.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f.hasAttribute || !f.hasAttribute('data-flush-draft') || f.dataset.flushed) return;
+    e.preventDefault(); f.dataset.flushed = '1';
+    save().catch(function () {}).then(function () { f.submit(); });
+  });
 })();
