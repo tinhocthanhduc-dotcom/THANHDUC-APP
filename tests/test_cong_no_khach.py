@@ -40,9 +40,9 @@ def test_finance_sees_tiles_rows_doc_links_last_receipt_and_totals(client, db, p
     service_login(client, p['finance'])
     page = client.get(PAGE).text
     assert 'Công nợ khách hàng' in page and 'data-debt-row="KTD-000001"' in page and 'data-debt-row="KTD-000002"' in page
-    # Ô đếm: 2 khách còn nợ tổng 570; chờ xác nhận 20; KTD-000002 không cho nợ nên vượt hạn mức.
-    assert '2 khách' in page and '570 đ' in page and '>20<' in page
-    assert 'Còn nợ <b>570</b> đ' in page and 'chờ xác nhận <b>20</b> đ' in page
+    # Ô đếm: 2 khách chưa trả 550 (sổ nợ 570 trừ 20 đang ở nhân viên); KTD-000002 không cho nợ nên vượt hạn mức.
+    assert '2 khách' in page and '550 đ · phải đi thu' in page and '>20<' in page
+    assert 'Còn nợ <b>570</b> đ = khách chưa trả <b>550</b> + đang ở nhân viên <b>20</b> đ' in page
     assert f'href="/don-ban/{o1.id}#thu-tien"' in page and f'href="/don-ban/{o2.id}#thu-tien"' in page
     # Nút thu tiền: Báo thu mở đúng chứng từ còn nợ; Xác nhận thu chỉ khi có báo thu chờ.
     assert page.count('Báo thu ›') == 2 and f'class="btn btn-new cnk-sm cnk-pay" href="/don-ban/{o1.id}#thu-tien"' in page
@@ -108,3 +108,44 @@ def test_last_receipts_picks_latest_confirmed_only(db, people, configured_financ
     assert finance_reports.last_receipts(db, p['finance']) == {'KTD-000001': (date.today(), 30)}
     confirmed_rows = db.scalars(select(SalesReceipt).where(SalesReceipt.status == 'DA_XAC_NHAN')).all()
     assert len(confirmed_rows) == 1
+
+
+def test_splits_customer_unpaid_from_money_held_by_staff(client, db, people, configured_finance):
+    """Báo thu chờ xác nhận là tiền đã ở nhân viên: tách khỏi phần khách chưa trả, ghi rõ ai giữ; số nợ trên sổ không đổi."""
+    p = people
+    o1, o2 = setup(db, p)
+    db.refresh(o2)
+    # KTD-000002 đưa đủ 500 bằng chuyển khoản, chưa đối soát: khách hết nợ thật nhưng sổ vẫn 500.
+    sales_receipts.report(db, p['sales'], o2.id, SalesReceiptReport(version=o2.version, method='CHUYEN_KHOAN', amount=500))
+    service_login(client, p['finance'])
+    page = client.get(PAGE).text
+    holder = f"Tiền mặt ở {p['sales'].full_name}"
+    assert f'{holder} · 0 ngày 20' in page and 'Chuyển khoản chờ đối soát 500' in page
+    assert 'Còn nợ trên sổ 70' in page and 'Còn nợ trên sổ 500' in page and 'Khách đã trả đủ' in page
+    assert 'Còn nợ <b>570</b> đ = khách chưa trả <b>50</b> + đang ở nhân viên <b>520</b> đ' in page
+    # Báo thu chỉ còn ở khách chưa trả hết; Xác nhận thu ở cả hai.
+    assert page.count('Báo thu ›') == 1 and page.count('Xác nhận thu ›') == 2
+    unpaid = client.get(PAGE + '?tab=chua-tra').text
+    assert 'data-debt-row="KTD-000001"' in unpaid and 'data-debt-row="KTD-000002"' not in unpaid
+    held = client.get(PAGE + '?tab=o-nv').text
+    assert 'data-holders' in held and 'data-debt-row="KTD-000001"' in held and 'data-debt-row="KTD-000002"' in held
+    assert client.get(PAGE + '?tab=cho').text.count('data-debt-row=') == 2  # link cũ vẫn mở đúng tab
+    only_ck = client.get(PAGE + '?tab=o-nv&giu=ck').text
+    assert 'data-debt-row="KTD-000002"' in only_ck and 'data-debt-row="KTD-000001"' not in only_ck
+    only_cash = client.get(PAGE + f"?giu={p['sales'].id}").text
+    assert 'data-debt-row="KTD-000001"' in only_cash and 'data-debt-row="KTD-000002"' not in only_cash
+    # Sổ nợ không đổi: cùng số với báo cáo tài chính.
+    totals = finance_reports.debt_totals(db, p['finance'])
+    assert totals['remaining'] == 570 and totals['pending'] == 520
+
+
+def test_debt_paid_to_staff_is_not_customer_overdue(client, db, people, configured_finance, monkeypatch):
+    p = people
+    _, o2 = setup(db, p)
+    db.refresh(o2)
+    sales_receipts.report(db, p['sales'], o2.id, SalesReceiptReport(version=o2.version, method='TIEN_MAT', amount=500))
+    from app.web import customer_debts
+    monkeypatch.setattr(customer_debts, '_today', lambda: date.today() + timedelta(days=40))
+    service_login(client, p['finance'])
+    old = client.get(PAGE + '?tab=qua-han').text
+    assert 'data-debt-row="KTD-000001"' in old and 'data-debt-row="KTD-000002"' not in old
