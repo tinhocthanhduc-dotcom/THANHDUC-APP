@@ -283,4 +283,34 @@ def test_migration_down_up_restores_schema_and_guard(db,engine,p,monkeypatch):
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)));migration.downgrade()
         assert conn.scalar(text("select to_regclass('attendance_punches')")) is None
         migration.upgrade();assert conn.scalar(text("select count(*) from pg_trigger where tgname='attendance_punch_immutable'"))==1
+        # 0042 tạo lại bảng với ràng buộc cũ; chạy lại 0065 để schema về đúng head (nguồn TU_DONG) cho các test sau.
+        path65=Path(__file__).parents[1]/'migrations/versions/0065_auto_clock_out.py';spec65=importlib.util.spec_from_file_location('auto_out_migration',path65)
+        m65=importlib.util.module_from_spec(spec65);spec65.loader.exec_module(m65);monkeypatch.setattr(m65,'op',Operations(MigrationContext.configure(conn)));m65.upgrade()
     assert db.scalar(select(func.count()).select_from(Employee))==2
+
+
+def test_auto_clock_out_at_19_when_forgot(db,p,clock):
+    # Vào ca 07:30, quên ra ca: trước 19:00 chưa đóng; đúng 19:00 app ghi Ra ca nguồn TU_DONG, công 1, không thiếu giờ ra.
+    tap(db,p,clock,'IN','2026-11-02T07:30')
+    clock['at']=stamp('2026-11-02T18:59');assert svc.auto_clock_out(db)==[]
+    assert svc.day_summary(db,p['technician'].id,DAY)['status']=='THIEU_GIO_RA'
+    clock['at']=stamp('2026-11-02T19:00');rows=svc.auto_clock_out(db)
+    assert len(rows)==1 and rows[0].kind=='OUT' and rows[0].source=='TU_DONG' and rows[0].at==stamp('2026-11-02T19:00')
+    day=svc.day_summary(db,p['technician'].id,DAY)
+    assert day['status']=='DI_LAM' and day['cong']==1 and not day['missing_out'] and day['hours']==Decimal('9.5') and day['early_minutes']==0
+    # Chạy lại không tạo thêm; người đã ra ca không bị đụng.
+    clock['at']=stamp('2026-11-02T19:05');assert svc.auto_clock_out(db)==[]
+    assert len(svc.day_summary(db,p['technician'].id,DAY)['punches'])==2
+    assert db.scalar(select(AuditLog).where(AuditLog.action=='attendance.punch',AuditLog.user_id.is_(None))) is not None
+
+
+def test_auto_clock_out_closes_previous_day_and_skips_locked_month(db,p,clock):
+    # Máy chủ tắt lúc 19:00 hôm trước: sáng hôm sau đóng ca cũ lúc 19:00 của ngày đó.
+    tap(db,p,clock,'IN','2026-11-02T07:30');clock['at']=stamp('2026-11-03T08:00')
+    rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp('2026-11-02T19:00')
+    # Vào ca sau 19:00 (ngoài giờ) thì hôm đó không đóng, hôm sau đóng ngay tại giờ vào (0 giờ).
+    tap(db,p,clock,'IN','2026-11-03T20:00');clock['at']=stamp('2026-11-03T23:00');assert svc.auto_clock_out(db)==[]
+    clock['at']=stamp('2026-11-04T07:00');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp('2026-11-03T20:00')
+    # Tháng đã khóa: bỏ qua, không lỗi.
+    tap(db,p,clock,'IN','2026-11-04T07:30');svc.lock_month(db,p['director'],DAY)
+    clock['at']=stamp('2026-11-04T19:30');assert svc.auto_clock_out(db)==[]
