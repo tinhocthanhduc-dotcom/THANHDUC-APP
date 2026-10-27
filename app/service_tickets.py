@@ -451,7 +451,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
 
         from .service_workshop import check_handover_record
         check_handover_record(session,t)
-        if t.declined_at is None and not has_visible(session, "service_ticket", t.id, "SAU"):
+        # Mực định kỳ không chụp ảnh nghiệm thu (mẫu LoaiDvTho, TUẤN 27/10); các loại sửa khác vẫn bắt ảnh SAU.
+        if t.declined_at is None and t.kind != "MUC_DINH_KY" and not has_visible(session, "service_ticket", t.id, "SAU"):
             raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
     reopening = t.status in ('HOAN_THANH','DA_DONG') and to_status in ("DANG_LAM", "DA_HUY")
     if reopening and session.scalar(select(SalesReceipt.id).where(

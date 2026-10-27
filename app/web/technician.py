@@ -312,15 +312,9 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
             if form.getlist('material_product') or form.getlist('line_kind'):
                 raise BusinessError('CHARGES_LOCKED','Tiền và vật tư đã chốt, không sửa khi trả máy.',status=409)
             version=_version(form)
-            ticket=session.get(ServiceTicket,ticket_id)
-            if ticket.status=='DA_HEN':
-                # TUẤN 24/10: trả máy là một màn; vuốt Hoàn thành ghi luôn Đã đến khách (vị trí lúc đến) rồi mới trả và thu.
-                service_tickets.transition(session,user,ticket_id,'DANG_LAM',version,'Đến khách trả máy')
-                if form.get('gps_lat'):
-                    from .. import service_visits
-                    service_visits.record_arrival(session,user,ticket_id,form.get('gps_lat'),form.get('gps_lng'),form.get('gps_accuracy'))
-                session.refresh(ticket);version=ticket.version
-            technician_work.complete(session,user,ticket_id,version,shown['customer_amount'],shown['collection_mode'],str(form.get('free_reason','')),[],shown['partial_amount'],shown['method'],shown['note'],return_machine=body)
+            # TUẤN 24/10: trả máy là một màn; vuốt Hoàn thành ghi luôn Đã đến khách (vị trí lúc đến) rồi trả và thu, cùng một transaction.
+            arrive=dict(note='Đến khách trả máy',lat=form.get('gps_lat'),lng=form.get('gps_lng'),accuracy=form.get('gps_accuracy'))
+            technician_work.complete(session,user,ticket_id,version,shown['customer_amount'],shown['collection_mode'],str(form.get('free_reason','')),[],shown['partial_amount'],shown['method'],shown['note'],return_machine=body,arrive=arrive)
         except (BusinessError,ValidationError) as exc:
             message,code,status=_message(exc)
             return _detail(request,session,user,ticket_id,form=form,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)

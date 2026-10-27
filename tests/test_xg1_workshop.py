@@ -353,10 +353,12 @@ def test_return_appointment_and_handover_are_one_technician_screen(client,db,wor
     assert 'id="service-DANG_LAM"' not in page
     form=dict(csrf=csrf,version=t.version,customer_amount=str(t.receivable),collection_mode='FULL',method='TIEN_MAT',
         return_machine='1',machine_version=eq.version,accessories='KHONG_CO')
+    version=t.version
     r=client.post(f'/tho/phieu/{t.id}/hoan-thanh',data=form)
     assert r.status_code==400 and 'data-error-code="PHOTO_REQUIRED"' in r.text
     db.expire_all();db.refresh(t)
-    assert t.status=='DANG_LAM' and db.query(SalesReceipt).count()==0 and eq.custody_location=='THO_GIU'
+    # Báo cáo chạy thử 27/10: lỗi khi trả máy rollback cả bước Đã đến khách (trước đây phiếu đã sang DANG_LAM).
+    assert t.status=='DA_HEN' and t.version==version and db.query(SalesReceipt).count()==0 and eq.custody_location=='THO_GIU'
     photo(db,p,t,'TRA_MAY')
     form.update(csrf=service_login(client,p['technician']),version=t.version)
     r=client.post(f'/tho/phieu/{t.id}/hoan-thanh',data=form,follow_redirects=False)
