@@ -2696,7 +2696,7 @@ input::-webkit-date-and-time-value { text-align: left; }
 .list-table .cnk-sm { min-height: 32px; padding: 0 10px; font-size: .8rem; border-radius: 8px; border-color: var(--info-solid); color: var(--info-solid); white-space: nowrap; }
 .list-table .cnk-sm.cnk-pay { color: var(--info-solid-text); }
 .list-table .cnk-acts { display: grid; gap: 4px; justify-items: end; margin-top: 6px; }
-.list-table td.cnk-left { min-width: 180px; }
+.list-table td.cnk-left { min-width: 180px; white-space: normal; }  /* td.num mặc định nowrap: ở đây phải xuống dòng */
 .list-table .cnk-left > b { white-space: nowrap; }
 .list-table .cnk-left b { display: block; }
 .list-table .cnk-pend { margin-top: 2px; }
