@@ -45,6 +45,8 @@ button.primary { background: var(--ok-solid); border-color: var(--ok-solid); col
 button.link { border: 0; background: none; padding: 4px 0; min-height: 0; color: var(--accent); justify-self: start; }
 
 input, select, textarea { font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
+/* Ô xổ xuống: không đặt chiều cao cứng, để Windows (Segoe UI, phóng 125%) và Safari iOS còn đủ chỗ cho dấu tiếng Việt, chữ không bị cắt nửa dưới. */
+select { height: auto; line-height: 1.3; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; min-width: 0; }
 .field-group { display: grid; gap: 12px; min-width: 0; }
@@ -1420,7 +1422,7 @@ a.list-tile:hover { border-color: var(--accent); }
 /* Danh sách báo giá đủ thông tin: bảng 8 cột khi thẻ đủ rộng, thẻ gọn khi hẹp. */
 .list-card { container-type: inline-size; }
 .list-selects { display: flex; gap: 8px; margin: 0 0 6px auto; }
-.list-selects select { height: 36px; font-size: .9rem; padding: 0 8px; width: auto; max-width: 170px; }
+.list-selects select { min-height: 36px; font-size: .9rem; padding: 4px 8px; width: auto; max-width: 170px; }
 .list-selects + .list-search { margin-left: 0; }
 .quote-list-page .list-tabs { flex-basis: 100%; }
 .qcell > span, .qcell .doc-who { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
@@ -1801,7 +1803,7 @@ main:has(> .svn) { max-width: none; }
 .svn-fld > .group-label { font-weight: 600; }
 .svn-fld small { font-weight: 500; }
 .svn-fld select, .svn-fld textarea { width: 100%; min-width: 0; box-sizing: border-box; color: var(--text); font-weight: 600; }
-.svn-fld select { height: 42px; }
+.svn-fld select { min-height: 42px; }
 .svn-fld textarea { min-height: 92px; font-weight: 400; resize: vertical; }
 .svn-bad select, .svn-bad textarea, .svn-fld [aria-invalid=true] { border-color: var(--bad); outline: 1px solid var(--bad); }
 .svn-appt.svn-bad { border-color: var(--bad); }
@@ -1866,7 +1868,7 @@ a.pager-btn:hover { border-color: var(--accent); color: var(--accent); }
 .pager-btn.off { opacity: .45; }
 .pager-dots { padding: 0 2px; }
 .pager-of { display: none; font-weight: 600; color: var(--text); padding: 0 6px; }
-.pager-size select { height: 36px; width: auto; }
+.pager-size select { min-height: 36px; padding: 4px 10px; width: auto; }
 @media (max-width: 600px) {
   .pager { justify-content: center; }
   .pager-count { order: 2; flex-basis: 100%; text-align: center; font-size: .8rem; }
