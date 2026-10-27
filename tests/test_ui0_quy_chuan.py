@@ -94,6 +94,16 @@ def test_ui_js_rules():
     assert "event.key === 'Escape'" in js and "event.key === '/'" in js
 
 
+def test_swipe_drags_from_whole_bar_and_explains_lock():
+    # TUẤN 27/10 "nhiều lúc không kéo được": kéo từ cả thanh, khóa thì báo mục còn thiếu, iOS 15 vẫn xám nút tròn.
+    js = (STATIC / 'ui.js').read_text()
+    css = (STATIC / 'app.css').read_text()
+    assert "box.addEventListener('pointerdown'" in js and "knob.addEventListener('pointerdown'" not in js
+    assert "'Còn thiếu: '" in js and "[data-check][data-ok=\"0\"]" in js
+    assert 'swipe-locked' in js and '.swipe.swipe-locked .swipe-knob' in css
+    assert '.swipe.swipe-on > button { pointer-events: none; }' in css and 'touch-action: pan-y' in css
+
+
 def test_post_forms_share_double_submit_guard():
     # Chặn bấm hai lần (và vòng xoay CSS) nằm chung ở base.jinja cho mọi form POST.
     base = (TEMPLATES / 'base.jinja').read_text()

@@ -51,6 +51,9 @@
   // ---- Vuốt từ trái sang phải để xác nhận ----
   // Markup: <div class="swipe" data-swipe data-tone="ok|danger|info"><button type="submit">Vuốt để …</button></div>
   // Chạm (không kéo) chỉ hiện hướng dẫn; bàn phím (Enter/Space) thì hỏi lại bằng confirm().
+  // Lỗi TUẤN 27/10 "nhiều lúc không kéo được": chỉ nút tròn nhận kéo (đặt ngón vào chữ là không chạy),
+  // nút bị khóa thì chạm vào chữ không báo gì, ô bắt buộc nằm trong mục đóng thì vuốt hết cũng không gửi mà không báo.
+  // Nay kéo được từ bất kỳ chỗ nào trên thanh, khóa thì báo đúng mục còn thiếu. iOS 15: requestSubmit thay thế ở base.jinja.
   function bindSwipe(box) {
     var button = box.querySelector('button');
     if (!button || box.dataset.swipeBound) return;
@@ -59,44 +62,78 @@
     var knob = document.createElement('span');
     knob.className = 'swipe-knob'; knob.setAttribute('aria-hidden', 'true'); knob.textContent = '→';
     box.appendChild(knob);
-    var drag = null, x = 0;
+    var drag = null, x = 0, quietClickUntil = 0, lockToast = null;
     function maxX() { return box.clientWidth - knob.offsetWidth - 12; }
     function setX(v) { x = v; knob.style.setProperty('--x', v + 'px'); }
+    function locked() { return button.disabled || box.classList.contains('swipe-off'); }
+    // iOS 15 không hiểu :has(): tự gắn lớp để nút tròn xám khi bị khóa.
+    function syncLock() { box.classList.toggle('swipe-locked', locked()); }
+    syncLock();
+    if (window.MutationObserver) new MutationObserver(syncLock).observe(button, { attributes: true, attributeFilter: ['disabled'] });
+    function explainLock() {
+      var why = box.dataset.why || 'Chưa đủ điều kiện';
+      var target = document.getElementById(button.getAttribute('aria-describedby') || '');
+      if (target) {
+        var missing = [].map.call(target.querySelectorAll('[data-check][data-ok="0"]'), function (li) { return li.dataset.label; });
+        if (missing.length) why = 'Còn thiếu: ' + missing.join('; ');
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { target.scrollIntoView(); }
+      }
+      // Chạm nhiều lần không chồng nhiều thông báo đỏ.
+      if (lockToast) lockToast.remove();
+      lockToast = window.tdToast(why, 'bad');
+    }
+    function submit() {
+      var form = button.form;
+      if (!form) return;
+      if (!button.formNoValidate && !form.noValidate && form.checkValidity && !form.checkValidity()) {
+        // Ô bắt buộc nằm trong mục đang đóng thì trình duyệt không chỉ ra được: mở mục đó rồi báo.
+        var bad = [].filter.call(form.elements, function (el) { return el.willValidate && !el.checkValidity(); })[0];
+        for (var d = bad && bad.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+        if (bad && bad.focus) { try { bad.focus(); } catch (e) { /* bỏ qua */ } }
+        if (form.reportValidity) form.reportValidity();
+        window.tdToast(bad && bad.validationMessage ? 'Chưa điền đủ: ' + bad.validationMessage : 'Chưa điền đủ thông tin bắt buộc', 'bad');
+        return;
+      }
+      form.requestSubmit(button);
+    }
     function done() {
       setX(0);
       buzz(40);
       if (box.dataset.swipeDemo !== undefined) { window.tdToast(box.dataset.swipeDemo || 'Đã ghi nhận'); return; }
-      if (button.form) button.form.requestSubmit(button);
+      submit();
     }
-    knob.addEventListener('pointerdown', function (event) {
-      if (button.disabled || box.classList.contains('swipe-off')) {
-        window.tdToast(box.dataset.why || 'Chưa đủ điều kiện', 'bad'); return;
-      }
-      knob.setPointerCapture(event.pointerId);
+    box.addEventListener('pointerdown', function (event) {
+      if (event.button > 0 || !event.isPrimary) return;
+      if (locked()) { quietClickUntil = Date.now() + 800; explainLock(); return; }
+      try { box.setPointerCapture(event.pointerId); } catch (e) { /* trình duyệt cũ */ }
       drag = { start: event.clientX - x, moved: false };
+      box.classList.add('swipe-drag');
     });
-    knob.addEventListener('pointermove', function (event) {
+    box.addEventListener('pointermove', function (event) {
       if (!drag) return;
       var v = Math.max(0, Math.min(maxX(), event.clientX - drag.start));
       if (v > 4) drag.moved = true;
+      if (drag.moved && event.cancelable) event.preventDefault();
       setX(v);
     });
-    function release() {
+    function release(event) {
       if (!drag) return;
       var moved = drag.moved; drag = null;
-      if (moved && x >= maxX() * 0.85) done();
-      else { setX(0); if (!moved) window.tdToast('Giữ nút tròn và vuốt hết sang phải'); }
+      box.classList.remove('swipe-drag');
+      quietClickUntil = Date.now() + 800;
+      if (event.type === 'pointerup' && moved && x >= maxX() * 0.8) done();
+      else { setX(0); if (!moved && event.type === 'pointerup') window.tdToast('Vuốt nút tròn hết sang phải'); }
     }
-    knob.addEventListener('pointerup', release);
-    knob.addEventListener('pointercancel', release);
+    box.addEventListener('pointerup', release);
+    box.addEventListener('pointercancel', release);
+    box.addEventListener('lostpointercapture', function (event) { if (drag) release({ type: 'pointercancel' }); });
     button.addEventListener('click', function (event) {
       // detail === 0: bấm bằng bàn phím hoặc trình đọc màn hình.
-      if (event.detail === 0 && window.confirm(button.textContent.trim() + '?')) {
+      if (event.detail === 0 && Date.now() > quietClickUntil && window.confirm(button.textContent.trim() + '?')) {
         if (box.dataset.swipeDemo !== undefined) { event.preventDefault(); window.tdToast(box.dataset.swipeDemo || 'Đã ghi nhận'); }
         return;
       }
       event.preventDefault();
-      if (event.detail !== 0) window.tdToast('Giữ nút tròn và vuốt hết sang phải');
     });
   }
   document.querySelectorAll('[data-swipe]').forEach(bindSwipe);

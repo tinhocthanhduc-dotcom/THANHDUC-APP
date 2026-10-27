@@ -621,7 +621,12 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
 .swipe-knob { position: absolute; left: 6px; top: 50%; transform: translate(var(--x, 0px), -50%); width: 52px; height: 52px; border-radius: 50%; background: var(--ok-solid); color: var(--ok-solid-text); display: flex; align-items: center; justify-content: center; touch-action: none; cursor: grab; font-size: 1.6rem; font-weight: 800; user-select: none; }
 .swipe[data-tone="danger"] .swipe-knob { background: var(--bad-solid); color: var(--bad-solid-text); }
 .swipe[data-tone="info"] .swipe-knob { background: var(--info-solid); color: var(--info-solid-text); }
-.swipe.swipe-off .swipe-knob { background: var(--muted); color: var(--bg); cursor: not-allowed; }
+.swipe.swipe-off .swipe-knob, .swipe.swipe-locked .swipe-knob { background: var(--muted); color: var(--bg); cursor: not-allowed; }
+/* Kéo được từ cả thanh: thanh chỉ để trình duyệt cuộn dọc, nút tròn không cuộn; không bôi chữ/menu giữ lâu trên iPhone. */
+.swipe.swipe-on { touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; cursor: grab; }
+.swipe.swipe-on > button { pointer-events: none; }
+.swipe.swipe-drag, .swipe.swipe-drag .swipe-knob { touch-action: none; cursor: grabbing; }
+.swipe.swipe-locked { cursor: not-allowed; }
 /* Chip: input thật, chọn một (radio) hoặc nhiều (checkbox). */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { position: relative; }
