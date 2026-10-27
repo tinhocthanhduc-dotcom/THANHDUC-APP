@@ -257,10 +257,21 @@
   }
   // ---- Ảnh: nén trên máy trước khi gửi (cạnh dài 1280px, JPEG) để tải nhanh, đỡ tốn dung lượng ----
   // Máy không nén được thì gửi ảnh gốc, server vẫn tự thu nhỏ. Ô chụp màn thợ (data-tech-camera) tự nén riêng.
+  // Một đoạn nén chung cho cả màn thợ (technician-photos.js gọi window.tdShrinkPhoto).
+  // Máy thiếu createImageBitmap (iOS cũ) vẫn nén qua <img>, để không gửi ảnh gốc vài MB (TUẤN 27/10: tải ảnh chậm).
   var PHOTO_SIDE = 1280, PHOTO_QUALITY = 0.72;
+  function decodePhoto(file) {
+    if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () { return createImageBitmap(file); });
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Không đọc được ảnh')); };
+      img.src = url;
+    });
+  }
   function shrinkPhoto(file) {
-    if (!/^image\//.test(file.type) || !window.createImageBitmap) return Promise.resolve(file);
-    return createImageBitmap(file).then(function (bmp) {
+    if (!/^image\//.test(file.type)) return Promise.resolve(file);
+    return decodePhoto(file).then(function (bmp) {
       var scale = Math.min(1, PHOTO_SIDE / Math.max(bmp.width, bmp.height)), canvas = document.createElement('canvas');
       canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
       canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
@@ -275,7 +286,7 @@
   window.tdShrinkPhoto = shrinkPhoto;
   document.addEventListener('change', function (event) {
     var input = event.target;
-    if (!input.matches || !input.matches('input[type=file]') || input.hasAttribute('data-tech-camera') || input.dataset.shrunk === '1' || !window.DataTransfer) return;
+    if (!input.matches || !input.matches('input[type=file]') || input.hasAttribute('data-tech-camera') || input.hasAttribute('data-photo-twin') || input.dataset.shrunk === '1' || !window.DataTransfer) return;
     var files = Array.prototype.slice.call(input.files || []);
     if (!files.some(function (f) { return /^image\//.test(f.type); })) return;
     event.stopImmediatePropagation();
@@ -290,6 +301,27 @@
       delete input.dataset.shrunk;
     });
   }, true);
+
+  // ---- Nút 🖼 Ảnh có sẵn (o_anh.jinja): chép ảnh đã chọn sang ô 📷 Chụp ảnh cạnh bên rồi xử lý như ảnh vừa chụp ----
+  document.addEventListener('change', function (event) {
+    var twin = event.target;
+    if (!twin.matches || !twin.matches('[data-photo-twin]') || !twin.files.length) return;
+    var btns = twin.closest('.photo-btns'), main = btns && btns.querySelector('input[type=file]:not([data-photo-twin])');
+    if (!main) return;
+    try {
+      var dt = new DataTransfer();
+      Array.prototype.slice.call(twin.files).forEach(function (f) { dt.items.add(f); });
+      main.files = dt.files; twin.value = '';
+    } catch (e) {
+      // Trình duyệt không cho chép tệp: chuyển tên ô sang nút Ảnh có sẵn để form gửi đúng ảnh này.
+      twin.name = main.name; twin.required = main.required; main.removeAttribute('name'); main.required = false; main.value = '';
+      Array.prototype.slice.call(main.attributes).forEach(function (a) { if (/^data-(autosubmit|photo-pick)$/.test(a.name)) { twin.setAttribute(a.name, a.value); main.removeAttribute(a.name); } });
+      twin.removeAttribute('data-photo-twin');
+      twin.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    main.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 
   // ---- Ô ảnh chuẩn (o_anh.jinja pick): xem trước ảnh đã chụp, tối đa 2 ảnh; ảnh lưu cùng nút của form ----
   document.addEventListener('change', function (event) {

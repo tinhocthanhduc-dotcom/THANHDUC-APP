@@ -1744,7 +1744,7 @@ class CommissionRule(Base):
         CheckConstraint('pct between 0 and 50 and fixed_amount >= 0',name='ck_commission_rule_money'),
         CheckConstraint("target <> 'KINH_DOANH' or (fixed_amount=0 and service_kind is null)",name='ck_commission_rule_sales'),
         CheckConstraint("length(trim(reason))>0",name='ck_commission_rule_reason'),
-        CheckConstraint(_in('service_kind',(*SERVICE_KINDS,'SAN_XUAT')),name='ck_commission_rule_kind'),
+        CheckConstraint(_in('service_kind',(*SERVICE_KINDS,'SAN_XUAT','GIAO_DON')),name='ck_commission_rule_kind'),
         Index('uq_commission_rule_effective','target',text('coalesce(user_id,0)'),text("coalesce(service_kind,'')"),'effective_from',unique=True,postgresql_where=text('replaced_at is null')),
     )
     id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
@@ -1770,16 +1770,25 @@ class CommissionMonth(Base):
     total: Mapped[int] = mapped_column(BigInteger)
 
 
+# Mỗi nguồn hoa hồng trỏ đúng một chứng từ; GIAO_DON = lần thợ giao đơn bán.
+LINE_SOURCE_CHECK=("(source='DON_BAN' and order_id is not null and ticket_id is null and production_id is null and delivery_id is null)"
+    " or (source='PHIEU_DV' and ticket_id is not null and order_id is null and production_id is null and delivery_id is null)"
+    " or (source='PHIEU_SX' and production_id is not null and order_id is null and ticket_id is null and delivery_id is null)"
+    " or (source='GIAO_DON' and delivery_id is not null and order_id is null and ticket_id is null and production_id is null)"
+    " or (source='DIEU_CHINH' and order_id is null and ticket_id is null and production_id is null and delivery_id is null and length(trim(note))>0)")
+
+
 class CommissionLine(Base):
     __tablename__ = 'commission_lines'
     __table_args__ = (
         CheckConstraint('extract(day from month)=1',name='ck_commission_line_month'),
-        CheckConstraint("(source='DON_BAN' and order_id is not null and ticket_id is null and production_id is null) or (source='PHIEU_DV' and ticket_id is not null and order_id is null and production_id is null) or (source='PHIEU_SX' and production_id is not null and order_id is null and ticket_id is null) or (source='DIEU_CHINH' and order_id is null and ticket_id is null and production_id is null and length(trim(note))>0)",name='ck_commission_line_source'),
+        CheckConstraint(LINE_SOURCE_CHECK,name='ck_commission_line_source'),
         CheckConstraint('pct between 0 and 50 and fixed_amount>=0 and paid_ratio between 0 and 1',name='ck_commission_line_values'),
         CheckConstraint('amount=entitled-previous and amount<>0',name='ck_commission_line_amount'),
         Index('uq_commission_line_order','month','order_id',unique=True,postgresql_where=text("source='DON_BAN'")),
         Index('uq_commission_line_ticket','month','ticket_id',unique=True,postgresql_where=text("source='PHIEU_DV'")),
         Index('uq_commission_line_production','month','production_id',unique=True,postgresql_where=text("source='PHIEU_SX'")),
+        Index('uq_commission_line_delivery','month','delivery_id',unique=True,postgresql_where=text("source='GIAO_DON'")),
         Index('ix_commission_line_user_month','user_id','month'),
     )
     id: Mapped[int] = mapped_column(BigInteger,primary_key=True)
@@ -1789,6 +1798,7 @@ class CommissionLine(Base):
     order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'))
     ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
     production_id: Mapped[int | None] = mapped_column(ForeignKey('production_orders.id'))
+    delivery_id: Mapped[int | None] = mapped_column(ForeignKey('sales_deliveries.id'))
     rule_id: Mapped[int | None] = mapped_column(ForeignKey('commission_rules.id'))
     base: Mapped[int] = mapped_column(BigInteger)
     pct: Mapped[Decimal] = mapped_column(Numeric(5,2))

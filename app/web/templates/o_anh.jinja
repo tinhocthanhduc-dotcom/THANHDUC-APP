@@ -1,11 +1,17 @@
 {# TUẤN 24/10: ô ảnh chuẩn toàn app theo khuôn "Ảnh nhận máy" của màn thợ.
    Tên ô + nút 📷 Chụp ảnh, ảnh hiện 2 cột, mỗi ô tối đa 2 ảnh (server cũng chặn).
+   TUẤN 27/10: ô nào cũng 2 nút 📷 Chụp ảnh (mở camera) + 🖼 Ảnh có sẵn (chọn ảnh trong máy); ảnh hiện to bằng bề ngang khung.
+   Nút Ảnh có sẵn không có name: ui.js chép ảnh chọn sang ô chụp (data-photo-twin) rồi xử lý như ảnh vừa chụp.
    saved(): chụp xong tự tải lên ngay (tự có csrf + form_key; hidden chỉ thêm trường riêng). pick(): ảnh đi cùng form lớn, xem trước rồi lưu khi bấm nút của form. #}
+{% macro buttons(name, accept, attrs, multiple=false) -%}
+<span class="photo-btns"><label class="btn photo-capture">📷 Chụp ảnh<input type="file" name="{{ name }}" accept="{{ accept }}" capture="environment" {{ attrs|safe }}></label><label class="btn photo-capture photo-gallery">🖼 Ảnh có sẵn<input type="file" accept="{{ accept }}" {% if multiple %}multiple{% endif %} data-photo-twin aria-label="Chọn ảnh có sẵn trong máy"></label></span>
+{%- endmacro %}
+
 {% macro saved(title, files, action='', hidden='', can_upload=true, hide=none, accept='image/*', max=2, form_id='', field='file') -%}
 {% set full=max and files|length>=max %}
 <section class="card tech-photos photo-slot" data-photo-slot>
 {% if can_upload %}<form {% if form_id %}id="{{ form_id }}"{% endif %} class="bar" method="post" action="{{ action }}" enctype="multipart/form-data" data-busy data-photo-slot-form><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{{ hidden }}<strong>{{ title }}</strong>
-{% if not full %}{% set doc='pdf' in accept %}<label class="btn photo-capture">{{ '📎 Thêm tệp' if doc else '📷 Chụp ảnh' }}<input type="file" name="{{ field }}" accept="{{ accept }}" {% if not doc %}capture="environment"{% endif %} required data-autosubmit></label>{% else %}<small class="hint">Đủ {{ max }} ảnh</small>{% endif %}
+{% if not full %}{% set doc='pdf' in accept %}{% if doc %}<label class="btn photo-capture">📎 Thêm tệp<input type="file" name="{{ field }}" accept="{{ accept }}" required data-autosubmit></label>{% else %}{{ buttons(field, accept, 'required data-autosubmit') }}{% endif %}{% else %}<small class="hint">Đủ {{ max }} ảnh</small>{% endif %}
 <noscript><button class="btn btn-ghost">Tải ảnh</button></noscript></form>{% else %}<div class="bar"><strong>{{ title }}</strong></div>{% endif %}
 <div class="tech-photo-list">{% for file in files %}<article class="tech-photo"><a href="/attachments/{{ file.id }}/file" target="_blank" rel="noopener">{% if file.content_type is not defined or file.content_type.startswith('image/') %}<img src="/attachments/{{ file.id }}/file" alt="{{ title }}" loading="lazy">{% else %}<span class="btn">Mở PDF</span>{% endif %}</a><small>Đã lưu</small>{% if hide %}{{ hide(file) }}{% endif %}</article>{% else %}<p class="hint photo-empty">Chưa có ảnh.</p>{% endfor %}</div>
 </section>
@@ -13,7 +19,7 @@
 
 {% macro pick(title, name, required=false, hint='', multiple=false, attrs='', wide=false) -%}
 <section class="card tech-photos photo-slot{{ ' photo-wide' if wide }}" data-photo-pick-box>
-<div class="bar"><strong>{{ title }}{% if required %} <span class="req">*</span>{% endif %}</strong><label class="btn photo-capture">📷 Chụp ảnh<input type="file" name="{{ name }}" accept="image/jpeg,image/png,image/webp" capture="environment" {% if multiple %}multiple{% endif %} {% if required %}required{% endif %} data-photo-pick {{ attrs }}></label></div>
+<div class="bar"><strong>{{ title }}{% if required %} <span class="req">*</span>{% endif %}</strong>{{ buttons(name, 'image/jpeg,image/png,image/webp', ('multiple ' if multiple else '') ~ ('required ' if required else '') ~ 'data-photo-pick ' ~ attrs, multiple) }}</div>
 <div class="tech-photo-list" data-photo-picked></div><p class="hint" data-photo-pick-note>{{ hint or (('Bắt buộc, ' if required else '') ~ ('tối đa 2 ảnh.' if multiple else '1 ảnh.'))|capitalize }}</p>
 </section>
 {%- endmacro %}
