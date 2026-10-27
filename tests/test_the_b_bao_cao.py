@@ -45,8 +45,8 @@ def test_report_saved_and_shown_to_dispatcher(client, db, job):
     p, _, t = job
     service_login(client, p['technician']); html = client.get(f'/tho/phieu/{t.id}').text
     assert 'name="repair_result" value="XONG"' in html and 'name="fix_extra"' in html
-    # TUẤN 24/10: bỏ nút gợi ý Lỗi gặp / Đã làm; server vẫn nhận trường cũ.
-    assert 'name="fault"' not in html and 'name="work"' not in html
+    # TUẤN 27/10 (mẫu LoaiDvTho, thay quyết định 24/10): lỗi gặp và đã làm gộp một khung chip.
+    assert 'name="fault"' in html and 'name="work"' in html and 'Lỗi gặp · đã làm' in html
     assert 'Ảnh nghiệm thu' in html and html.index('id="bao-cao"') < html.index('id="completion-checks"')
     assert 'name="fault_found"' not in html and 'name="fix_done"' not in html
     assert post(client, t, data(client, p, t, fault_found='', fix_done='', repair_result='XONG', fault=['Kẹt giấy'], work=['Thay drum'])).status_code == 303

@@ -20,8 +20,15 @@ router = APIRouter()
 
 # Báo cáo sửa chữa gọn: thợ chọn kết quả, lỗi gặp và việc đã làm bằng nút; server ghép thành chữ cho phiếu.
 REPAIR_RESULTS={'XONG':'Đã sửa xong','MOT_PHAN':'Xong một phần'}
-FAULT_CHIPS=('Kẹt giấy','Lỗi nguồn','Hết mực','Mòn trục ép','Hỏng drum','Lỗi kết nối','Bản in mờ, sọc')
-WORK_CHIPS=('Vệ sinh máy','Thay drum','Thay trục ép','Nạp mực','Thay gạt mực','Cài lại driver','Chỉnh cài đặt')
+FAULT_CHIPS=('Kẹt giấy','Lỗi nguồn','Hết mực','Mòn trục ép','Hỏng drum','Lỗi kết nối','Bản in mờ, sọc','Lỗi do khách dùng','Lỗi linh kiện đã thay')
+WORK_CHIPS=('Vệ sinh máy','Thay drum','Thay trục ép','Nạp mực','Thay gạt mực','Cài lại driver','Chỉnh cài đặt','Thay lại linh kiện')
+# Mẫu LoaiDvTho TUẤN duyệt 27/10/2026: lỗi gặp và việc đã làm gộp một khung chip; mỗi loại một bộ chip.
+REPORT_CHIPS={
+    'SUA_TAI_CHO':[('fault','Kẹt giấy'),('work','Thay trục ép'),('work','Vệ sinh máy'),('work','Thay drum'),('work','Nạp mực'),('fault','Lỗi nguồn'),
+        ('fault','Bản in mờ, sọc'),('fault','Mòn trục ép'),('fault','Hỏng drum'),('fault','Lỗi kết nối'),('work','Thay gạt mực'),('work','Cài lại driver'),('work','Chỉnh cài đặt')],
+    'BAO_HANH':[('fault','Kẹt giấy'),('work','Thay lại linh kiện'),('work','Vệ sinh máy'),('fault','Lỗi do khách dùng'),('fault','Lỗi linh kiện đã thay'),('work','Chỉnh cài đặt')],
+}
+INK_GROUPS=('Hộp mực','Mực nạp / Mực nước')  # Mực định kỳ: tách "Mực giao" khỏi "Vật tư dùng" theo nhóm hàng.
 
 
 def report_fields(form):
@@ -70,6 +77,21 @@ def contact(customer, site=None, address=None):
     return dict(address=location,phone=number,maps='https://www.google.com/maps/search/?'+urlencode({'api':1,'query':location}) if location else '')
 
 
+def _warranty_info(session,ticket,eq):
+    """Khung hạn bảo hành ở phiếu Bảo hành: còn hạn (miễn phí, giữ hạn cũ) hay hết hạn (tính như sửa thường)."""
+    from .. import service_warranty
+    from ..models import ServiceTicket as _T
+    if ticket.warranty_basis=='PHIEU_TRUOC' and ticket.warranty_of_id:
+        parent=session.get(_T,ticket.warranty_of_id)
+        return dict(valid=True,end=service_warranty.warranty_end(session,parent) if parent else None,source='Theo phiếu '+parent.number if parent else '')
+    if ticket.warranty_basis=='MAY_CON_HAN':
+        return dict(valid=True,end=eq.warranty_until if eq else None,source='Bảo hành theo máy')
+    end=eq.warranty_until if eq else None
+    if ticket.warranty_basis=='HET_HAN' or end:
+        return dict(valid=False,end=end,source='')
+    return dict(valid=None,end=None,source='')
+
+
 def detail_context(session, user, ticket, ctx):
     owned(session,user,ticket.id)
     warehouse = technician_stock.own_warehouse(session,user)
@@ -111,7 +133,10 @@ def detail_context(session, user, ticket, ctx):
     def chosen(value):
         try:return Decimal(str(value).replace(',','.') or '0')>0
         except ArithmeticError:return True
-    materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0'),issued=issued.get(p.code,0),extra=not issued.get(p.code) and not chosen(selected.get(p.code,'0'))) for p,qty in held]
+    # Mực định kỳ: điều phối cấp sẵn hộp mực cho phiếu, màn thợ điền sẵn số đã cấp (TUẤN 27/10/2026).
+    if ticket.kind=='MUC_DINH_KY' and 'materials' not in shown:
+        for code,qty in issued.items():selected.setdefault(code,qty)
+    materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0'),issued=issued.get(p.code,0),extra=not issued.get(p.code) and not chosen(selected.get(p.code,'0')),ink=p.group_name in INK_GROUPS) for p,qty in held]
     materials.sort(key=lambda item:(item['extra'],item['code']))
     ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,chosen='collection_mode' in shown,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
     from .. import service_charges
@@ -138,10 +163,14 @@ def detail_context(session, user, ticket, ctx):
     shown=dict(shown,repair_result=result)
     ctx['completion_form']=dict(ctx.get('completion_form') or {},repair_result=result)
     report_ok=result in REPAIR_RESULTS
-    ctx.update(repair_results=REPAIR_RESULTS,fault_chips=FAULT_CHIPS,work_chips=WORK_CHIPS)
-    checks = [dict(key='kind',label='Đã chọn loại dịch vụ',ok=ticket.kind is not None),
-        dict(key='report',label='Đã chọn kết quả sửa',ok=report_ok),
-        dict(key='photo' ,label='Có ảnh nghiệm thu',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU')),
+    ink=ticket.kind=='MUC_DINH_KY'
+    ctx.update(repair_results=REPAIR_RESULTS,fault_chips=FAULT_CHIPS,work_chips=WORK_CHIPS,report_chips=REPORT_CHIPS.get(ticket.kind,REPORT_CHIPS['SUA_TAI_CHO']),
+        report_picked=set(shown.get('fault') or [])|set(shown.get('work') or []),ink_job=ink,warranty_info=_warranty_info(session,ticket,eq) if ticket.kind=='BAO_HANH' else None)
+    # Mực định kỳ (mẫu LoaiDvTho): không báo cáo sửa, không ảnh nghiệm thu, không bảo hành sau sửa.
+    checks = [dict(key='kind',label='Đã chọn loại dịch vụ',ok=ticket.kind is not None)]
+    if not ink:checks+=[dict(key='report',label='Đã chọn kết quả sửa',ok=report_ok),
+        dict(key='photo' ,label='Có ảnh nghiệm thu',ok=attachments.has_visible(session,'service_ticket',ticket.id,'SAU'))]
+    checks+=[
         dict(key='billing',label='Đã nhập tiền thu khách hoặc chọn Miễn phí' if billing_ready else 'Chưa nhập tiền thu khách hoặc chọn Miễn phí',ok=billing_ready)]
     if not workshop_repair and (ticket.kind=='MANG_VE' or (eq and eq.custody_location!='TAI_KHACH')):
         checks.append(dict(key='machine',label='Máy đã trả khách',ok=not eq or (eq.custody_location=='TAI_KHACH' and not ctx.get('custody_pending'))))
@@ -157,6 +186,7 @@ def detail_context(session, user, ticket, ctx):
     exceptions=[s for s in ctx['transitions'] if s!=target and s in (
         ('DA_HEN','TAM_DUNG','KHONG_LAM_DUOC','DA_HUY') if ticket.status=='DANG_LAM'
         else ('DA_HUY','KHONG_LAM_DUOC') if ticket.status in ('CHO_LINH_KIEN','TAM_DUNG') else ())]
+    if ticket.kind=='MUC_DINH_KY':ctx['can_request_parts']=False  # thợ không xin linh kiện, điều phối cấp sẵn mực
     if return_job:
         ctx['can_request_parts']=False
         ctx['can_tech_transfer']=False
@@ -303,6 +333,8 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
         shown['materials']=[dict(product_code=str(code),qty=str(qty)) for code,qty in zip(form.getlist('material_product'),form.getlist('material_qty'))]
         try:
             shown['fault_found'],shown['fix_done'],report=report_fields(form);shown.update(report)
+            # Mực định kỳ không có báo cáo sửa (mẫu LoaiDvTho TUẤN duyệt 27/10/2026): phiếu ghi sẵn việc đã làm.
+            if session.get(ServiceTicket,ticket_id).kind=='MUC_DINH_KY' and not shown['fix_done']:shown['fix_done']='Đã giao mực định kỳ'
             if len(form.getlist('material_product'))!=len(form.getlist('material_qty')):raise BusinessError('BAD_FORM','Dòng vật tư chưa đủ dữ liệu.')
             months=shown['warranty_months']
             if months and not (months.isascii() and months.isdigit() and len(months)<=2):raise BusinessError('WARRANTY_REQUIRED','Chọn số tháng bảo hành: 0, 1, 2, 3, 6 hoặc 12.')
