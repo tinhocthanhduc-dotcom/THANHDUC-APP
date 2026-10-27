@@ -14,7 +14,7 @@ from app.models import (AuditLog, EquipmentCustody, FundLedger, ServiceRecovered
     ServiceTicket, StockDoc, StockLedger, Warehouse)
 from app.schemas import (EquipmentIn, RecoveredPartIn, RecoveredPartReceive, SalesReceiptReport,
     ServiceCharges, WarehouseIn)
-from app.web import steps
+from app.web import next_steps, steps
 from test_my_work import people, purchase_people, ticket
 from test_technician_stock import held, transfer, balance
 from test_ux1b_hoan_thanh_gop import job, snapshot
@@ -231,3 +231,18 @@ def test_data_migration_requires_active_director_before_writing(db,engine,people
             module.upgrade()
     db.refresh(t)
     assert (svc.snapshot(t),db.query(ServiceStep).count(),db.query(AuditLog).count())==before
+
+
+def test_technician_unpaid_closed_ticket_goes_home_without_receipt_screen(client,db,job,configured_finance):
+    """TUẤN 27/10/2026 (DV-26-00014): chọn Chưa thu thì phiếu tự đóng, nợ thuộc công nợ khách.
+    Thợ về Hôm nay, không bị đưa sang màn Báo đã thu; khách trả sau thì vẫn mở được mục gập."""
+    p,_,t=job
+    response=post(client,t,data(client,p,t,collection_mode=''))
+    assert response.status_code==303 and response.headers['location']=='/tho'
+    db.refresh(t);assert t.status=='DA_DONG'
+    assert next_steps.service(db,p['technician'],t) is None
+    page=client.get(f'/tho/phieu/{t.id}').text
+    assert 'data-office-debt' in page and '540.000 đồng · đã ghi vào công nợ khách' in page
+    assert '<details class="card" data-late-receipt>' in page and 'data-tho-primary' not in page
+    service_login(client,p['dispatcher'])
+    assert next_steps.service(db,p['dispatcher'],t) is not None
