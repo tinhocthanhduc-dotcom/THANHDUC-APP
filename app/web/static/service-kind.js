@@ -26,6 +26,13 @@
           previous = select.value;
           say('Đã lưu loại: ' + res.data.label + '.');
           document.dispatchEvent(new CustomEvent('service-kind-saved', { detail: res.data }));
+          // Màn thợ (TUẤN 27/10/2026): mỗi loại có nội dung riêng (Mang về = nhận máy về xưởng, Bảo hành = linh kiện thu hồi…),
+          // nên lưu nháp đang nhập rồi tải lại để màn hình đổi theo loại vừa chọn; nháp tự mở lại sau khi tải.
+          if (form.hasAttribute('data-kind-reload')) {
+            say('Đã lưu loại: ' + res.data.label + '. Đang mở nội dung theo loại…');
+            var flush = window.thoSaveDraft ? window.thoSaveDraft() : null;
+            Promise.resolve(flush).catch(function () {}).then(function () { window.location.reload(); });
+          }
         })
         .catch(function () { select.value = previous; say('Mất kết nối, chưa lưu loại. Số đang nhập vẫn còn trên trang.', true); })
         .then(function () { busy = false; select.disabled = false; });

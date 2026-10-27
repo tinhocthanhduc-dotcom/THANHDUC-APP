@@ -55,12 +55,12 @@
   last = JSON.stringify(collect());
   function save() {
     var json = JSON.stringify(collect());
-    if (json === last) return;
+    if (json === last) return Promise.resolve();
     var body = new FormData();
     body.set('csrf', box.dataset.csrf);
     body.set('data', json);
     status.textContent = 'Đang lưu…';
-    fetch('/tho/phieu/' + box.dataset.ticket + '/nhap', { method: 'POST', body: body, credentials: 'same-origin' })
+    return fetch('/tho/phieu/' + box.dataset.ticket + '/nhap', { method: 'POST', body: body, credentials: 'same-origin' })
       .then(function (r) { if (!r.ok) throw new Error(); last = json; status.textContent = 'Đã lưu ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); })
       .catch(function () { status.textContent = 'Chưa lưu, sẽ thử lại'; });
   }
@@ -70,4 +70,6 @@
   screen.addEventListener('change', later);
   screen.addEventListener('click', function (e) { if (e.target.closest('[data-qty-step],[data-fill-value],[data-fee-suggestion]')) later(); });
   complete.addEventListener('submit', function () { clearTimeout(timer); });
+  // Đổi loại dịch vụ ở màn thợ phải tải lại trang để hiện đúng nội dung theo loại: lưu nháp ngay trước khi tải lại.
+  window.thoSaveDraft = function () { clearTimeout(timer); return save(); };
 })();

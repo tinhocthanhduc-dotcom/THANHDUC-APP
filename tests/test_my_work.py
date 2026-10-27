@@ -343,7 +343,8 @@ def test_service_end_to_end_existing_core_holds_appointment_price_photo_rules(cl
     photo=parsed.forms[parsed.primary['form']]
     page=client.post(photo['action'],data=photo['fields'],files={'file':('sau.png',d5_image(),'image/png')})
     page=next_action(client,page);db.expire_all();assert t.status=='DA_DONG' and t.priced_at is not None
-    assert Page(page.text).primary['data-next-route']==f'/dich-vu/{t.id}/bao-thu'  # KT1: thợ được báo thu phiếu của mình.
+    # TUẤN 27/10/2026: phiếu đã tự đóng còn nợ = công nợ khách; không đẩy thợ sang Báo đã thu, form vẫn còn để báo khi khách trả sau.
+    assert Page(page.text).primary is None and 'receipt-report' in Page(page.text).forms
     service_login(client,p['dispatcher']);page=client.get(str(page.url))
     assert Page(page.text).primary['form']=='receipt-report'
     assert 'service-DA_DONG' not in Page(page.text).forms

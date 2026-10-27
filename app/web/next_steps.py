@@ -85,6 +85,9 @@ def service(session, user, t):
         if not attachments.has_visible(session,'service_ticket',t.id,'SAU'):
             return block(form('Tải ảnh sau sửa','photo-SAU-form',base+'/anh/tai','Chọn ảnh sau sửa trong mục Ảnh.'),secondary)
         return block(transition('Hoàn thành','HOAN_THANH'),secondary)
+    # TUẤN 27/10/2026 (DV-26-00014): thợ chọn Chưa thu, phiếu tự đóng = công nợ khách, văn phòng thu.
+    # Không đẩy thợ sang màn Báo đã thu; khách trả sau thì thợ vẫn mở được trong mục gập ở phiếu.
+    if t.status=='DA_DONG' and own and not dispatcher:return None
     if t.status in ('HOAN_THANH','DA_DONG'):
         balance=sales_receipts.balance(t) if t.receivable else None
         available=balance['remaining']-balance['pending'] if balance else 0
