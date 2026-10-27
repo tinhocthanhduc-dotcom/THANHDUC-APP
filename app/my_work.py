@@ -88,7 +88,8 @@ def _specs(user, today, now):
     if has_role(user, 'technician', 'dispatcher'):
         pending = service.where(t.status.in_(('HOAN_THANH','DA_DONG')), t.billing=='THU_TIEN', t.priced_at.is_not(None), _available(t)>0)
         if not director and not has_role(user, 'dispatcher'):
-            pending = pending.where(t.assignee_id==user.id)
+            # Thợ: phiếu đã đóng còn thiếu tiền là công nợ khách, văn phòng thu; chỉ điều phối/giám đốc còn thấy.
+            pending = pending.where(t.assignee_id==user.id, t.status=='HOAN_THANH')
         add('service_unreported', 'Đã xong · chưa báo thu đủ', pending, 'service', '/dich-vu')
     if has_role(user, 'dispatcher', 'reception'):
         add('service_unassigned', 'Phiếu mới chưa giao thợ', service.where(t.status=='MOI', t.assignee_id.is_(None)), 'service', '/dich-vu')

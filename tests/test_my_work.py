@@ -188,7 +188,9 @@ def test_service_states_appointment_vietnam_boundaries_priority_and_overdue(db, 
     assert found['service_today']['count']==2 and future.id not in {r['id'] for r in found['service_today']['rows']}
     assert [r['id'] for r in found['service_appointment_overdue']['rows']]==[past.id]
     assert {r['id'] for r in found['service_working']['rows']}=={working.id,waiting.id}
-    assert {r['id'] for r in found['service_unreported']['rows']}=={completed.id,closed.id}
+    assert {r['id'] for r in found['service_unreported']['rows']}=={completed.id}
+    # Phiếu đã đóng còn thiếu = công nợ khách: điều phối vẫn thấy để báo thu, thợ thì không.
+    assert {completed.id,closed.id}<={r['id'] for r in groups(db,p,'dispatcher')['service_unreported']['rows']}
     assert next(r for r in found['service_today']['rows'] if r['id']==morning.id)['overdue'] is True
     report(db,p,completed,500000)
     report(db,p,closed,500000)

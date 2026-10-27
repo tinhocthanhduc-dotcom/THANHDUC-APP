@@ -126,12 +126,15 @@ def test_warehouse_sees_pay_due_reminder_but_can_deliver(client, db, people):
 
 def test_technician_home_lists_money_not_reported(client, db, people):
     p = people
-    done = ticket(db, p, 'DA_DONG')
-    ticket(db, p, 'DA_DONG', 'other_tech')
-    ticket(db, p, 'DA_DONG', free=True)
+    done = ticket(db, p, 'HOAN_THANH')
+    ticket(db, p, 'HOAN_THANH', 'other_tech')
+    ticket(db, p, 'HOAN_THANH', free=True)
+    # Phiếu đã đóng còn thiếu tiền là công nợ khách: không treo ở màn thợ.
+    closed = ticket(db, p, 'DA_DONG')
     service_login(client, p['technician'])
     page = client.get('/tho').text
     assert 'Còn tiền chưa báo · 1 phiếu' in page and f'data-unreported="{done.id}"' in page
+    assert f'data-unreported="{closed.id}"' not in page
     assert f'/tho/phieu/{done.id}#thu-tien' in page and 'Còn 500.000 đ' in page
     report(db, p, done, 500000)
     assert 'data-unreported' not in client.get('/tho').text
