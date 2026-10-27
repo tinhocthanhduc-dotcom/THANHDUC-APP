@@ -1,6 +1,16 @@
-{% extends 'base.jinja' %}
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Công nợ NCC{% endblock %}
-{% block main %}<div class="po-page debt-page"><h1>Công nợ nhà cung cấp</h1><p class="hint">Chỉ hiện NCC có số dư khác 0, gồm cả khoản đã trả trước. Đơn vị: đồng.</p>
-<form action="/cong-no-ncc" class="card form"><label>Tìm NCC không dấu<input name="q" value="{{ q }}" data-live="#supplier-debt-results" data-source="/cong-no-ncc/ket-qua" autocomplete="off"></label><button>Tìm</button></form>
+{% block main %}<div class="page-wide list-page" data-list-page="cong-no-ncc">
+{# Khuôn 3, cùng khuôn Công nợ khách hàng. Còn nợ = nợ đầu kỳ + hàng đã nhận − trả hàng − đã trả (supplier_debts._balances); Nợ từ = khoản còn nợ cũ nhất, trừ cũ trước (luật NCC2). Chỉ kế toán, giám đốc. #}
+{% call ui.page_head('Công nợ nhà cung cấp', sub='Còn nợ = nợ đầu kỳ + hàng đã nhận − trả hàng − đã trả (gồm VAT). Bấm dòng để mở sổ nợ NCC; bấm số đơn mua để xem đơn.') %}{% if director %}<details class="cnn-open"><summary class="btn btn-ghost">Nhập nợ đầu kỳ NCC</summary><div class="card cnn-open-box"><label>Tìm và chọn NCC<input type="search" data-live=".debt-options" data-source="/cong-no-ncc/tim" autocomplete="off" aria-label="Chọn NCC nhập nợ đầu kỳ" placeholder="Tên, mã NCC (không dấu)…"></label><div class="debt-options cnn-options" aria-live="polite"></div></div></details>{% endif %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/cong-no-ncc', q, 'Tìm tên, mã NCC, số điện thoại, số đơn mua (không dấu)…', active=1 if xep != 'no' else 0) %}{% if tab != 'tat-ca' %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+<label>Sắp xếp<select name="xep">{% for k, label in sorts.items() %}<option value="{{ '' if k == 'no' else k }}"{% if k == xep %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>{% endcall %}
 <div id="supplier-debt-results">{% include 'cong_no_ncc_dong.jinja' %}</div>
-<details class="card form"><summary>Mở nhà cung cấp / nhập nợ đầu kỳ</summary><label>Tìm và chọn NCC<input data-live=".debt-options" data-source="/cong-no-ncc/tim" autocomplete="off" aria-label="Mở nhà cung cấp"></label><div class="debt-options product-options" aria-live="polite"></div></details></div>{% endblock %}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

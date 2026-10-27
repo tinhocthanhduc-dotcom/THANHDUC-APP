@@ -2796,3 +2796,25 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 
 /* TD1: trang Tốc độ app */
 .perf-sql { display: block; max-width: 640px; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+/* ===== Công nợ NCC khuôn 3 + trang một NCC khung 2 cột (27/10/2026); dùng lại .cnk-* của Công nợ khách hàng ===== */
+.cnn-open { position: relative; }
+.cnn-open > summary { list-style: none; }
+.cnn-open > summary::-webkit-details-marker { display: none; }
+.cnn-open-box { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: min(360px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.cnn-options { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
+.cnn-options .btn { justify-content: flex-start; text-align: left; white-space: normal; }
+.cnn-view .cnn-pad { margin: 0; padding: 10px 16px 14px; }
+.cnn-view .cnn-plain { color: var(--text); }
+.cnn-view .cnn-adv { color: var(--ok); }
+.cnn-view .cnn-st { white-space: normal; }
+.cnn-view .cnn-void { display: inline-grid; justify-items: end; gap: 6px; margin-top: 6px; }
+.cnn-view .cnn-void > summary { list-style: none; cursor: pointer; }
+.cnn-view .cnn-void > summary::-webkit-details-marker { display: none; }
+.cnn-view .cnn-void form { min-width: 220px; text-align: left; }
+.cnn-view .cnk-sm.cnn-red { border-color: var(--bad); color: var(--bad); }
+.cnn-view .cnk-sm { min-height: 32px; padding: 0 10px; font-size: .8rem; border-radius: 8px; white-space: nowrap; }
+.cnn-view .cnn-quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cnn-view .cnn-no { white-space: nowrap; }
+.cnn-view .doc-total.tot-due { color: var(--bad); }
+.cnn-view .cnn-pay > .primary { width: 100%; }
+@media (max-width: 640px) { .cnn-view .cnn-void form { min-width: 0; } }

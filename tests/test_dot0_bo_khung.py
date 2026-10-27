@@ -18,7 +18,7 @@ LEGACY_H1 = frozenset((
     'bao_thu_ds.jinja', 'ca_nhan.jinja',
     'cho_xu_ly_chi_tiet.jinja', 'cho_xu_ly_chuyen.jinja',
     'cho_xu_ly_duyet_huy.jinja', 'cho_xu_ly_duyet_tra_ncc.jinja', 'chot_so.jinja',
-    'cong_no_ncc_chi_tiet.jinja', 'cong_no_ncc_ds.jinja', 'dang_nhap.jinja', 'danh_muc_ds.jinja',
+    'dang_nhap.jinja', 'danh_muc_ds.jinja',
     'danh_muc_form.jinja', 'dich_vu_can_thu.jinja',
     'dieu_chinh.jinja',
     'dieu_phoi_bao_cao.jinja', 'doi_mat_khau.jinja', 'don_ban_can_thu.jinja', 'don_ban_ds.jinja',
