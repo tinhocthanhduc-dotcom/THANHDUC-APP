@@ -1632,7 +1632,7 @@ class AttendancePunch(Base):
     __tablename__ = 'attendance_punches'
     __table_args__ = (
         CheckConstraint("kind in ('IN','OUT')", name='ck_attendance_punch_kind'),
-        CheckConstraint("source in ('APP','BO_SUNG') and ((source='APP' and request_id is null) or (source='BO_SUNG' and request_id is not null))", name='ck_attendance_punch_source'),
+        CheckConstraint("source in ('APP','BO_SUNG','TU_DONG') and ((source in ('APP','TU_DONG') and request_id is null) or (source='BO_SUNG' and request_id is not null))", name='ck_attendance_punch_source'),
         CheckConstraint('(lat is null and lng is null) or (lat is not null and lng is not null and lat between -90 and 90 and lng between -180 and 180)', name='ck_attendance_punch_location'),
         CheckConstraint('accuracy_m is null or accuracy_m >= 0', name='ck_attendance_punch_accuracy'),
         Index('ix_attendance_punch_user_at','user_id','at'),

@@ -146,6 +146,32 @@ def punch(session,user,kind,lat=None,lng=None,accuracy=None):
     return row
 
 
+def auto_clock_out(session,now=None):
+    """Thợ quên bấm Ra ca: tới `auto_out_time` (mặc định 19:00) app tự ghi Ra ca cho mọi người còn đang trong ca,
+    nguồn TU_DONG, giờ ra = giờ tự động của ngày vào ca. Ngày trước còn mở (máy chủ tắt lúc 19:00) được đóng ở lần chạy sau.
+    Tháng đã khóa thì bỏ qua. Trả về danh sách lần bấm đã tạo; chạy lại không tạo thêm."""
+    now=now or _now();cfg=get_settings();local=now.astimezone(TZ);created=[]
+    last=select(Punch.user_id,func.max(Punch.at).label('at')).group_by(Punch.user_id).subquery()
+    opened=list(session.scalars(select(Punch).join(last,(Punch.user_id==last.c.user_id)&(Punch.at==last.c.at)).where(Punch.kind=='IN').order_by(Punch.user_id)))
+    for row in opened:
+        day=row.at.astimezone(TZ).date();stamp=datetime.combine(day,cfg.auto_out_time,TZ)
+        if stamp<=row.at:
+            if day>=local.date():continue  # vào ca sau giờ tự động: đợi hết ngày rồi mới đóng
+            stamp=row.at
+        elif now<stamp:continue
+        try:
+            with _transaction(session):
+                _month_locks(session,day,day);_user_lock(session,row.user_id)
+                rows=_punches(session,row.user_id,day)
+                if not rows or rows[-1].kind!='IN':continue
+                out=Punch(user_id=row.user_id,kind='OUT',at=stamp,source='TU_DONG',off_hours=_off_hours(session,stamp))
+                session.add(out);_record(session,None,'punch','attendance_punch',out,reason=f"Tự động ra ca {cfg.auto_out_time.strftime('%H:%M')} vì quên bấm")
+                created.append(out)
+        except BusinessError as exc:
+            if exc.code!='THANG_DA_KHOA':raise
+    return created
+
+
 def request(session,user,kind,*,punch_at=None,from_date=None,to_date=None,part='CA_NGAY',reason=''):
     if kind not in KINDS:raise BusinessError('BAD_REQUEST_KIND','Loại yêu cầu không hợp lệ.')
     reason=str(reason or '').strip()
