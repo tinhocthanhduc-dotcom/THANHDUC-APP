@@ -122,18 +122,32 @@ def _check_site_and_serial(session: Session, customer_code: str, site_id: int | 
                                 {"serial": serial, "ticket_id": eq.custody_ticket_id}, status=409)
 
 
-def _ink(session, user, t, ink):
+INK_FEE_DESCRIPTION = 'Mực định kỳ theo hợp đồng'
+
+
+def _ink(session, user, t, ink, ink_price=None):
     # Mực định kỳ: mực điều phối chọn lúc nhận đơn thành yêu cầu Chờ cấp; loại khác bỏ qua.
-    if ink and t.kind == 'MUC_DINH_KY':
+    if t.kind != 'MUC_DINH_KY':
+        return
+    if ink:
         from . import part_requests
         part_requests.add_ink_in_tx(session, user, t, ink)
+    if ink_price:
+        # TUẤN 27/10: giá hợp đồng mỗi lần giao (đã gồm VAT) thành dòng phí của phiếu; màn thợ điền sẵn, mỗi phiếu ghi nợ riêng.
+        from .config import DEFAULT_VAT_RATE
+        from .schemas import ServiceCharges
+        from .service_charges import set_charges_in_tx
+        from .technician_work import net_from_gross
+        net, _ = net_from_gross(ink_price, DEFAULT_VAT_RATE)
+        set_charges_in_tx(session, user, t, ServiceCharges(billing='THU_TIEN', lines=[dict(kind='PHI', description=INK_FEE_DESCRIPTION,
+                                                                                        qty=1, unit_price=net, vat_rate=DEFAULT_VAT_RATE)]))
 
 
-def create(session: Session, user: User, body: ServiceTicketIn, ink=None) -> ServiceTicket:
+def create(session: Session, user: User, body: ServiceTicketIn, ink=None, ink_price=None) -> ServiceTicket:
     _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
     with _transaction(session):
         t = create_in_tx(session,user,body)
-        _ink(session, user, t, ink)
+        _ink(session, user, t, ink, ink_price)
         return t
 
 
@@ -451,7 +465,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
 
         from .service_workshop import check_handover_record
         check_handover_record(session,t)
-        if t.declined_at is None and not has_visible(session, "service_ticket", t.id, "SAU"):
+        # Mực định kỳ không chụp ảnh nghiệm thu (mẫu LoaiDvTho, TUẤN 27/10); các loại sửa khác vẫn bắt ảnh SAU.
+        if t.declined_at is None and t.kind != "MUC_DINH_KY" and not has_visible(session, "service_ticket", t.id, "SAU"):
             raise BusinessError("PHOTO_REQUIRED", "Phải chụp ảnh sau khi sửa trước khi hoàn thành.")
     reopening = t.status in ('HOAN_THANH','DA_DONG') and to_status in ("DANG_LAM", "DA_HUY")
     if reopening and session.scalar(select(SalesReceipt.id).where(
@@ -660,8 +675,8 @@ def reschedule(session, user, ticket_id, version, appointment_at, appointment_sl
     return t
 
 
-def create_and_assign(session,user,body,assignee_id,ink=None):
+def create_and_assign(session,user,body,assignee_id,ink=None,ink_price=None):
     with _transaction(session):
         ticket=create_in_tx(session,user,body)
-        _ink(session,user,ticket,ink)
+        _ink(session,user,ticket,ink,ink_price)
         return assign_in_tx(session,user,ticket.id,assignee_id,ticket.version)

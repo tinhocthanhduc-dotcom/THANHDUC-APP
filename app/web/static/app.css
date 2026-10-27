@@ -2889,3 +2889,7 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
   .svn-ink-row { grid-template-columns: 96px minmax(0,1fr) 150px 40px; grid-template-areas: "code name step x"; border-radius: 0; border-top: 0; }
   .svn-ink-row > small { font-size: .88rem; color: var(--text); }
 }
+/* TUẤN 27/10: ô ảnh màn thợ có 2 nút: chụp mới / chọn ảnh có sẵn. */
+.photo-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.photo-btns[hidden] { display: none; }
+.tech-photos .photo-gallery { background: var(--surface); border: 1px solid var(--line); }

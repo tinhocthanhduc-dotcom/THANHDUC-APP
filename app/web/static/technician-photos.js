@@ -7,8 +7,18 @@
       : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   // Mạng yếu: không chờ mãi "Đang tải…"; quá 90 giây thì dừng và cho bấm thử lại.
   const UPLOAD_MS = 90000;
+  // Máy không có createImageBitmap (iOS cũ) vẫn nén được qua <img>, để không gửi ảnh gốc vài MB (TUẤN 27/10: tải ảnh chậm).
+  function decode(file) {
+    if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => createImageBitmap(file));
+    return new Promise((resolve, reject) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Không đọc được ảnh")); };
+      img.src = url;
+    });
+  }
   async function compress(file) {
-    const bitmap = await createImageBitmap(file),
+    const bitmap = await decode(file),
       scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bitmap.width * scale);
@@ -16,7 +26,7 @@
     canvas
       .getContext("2d")
       .drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
+    if (bitmap.close) bitmap.close();
     return await new Promise((resolve, reject) =>
       canvas.toBlob(
         (blob) =>
@@ -68,8 +78,7 @@
       const button = e.target.closest("[data-photo-remove]");
       if (button) remove(button);
     });
-    box
-      .querySelector("[data-tech-camera]")
+    box.querySelectorAll("[data-tech-camera]").forEach((input) => input
       .addEventListener("change", async function () {
         let files = Array.from(this.files);
         this.value = "";
@@ -77,6 +86,7 @@
           files = files.slice(0, Math.max(0, max - tiles()));
           if (window.tdToast) window.tdToast(`Mỗi ô tối đa ${max} ảnh`, "warn");
         }
+        const uploads = [];
         for (const file of files) {
           const tile = document.createElement("article");
           tile.className = "tech-photo";
@@ -143,8 +153,9 @@
             }
           }
           retry.addEventListener("click", upload);
-          await upload();
+          uploads.push(upload());  // tải song song các ảnh vừa chọn, không chờ từng ảnh
         }
-      });
+        await Promise.all(uploads);
+      }));
   });
 })();

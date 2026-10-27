@@ -72,7 +72,7 @@ def apply_report(session,t,fault,fix):
     t.fault_found,t.fix_done=fault,fix
 
 
-def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix='',return_machine=None,warranty_months=None):
+def complete(session,user,ticket_id,version,total,mode,reason,materials,partial='',method='TIEN_MAT',note='',fault='',fix='',return_machine=None,warranty_months=None,arrive=None):
     from .stock_docs import _transaction
     from .models import ServiceDraft
     with _transaction(session):
@@ -80,6 +80,12 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
         if 'technician' not in user.roles or t.assignee_id!=user.id:
             raise BusinessError('FORBIDDEN','Chỉ thợ được giao được hoàn thành phiếu.',status=403)
         service_tickets._check_version(t,version)
+        if arrive is not None and t.status=='DA_HEN':
+            # Trả máy là một màn (TUẤN 24/10): Đã đến khách + vị trí + trả + thu cùng một transaction, lỗi thì không đổi gì.
+            service_tickets.transition_in_tx(session,user,t,'DANG_LAM',arrive.get('note') or 'Đến khách trả máy')
+            if arrive.get('lat'):
+                from .service_visits import record_arrival_in_tx
+                record_arrival_in_tx(session,user,t.id,arrive.get('lat'),arrive.get('lng'),arrive.get('accuracy'))
         if t.status!='DANG_LAM':raise BusinessError('BAD_STATUS','Chỉ hoàn thành phiếu đang làm.',status=409)
         service_tickets.require_kind(t)
         if t.serial:
@@ -94,6 +100,7 @@ def complete(session,user,ticket_id,version,total,mode,reason,materials,partial=
             apply_report(session,t,fault,fix)
             body,actual=charges(session,user,t,version,total,mode,reason,materials)
             # TUẤN 24/10: sửa tại chỗ thợ chọn bảo hành khi Hoàn thành (mặc định 1 tháng); sửa ở xưởng đã chốt lúc Sửa xong.
+            if t.kind=='MUC_DINH_KY':warranty_months=0  # Mực định kỳ không bảo hành sau sửa, kể cả số cũ từ nháp
             if warranty_months is not None:
                 from .service_workshop import WARRANTIES
                 if type(warranty_months) is not int or warranty_months not in WARRANTIES:

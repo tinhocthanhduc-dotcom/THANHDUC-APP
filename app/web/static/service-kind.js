@@ -30,8 +30,16 @@
           // nên lưu nháp đang nhập rồi tải lại để màn hình đổi theo loại vừa chọn; nháp tự mở lại sau khi tải.
           if (form.hasAttribute('data-kind-reload')) {
             say('Đã lưu loại: ' + res.data.label + '. Đang mở nội dung theo loại…');
-            var flush = window.thoSaveDraft ? window.thoSaveDraft() : null;
-            Promise.resolve(flush).catch(function () {}).then(function () { window.location.reload(); });
+            // Chỉ tải lại khi nháp đã lưu xong; lỗi mạng thì giữ nguyên trang (tiền, kết quả, vật tư) và tự thử lại.
+            var tries = 0;
+            var flushThenReload = function () {
+              Promise.resolve(window.thoSaveDraft ? window.thoSaveDraft() : null).then(function () { window.location.reload(); }, function () {
+                tries += 1;
+                say('Đã lưu loại ' + res.data.label + ' nhưng chưa lưu được số đang nhập (mất mạng?). Số vẫn còn trên trang, đang thử lại…', true);
+                setTimeout(flushThenReload, Math.min(30000, 3000 * tries));
+              });
+            };
+            flushThenReload();
           }
         })
         .catch(function () { select.value = previous; say('Mất kết nối, chưa lưu loại. Số đang nhập vẫn còn trên trang.', true); })
