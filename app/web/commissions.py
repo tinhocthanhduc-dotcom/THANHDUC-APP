@@ -18,7 +18,7 @@ from .dispatch import _csv_text
 from .money_input import parse_money
 
 router=APIRouter()
-KIND_LABELS={'SAN_XUAT':'Sản xuất','SUA_TAI_CHO':'Sửa tại chỗ','MANG_VE':'Mang về','BAO_HANH':'Bảo hành','MUC_DINH_KY':'Mực định kỳ'}
+KIND_LABELS={'SAN_XUAT':'Sản xuất','GIAO_DON':'Giao đơn bán','SUA_TAI_CHO':'Sửa tại chỗ','MANG_VE':'Mang về','BAO_HANH':'Bảo hành','MUC_DINH_KY':'Mực định kỳ'}
 
 
 def director_user(user:User=Depends(web_user)):svc._director(user);return user

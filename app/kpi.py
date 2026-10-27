@@ -42,6 +42,8 @@ METRICS = (
     _metric('tho_nhan_viec','technician','Thời gian nhận việc','phút',False,'Trung vị từ mỗi lần giao trong tháng đến bước nhận kế tiếp của chính thợ, trước lần giao mới.',mode='median'),
     _metric('tho_bao_hanh_lai','technician','Bảo hành lại','lần',False,'Phiếu bảo hành tạo trong tháng; quy về người hoàn thành gần nhất của phiếu gốc trước lúc tạo bảo hành.'),
     _metric('tho_tien_thu','technician','Tiền đã thu','đồng',True,'Báo thu đã xác nhận theo ngày thu, gồm VAT; quy về người hoàn thành gần nhất tính đến cuối kỳ.'),
+    _metric('tho_giao_don','technician','Giao đơn thành công','lần',True,'Lần giao đơn bán (thợ giao) do bạn giao trong tháng, còn hiệu lực.'),
+    _metric('tho_giao_khong_duoc','technician','Giao không được','lần',False,'Lần bạn báo không giao được đơn bán trong tháng (khách vắng, hẹn lại, sai địa chỉ…).'),
     _metric('tho_bao_hu','technician','Hàng báo hư','lần',False,'Số lượng thực nhận là Hư của yêu cầu trả kho do bạn lập, được kho nhận trong tháng.'),
     _metric('kd_doanh_thu','sales','Doanh thu chưa VAT','đồng',True,'Các lần giao còn hiệu lực trong tháng của đơn bạn tạo, trừ hàng trả ghi nhận trong tháng.'),
     _metric('kd_lai_gop','sales','Lãi gộp','đồng',True,'Doanh thu trừ giá vốn đúng các lần giao và hàng trả, dùng nguồn Báo cáo lãi gộp. Chỉ giám đốc xem.'),
@@ -57,6 +59,9 @@ METRICS = (
     _metric('kt_chot_so_dung_ngay','finance','Chốt sổ đúng ngày','%',True,'Chung nhóm: ngày làm việc theo lịch NS2 đã chốt trước 10:00 hôm sau; không tính ngày lễ.',mode='ratio',shared=True),
 )
 BY_KEY = {m['key']:m for m in METRICS}
+# Lần giao đơn bán do thợ giao (đơn Thợ giao, người giao là thợ); dùng chung cho KPI và hoa hồng.
+THO_GIAO=("select d.* from sales_deliveries d join sales_orders o on o.id=d.order_id join users u on u.id=d.delivered_by"
+          " where o.fulfillment='THO_GIAO' and 'technician'=any(u.roles)")
 
 
 def _now(): return datetime.now(UTC)
@@ -125,6 +130,10 @@ def _sources(month, keys=None):
     add('tho_tien_thu','c.actor_id','r.number',"r.received_at::timestamp at time zone 'Asia/Ho_Chi_Minh'",'r.amount',
         "from sales_receipts r join service_tickets t on t.id=r.ticket_id "+last_owner.format(before=':hi')+
         " where "+receipt_window+" and t.status<>'DA_HUY'")
+    add('tho_giao_don','d.delivered_by','d.number','d.delivered_at','1',
+        f"from ({THO_GIAO}) d where d.status='DA_GIAO' and d.delivered_at>=:lo and d.delivered_at<:hi")
+    add('tho_giao_khong_duoc','a.assignee_id','o.number','a.created_at','1',
+        "from sales_delivery_attempts a join sales_orders o on o.id=a.order_id where a.created_at>=:lo and a.created_at<:hi")
     add('tho_bao_hu','r.technician_id','r.number','r.received_at','sum(coalesce(l.received_qty,l.qty))',
         """from technician_returns r join technician_return_lines l on l.return_id=r.id
         where r.status='DA_NHAN' and coalesce(l.received_condition,l.condition)='HU_HONG'
