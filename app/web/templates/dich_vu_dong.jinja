@@ -9,7 +9,7 @@
 <td class="lt-phone-hide">{% if t.kind %}{{ service_kinds[t.kind] }}{% else %}<span class="lt-sub">Chưa phân loại</span>{% endif %}</td>
 <td>{% if t.assignee_id %}{{ users.get(t.assignee_id, '') }}{% else %}<span class="lt-sub">Chưa giao</span>{% endif %}</td>
 <td class="svl-when">{% if t.appointment_at %}{{ t.appointment_at|appointment_label(t.appointment_slot) }}{% else %}<span class="lt-sub">Chưa hẹn</span>{% endif %}{% if t.due_at %}<span class="lt-sub{{ ' lt-bad' if late }}">{{ 'Trễ hạn' if late else 'Hạn' }} {{ t.due_at|service_short }}</span>{% endif %}</td>
-<td class="lt-st">{{ ui.badge(service_statuses[t.status], {'moi':'cho','lam':'lam','cho':'cho','xong':'xong','huy':'huy'}[g]) }}{% if t.status == 'MOI' %}<span class="lt-sub">Chờ điều phối{% if not own_only %} · Giao thợ{% endif %}</span>{% elif t.hold_reason and t.status == 'TAM_DUNG' %}<span class="lt-sub">{{ hold_reasons.get(t.hold_reason, '') }}</span>{% elif t.status in ['KHONG_LAM_DUOC','DA_HUY'] and t.status_reason %}<span class="lt-sub">{{ t.status_reason|truncate(40) }}</span>{% endif %}</td>
+<td class="lt-st">{{ ui.badge(service_status(t), {'moi':'cho','lam':'lam','cho':'cho','xong':'xong','huy':'huy'}[g]) }}{% if t.status == 'MOI' %}<span class="lt-sub">Chờ điều phối{% if not own_only %} · Giao thợ{% endif %}</span>{% elif t.hold_reason and t.status == 'TAM_DUNG' and t.hold_reason not in workshop_holds %}<span class="lt-sub">{{ hold_reasons.get(t.hold_reason, '') }}</span>{% elif t.status in ['KHONG_LAM_DUOC','DA_HUY'] and t.status_reason %}<span class="lt-sub">{{ t.status_reason|truncate(40) }}</span>{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}{{ ui.empty('Không có phiếu phù hợp.') }}{% endif %}
 {{ ui.list_foot(page, 'phiếu') }}

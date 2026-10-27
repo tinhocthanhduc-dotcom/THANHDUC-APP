@@ -3,7 +3,7 @@
 {% block main %}
 {# F2: bản xem chỉ đọc cho kế toán và kho. Không giá vốn, không nút thao tác. #}
 <div class="page-wide">
-{% call ui.page_head(t.number ~ ' · Phiếu dịch vụ', sub='Bản xem chỉ đọc · ' ~ service_statuses[t.status] ~ ' · ' ~ service_kinds[t.kind], back=back, badge_label=service_statuses[t.status], badge_tone={'HOAN_THANH':'xong','DA_DONG':'xong','DA_HUY':'huy','KHONG_LAM_DUOC':'huy'}.get(t.status,'lam')) %}{% if full_url %}<a class="btn btn-ghost" href="{{ full_url }}">Mở phiếu đầy đủ</a>{% endif %}{% endcall %}
+{% call ui.page_head(t.number ~ ' · Phiếu dịch vụ', sub='Bản xem chỉ đọc · ' ~ service_status(t) ~ ' · ' ~ service_kinds[t.kind], back=back, badge_label=service_status(t), badge_tone={'HOAN_THANH':'xong','DA_DONG':'xong','DA_HUY':'huy','KHONG_LAM_DUOC':'huy'}.get(t.status,'lam')) %}{% if full_url %}<a class="btn btn-ghost" href="{{ full_url }}">Mở phiếu đầy đủ</a>{% endif %}{% endcall %}
 <div class="doc-grid">
 <div class="doc-main">
 <section class="card doc-card" aria-label="Khách và máy"><h2 class="doc-h">Khách và máy</h2>
@@ -20,7 +20,7 @@
   <div><b>Khách báo:</b> <span class="service-text">{{ t.symptom }}</span></div>
   {% if t.fault_found %}<div><b>Lỗi thợ gặp:</b> <span class="service-text">{{ t.fault_found }}</span></div>{% endif %}
   {% if t.fix_done %}<div><b>Cách xử lý:</b> <span class="service-text">{{ t.fix_done }}</span></div>{% endif %}
-  {% if t.hold_reason %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
+  {% if t.hold_reason and t.hold_reason not in workshop_holds %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
   {% if t.status_reason %}<div><b>Lý do:</b> <span class="service-text">{{ t.status_reason }}</span></div>{% endif %}
 </section>
 {% if parts or recovered %}<section class="card doc-card" aria-label="Linh kiện"><h2 class="doc-h">Linh kiện</h2>

@@ -139,3 +139,16 @@ def test_web_counter_flow_for_sales(client, db, shop):
     db.expire_all()
     assert db.get(ServiceTicket, t.id).status == 'DA_DONG'
     assert db.scalar(select(SalesReceipt.amount).where(SalesReceipt.ticket_id == t.id)) == 432000
+
+
+def test_workshop_tickets_show_real_step_instead_of_paused(client, db, shop):
+    from app.web.services import status_label
+    p, eq = shop
+    t = receive(db, p)
+    assert status_label(t) == 'Chờ sửa ở xưởng'
+    csrf = service_login(client, p['dispatcher'])
+    page = client.get(f'/dich-vu/{t.id}')
+    assert page.status_code == 200 and 'Chờ sửa ở xưởng' in page.text and 'Tạm dừng: Chờ sửa' not in page.text
+    repair(db, p, t)
+    assert status_label(t) == 'Sửa xong, chờ trả máy'
+    assert status_label({'status': 'TAM_DUNG', 'hold_reason': 'KHAC'}) == 'Tạm dừng'

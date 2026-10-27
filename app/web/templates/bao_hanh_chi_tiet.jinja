@@ -7,4 +7,4 @@
 {% set warranty_value=warranty_form.get('warranty_of_id',t.warranty_of_id) %}{% set warranty_selected=warranty.parent %}{% include 'bao_hanh_picker.jinja' %}
 <label>Ghi chú đổi liên kết<textarea name="note" maxlength="2000">{{ warranty_form.get('note','') }}</textarea></label><button>Cập nhật phiếu trước</button></form>{% endif %}
 </section>{% endif %}
-{% if warranty_children %}<section class="card service-action"><h2>Đã bị gọi bảo hành</h2>{% for child in warranty_children %}<p><a href="/dich-vu/{{ child.id }}">{{ child.number }}</a> · {{ service_statuses[child.status] }}</p>{% endfor %}</section>{% endif %}
+{% if warranty_children %}<section class="card service-action"><h2>Đã bị gọi bảo hành</h2>{% for child in warranty_children %}<p><a href="/dich-vu/{{ child.id }}">{{ child.number }}</a> · {{ service_status(child) }}</p>{% endfor %}</section>{% endif %}

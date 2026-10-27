@@ -21,7 +21,7 @@
 {# Đợt 5: phiếu dịch vụ cùng khung 2 cột như báo giá, đơn bán. Trái: khách, máy, lỗi, tiền, ảnh, lịch sử. Phải: Bước tiếp (chọn thợ, nút chính), thu tiền, việc khác. Chỉ dời chỗ, không đổi form. #}
 {% set svc_tones={'MOI':'cho','DA_GIAO':'lam','DA_NHAN':'lam','DA_HEN':'lam','DANG_LAM':'lam','CHO_LINH_KIEN':'cho','TAM_DUNG':'cho','KHONG_LAM_DUOC':'huy','HOAN_THANH':'xong','DA_DONG':'xong','DA_HUY':'huy'} %}
 {% set late=is_overdue(t) %}
-{% call ui.page_head(t.number, sub='Dịch vụ · ' ~ (customer.name if customer else t.customer_code) ~ ' · ' ~ service_kinds[t.kind] ~ ' · ' ~ users.get(t.assignee_id, 'Chưa giao thợ'), back='/dich-vu', badge_label=service_statuses[t.status], badge_tone=svc_tones.get(t.status,'nhap')) %}{% if late %}{{ ui.badge('Quá hạn', 'huy') }}{% endif %}<a class="btn btn-ghost service-action" href="/dich-vu/{{ t.id }}/bien-ban">In biên bản</a>{% if custody_intake %}<a class="btn btn-ghost" href="/dich-vu/{{ t.id }}/phieu-nhan-may">In phiếu nhận máy</a>{% endif %}{% if can_add_sale %}<a class="btn btn-ghost" href="/don-ban/moi?service_ticket={{ t.id }}" data-add-sale>+ Kèm hàng bán</a>{% endif %}{% endcall %}
+{% call ui.page_head(t.number, sub='Dịch vụ · ' ~ (customer.name if customer else t.customer_code) ~ ' · ' ~ service_kinds[t.kind] ~ ' · ' ~ users.get(t.assignee_id, 'Chưa giao thợ'), back='/dich-vu', badge_label=service_status(t), badge_tone=svc_tones.get(t.status,'nhap')) %}{% if late %}{{ ui.badge('Quá hạn', 'huy') }}{% endif %}<a class="btn btn-ghost service-action" href="/dich-vu/{{ t.id }}/bien-ban">In biên bản</a>{% if custody_intake %}<a class="btn btn-ghost" href="/dich-vu/{{ t.id }}/phieu-nhan-may">In phiếu nhận máy</a>{% endif %}{% if can_add_sale %}<a class="btn btn-ghost" href="/don-ban/moi?service_ticket={{ t.id }}" data-add-sale>+ Kèm hàng bán</a>{% endif %}{% endcall %}
 {% for order in linked_orders %}<p class="doc-linked"><a class="tag" href="/giao-don/{{ order.id }}">Đơn bán cùng chuyến {{ order.number }}</a></p>{% endfor %}
 {% set workflow_page=true %}{% with wf_part='steps' %}{% include 'thanh_buoc.jinja' %}{% endwith %}
 {% include 'tu_dong_dong_phieu.jinja' %}
@@ -52,7 +52,7 @@
   {% if t.fault_found %}<div><b>Lỗi thợ gặp:</b> <span class="service-text" data-fault-found>{{ t.fault_found }}</span></div>{% endif %}
   {% if t.fix_done %}<div><b>Cách xử lý:</b> <span class="service-text" data-fix-done>{{ t.fix_done }}</span></div>{% endif %}
   {% if material_cost is not none %}<p class="hint">Chi phí vật tư (giá vốn): {{ material_cost|money }} đồng</p>{% endif %}
-  {% if t.hold_reason %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
+  {% if t.hold_reason and t.hold_reason not in workshop_holds %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
   {% if t.status_reason %}<div><b>Lý do:</b> <span class="service-text">{{ t.status_reason }}</span></div>{% endif %}
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}
   {% if not xg_panel %}<p class="hint svc-warranty">{{ warranty_terms }}</p>{% endif %}
@@ -77,7 +77,7 @@
 <dt>Kết quả</dt><dd>{{ visit_outcomes.get(visit.outcome, 'Đang ở khách') }}</dd>
 {% if visit.arrive_lat is not none %}<dt>Vị trí lúc đến</dt><dd><a href="https://www.google.com/maps?q={{ visit.arrive_lat }},{{ visit.arrive_lng }}" target="_blank" rel="noopener" data-visit-gps>Xem bản đồ</a>{% if visit.arrive_accuracy is not none %} · sai số {{ visit.arrive_accuracy }} m{% endif %}</dd>{% endif %}{% if visit.next_appointment_at %}<dt>Hẹn lần sau</dt><dd>{{ visit.next_appointment_at|service_time }}</dd>{% endif %}</dl>
 {% if visit.note %}<p class="service-text">{{ visit.note }}</p>{% endif %}</li>{% else %}<li>Chưa có lượt đến khách.</li>{% endfor %}</ol></section><section class="card service-action"><h2>Lịch sử bước</h2><ol class="service-history">
-{% for step in t.steps %}<li><strong>{{ step_labels.get(step.action, step.action) }}</strong> · {{ service_statuses.get(step.to_status, step.to_status) }}<br><span class="meta">{{ step.at|service_time }} · {{ users.get(step.actor_id, 'Nhân viên') }}{% if step.assignee_id %} · Giao: {{ users.get(step.assignee_id, 'Nhân viên') }}{% endif %}</span>{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}
+{% for step in t.steps %}<li><strong>{{ step_labels.get(step.action, step.action) }}</strong> · {{ step_status(step) }}<br><span class="meta">{{ step.at|service_time }} · {{ users.get(step.actor_id, 'Nhân viên') }}{% if step.assignee_id %} · Giao: {{ users.get(step.assignee_id, 'Nhân viên') }}{% endif %}</span>{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}
 </ol></section></details>
 {% if collection %}<details class="card doc-card" {% if failed_receipt_id %}open{% endif %}><summary>Lịch sử báo thu</summary>{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}</details>{% endif %}
 </div>
@@ -97,7 +97,7 @@
 {% with wf_part='action' %}{% include 'thanh_buoc.jinja' %}{% endwith %}
 </section>
 {% if t.status!='MOI' and can_assign and not xg_panel %}
-<section class="card done-state service-action" data-assigned><div class="done-k">{% if t.transfer_request %}Thợ xin chuyển việc{% else %}Đã giao thợ{% endif %}</div><b>{{ users.get(t.assignee_id, 'Chưa giao') }}</b><p class="hint">{{ service_statuses[t.status] }}{% if t.assignee_id %} · {{ counts.get(t.assignee_id, 0) }} việc đang mở{% endif %}</p>
+<section class="card done-state service-action" data-assigned><div class="done-k">{% if t.transfer_request %}Thợ xin chuyển việc{% else %}Đã giao thợ{% endif %}</div><b>{{ users.get(t.assignee_id, 'Chưa giao') }}</b><p class="hint">{{ service_status(t) }}{% if t.assignee_id %} · {{ counts.get(t.assignee_id, 0) }} việc đang mở{% endif %}</p>
 <details data-reassign {% if failed_action == 'assign' or t.transfer_request %}open{% endif %}><summary class="btn">{% if t.transfer_request %}Duyệt chuyển · giao thợ khác{% else %}Giao thợ khác{% endif %}</summary>
 <form id="service-assign" method="post" action="/dich-vu/{{ t.id }}/assign" class="form">{{ version('assign') }}
   <div class="field-group" role="group" aria-label="Chọn thợ mới"><p class="group-label">Chọn thợ mới · số việc đang mở</p><div class="seg svc-techs">

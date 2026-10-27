@@ -50,7 +50,31 @@ def local_time(value):
 templates.env.filters["service_time"] = local_time
 templates.env.filters["service_short"] = lambda value: value.astimezone(TZ).strftime("%d/%m %H:%M") if value else "—"
 templates.env.filters["appointment_label"] = service_appointments.label
-templates.env.globals.update(service_statuses=STATUSES, service_kinds={None: 'Chưa phân loại', **KINDS}, service_kind_choices=KINDS,
+WORKSHOP_HOLDS = ("CHO_SUA_XUONG", "SUA_XONG_CHO_TRA")
+STEP_HOLDS = {"workshop_handover": "CHO_SUA_XUONG", "workshop": "CHO_SUA_XUONG", "counter_intake": "CHO_SUA_XUONG", "quote_approve": "CHO_SUA_XUONG",
+              "repair_done": "SUA_XONG_CHO_TRA", "quote_decline": "SUA_XONG_CHO_TRA"}
+
+
+def _field(row, name):
+    return row.get(name) if isinstance(row, dict) else getattr(row, name, None)
+
+
+def status_label(row):
+    """Máy ở xưởng hiện đúng bước (Chờ sửa ở xưởng / Sửa xong, chờ trả máy) thay cho chữ Tạm dừng chung chung (TUẤN 27/10/2026)."""
+    status, hold = _field(row, "status"), _field(row, "hold_reason")
+    if status == "TAM_DUNG" and hold in WORKSHOP_HOLDS:
+        return svc.HOLD_REASONS[hold]
+    return STATUSES.get(status, status)
+
+
+def step_status_label(step):
+    hold = STEP_HOLDS.get(step.action)
+    if step.to_status == "TAM_DUNG" and hold:
+        return svc.HOLD_REASONS[hold]
+    return STATUSES.get(step.to_status, step.to_status)
+
+
+templates.env.globals.update(service_status=status_label, step_status=step_status_label, workshop_holds=WORKSHOP_HOLDS, service_statuses=STATUSES, service_kinds={None: 'Chưa phân loại', **KINDS}, service_kind_choices=KINDS,
                              service_priorities=PRIORITIES, step_labels=STEPS, hold_reasons=svc.HOLD_REASONS)
 
 
