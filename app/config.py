@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     lunch_start: time = time(11, 30)   # cuối ca sáng
     lunch_end: time = time(13, 30)     # đầu ca chiều
     punch_early_minutes: int = Field(default=30, ge=0, le=180)  # nút Vào ca hiện trước ca bấy nhiêu phút
-    auto_out_time: time = time(19, 0)  # thợ quên bấm Ra ca thì app tự ghi Ra ca lúc này (TUẤN 27/10/2026)
+    auto_out_time: time = time(19, 0)  # quên bấm Ra ca: trễ nhất app tự ghi Ra ca lúc này (TUẤN 27/10/2026)
     work_days: tuple[int, ...] = (0, 1, 2, 3, 4, 5)  # TD_WORK_DAYS='[0,1,2,3,4,5]', Monday=0
     late_grace_minutes: int = Field(default=10, ge=0, le=120)
     off_hours_start: time = time(6, 0)
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
         if not self.work_start < self.lunch_start < self.lunch_end < self.work_end:
             raise ValueError('Giờ nghỉ trưa phải nằm trong giờ làm việc')
         if self.auto_out_time <= self.work_end:
-            raise ValueError('Giờ tự động ra ca phải sau giờ kết thúc ca')
+            raise ValueError('Giờ tự động ra ca trễ nhất phải sau giờ kết thúc ca')
         if not self.work_days or any(d < 0 or d > 6 for d in self.work_days):
             raise ValueError('Ngày làm việc từ 0 (thứ 2) đến 6 (Chủ nhật)')
         return self
