@@ -52,7 +52,7 @@ def test_old_debt_paid_off_is_not_overdue_and_detail_lists_open_orders(client, d
     text = page.text
     assert f'?don={new_order.id}#tra-tien' in text and f'?don={old_order.id}#tra-tien' not in text
     assert 'id="tra-tien"' in text and 'id="so-no"' in text and 'Bước tiếp · kế toán' in text
-    assert 'data-supplier-remaining>500.000 đồng<' in text and 'data-fill-value="500.000"' in text
+    assert 'data-supplier-remaining>500.000 <small>đồng</small><' in text and 'data-fill-value="500.000"' in text
     assert 'data-supplier-opening' not in text
 
 

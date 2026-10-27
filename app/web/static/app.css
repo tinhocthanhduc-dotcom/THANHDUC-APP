@@ -2816,5 +2816,10 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 .cnn-view .cnn-quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .cnn-view .cnn-no { white-space: nowrap; }
 .cnn-view .doc-total.tot-due { color: var(--bad); }
+/* Ô công nợ cột phải hẹp: nhãn không xuống dòng, số lớn vừa một dòng, chữ "đồng" nhỏ. */
+.cnn-view .doc-money .totals dt { white-space: nowrap; }
+.cnn-view .doc-money .totals dd { white-space: nowrap; }
+.cnn-view .doc-money .doc-total { font-size: 1.3rem; }
+.cnn-view .doc-money .doc-total small { font-size: .8rem; font-weight: 600; }
 .cnn-view .cnn-pay > .primary { width: 100%; }
 @media (max-width: 640px) { .cnn-view .cnn-void form { min-width: 0; } }
