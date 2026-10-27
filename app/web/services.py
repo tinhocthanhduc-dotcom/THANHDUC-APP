@@ -385,19 +385,58 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
     return _new_form(request, session)
 
 
+INK_NOTE='Giao mực định kỳ'
+
+
+def _ink_shown(session,form):
+    # Dòng mực đã chọn ở màn nhận đơn (mã, số lượng gõ, tên) để vẽ lại khi lỗi.
+    from ..models import Product
+    codes=[str(c).strip()[:16] for c in form.getlist('ink_code')][:40];qtys=[str(q).strip()[:20] for q in form.getlist('ink_qty')]
+    names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()) if codes else {}
+    return [(c,qtys[i] if i<len(qtys) else '',names.get(c,'')) for i,c in enumerate(codes)]
+
+
+def _ink_lines(form):
+    from decimal import Decimal,InvalidOperation
+    codes,qtys=form.getlist('ink_code'),form.getlist('ink_qty')
+    if len(codes)!=len(qtys):raise BusinessError('BAD_FORM','Dòng mực chưa đủ dữ liệu.')
+    lines=[]
+    for c,q in zip(codes,qtys):
+        try:qty=Decimal(str(q).strip().replace(',','.'))
+        except InvalidOperation:raise BusinessError('BAD_QTY',f'Số lượng mực {c} chưa hợp lệ.')
+        if not qty.is_finite() or qty<=0 or qty>Decimal('100000') or qty!=qty.quantize(Decimal('0.001')):raise BusinessError('BAD_QTY',f'Số lượng mực {c} phải lớn hơn 0.')
+        lines.append((str(c).strip()[:16],qty))
+    return lines
+
+
+@router.get("/dich-vu/moi/tim-muc")
+def ink_pick(request: Request, q: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import products
+    from ..models import Warehouse
+    from .parts import _stocks
+    svc._require(user, svc.CREATORS, "Chỉ người nhận đơn được chọn mực.")
+    rows = products.search(session, q[:200], active_only=True, limit=20)
+    warehouses = [w.code for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code))]
+    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses, own_code=None, ink_pick=True,
+                  stocks=_stocks(session, [r.code for r in rows], warehouses))
+
+
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q")}
+    data['ink']=_ink_shown(session,form)
+    if data['kind']=='MUC_DINH_KY' and not data['symptom'].strip():data['symptom']=INK_NOTE
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
         new_machine=service_machines.intake(form)
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q')},
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','ink')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
+        ink=_ink_lines(form) if body.kind=='MUC_DINH_KY' else []
         assignee=str(form.get('assignee_id','')).strip()
         if assignee:
             if not assignee.isdigit() or len(assignee)>18 or int(assignee)<1: raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
-            t=svc.create_and_assign(session,request.state.user,body,int(assignee))
-        else: t=svc.create(session,request.state.user,body)
+            t=svc.create_and_assign(session,request.state.user,body,int(assignee),ink=ink)
+        else: t=svc.create(session,request.state.user,body,ink=ink)
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         return _new_form(request, session, data, error, code, status)

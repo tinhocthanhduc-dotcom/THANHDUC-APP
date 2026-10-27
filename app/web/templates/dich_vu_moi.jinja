@@ -49,7 +49,8 @@
 {% set warranty_value=d.get('warranty_of_id','') %}{% include 'bao_hanh_picker.jinja' %}
 <p class="hint">Không chọn phiếu trước: kiểm hạn bảo hành của máy. Hết hạn vẫn nhận đơn, không tự miễn phí.</p>
 </section>
-<label class="svn-fld"><span>Mô tả lỗi <i class="svn-req-mark">*</i></span><textarea name="symptom" required minlength="3" maxlength="4000" placeholder="Khách báo gì, máy báo lỗi gì, đã thử gì…" data-sv-symptom>{{ d.symptom }}</textarea></label>
+{% include 'dich_vu_moi_muc.jinja' %}
+<label class="svn-fld"><span data-symptom-label>{{ 'Ghi chú cho thợ' if d.kind=='MUC_DINH_KY' else 'Mô tả lỗi' }} <i class="svn-req-mark">*</i></span><textarea name="symptom" required minlength="3" maxlength="4000" placeholder="Khách báo gì, máy báo lỗi gì, đã thử gì…" data-sv-symptom>{{ d.symptom }}</textarea></label>
 <div class="svn-quick"><span class="svn-note">Thêm nhanh:</span>{% for q in ['Kẹt giấy','In mờ, nhạt','Không lên nguồn','Báo lỗi trên màn hình','Kéo nhiều tờ','Lem mực','Kết nối mạng'] %}<button type="button" class="chip" data-sv-quick="{{ q }}">+ {{ q }}</button>{% endfor %}</div>
 </section>
 </div>
@@ -82,6 +83,6 @@
 </fieldset>
 </form>
 <script src="{{ asset('picked.js') }}" defer></script>
-<script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script>
+<script src="{{ asset('services.js') }}" defer></script><script src="{{ asset('warranty.js') }}" defer></script><script src="{{ asset('parts.js') }}" defer></script>
 <script src="{{ asset('appointments.js') }}" defer></script>
 <script src="{{ asset('service-machines.js') }}" defer></script>{% endblock %}

@@ -5,7 +5,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import part_requests as svc, products, technician_stock
+from .. import part_requests as svc, products, service_tickets, technician_stock
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import PartRequest, Product, ServiceTicket, StockDoc, User, Warehouse
@@ -35,7 +35,7 @@ def detail_context(session, user, ticket, shown=None):
     return dict(part_requests=rows, part_statuses=svc.STATUSES, part_doc_links=doc_links,
         part_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows]))).all()),
         part_docs=dict(session.execute(select(StockDoc.id, StockDoc.number).where(StockDoc.id.in_([r.stock_doc_id for r in rows if r.stock_doc_id]))).all()),
-        part_can_purchase=has_role(user,'warehouse'), can_request_parts=can_create and ticket.status in ('DANG_LAM', 'CHO_LINH_KIEN'),
+        part_can_purchase=has_role(user,'warehouse'), can_request_parts=can_create and ticket.status in (service_tickets.OPEN if ticket.kind == 'MUC_DINH_KY' else ('DANG_LAM', 'CHO_LINH_KIEN')),
         part_form=shown or {}, part_can_cancel={r.id for r in rows if (r.requester_id == user.id or has_role(user, 'dispatcher')) and r.status == 'CHO_CAP'})
 
 

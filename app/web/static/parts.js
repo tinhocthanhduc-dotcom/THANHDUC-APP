@@ -26,14 +26,15 @@ document.addEventListener('click', event => {
   if (multi) {
     const lines = multi.querySelector('[data-part-lines]');
     const code = button.dataset.partPick;
-    const existing = Array.from(lines.querySelectorAll('[data-part-line]')).find(row => row.querySelector('[name=product_code]').value === code);
+    const codeOf = row => row.querySelector('[data-part-code]') || row.querySelector('[name=product_code]');
+    const existing = Array.from(lines.querySelectorAll('[data-part-line]')).find(row => codeOf(row).value === code);
     if (existing) {
-      const q = existing.querySelector('[name=qty]'); q.value = String((Number(q.value.replace(',', '.')) || 0) + 1);
+      const q = existing.querySelector('[data-part-qty]') || existing.querySelector('[name=qty]'); q.value = String((Number(q.value.replace(',', '.')) || 0) + 1);
     } else {
       const row = multi.querySelector('[data-part-line-template]').content.firstElementChild.cloneNode(true);
-      row.querySelector('[name=product_code]').value = code;
+      codeOf(row).value = code;
       row.querySelector('strong').textContent = code;
-      row.querySelector('small').textContent = button.dataset.name;
+      row.querySelector('small').textContent = button.dataset.name + (button.dataset.stock ? ' · ' + button.dataset.stock : '');
       lines.appendChild(row);
     }
     multi.dispatchEvent(new Event('part-added'));
