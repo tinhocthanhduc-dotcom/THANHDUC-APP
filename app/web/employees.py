@@ -160,11 +160,16 @@ def personal(request:Request,user:User=Depends(web_user)):
 
 
 @router.get('/ca-nhan/thong-bao')
-def notices(user:User=Depends(web_user),session:Session=Depends(get_session)):
+def notices(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
     from fastapi.responses import JSONResponse
     from .. import notifications
+    from . import poll_mark
+    # TD2: chưa ai ghi gì kể từ lần hỏi trước thì không tính lại (notify.js gửi ?dau=).
+    same,dau=poll_mark(request,session)
+    if same:
+        return JSONResponse(dict(same=True,dau=dau),headers={'Cache-Control':'no-store'})
     rows=notifications.with_reads(session,user,notifications.items(session,user))
-    return JSONResponse(dict(items=rows,count=len(rows),unread=sum(1 for r in rows if not r['read'])),headers={'Cache-Control':'no-store'})
+    return JSONResponse(dict(items=rows,count=len(rows),unread=sum(1 for r in rows if not r['read']),dau=dau),headers={'Cache-Control':'no-store'})
 
 
 @router.post('/ca-nhan/thong-bao/da-xem')
