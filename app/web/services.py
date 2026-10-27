@@ -424,19 +424,23 @@ def ink_pick(request: Request, q: str = "", user: User = Depends(web_user), sess
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q")}
-    data['ink']=_ink_shown(session,form)
+    data['ink']=_ink_shown(session,form);data['ink_price']=str(form.get('ink_price',''))[:20]
     if data['kind']=='MUC_DINH_KY' and not data['symptom'].strip():data['symptom']=INK_NOTE
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
         new_machine=service_machines.intake(form)
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','ink')},
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','ink','ink_price')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
         ink=_ink_lines(form) if body.kind=='MUC_DINH_KY' else []
+        price=str(form.get('ink_price','')).strip() if body.kind=='MUC_DINH_KY' else ''
+        if price:
+            from ..technician_work import money
+            price=money(price)
         assignee=str(form.get('assignee_id','')).strip()
         if assignee:
             if not assignee.isdigit() or len(assignee)>18 or int(assignee)<1: raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
-            t=svc.create_and_assign(session,request.state.user,body,int(assignee),ink=ink)
-        else: t=svc.create(session,request.state.user,body,ink=ink)
+            t=svc.create_and_assign(session,request.state.user,body,int(assignee),ink=ink,ink_price=price or None)
+        else: t=svc.create(session,request.state.user,body,ink=ink,ink_price=price or None)
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         return _new_form(request, session, data, error, code, status)
