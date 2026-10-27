@@ -1,5 +1,5 @@
 {% if can_set_kind %}<section class="card kind-row" id="loai-dich-vu">
-<form method="post" action="/dich-vu/{{ t.id }}/kind" class="kind-form" data-kind-inline>
+<form method="post" action="/dich-vu/{{ t.id }}/kind" class="kind-form" data-kind-inline {% if technician_view %}data-kind-reload{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ form.get('version',t.version) if failed_action=='kind' else t.version }}">
 {% if technician_view %}{% include 'tho_return.jinja' %}{% endif %}
 <label for="kind-{{ t.id }}">Loại dịch vụ</label><select id="kind-{{ t.id }}" name="kind" required><option value="">{{ 'Chưa phân loại' if not t.kind else 'Chọn…' }}</option>{% for code,label in service_kind_choices.items() %}<option value="{{ code }}" {% if (form.get('kind') if failed_action=='kind' else t.kind)==code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
