@@ -1,5 +1,12 @@
 (function () {
   const changed = () => document.dispatchEvent(new Event("tech-photo-change"));
+  // Safari iOS 15.0–15.3 chưa có crypto.randomUUID: trước đây ném lỗi ngay, ảnh không bao giờ được gửi lên.
+  const newKey = () =>
+    window.crypto && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  // Mạng yếu: không chờ mãi "Đang tải…"; quá 90 giây thì dừng và cho bấm thử lại.
+  const UPLOAD_MS = 90000;
   async function compress(file) {
     const bitmap = await createImageBitmap(file),
       scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
@@ -37,7 +44,7 @@
       try {
         const data = new FormData();
         data.set("csrf", csrf);
-        data.set("form_key", crypto.randomUUID());
+        data.set("form_key", newKey());
         data.set("version", button.dataset.version);
         const response = await fetch(
           `/tho/phieu/${ticket}/anh/${button.dataset.photoRemove}/xoa`,
@@ -89,18 +96,28 @@
               const blob = await compress(file).catch(() => file),
                 data = new FormData();
               data.set("csrf", csrf);
-              data.set("form_key", crypto.randomUUID());
+              data.set("form_key", newKey());
               data.set("tag", box.dataset.photoTag);
               data.set(
                 "file",
                 blob,
                 file.name.replace(/\.[^.]*$/, "") + ".jpg",
               );
-              const response = await fetch(`/tho/phieu/${ticket}/anh`, {
-                method: "POST",
-                body: data,
-                credentials: "same-origin",
-              });
+              const stop = window.AbortController ? new AbortController() : null,
+                timer = stop && setTimeout(() => stop.abort(), UPLOAD_MS);
+              let response;
+              try {
+                response = await fetch(`/tho/phieu/${ticket}/anh`, {
+                  method: "POST",
+                  body: data,
+                  credentials: "same-origin",
+                  signal: stop ? stop.signal : undefined,
+                });
+              } catch (error) {
+                throw new Error(navigator.onLine === false ? "Mất mạng, thử lại" : "Mạng chậm, thử lại");
+              } finally {
+                if (timer) clearTimeout(timer);
+              }
               if (!response.ok) {
                 const body = await response.json().catch(() => ({}));
                 throw new Error(body.error || "Lỗi tải ảnh");
