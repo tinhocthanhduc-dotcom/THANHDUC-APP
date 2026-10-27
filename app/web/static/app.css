@@ -2696,13 +2696,14 @@ input::-webkit-date-and-time-value { text-align: left; }
 .list-table .cnk-sm { min-height: 32px; padding: 0 10px; font-size: .8rem; border-radius: 8px; border-color: var(--info-solid); color: var(--info-solid); white-space: nowrap; }
 .list-table .cnk-sm.cnk-pay { color: var(--info-solid-text); }
 .list-table .cnk-acts { display: grid; gap: 4px; justify-items: end; margin-top: 6px; }
-.list-table td.cnk-left { white-space: nowrap; }
+.list-table td.cnk-left { min-width: 180px; }
+.list-table .cnk-left > b { white-space: nowrap; }
 .list-table .cnk-left b { display: block; }
 .list-table .cnk-pend { margin-top: 2px; }
 .list-table .cnk-left .lt-bad { font-size: 1.05rem; }
 .cnk-ph { display: none; }
 .list-table .cnk-left .cnk-ok { color: var(--ok); font-size: 1.05rem; }
-.cnk-hold { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-weight: 600; font-size: .8rem; white-space: nowrap; }
+.cnk-hold { display: inline-block; padding: 1px 8px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-weight: 600; font-size: .8rem; text-align: right; }
 .cnk-hold.cnk-ck { background: var(--tag, var(--bg)); color: var(--text); }
 .list-table .cnk-tot { border-top: 1px dashed var(--line); padding-top: 2px; }
 /* Tab Tiền ở nhân viên: ai đang giữ bao nhiêu, bấm để lọc. */
@@ -2715,7 +2716,6 @@ input::-webkit-date-and-time-value { text-align: left; }
   .list-table.lt-cards td.cnk-left { display: contents; white-space: normal; }
   .list-table.lt-cards td.cnk-left > b { grid-column: 2; grid-row: 1; justify-self: end; font-size: 1.15rem; }
   .list-table.lt-cards td.cnk-left .cnk-pend { grid-column: 1 / -1; display: block; margin: 0; }
-  .list-table.lt-cards td.cnk-left .cnk-hold { white-space: normal; }
   .list-table.lt-cards td.cnk-left .cnk-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; margin-top: 6px; }
   .list-table.lt-cards td.cnk-left .cnk-sm { min-height: 40px; font-size: .9rem; flex: 1 1 auto; }
   .list-table.lt-cards td .lt-sub { display: inline; margin-left: 4px; }

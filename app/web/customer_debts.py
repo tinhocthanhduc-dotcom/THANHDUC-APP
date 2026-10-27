@@ -127,10 +127,10 @@ def listing(request: Request, q: str = '', tab: str = '', loai: str = '', xep: s
     total = lambda k, key='remaining': sum(r[key] for r in groups[k])
     oldest = max((r['days'] for r in groups['qua-han']), default=0)
     short = lambda g: (g['label'].replace('Tiền mặt ở ', '') if g['cash'] else 'CK chờ đối soát') + ' ' + money(g['amount'])
-    held = ' · '.join(short(g) for g in people[:3]) + (f' · +{len(people) - 3} người' if len(people) > 3 else '')
+    held = ' · '.join(short(g) for g in people[:2]) + (f' · +{len(people) - 2} người' if len(people) > 2 else '')
     tiles = [dict(label='Khách chưa trả', n=f"{len(groups['chua-tra'])} khách", sub=(money(total('chua-tra', 'unpaid')) + ' đ · phải đi thu') if groups['chua-tra'] else 'Không có',
                   href='/cong-no-khach-hang?tab=chua-tra', on=tab == 'chua-tra', tone='huy' if groups['chua-tra'] else ''),
-             dict(label='Đã thu · đang ở nhân viên', n=money(total('o-nv', 'pending')), sub=(held + ' · trừ nợ khi xác nhận') if people else 'Không có tiền chờ xác nhận',
+             dict(label='Đã thu · đang ở nhân viên', n=money(total('o-nv', 'pending')), sub=held if people else 'Không có tiền chờ xác nhận',
                   href='/cong-no-khach-hang?tab=o-nv', on=tab == 'o-nv', tone='cho' if groups['o-nv'] else ''),
              dict(label=f'Khách nợ quá {OLD_DEBT_DAYS} ngày', n=f"{len(groups['qua-han'])} khách", sub=(money(total('qua-han', 'unpaid')) + f' đ · cũ nhất {oldest} ngày') if groups['qua-han'] else 'Không có',
                   href='/cong-no-khach-hang?tab=qua-han', on=tab == 'qua-han', tone='huy' if groups['qua-han'] else ''),
