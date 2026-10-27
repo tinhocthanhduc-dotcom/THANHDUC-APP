@@ -152,3 +152,38 @@ def test_workshop_tickets_show_real_step_instead_of_paused(client, db, shop):
     repair(db, p, t)
     assert status_label(t) == 'Sửa xong, chờ trả máy'
     assert status_label({'status': 'TAM_DUNG', 'hold_reason': 'KHAC'}) == 'Tạm dừng'
+
+
+def _return_assigned(db, p):
+    t = receive(db, p);repair(db, p, t)
+    workshop.schedule_return(db, p['dispatcher'], t.id, t.version, svc._now() + timedelta(hours=3), None, p['technician'].id, '')
+    pend = custody.pending(db, 'QUAY-01');custody.confirm(db, p['technician'], pend.id, pend.version)
+    svc.transition(db, p['technician'], t.id, 'DA_NHAN', t.version, '')
+    return t
+
+
+def test_return_technician_sees_no_receive_or_early_return_before_arriving(client, db, shop):
+    p, eq = shop
+    t = _return_assigned(db, p)
+    service_login(client, p['technician'])
+    page = client.get(f'/tho/phieu/{t.id}').text
+    assert 'Đã đến khách' in page and '/giu-may/%d/tra-khach' % t.id not in page and '/giu-may/%d/nhan' % t.id not in page
+
+
+def test_machine_returned_early_can_still_finish_and_collect(client, db, shop):
+    """DV-26-00008: thợ bấm Đã trả khách trước Đã đến khách; phiếu vẫn vào Hoàn thành thu tiền được."""
+    from test_web import csrf_of
+    p, eq = shop
+    t = _return_assigned(db, p)
+    attachments.add(db, p['technician'], 'service_ticket', str(t.id), 'TRA_MAY', 'tra.png', d5_image())
+    custody.return_customer(db, p['technician'], t.id, CustodyIntake(version=eq.version, accessories=['DAY_NGUON']))
+    service_login(client, p['technician'])
+    assert '/giu-may/%d/nhan' % t.id not in client.get(f'/tho/phieu/{t.id}').text
+    svc.transition(db, p['technician'], t.id, 'DANG_LAM', t.version, '')
+    page = client.get(f'/tho/phieu/{t.id}')
+    r = client.post(f'/tho/phieu/{t.id}/hoan-thanh', data=dict(csrf=csrf_of(page.text), version=t.version, customer_amount='432000',
+                    collection_mode='FULL', method='TIEN_MAT', return_to='tho'), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    db.expire_all()
+    assert db.get(ServiceTicket, t.id).status == 'DA_DONG'
+    assert db.scalar(select(SalesReceipt.amount).where(SalesReceipt.ticket_id == t.id)) == 432000
