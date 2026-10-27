@@ -22,12 +22,10 @@ router = APIRouter()
 REPAIR_RESULTS={'XONG':'Đã sửa xong','MOT_PHAN':'Xong một phần'}
 FAULT_CHIPS=('Kẹt giấy','Lỗi nguồn','Hết mực','Mòn trục ép','Hỏng drum','Lỗi kết nối','Bản in mờ, sọc','Lỗi do khách dùng','Lỗi linh kiện đã thay')
 WORK_CHIPS=('Vệ sinh máy','Thay drum','Thay trục ép','Nạp mực','Thay gạt mực','Cài lại driver','Chỉnh cài đặt','Thay lại linh kiện')
-# Mẫu LoaiDvTho TUẤN duyệt 27/10/2026: lỗi gặp và việc đã làm gộp một khung chip; mỗi loại một bộ chip.
-REPORT_CHIPS={
-    'SUA_TAI_CHO':[('fault','Kẹt giấy'),('work','Thay trục ép'),('work','Vệ sinh máy'),('work','Thay drum'),('work','Nạp mực'),('fault','Lỗi nguồn'),
-        ('fault','Bản in mờ, sọc'),('fault','Mòn trục ép'),('fault','Hỏng drum'),('fault','Lỗi kết nối'),('work','Thay gạt mực'),('work','Cài lại driver'),('work','Chỉnh cài đặt')],
-    'BAO_HANH':[('fault','Kẹt giấy'),('work','Thay lại linh kiện'),('work','Vệ sinh máy'),('fault','Lỗi do khách dùng'),('fault','Lỗi linh kiện đã thay'),('work','Chỉnh cài đặt')],
-}
+# Phương án A TUẤN chọn 27/10/2026: mỗi loại dịch vụ 2 nhóm ngắn Lỗi gặp / Đã làm (việc khác ghi vào Ghi thêm). Mang về xưởng dùng chung bộ sửa thường.
+REPAIR_CHIPS=dict(fault=('Kẹt giấy','Mòn trục ép','Hỏng drum','Lỗi nguồn','Bản in mờ, sọc'),work=('Thay trục ép','Vệ sinh máy','Thay drum','Nạp mực','Cài lại driver'))
+REPORT_CHIPS={'SUA_TAI_CHO':REPAIR_CHIPS,'MANG_VE':REPAIR_CHIPS,
+    'BAO_HANH':dict(fault=('Kẹt giấy','Lỗi linh kiện đã thay','Lỗi do khách dùng'),work=('Thay lại linh kiện','Vệ sinh máy','Chỉnh cài đặt'))}
 INK_GROUPS=('Hộp mực','Mực nạp / Mực nước')  # Mực định kỳ: tách "Mực giao" khỏi "Vật tư dùng" theo nhóm hàng.
 
 
@@ -164,7 +162,7 @@ def detail_context(session, user, ticket, ctx):
     ctx['completion_form']=dict(ctx.get('completion_form') or {},repair_result=result)
     report_ok=result in REPAIR_RESULTS
     ink=ticket.kind=='MUC_DINH_KY'
-    ctx.update(repair_results=REPAIR_RESULTS,fault_chips=FAULT_CHIPS,work_chips=WORK_CHIPS,report_chips=REPORT_CHIPS.get(ticket.kind,REPORT_CHIPS['SUA_TAI_CHO']),
+    ctx.update(repair_results=REPAIR_RESULTS,fault_chips=FAULT_CHIPS,work_chips=WORK_CHIPS,report_chips=REPORT_CHIPS.get(ticket.kind,REPAIR_CHIPS),
         report_picked=set(shown.get('fault') or [])|set(shown.get('work') or []),ink_job=ink,warranty_info=_warranty_info(session,ticket,eq) if ticket.kind=='BAO_HANH' else None)
     # Mực định kỳ (mẫu LoaiDvTho): không báo cáo sửa, không ảnh nghiệm thu, không bảo hành sau sửa.
     checks = [dict(key='kind',label='Đã chọn loại dịch vụ',ok=ticket.kind is not None)]

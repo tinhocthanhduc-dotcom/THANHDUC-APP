@@ -162,6 +162,15 @@ def test_dispatch_workshop_forms_primary_sequence_and_handover_ui(client,db,hold
     assert r.status_code==200,r.text
     db.refresh(t)
     assert t.quote_approved_at and 'id="workshop-repaired"' in r.text and 'Sửa xong' in r.text
+    # Phương án A (TUẤN 27/10): kết quả 2 nút + lỗi · việc đã làm gập, không còn ô gõ cách xử lý.
+    assert 'data-report-fold' in r.text and 'name="repair_result"' in r.text and 'name="fix"' not in r.text
+    hand=custody.pending(db,eq.serial);custody.confirm(db,p['warehouse'],hand.id,hand.version)
+    photo(db,p,t,'SAU',who='dispatcher')
+    db.refresh(t)
+    r=client.post(f'/dich-vu/{t.id}/xuong/sua-xong',data=dict(csrf=csrf,version=t.version,repaired_by=p['technician'].id,repair_result='XONG',work=['Thay drum','Vệ sinh máy'],fix_extra='Thay bánh xe',fault=t.fault_found or '',warranty_months='3',mode='FULL'))
+    db.refresh(t)
+    assert r.status_code==200 and 'Đã lưu' in r.text
+    assert t.fix_done=='Đã sửa xong: Thay drum, Vệ sinh máy, Thay bánh xe'
 
 
 @pytest.mark.parametrize('late', ['promised','partner','waiting','before'])

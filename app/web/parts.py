@@ -49,7 +49,7 @@ def pick(request: Request, ticket_id: int, q: str = '', user: User = Depends(web
     own = technician_stock.own_warehouse(session, tech) if tech else None
     warehouses = [own.code] if own else []
     warehouses += [w.code for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code))]
-    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses,
+    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses, own_code=own.code if own else None,
                   stocks=_stocks(session, [r.code for r in rows], warehouses))
 
 
@@ -241,7 +241,7 @@ def stock_pick(request: Request, q: str = '', user: User = Depends(web_user), se
     own = technician_stock.own_warehouse(session, user)
     warehouses = [own.code] if own else []
     warehouses += [w.code for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code))]
-    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses,
+    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses, own_code=own.code if own else None,
                   stocks=_stocks(session, [r.code for r in rows], warehouses))
 
 
