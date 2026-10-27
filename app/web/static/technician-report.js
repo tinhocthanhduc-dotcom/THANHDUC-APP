@@ -40,6 +40,8 @@
         if (v === undefined) return;
         el.value = v;
         if (Number(String(v).replace(',', '.')) > 0) row.hidden = false;
+      } else if (el.hasAttribute('data-no-restore')) {
+        // Trường loại mới cố định (vd. Mực định kỳ bảo hành 0): không lấy số cũ từ nháp.
       } else if (el.type === 'checkbox') {
         if ((el.name + ':' + el.value) in data) el.checked = data[el.name + ':' + el.value] === '1';
       } else if (el.name in data) {
@@ -61,9 +63,9 @@
     status.textContent = 'Đang lưu…';
     return fetch('/tho/phieu/' + box.dataset.ticket + '/nhap', { method: 'POST', body: body, credentials: 'same-origin' })
       .then(function (r) { if (!r.ok) throw new Error(); last = json; status.textContent = 'Đã lưu ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); })
-      .catch(function () { status.textContent = 'Chưa lưu, sẽ thử lại'; });
+      .catch(function () { status.textContent = 'Chưa lưu, sẽ thử lại'; throw new Error('draft'); });  // báo lỗi cho hàm gọi (đổi loại, form nhỏ) để không tải lại mất số
   }
-  function later() { clearTimeout(timer); timer = setTimeout(save, 1500); }
+  function later() { clearTimeout(timer); timer = setTimeout(function () { save().catch(function () {}); }, 1500); }
   var screen = document.querySelector('[data-technician-ticket]') || document;
   screen.addEventListener('input', later);
   screen.addEventListener('change', later);
@@ -76,6 +78,11 @@
     var f = e.target;
     if (!f.hasAttribute || !f.hasAttribute('data-flush-draft') || f.dataset.flushed) return;
     e.preventDefault(); f.dataset.flushed = '1';
-    save().catch(function () {}).then(function () { f.submit(); });
+    save().then(function () { f.submit(); }, function () {
+      // Lưu nháp lỗi (mất mạng…): không gửi form để khỏi tải lại mất tiền, vật tư đang nhập.
+      delete f.dataset.flushed;
+      status.textContent = 'Chưa lưu được số đang nhập (mất mạng?). Bấm lại khi có mạng.';
+      if (window.tdToast) window.tdToast('Chưa lưu được nháp, hãy bấm lại khi có mạng', 'bad');
+    });
   });
 })();

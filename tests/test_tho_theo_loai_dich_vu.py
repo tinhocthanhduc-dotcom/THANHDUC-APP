@@ -33,7 +33,7 @@ def test_muc_dinh_ky_no_report_photo_warranty_or_part_request(client, db, job): 
     assert 'data-check="report"' not in html and 'data-check="photo"' not in html
     assert 'Mực giao · kho của tôi' in html and 'Vật tư dùng · kho của tôi' in html and 'data-ink-materials' in html
     assert 'data-report-fold' not in html and 'Bảo hành sau sửa' not in html and 'Cần linh kiện' not in html
-    assert '<input type="hidden" form="service-complete" name="warranty_months" value="0">' in html
+    assert '<input type="hidden" form="service-complete" name="warranty_months" value="0" data-no-restore>' in html
     form = data(client, p, t, fault_found='', fix_done='', warranty_months='0')
     form.pop('repair_result', None)
     assert post(client, t, form).status_code == 303

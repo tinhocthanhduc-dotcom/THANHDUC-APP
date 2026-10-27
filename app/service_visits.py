@@ -45,9 +45,27 @@ def record_arrival(session, user, ticket_id, lat, lng, accuracy=None):
     if not (isfinite(lat) and isfinite(lng) and -90 <= lat <= 90 and -180 <= lng <= 180) or (accuracy is not None and not 0 <= accuracy < 10**6):
         return None
     with _transaction(session):
-        row = session.scalar(select(ServiceVisit).where(ServiceVisit.ticket_id == ticket_id, ServiceVisit.technician_id == user.id,
-                                                       ServiceVisit.ended_at.is_(None), ServiceVisit.arrive_lat.is_(None)).with_for_update())
-        if row is None:
-            return None
-        row.arrive_lat, row.arrive_lng, row.arrive_accuracy = Decimal(f'{lat:.6f}'), Decimal(f'{lng:.6f}'), accuracy
+        return _arrival_in_tx(session, user, ticket_id, lat, lng, accuracy)
+
+
+def record_arrival_in_tx(session, user, ticket_id, lat, lng, accuracy=None):
+    """Như record_arrival nhưng caller giữ transaction (trả máy: đến khách + trả + thu là một lần ghi)."""
+    from math import isfinite
+    try:
+        lat, lng = float(lat), float(lng)
+        accuracy = int(float(accuracy)) if str(accuracy or '').strip() else None
+    except (TypeError, ValueError):
+        return None
+    if not (isfinite(lat) and isfinite(lng) and -90 <= lat <= 90 and -180 <= lng <= 180) or (accuracy is not None and not 0 <= accuracy < 10**6):
+        return None
+    return _arrival_in_tx(session, user, ticket_id, lat, lng, accuracy)
+
+
+def _arrival_in_tx(session, user, ticket_id, lat, lng, accuracy):
+    from decimal import Decimal
+    row = session.scalar(select(ServiceVisit).where(ServiceVisit.ticket_id == ticket_id, ServiceVisit.technician_id == user.id,
+                                                   ServiceVisit.ended_at.is_(None), ServiceVisit.arrive_lat.is_(None)).with_for_update())
+    if row is None:
+        return None
+    row.arrive_lat, row.arrive_lng, row.arrive_accuracy = Decimal(f'{lat:.6f}'), Decimal(f'{lng:.6f}'), accuracy
     return row
