@@ -11,7 +11,8 @@ from . import audit, doc_numbers
 from .config import get_settings
 from .errors import BusinessError
 from .models import (AttendanceHoliday as Holiday, AttendanceMonthLock as MonthLock,
-                     AttendancePunch as Punch, AttendanceRequest as Request, Employee, ServiceVisit, User)
+                     AttendancePunch as Punch, AttendanceRequest as Request, Employee, SalesDelivery, SalesOrder,
+                     ServiceStep, ServiceTicket, ServiceVisit, User)
 from .security import has_role
 from .stock_docs import _transaction
 
@@ -146,26 +147,55 @@ def punch(session,user,kind,lat=None,lng=None,accuracy=None):
     return row
 
 
+# Việc "đang làm" của thợ: phiếu đã nhận trở đi (chưa xong, chưa tạm ngưng, chưa chờ linh kiện) và đơn thợ đang giao.
+ACTIVE_TICKET=('DA_NHAN','DA_HEN','DANG_LAM')
+DELIVERING=('DA_CHOT','GIAO_MOT_PHAN')  # như work_watch.DELIVERING
+
+
+def _active_jobs(session,ident):
+    t=ServiceTicket;o=SalesOrder
+    tickets=session.scalar(select(func.count()).select_from(t).where(t.assignee_id==ident,t.status.in_(ACTIVE_TICKET)))
+    orders=session.scalar(select(func.count()).select_from(o).where(o.delivery_assignee_id==ident,o.fulfillment=='THO_GIAO',o.status.in_(DELIVERING)))
+    return tickets+orders
+
+
+def _last_release(session,ident,start,end):
+    """Lần cuối trong [start,end) thợ hoàn thành, tạm ngưng, chờ linh kiện hoặc giao xong một việc (thợ tự bấm)."""
+    s=ServiceStep
+    step=session.scalar(select(func.max(s.at)).where(s.actor_id==ident,s.at>=start,s.at<end,s.to_status.not_in(ACTIVE_TICKET),
+        (s.from_status.is_(None))|(s.from_status.in_(ACTIVE_TICKET))))
+    d=SalesDelivery
+    delivered=session.scalar(select(func.max(d.delivered_at)).where(d.delivered_by==ident,d.delivered_at>=start,d.delivered_at<end))
+    return max((x for x in (step,delivered) if x is not None),default=None)
+
+
 def auto_clock_out(session,now=None):
-    """Thợ quên bấm Ra ca: tới `auto_out_time` (mặc định 19:00) app tự ghi Ra ca cho mọi người còn đang trong ca,
-    nguồn TU_DONG, giờ ra = giờ tự động của ngày vào ca. Ngày trước còn mở (máy chủ tắt lúc 19:00) được đóng ở lần chạy sau.
+    """Thợ quên bấm Ra ca (TUẤN 27/10/2026): hết ca 17:30 mà không còn việc đang làm thì app ghi Ra ca lúc 17:30;
+    còn việc đã nhận thì chờ, giờ ra = lúc thợ hoàn thành hoặc tạm ngưng việc cuối cùng; trễ nhất là `auto_out_time` (19:00).
+    Lần bấm nguồn TU_DONG. Ngày trước còn mở (máy chủ tắt) được đóng ở lần chạy sau theo cùng cách tính.
     Tháng đã khóa thì bỏ qua. Trả về danh sách lần bấm đã tạo; chạy lại không tạo thêm."""
-    now=now or _now();cfg=get_settings();local=now.astimezone(TZ);created=[]
+    now=now or _now();cfg=get_settings();today_=now.astimezone(TZ).date();created=[]
     last=select(Punch.user_id,func.max(Punch.at).label('at')).group_by(Punch.user_id).subquery()
     opened=list(session.scalars(select(Punch).join(last,(Punch.user_id==last.c.user_id)&(Punch.at==last.c.at)).where(Punch.kind=='IN').order_by(Punch.user_id)))
     for row in opened:
-        day=row.at.astimezone(TZ).date();stamp=datetime.combine(day,cfg.auto_out_time,TZ)
+        day=row.at.astimezone(TZ).date();end=datetime.combine(day,cfg.work_end,TZ);cap=datetime.combine(day,cfg.auto_out_time,TZ)
+        if now<end:continue
+        active=_active_jobs(session,row.user_id)
+        if now<cap and active:continue  # còn việc đang làm: đợi hoàn thành/tạm ngưng, trễ nhất 19:00
+        release=_last_release(session,row.user_id,max(row.at,end),min(now,cap))
+        stamp=cap if active else min(max(end,release or end),cap)
         if stamp<=row.at:
-            if day>=local.date():continue  # vào ca sau giờ tự động: đợi hết ngày rồi mới đóng
-            stamp=row.at
-        elif now<stamp:continue
+            if row.at<cap:stamp=cap  # vào ca sau 17:30: ra ca lúc 19:00
+            elif day>=today_:continue  # vào ca sau 19:00: đợi hết ngày rồi mới đóng
+            else:stamp=row.at
+        if now<stamp:continue
         try:
             with _transaction(session):
                 _month_locks(session,day,day);_user_lock(session,row.user_id)
                 rows=_punches(session,row.user_id,day)
                 if not rows or rows[-1].kind!='IN':continue
                 out=Punch(user_id=row.user_id,kind='OUT',at=stamp,source='TU_DONG',off_hours=_off_hours(session,stamp))
-                session.add(out);_record(session,None,'punch','attendance_punch',out,reason=f"Tự động ra ca {cfg.auto_out_time.strftime('%H:%M')} vì quên bấm")
+                session.add(out);_record(session,None,'punch','attendance_punch',out,reason='Tự động ra ca vì quên bấm' if stamp in (end,cap) else 'Tự động ra ca lúc xong việc cuối vì quên bấm')
                 created.append(out)
         except BusinessError as exc:
             if exc.code!='THANG_DA_KHOA':raise

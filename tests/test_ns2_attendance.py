@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app import attendance as svc,employees
 from app.errors import BusinessError
 from app.models import (AttendancePunch as Punch,AttendanceRequest as Request,AttendanceHoliday as Holiday,
-    AttendanceMonthLock as Lock,Employee,User,AuditLog,ServiceVisit,StockDoc,CashDoc,FundLedger)
+    AttendanceMonthLock as Lock,Employee,User,AuditLog,ServiceVisit,StockDoc,CashDoc,FundLedger,Customer,ServiceTicket,ServiceStep)
 from test_tk_tai_khoan import web_login
 
 DAY=date(2026,11,2)
@@ -289,26 +289,64 @@ def test_migration_down_up_restores_schema_and_guard(db,engine,p,monkeypatch):
     assert db.scalar(select(func.count()).select_from(Employee))==2
 
 
-def test_auto_clock_out_at_19_when_forgot(db,p,clock):
-    # Vào ca 07:30, quên ra ca: trước 19:00 chưa đóng; đúng 19:00 app ghi Ra ca nguồn TU_DONG, công 1, không thiếu giờ ra.
+def _ticket(db,p,number,status,**kw):
+    if db.scalar(select(Customer).where(Customer.code=='KTD-000001')) is None:db.add(Customer(code='KTD-000001',name='Khách NS2',search_text='khach ns2'))
+    row=ServiceTicket(number=number,customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Kẹt giấy',assignee_id=p['technician'].id,
+        created_by=p['dispatcher'].id,created_at=stamp('2026-11-02T08:00'),status=status,**kw);db.add(row);db.flush();return row
+
+
+def _step(db,p,t,to_status,at,actor='technician',from_status=None):
+    t.status=to_status;row=ServiceStep(ticket_id=t.id,action='transition',from_status=from_status,to_status=to_status,actor_id=p[actor].id,assignee_id=t.assignee_id,at=stamp(at))
+    db.add(row);db.commit();return row
+
+
+def test_auto_clock_out_at_work_end_when_no_active_job(db,p,clock):
+    # Vào ca 07:30, không có việc đang làm, quên ra ca: 17:29 chưa đóng; 17:30 app ghi Ra ca 17:30 nguồn TU_DONG, công 1, 8 giờ.
     tap(db,p,clock,'IN','2026-11-02T07:30')
-    clock['at']=stamp('2026-11-02T18:59');assert svc.auto_clock_out(db)==[]
+    clock['at']=stamp('2026-11-02T17:29');assert svc.auto_clock_out(db)==[]
     assert svc.day_summary(db,p['technician'].id,DAY)['status']=='THIEU_GIO_RA'
-    clock['at']=stamp('2026-11-02T19:00');rows=svc.auto_clock_out(db)
-    assert len(rows)==1 and rows[0].kind=='OUT' and rows[0].source=='TU_DONG' and rows[0].at==stamp('2026-11-02T19:00')
+    clock['at']=stamp('2026-11-02T17:30');rows=svc.auto_clock_out(db)
+    assert len(rows)==1 and rows[0].kind=='OUT' and rows[0].source=='TU_DONG' and rows[0].at==stamp('2026-11-02T17:30')
     day=svc.day_summary(db,p['technician'].id,DAY)
-    assert day['status']=='DI_LAM' and day['cong']==1 and not day['missing_out'] and day['hours']==Decimal('9.5') and day['early_minutes']==0
-    # Chạy lại không tạo thêm; người đã ra ca không bị đụng.
+    assert day['status']=='DI_LAM' and day['cong']==1 and not day['missing_out'] and day['hours']==8 and day['early_minutes']==0
+    # Chạy lại không tạo thêm; audit ghi user null.
     clock['at']=stamp('2026-11-02T19:05');assert svc.auto_clock_out(db)==[]
     assert len(svc.day_summary(db,p['technician'].id,DAY)['punches'])==2
     assert db.scalar(select(AuditLog).where(AuditLog.action=='attendance.punch',AuditLog.user_id.is_(None))) is not None
 
 
+def test_auto_clock_out_waits_for_active_job_and_uses_finish_or_pause_time(db,p,clock):
+    # Còn phiếu đã nhận: 17:30 chưa đóng; thợ hoàn thành lúc 18:40 thì giờ ra ca là 18:40.
+    tap(db,p,clock,'IN','2026-11-02T07:30');t=_ticket(db,p,'DV-1','DA_NHAN');db.commit()
+    for at in ('2026-11-02T17:30','2026-11-02T18:00'):clock['at']=stamp(at);assert svc.auto_clock_out(db)==[]
+    _step(db,p,t,'HOAN_THANH','2026-11-02T18:40',from_status='DA_NHAN')
+    clock['at']=stamp('2026-11-02T18:41');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp('2026-11-02T18:40')
+    assert svc.day_summary(db,p['technician'].id,DAY)['hours']==Decimal('9.17')
+    # Hôm sau: tạm ngưng việc đang làm lúc 18:10 cũng là giờ ra ca; điều phối giao phiếu mới lúc 18:30 không tính.
+    day2='2026-11-03';tap(db,p,clock,'IN',day2+'T07:30');t2=_ticket(db,p,'DV-2','DANG_LAM');db.commit()
+    clock['at']=stamp(day2+'T17:40');assert svc.auto_clock_out(db)==[]
+    _step(db,p,t2,'TAM_DUNG',day2+'T18:10',from_status='DANG_LAM');_ticket(db,p,'DV-3','DA_GIAO');db.commit()
+    _step(db,p,db.scalar(select(ServiceTicket).where(ServiceTicket.number=='DV-3')),'DA_GIAO',day2+'T18:30',actor='dispatcher',from_status='MOI')
+    clock['at']=stamp(day2+'T18:31');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp(day2+'T18:10')
+    # Hôm sau nữa: việc xong trước 17:30 thì ra ca đúng 17:30.
+    day3='2026-11-04';tap(db,p,clock,'IN',day3+'T07:30');t3=_ticket(db,p,'DV-4','DA_NHAN');db.commit()
+    _step(db,p,t3,'HOAN_THANH',day3+'T17:10',from_status='DA_NHAN')
+    clock['at']=stamp(day3+'T17:30');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp(day3+'T17:30')
+    # Trễ nhất 19:00: việc còn đang làm tới 19:00 thì vẫn ra ca 19:00; xong lúc 19:30 không đẩy giờ ra thêm.
+    day4='2026-11-05';tap(db,p,clock,'IN',day4+'T07:30');t4=_ticket(db,p,'DV-5','DANG_LAM');db.commit()
+    clock['at']=stamp(day4+'T18:59');assert svc.auto_clock_out(db)==[]
+    clock['at']=stamp(day4+'T19:00');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp(day4+'T19:00')
+    day5='2026-11-06';tap(db,p,clock,'IN',day5+'T07:30');t5=_ticket(db,p,'DV-6','DANG_LAM');db.commit()
+    _step(db,p,t5,'HOAN_THANH',day5+'T19:30',from_status='DANG_LAM')
+    clock['at']=stamp(day5+'T19:31');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp(day5+'T19:00')
+
+
 def test_auto_clock_out_closes_previous_day_and_skips_locked_month(db,p,clock):
-    # Máy chủ tắt lúc 19:00 hôm trước: sáng hôm sau đóng ca cũ lúc 19:00 của ngày đó.
-    tap(db,p,clock,'IN','2026-11-02T07:30');clock['at']=stamp('2026-11-03T08:00')
+    # Máy chủ tắt lúc 19:00, việc vẫn đã nhận: sáng hôm sau đóng ca cũ lúc 19:00 hôm trước (trễ nhất).
+    tap(db,p,clock,'IN','2026-11-02T07:30');_ticket(db,p,'DV-9','DA_NHAN');db.commit();clock['at']=stamp('2026-11-03T08:00')
     rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp('2026-11-02T19:00')
-    # Vào ca sau 19:00 (ngoài giờ) thì hôm đó không đóng, hôm sau đóng ngay tại giờ vào (0 giờ).
+    # Vào ca sau 17:30 thì ra ca 19:00; vào ca sau 19:00 (ngoài giờ) thì hôm đó không đóng, hôm sau đóng ngay tại giờ vào (0 giờ).
+    tap(db,p,clock,'IN','2026-11-03T18:00');clock['at']=stamp('2026-11-03T19:00');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp('2026-11-03T19:00')
     tap(db,p,clock,'IN','2026-11-03T20:00');clock['at']=stamp('2026-11-03T23:00');assert svc.auto_clock_out(db)==[]
     clock['at']=stamp('2026-11-04T07:00');rows=svc.auto_clock_out(db);assert len(rows)==1 and rows[0].at==stamp('2026-11-03T20:00')
     # Tháng đã khóa: bỏ qua, không lỗi.
