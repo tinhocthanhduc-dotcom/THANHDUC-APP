@@ -339,4 +339,16 @@
       if (search) { event.preventDefault(); search.focus(); }
     }
   });
+
+  // Báo cáo sửa gọn (phương án A): dòng gập "Lỗi · việc đã làm" tóm tắt các nút đã chọn + Ghi thêm.
+  function reportSummary(fold) {
+    var out = fold.querySelector('[data-report-summary]'); if (!out) return;
+    var picked = Array.prototype.map.call(fold.querySelectorAll('input[type=checkbox]:checked'), function (i) { return i.value; });
+    var extra = fold.querySelector('[name=fix_extra]'); if (extra && extra.value.trim()) picked.push(extra.value.trim());
+    out.textContent = picked.length ? picked.slice(0, 2).join(', ') + (picked.length > 2 ? ' +' + (picked.length - 2) : '') : out.dataset.empty;
+  }
+  function allSummaries() { document.querySelectorAll('[data-report-fold]').forEach(reportSummary); }
+  document.addEventListener('change', function (event) { var fold = event.target.closest && event.target.closest('[data-report-fold]'); if (fold) reportSummary(fold); });
+  document.addEventListener('input', function (event) { var fold = event.target.closest && event.target.closest('[data-report-fold]'); if (fold) reportSummary(fold); });
+  window.addEventListener('load', allSummaries);  // sau khi nháp thợ được khôi phục
 })();

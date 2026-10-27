@@ -2838,3 +2838,29 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 .tho-recover-row .btn { flex: none; min-height: 44px; }
 .tho-recover-other { margin-top: 8px; }
 .tho-recover-other summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+/* TUẤN 27/10: kết quả tìm linh kiện 2 dòng, chữ tô vàng nằm trong dòng (nút mặc định inline-flex làm mỗi đoạn tô thành một cột). */
+.product-options button.part-opt { display: grid; justify-items: start; justify-content: stretch; gap: 2px; text-align: left; padding: 8px 12px; }
+.part-opt-main { font-weight: 600; line-height: 1.35; }
+.part-opt-stock { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; font-weight: 400; color: var(--muted); }
+.part-opt-zero { opacity: .6; }
+.part-opt mark, .product-options mark { padding: 0; border-radius: 2px; }
+/* Báo cáo sửa gọn, phương án A (TUẤN 27/10/2026): 2 nút kết quả to, dòng "Lỗi · việc đã làm" gập. */
+.bcg-result { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+.bcg-result label { position: relative; }
+.bcg-result input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.bcg-result span { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 56px; padding: 6px 8px; border: 2px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font-weight: 700; cursor: pointer; }
+.bcg-result input:checked + span { background: var(--ok-solid); border-color: var(--ok-solid); color: var(--ok-solid-text); }
+.bcg-result input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+.bcg-fold { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.bcg-fold > summary { list-style: none; cursor: pointer; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; font-weight: 600; }
+.bcg-fold > summary::-webkit-details-marker { display: none; }
+.bcg-fold > summary small { color: var(--muted); font-weight: 400; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bcg-fold > summary small::after { content: " ›"; }
+.bcg-fold[open] > summary small::after { content: " ▴"; }
+.bcg-fold[open] { padding: 0 12px 12px; }
+.bcg-fold[open] > summary { padding: 0; }
+.bcg-label { margin: 8px 0 6px; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.bcg-chips { gap: 6px; }
+.bcg-chips .chip span { min-height: 40px; padding: 6px 12px; font-weight: 600; border-width: 1px; border-radius: 999px; }
+.bcg-chips .chip input:checked + span { background: var(--info-bg); color: var(--text); border-color: var(--info-solid); }
+.bcg-fold input[name="fix_extra"] { margin-top: 10px; width: 100%; font-size: 16px; }

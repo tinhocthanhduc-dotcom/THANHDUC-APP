@@ -292,7 +292,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     returning = technician_returns.proposal(session,t) if t.status in svc.OPEN else dict(rows=[],warehouses=[],warehouse=None)
     return_rows = return_form if return_form is not None else returning['rows']
     from ..service_workshop import warranty_free
-    ctx = dict(dispatcher=dispatcher,at_workshop=at_workshop,xg_panel=dispatcher and t.status=='TAM_DUNG' and t.hold_reason in ('CHO_SUA_XUONG','SUA_XONG_CHO_TRA'),workshop_free=warranty_free(t),workshop_return_days=_return_days(svc._now()),xg_form=xg_form or {},warranty_terms=service_warranty.terms(session,t),can_set_kind=t.status in svc.OPEN and (dispatcher or own) and not (at_workshop and not dispatcher),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
+    from . import technician as technician_web
+    ctx = dict(dispatcher=dispatcher,at_workshop=at_workshop,xg_panel=dispatcher and t.status=='TAM_DUNG' and t.hold_reason in ('CHO_SUA_XUONG','SUA_XONG_CHO_TRA'),workshop_free=warranty_free(t),xg_chips=technician_web.REPORT_CHIPS['MANG_VE'],xg_results=technician_web.REPAIR_RESULTS,workshop_return_days=_return_days(svc._now()),xg_form=xg_form or {},warranty_terms=service_warranty.terms(session,t),can_set_kind=t.status in svc.OPEN and (dispatcher or own) and not (at_workshop and not dispatcher),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
@@ -738,6 +739,7 @@ def workshop_handover(request:Request,ticket_id:int,form=Depends(checked_form),s
 def workshop_dispatch(request:Request,ticket_id:int,action:str,form=Depends(checked_form),session:Session=Depends(get_session)):
     from datetime import date
     from .. import service_workshop
+    from . import technician as technician_web
     user=request.state.user
     svc._require(user,svc.DISPATCHERS,'Chỉ điều phối được xử lý sửa ở xưởng.')
     shown={k:str(form.get(k,'')) for k in ('version','promised_return_on','note','repaired_by','mode','reason','fee','fault','fix','warranty_months','warranty_scope')};shown['action']=action
@@ -754,7 +756,11 @@ def workshop_dispatch(request:Request,ticket_id:int,action:str,form=Depends(chec
             except ValueError:raise BusinessError('REPAIRER_REQUIRED','Chọn thợ đã sửa máy.')
             try:months=int(shown['warranty_months']) if shown['warranty_months'] else None
             except ValueError:raise BusinessError('WARRANTY_REQUIRED','Chọn số tháng bảo hành hợp lệ.')
-            service_workshop.workshop_repaired(session,user,ticket_id,version,repairer,shown['mode'],shown['reason'],shown['fault'],shown['fix'],months,shown['warranty_scope'])
+            fault,fix=shown['fault'],shown['fix']
+            if not fix:  # màn xưởng mới: kết quả bằng nút + chip (phương án A); fault ẩn giữ lỗi ghi lúc báo giá
+                chips,fix,rep=technician_web.report_fields(form);fault=chips or fault
+                shown.update(repair_result=rep['repair_result'],fix_extra=rep['fix_extra'],picked=rep['fault']+rep['work'])
+            service_workshop.workshop_repaired(session,user,ticket_id,version,repairer,shown['mode'],shown['reason'],fault,fix,months,shown['warranty_scope'])
         else:raise BusinessError('NOT_FOUND','Không có thao tác này.',status=404)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_message(exc)

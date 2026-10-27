@@ -18,7 +18,7 @@ def test_sua_tai_cho_merged_chips_saved_into_report(client, db, job):  # noqa: F
     p, _, t = job
     t.kind = 'SUA_TAI_CHO'; db.commit()
     html = page(client, p, t)
-    assert 'tho-report-chips' in html and 'Lỗi gặp · đã làm' in html and 'name="warranty_months"' in html
+    assert 'data-report-fold' in html and 'Lỗi · việc đã làm' in html and 'bcg-result' in html and 'name="warranty_months"' in html
     assert html.index('id="tien"') < html.index('Thu tiền</p>')  # vật tư trước tiền
     form = data(client, p, t, repair_result='XONG', fault=['Kẹt giấy'], work=['Thay trục ép', 'Vệ sinh máy'], fault_found='', fix_done='')
     assert post(client, t, form).status_code == 303
@@ -32,7 +32,7 @@ def test_muc_dinh_ky_no_report_photo_warranty_or_part_request(client, db, job): 
     html = page(client, p, t)
     assert 'data-check="report"' not in html and 'data-check="photo"' not in html
     assert 'Mực giao · kho của tôi' in html and 'Vật tư dùng · kho của tôi' in html and 'data-ink-materials' in html
-    assert 'tho-report-chips' not in html and 'Bảo hành sau sửa' not in html and 'Cần linh kiện' not in html
+    assert 'data-report-fold' not in html and 'Bảo hành sau sửa' not in html and 'Cần linh kiện' not in html
     assert '<input type="hidden" form="service-complete" name="warranty_months" value="0">' in html
     form = data(client, p, t, fault_found='', fix_done='', warranty_months='0')
     form.pop('repair_result', None)
@@ -53,11 +53,12 @@ def test_bao_hanh_valid_shows_box_keeps_old_warranty_and_quick_recover(client, d
     assert 'Linh kiện hư mang về kho' in html and 'data-flush-draft' in html
 
 
-def test_bao_hanh_expired_box_and_month_choice(client, db, job):  # noqa: F811
+def test_bao_hanh_expired_box_no_month_choice(client, db, job):  # noqa: F811
+    # TUẤN 27/10: phiếu Bảo hành không chọn bảo hành sau sửa, theo chế độ phiếu cũ.
     p, _, t = job
     t.kind = 'BAO_HANH'; t.warranty_basis = 'HET_HAN'; db.commit()
     html = page(client, p, t)
-    assert 'data-warranty-box="expired"' in html and 'name="warranty_months"' in html
+    assert 'data-warranty-box="expired"' in html and 'name="warranty_months"' not in html and 'Bảo hành sau sửa' not in html
 
 
 def test_dispatcher_ink_box_title(client, db, job):  # noqa: F811
@@ -66,3 +67,12 @@ def test_dispatcher_ink_box_title(client, db, job):  # noqa: F811
     service_login(client, p['dispatcher'])
     html = client.get(f'/dich-vu/{t.id}').text
     assert 'Mực giao cho thợ mang đi' in html or 'Chọn hộp mực giao' in html
+
+
+def test_part_picker_two_lines_and_own_warehouse_label(client, db, job):  # noqa: F811
+    # TUẤN 27/10: kết quả tìm linh kiện bị rối; mỗi mã 2 dòng, kho của thợ ghi "Kho thợ".
+    p, _, t = job
+    service_login(client, p['technician'])
+    html = client.get('/hang-toi-giu/tim-linh-kien?q=may').text
+    assert 'class="part-opt"' in html and 'part-opt-main' in html and 'part-opt-stock' in html
+
