@@ -118,10 +118,12 @@ def page(request: Request, user, session):
     shown_hot = hot[:NOW_SHOWN]
     now_more = [g for g in shown if g['key'] in URGENT and g['count'] > sum(1 for r in shown_hot if r['group_key'] == g['key'])]
     late_left = lambda g: 0 if g['key'] in CALM else sum(1 for r in g['rows'] if r.get('overdue'))
-    day = sorted((g for g in shown if _band(g['key']) == 'day' and g['count'] > late_left(g)), key=lambda g: g['key'] in CALM)
+    day = [g for g in shown if _band(g['key']) == 'day' and g['count'] > late_left(g) and g['key'] not in CALM]
+    # TUẤN 2026-10-27: nhóm mua hàng gập thành một dòng như phần tiền, nằm dưới Trong ngày.
+    buy = [g for g in shown if g['key'] in CALM and g['count']]
     money = [g for g in shown if _band(g['key']) == 'money' and g['count'] > late_left(g)]
     counts = dict(now=sum(g['count'] for g in shown if g['key'] in URGENT) + sum(late_left(g) for g in shown if g['key'] not in URGENT),
-        day=sum(g['count'] - late_left(g) for g in day), money=sum(g['count'] - late_left(g) for g in money))
+        day=sum(g['count'] - late_left(g) for g in day), buy=sum(g['count'] for g in buy), money=sum(g['count'] - late_left(g) for g in money))
     link = lambda xem, khu: '/viec-cua-toi' + ('?' + urlencode({k: v for k, v in (('xem', xem), ('khu', khu)) if v}) if xem or khu else '')
     tiles = [dict(label=label, n=counts[band], sub=sub, href=link('' if view == band else band, area_key),
         on=view == band, tone='hot' if band == 'now' and counts['now'] else band)
@@ -135,7 +137,7 @@ def page(request: Request, user, session):
         ('Tạo báo giá','/bao-gia/moi',quotes.WRITERS),
         ('Nhận đơn dịch vụ','/dich-vu/moi',service_tickets.CREATORS),
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
-    return render(request, 'viec_cua_toi.jinja', groups=groups, hot=shown_hot, now_more=now_more, day=day, money=money, counts=counts, view=view,
+    return render(request, 'viec_cua_toi.jinja', groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
         chips=chips, money_open=money_open, calm=CALM, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
         advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))
