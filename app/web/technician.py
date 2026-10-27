@@ -111,7 +111,7 @@ def detail_context(session, user, ticket, ctx):
         except (ValueError,InvalidOperation,KeyError):pass
     mode=shown.get('collection_mode','FREE' if ticket.billing=='MIEN_PHI' or (ticket.billing is None and ticket.warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN')) else '')
     if ctx.get('charge_unsaved') and ctx['charges']['billing']=='MIEN_PHI':mode='FREE'
-    amount=shown.get('customer_amount',str(fee) if fee else '')
+    amount=shown.get('customer_amount',f'{fee:,}'.replace(',','.') if fee else '')
     reason=shown.get('free_reason',(ctx['charges'].get('free_reason','') if ctx.get('charge_unsaved') else '') or ticket.free_reason or ('Bảo hành '+ticket.warranty_basis if ticket.warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN') else ''))
     try:actual=sum(technician_work.net_from_gross(technician_work.money(amount)))
     except BusinessError:actual=0
@@ -136,7 +136,7 @@ def detail_context(session, user, ticket, ctx):
         for code,qty in issued.items():selected.setdefault(code,qty)
     materials=[dict(code=p.code,name=p.name,held=qty,qty=selected.get(p.code,'0'),issued=issued.get(p.code,0),extra=not issued.get(p.code) and not chosen(selected.get(p.code,'0')),ink=p.group_name in INK_GROUPS) for p,qty in held]
     materials.sort(key=lambda item:(item['extra'],item['code']))
-    ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,chosen='collection_mode' in shown,reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
+    ctx.update(tech_money=dict(customer_amount=amount,actual=actual,mode=mode,chosen='collection_mode' in shown or (ticket.kind=='MUC_DINH_KY' and fee>0 and mode==''),contract=ticket.kind=='MUC_DINH_KY' and any(l.description==service_tickets.INK_FEE_DESCRIPTION for l in ticket.lines),reason=reason,partial=shown.get('partial_amount',shown.get('amount','')),method=shown.get('method','TIEN_MAT')),tech_materials=materials,fee_suggestions=list(session.scalars(select(Product).where(Product.active.is_(True),Product.group_name==get_settings().service_fee_group).order_by(Product.code))),tech_vat=DEFAULT_VAT_RATE,transfer_technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician']),User.id!=user.id).order_by(User.full_name))),can_tech_transfer=ticket.status in ('DA_GIAO','DA_NHAN','DA_HEN'))
     from .. import service_charges
     return_job=service_charges.return_locked(ticket)
     machine_held=bool(eq and eq.custody_ticket_id==ticket.id and eq.custody_location in ('THO_GIU','KHO_KY_THUAT'))
