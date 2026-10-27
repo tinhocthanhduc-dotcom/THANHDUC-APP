@@ -415,6 +415,8 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .work-now .wk-band-h { background: var(--bad-bg); } .work-now .wk-band-h b, .work-now .wk-n { color: var(--bad); }
 .work-day .wk-ico { background: var(--tag); color: var(--accent); }
 .work-cash .wk-ico { background: var(--ok-bg, var(--tag)); color: var(--ok); } .work-cash .wk-n { color: var(--ok); }
+.work-buy .wk-ico { background: var(--tag); color: var(--muted); } .work-buy .wk-n { color: var(--text); }
+.work-buy .wk-sum span { background: var(--tag); color: var(--muted); }
 .work-cash > summary { cursor: pointer; list-style: none; } .work-cash > summary::-webkit-details-marker { display: none; }
 .work-cash:not([open]) > summary { border-bottom: 0; }
 .wk-sum { display: flex; flex-wrap: wrap; gap: 4px; }

@@ -54,6 +54,10 @@
 <div class="wk-band-h"><span class="wk-ico">◷</span><b>Trong ngày</b><small>Cần làm hôm nay, chưa trễ</small><strong class="wk-n">{{ counts.day }}</strong></div>
 {% for group in day %}{{ box(group) }}{% endfor %}
 </section>{% endif %}
+{% if view in ['', 'day'] and buy %}<details class="card work-cash work-buy" id="mua-hang">
+<summary class="wk-band-h"><span class="wk-ico">▤</span><b>Mua hàng · làm sau</b><span class="wk-sum">{% for g in buy %}<span>{{ g.title }} · {{ g.count }}</span>{% endfor %}</span><strong class="wk-n">{{ counts.buy }}</strong><span class="wk-toggle" aria-hidden="true"></span></summary>
+{% for group in buy %}{{ box(group) }}{% endfor %}
+</details>{% endif %}
 {% if view in ['', 'money'] and money %}<details class="card work-cash" id="tien-lam-sau"{% if money_open %} open{% endif %}>
 <summary class="wk-band-h"><span class="wk-ico">₫</span><b>Tiền · làm sau</b><span class="wk-sum">{% for g in money %}<span>{{ g.title }} · {{ g.count - g.rows|selectattr('overdue')|list|length }}</span>{% endfor %}</span><strong class="wk-n">{{ counts.money }}</strong><span class="wk-toggle" aria-hidden="true"></span></summary>
 {% for group in money %}{{ box(group) }}{% endfor %}

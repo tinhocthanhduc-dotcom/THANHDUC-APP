@@ -85,5 +85,8 @@ def test_out_of_stock_rows_stay_in_day_band_not_urgent(client, db, people):
     service_login(client, p['warehouse'])
     page = client.get('/viec-cua-toi').text
     assert 'class="card work-now"' not in page or 'TD-0001' not in page[page.index('class="card work-now"'):page.index('</section>', page.index('class="card work-now"'))]
-    day = page[page.index('class="card work-day"'):]
-    assert 'data-work-group="stock_low"' in day and 'TD-0001' in day and 'Hết hàng' in day and 'ở khung Làm ngay' not in day
+    # TUẤN 2026-10-27: gập thành một dòng "Mua hàng · làm sau" như phần tiền.
+    buy = page[page.index('class="card work-cash work-buy" id="mua-hang">'):]
+    assert 'data-work-group="stock_low"' in buy and 'TD-0001' in buy and 'Hết hàng' in buy and 'ở khung Làm ngay' not in buy
+    assert 'Hàng dưới mức tối thiểu · 1' in buy.split('</summary>')[0]
+    assert 'class="card work-day"' not in page
