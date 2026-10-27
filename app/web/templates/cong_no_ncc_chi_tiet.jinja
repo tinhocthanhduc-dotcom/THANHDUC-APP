@@ -34,7 +34,7 @@
 <aside class="doc-side">
 <section class="card doc-card doc-money" aria-label="Công nợ hiện tại"><h2 class="doc-h">Công nợ hiện tại</h2>
 <dl class="totals"><dt>Nợ đầu kỳ</dt><dd>{{ balance.opening|money }}</dd><dt>Hàng đã nhận</dt><dd>{{ balance.received|money }}</dd><dt>Trả hàng NCC</dt><dd>{{ balance.returned|money }}</dd><dt>Đã trả</dt><dd>{{ balance.paid|money }}</dd>
-{% if balance.remaining < 0 %}<dt class="tot-main">Đã trả trước</dt><dd class="tot-main doc-total cnn-adv" data-supplier-remaining>{{ (-balance.remaining)|money }} đồng</dd>{% else %}<dt class="tot-main{{ ' tot-due' if balance.remaining > 0 }}">Còn nợ</dt><dd class="tot-main doc-total{{ ' tot-due' if balance.remaining > 0 }}" data-supplier-remaining>{{ balance.remaining|money }} đồng</dd>{% endif %}
+{% if balance.remaining < 0 %}<dt class="tot-main">Đã trả trước</dt><dd class="tot-main doc-total cnn-adv" data-supplier-remaining>{{ (-balance.remaining)|money }} <small>đồng</small></dd>{% else %}<dt class="tot-main{{ ' tot-due' if balance.remaining > 0 }}">Còn nợ</dt><dd class="tot-main doc-total{{ ' tot-due' if balance.remaining > 0 }}" data-supplier-remaining>{{ balance.remaining|money }} <small>đồng</small></dd>{% endif %}
 {% if since %}<dt>Nợ từ</dt><dd class="{{ 'tot-due' if old }}">{{ since.strftime('%d/%m/%Y') }} · {{ days }} ngày</dd>{% endif %}</dl>
 {% if balance.remaining < 0 %}<p class="alert warn">Đã trả trước {{ (-balance.remaining)|money }} đồng; trừ vào lần nhận hàng sau.</p>{% endif %}
 </section>
