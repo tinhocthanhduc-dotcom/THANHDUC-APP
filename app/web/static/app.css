@@ -2864,3 +2864,26 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0; }
 .bcg-chips .chip span { min-height: 40px; padding: 6px 12px; font-weight: 600; border-width: 1px; border-radius: 999px; }
 .bcg-chips .chip input:checked + span { background: var(--info-bg); color: var(--text); border-color: var(--info-solid); }
 .bcg-fold input[name="fix_extra"] { margin-top: 10px; width: 100%; font-size: 16px; }
+/* Mực định kỳ chọn lúc nhận đơn (mẫu MucNhanDon, TUẤN duyệt 27/10/2026). */
+.svn-ink { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--sel); min-width: 0; }
+.svn-ink[hidden] { display: none; }
+.svn-ink-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.svn-ink-head h3 { margin: 0; font-size: .92rem; }
+.svn-ink-cols { display: none; }
+.svn-ink-lines { display: grid; gap: 6px; }
+.svn-ink-lines:empty { display: none; }
+.svn-ink-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; grid-template-areas: "code step x" "name step x"; gap: 2px 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.svn-ink-row > b, .svn-ink-row > strong { grid-area: code; }
+.svn-ink-row > small { grid-area: name; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+.svn-ink-row .stepper { grid-area: step; }
+.svn-ink-row .stepper input { width: 52px; text-align: center; font-size: 16px; }
+.svn-ink-x { grid-area: x; min-height: 40px; min-width: 40px; padding: 0; border: 0; background: none; color: var(--bad); font-weight: 700; }
+.svn-ink-search { position: relative; }
+.svn-ink-search .svn-fld input { width: 100%; box-sizing: border-box; height: 42px; font-size: 16px; }
+.svn-ink-search .product-options:not(:empty) { position: absolute; left: 0; right: 0; top: 100%; z-index: 15; max-height: 320px; overflow: auto; margin-top: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.16); }
+@media (min-width: 900px) {
+  .svn-ink-cols:not(:has(+ .svn-ink-lines:empty)) { display: grid; grid-template-columns: 96px minmax(0,1fr) 150px 40px; gap: 8px; padding: 6px 8px; border-radius: 8px 8px 0 0; background: #1e3a5f; color: #fff; font-size: .8rem; font-weight: 600; }
+  .svn-ink-lines { gap: 0; }
+  .svn-ink-row { grid-template-columns: 96px minmax(0,1fr) 150px 40px; grid-template-areas: "code name step x"; border-radius: 0; border-top: 0; }
+  .svn-ink-row > small { font-size: .88rem; color: var(--text); }
+}

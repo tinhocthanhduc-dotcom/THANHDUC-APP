@@ -14,6 +14,7 @@ from .schemas import PartRequestOut, StockDocIn
 from .security import has_role
 from .stock_docs import _transaction
 
+INK_REASON = 'Mực định kỳ: giao cho thợ mang đi'
 STATUSES = {'CHO_CAP': 'Chờ cấp', 'DA_CAP': 'Đã cấp', 'HET_HANG': 'Hết hàng', 'DA_HUY': 'Đã hủy'}
 
 
@@ -70,10 +71,13 @@ def create_many(session, user, ticket_id, version, bodies):
         ticket = _ticket(session, ticket_id)
         check_requester(user, ticket)
         svc._check_version(ticket, version)
-        if ticket.status not in ('DANG_LAM', 'CHO_LINH_KIEN'):
-            raise BusinessError('BAD_STATUS', 'Chỉ yêu cầu linh kiện khi đang làm hoặc chờ linh kiện.', status=409)
-        _warehouse(session, ticket)
-        reason = bodies[0].reason.strip()
+        # TUẤN 27/10: mực định kỳ, điều phối chọn mực trước khi giao thợ; kho cấp khi phiếu đã có thợ.
+        ink = ticket.kind == 'MUC_DINH_KY'
+        if ticket.status not in (svc.OPEN if ink else ('DANG_LAM', 'CHO_LINH_KIEN')):
+            raise BusinessError('BAD_STATUS', 'Phiếu đã đóng, không chọn mực được.' if ink else 'Chỉ yêu cầu linh kiện khi đang làm hoặc chờ linh kiện.', status=409)
+        if not ink:
+            _warehouse(session, ticket)
+        reason = bodies[0].reason.strip() or (INK_REASON if ink else '')
         rows = []
         now = datetime.now(UTC)
         for body in bodies:
@@ -89,7 +93,7 @@ def create_many(session, user, ticket_id, version, bodies):
             session.add(row)
             rows.append(row)
         numbers = ', '.join(r.number for r in rows)
-        if ticket.status == 'DANG_LAM':
+        if ticket.status == 'DANG_LAM' and not ink:
             before = svc.snapshot(ticket)
             from . import service_visits
             service_visits.close_visit(session, ticket, 'CHO_LINH_KIEN', svc._now(),
@@ -98,6 +102,29 @@ def create_many(session, user, ticket_id, version, bodies):
             svc._record(session, user, ticket, 'transition', before, 'DANG_LAM', f'Cần linh kiện {numbers}: {reason}')
         for row in rows:
             _audit(session, user, row, 'create')
+    return rows
+
+
+def add_ink_in_tx(session, user, ticket, lines):
+    """Nhận đơn Mực định kỳ: mỗi mã mực một yêu cầu Chờ cấp, cùng transaction tạo phiếu (caller giữ khóa)."""
+    if len(lines) > 20:
+        raise BusinessError('TOO_MANY_LINES', 'Mỗi phiếu chọn tối đa 20 mã mực.')
+    codes = [code for code, _ in lines]
+    duplicate = next((c for c in codes if codes.count(c) > 1), None)
+    if duplicate:
+        raise BusinessError('DUPLICATE_PRODUCT', f'Mã {duplicate} được chọn hai lần, hãy gộp thành một dòng.')
+    now = datetime.now(UTC)
+    rows = []
+    for code, qty in lines:
+        product = session.scalar(select(Product).where(Product.code == code, Product.active.is_(True)).with_for_update(read=True))
+        if product is None:
+            raise BusinessError('BAD_PRODUCT', f'Mã hàng {code} không tồn tại hoặc đã ngừng bán.')
+        row = PartRequest(number=next_number(session, 'YC', now.astimezone(service_sla.TZ).date()), ticket_id=ticket.id,
+                          requester_id=user.id, product_code=product.code, qty=qty, reason=INK_REASON, status='CHO_CAP')
+        session.add(row)
+        rows.append(row)
+    for row in rows:
+        _audit(session, user, row, 'create')
     return rows
 
 
@@ -178,6 +205,8 @@ def supply(session, user, ident, warehouse_code, version):
         ticket, row = _locked(session, ident, version)
         if ticket is not None and ticket.status not in svc.OPEN:
             raise BusinessError('BAD_STATUS', 'Phiếu dịch vụ đã đóng, không cấp linh kiện.', status=409)
+        if ticket is not None and ticket.assignee_id is None:
+            raise BusinessError('NOT_ASSIGNED', 'Phiếu chưa giao thợ. Điều phối giao thợ xong mới cấp được (cấp vào kho của thợ).', status=409)
         dest = _warehouse(session, ticket) if ticket is not None else _own_warehouse(session, row.requester_id)
         source = session.scalar(select(Warehouse).where(Warehouse.code == warehouse_code, Warehouse.kind == 'KHO', Warehouse.active.is_(True)).with_for_update(read=True))
         if source is None:

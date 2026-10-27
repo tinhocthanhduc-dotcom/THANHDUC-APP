@@ -74,6 +74,11 @@
     var techHint = q('[data-sv-tech-hint]');
     if (techHint) techHint.textContent = hasTech ? 'Phiếu vào thẳng màn Hôm nay của ' + tech.label + ', thợ nhận thông báo.' : 'Chưa giao: phiếu nằm ở hàng chờ Điều phối.';
     var symptom = q('[name=symptom]');
+    // TUẤN 27/10: Mực định kỳ chọn mực ngay khi nhận đơn; ô mô tả lỗi thành ghi chú cho thợ, điền sẵn.
+    var isInk = !!(kind && kind.value === 'MUC_DINH_KY'), inkBox = q('[data-ink-section]'), symLabel = q('[data-symptom-label]');
+    if (inkBox) inkBox.hidden = !isInk;
+    if (symLabel && symLabel.firstChild) symLabel.firstChild.nodeValue = (isInk ? 'Ghi chú cho thợ' : 'Mô tả lỗi') + ' ';
+    if (isInk && symptom && !symptom.value.trim()) symptom.value = 'Giao mực định kỳ';
     check('customer', hasCustomer);
     check('symptom', symptom && symptom.value.trim().length >= 3);
     check('appointment', !!ap);

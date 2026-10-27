@@ -61,7 +61,7 @@
 {% if can_request_parts %}<details name="tech-other" {% if part_form %}open{% endif %}><summary>Cần linh kiện <span>›</span></summary>{% include 'dich_vu_yeu_cau_form.jinja' %}</details>{% endif %}
 {% if t.status=='DANG_LAM' and not return_job %}<details name="tech-other"><summary>Ảnh trước sửa <span>›</span></summary>{% with photo_tag='TRUOC' %}{% include 'tho_anh.jinja' %}{% endwith %}</details>{% endif %}
 </div></details>{% endif %}
-{% include 'tra_vat_tu_history.jinja' %}<p class="tho-more"><a href="/dich-vu/{{ t.id }}">Xem chi tiết đầy đủ</a></p>
+{% include 'tra_vat_tu_history.jinja' %}{# TUẤN 27/10: bỏ link Xem chi tiết đầy đủ trên màn thợ. #}
 <details class="card"><summary>Lịch sử</summary><ol class="service-history">{% for step in t.steps %}<li>{{ step.at|service_time }} · {{ step_labels.get(step.action,step.action) }} · {{ step_status(step) }}{% if step.note %}<p class="service-text">{{ step.note }}</p>{% endif %}</li>{% endfor %}</ol>
 <h2>Các lượt đến khách</h2>{% for visit in visits %}<p>{{ visit.started_at|service_time }} · {{ visit_outcomes.get(visit.outcome,'Đang ở khách') }} · {{ visit.note }}</p>{% endfor %}</details>
 <div class="tho-bottom-action">{% set has_other=exception_targets or can_no_show or can_tech_transfer or can_request_parts or can_bring_workshop %}{% if (phone or has_other) and t.status not in ['HOAN_THANH','DA_DONG'] %}<div class="row2 tho-quick">{% if phone %}<a class="btn btn-info" href="tel:{{ phone }}">Gọi khách</a>{% endif %}{% if has_other %}<a class="btn btn-ghost" href="#viec-khac" data-open-details>Việc khác</a>{% endif %}</div>{% endif %}

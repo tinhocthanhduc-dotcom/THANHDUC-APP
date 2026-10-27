@@ -6,4 +6,4 @@
 <div data-picker data-part-picker><label>Tìm mã hàng, bấm để thêm (chọn được nhiều mã)<input name="product_code" value="" autocomplete="off" data-live=".part-options" data-source="/dich-vu/{{ t.id }}/tim-linh-kien" data-part-search></label><span class="hint" data-part-name></span><div class="part-options product-options" aria-live="polite"></div></div>
 <label data-single-qty>Số lượng<input name="qty" inputmode="decimal" value="1"></label>
 {% from '_ui.jinja' import fill_chips %}{{ fill_chips(['Thay linh kiện hỏng','Kho thợ hết hàng','Khách đồng ý thay'],'reason') }}
-<label>Lý do<textarea name="reason" required maxlength="2000">{{ part_form.get('reason','') if not part_form.get('cancel_id') else '' }}</textarea></label><button class="primary">Gửi yêu cầu linh kiện</button></form>{% endif %}
+<label>Lý do<textarea name="reason" required maxlength="2000">{{ part_form.get('reason','') if not part_form.get('cancel_id') else '' }}{{ 'Mực định kỳ: giao cho thợ mang đi' if t.kind=='MUC_DINH_KY' and not part_form.get('reason') else '' }}</textarea></label><button class="primary">Gửi yêu cầu linh kiện</button></form>{% endif %}

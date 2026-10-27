@@ -122,10 +122,19 @@ def _check_site_and_serial(session: Session, customer_code: str, site_id: int | 
                                 {"serial": serial, "ticket_id": eq.custody_ticket_id}, status=409)
 
 
-def create(session: Session, user: User, body: ServiceTicketIn) -> ServiceTicket:
+def _ink(session, user, t, ink):
+    # Mực định kỳ: mực điều phối chọn lúc nhận đơn thành yêu cầu Chờ cấp; loại khác bỏ qua.
+    if ink and t.kind == 'MUC_DINH_KY':
+        from . import part_requests
+        part_requests.add_ink_in_tx(session, user, t, ink)
+
+
+def create(session: Session, user: User, body: ServiceTicketIn, ink=None) -> ServiceTicket:
     _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
     with _transaction(session):
-        return create_in_tx(session,user,body)
+        t = create_in_tx(session,user,body)
+        _ink(session, user, t, ink)
+        return t
 
 
 def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_from=None, _counter=False) -> ServiceTicket:
@@ -651,7 +660,8 @@ def reschedule(session, user, ticket_id, version, appointment_at, appointment_sl
     return t
 
 
-def create_and_assign(session,user,body,assignee_id):
+def create_and_assign(session,user,body,assignee_id,ink=None):
     with _transaction(session):
         ticket=create_in_tx(session,user,body)
+        _ink(session,user,ticket,ink)
         return assign_in_tx(session,user,ticket.id,assignee_id,ticket.version)
