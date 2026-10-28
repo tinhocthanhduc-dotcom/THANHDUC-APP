@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from . import checked_form, render, web_user
+from . import checked_form, paging, render, web_user
 from .. import part_requests, products, stock_docs, stock_posting, stock_min_levels, technician_stock, stock_reservations, stock_sources
 from ..customers import like_pattern
 from ..db import get_session
@@ -414,7 +414,7 @@ TON_STATES = {'con': 'Còn hàng', 'het': 'Hết hàng'}
 
 
 @router.get('/ton-kho')
-def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: str = '', xep: str = '', tt: str = '',
+def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: str = '', xep: str = '', tt: str = '', so: str = '',
              canh_bao: bool = Query(default=False, alias='canh-bao'),
              user: User = Depends(web_user), session: Session = Depends(get_session)):
     from . import nav
@@ -477,9 +477,35 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: 
         merged = {**current, **{k.replace('_', '-'): v for k, v in changes.items()}}
         return '/ton-kho?' + urlencode({k: v for k, v in merged.items() if v})
     groups = [g for g in session.scalars(select(Product.group_name).where(Product.group_name != '').distinct().order_by(Product.group_name))]
-    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', can_pending_transfer=has_role(user,'warehouse'),damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
+    sections = _ton_sections(request, rows, current, so, canh_bao)
+    return render(request, 'ton_dong.jinja' if phan else 'ton_ds.jinja', sections=sections, so=so if paging.size_of(so) != paging.DEFAULT_SIZE else '', can_pending_transfer=has_role(user,'warehouse'),damage_sources=damage_sources,rows=rows, q=q, kho=kho, canh_bao=canh_bao,
                   warehouses=list(session.scalars(select(Warehouse).where(Warehouse.kind=='KHO') if canh_bao else select(Warehouse).order_by(Warehouse.code))),total_value=sum(row['value'] for row in rows),
                   nhom=nhom, xep=xep, tt=tt, sorts=TON_SORTS, groups=groups, counts=counts, can_alert=can_alert, link=link, can_purchase=can_purchase)
+
+
+TON_SECTIONS = (('KHO', 'Kho công ty', 'trang'), ('THO', 'Thợ đang giữ', 'trang-tho'), ('LOI', 'Kho Chờ Xử lý', 'trang-loi'))
+
+
+def _ton_sections(request, rows, current, so, canh_bao):
+    """Mỗi khu (Kho công ty / Thợ đang giữ / Chờ Xử lý) phân trang riêng 25 dòng; khu ngoài Kho công ty
+    mặc định thu gọn, mở khi đang xem trang của khu đó hoặc bộ lọc không còn dòng Kho công ty.
+    Số dòng và giá trị từng khu tính trên mọi dòng đã lọc. Hàng sắp hết giữ một bảng đủ dòng để chọn lập đơn mua."""
+    if canh_bao:
+        return [dict(kind='KHO', label='Kho công ty', rows=rows, all=len(rows), value=0, page=None, open=True, fold=False)] if rows else []
+    params = request.query_params
+    query = {**current, 'so': so, **{key: params.get(key) for _, _, key in TON_SECTIONS}}
+    grouped = {kind: [r for r in rows if r.get('warehouse_kind', 'KHO') == kind] for kind, _, _ in TON_SECTIONS}
+    sections = []
+    for kind, label, key in TON_SECTIONS:
+        items = grouped[kind]
+        if not items:
+            continue
+        page = paging.build(params.get(key), so, len(items), query, key)
+        shown = items[page['offset']:page['offset'] + page['size']]
+        folded = kind != 'KHO'
+        sections.append(dict(kind=kind, label=label, rows=shown, all=len(items), value=sum(r['value'] for r in items), page=page,
+                             fold=folded, open=not folded or bool(params.get(key)) or not grouped['KHO']))
+    return sections
 
 
 def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False):

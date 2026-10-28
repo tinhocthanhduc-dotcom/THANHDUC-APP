@@ -20,17 +20,18 @@ def page_of(raw) -> int:
         return 1
 
 
-def build(raw_page, raw_size, total: int, query: dict) -> dict:
-    """Trang quá lớn thì về trang cuối. query: bộ lọc hiện tại, không gồm trang."""
+def build(raw_page, raw_size, total: int, query: dict, key: str = 'trang') -> dict:
+    """Trang quá lớn thì về trang cuối. query: bộ lọc hiện tại, không gồm trang.
+    key: tên tham số trang, để một màn có nhiều khu phân trang riêng (vd. trang-tho)."""
     size = size_of(raw_size)
     last = max(1, -(-total // size))
     page = min(page_of(raw_page), last)
-    keep = {k: v for k, v in query.items() if v not in ('', None) and k not in ('trang', 'phan', 'so')}
+    keep = {k: v for k, v in query.items() if v not in ('', None) and k not in (key, 'phan', 'so')}
     if size != DEFAULT_SIZE:
         keep['so'] = size
 
     def href(n):
-        return '?' + urlencode({**keep, **({'trang': n} if n > 1 else {})})
+        return '?' + urlencode({**keep, **({key: n} if n > 1 else {})})
 
     numbers = sorted({1, last, *range(max(1, page - 1), min(last, page + 1) + 1)})
     items, previous = [], 0

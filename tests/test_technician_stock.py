@@ -195,3 +195,27 @@ def test_database_constraints_enforce_holder_and_active_uniqueness(db,held,inval
         with db.begin_nested():
             db.add(Warehouse(code='K599',name='Kho sai',kind='THO',holder_id=None if invalid=='missing_holder' else p['technician'].id))
             db.flush()
+
+
+def test_stock_page_paginates_each_section_and_folds_non_company(client,db,held):
+    from app.models import Product
+    p,a,b=held;transfer(db,p)
+    for i in range(30):
+        code=f'TD-{9000+i:04d}';db.add(Product(code=code,name=f'Hàng phân trang {i}',search_text=f'hang phan trang {i} {code.lower()}'))
+        db.flush();db.add(StockBalance(warehouse_code='K58',product_code=code,qty=Decimal(2),value=200,avg_cost=100))
+    db.commit()
+    service_login(client,p['warehouse'])
+    page=client.get('/ton-kho').text
+    assert '<b>32</b>' in page and '32 dòng hàng' in page                       # ô đếm tính trên mọi dòng đã lọc (31 kho công ty + 1 thợ)
+    assert 'Hiện <b>1–25</b> / 31 dòng' in page and 'TD-9023' in page and 'TD-9029' not in page
+    assert '?trang=2' in page
+    assert '<details class="stock-group" data-stock-group="THO">' in page     # thu gọn mặc định
+    page2=client.get('/ton-kho?trang=2').text
+    assert 'TD-9029' in page2 and 'TD-9000' not in page2 and 'Hiện <b>26–31</b> / 31 dòng' in page2
+    assert client.get('/ton-kho?trang=99').text.count('Hiện <b>26–31</b>')==1  # quá trang cuối → trang cuối
+    opened=client.get('/ton-kho?trang=2&trang-tho=1').text
+    assert 'data-stock-group="THO" open' in opened and 'TD-9029' in opened
+    only=client.get(f'/ton-kho?kho={a.code}').text
+    assert 'data-stock-group="THO" open' in only                                # không còn dòng Kho công ty thì mở sẵn
+    live=client.get('/ton-kho?q=phan+trang&phan=1').text
+    assert 'Hiện <b>1–25</b> / 30 dòng' in live and 'trang=2' in live
