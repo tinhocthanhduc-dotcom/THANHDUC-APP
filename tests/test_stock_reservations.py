@@ -35,7 +35,8 @@ def stock(db, p, qty=7, warehouse='K58', kind='PN', **changes):
     if kind=='PN':body['supplier_code']='NCC-0001'
     body.update(changes)
     doc=stock_docs.create(db,p['warehouse'],StockDocIn(**body))
-    return stock_posting.post(db,p['warehouse'],doc.id,doc.version)
+    # Kiểm kê do giám đốc duyệt ghi sổ (TUẤN 2026-10-28).
+    return stock_posting.post(db,p['director' if kind=='KK' else 'warehouse'],doc.id,doc.version)
 
 
 def order(db, p, qty=4, warehouse='K58', confirm=True, who='sales', lines=None):

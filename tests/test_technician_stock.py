@@ -146,7 +146,8 @@ def test_tech_stocktake_requires_reason_and_uses_existing_posting(db,held):
     body=dict(kind='KK',warehouse_code=a.code,doc_date=DAY,lines=[dict(product_code='TD-0001',qty=2)])
     error('REASON_REQUIRED',stock_docs.create,db,p['warehouse'],StockDocIn(**body))
     d=stock_docs.create(db,p['warehouse'],StockDocIn(**body,reason='Drum hỏng trong khi vận chuyển'))
-    stock_posting.post(db,p['warehouse'],d.id,d.version)
+    error('FORBIDDEN',stock_posting.post,db,p['warehouse'],d.id,d.version)
+    stock_posting.post(db,p['director'],d.id,d.version)
     assert balance(db,a.code)==2
 
 

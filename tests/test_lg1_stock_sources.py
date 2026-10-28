@@ -90,7 +90,7 @@ def make_case(db, p, kind):
         db.add(Warehouse(code='NEW', name='Kho mới')); db.commit()
         doc = stock_opening.create_opening(db, p['warehouse'], 'NEW', DAY,
             [dict(MA_HANG='TD-0001', SO_LUONG='3', DON_GIA='1000')])[0]
-        stock_posting.post(db, p['warehouse'], doc.id, doc.version); ident = doc.id
+        stock_posting.post(db, p['director'], doc.id, doc.version); ident = doc.id  # KK: giám đốc duyệt ghi sổ
     else:
         raise AssertionError(kind)
     return db.get(StockDoc, ident)
@@ -186,10 +186,11 @@ def test_any_non_null_source_is_locked(db, held, source_kind):
 def test_opening_and_cxl_transfer_still_void_publicly(client, db, held, kind):
     p, _, _ = held; doc = make_case(db, p, kind)
     assert doc.source_kind == KINDS[kind]
-    service_login(client, p['warehouse'])
+    actor = p['director'] if kind == 'opening' else p['warehouse']  # hủy KK đã ghi: chỉ giám đốc
+    service_login(client, actor)
     page = client.get(f'/phieu-kho/{doc.id}').text
     assert 'data-stock-source' in page and f'action="/phieu-kho/{doc.id}/void"' in page
-    response = client.post(f'/stock-docs/{doc.id}/void', headers={'Authorization':'Bearer '+issue_token(p['warehouse'])},
+    response = client.post(f'/stock-docs/{doc.id}/void', headers={'Authorization':'Bearer '+issue_token(actor)},
         json=dict(reason='Nhập nhầm, làm lại', version=doc.version))
     assert response.status_code == 200, response.text
     db.expire_all()

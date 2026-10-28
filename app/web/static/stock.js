@@ -23,6 +23,14 @@
     var label = form.querySelector('[data-sk-wh-label]'); if (label) label.textContent = WH[k] || 'Kho xuất';
     var row = form.querySelector('[data-sk-value-row]'); if (row) row.hidden = nocost;
     form.querySelectorAll('[data-kind-check]').forEach(function(li) { li.hidden = li.dataset.kindCheck !== k; });
+    // Kiểm kê: thủ kho chỉ gửi giám đốc duyệt; giám đốc tự ghi sổ (TUẤN 2026-10-28). Máy chủ cũng chỉ lưu nháp.
+    var primary = form.querySelector('[data-sk-primary]'), save = form.querySelector('[data-sk-save]'), note = form.querySelector('[data-sk-post-note]');
+    if (primary && form.dataset.kkApprove === '1') {
+      var send = k === 'KK';
+      primary.textContent = send ? 'Gửi giám đốc duyệt' : 'Ghi sổ';
+      if (save) save.hidden = send;
+      if (note) note.textContent = send ? 'Phiếu kiểm kê chờ giám đốc duyệt mới đổi tồn kho.' : 'Ghi sổ là tồn kho đổi ngay. Ghi sai thì hủy phiếu có lý do.';
+    }
   }
   function update() {
     var w = wh(), qty = 0, value = 0, valued = true, filled = true, n = rows().length;
@@ -35,7 +43,9 @@
       if (!isNaN(q)) qty += q;
       var cost = row.querySelector('[name=unit_cost]'), c = cost ? digits(cost.value) : NaN;
       if (isNaN(c) || isNaN(q)) valued = false; else value += q * c;
-      if (!code || !(q > 0)) filled = false;
+      // Kiểm kê được đếm 0 (hết hàng); phiếu khác phải lớn hơn 0.
+      var typedQty = row.querySelector('[name=qty]').value.trim() !== '';
+      if (!code || !(q > 0 || (kind() === 'KK' && typedQty && q === 0))) filled = false;
     });
     var k = kind();
     form.querySelector('[data-sk-kind]').textContent = KINDS[k] || k;

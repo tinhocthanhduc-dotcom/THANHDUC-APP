@@ -7,7 +7,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app import stock_posting
-from app.models import AuditLog, Product, StockBalance, StockLedger, Supplier, User, Warehouse
+from app.models import AuditLog, Product, StockBalance, StockDoc, StockLedger, Supplier, User, Warehouse
 
 
 @pytest.fixture
@@ -25,6 +25,11 @@ def catalog(db):
 @pytest.fixture
 def kho(login, catalog):
     return login("kho", "warehouse")
+
+
+@pytest.fixture
+def gd(login, catalog):
+    return login("giam.doc", "director")
 
 
 def make(client, h, kind, lines, **kw):
@@ -160,30 +165,49 @@ def test_huy_phai_co_ly_do(client, kho):
     assert r.json()["error"] == "REASON_REQUIRED"
 
 
-def test_kiem_ke_dau_ky_can_don_gia(client, kho, db):
+def test_kiem_ke_dau_ky_can_don_gia(client, kho, gd, db):
     doc = make(client, kho, "KK", [{"product_code": "TD-0001", "qty": "7"}])
-    r = post(client, kho, doc)
+    r = post(client, gd, doc)
     assert r.status_code == 400 and r.json()["error"] == "BAD_UNIT_COST"
-    posted(client, kho, "KK", [{"product_code": "TD-0001", "qty": "7", "unit_cost": 90_000},
-                               {"product_code": "TD-0002", "qty": "0"}])
+    posted(client, gd, "KK", [{"product_code": "TD-0001", "qty": "7", "unit_cost": 90_000},
+                              {"product_code": "TD-0002", "qty": "0"}])
     assert balance(db) == (Decimal("7.000"), 630_000, 90_000)
     assert db.get(StockBalance, ("K58", "TD-0002")).qty == 0
 
 
-def test_kiem_ke_ghi_chenh_lech(client, kho, db):
+def test_kiem_ke_ghi_chenh_lech(client, kho, gd, db):
     receive(client, kho, 10, 100_000)
-    posted(client, kho, "KK", [{"product_code": "TD-0001", "qty": "8"}])
+    posted(client, gd, "KK", [{"product_code": "TD-0001", "qty": "8"}])
     assert balance(db) == (Decimal("8.000"), 800_000, 100_000)
-    posted(client, kho, "KK", [{"product_code": "TD-0001", "qty": "9"}])
+    posted(client, gd, "KK", [{"product_code": "TD-0001", "qty": "9"}])
     assert balance(db) == (Decimal("9.000"), 900_000, 100_000)
-    posted(client, kho, "KK", [{"product_code": "TD-0001", "qty": "9"}])
+    posted(client, gd, "KK", [{"product_code": "TD-0001", "qty": "9"}])
     assert len(ledger(db)) == 3
 
 
-def test_kiem_ke_trung_ma_bi_chan(client, kho):
+def test_kiem_ke_trung_ma_bi_chan(client, kho, gd):
     doc = make(client, kho, "KK", [{"product_code": "TD-0001", "qty": "1", "unit_cost": 1},
                                    {"product_code": "TD-0001", "qty": "2", "unit_cost": 1}])
-    assert post(client, kho, doc).json()["error"] == "DUPLICATE_LINE"
+    assert post(client, gd, doc).json()["error"] == "DUPLICATE_LINE"
+
+
+def test_kiem_ke_kho_lap_giam_doc_duyet(client, kho, gd, db):
+    """TUẤN 2026-10-28: thủ kho lập phiếu KK để nháp; chỉ giám đốc ghi sổ hoặc hủy phiếu đã ghi."""
+    receive(client, kho, 10, 100_000)
+    doc = make(client, kho, "KK", [{"product_code": "TD-0001", "qty": "8"}])
+    r = post(client, kho, doc)
+    assert r.status_code == 403 and r.json()["error"] == "FORBIDDEN"
+    assert balance(db)[0] == Decimal("10.000")
+    db.expire_all()
+    assert db.get(StockDoc, doc["id"]).status == "NHAP"
+    done = post(client, gd, doc)
+    assert done.status_code == 200, done.text
+    assert balance(db)[0] == Decimal("8.000")
+    body = {"reason": "Đếm nhầm", "version": done.json()["version"]}
+    assert client.post(f"/stock-docs/{doc['id']}/void", json=body, headers=kho).status_code == 403
+    assert balance(db)[0] == Decimal("8.000")
+    assert client.post(f"/stock-docs/{doc['id']}/void", json=body, headers=gd).status_code == 200
+    assert balance(db)[0] == Decimal("10.000")
 
 
 def test_chi_kho_duoc_ghi_so(client, kho, login):

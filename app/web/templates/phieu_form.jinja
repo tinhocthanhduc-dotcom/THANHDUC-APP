@@ -6,12 +6,14 @@
 {% set live = can_write and d.status == 'NHAP' %}
 <div class="doc-detail quote-form-page sk-compose">
 {% call ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · nhập, xuất, chuyển, kiểm kê', back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) %}{% if d.id %}<a class="btn btn-ghost doc-print" href="/phieu-kho/{{ d.id }}/in">In phiếu</a>{% endif %}{% endcall %}
-{% if d.status != 'DA_HUY' %}{{ ui.steps([('Nháp','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
-{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% set approve_kk = not is_director %}
+{% if d.status != 'DA_HUY' %}{{ ui.steps([('Chờ giám đốc duyệt' if d.kind == 'KK' and d.id else 'Nháp','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
+{% if sent %}<p class="alert ok">Đã gửi giám đốc duyệt. Tồn kho chưa đổi cho tới khi giám đốc ghi sổ.</p>{% elif saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if d.kind == 'KK' and d.status == 'NHAP' and d.id and not sent %}<p class="alert warn" data-kk-waiting>{% if is_director %}Phiếu kiểm kê chờ anh duyệt. Xem số đếm từng dòng rồi bấm <b>Duyệt · ghi sổ</b>.{% else %}Phiếu kiểm kê đang chờ giám đốc duyệt. Tồn kho chưa đổi.{% endif %}</p>{% endif %}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{% if live and not action_reason %}<b>Chưa lưu được.</b> {% endif %}{{ error }}</p>{% endif %}
 {% if source %}<p class="card" data-stock-source>Sinh từ <a href="{{ source.href }}">{{ source.label }}</a>.</p>{% endif %}
 {% if d.status == 'DA_HUY' %}<p class="alert warn">Lý do hủy: {{ d.void_reason }}</p>{% endif %}
-<form method="post" action="{% if d.id %}/phieu-kho/{{ d.id }}{% else %}/phieu-kho/moi{% endif %}" class="form qf-form qf3 qf2o sk-form{{ ' sk-nocost' if d.kind in ['PX','CK'] }}" data-stock-form data-editable="{{ '1' if live else '0' }}">
+<form method="post" action="{% if d.id %}/phieu-kho/{{ d.id }}{% else %}/phieu-kho/moi{% endif %}" class="form qf-form qf3 qf2o sk-form{{ ' sk-nocost' if d.kind in ['PX','CK'] }}" data-stock-form data-editable="{{ '1' if live else '0' }}" data-kk-approve="{{ '1' if approve_kk else '0' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 {% if d.id %}<input type="hidden" name="kind" value="{{ d.kind }}">{% endif %}
 <div class="qf-main"><fieldset {% if not live %}disabled{% endif %}>
@@ -54,13 +56,14 @@
 {% if live %}<section class="card workflow-action sk-next" aria-label="Bước tiếp"><h2>Bước tiếp · kho làm</h2>
 <ul class="workflow-checks" data-sk-checks><li data-check="wh">Đã chọn kho</li><li data-check="party" data-kind-check="PN">Đã chọn nhà cung cấp</li><li data-check="dest" data-kind-check="CK">Đã chọn kho đích</li><li data-check="lines">Có ít nhất 1 dòng</li><li data-check="filled">Mọi dòng có hàng và số lượng</li></ul>
 <div class="workflow-total"><span>Tổng số lượng</span><strong data-sk-qty-bar>—</strong></div>
-<div class="workflow-buttons"><button class="btn-ok next-primary" name="action" value="post" data-sk-primary {% if d.id %}formaction="/phieu-kho/{{ d.id }}/post"{% endif %}>Ghi sổ</button><button class="btn-ghost" name="action" value="save">{{ 'Lưu nháp' if d.id else 'Chỉ lưu nháp' }}</button></div>
+{% set kk_send = d.kind == 'KK' and approve_kk %}
+<div class="workflow-buttons"><button class="btn-ok next-primary" name="action" value="post" data-sk-primary {% if d.id %}formaction="/phieu-kho/{{ d.id }}/post"{% endif %}>{% if kk_send %}Gửi giám đốc duyệt{% elif d.kind == 'KK' and d.id %}Duyệt · ghi sổ{% else %}Ghi sổ{% endif %}</button><button class="btn-ghost" name="action" value="save" data-sk-save {% if kk_send %}hidden{% endif %}>{{ 'Lưu nháp' if d.id else 'Chỉ lưu nháp' }}</button></div>
 <p class="hint" data-sk-missing hidden></p>
-<p class="hint sk-post-note">Ghi sổ là tồn kho đổi ngay. Ghi sai thì hủy phiếu có lý do.</p>
+<p class="hint sk-post-note" data-sk-post-note>{% if kk_send %}Phiếu kiểm kê chờ giám đốc duyệt mới đổi tồn kho.{% else %}Ghi sổ là tồn kho đổi ngay. Ghi sai thì hủy phiếu có lý do.{% endif %}</p>
 </section>{% endif %}
 </aside>
 </form>
-{% if can_write and d.id and d.status in ['NHAP', 'DA_GHI'] and (not source or source.voidable) %}
+{% if can_write and d.id and d.status in ['NHAP', 'DA_GHI'] and (not source or source.voidable) and not (d.kind == 'KK' and d.status == 'DA_GHI' and not is_director) %}
 <details class="card po-danger"{% if action_reason or error_code in ['REASON_REQUIRED'] %} open{% endif %}><summary>{% if d.status == 'NHAP' %}Hủy nháp{% else %}Hủy phiếu đã ghi{% endif %}</summary>
 <form method="post" class="form stock-cancel" action="/phieu-kho/{{ d.id }}/{% if d.status == 'NHAP' %}cancel{% else %}void{% endif %}" {% if d.status == 'DA_GHI' %}data-confirm-void{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
