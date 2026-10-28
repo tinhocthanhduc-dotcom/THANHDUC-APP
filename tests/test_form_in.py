@@ -237,3 +237,20 @@ def test_delivered_print_recipient_box_and_delivery_note(client, db, people):
     assert 'Người nhận hàng' in html and '<dt>Ghi chú</dt><dd>Gọi trước 15 phút</dd>' in html
     assert 'class="in-strip"' in html and 'Thanh toán:' in html and 'Lần giao: <b>1/1</b>' in html
     assert 'Thông tin giao' not in html and 'Trạng thái đơn' not in html and 'in-blank' not in html
+
+
+# ---- 28/10 (TUẤN "thông tin chưa khớp"): đơn không ghi người nhận/ghi chú thì lấy từ hồ sơ khách ----
+def test_pending_delivery_print_falls_back_to_customer_contact_and_note(client, db, setup):
+    from app.models import Customer, CustomerContact
+    p = setup
+    o = assigned(db, p)
+    o.contact_name = ''; o.note = ''
+    c = db.get(Customer, o.customer_code); c.note = 'Đối diện 290/9 Phan Anh'
+    db.add(CustomerContact(customer_code=c.code, name='Chị Lý', phones=['0903329255'])); db.commit()
+    service_login(client, p['sales'])
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert '<dt>Người nhận</dt><dd>Chị Lý</dd>' in html and '0903329255' in html
+    assert '<dt>Ghi chú</dt><dd>Đối diện 290/9 Phan Anh</dd>' in html
+    o.note = 'Gửi xe trước cổng'; db.commit()
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert 'Gửi xe trước cổng\nĐối diện 290/9 Phan Anh' in html

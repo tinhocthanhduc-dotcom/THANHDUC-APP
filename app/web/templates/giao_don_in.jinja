@@ -8,8 +8,11 @@
 {% block doc_sub %}Theo đơn bán {{ o.number }}{% if o.promised_date %} · hẹn giao {{ o.promised_date|vn_date }}{% endif %}{% endblock %}
 {% block meta %}{{ f.meta('Đơn bán', o.number) }}{{ f.meta('Ngày in', today|vn_date) }}{{ f.meta('Hẹn giao', o.promised_date|vn_date if o.promised_date else '') }}{% endblock %}
 {% block body %}
+{# Người nhận: theo đơn, không có thì người liên hệ đầu tiên của khách; ghi chú = ghi chú đơn + ghi chú hồ sơ khách. #}
+{% set recipient = o.contact_name or (customer.contacts[0].name if customer and customer.contacts else '') %}
+{% set notes = [] %}{% for n in [o.note, customer.note if customer else ''] %}{% if n and n.strip() and n.strip() not in notes %}{% do notes.append(n.strip()) %}{% endif %}{% endfor %}
 <div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Mã số thuế', customer.tax_code)]) }}
-{{ f.card('Người nhận hàng', '', [('Người nhận', o.contact_name or f.blank()), ('Điện thoại', customer|customer_phones(o.contact_name) or f.blank()), ('Ghi chú', o.note or f.blank())]) }}</div>
+{{ f.card('Người nhận hàng', '', [('Người nhận', recipient or f.blank()), ('Điện thoại', customer|customer_phones(recipient) or f.blank()), ('Ghi chú', notes|join('\n') or f.blank())]) }}</div>
 <div class="in-strip"><span>Cách giao: <b>{{ fulfillment }}{% if o.fulfillment == 'THO_GIAO' %} · {{ assignee or f.blank() }}{% endif %}</b></span><span>Thanh toán: <b>{{ payment }}</b></span><span>Lần giao: <b>{{ delivery_no }}</b>{% if delivered_numbers %} (trước: {{ delivered_numbers }}){% endif %}</span>{% if quote_number %}<span>Theo báo giá: <b>{{ quote_number }}</b></span>{% endif %}</div>
 <table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL giao</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
