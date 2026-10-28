@@ -91,9 +91,9 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
             if not unchanged[key]:
                 raise BusinessError('TECH_WAREHOUSE_ONLY','Vật tư thêm hoặc sửa phải lấy từ kho của chính bạn.',{'warehouse':own.code},status=409)
             unchanged[key] -= 1
+    # Sửa ở xưởng: vật tư lấy từ kho công ty hoặc kho thợ (linh kiện thợ mang về kèm máy, TUẤN 28/10/2026);
+    # _validate_lines chỉ nhận kho KHO/THO đang dùng, PX lúc Sửa xong chặn âm kho.
     _validate_lines(session, body.model_copy(update={'lines':editable}))
-    if at_workshop and any(x.kind=='VAT_TU' and session.get(Warehouse,x.warehouse_code).kind!='KHO' for x in editable):
-        raise BusinessError('BAD_WAREHOUSE','Vật tư sửa ở xưởng phải lấy từ kho công ty.')
     before = _snapshot(t)
     changed=(t.billing!=body.billing or Counter(_issued_key(x) for x in t.lines)!=Counter(_issued_key(x) for x in body.lines))
     if at_workshop and changed:
