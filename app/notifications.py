@@ -11,7 +11,7 @@ from .security import has_role
 INCOMING = ('orders_cancel_requested', 'service_assigned', 'service_unassigned', 'service_transferred', 'service_parts_ready', 'service_close',
     'machines_pending', 'machines_warehouse', 'technician_deliveries', 'delivery_handover', 'orders_waiting',
     'parts_pending', 'technician_returns', 'purchases_waiting', 'stock_low', 'refunds_pending', 'receipts_pending',
-    'receipts_rejected', 'pending_destruction', 'pending_supplier_returns')
+    'receipts_rejected', 'pending_destruction', 'pending_supplier_returns', 'stock_counts_pending')
 OWN_TICKET = ('service_assigned', 'service_parts_ready')
 RECENT = timedelta(days=3)
 ADVANCE = {'DA_DUYET': 'Tạm ứng đã được duyệt', 'TU_CHOI': 'Tạm ứng bị từ chối', 'DA_CHI': 'Tạm ứng đã chi'}

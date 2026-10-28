@@ -122,7 +122,7 @@ def _where(exc, data):
     return fields, lines
 
 
-def _form(request, session, doc, error=None, status=200, action_reason='', saved=False, error_code='', where=({}, {})):
+def _form(request, session, doc, error=None, status=200, action_reason='', saved=False, error_code='', where=({}, {}), sent=False):
     # Chỉ các bảng danh mục được đọc để gợi ý; không sửa tồn hoặc sổ ở tầng web.
     warehouses = list(session.scalars(select(Warehouse).order_by(Warehouse.code)))
     selected_dest = session.get(Warehouse,doc.get('to_warehouse_code')) if doc.get('to_warehouse_code') else None
@@ -130,7 +130,7 @@ def _form(request, session, doc, error=None, status=200, action_reason='', saved
                   warehouses=warehouses, error=error, error_code=error_code, status=status,
                   source=stock_sources.describe(session, stock_docs.load(session, doc['id'])) if doc.get('id') else None,
                   stock_values=stock_reservations.quantities(session,[(doc['warehouse_code'],r['product_code']) for r in doc['lines'] if r['product_code'] and doc['warehouse_code']]),
-                  action_reason=action_reason, saved=saved,
+                  action_reason=action_reason, saved=saved, sent=sent, is_director=has_role(request.state.user, 'director'),
                   product_names={code: name for code, name in session.execute(
                       select(Product.code, Product.name).where(Product.code.in_([r['product_code'] for r in doc['lines']]))
                   )},
@@ -331,6 +331,9 @@ def _save_form(request, session, form, doc_id=None, posting=False):
                                     StockDocPatch(version=_version(form), **body.model_dump()))
         # Sau khi lưu thành công, lỗi ghi sổ phải quay lại đúng phiếu và phiên bản mới.
         shown.update(id=doc.id, number=doc.number, version=doc.version)
+        if posting and doc.kind == 'KK' and not has_role(request.state.user, 'director'):
+            # Kiểm kê: kho chỉ lưu nháp để giám đốc duyệt ghi sổ (TUẤN 2026-10-28).
+            return RedirectResponse(f'/phieu-kho/{doc.id}?da_gui=1', status_code=303)
         if posting:
             stock_posting.post(session, request.state.user, doc.id, doc.version)
     except (BusinessError, ValidationError) as exc:
@@ -345,8 +348,8 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
 
 
 @router.get('/phieu-kho/{doc_id}')
-def view(request: Request, doc_id: int, da_luu: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return _form(request, session, stock_docs.snapshot(stock_docs.load(session, doc_id)), saved=bool(da_luu))
+def view(request: Request, doc_id: int, da_luu: int = 0, da_gui: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _form(request, session, stock_docs.snapshot(stock_docs.load(session, doc_id)), saved=bool(da_luu), sent=bool(da_gui))
 
 
 @router.get('/phieu-kho/{doc_id}/in')
