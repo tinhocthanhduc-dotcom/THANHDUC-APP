@@ -220,3 +220,16 @@ def test_today_reminds_technician_to_clock_in_without_blocking(client, db, held,
     day2 = '2026-10-27'
     assert 'data-punch-hint="LUNCH"' in at('12:00', day2)
     assert 'data-punch-hint="IN"' in at('13:30', day2)
+
+
+def test_return_screen_starts_unticked_and_toggles_select_all(client, db, held):
+    p, a, b = held
+    transfer(db, p)
+    service_login(client, p['technician'])
+    html = client.get('/tho-tra-hang/moi').text
+    # Mở màn: không mã nào tick sẵn, mọi số trả bắt đầu 0.
+    assert 'data-return-pick aria-label="Trả mã này" checked' not in html
+    assert set(re.findall(r'name="return_qty" value="([^"]*)"', html)) <= {'0'}
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'technician-returns.js').read_text()
+    assert "'Bỏ hết'" in js and "'Chọn hết'" in js

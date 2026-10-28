@@ -30,6 +30,10 @@ def new_form(request,session,user,shown=None,error=None,code='',status=200):
         latest=session.scalar(select(PartRequest).where(PartRequest.to_warehouse_code==data['warehouse'].code,PartRequest.status=='DA_CAP').order_by(PartRequest.decided_at.desc(),PartRequest.id.desc()))
         if latest:
             for row in data['rows']:row['to_warehouse_code']=latest.from_warehouse_code
+    if shown is None:
+        # Mở màn không tick sẵn: mã đã cấp vẫn hiện để thợ tick, số trả bắt đầu 0.
+        for row in data['rows']:
+            if row['qty']>0:row.update(qty=0,suggested=True)
     rows=shown if shown is not None else data['rows']
     return render(request,'tho_tra_hang_moi.jinja',standalone_return=True,return_rows=rows,return_warehouses=data['warehouses'],
         return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([row['product_code'] for row in rows]))).all()),
