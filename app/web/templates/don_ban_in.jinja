@@ -8,8 +8,9 @@
 {% block doc_sub %}{{ gh.delivered_at|vn_long_date|capitalize }}{% endblock %}
 {% block meta %}{{ f.meta('Số phiếu giao', gh.number) }}{{ f.meta('Đơn bán', o.number) }}{{ f.meta('Lần giao', delivery_index ~ '/' ~ delivery_count) }}{% endblock %}
 {% block body %}
-<div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Người nhận', gh.receiver_name or o.contact_name), ('Điện thoại', customer|customer_phones(gh.receiver_name or o.contact_name)), ('Mã số thuế', customer.tax_code)]) }}
-{{ f.card('Thông tin giao', '', [('Theo báo giá', quote_number), ('Người giao', deliverer), ('Vận chuyển', (gh.carrier_name ~ (' · ' ~ gh.tracking_code if gh.tracking_code else '')) if gh.carrier_name else gh.tracking_code), ('Trạng thái đơn', statuses[o.status])]) }}</div>
+<div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Mã số thuế', customer.tax_code)]) }}
+{{ f.card('Người nhận hàng', '', [('Người nhận', gh.receiver_name or o.contact_name), ('Điện thoại', customer|customer_phones(gh.receiver_name or o.contact_name)), ('Ghi chú', o.note)]) }}</div>
+<div class="in-strip"><span>Cách giao: <b>{{ fulfillment }}{% if deliverer %} · {{ deliverer }}{% endif %}</b></span>{% if gh.carrier_name or gh.tracking_code %}<span>Vận chuyển: <b>{{ (gh.carrier_name ~ (' · ' ~ gh.tracking_code if gh.tracking_code else '')) if gh.carrier_name else gh.tracking_code }}</b></span>{% endif %}<span>Thanh toán: <b>{{ payment }}</b></span><span>Lần giao: <b>{{ delivery_index }}/{{ delivery_count }}</b></span>{% if quote_number %}<span>Theo báo giá: <b>{{ quote_number }}</b></span>{% endif %}</div>
 <table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
 {% for line in lines %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description }}{% if serials.get(line.line_no) %}<span class="cd">Serial: {{ serials[line.line_no] }}</span>{% endif %}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_price|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
@@ -21,10 +22,8 @@
 {% set extra = [] %}
 {% if balance %}{% do extra.append(('Cả đơn ' ~ o.number ~ ' phải thu', balance.receivable|money ~ ' đồng', '')) %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else '')) %}{% endif %}
 <div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
-<div class="in-note"><h4>Ghi chú</h4>{% if gh.note %}{{ gh.note }}
-{% endif %}{% if o.note %}{{ o.note }}
-{% endif %}Quý khách vui lòng kiểm tra hàng và ký nhận.</div></div>
+{% if gh.note %}<div class="in-hand"><h4>Ghi chú lúc giao</h4><p>{{ gh.note }}</p></div>{% endif %}</div>
 {{ f.totals(rows, ('TỔNG LẦN GIAO', gh.total|money ~ ' đồng'), extra) }}</div>
 {% endblock %}
-{% block signatures %}<div class="in-sd">{{ gh.delivered_at|vn_long_date|capitalize }}</div>
+{% block signatures %}<div class="in-sd"><span class="kh">Quý khách vui lòng kiểm tra hàng trước khi ký nhận.</span><span>{{ gh.delivered_at|vn_long_date|capitalize }}</span></div>
 {{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}

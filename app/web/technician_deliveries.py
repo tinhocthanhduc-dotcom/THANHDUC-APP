@@ -105,7 +105,7 @@ def print_pending(request: Request,order_id: int,user: User=Depends(web_user),se
         company=get_settings(),today=attendance.today(),technician_view=technician_view,back=f'/giao-don/{order.id}'+('?return_to=tho' if technician_view else ''),
         phones=', '.join(p.phone for p in customer.phones) if customer else '',quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',
         fulfillment=FULFILLMENTS.get(order.fulfillment,order.fulfillment),payment=PAYMENTS.get(order.payment_term,order.payment_term),
-        assignee=assignee.full_name if assignee else '',delivered_before=(str(len(delivered))+' lần · '+', '.join(g.number for g in delivered)) if delivered else '')
+        assignee=assignee.full_name if assignee else '',delivery_no=len(delivered)+1,delivered_numbers=', '.join(g.number for g in delivered))
 
 
 @router.get('/giao-don/{order_id}')

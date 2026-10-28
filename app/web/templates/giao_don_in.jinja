@@ -8,18 +8,19 @@
 {% block doc_sub %}Theo đơn bán {{ o.number }}{% if o.promised_date %} · hẹn giao {{ o.promised_date|vn_date }}{% endif %}{% endblock %}
 {% block meta %}{{ f.meta('Đơn bán', o.number) }}{{ f.meta('Ngày in', today|vn_date) }}{{ f.meta('Hẹn giao', o.promised_date|vn_date if o.promised_date else '') }}{% endblock %}
 {% block body %}
-<div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Người nhận', o.contact_name), ('Điện thoại', customer|customer_phones(o.contact_name)), ('Mã số thuế', customer.tax_code)]) }}
-{{ f.card('Thông tin giao', '', [('Theo báo giá', quote_number), ('Cách giao', fulfillment), ('Người giao', assignee), ('Thanh toán', payment), ('Trạng thái đơn', statuses[o.status]), ('Đã giao trước', delivered_before)]) }}</div>
+<div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Mã số thuế', customer.tax_code)]) }}
+{{ f.card('Người nhận hàng', '', [('Người nhận', o.contact_name or f.blank()), ('Điện thoại', customer|customer_phones(o.contact_name) or f.blank()), ('Ghi chú', o.note or f.blank())]) }}</div>
+<div class="in-strip"><span>Cách giao: <b>{{ fulfillment }}{% if o.fulfillment == 'THO_GIAO' %} · {{ assignee or f.blank() }}{% endif %}</b></span><span>Thanh toán: <b>{{ payment }}</b></span><span>Lần giao: <b>{{ delivery_no }}</b>{% if delivered_numbers %} (trước: {{ delivered_numbers }}){% endif %}</span>{% if quote_number %}<span>Theo báo giá: <b>{{ quote_number }}</b></span>{% endif %}</div>
 <table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL giao</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
 {% for line in lines %}<tr><td class="c">{{ loop.index }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description }}{% if line.warranty_months %}<span class="cd">Bảo hành {{ line.warranty_months }} tháng · Serial: ..............................</span>{% endif %}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_price|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
 {% set rows = [('Tiền hàng chưa VAT', subtotal|money ~ ' đồng'), ('Thuế GTGT', vat_total|money ~ ' đồng')] %}
-{% set extra = [('Cả đơn ' ~ o.number ~ ' phải trả', effective_total|money ~ ' đồng', ''), ('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok'), ('Thu khi giao', balance.available|money ~ ' đồng', 'due' if balance.available else 'ok')] %}
-<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ (thu khi giao):</b> {{ words }}.</div>
-<div class="in-note"><h4>Ghi chú</h4>{% if o.note %}{{ o.note }}
-{% endif %}Phiếu in trước khi giao; số lượng và tiền thu ghi nhận chính thức khi thợ bấm Đã giao trên app. Quý khách vui lòng kiểm tra hàng và ký nhận.</div></div>
+{% set extra = [('Cả đơn ' ~ o.number ~ ' phải trả', effective_total|money ~ ' đồng', ''), ('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok'), (('Còn phải trả' if o.payment_term == 'CONG_NO' else 'Thu khi giao'), balance.available|money ~ ' đồng', 'due' if balance.available else 'ok')] %}
+<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ{% if o.payment_term != 'CONG_NO' %} (thu khi giao){% endif %}:</b> {{ words }}.</div>
+<div class="in-hand"><h4>Ghi chú người giao</h4><div class="ln"></div><div class="ln"></div></div>
+<div class="in-fine">Phiếu in trước khi giao. Số lượng và tiền thu được ghi nhận chính thức khi thợ bấm Đã giao trên app.</div></div>
 {{ f.totals(rows, ('TỔNG LẦN GIAO', total|money ~ ' đồng'), extra) }}</div>
 {% endblock %}
-{% block signatures %}<div class="in-sd">Ngày ....... tháng ....... năm {{ today.year }}</div>
+{% block signatures %}<div class="in-sd"><span class="kh">Quý khách vui lòng kiểm tra hàng trước khi ký nhận.</span><span>Ngày ....... tháng ....... năm {{ today.year }}</span></div>
 {{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}
