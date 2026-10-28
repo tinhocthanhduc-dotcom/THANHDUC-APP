@@ -51,7 +51,7 @@
   <div><b>Khách báo:</b> <span class="service-text">{{ t.symptom }}</span></div>
   {% if t.fault_found %}<div><b>Lỗi thợ gặp:</b> <span class="service-text" data-fault-found>{{ t.fault_found }}</span></div>{% endif %}
   {% if t.fix_done %}<div><b>Cách xử lý:</b> <span class="service-text" data-fix-done>{{ t.fix_done }}</span></div>{% endif %}
-  {% if material_cost is not none %}<p class="hint">Chi phí vật tư (giá vốn): {{ material_cost|money }} đồng</p>{% endif %}
+  {% if material_cost is not none %}<p class="hint" data-material-cost>Chi phí vật tư (giá vốn): {% if not material_cost and t.status not in ['HOAN_THANH','DA_DONG'] %}chưa có, tính khi thợ hoàn thành phiếu và xuất vật tư{% else %}{{ material_cost|money }} đồng{% endif %}</p>{% endif %}
   {% if t.hold_reason and t.hold_reason not in workshop_holds %}<p class="alert warn">Tạm dừng: {{ hold_reasons.get(t.hold_reason, t.hold_reason) }}</p>{% endif %}
   {% if t.status_reason %}<div><b>Lý do:</b> <span class="service-text">{{ t.status_reason }}</span></div>{% endif %}
   {% if t.transfer_request %}<p class="alert warn service-text">Xin chuyển việc: {{ t.transfer_request }}</p>{% endif %}

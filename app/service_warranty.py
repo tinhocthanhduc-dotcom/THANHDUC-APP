@@ -41,7 +41,9 @@ def warranty_end(session, ticket):
 
 
 def terms(session,ticket):
-    if ticket.warranty_months==0:return 'Không bảo hành'
+    if ticket.warranty_months==0 or ticket.kind=='MUC_DINH_KY':return 'Không bảo hành'
+    # TUẤN 28/10: phiếu chưa xong chưa có số tháng thì không hiện mặc định 90 ngày; thợ chọn khi hoàn thành.
+    if ticket.warranty_months is None and ticket.status not in ('HOAN_THANH','DA_DONG'):return 'Bảo hành: thợ chọn khi hoàn thành'
     length=str(ticket.warranty_months)+' tháng' if ticket.warranty_months is not None else str(get_settings().service_warranty_days)+' ngày'
     end=warranty_end(session,ticket) if ticket.status in ('HOAN_THANH','DA_DONG') else None
     return 'Bảo hành: '+length+(', đến '+end.strftime('%d/%m/%Y') if end else ', tính từ ngày hoàn thành')+(' · '+ticket.warranty_scope if ticket.warranty_scope else '')
