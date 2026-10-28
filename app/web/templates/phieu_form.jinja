@@ -5,9 +5,10 @@
 {# Đợt 3 · khuôn 5: phiếu kho cùng bố cục Đơn bán: thông tin phiếu + dòng hàng gọn bên trái, tóm tắt và Bước tiếp bên phải. #}
 {% set live = can_write and d.status == 'NHAP' %}
 <div class="doc-detail quote-form-page sk-compose">
-{% call ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · nhập, xuất, chuyển, kiểm kê', back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) %}{% if d.id %}<a class="btn btn-ghost doc-print" href="/phieu-kho/{{ d.id }}/in">In phiếu</a>{% endif %}{% endcall %}
+{% call ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · ' ~ kinds[d.kind] ~ (' · chưa ghi sổ' if d.status == 'NHAP' else ''), back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) %}{% if d.id %}<a class="btn btn-ghost doc-print" href="/phieu-kho/{{ d.id }}/in">In phiếu</a>{% endif %}{% endcall %}
 {% set approve_kk = not is_director %}
-{% if d.status != 'DA_HUY' %}{{ ui.steps([('Chờ giám đốc duyệt' if d.kind == 'KK' and d.id else 'Nháp','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
+{# TUẤN 28/10/2026: bỏ thanh Nháp/Đã ghi sổ (nhãn cạnh tiêu đề đã đủ); chỉ phiếu kiểm kê đã gửi mới hiện bước chờ giám đốc duyệt. #}
+{% if d.kind == 'KK' and d.id and d.status != 'DA_HUY' %}{{ ui.steps([('Chờ giám đốc duyệt','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
 {% if sent %}<p class="alert ok">Đã gửi giám đốc duyệt. Tồn kho chưa đổi cho tới khi giám đốc ghi sổ.</p>{% elif saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if d.kind == 'KK' and d.status == 'NHAP' and d.id and not sent %}<p class="alert warn" data-kk-waiting>{% if is_director %}Phiếu kiểm kê chờ anh duyệt. Xem số đếm từng dòng rồi bấm <b>Duyệt · ghi sổ</b>.{% else %}Phiếu kiểm kê đang chờ giám đốc duyệt. Tồn kho chưa đổi.{% endif %}</p>{% endif %}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{% if live and not action_reason %}<b>Chưa lưu được.</b> {% endif %}{{ error }}</p>{% endif %}
@@ -17,10 +18,11 @@
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
 {% if d.id %}<input type="hidden" name="kind" value="{{ d.kind }}">{% endif %}
 <div class="qf-main"><fieldset {% if not live %}disabled{% endif %}>
-<div class="seg stock-seg sk-kinds" role="group" aria-label="Loại phiếu">
+<section class="card qf-card sk-head"><div class="sk-head-top"><h2 class="qf-h">Thông tin phiếu</h2>
+{# Mẫu PhieuKhoGon (TUẤN duyệt 28/10/2026): loại phiếu là nút nhỏ ở góc khung; đổi loại vẫn giữ dòng hàng. #}
+<div class="seg stock-seg sk-kinds" role="group" aria-label="Loại phiếu" title="Đổi loại phiếu vẫn giữ các dòng hàng đã nhập">
 {% for code, label in kinds.items() %}<label><input type="radio" name="{% if d.id %}locked_kind{% else %}kind{% endif %}" value="{{ code }}" {% if d.kind == code %}checked{% endif %} {% if d.id %}disabled{% endif %}><span>{{ label }}</span></label>{% endfor %}
-</div>
-<section class="card qf-card sk-head"><h2 class="qf-h">Thông tin phiếu</h2>
+</div></div>
 <div class="sk-row"><label class="sk-date">Ngày phiếu<input type="date" name="doc_date" value="{{ d.doc_date }}" required></label>
 <div class="field-group sk-wh{{ ' field-invalid' if field_errors.warehouse_code }}"><p class="group-label" data-sk-wh-label>{{ {'PN':'Kho nhận','KK':'Kho kiểm'}.get(d.kind, 'Kho xuất') }}</p>
 {# TUẤN duyệt 28/10/2026: chỉ kho chính là nút; kho chờ xử lý/NCC và kho thợ gom vào "Kho khác ▾" có ô tìm. #}
@@ -31,7 +33,7 @@
 <div class="sk-wh-drop"><input type="search" data-sk-wh-q placeholder="Gõ mã kho hoặc tên thợ…" autocomplete="off" aria-label="Tìm kho khác">
 {% for kind, title in [('LOI','Kho chờ xử lý · NCC'),('THO','Kho thợ')] %}{% set group = other_wh|selectattr('kind','equalto',kind)|list %}{% if group %}<p class="sk-wh-g" data-wh-group="{{ kind }}">{{ title }}</p>{% for w in group %}{{ wh_radio(w) }}{% endfor %}{% endif %}{% endfor %}
 <p class="hint" data-sk-wh-none hidden>Không có kho khớp.</p></div></details>{% endif %}
-</div>{{ ui.field_error(field_errors, 'warehouse_code') }}</div></div>
+</div>{{ ui.field_error(field_errors, 'warehouse_code') }}</div>
 <fieldset class="sk-dest{{ ' field-invalid' if field_errors.to_warehouse_code }}" data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend>
 <input type="hidden" name="to_warehouse_code" value="{{ d.to_warehouse_code or '' }}">
 <div class="seg stock-seg">{% for w in warehouses if w.kind=='KHO' %}<label><input type="radio" name="to_regular_warehouse" value="{{ w.code }}" {% if d.to_warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.to_warehouse_code != w.code %}disabled{% endif %}><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}</div>
@@ -46,23 +48,22 @@
 <div class="po-picked"><span aria-hidden="true">✓</span><div><b data-party-name>{% if customer %}{{ customer.code }} · {{ customer.name }}{% endif %}</b><small data-party-info></small></div>{% if live %}<button type="button" class="btn btn-ghost" data-party-change>Đổi</button>{% endif %}</div>
 <label class="sk-party-find">Khách hàng (tìm và chọn, không bắt buộc)<input name="customer_code" value="{{ d.customer_code or '' }}" autocomplete="off" data-live=".sk-party-options" data-source="/phieu-kho/tim-khach" placeholder="Tên, mã hoặc số điện thoại" {% if d.kind != 'PX' %}disabled{% endif %}></label><div class="sk-party-options product-options" aria-live="polite"></div>
 {{ ui.field_error(field_errors, 'customer_code') }}</div>
+</div>
 <div class="qf-pair"><label class="{{ 'field-invalid' if field_errors.reason }}">Lý do<input name="reason" value="{{ d.reason }}" maxlength="2000" placeholder="Nhập hàng NCC giao, xuất dùng, chuyển bổ sung…">{{ ui.field_error(field_errors, 'reason') }}</label>
 <label>Ghi chú<input name="note" value="{{ d.note }}" maxlength="2000" placeholder="Ghi chú thêm"></label></div>
 </section>
-<section class="card qf-card qf-lines sk-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng trong phiếu <span class="qf-count" data-sk-count>{{ d.lines|length }} dòng</span></h2><span class="hint" data-sk-stock-note>Tồn: số có thể dùng ở kho đang chọn</span></div>
-{% if live %}<div class="qf-find" data-sk-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-sk-q placeholder="+ Tìm hàng: mã, tên… (↑↓ chọn · Enter thêm · F2 về đây)" autocomplete="off" enterkeyhint="enter"></label><div class="qf-find-drop" data-sk-list aria-live="polite" hidden></div></div>
-<p class="qf-keys" data-sk-keys><span><kbd>↑</kbd><kbd>↓</kbd> chọn</span><span><kbd>Enter</kbd> thêm, nhảy xuống Số lượng</span><span><kbd>Enter</kbd> ở Số lượng → Đơn giá → về ô tìm</span><span>gõ <kbd>3*107a</kbd> thêm 3 cái</span><span><kbd>Esc</kbd> đóng</span></p>{% endif %}
-<div class="skl-head" aria-hidden="true"><span>Hàng</span><span>Tồn</span><span>Số lượng</span><span class="skl-cost-h">Đơn giá</span><span>Serial</span><span>Ghi chú dòng</span><span></span></div>
+<section class="card qf-card qf-lines sk-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng trong phiếu <span class="qf-count" data-sk-count>{{ d.lines|length }} dòng</span></h2>{% if live %}<span class="qf-keys" data-sk-keys title="↑↓ chọn · Esc đóng · gõ 3*107a thêm 3 cái · F2 về ô tìm"><kbd>↑</kbd><kbd>↓</kbd> chọn · <kbd>Enter</kbd> thêm → Số lượng → Đơn giá · <kbd>F2</kbd> về ô tìm</span>{% endif %}</div>
+{% if live %}<div class="qf-find" data-sk-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-sk-q placeholder="+ Tìm hàng: mã, tên… (↑↓ chọn · Enter thêm · F2 về đây)" autocomplete="off" enterkeyhint="enter"></label><div class="qf-find-drop" data-sk-list aria-live="polite" hidden></div></div>{% endif %}
+<div class="skl-head" aria-hidden="true"><span>Hàng</span><span title="Số có thể dùng ở kho đang chọn">Tồn</span><span>Số lượng</span><span class="skl-cost-h">Đơn giá</span><span>Serial</span><span>Ghi chú dòng</span><span></span></div>
 <div data-stock-lines>{% for line in d.lines %}{% set loop_index = loop.index0 %}{% include 'phieu_dong.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-sk-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>.</p>
 {% if live %}<div class="qf-adds"><button type="button" class="qf-add btn-ghost" data-add-stock-line>+ Dòng hàng tìm theo mã</button></div>{% endif %}
 </section>
 </fieldset></div>
 <aside class="qf-side">
-<section class="card qf-sum sk-sum"><h2 class="qf-h">Tóm tắt phiếu</h2><dl><div><dt>Loại</dt><dd data-sk-kind>{{ kinds[d.kind] }}</dd></div><div><dt>Kho</dt><dd data-sk-wh>{{ d.warehouse_code or 'Chưa chọn' }}</dd></div><div><dt>Số dòng</dt><dd data-sk-lines>{{ d.lines|length }}</dd></div><div><dt>Tổng số lượng</dt><dd data-sk-qty>—</dd></div><div data-sk-value-row {% if d.kind in ['PX','CK'] %}hidden{% endif %}><dt>Giá trị theo đơn giá</dt><dd data-sk-value>—</dd></div></dl></section>
-{% if live %}<section class="card workflow-action sk-next" aria-label="Bước tiếp"><h2>Bước tiếp · kho làm</h2>
+<section class="card qf-sum sk-sum"><dl><div hidden><dt>Loại</dt><dd data-sk-kind>{{ kinds[d.kind] }}</dd></div><div hidden><dt>Kho</dt><dd data-sk-wh>{{ d.warehouse_code or 'Chưa chọn' }}</dd></div><div><dt>Số dòng</dt><dd data-sk-lines>{{ d.lines|length }}</dd></div><div><dt>Tổng số lượng</dt><dd data-sk-qty>—</dd></div><div data-sk-value-row {% if d.kind in ['PX','CK'] %}hidden{% endif %}><dt>Tổng tiền</dt><dd data-sk-value>—</dd></div></dl></section>
+{% if live %}<section class="card next-box workflow-action sk-next" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · Kho</span>
 <ul class="workflow-checks" data-sk-checks><li data-check="wh">Đã chọn kho</li><li data-check="party" data-kind-check="PN">Đã chọn nhà cung cấp</li><li data-check="dest" data-kind-check="CK">Đã chọn kho đích</li><li data-check="lines">Có ít nhất 1 dòng</li><li data-check="filled">Mọi dòng có hàng và số lượng</li></ul>
-<div class="workflow-total"><span>Tổng số lượng</span><strong data-sk-qty-bar>—</strong></div>
 {% set kk_send = d.kind == 'KK' and approve_kk %}
 <div class="workflow-buttons"><button class="btn-ok next-primary" name="action" value="post" data-sk-primary {% if d.id %}formaction="/phieu-kho/{{ d.id }}/post"{% endif %}>{% if kk_send %}Gửi giám đốc duyệt{% elif d.kind == 'KK' and d.id %}Duyệt · ghi sổ{% else %}Ghi sổ{% endif %}</button><button class="btn-ghost" name="action" value="save" data-sk-save {% if kk_send %}hidden{% endif %}>{{ 'Lưu nháp' if d.id else 'Chỉ lưu nháp' }}</button></div>
 <p class="hint" data-sk-missing hidden></p>

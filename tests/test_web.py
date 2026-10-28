@@ -254,19 +254,47 @@ def test_kiem_ke_web_kho_gui_giam_doc_duyet(client, web_login, stock_catalog, db
     doc_id = int(re.search(r'/phieu-kho/(\d+)', r.headers['location']).group(1))
     assert db.get(StockDoc, doc_id).status == 'NHAP'
     page = client.get(r.headers['location'])
-    assert 'Đã gửi giám đốc duyệt' in page.text and 'Gửi giám đốc duyệt</button>' in page.text
+    # Mẫu PhieuKhoGon 28/10/2026: kiểm kê đã gửi mở màn Xem phiếu chỉ đọc; sửa số đếm qua ?sua=1.
+    assert 'Đã gửi giám đốc duyệt' in page.text and 'data-stock-view' in page.text and 'Chờ giám đốc duyệt' in page.text
+    assert 'name="product_code"' not in page.text and f'href="/phieu-kho/{doc_id}?sua=1"' in page.text
+    page = client.get(f'/phieu-kho/{doc_id}?sua=1')
+    assert 'data-stock-form' in page.text and 'Gửi giám đốc duyệt</button>' in page.text and 'data-kk-approve="1"' in page.text
     director_csrf = web_login('giam.doc', 'director')
     boss = db.scalars(select(User).where(User.username == 'giam.doc')).one()
     groups = {g['key']: g for g in my_work.collect(db, boss)}
     assert groups['stock_counts_pending']['rows'][0]['link'] == f'/phieu-kho/{doc_id}'
     page = client.get(f'/phieu-kho/{doc_id}')
-    assert 'Duyệt · ghi sổ</button>' in page.text and 'data-kk-approve="0"' in page.text
+    assert 'Duyệt · ghi sổ</button>' in page.text and 'data-kk-approve-form' in page.text and 'data-stock-view' in page.text
     doc = db.get(StockDoc, doc_id)
-    form = {**stock_form(director_csrf, **kk), 'version': str(doc.version)}
-    r = client.post(f'/phieu-kho/{doc_id}/post', data=form, follow_redirects=False)
+    # Duyệt từ màn xem: chỉ gửi phiên bản, ghi sổ đúng các dòng đã lưu.
+    r = client.post(f'/phieu-kho/{doc_id}/post', data={'csrf': director_csrf, 'approve': '1', 'version': str(doc.version)}, follow_redirects=False)
     assert r.status_code == 303, r.text
     db.expire_all()
     assert db.get(StockDoc, doc_id).status == 'DA_GHI'
+    assert db.get(StockDoc, doc_id).lines[0].qty == 2
+    page = client.get(f'/phieu-kho/{doc_id}').text
+    assert 'data-stock-view' in page and 'Tồn sổ' in page and 'Đếm được' in page and 'name="qty"' not in page
+
+
+def test_phieu_kho_da_ghi_mo_man_xem_chi_doc(client, web_login, stock_catalog, db):
+    """Mẫu PhieuKhoGon: phiếu đã ghi không còn ô nhập; hủy phiếu gập trong khung phải, phải ghi lý do."""
+    from app.models import StockDoc
+    csrf = web_login('thu.kho', 'warehouse')
+    doc_id = stock_create_web(client, csrf)
+    page = client.get(f'/phieu-kho/{doc_id}').text
+    assert 'data-stock-form' in page  # nháp vẫn mở màn lập phiếu
+    r = client.post(f'/phieu-kho/{doc_id}/post', data=stock_form(csrf, version='1'), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    page = client.get(f'/phieu-kho/{doc_id}').text
+    assert 'data-stock-view' in page and 'data-stock-form' not in page and 'name="qty"' not in page
+    assert 'Đã ghi sổ' in page and '240.000' in page and f'action="/phieu-kho/{doc_id}/void"' in page
+    doc = db.get(StockDoc, doc_id)
+    r = client.post(f'/phieu-kho/{doc_id}/void', data={'csrf': csrf, 'version': str(doc.version), 'reason': ''})
+    assert r.status_code in (400, 422) and 'data-stock-view' in r.text
+    r = client.post(f'/phieu-kho/{doc_id}/void', data={'csrf': csrf, 'version': str(doc.version), 'reason': 'Nhập nhầm kho'}, follow_redirects=False)
+    assert r.status_code == 303
+    page = client.get(f'/phieu-kho/{doc_id}').text
+    assert 'data-stock-voided' in page and 'Nhập nhầm kho' in page and '/void"' not in page
 
 
 def test_k6_receipt_form_parses_money(client, web_login, stock_catalog, db):

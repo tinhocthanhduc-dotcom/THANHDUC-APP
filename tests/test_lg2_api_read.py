@@ -75,7 +75,7 @@ def test_stock_reader_keeps_cost_and_existing_shape(client,sources,role):
     assert page.status_code==200
     if role=='finance':
         assert 'data-add-stock-line' not in page.text and 'stock-cancel' not in page.text
-        assert '<fieldset disabled>' in page.text
+        assert 'data-stock-view' in page.text
 
 
 def test_stock_api_and_web_use_one_policy_at_request_time(client,sources,monkeypatch):
@@ -133,7 +133,7 @@ def test_read_changes_do_not_grant_stock_write_to_finance(client,db,sources):
     draft=stock_docs.create(db,p['warehouse'],StockDocIn(**body))
     csrf=service_login(client,p['finance'])
     page=client.get(f'/phieu-kho/{draft.id}')
-    assert page.status_code==200 and '<fieldset disabled>' in page.text
+    assert page.status_code==200 and 'data-stock-view' in page.text
     assert 'data-add-stock-line' not in page.text and 'stock-cancel' not in page.text
     def state():
         return [list(db.execute(select(*m.__table__.columns).order_by(*m.__table__.primary_key.columns)))

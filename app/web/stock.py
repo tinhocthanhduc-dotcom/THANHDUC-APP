@@ -347,9 +347,58 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
     return _save_form(request, session, form, posting=form.get('action') == 'post')
 
 
+def _read_view(request, session, doc, saved=False, sent=False, error=None, error_code='', status=200, action_reason=''):
+    """Màn Xem phiếu (TUẤN duyệt 28/10/2026): phiếu đã ghi / đã hủy / kiểm kê chờ duyệt chỉ để đọc, cùng khung Đơn bán."""
+    codes = [l.product_code for l in doc.lines]
+    names = dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(codes))).all()) if codes else {}
+    units = dict(session.execute(select(Product.code, Product.unit).where(Product.code.in_(codes))).all()) if codes else {}
+    book = {}
+    if doc.kind == 'KK':
+        # Tồn sổ: chưa ghi thì lấy tồn hiện tại; đã ghi (kể cả đã hủy sau khi ghi) = đếm − chênh đã vào sổ.
+        moved = dict(session.execute(select(StockLedger.line_no, func.sum(StockLedger.qty_in - StockLedger.qty_out))
+                                     .where(StockLedger.doc_id == doc.id, StockLedger.is_reversal.is_(False))
+                                     .group_by(StockLedger.line_no)).all())
+        if doc.status == 'NHAP':
+            book = dict(session.execute(select(StockBalance.product_code, StockBalance.qty)
+                                        .where(StockBalance.warehouse_code == doc.warehouse_code, StockBalance.product_code.in_(codes))).all()) if codes else {}
+            book = {l.line_no: book.get(l.product_code, Decimal(0)) for l in doc.lines}
+        elif doc.posted_at:
+            book = {l.line_no: l.qty - (moved.get(l.line_no) or 0) for l in doc.lines}
+    rows = []
+    for l in doc.lines:
+        diff = l.qty - book[l.line_no] if l.line_no in book else None
+        rows.append(dict(line=l, name=names.get(l.product_code, ''), unit=units.get(l.product_code, ''),
+                         amount=int((l.qty or 0) * (l.unit_cost or 0)), book=book.get(l.line_no), diff=diff))
+    people = dict(session.execute(select(User.id, User.full_name).where(User.id.in_({doc.created_by, doc.posted_by or doc.created_by}))).all())
+    user = request.state.user
+    source = stock_sources.describe(session, doc)
+    can_write = has_role(user, 'warehouse')
+    is_director = has_role(user, 'director')
+    can_void = (can_write and doc.status in ('NHAP', 'DA_GHI') and (not source or source['voidable'])
+                and not (doc.kind == 'KK' and doc.status == 'DA_GHI' and not is_director))
+    return render(request, 'phieu_xem.jinja', d=doc, kinds=KINDS, states=STATES, rows=rows, status=status,
+                  warehouse=session.get(Warehouse, doc.warehouse_code),
+                  to_warehouse=session.get(Warehouse, doc.to_warehouse_code) if doc.to_warehouse_code else None,
+                  supplier=session.get(Supplier, doc.supplier_code) if doc.supplier_code else None,
+                  customer=session.get(Customer, doc.customer_code) if doc.customer_code else None,
+                  source=source, maker=people.get(doc.created_by, ''), poster=people.get(doc.posted_by, ''),
+                  total_qty=sum((l.qty or 0) for l in doc.lines), total_amount=sum(r['amount'] for r in rows),
+                  diff_up=sum(1 for r in rows if r['diff'] and r['diff'] > 0), diff_down=sum(1 for r in rows if r['diff'] and r['diff'] < 0),
+                  show_cost=doc.kind in ('PN', 'KK'), can_write=can_write, is_director=is_director, can_void=can_void,
+                  saved=saved, sent=sent, error=error, error_code=error_code, action_reason=action_reason)
+
+
+def _editable(request, doc, sua):
+    # Nháp do kho sửa tiếp trên màn lập phiếu; kiểm kê đã gửi duyệt mở màn xem, muốn sửa số đếm thì bấm "Sửa phiếu".
+    return has_role(request.state.user, 'warehouse') and doc.status == 'NHAP' and (doc.kind != 'KK' or sua)
+
+
 @router.get('/phieu-kho/{doc_id}')
-def view(request: Request, doc_id: int, da_luu: int = 0, da_gui: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return _form(request, session, stock_docs.snapshot(stock_docs.load(session, doc_id)), saved=bool(da_luu), sent=bool(da_gui))
+def view(request: Request, doc_id: int, da_luu: int = 0, da_gui: int = 0, sua: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    doc = stock_docs.load(session, doc_id)
+    if not _editable(request, doc, sua):
+        return _read_view(request, session, doc, saved=bool(da_luu), sent=bool(da_gui))
+    return _form(request, session, stock_docs.snapshot(doc), saved=bool(da_luu), sent=bool(da_gui))
 
 
 @router.get('/phieu-kho/{doc_id}/in')
@@ -383,6 +432,14 @@ def update(request: Request, doc_id: int, form=Depends(checked_form), session: S
 
 @router.post('/phieu-kho/{doc_id}/post')
 def post(request: Request, doc_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    if form.get('approve') == '1':
+        # Giám đốc duyệt kiểm kê từ màn xem: ghi sổ đúng các dòng đã lưu, không gửi lại dòng hàng.
+        try:
+            stock_posting.post(session, request.state.user, doc_id, _version(form))
+        except (BusinessError, ValidationError) as exc:
+            return _read_view(request, session, stock_docs.load(session, doc_id), error=_error(exc),
+                              error_code=getattr(exc, 'code', ''), status=getattr(exc, 'status', 400))
+        return RedirectResponse(f'/phieu-kho/{doc_id}?da_luu=1', status_code=303)
     return _save_form(request, session, form, doc_id, posting=True)
 
 
@@ -398,6 +455,9 @@ def _cancel(request, session, form, doc_id, posted):
         else:
             stock_docs.cancel(session, request.state.user, doc_id, StockDocCancel(reason=reason, version=version))
     except (BusinessError, ValidationError) as exc:
+        doc = stock_docs.load(session, doc_id)
+        if not _editable(request, doc, False):
+            return _read_view(request, session, doc, error=_error(exc), error_code=getattr(exc, 'code', ''), status=getattr(exc, 'status', 400), action_reason=reason)
         return _form(request, session, shown, error=_error(exc), error_code=getattr(exc, 'code', ''), status=getattr(exc, 'status', 400), action_reason=reason)
     return RedirectResponse(f'/phieu-kho/{doc_id}?da_luu=1', status_code=303)
 

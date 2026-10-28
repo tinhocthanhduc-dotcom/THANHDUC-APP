@@ -1,0 +1,65 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ d.number }}{% endblock %}
+{% block main %}
+{# Xem phiếu kho (TUẤN duyệt mẫu PhieuKhoGon 28/10/2026): phiếu đã ghi / đã hủy / kiểm kê chờ duyệt chỉ để đọc, cùng khung 2 cột với Đơn bán và Giao đơn. #}
+{% set kk_wait = d.kind == 'KK' and d.status == 'NHAP' %}
+{% set kind_long = {'PN':'Phiếu nhập','PX':'Phiếu xuất','CK':'Phiếu chuyển kho','KK':'Phiếu kiểm kê'}[d.kind] %}
+{% set party = (supplier.code ~ ' · ' ~ supplier.name) if supplier else (customer.code ~ ' · ' ~ customer.name) if customer else '' %}
+<div class="page-wide doc-view sk-view" data-stock-view>
+{% call ui.page_head(d.number, sub=kind_long ~ ' · ' ~ d.warehouse_code ~ (' → ' ~ d.to_warehouse_code if d.to_warehouse_code else '') ~ ' · ' ~ d.doc_date.strftime('%d/%m/%Y') ~ (' · ' ~ party if party else ''), back='/phieu-kho', badge_label='Chờ duyệt' if kk_wait else states[d.status], badge_tone='cho' if kk_wait else {'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) %}<a class="btn btn-ghost doc-print" href="/phieu-kho/{{ d.id }}/in">In phiếu</a>{% endcall %}
+{% if d.kind == 'KK' and d.status != 'DA_HUY' %}{{ ui.steps([('Lập phiếu','done'),('Chờ giám đốc duyệt','cur' if kk_wait else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
+{% if sent %}<p class="alert ok">Đã gửi giám đốc duyệt. Tồn kho chưa đổi cho tới khi giám đốc ghi sổ.</p>{% elif saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if kk_wait and not sent %}<p class="alert warn" data-kk-waiting>{% if is_director %}Phiếu kiểm kê chờ anh duyệt. Xem số đếm từng dòng rồi bấm <b>Duyệt · ghi sổ</b>.{% else %}Phiếu kiểm kê đang chờ giám đốc duyệt. Tồn kho chưa đổi.{% endif %}</p>{% endif %}
+{% if d.status == 'DA_HUY' %}<p class="alert bad" data-stock-voided>Phiếu đã hủy · Lý do: {{ d.void_reason or 'không ghi' }}. {{ 'Tồn kho đã trả lại như trước khi ghi.' if d.posted_at else 'Tồn kho không đổi.' }}</p>{% endif %}
+<div class="doc-grid">
+<div class="doc-main">
+<section class="card doc-card"><h2 class="doc-h">Thông tin phiếu</h2>
+<dl class="sk-kv3">
+<div><dt>Loại</dt><dd>{{ kinds[d.kind] }}</dd></div>
+<div><dt>{{ {'PN':'Kho nhận','KK':'Kho kiểm'}.get(d.kind,'Kho xuất') }}</dt><dd>{{ d.warehouse_code }}{% if warehouse %} · {{ warehouse.name }}{% endif %}</dd></div>
+<div><dt>Ngày phiếu</dt><dd>{{ d.doc_date.strftime('%d/%m/%Y') }}</dd></div>
+{% if d.kind == 'CK' %}<div><dt>Kho đích</dt><dd>{{ d.to_warehouse_code }}{% if to_warehouse %} · {{ to_warehouse.name }}{% endif %}</dd></div>{% endif %}
+{% if supplier %}<div><dt>Nhà cung cấp</dt><dd>{{ supplier.code }} · {{ supplier.name }}</dd></div>{% endif %}
+{% if customer %}<div><dt>Khách hàng</dt><dd>{{ customer.code }} · {{ customer.name }}</dd></div>{% endif %}
+<div><dt>Người lập</dt><dd>{{ maker or '—' }}</dd></div>
+{% if poster and d.posted_at %}<div><dt>Người ghi sổ</dt><dd>{{ poster }} · {{ d.posted_at|vn_date }} {{ d.posted_at|vn_time }}</dd></div>{% endif %}
+{% if d.reason %}<div><dt>Lý do</dt><dd>{{ d.reason }}</dd></div>{% endif %}
+{% if d.note %}<div><dt>Ghi chú</dt><dd>{{ d.note }}</dd></div>{% endif %}
+{% if source %}<div data-stock-source><dt>Sinh từ</dt><dd><a href="{{ source.href }}">{{ source.label }}</a></dd></div>{% endif %}
+</dl></section>
+<section class="card doc-card doc-lines-card" data-sk-view-lines><div class="doc-card-head sk-vh"><h2 class="doc-h">Hàng trong phiếu · {{ rows|length }} dòng</h2>{% if rows|length > 25 %}<input type="search" class="sk-vq" data-sk-vq placeholder="Lọc trong {{ rows|length }} dòng: mã, tên…" autocomplete="off" aria-label="Lọc dòng hàng">{% endif %}</div>
+<div class="table-scroll doc-lines"><table class="list-table sk-vtable"><thead><tr><th>Hàng</th>
+{% if d.kind == 'KK' %}<th class="num">Tồn sổ</th><th class="num">Đếm được</th><th class="num">Chênh</th>{% else %}<th class="num">SL</th>{% endif %}
+{% if show_cost %}<th class="num">Đơn giá</th><th class="num">Thành tiền</th>{% endif %}<th>Ghi chú</th></tr></thead><tbody>
+{% for r in rows %}{% set l = r.line %}<tr data-sk-vrow data-text="{{ l.product_code }} {{ r.name }} {{ l.serial or '' }} {{ l.note }}"><td data-label="Hàng"><b>{{ r.name or l.product_code }}</b><span class="lt-sub">{{ l.product_code }}{% if l.serial %} · Serial {{ l.serial }}{% endif %}</span></td>
+{% if d.kind == 'KK' %}<td class="num" data-label="Tồn sổ">{{ r.book|qty if r.book is not none else '—' }}</td><td class="num" data-label="Đếm được">{{ l.qty|qty }}</td><td class="num" data-label="Chênh">{% if r.diff is none %}—{% elif r.diff > 0 %}<span class="sk-up">+{{ r.diff|qty }}</span>{% elif r.diff < 0 %}<span class="sk-down">−{{ (-r.diff)|qty }}</span>{% else %}<span class="lt-sub">0</span>{% endif %}</td>
+{% else %}<td class="num" data-label="Số lượng">{{ l.qty|qty }} {{ r.unit }}</td>{% endif %}
+{% if show_cost %}<td class="num" data-label="Đơn giá">{{ l.unit_cost|money if l.unit_cost is not none else '—' }}</td><td class="num" data-label="Thành tiền">{{ r.amount|money }}</td>{% endif %}<td data-label="Ghi chú">{{ l.note }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% if rows|length > 25 %}<div class="sk-pager" data-sk-pager><span data-sk-pinfo>Dòng 1–25 / {{ rows|length }}</span><span class="sk-pbtns"><button type="button" class="btn btn-ghost" data-sk-prev>‹ Trước</button><button type="button" class="btn btn-ghost" data-sk-next>Sau ›</button></span></div>{% endif %}
+</section>
+</div>
+<aside class="doc-side">
+<section class="card doc-card doc-money">{{ ui.totals([('Số dòng', rows|length, ''),('Tổng số lượng', total_qty|qty, '')] + ([('Tổng tiền', total_amount|money ~ ' đồng', 'main')] if show_cost else []) + ([('Dòng thừa / thiếu', diff_up ~ ' / ' ~ diff_down, '')] if d.kind == 'KK' and d.status != 'DA_HUY' else [])) }}</section>
+{% if kk_wait %}
+{% if is_director %}<form class="card next-box doc-next" method="post" action="/phieu-kho/{{ d.id }}/post" data-kk-approve-form><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}"><input type="hidden" name="approve" value="1">
+<span class="nb-who">Bước tiếp · Giám đốc</span><b>Duyệt kiểm kê</b><p class="hint">Ghi chênh lệch {{ diff_up }} dòng thừa, {{ diff_down }} dòng thiếu vào tồn {{ d.warehouse_code }}.</p><button class="btn-ok" data-next-primary>Duyệt · ghi sổ</button></form>
+{% else %}<section class="card next-box doc-next"><span class="nb-who">Bước tiếp · Giám đốc</span><b>Chờ giám đốc duyệt</b><p class="hint">Tồn kho chưa đổi cho tới khi giám đốc duyệt.</p></section>{% endif %}
+{% if can_write %}<a class="btn btn-ghost" href="/phieu-kho/{{ d.id }}?sua=1" data-kk-edit>Sửa số đếm ›</a>{% endif %}
+{% elif d.status == 'DA_GHI' %}<section class="card next-box doc-next done-state"><span class="nb-who">Đã xong</span><b>Đã ghi sổ{% if d.posted_at %} {{ d.posted_at|vn_date }} {{ d.posted_at|vn_time }}{% endif %}</b><p class="hint">Tồn kho đã đổi theo phiếu. Ghi sai thì hủy phiếu có lý do rồi lập phiếu mới.</p></section>
+{% elif d.status == 'DA_HUY' %}<section class="card doc-card"><span class="nb-who">Phiếu đã hủy</span><p class="hint">Không còn việc cần làm. Muốn làm lại thì lập phiếu mới.</p>{% if can_write %}<a class="btn btn-ghost" href="/phieu-kho/moi?loai={{ d.kind }}">+ Lập phiếu {{ kinds[d.kind]|lower }} mới</a>{% endif %}</section>
+{% else %}<section class="card doc-card"><span class="nb-who">Phiếu nháp</span><p class="hint">Phiếu chưa ghi sổ, tồn kho chưa đổi.</p></section>{% endif %}
+{% if can_void %}<details class="card po-danger"{% if action_reason or error_code in ['REASON_REQUIRED'] %} open{% endif %}><summary>{% if d.status == 'NHAP' %}{{ 'Không duyệt · hủy phiếu' if kk_wait and is_director else 'Hủy nháp' }}{% else %}Hủy phiếu đã ghi{% endif %}</summary>
+<form method="post" class="form stock-cancel" action="/phieu-kho/{{ d.id }}/{% if d.status == 'NHAP' %}cancel{% else %}void{% endif %}" {% if d.status == 'DA_GHI' %}data-confirm-void{% endif %}>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.version }}">
+<label>Lý do hủy<input name="reason" value="{{ action_reason }}" required {% if d.status == 'DA_GHI' %}minlength="3"{% endif %} maxlength="2000"></label>
+<p class="hint">{% if d.status == 'NHAP' %}Phiếu bị hủy, tồn kho không đổi.{% else %}Tạo dòng đảo trong sổ kho với ngày hủy; tồn kho trở lại như trước khi ghi.{% endif %}</p>
+<button class="btn-danger">{% if d.status == 'NHAP' %}Hủy phiếu{% else %}Hủy phiếu đã ghi{% endif %}</button>
+</form></details>{% endif %}
+</aside>
+</div>
+</div>
+<script src="{{ asset('stock-view.js') }}" defer></script>
+{% endblock %}

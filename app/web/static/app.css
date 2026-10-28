@@ -3033,3 +3033,34 @@ a.lv-nrow:hover { background: var(--tag, var(--bg)); }
 .stock-group > summary h2 { margin: 0; }
 .stock-group-meta { color: var(--muted); font-weight: 600; font-size: .9rem; }
 .stock-group:not([open]) > summary::after { content: 'Bấm để mở'; color: var(--accent); font-size: .85rem; font-weight: 600; }
+/* Lập phiếu kho thu gọn (mẫu PhieuKhoGon duyệt 28/10/2026): loại phiếu nút nhỏ góc khung; Ngày · Kho · NCC/Khách/Kho đích một hàng. */
+.sk-head-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.sk-head-top .qf-h { margin: 0; }
+.sk-head .sk-kinds label span { min-height: 36px; padding: 0 12px; font-size: .9rem; }
+.sk-head label, .sk-head .group-label, .sk-head legend { font-weight: 700; font-size: .9rem; }
+.sk-head label > input, .sk-head label > textarea { font-weight: 400; }
+.sk-row .sk-date, .sk-row .sk-wh { display: grid; gap: 6px; align-content: start; }
+.sk-wh-more > summary { font: inherit; font-weight: 400; padding: 10px 12px; border-radius: 8px; min-height: 0; }
+.sk-head .seg label { font-weight: 400; font-size: 1rem; }
+.sk-head .seg input:checked + span { font-weight: 600; }
+@container (min-width: 700px) { .sk-row { grid-template-columns: 160px minmax(0,1fr) minmax(0,1fr); } }
+.sk-lines .qf-card-head .qf-keys { margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+/* Xem phiếu kho (mẫu PhieuKhoGon duyệt 28/10/2026): thông tin 3 cột, bảng chỉ đọc, lọc + 25 dòng/trang. */
+.sk-kv3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
+.sk-kv3 > div { display: grid; gap: 2px; min-width: 0; }
+.sk-kv3 dt { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.sk-kv3 dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; text-align: left; }
+@media (max-width: 640px) { .sk-kv3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.sk-view .sk-vh { justify-content: space-between; flex-wrap: wrap; }
+.sk-view .sk-vq { max-width: 280px; flex: 1 1 200px; }
+.sk-view .sk-up { color: var(--ok); font-weight: 700; }
+.sk-view .sk-down { color: var(--bad); font-weight: 700; }
+.sk-view .sk-pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 16px 14px; color: var(--muted); font-size: .9rem; }
+.sk-view .sk-pbtns { display: inline-flex; gap: 6px; }
+.sk-view .doc-side > .btn { justify-self: stretch; text-align: center; }
+@media (max-width: 640px) {
+  .sk-view .sk-vtable tr { grid-template-columns: 1fr 1fr; }
+  .sk-view .sk-vtable td[data-label="Hàng"] { grid-column: 1 / -1; }
+  .sk-view .sk-vtable td[data-label]:not([data-label="Hàng"])::before { content: attr(data-label) ': '; color: var(--muted); font-size: .85rem; }
+  .sk-view .sk-vtable td[data-label="Ghi chú"]:empty { display: none; }
+}
