@@ -20,7 +20,7 @@ EXPECTED = {
     'sales': {'/viec-cua-toi', '/thiet-bi', '/khach-hang', '/bao-gia', '/don-ban',
               '/bao-cao/ban-hang', '/hang-hoa', '/ton-kho'},
     'warehouse': {'/cho-xu-ly', '/linh-kien-thu-hoi', '/may-dang-giu', '/yeu-cau-linh-kien', '/viec-cua-toi', '/don-ban', '/hang-hoa', '/ton-kho', '/phieu-kho',
-                  '/ton-kho?canh-bao=1', '/ton-dau-ky', '/kho', '/don-mua',
+                  '/ton-dau-ky', '/kho', '/don-mua',
                   '/nha-cung-cap', '/bao-cao-mua-hang', '/nhom-hang'},
     'finance': {'/cho-xu-ly', '/linh-kien-thu-hoi', '/viec-cua-toi', '/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
                 '/hang-hoa', '/ton-kho', '/phieu-kho', '/don-mua', '/nha-cung-cap', '/bao-cao-mua-hang',
@@ -189,7 +189,9 @@ def test_exact_active_item_group_and_single_item_not_dropdown(client, make_user)
     service_login(client, make_user('nav.warehouse', 'warehouse'))
     page = client.get('/ton-kho?canh-bao=1')
     links = Menu(page.text).links
-    assert [a['href'] for a in links if a.get('aria-current') == 'page'] == ['/ton-kho?canh-bao=1']
+    # TUẤN 28/10: Hàng sắp hết không còn trên menu; mở từ link thì sáng mục Tồn kho.
+    assert [a['href'] for a in links if a.get('aria-current') == 'page'] == ['/ton-kho']
+    assert all(a['href'] != '/ton-kho?canh-bao=1' for a in links)
     assert 'class="nav-group on"' in page.text
     # Mua hàng chỉ có Đơn mua: link trực tiếp, không summary xổ thêm một tầng.
     assert '<summary>Mua hàng</summary>' not in page.text
