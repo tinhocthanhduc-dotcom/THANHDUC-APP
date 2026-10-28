@@ -44,3 +44,17 @@ def test_technician_sees_price_unpaid_by_default_and_ticket_keeps_debt(client, d
     db.refresh(t)
     assert t.status in ('HOAN_THANH', 'DA_DONG')
     assert sales_receipts.balance(t)['remaining'] == 350000
+
+
+def test_office_page_shows_no_default_warranty_and_cost_not_yet(client, db, held):  # noqa: F811
+    # TUẤN 28/10: phiếu chưa hoàn thành không hiện "Bảo hành 90 ngày" và "giá vốn 0 đồng".
+    p, a, b = held
+    csrf = service_login(client, p['dispatcher'])
+    client.post('/dich-vu/moi', data=form(csrf, assignee_id=str(p['technician'].id)), follow_redirects=False)
+    client.post('/dich-vu/moi', data=form(csrf, kind='SUA_TAI_CHO', symptom='Kẹt giấy'), follow_redirects=False)
+    ink_t, repair = db.query(ServiceTicket).order_by(ServiceTicket.id).all()
+    html = client.get(f'/dich-vu/{ink_t.id}').text
+    assert '90 ngày' not in html and 'Không bảo hành' in html
+    assert 'chưa có, tính khi thợ hoàn thành phiếu' in html and 'giá vốn): 0 đồng' not in html
+    html = client.get(f'/dich-vu/{repair.id}').text
+    assert '90 ngày' not in html and 'Bảo hành: thợ chọn khi hoàn thành' in html
