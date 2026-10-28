@@ -32,6 +32,8 @@
     var pick=row.querySelector('[data-return-pick]'),detail=row.querySelector('[data-return-detail]');if(!pick)return;
     pick.checked=qtyOf(row)>0;if(detail)detail.hidden=!pick.checked;
   }
+  function allPicked(root){var rows=root.querySelectorAll('[data-return-row]');return rows.length>0&&Array.prototype.every.call(rows,function(row){return qtyOf(row)>0;});}
+  function label(root){var b=root.querySelector('[data-return-all]');if(b)b.textContent=allPicked(root)?'Bỏ hết':'Chọn hết';}
   document.querySelectorAll('[data-return-fields]').forEach(function(root){
     root.querySelectorAll('[data-return-row]').forEach(syncPick);
     root.addEventListener('change',function(event){
@@ -46,12 +48,17 @@
     root.addEventListener('click',function(event){
       if(event.target.closest('[data-return-split]')){setTimeout(function(){root.querySelectorAll('[data-return-row]').forEach(function(row){var d=row.querySelector('[data-return-detail]'),pick=row.querySelector('[data-return-pick]');if(d)d.hidden=false;if(pick)pick.checked=true;});},0);}
       if(!event.target.closest('[data-return-all]'))return;
+      // Một nút hai việc: còn mã chưa tick thì Chọn hết, đã tick hết thì Bỏ hết (số trả về 0, giữ dòng để tick lại).
+      var none=!allPicked(root);
       root.querySelectorAll('[data-return-row]').forEach(function(row){
-        row.hidden=false;var q=row.querySelector('[name=return_qty]');if(qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';
+        var q=row.querySelector('[name=return_qty]');
+        if(none){row.hidden=false;if(qtyOf(row)===0)q.value=q.dataset.held&&Number(q.dataset.held)>0?String(Number(q.dataset.held)):'1';}
+        else q.value='0';
         syncPick(row);
       });
-      root.dispatchEvent(new Event('return-state'));root.dispatchEvent(new Event('item-picker-refresh'));
+      root.dispatchEvent(new Event('return-state'));root.dispatchEvent(new Event('item-picker-refresh'));label(root);
     });
+    root.addEventListener('change',function(){label(root);});root.addEventListener('input',function(){label(root);});label(root);
   });
   // UX5a: mã tìm thêm thì tick sẵn; Chọn hết thì hiện cả các mã đang ẩn.
   document.addEventListener('item-picked',function(event){
