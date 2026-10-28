@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -209,6 +209,12 @@ def web_user(request: Request, session: Session = Depends(get_session)) -> User:
     """Người đang đăng nhập theo cookie. Chưa đăng nhập thì chuyển về trang đăng nhập."""
     request.state.web = True
     token = request.cookies.get(COOKIE, "")
+    # TD2: check_navigation và trang cùng gọi hàm này trong một lượt; lần sau dùng lại kết quả (bớt 2 truy vấn mỗi lượt).
+    cached = getattr(request.state, "user", None)
+    if cached is not None and getattr(request.state, "web_token", None) == token and getattr(request.state, "web_session", None) is session:
+        if cached.must_change_password and request.url.path not in ("/doi-mat-khau","/dang-xuat"):
+            raise PasswordChangeRequired()
+        return cached
     target = request.url.path + ("?" + request.url.query if request.url.query else "") if request.method == "GET" else form_page(request)
     try:
         payload=jwt.decode(token,get_settings().secret_key,algorithms=["HS256"])
@@ -222,6 +228,8 @@ def web_user(request: Request, session: Session = Depends(get_session)) -> User:
     request.state.payroll_account = not ('admin' in user.roles and 'director' not in user.roles) and session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None
     request.state.user = user
     request.state.csrf = csrf_token(token)
+    request.state.web_token = token
+    request.state.web_session = session
     if user.must_change_password and request.url.path not in ("/doi-mat-khau","/dang-xuat"):
         raise PasswordChangeRequired()
     return user
@@ -252,6 +260,19 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
         return templates.TemplateResponse(request, name, ctx, status_code=status)
     finally:
         _RENDER_USER.reset(token)
+
+
+def db_writes(session: Session) -> str:
+    """TD2: bộ đếm số dòng đã ghi của cả database. Không đổi nghĩa là chưa ai ghi gì, hàng việc cũng không đổi,
+    nên lượt hỏi nền 15 giây trả lời ngay mà không tính lại các nhóm việc."""
+    return str(session.scalar(text("select tup_inserted + tup_updated + tup_deleted from pg_stat_database where datname = current_database()")) or "")
+
+
+def poll_mark(request: Request, session: Session) -> tuple[bool, str]:
+    """(không đổi?, dấu hiện tại): không đổi khi trình duyệt gửi đúng dấu đó (?dau=). Trình duyệt tự bỏ dấu
+    mỗi phút một lần để tính lại đầy đủ (việc quá hạn đổi theo giờ, không theo lượt ghi)."""
+    dau = db_writes(session)
+    return bool(dau) and request.query_params.get("dau") == dau, dau
 
 
 def watch_response(stamp: str) -> JSONResponse:
@@ -329,9 +350,12 @@ def my_work_page(request: Request, user: User = Depends(web_user), session: Sess
 
 
 @router.get("/viec-cua-toi/moi")
-def my_work_stamp(user: User = Depends(web_user), session: Session = Depends(get_session)):
+def my_work_stamp(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
     from .. import work_watch
-    return watch_response(work_watch.my_queue(session, user))
+    same, dau = poll_mark(request, session)
+    if same:
+        return JSONResponse(dict(same=True, dau=dau), headers={"Cache-Control": "no-store"})
+    return JSONResponse(dict(stamp=work_watch.my_queue(session, user), dau=dau), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/dang-nhap")

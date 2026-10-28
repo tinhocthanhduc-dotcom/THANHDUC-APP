@@ -6,7 +6,7 @@
   var url = bell.dataset.notify, store = 'td-seen-' + bell.dataset.notifyUser, EVERY = 15000, busy = false;
   var badge = bell.querySelector('[data-notify-count]'), list = bell.querySelector('[data-notify-list]');
   var title = bell.querySelector('[data-notify-title]'), readAll = bell.querySelector('[data-notify-readall]');
-  var seen = null, current = [];
+  var seen = null, current = [], dau = null, polls = 0;
   try { var raw = localStorage.getItem(store); if (raw) seen = JSON.parse(raw); } catch (e) {}
   function save(ids) { try { localStorage.setItem(store, JSON.stringify(ids)); } catch (e) {} }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; }
@@ -59,10 +59,14 @@
   function check() {
     if (busy || document.visibilityState !== 'visible') return;
     busy = true;
-    fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+    // TD2: gửi lại dấu lần trước; máy chủ trả "không đổi" nếu chưa ai ghi gì. Mỗi phút một lần hỏi đầy đủ.
+    polls = (polls + 1) % 4;
+    var ask = dau && polls ? url + (url.indexOf('?') < 0 ? '?' : '&') + 'dau=' + encodeURIComponent(dau) : url;
+    fetch(ask, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
       .then(function (r) { return r.ok && /json/.test(r.headers.get('content-type') || '') ? r.json() : null; })
       .then(function (data) {
-        if (!data || !data.items) return;
+        if (data && data.dau) dau = data.dau;
+        if (!data || data.same || !data.items) return;
         // Đang mở đúng trang của thông báo (bấm từ chuông, báo nổi hay thông báo điện thoại) = đã xem.
         var opened = data.items.filter(function (i) { return !i.read && here(i); });
         if (opened.length) { markRead(opened.map(function (i) { return i.id; })); opened.forEach(function (i) { i.read = true; }); }
@@ -104,8 +108,12 @@
   navigator.serviceWorker.register('/sw.js').then(function (reg) {
     return reg.pushManager.getSubscription().then(function (sub) {
       if (sub && Notification.permission === 'granted') {
-        // Gửi lại mỗi lần mở để máy luôn gắn đúng người đang đăng nhập.
-        post('/ca-nhan/thong-bao/dang-ky', { subscription: JSON.stringify(sub) }).catch(function () {});
+        // Gửi lại để máy luôn gắn đúng người đang đăng nhập; TD2: mỗi người mỗi máy một lần/ngày, không phải mỗi trang.
+        var mark = 'td-push-sent-' + bell.dataset.notifyUser, last = 0;
+        try { var saved = JSON.parse(localStorage.getItem(mark) || 'null'); if (saved && saved.endpoint === sub.endpoint) last = saved.at; } catch (e) {}
+        if (Date.now() - last > 864e5) post('/ca-nhan/thong-bao/dang-ky', { subscription: JSON.stringify(sub) }).then(function () {
+          try { localStorage.setItem(mark, JSON.stringify({ endpoint: sub.endpoint, at: Date.now() })); } catch (e) {}
+        }).catch(function () {});
         say('Máy này đã bật thông báo khi tắt màn hình.');
         return;
       }
