@@ -3023,3 +3023,13 @@ a.lv-nrow:hover { background: var(--tag, var(--bg)); }
   .gd-view .gd-lines td.num { display: flex; justify-content: space-between; }
   .gd-view .gd-lines td.num::before { content: attr(data-label); color: var(--muted); font-weight: 400; }
 }
+
+/* Tồn kho: khu Thợ đang giữ / Chờ Xử lý thu gọn, bấm tiêu đề để mở; mỗi khu phân trang riêng. */
+.stock-group { margin-top: 18px; }
+.stock-group > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 48px; padding: 8px 0; cursor: pointer; list-style: none; }
+.stock-group > summary::-webkit-details-marker { display: none; }
+.stock-group > summary::before { content: '▸'; color: var(--muted); width: 1em; }
+.stock-group[open] > summary::before { content: '▾'; }
+.stock-group > summary h2 { margin: 0; }
+.stock-group-meta { color: var(--muted); font-weight: 600; font-size: .9rem; }
+.stock-group:not([open]) > summary::after { content: 'Bấm để mở'; color: var(--accent); font-size: .85rem; font-weight: 600; }

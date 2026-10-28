@@ -5,7 +5,7 @@
   function set(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
   function go(size) {
     var url = new URL(location.href);
-    url.searchParams.delete('trang'); url.searchParams.delete('phan');
+    Array.from(url.searchParams.keys()).forEach(function (k) { if (k === 'phan' || k.indexOf('trang') === 0) url.searchParams.delete(k); });
     if (size === '25') url.searchParams.delete('so'); else url.searchParams.set('so', size);
     location.href = url.pathname + url.search;
   }
