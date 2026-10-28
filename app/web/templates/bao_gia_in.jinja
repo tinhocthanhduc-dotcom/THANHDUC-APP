@@ -7,7 +7,7 @@
 {% block doc_sub %}Trân trọng gửi đến Quý khách hàng{% endblock %}
 {% block meta %}{{ f.meta('Số', q.number) }}{{ f.meta('Ngày báo giá', issued) }}{{ f.meta('Hiệu lực đến', q.valid_until|vn_date) }}{% endblock %}
 {% block body %}
-<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address), ('Người liên hệ', q.contact_name)]) }}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address), ('Người liên hệ', q.contact_name), ('Điện thoại', customer|customer_phones(q.contact_name))]) }}
 {{ f.card('Thông tin báo giá', '', [('Chính sách giá', 'Giá đã gồm VAT' if q.price_includes_vat else 'Giá chưa gồm VAT'), ('Trạng thái', statuses[q.status] ~ (' · hết hạn' if expired else '')), ('Người lập', maker), ('Lý do hủy', q.cancel_reason)]) }}</div>
 <table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>

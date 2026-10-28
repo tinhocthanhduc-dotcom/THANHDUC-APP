@@ -6,7 +6,7 @@
 {% block doc_sub %}Nhận máy của khách mang về xưởng sửa chữa{% endblock %}
 {% block meta %}{{ f.meta('Số phiếu', t.number) }}{{ f.meta('Ngày nhận', intake.confirmed_at|vn_date) }}{{ f.meta('Hẹn trả', t.promised_return_on|vn_date if t.promised_return_on else '') }}{% endblock %}
 {% block body %}
-<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Địa điểm', (site.name ~ (' · ' ~ site.address if site.address else '')) if site else customer.address), ('Điện thoại', customer.phones|map(attribute='phone')|join(', '))]) }}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Địa điểm', (site.name ~ (' · ' ~ site.address if site.address else '')) if site else customer.address), ('Người liên hệ', site.contact_name if site else ''), ('Điện thoại', customer|customer_phones(site.contact_name if site else '', site.contact_phone if site else ''))]) }}
 {{ f.card('Máy tiếp nhận', machine_name or 'Máy ngoài danh mục', [('Serial', t.serial), ('Phụ kiện kèm', accessories or 'Không kèm phụ kiện'), ('Ghi chú phụ kiện', intake.accessories_note), ('Người nhận máy', receiver), ('Nơi giữ máy', locations.get(machine.custody_location, '') if machine and machine.custody_ticket_id == t.id else 'Đã trả khách')]) }}</div>
 <div class="in-secs"><div class="in-sec"><h4>Tình trạng máy khi nhận</h4>{{ intake.condition_note }}</div>
 <div class="in-sec"><h4>Yêu cầu · lỗi khách báo</h4>{{ t.symptom }}</div>

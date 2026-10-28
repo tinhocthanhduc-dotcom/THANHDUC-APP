@@ -126,6 +126,29 @@ def vn_long_date(value) -> str:
 templates.env.filters["vn_long_date"] = vn_long_date
 
 
+def customer_phones(customer, contact_name: str = "", extra: str = "", limit: int = 3) -> str:
+    """Số điện thoại in trên phiếu: số của người liên hệ/nhận (nếu khớp tên), rồi số chính của khách; bỏ trùng."""
+    if customer is None:
+        return extra or ""
+    out = [x.strip() for x in str(extra or "").split(",") if x.strip()]
+    wanted = " ".join(str(contact_name or "").split()).casefold()
+    if wanted:
+        for c in getattr(customer, "contacts", None) or []:
+            if " ".join((c.name or "").split()).casefold() == wanted:
+                out += list(c.phones or [])
+    own = [p for p in (getattr(customer, "phones", None) or []) if not getattr(p, "is_contact", False)]
+    rest = [p for p in (getattr(customer, "phones", None) or []) if getattr(p, "is_contact", False)]
+    out += [p.phone for p in own] + ([p.phone for p in rest] if not out and not own else [])
+    seen, result = set(), []
+    for phone in out:
+        if phone and phone not in seen:
+            seen.add(phone); result.append(phone)
+    return ", ".join(result[:limit])
+
+
+templates.env.filters["customer_phones"] = customer_phones
+
+
 def vn_time(value) -> str:
     """Giờ:phút theo giờ Việt Nam (Tổng quan: giờ đến khách, giờ hẹn)."""
     if getattr(value, 'tzinfo', None) is not None:
