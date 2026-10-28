@@ -546,6 +546,7 @@ def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=De
                   delivery_index=next((i for i,g in enumerate(shipments,1) if g.id==gh.id),1),delivery_count=len(shipments),
                   quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',deliverer=deliverer.full_name if deliverer else '',
                   serials=serials,balance=sales_receipts.balance(order) if gh.status=='DA_GIAO' else None,
+                  fulfillment=FULFILLMENTS.get(order.fulfillment,order.fulfillment),payment=PAYMENTS.get(order.payment_term,order.payment_term),
                   watermark='ĐÃ HỦY' if gh.status!='DA_GIAO' else '',
                   issued=gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
 

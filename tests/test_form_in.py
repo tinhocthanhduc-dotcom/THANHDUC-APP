@@ -199,3 +199,41 @@ def test_delivered_print_shows_customer_phone(client, db, people):
     service_login(client, p['sales'])
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
     assert 'PHIẾU GIAO HÀNG' in html and '<dt>Điện thoại</dt><dd>0906950125</dd>' in html
+
+
+# ---- 28/10 (TUẤN duyệt mẫu): khung Người nhận hàng + dải cách giao, ghi chú đơn không trộn câu mặc định ----
+def test_pending_delivery_print_recipient_box_and_strip(client, db, setup):
+    p = setup
+    o = assigned(db, p)
+    o.contact_name = 'Chị Lan'; o.note = 'Gửi xe 45 Lê Quang Sung'; db.commit()
+    service_login(client, p['sales'])
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert 'Người nhận hàng' in html and '<dt>Người nhận</dt><dd>Chị Lan</dd>' in html
+    assert '<dt>Ghi chú</dt><dd>Gửi xe 45 Lê Quang Sung</dd>' in html
+    assert 'class="in-strip"' in html and 'Thợ giao' in html and 'Lần giao: <b>1</b>' in html
+    assert 'Thông tin giao' not in html and 'Trạng thái đơn' not in html
+    assert 'Ghi chú người giao' in html and 'Phiếu in trước khi giao.' in html
+    assert 'kiểm tra hàng trước khi ký nhận' in html
+
+
+def test_pending_delivery_print_blank_lines_when_missing(client, db, setup):
+    p = setup
+    o = assigned(db, p)
+    o.contact_name = ''; o.note = ''; db.commit()
+    service_login(client, p['sales'])
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert '<dt>Người nhận</dt><dd><span class="in-blank' in html and '<dt>Ghi chú</dt><dd><span class="in-blank' in html
+
+
+def test_delivered_print_recipient_box_and_delivery_note(client, db, people):
+    from test_stock_reservations import stock, order
+    from test_sales_deliveries import send
+    p = people; stock(db, p, 10)
+    o = order(db, p, 2)
+    o.note = 'Gọi trước 15 phút'; db.commit()
+    gh = send(db, p, o, 2)
+    service_login(client, p['sales'])
+    html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
+    assert 'Người nhận hàng' in html and '<dt>Ghi chú</dt><dd>Gọi trước 15 phút</dd>' in html
+    assert 'class="in-strip"' in html and 'Thanh toán:' in html and 'Lần giao: <b>1/1</b>' in html
+    assert 'Thông tin giao' not in html and 'Trạng thái đơn' not in html and 'in-blank' not in html
