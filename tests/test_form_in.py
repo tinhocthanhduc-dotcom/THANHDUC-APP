@@ -209,10 +209,10 @@ def test_pending_delivery_print_recipient_box_and_strip(client, db, setup):
     service_login(client, p['sales'])
     html = client.get(f'/giao-don/{o.id}/in').text
     assert 'Người nhận hàng' in html and '<dt>Người nhận</dt><dd>Chị Lan</dd>' in html
-    assert '<dt>Ghi chú</dt><dd>Gửi xe 45 Lê Quang Sung</dd>' in html
+    assert '<h4>Ghi chú</h4><p>Gửi xe 45 Lê Quang Sung</p>' in html and '<dt>Ghi chú</dt><dd>Gửi xe' not in html
     assert 'class="in-strip"' in html and 'Thợ giao' in html and 'Lần giao: <b>1</b>' in html
     assert 'Thông tin giao' not in html and 'Trạng thái đơn' not in html
-    assert 'Ghi chú người giao' in html and 'Phiếu in trước khi giao.' in html
+    assert 'Phiếu in trước khi giao.' in html
     assert 'kiểm tra hàng trước khi ký nhận' in html
 
 
@@ -234,7 +234,7 @@ def test_delivered_print_recipient_box_and_delivery_note(client, db, people):
     gh = send(db, p, o, 2)
     service_login(client, p['sales'])
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
-    assert 'Người nhận hàng' in html and '<dt>Ghi chú</dt><dd>Gọi trước 15 phút</dd>' in html
+    assert 'Người nhận hàng' in html and '<h4>Ghi chú</h4><p>Gọi trước 15 phút</p>' in html
     assert 'class="in-strip"' in html and 'Thanh toán:' in html and 'Lần giao: <b>1/1</b>' in html
     assert 'Thông tin giao' not in html and 'Trạng thái đơn' not in html and 'in-blank' not in html
 
@@ -246,11 +246,12 @@ def test_pending_delivery_print_falls_back_to_customer_contact_and_note(client, 
     o = assigned(db, p)
     o.contact_name = ''; o.note = ''
     c = db.get(Customer, o.customer_code); c.note = 'Đối diện 290/9 Phan Anh'
-    db.add(CustomerContact(customer_code=c.code, name='Chị Lý', phones=['0903329255'])); db.commit()
+    db.add(CustomerContact(customer_code=c.code, name='Chị Lý', phones=['0903329255'], note='Kế toán')); db.commit()
     service_login(client, p['sales'])
     html = client.get(f'/giao-don/{o.id}/in').text
     assert '<dt>Người nhận</dt><dd>Chị Lý</dd>' in html and '0903329255' in html
-    assert '<dt>Ghi chú</dt><dd>Đối diện 290/9 Phan Anh</dd>' in html
+    assert '<dt>Ghi chú</dt><dd>Kế toán\nĐối diện 290/9 Phan Anh</dd>' in html
     o.note = 'Gửi xe trước cổng'; db.commit()
     html = client.get(f'/giao-don/{o.id}/in').text
-    assert 'Gửi xe trước cổng\nĐối diện 290/9 Phan Anh' in html
+    # Ghi chú đơn nằm ô Ghi chú dưới bảng, không lên khung Người nhận.
+    assert '<h4>Ghi chú</h4><p>Gửi xe trước cổng</p>' in html and '<dt>Ghi chú</dt><dd>Kế toán\nĐối diện 290/9 Phan Anh</dd>' in html

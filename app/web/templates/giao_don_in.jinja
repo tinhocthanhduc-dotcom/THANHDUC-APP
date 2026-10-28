@@ -8,9 +8,9 @@
 {% block doc_sub %}Theo đơn bán {{ o.number }}{% if o.promised_date %} · hẹn giao {{ o.promised_date|vn_date }}{% endif %}{% endblock %}
 {% block meta %}{{ f.meta('Đơn bán', o.number) }}{{ f.meta('Ngày in', today|vn_date) }}{{ f.meta('Hẹn giao', o.promised_date|vn_date if o.promised_date else '') }}{% endblock %}
 {% block body %}
-{# Người nhận: theo đơn, không có thì người liên hệ đầu tiên của khách; ghi chú = ghi chú đơn + ghi chú hồ sơ khách. #}
+{# Người nhận: theo đơn, không có thì người liên hệ đầu tiên của khách; ghi chú khung này = ghi chú người liên hệ đó + ghi chú hồ sơ khách; ghi chú đơn nằm ô Ghi chú dưới bảng. #}
 {% set recipient = o.contact_name or (customer.contacts[0].name if customer and customer.contacts else '') %}
-{% set notes = [] %}{% for n in [o.note, customer.note if customer else ''] %}{% if n and n.strip() and n.strip() not in notes %}{% do notes.append(n.strip()) %}{% endif %}{% endfor %}
+{% set notes = [] %}{% for c in (customer.contacts if customer else []) %}{% if recipient and c.name|lower|replace(' ','') == recipient|lower|replace(' ','') and c.note and c.note.strip() %}{% do notes.append(c.note.strip()) %}{% endif %}{% endfor %}{% if customer and customer.note and customer.note.strip() and customer.note.strip() not in notes %}{% do notes.append(customer.note.strip()) %}{% endif %}
 <div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Mã số thuế', customer.tax_code)]) }}
 {{ f.card('Người nhận hàng', '', [('Người nhận', recipient or f.blank()), ('Điện thoại', customer|customer_phones(recipient) or f.blank()), ('Ghi chú', notes|join('\n') or f.blank())]) }}</div>
 <div class="in-strip"><span>Cách giao: <b>{{ fulfillment }}{% if o.fulfillment == 'THO_GIAO' %} · {{ assignee or f.blank() }}{% endif %}</b></span><span>Thanh toán: <b>{{ payment }}</b></span><span>Lần giao: <b>{{ delivery_no }}</b>{% if delivered_numbers %} (trước: {{ delivered_numbers }}){% endif %}</span>{% if quote_number %}<span>Theo báo giá: <b>{{ quote_number }}</b></span>{% endif %}</div>
@@ -21,7 +21,7 @@
 {% set rows = [('Tiền hàng chưa VAT', subtotal|money ~ ' đồng'), ('Thuế GTGT', vat_total|money ~ ' đồng')] %}
 {% set extra = [('Cả đơn ' ~ o.number ~ ' phải trả', effective_total|money ~ ' đồng', ''), ('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok'), (('Còn phải trả' if o.payment_term == 'CONG_NO' else 'Thu khi giao'), balance.available|money ~ ' đồng', 'due' if balance.available else 'ok')] %}
 <div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ{% if o.payment_term != 'CONG_NO' %} (thu khi giao){% endif %}:</b> {{ words }}.</div>
-<div class="in-hand"><h4>Ghi chú người giao</h4><div class="ln"></div><div class="ln"></div></div>
+<div class="in-hand"><h4>Ghi chú</h4>{% if o.note %}<p>{{ o.note }}</p><div class="ln"></div>{% else %}<div class="ln"></div><div class="ln"></div>{% endif %}</div>
 <div class="in-fine">Phiếu in trước khi giao. Số lượng và tiền thu được ghi nhận chính thức khi thợ bấm Đã giao trên app.</div></div>
 {{ f.totals(rows, ('TỔNG LẦN GIAO', total|money ~ ' đồng'), extra) }}</div>
 {% endblock %}
