@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import audit, stock_reservations
 from .errors import BusinessError
 from .inventory_catalogs import check_writer
+from .security import has_role
 from .models import PurchaseReturn, PurchaseReceipt, StockBalance, StockDoc, StockLedger, User, Warehouse
 from .stock_docs import _transaction, snapshot
 
@@ -150,8 +151,15 @@ def _post_moves(session: Session, doc: StockDoc, balances, pn_amounts=None, for_
                 _apply(session, doc, src, Move(doc.warehouse_code, line.product_code, line.line_no, delta), False)
 
 
+def _check_count_approver(session: Session, user: User, doc_id: int) -> None:
+    # TUẤN 2026-10-28: kho lập phiếu kiểm kê rồi để nháp; chỉ giám đốc duyệt ghi sổ hoặc hủy phiếu đã ghi.
+    if session.scalar(select(StockDoc.kind).where(StockDoc.id == doc_id)) == 'KK' and not has_role(user, 'director'):
+        raise BusinessError('FORBIDDEN', 'Phiếu kiểm kê cần giám đốc duyệt mới ghi sổ hoặc hủy.', status=403)
+
+
 def post(session: Session, user: User, doc_id: int, version: int | None) -> StockDoc:
     check_writer(user)
+    _check_count_approver(session, user, doc_id)
     with _transaction(session):
         doc = post_in_tx(session, user, doc_id, version)
     return doc
@@ -208,6 +216,7 @@ def post_in_tx(session: Session, user: User, doc_id: int, version: int | None, *
 def void(session: Session, user: User, doc_id: int, reason: str, version: int | None) -> StockDoc:
     """Hủy phiếu đã ghi sổ: ghi dòng đảo ngược đúng số lượng và giá trị đã ghi, theo thứ tự ngược."""
     check_writer(user)
+    _check_count_approver(session, user, doc_id)
     with _transaction(session):
         from .service_recovered_parts import lock_for_stock_void
         recovered = lock_for_stock_void(session, doc_id)

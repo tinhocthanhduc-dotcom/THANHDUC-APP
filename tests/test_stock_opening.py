@@ -29,6 +29,15 @@ def setup(db):
     return db.scalars(select(User)).one()
 
 
+@pytest.fixture
+def gd(db, setup):
+    # Kho tạo phiếu KK đầu kỳ; giám đốc duyệt ghi sổ (TUẤN 2026-10-28).
+    user = User(username="giam.doc", full_name="Giám đốc", password_hash=hash_password("matkhau-test-123"), roles=["director"])
+    db.add(user)
+    db.commit()
+    return user
+
+
 ROWS = [
     {"MA_HANG": "td-0001", "SO_LUONG": "12", "DON_GIA": "350.000"},
     {"MA_HANG": "TD-0002", "SO_LUONG": "2,5", "DON_GIA": "1250000"},
@@ -36,12 +45,12 @@ ROWS = [
 ]
 
 
-def test_tao_phieu_nhap_roi_ghi_so(db, setup):
+def test_tao_phieu_nhap_roi_ghi_so(db, setup, gd):
     [doc] = stock_opening.create_opening(db, setup, "K58", D, ROWS)
     assert doc.kind == "KK" and doc.status == "NHAP" and doc.number == "KK-26-00001"
     assert [(x.product_code, x.qty, x.unit_cost) for x in doc.lines] == [
         ("TD-0001", Decimal("12.000"), 350_000), ("TD-0002", Decimal("2.500"), 1_250_000)]
-    stock_posting.post(db, setup, doc.id, None)
+    stock_posting.post(db, gd, doc.id, None)
     assert db.get(StockBalance, ("K58", "TD-0001")).value == 4_200_000
     assert db.get(StockBalance, ("K58", "TD-0002")).value == 3_125_000
 
@@ -76,12 +85,12 @@ def test_ma_ngung_ban_o_phan_sau_khong_tao_phieu_nao(db, setup, monkeypatch):
     assert db.scalar(select(StockDoc.id)) is None
 
 
-def test_chay_lai_khong_nhan_doi(db, setup):
+def test_chay_lai_khong_nhan_doi(db, setup, gd):
     [doc] = stock_opening.create_opening(db, setup, "K58", D, ROWS)
     with pytest.raises(BusinessError) as e:
         stock_opening.create_opening(db, setup, "K58", D, ROWS)
     assert e.value.code == "OPENING_EXISTS" and e.value.details["docs"] == [doc.number]
-    stock_posting.post(db, setup, doc.id, None)
+    stock_posting.post(db, gd, doc.id, None)
     with pytest.raises(BusinessError) as e:
         stock_opening.create_opening(db, setup, "K58", D, ROWS)
     assert e.value.code == "OPENING_EXISTS"
@@ -89,14 +98,14 @@ def test_chay_lai_khong_nhan_doi(db, setup):
     assert stock_opening.create_opening(db, setup, "K145", D, ROWS)
 
 
-def test_kho_da_co_phat_sinh_thi_khong_nhap_dau_ky(db, setup):
+def test_kho_da_co_phat_sinh_thi_khong_nhap_dau_ky(db, setup, gd):
     # Test the original invariant with a manual movement: LG1 locks generated opening docs.
     lines, errors = stock_opening.parse(ROWS)
     assert not errors
     doc = stock_docs.create(db, setup, StockDocIn(kind='KK', warehouse_code='K58', doc_date=D,
         reason='Kiểm kê thủ công', lines=lines))
-    stock_posting.post(db, setup, doc.id, None)
-    stock_posting.void(db, setup, doc.id, "Nhập sai file", None)
+    stock_posting.post(db, gd, doc.id, None)
+    stock_posting.void(db, gd, doc.id, "Nhập sai file", None)
     with pytest.raises(BusinessError) as e:
         stock_opening.create_opening(db, setup, "K58", D, ROWS)
     assert e.value.code == "WAREHOUSE_NOT_EMPTY"

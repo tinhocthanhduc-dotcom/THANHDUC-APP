@@ -9,7 +9,7 @@ from .config import get_settings
 from .errors import BusinessError
 from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
-from .models import ProductionOrder
+from .models import ProductionOrder, StockDoc
 from .security import has_role
 
 LIMIT = 20
@@ -242,6 +242,11 @@ def _specs(user, today, now):
             StockBalance,(StockBalance.warehouse_code==PendingItem.warehouse_code)&(StockBalance.product_code==PendingItem.product_code)).where(
             PendingDisposition.kind=='HUY',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)
         add('pending_destruction','Hủy hàng chờ duyệt',requests,'pending_disposition','/cho-xu-ly/duyet-huy')
+        # Kiểm kê do kho lập để nháp, giám đốc duyệt ghi sổ (TUẤN 2026-10-28).
+        counts=select(StockDoc.id,StockDoc.number,StockDoc.status,(literal('Kho ')+StockDoc.warehouse_code+literal(' · ')+User.full_name).label('customer'),
+            literal(0).label('amount'),literal(False).label('overdue')).join(User,User.id==StockDoc.created_by).where(
+            StockDoc.kind=='KK',StockDoc.status=='NHAP').order_by(StockDoc.created_at,StockDoc.id)
+        add('stock_counts_pending','Kiểm kê chờ duyệt',counts,'stock_doc','/phieu-kho?loai=KK&trang_thai=NHAP')
     if has_role(user,'finance'):
         pending_returns=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),PendingDisposition.total.label('amount'),literal(False).label('overdue')).join(PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).where(PendingDisposition.kind=='TRA_NCC',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)
         add('pending_supplier_returns','Trả hàng lỗi NCC chờ duyệt',pending_returns,'pending_supplier_return','/cho-xu-ly/duyet-tra-ncc')
@@ -279,7 +284,7 @@ def _group(session, spec, page=1):
                 # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
                 link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
-            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang'}[kind]
+            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if kind=='production': row['link']='/san-xuat/'+row['number']
             if kind=='supplier_debt':row['link']='/cong-no-ncc/'+quote(row['number'],safe='')+'#tra-tien'

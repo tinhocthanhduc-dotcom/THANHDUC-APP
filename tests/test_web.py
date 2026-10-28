@@ -240,6 +240,35 @@ def stock_create_web(client, csrf, **kw):
     return int(re.search(r'/phieu-kho/(\d+)', r.headers['location']).group(1))
 
 
+def test_kiem_ke_web_kho_gui_giam_doc_duyet(client, web_login, stock_catalog, db):
+    """TUẤN 2026-10-28: thủ kho bấm Gửi giám đốc duyệt chỉ lưu nháp; giám đốc thấy ở Việc của tôi rồi Duyệt · ghi sổ."""
+    from sqlalchemy import select
+    from app import my_work
+    from app.models import StockDoc, User
+    csrf = web_login('thu.kho', 'warehouse')
+    page = client.get('/phieu-kho/moi?loai=KK')
+    assert 'data-kk-approve="1"' in page.text
+    kk = dict(kind='KK', supplier_code='', unit_cost=['120.000'], serial=[''], reason='Đếm lại kệ')
+    r = client.post('/phieu-kho/moi', data={**stock_form(csrf, **kk), 'action': 'post'}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'].endswith('?da_gui=1')
+    doc_id = int(re.search(r'/phieu-kho/(\d+)', r.headers['location']).group(1))
+    assert db.get(StockDoc, doc_id).status == 'NHAP'
+    page = client.get(r.headers['location'])
+    assert 'Đã gửi giám đốc duyệt' in page.text and 'Gửi giám đốc duyệt</button>' in page.text
+    director_csrf = web_login('giam.doc', 'director')
+    boss = db.scalars(select(User).where(User.username == 'giam.doc')).one()
+    groups = {g['key']: g for g in my_work.collect(db, boss)}
+    assert groups['stock_counts_pending']['rows'][0]['link'] == f'/phieu-kho/{doc_id}'
+    page = client.get(f'/phieu-kho/{doc_id}')
+    assert 'Duyệt · ghi sổ</button>' in page.text and 'data-kk-approve="0"' in page.text
+    doc = db.get(StockDoc, doc_id)
+    form = {**stock_form(director_csrf, **kk), 'version': str(doc.version)}
+    r = client.post(f'/phieu-kho/{doc_id}/post', data=form, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    db.expire_all()
+    assert db.get(StockDoc, doc_id).status == 'DA_GHI'
+
+
 def test_k6_receipt_form_parses_money(client, web_login, stock_catalog, db):
     from app.models import StockDoc
     csrf = web_login('thu.kho', 'warehouse')
