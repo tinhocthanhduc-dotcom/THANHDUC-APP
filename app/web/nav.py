@@ -44,7 +44,8 @@ GROUPS = (
     )},
     {'label': 'Kho', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Tồn kho', 'href': '/ton-kho', 'prefixes': ('/ton-kho', '/the-kho'), 'roles': ('sales', 'warehouse', 'finance')},
-        {'label': 'Hàng sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}},
+        # TUẤN 28/10: bỏ khỏi menu; trang vẫn mở từ Việc của tôi/Tổng quan, giữ mục để chặn quyền (chỉ thủ kho).
+        {'label': 'Hàng sắp hết', 'href': '/ton-kho?canh-bao=1', 'prefixes': ('/ton-kho',), 'roles': ('warehouse',), 'query': {'canh-bao': True}, 'hidden': True, 'highlight': '/ton-kho'},
         {'label': 'Phiếu nhập xuất kho', 'href': '/phieu-kho', 'prefixes': ('/phieu-kho',), 'roles': ('warehouse', 'finance')},
         # SX1: TUẤN 26/10 muốn Sản xuất nằm trong nhóm Kho (hàng làm xong nhập kho), không đứng riêng.
         {'label': 'Sản xuất', 'href': '/san-xuat', 'prefixes': ('/san-xuat',), 'roles': ('technician','dispatcher','warehouse')},
