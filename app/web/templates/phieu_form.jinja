@@ -6,7 +6,6 @@
 {% set live = can_write and d.status == 'NHAP' %}
 <div class="doc-detail quote-form-page sk-compose">
 {% call ui.page_head(d.number or 'Lập phiếu kho', sub='Phiếu kho · nhập, xuất, chuyển, kiểm kê', back='/phieu-kho', badge_label=states[d.status], badge_tone={'NHAP':'nhap','DA_GHI':'xong','DA_HUY':'huy'}.get(d.status,'nhap')) %}{% if d.id %}<a class="btn btn-ghost doc-print" href="/phieu-kho/{{ d.id }}/in">In phiếu</a>{% endif %}{% endcall %}
-{% if d.status != 'DA_HUY' %}{{ ui.steps([('Nháp','cur' if d.status=='NHAP' else 'done'),('Đã ghi sổ','cur' if d.status=='DA_GHI' else '')]) }}{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{% if live and not action_reason %}<b>Chưa lưu được.</b> {% endif %}{{ error }}</p>{% endif %}
 {% if source %}<p class="card" data-stock-source>Sinh từ <a href="{{ source.href }}">{{ source.label }}</a>.</p>{% endif %}
@@ -20,8 +19,15 @@
 </div>
 <section class="card qf-card sk-head"><h2 class="qf-h">Thông tin phiếu</h2>
 <div class="sk-row"><label class="sk-date">Ngày phiếu<input type="date" name="doc_date" value="{{ d.doc_date }}" required></label>
-<div class="field-group sk-wh{{ ' field-invalid' if field_errors.warehouse_code }}"><p class="group-label" data-sk-wh-label>{{ {'PN':'Kho nhận','KK':'Kho kiểm'}.get(d.kind, 'Kho xuất') }}</p><div class="seg stock-seg">
-{% for w in warehouses %}<label><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if d.warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.warehouse_code != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}
+<div class="field-group sk-wh{{ ' field-invalid' if field_errors.warehouse_code }}"><p class="group-label" data-sk-wh-label>{{ {'PN':'Kho nhận','KK':'Kho kiểm'}.get(d.kind, 'Kho xuất') }}</p>
+{# TUẤN duyệt 28/10/2026: chỉ kho chính là nút; kho chờ xử lý/NCC và kho thợ gom vào "Kho khác ▾" có ô tìm. #}
+{% macro wh_radio(w) %}<label{% if w.kind != 'KHO' %} class="sk-wh-opt" data-wh-kind="{{ w.kind }}" data-wh-text="{{ w.code }} {{ w.name }}"{% endif %}><input type="radio" name="warehouse_code" value="{{ w.code }}" {% if d.warehouse_code == w.code %}checked{% endif %} {% if not w.active and d.warehouse_code != w.code %}disabled{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endmacro %}
+{% set other_wh = warehouses|rejectattr('kind','equalto','KHO')|list %}{% set picked_other = other_wh|selectattr('code','equalto',d.warehouse_code)|first %}
+<div class="seg stock-seg sk-wh-main">{% for w in warehouses if w.kind == 'KHO' %}{{ wh_radio(w) }}{% endfor %}
+{% if other_wh %}<details class="sk-wh-more" data-sk-wh-more><summary class="btn btn-ghost{{ ' on' if picked_other }}" data-sk-wh-more-label>{{ (picked_other.code ~ ' · ' ~ picked_other.name) if picked_other else 'Kho khác' }} ▾</summary>
+<div class="sk-wh-drop"><input type="search" data-sk-wh-q placeholder="Gõ mã kho hoặc tên thợ…" autocomplete="off" aria-label="Tìm kho khác">
+{% for kind, title in [('LOI','Kho chờ xử lý · NCC'),('THO','Kho thợ')] %}{% set group = other_wh|selectattr('kind','equalto',kind)|list %}{% if group %}<p class="sk-wh-g" data-wh-group="{{ kind }}">{{ title }}</p>{% for w in group %}{{ wh_radio(w) }}{% endfor %}{% endif %}{% endfor %}
+<p class="hint" data-sk-wh-none hidden>Không có kho khớp.</p></div></details>{% endif %}
 </div>{{ ui.field_error(field_errors, 'warehouse_code') }}</div></div>
 <fieldset class="sk-dest{{ ' field-invalid' if field_errors.to_warehouse_code }}" data-kind-only="CK" {% if d.kind != 'CK' %}hidden disabled{% endif %}><legend>Kho đích</legend>
 <input type="hidden" name="to_warehouse_code" value="{{ d.to_warehouse_code or '' }}">

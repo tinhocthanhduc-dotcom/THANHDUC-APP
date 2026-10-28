@@ -70,7 +70,10 @@ def page(request,session,user,order,raw=None,error=None,code='',status=200):
         trip_ticket=st if st is not None and st.assignee_id==user.id and st.status in ('DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else None
         return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,trip_ticket=trip_ticket,
             raw=raw or {},error=error,error_code=code,status=status,**contact(ctx['customer'],address=order.delivery_address))
+    from .. import service_tickets, stock_reservations
     return render(request,'giao_don.jinja',technician_view=technician_view,**ctx,shipments=shipments,photos=photos,
+        reservations=stock_reservations.for_order(session,order),effective_total=int(sales_orders.effective_total(order)),
+        tech_counts=service_tickets.open_counts(session) if ctx['can_assign'] else {},
         raw=raw or {},error=error,error_code=code,status=status)
 
 

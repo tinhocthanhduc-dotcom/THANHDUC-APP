@@ -25,6 +25,9 @@ class Forms(HTMLParser):
                             'fields': {}}
             self.forms.append(self.current)
         elif tag == 'input' and self.current is not None and attrs.get('name'):
+            # Như trình duyệt: nút chọn (radio) chỉ gửi ô đang được chọn.
+            if attrs.get('type') == 'radio' and 'checked' not in attrs:
+                return
             self.current['fields'][attrs['name']] = attrs.get('value', '')
 
     def handle_endtag(self, tag):

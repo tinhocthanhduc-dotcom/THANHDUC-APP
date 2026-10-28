@@ -181,3 +181,32 @@
   });
   panels(); update();
 })();
+// "Kho khác ▾": ô tìm lọc kho chờ xử lý/NCC và kho thợ (không dấu); chọn xong đóng lại và nút hiện tên kho.
+(function() {
+  var more = document.querySelector('[data-sk-wh-more]');
+  if (!more) return;
+  var form = more.closest('form'), label = more.querySelector('[data-sk-wh-more-label]'), q = more.querySelector('[data-sk-wh-q]');
+  function plain(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase(); }
+  function opts() { return [].slice.call(more.querySelectorAll('.sk-wh-opt')); }
+  function filter() {
+    var words = plain(q.value).split(/\s+/).filter(Boolean), shown = 0;
+    opts().forEach(function(o) { var t = plain(o.dataset.whText), ok = words.every(function(w) { return t.indexOf(w) >= 0; }); o.hidden = !ok; if (ok) shown++; });
+    more.querySelectorAll('[data-wh-group]').forEach(function(g) { g.hidden = !opts().some(function(o) { return !o.hidden && o.dataset.whKind === g.dataset.whGroup; }); });
+    more.querySelector('[data-sk-wh-none]').hidden = shown > 0;
+  }
+  q.addEventListener('input', filter);
+  q.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); var first = opts().filter(function(o) { return !o.hidden; })[0]; if (first) { var r = first.querySelector('input'); if (!r.disabled) { r.checked = true; r.dispatchEvent(new Event('change', {bubbles: true})); } } }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); var f = opts().filter(function(o) { return !o.hidden; })[0]; if (f) f.querySelector('input').focus(); }
+    else if (e.key === 'Escape') { more.open = false; }
+  });
+  more.addEventListener('toggle', function() { if (more.open) { q.value = ''; filter(); q.focus(); } });
+  form.addEventListener('change', function(e) {
+    if (e.target.name !== 'warehouse_code') return;
+    var inMore = more.contains(e.target);
+    label.textContent = (inMore ? e.target.nextElementSibling.textContent : 'Kho khác') + ' ▾';
+    label.classList.toggle('on', inMore);
+    if (inMore) more.open = false;
+  });
+  document.addEventListener('click', function(e) { if (more.open && !more.contains(e.target)) more.open = false; });
+})();

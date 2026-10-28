@@ -216,8 +216,10 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
     customer=session.get(Customer,order.customer_code)
     data=dict(form) if form is not None else dict(version=order.version,receiver_name=order.contact_name,
         note='',carrier_name='',tracking_code='',**{'deliver_'+str(n):_quantity(v['remaining']) for n,v in remaining.items()})
-    from .technician_deliveries import context as delivery_context
-    tech_delivery=delivery_context(session,user,order) if order.fulfillment=='THO_GIAO' else None
+    if order.fulfillment=='THO_GIAO':
+        # Đơn thợ giao: kho và điều phối dùng chung một trang Giao đơn (TUẤN duyệt 28/10/2026).
+        from .technician_deliveries import page as delivery_page
+        return delivery_page(request,session,user,order,raw=dict(form) if form is not None else None,error=error,code=code,status=status)
     # Trả ngay chỉ nhắc kho số khách còn phải trả (đã báo thu thì tính là đã trả); không chặn giao.
     money=svc.summaries(session,[order])[order.id]
     pay_due=max(0,svc.effective_total(order)-money['paid']-money['pending']) if order.payment_term=='TRA_NGAY' else 0
@@ -225,7 +227,7 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
     # Thủ kho giao xong thì in phiếu; kinh doanh giao xong quay về đơn để báo thu (in phiếu ở đầu đơn).
     is_kho=has_role(user,'warehouse')
     back='/viec-cua-toi' if is_kho else f'/don-ban/{order.id}'
-    return render(request,'kho_giao.jinja',o=order,customer=customer,tech_delivery=tech_delivery,pay_due=pay_due,back=back,print_after=is_kho,
+    return render(request,'kho_giao.jinja',o=order,customer=customer,pay_due=pay_due,back=back,print_after=is_kho,
         phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
         remaining=remaining,reservations=stock_reservations.for_order(session,order),
         stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),

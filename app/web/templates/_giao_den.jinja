@@ -1,0 +1,8 @@
+{# Khung "Giao đến" + "Người nhận" dùng chung cho Giao đơn (thợ giao) và Giao hàng (kho giao); cùng luật với phiếu giao in:
+   người nhận theo đơn, đơn trống thì người liên hệ đầu tiên của khách; SĐT bấm gọi; ghi chú = ghi chú đơn. Cần biến o, customer. #}
+{% set recipient = o.contact_name or (customer.contacts[0].name if customer and customer.contacts else '') %}
+{% set phones = (customer|customer_phones(recipient)).split(', ') if customer else [] %}
+<section class="card doc-card gd-who"><div class="gd-cards">
+<div class="gd-box"><h2 class="doc-h">Giao đến</h2><b class="gd-name">{{ customer.name if customer else o.customer_code }}</b><span>{{ o.delivery_address or (customer.address if customer else '') or 'Chưa ghi địa chỉ giao' }}</span>{% if customer and customer.tax_code %}<span class="hint">MST {{ customer.tax_code }}</span>{% endif %}</div>
+<div class="gd-box"><h2 class="doc-h">Người nhận</h2><dl class="doc-kv gd-kv"><dt>Người nhận</dt><dd>{{ recipient or 'Chưa ghi' }}</dd><dt>SĐT</dt><dd data-recipient-phone>{% for ph in phones if ph %}<a class="gd-tel" href="tel:{{ ph|replace(' ','') }}">{{ ph }}</a>{% if not loop.last %} · {% endif %}{% else %}Chưa có{% endfor %}</dd>{% if o.note %}<dt>Ghi chú</dt><dd class="service-text">{{ o.note }}</dd>{% endif %}</dl></div>
+</div></section>

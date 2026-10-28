@@ -1,28 +1,34 @@
-{% extends 'base.jinja' %}
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
 {% block title %}Giao {{ o.number }}{% endblock %}
 {% block main %}
-<div class="recv-page">
-<div class="recv-head"><a class="btn" href="{{ back }}" aria-label="Quay lại">←</a><div><h1>Giao hàng · {{ o.number }}</h1><p class="hint">{{ fulfillments[o.fulfillment] }} · Hẹn {{ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'chưa hẹn' }}</p></div></div>
+{# Kho giao / khách lấy / vận chuyển: cùng khung 2 cột với Giao đơn (TUẤN duyệt 28/10/2026). Đơn thợ giao mở trang Giao đơn (orders.warehouse_delivery). #}
+{% set open_order=o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}
+<div class="page-wide doc-view gd-view" data-doc-view="warehouse-delivery">
+{% call ui.page_head('Giao hàng ' ~ o.number, sub=fulfillments[o.fulfillment] ~ ' · Hẹn ' ~ (o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'chưa hẹn'), back=back, badge_label={'DA_CHOT':'Chờ giao','GIAO_MOT_PHAN':'Giao một phần','DA_GIAO':'Đã giao','DA_HUY':'Đã hủy'}.get(o.status,o.status), badge_tone={'DA_CHOT':'cho','GIAO_MOT_PHAN':'lam','DA_GIAO':'xong','DA_HUY':'huy'}.get(o.status,'nhap')) %}{% if open_order %}<a class="btn btn-ghost" href="/giao-don/{{ o.id }}/in" data-print-delivery>In phiếu giao</a>{% endif %}<a class="btn btn-ghost" href="/don-ban/{{ o.id }}">Xem đơn ›</a>{% endcall %}
+{{ ui.steps([('Chốt đơn','done'),('Kho giao','done' if o.status=='DA_GIAO' else 'cur' if open_order else ''),('Báo thu','cur' if o.status=='DA_GIAO' else '')]) }}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-{% if pay_due>0 and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<p class="alert warn" data-pay-due>Trả ngay: khách còn phải trả <b>{{ pay_due|money }} đ</b>. Nhắc khách thanh toán khi nhận hàng; kho vẫn giao được.</p>{% endif %}
-<section class="card recv-info"><div class="recv-kv"><span>Khách</span><b>{{ customer.name }}</b></div>{% if phone %}<div class="recv-kv"><span>SĐT</span><b>{{ phone }}</b></div>{% endif %}{% if o.note %}<p class="service-text">{{ o.note }}</p>{% endif %}<a href="/don-ban/{{ o.id }}">Xem đơn đầy đủ</a></section>
-{% if o.fulfillment=='THO_GIAO' %}{% set td=tech_delivery %}{% set missing=namespace(n=0) %}{% for line in o.lines if line.kind=='HANG' %}{% if remaining[line.line_no].remaining > td.held|selectattr('order_line_id','equalto',line.line_no)|sum(attribute='qty') %}{% set missing.n=missing.n+1 %}{% endif %}{% endfor %}
-{% if not td.assignee %}<section class="card po-next" data-tech-wait><div class="po-next-k">Đơn do thợ giao</div><b>Chờ điều phối giao thợ</b><p class="hint">Có thợ rồi mới bàn giao hàng sang kho thợ.</p><a class="btn" href="/giao-don/{{ o.id }}">Xem đơn giao</a></section>
-{% elif missing.n==0 %}<section class="card done-state" data-tech-done><div class="done-k">Đã bàn giao cho thợ</div><b>{{ td.assignee.full_name }}</b><p class="hint">{{ td.label }} · hàng đã nằm ở kho thợ.</p><a class="btn" href="/giao-don/{{ o.id }}">Xem đơn giao · Trả kho</a></section>
-{% else %}<section class="card po-next"><div class="po-next-k">Bước tiếp theo</div><b>Đơn do thợ giao · {{ td.assignee.full_name }}</b><p class="hint">Chuyển hàng đang giữ sang kho của thợ được giao đơn.</p><a class="btn btn-new" href="/giao-don/{{ o.id }}" data-next-primary>Bàn giao cho thợ</a></section>{% endif %}
-{% elif o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}
-<form id="warehouse-deliver" method="post" action="/don-ban/{{ o.id }}/deliver" class="recv-form" data-warehouse-deliver>
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',o.version) }}"><input type="hidden" name="delivery_form" value="1"><input type="hidden" name="return_to" value="kho">
-<div class="recv-bar"><h2>Hàng cần giao</h2></div>
+{% if pay_due>0 and open_order %}<p class="alert warn" data-pay-due>Trả ngay: khách còn phải trả <b>{{ pay_due|money }} đ</b>. Nhắc khách thanh toán khi nhận hàng; kho vẫn giao được.</p>{% endif %}
+{% if open_order %}<form id="warehouse-deliver" method="post" action="/don-ban/{{ o.id }}/deliver" class="recv-form" data-warehouse-deliver>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ d.get('version',o.version) }}"><input type="hidden" name="delivery_form" value="1"><input type="hidden" name="return_to" value="kho">{% endif %}
+<div class="doc-grid">
+<div class="doc-main">
+{% include '_giao_den.jinja' %}
+{% if open_order %}<section class="card doc-card"><h2 class="doc-h">Hàng cần giao</h2>
 {% for line in o.lines if remaining[line.line_no].remaining>0 %}{% set rem=remaining[line.line_no].remaining %}{% set held=reservations[line.line_no].held if line.kind=='HANG' else none %}
-<article class="card recv-line {% if held is not none and held<rem %}warehouse-short{% endif %}" data-warehouse-line><div class="recv-name"><div><b>{{ line.description or line.product_code or 'Dịch vụ' }}</b><small>{{ line.product_code or 'Dịch vụ' }} · Kho {{ line.warehouse_code or '—' }}{% if held is not none %} · Đã giữ {{ held|qty }}/{{ rem|qty }} · Tồn khả dụng {{ stock_values.get((line.warehouse_code,line.product_code),{}).get('available',0)|qty }}{% endif %}</small></div>{% if held is not none and held<rem %}<span class="stock-chip recv-part">Giữ thiếu</span>{% endif %}</div>
+<article class="recv-line gd-line {% if held is not none and held<rem %}warehouse-short{% endif %}" data-warehouse-line><div class="recv-name"><div><b>{{ line.description or line.product_code or 'Dịch vụ' }}</b><small>{{ line.product_code or 'Dịch vụ' }} · Kho {{ line.warehouse_code or '—' }}{% if held is not none %} · Đã giữ {{ held|qty }}/{{ rem|qty }} · Tồn khả dụng {{ stock_values.get((line.warehouse_code,line.product_code),{}).get('available',0)|qty }}{% endif %}</small></div>{% if held is not none and held<rem %}<span class="stock-chip recv-part">Giữ thiếu</span>{% endif %}</div>
 <div class="recv-qty"><span>Còn phải giao <b>{{ rem|qty }}</b> {{ line.unit }}</span><label class="stepper"><button type="button" data-step="-1" aria-label="Bớt">−</button><input name="deliver_{{ line.line_no }}" value="{{ d.get('deliver_' ~ line.line_no,rem|qty) }}" data-remaining="{{ rem }}" inputmode="decimal" required min="0" max="{{ rem|qty }}" aria-label="Số giao"><button type="button" data-step="1" aria-label="Thêm">+</button></label></div>{% if warranty_months.get(line.product_code,0)>0 %}<label class="sale-serials">Serial máy giao · bảo hành {{ warranty_months[line.product_code] }} tháng<textarea name="serials_{{ line.line_no }}" rows="2" placeholder="Mỗi máy một serial; cách nhau bằng dấu phẩy hoặc xuống dòng">{{ d.get('serials_' ~ line.line_no,'') }}</textarea></label>{% endif %}</article>{% endfor %}
-<section class="card form"><label>Người nhận<input name="receiver_name" value="{{ d.get('receiver_name','') }}" maxlength="200"></label>
+</section>{% else %}<p class="card">{{ 'Đã giao đủ.' if o.status=='DA_GIAO' else 'Đơn không ở trạng thái chờ giao.' }}</p>{% endif %}
+</div>
+<aside class="doc-side">
+{% if open_order %}<section class="card next-box doc-next form"><span class="nb-who">Bước tiếp · Kho</span><b>Giao hàng cho khách</b>
+<label>Người nhận<input name="receiver_name" value="{{ d.get('receiver_name','') }}" maxlength="200"></label>
 {% if o.fulfillment=='VAN_CHUYEN' %}<label>Đơn vị vận chuyển<input name="carrier_name" value="{{ d.get('carrier_name','') }}" maxlength="200"></label><label>Mã vận đơn<input name="tracking_code" value="{{ d.get('tracking_code','') }}" maxlength="100"></label>{% endif %}
-<label>Ghi chú lần giao<textarea name="note" maxlength="4000">{{ d.get('note','') }}</textarea></label></section>
-<div class="action-bar"><button type="submit" form="warehouse-deliver" class="btn-ok btn-block" data-next-primary data-warehouse-submit data-full-label="{{ 'Giao đủ và in phiếu giao' if print_after else 'Giao đủ' }}">{{ 'Giao đủ và in phiếu giao' if print_after else 'Giao đủ' }}</button></div>
-</form>
-{% else %}<p class="card">{{ 'Đã giao đủ.' if o.status=='DA_GIAO' else 'Đơn không ở trạng thái chờ giao.' }}</p>{% endif %}
+<label>Ghi chú lần giao<textarea name="note" maxlength="4000" rows="2">{{ d.get('note','') }}</textarea></label>
+<button type="submit" form="warehouse-deliver" class="btn-ok btn-block" data-next-primary data-warehouse-submit data-full-label="{{ 'Giao đủ và in phiếu giao' if print_after else 'Giao đủ' }}">{{ 'Giao đủ và in phiếu giao' if print_after else 'Giao đủ' }}</button>
+<p class="hint">Bớt số giao ở dòng hàng thì nút đổi thành "Giao một phần".</p></section>{% endif %}
+</aside>
+</div>
+{% if open_order %}</form>{% endif %}
 </div>
 <script src="{{ asset('warehouse-delivery.js') }}" defer></script>
 {% endblock %}
