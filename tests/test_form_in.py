@@ -163,3 +163,39 @@ def test_pending_delivery_print_for_technician_trip(client, db, setup):
     assert 'PHIẾU GIAO HÀNG' in html and f'href="/giao-don/{o.id}?return_to=tho"' in html
     service_login(client, p['other_tech'])
     assert client.get(f'/giao-don/{o.id}/in').status_code == 403
+
+
+# ---- 28/10 (TUẤN): phiếu in phải có số điện thoại khách ----
+def test_customer_phones_filter_contact_first_then_own_no_duplicates():
+    from types import SimpleNamespace as N
+    from app.web import customer_phones
+    c = N(phones=[N(phone='0906950125', is_contact=False), N(phone='0281234567', is_contact=False), N(phone='0911111111', is_contact=True)],
+          contacts=[N(name='Chị  Phương', phones=['0911111111'])])
+    assert customer_phones(c) == '0906950125, 0281234567'
+    assert customer_phones(c, 'chị phương') == '0911111111, 0906950125, 0281234567'
+    assert customer_phones(c, '', '0999 888 777') == '0999 888 777, 0906950125, 0281234567'
+    assert customer_phones(N(phones=[N(phone='0911111111', is_contact=True)], contacts=[])) == '0911111111'
+    assert customer_phones(None) == ''
+
+
+def test_delivery_prints_show_customer_phone(client, db, setup):
+    from app.models import CustomerPhone, SalesDelivery
+    from app import technician_deliveries as tsvc
+    p = setup
+    db.add(CustomerPhone(customer_code='KTD-000001', phone='0906950125')); db.commit()
+    o = assigned(db, p)
+    service_login(client, p['sales'])
+    assert '0906950125' in client.get(f'/giao-don/{o.id}/in').text
+
+
+def test_delivered_print_shows_customer_phone(client, db, people):
+    from app.models import CustomerPhone
+    from test_stock_reservations import stock, order
+    from test_sales_deliveries import send
+    p = people; stock(db, p, 10)
+    db.add(CustomerPhone(customer_code='KTD-000001', phone='0906950125')); db.commit()
+    o = order(db, p, 2)
+    gh = send(db, p, o, 2)
+    service_login(client, p['sales'])
+    html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
+    assert 'PHIẾU GIAO HÀNG' in html and '<dt>Điện thoại</dt><dd>0906950125</dd>' in html

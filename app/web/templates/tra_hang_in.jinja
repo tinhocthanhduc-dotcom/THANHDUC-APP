@@ -6,7 +6,7 @@
 {% block doc_sub %}Khách trả lại hàng theo đơn bán {{ o.number }}{% endblock %}
 {% block meta %}{{ f.meta('Số phiếu', r.number) }}{{ f.meta('Ngày nhận', r.returned_at|vn_date) }}{{ f.meta('Đơn gốc', o.number) }}{% endblock %}
 {% block body %}
-<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address), ('Điện thoại', customer.phones|map(attribute='phone')|join(', '))]) }}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa chỉ', customer.address), ('Điện thoại', customer|customer_phones(o.contact_name))]) }}
 {{ f.card('Thông tin trả hàng', '', [('Lý do trả', r.reason), ('Người nhận hàng', maker), ('Trạng thái', 'Đã hủy' if r.status == 'DA_HUY' else 'Đã nhận'), ('Lý do hủy', r.void_reason)]) }}</div>
 <table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:17mm"><col style="width:24mm"><col style="width:27mm"></colgroup>
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL</th><th class="c">Tình trạng</th><th>Kho nhận</th><th class="m">Tiền hàng<small>chưa VAT</small></th></tr></thead><tbody>
