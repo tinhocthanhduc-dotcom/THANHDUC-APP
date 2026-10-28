@@ -52,6 +52,9 @@ def test_stock_doc_compose_pickers_and_field_errors(client, db, web_login, stock
     page = client.get('/phieu-kho/moi').text
     # Bắt đầu bằng ô tìm hàng, không có dòng rỗng (dòng duy nhất là khuôn trong <template>).
     assert page.count('data-stock-line ') == 1 and 'data-sk-q' in page and 'data-sk-primary' in page
+    # Nhập nhanh như đơn bán: hàng phím tắt, Enter ở Số lượng/Đơn giá là "tiếp".
+    assert 'data-sk-keys' in page and 'Enter thêm' in page
+    assert re.search(r'<input name="qty"[^>]*enterkeyhint="next"', page) and re.search(r'<input name="unit_cost"[^>]*enterkeyhint="next"', page)
     assert '<select name="supplier_code"' not in page and 'data-source="/phieu-kho/tim-ncc"' in page
     found = client.get('/phieu-kho/san-pham?q=muc&warehouse=K58').text
     assert 'data-sk-add' in found and 'Kho K58: còn 7' in found
@@ -121,3 +124,10 @@ def test_purchase_compose_has_keyboard_entry_like_sales(client, db, purchase_peo
     page = client.get('/don-mua/moi').text
     assert 'data-po-keys' in page and 'Enter thêm' in page
     assert re.search(r'<input name="qty"[^>]*enterkeyhint="next"', page) and re.search(r'<input name="unit_cost"[^>]*enterkeyhint="next"', page)
+
+
+def test_quote_compose_has_keyboard_entry_like_sales(client, web_login, stock_catalog):
+    web_login('d3.kd', 'sales')
+    page = client.get('/bao-gia/moi').text
+    assert 'data-browse-keys' in page and 'Enter thêm' in page
+    assert re.search(r'<input name="qty"[^>]*enterkeyhint="next"', page) and re.search(r'<input name="unit_price"[^>]*enterkeyhint="next"', page)
