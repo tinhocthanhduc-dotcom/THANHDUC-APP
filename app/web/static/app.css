@@ -1743,6 +1743,7 @@ main:has(> .quote-form-page) { max-width: none; }
 .qf-note { margin-top: 10px; }
 .qf-note textarea { min-height: 44px; }
 .qf-terms .qf-pick { margin-top: 2px; }
+.po-compose .qf-terms .qf-mode { margin-bottom: 12px; }
 /* Ô Tồn: còn đủ / thiếu theo số lượng đang nhập */
 .qline-badge { justify-self: start; font-size: .78rem; font-weight: 700; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
 .qline-badge:empty { display: none; }

@@ -91,9 +91,11 @@ def _where(exc, data):
 def _form(request, session, row=None, data=None, error=None, code='', status=200, reason='', receiving=False, receive_data=None, receipt_action='', failed_receipt=None, where=({}, {}), prefill_note=''):
     if data is None:
         data = svc.snapshot(row) if row else dict(supplier_code='', order_date=quotes._today().isoformat(),
-                            expected_date='', note='', version=0, lines=[])
+                            expected_date='', note='', version=0, price_includes_vat=False, lines=[])
         for line in data['lines']:
-            line['unit_cost'] = money(line['unit_cost'])
+            # Đơn nhập giá đã gồm VAT: hiện lại đúng số người dùng đã gõ.
+            price = line['entered_price'] if data.get('price_includes_vat') and line.get('entered_price') is not None else line['unit_cost']
+            line['unit_cost'] = money(price)
     supplier = session.get(Supplier, data.get('supplier_code')) if data.get('supplier_code') else None
     codes = {line.get('product_code') for line in data['lines']}
     history=receipts.list_by_order(session,request.state.user,row.id) if row else []
@@ -145,7 +147,7 @@ def _raw(form):
         line={k:str(v[i]) if i<len(v) else '' for k,v in fields.items()}
         line.update(warehouse_code=str(form.get(f'warehouse_{i}','')), vat_rate=str(form.get(f'vat_{i}',DEFAULT_VAT_RATE)))
         lines.append(line)
-    return {**{k:str(form.get(k,'')) for k in ('supplier_code','order_date','expected_date','note','version')}, 'lines':lines}
+    return {**{k:str(form.get(k,'')) for k in ('supplier_code','order_date','expected_date','note','version','price_includes_vat')}, 'lines':lines}
 
 
 def _body(data):
@@ -158,7 +160,7 @@ def _body(data):
         except ValueError:raise BusinessError('BAD_VAT',f'VAT dòng {n} phải là 0, 5, 8 hoặc 10%.',{'line':n-1})
         lines.append({**line,'qty':line['qty'].replace(',','.'),'unit_cost':int(price.replace('.','')),'vat_rate':vat})
     return dict(supplier_code=data['supplier_code'], order_date=data['order_date'], expected_date=data['expected_date'] or None,
-                note=data['note'], lines=lines)
+                note=data['note'], price_includes_vat=data.get('price_includes_vat')=='1', lines=lines)
 
 
 def _error(exc):

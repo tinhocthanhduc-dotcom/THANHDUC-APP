@@ -35,14 +35,25 @@
     if (!vals.length) return null;
     return vals.every(function(v){ return v===vals[0]; }) ? vals[0] : '*';
   }
+  // Giá nhập Chưa VAT / Đã gồm VAT: gồm VAT thì tiền chưa VAT = tiền dòng ÷ (1+VAT), VAT = phần còn lại (giống máy chủ).
+  function included() { var r=form.querySelector('[name=price_includes_vat]:checked'); return !!r && r.value==='1'; }
+  function modeText() {
+    var on=included(), head=form.querySelector('[data-po-price-head]');
+    if (head) head.textContent=on ? 'Giá gồm VAT' : 'Giá chưa VAT';
+    rows().forEach(function(row){ var p=row.querySelector('[name=unit_cost]'); p.placeholder=on ? 'Giá gồm VAT' : 'Giá chưa VAT'; p.setAttribute('aria-label',on ? 'Đơn giá đã gồm VAT' : 'Đơn giá chưa VAT'); });
+  }
+  form.querySelectorAll('[name=price_includes_vat]').forEach(function(r){ r.addEventListener('change',update); });
   function update() {
-    var sub=0, vat=0, filled=true;
+    var sub=0, vat=0, filled=true, on=included(); modeText();
     rows().forEach(function(row) {
       var qty=num(row.querySelector('[name=qty]').value), cost=digits(row.querySelector('[name=unit_cost]').value);
       var rate=row.querySelector('[data-purchase-vat]:checked'), wh=row.querySelector('[data-purchase-warehouse]:checked');
-      var amount=isNaN(qty)||isNaN(cost) ? NaN : Math.round(qty*cost);
+      var amount=isNaN(qty)||isNaN(cost) ? NaN : Math.round(qty*cost), pct=rate ? Number(rate.value) : 0;
       row.querySelector('[data-purchase-amount]').textContent=isNaN(amount) ? '—' : money(amount);
-      if (!isNaN(amount)) { sub+=amount; vat+=Math.round(amount*(rate ? Number(rate.value) : 0)/100); }
+      if (!isNaN(amount)) {
+        if (on) { var net=Math.round(amount*100/(100+pct)); sub+=net; vat+=amount-net; }
+        else { sub+=amount; vat+=Math.round(amount*pct/100); }
+      }
       var stock={}; try { stock=JSON.parse(row.dataset.stock||'{}'); } catch (e) {}
       var badge=row.querySelector('[data-purchase-stock]'); badge.textContent=wh && row.querySelector('[name=product_code]').value ? (stock[wh.value]||'0') : '';
       if (!row.querySelector('[name=product_code]').value || !wh || isNaN(cost) || !(qty>0)) filled=false;
@@ -82,7 +93,9 @@
     row.querySelector('[data-purchase-name]').textContent=data.name;
     row.querySelector('[data-purchase-code]').textContent=data.code+(data.unit ? ' · '+data.unit : '');
     row.querySelector('[data-purchase-last]').textContent=data.cost ? ' · lần trước '+money(Number(data.cost)) : '';
-    var price=row.querySelector('[name=unit_cost]'); if (!price.value && data.cost) price.value=money(Number(data.cost));
+    var price=row.querySelector('[name=unit_cost]'), rate=row.querySelector('[data-purchase-vat]:checked');
+    // Giá lần trước lưu chưa VAT; đơn đang nhập giá gồm VAT thì cộng VAT của dòng.
+    if (!price.value && data.cost) price.value=money(included() ? Math.round(Number(data.cost)*(100+(rate ? Number(rate.value) : 0))/100) : Number(data.cost));
     row.dataset.stock=data.stock||'{}'; row.dataset.picked='1'; row.classList.remove('pol-bad');
     var err=row.querySelector('.field-error'); if (err) err.remove();
     var opts=row.querySelector('.product-options'); if (opts) opts.replaceChildren();

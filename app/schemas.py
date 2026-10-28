@@ -1098,6 +1098,7 @@ class PurchaseOrderIn(BaseModel):
     order_date: date
     expected_date: date | None = None
     note: str = Field(default='', max_length=4000)
+    price_includes_vat: bool = False
     lines: list[PurchaseOrderLineIn] = Field(default_factory=list, max_length=500)
 
 
@@ -1118,6 +1119,7 @@ class PurchaseOrderLineOut(PurchaseOrderLineIn):
     model_config = ConfigDict(from_attributes=True)
     id: int
     line_no: int
+    entered_price: int | None = None
     amount: int
     vat_amount: int
     received_qty: Decimal

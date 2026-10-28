@@ -101,7 +101,7 @@ def _supplier(session, code):
         raise BusinessError('BAD_SUPPLIER', 'Nhà cung cấp không tồn tại hoặc đã ngừng dùng.')
 
 
-def _lines(session, lines):
+def _lines(session, lines, price_includes_vat=False):
     if not lines:
         raise BusinessError('EMPTY_ORDER', 'Đơn mua phải có ít nhất một dòng hàng.')
     for model, attr, code, message in [(Product, 'product_code', 'BAD_PRODUCT', 'Mã hàng không tồn tại hoặc đã ngừng bán: '),
@@ -116,10 +116,26 @@ def _lines(session, lines):
     for n, line in enumerate(lines, 1):
         with localcontext() as context:
             context.prec = 64
-            amount = quotes._money_limit(quotes._round(line.qty * line.unit_cost))
-            vat = quotes._money_limit(quotes._round(Decimal(amount) * line.vat_rate / 100))
-        result.append(PurchaseOrderLine(line_no=n, **line.model_dump(), amount=amount, vat_amount=vat, received_qty=0))
+            entered = quotes._money_limit(quotes._round(line.qty * line.unit_cost))
+            if price_includes_vat:
+                # Giá nhập đã gồm VAT: tách tiền chưa VAT, VAT = phần còn lại để tổng đúng bằng số lượng × giá nhập.
+                (amount, vat), = quotes.priced_amounts([entered], [line.vat_rate], True)
+                unit_cost = quotes._round(Decimal(line.unit_cost) * 100 / (100 + line.vat_rate))
+            else:
+                amount, unit_cost = entered, line.unit_cost
+                vat = quotes._money_limit(quotes._round(Decimal(amount) * line.vat_rate / 100))
+        result.append(PurchaseOrderLine(line_no=n, **line.model_dump(exclude={'unit_cost'}), unit_cost=unit_cost,
+                                        entered_price=line.unit_cost if price_includes_vat else None,
+                                        amount=amount, vat_amount=vat, received_qty=0))
     return result
+
+
+def entered_line(line, price_includes_vat):
+    """Dòng theo giá người dùng nhập (đã gồm VAT nếu đơn chọn chế độ đó) để sửa lại hoặc kiểm tra."""
+    data = PurchaseOrderLineIn.model_validate(line, from_attributes=True)
+    if price_includes_vat and line.entered_price is not None:
+        data.unit_cost = line.entered_price
+    return data
 
 
 def _totals(row):
@@ -137,7 +153,7 @@ def create(session, user, body):
     check_writer(user)
     with _transaction(session):
         _supplier(session, body.supplier_code)
-        lines = _lines(session, body.lines)
+        lines = _lines(session, body.lines, body.price_includes_vat)
         row = PurchaseOrder(number=next_number(session, 'DM', body.order_date), created_by=user.id,
             **body.model_dump(exclude={'lines'}), lines=lines)
         _totals(row); session.add(row)
@@ -153,7 +169,7 @@ def update(session, user, order_id, body):
             raise BusinessError('PRICE_LOCKED', 'Đơn mua đã đặt hoặc đã đóng, không sửa được.', status=409)
         before = snapshot(row)
         _supplier(session, body.supplier_code)
-        lines = _lines(session, body.lines)
+        lines = _lines(session, body.lines, body.price_includes_vat)
         row.lines.clear(); session.flush()
         row.lines = lines
         for key, value in body.model_dump(exclude={'lines', 'version'}).items():
@@ -170,7 +186,7 @@ def order(session, user, order_id, version):
         if row.status != 'NHAP':
             raise BusinessError('BAD_STATUS', 'Chỉ đặt đơn mua đang Nháp.', status=409)
         _supplier(session, row.supplier_code)
-        _lines(session, [PurchaseOrderLineIn.model_validate(line, from_attributes=True) for line in row.lines])
+        _lines(session, [entered_line(line, row.price_includes_vat) for line in row.lines], row.price_includes_vat)
         before = snapshot(row)
         row.status, row.ordered_by, row.ordered_at = 'DA_DAT', user.id, datetime.now(UTC)
         _record(session, user, row, 'order', before)
