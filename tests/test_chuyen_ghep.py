@@ -55,7 +55,7 @@ def test_new_service_bad_input_rolls_back_everything(db, setup, client):
 def test_pick_existing_ticket_from_list(db, setup, client):
     p = setup; o = tho_order(db, p); t = ticket(db, p, 'DA_GIAO')
     page, form = assign_form(client, p, o)
-    assert f'<option value="{t.id}"' in page.text and t.number in page.text
+    assert f'name="service_ticket_id" value="{t.id}"' in page.text and t.number in page.text  # nút bấm (28/10/2026)
     form.update(assignee_id=str(p['technician'].id), service_ticket_id=str(t.id))
     assert client.post(f'/giao-don/{o.id}/assign', data=form, follow_redirects=False).status_code == 303
     db.expire_all(); assert db.get(SalesOrder, o.id).service_ticket_id == t.id
@@ -105,7 +105,7 @@ def test_add_sale_from_ticket_links_order_and_defaults_technician(db, setup, cli
     # Điều phối mở giao đơn: phiếu và thợ của phiếu được chọn sẵn.
     o.status = 'DA_CHOT'; db.commit()
     html = client.get(f'/giao-don/{o.id}').text
-    assert f'<option value="{t.id}" selected' in html and f'<option value="{p["technician"].id}" selected' in html
+    assert f'name="service_ticket_id" value="{t.id}" checked' in html and f'name="assignee_id" value="{p["technician"].id}" checked' in html
 
 
 def test_add_sale_rejects_closed_ticket(db, setup):

@@ -2986,6 +2986,43 @@ a.lv-nrow:hover { background: var(--tag, var(--bg)); }
   .lv-lrow small { display: block; margin: 0; }
   .lv-ldet p { grid-template-columns: 70px minmax(0, 1fr); } .lv-open { margin-left: 78px; }
 }
+/* ===== Giao đơn / Giao hàng kho: khung 2 cột chung (TUẤN duyệt 28/10/2026) ===== */
+.gd-view .gd-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gd-view .gd-box { display: grid; gap: 4px; align-content: start; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-wrap: anywhere; }
+.gd-view .gd-name { font-size: 1.02rem; }
+.gd-view .gd-kv { grid-template-columns: 96px minmax(0, 1fr); }
+.gd-view .gd-tel { font-weight: 700; color: var(--info-solid); text-decoration: none; white-space: nowrap; }
+.gd-view .gd-sub { display: block; }
+.gd-view .gd-ok { color: var(--ok); }
+.gd-view .gd-lines td[data-label="Hàng"] { min-width: 220px; }
+.gd-view .gd-trip label { flex: 0 1 auto; }
+.gd-view .gd-trip span { padding-inline: 12px; }
+.gd-view .gd-more { gap: 8px; }
+.gd-view .gd-line { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.gd-view .gd-line:last-child { border-bottom: 0; }
+.gd-view .doc-next .recv-line { padding: 10px; }
+.gd-view .gd-ship { display: grid; gap: 4px; padding-top: 8px; }
+@media (max-width: 640px) { .gd-view .gd-cards { grid-template-columns: 1fr; } }
+/* Lập phiếu kho: kho chính là nút, "Kho khác ▾" mở ô tìm có nhóm (TUẤN duyệt 28/10/2026). */
+.sk-wh-main { flex-wrap: wrap; align-items: flex-start; }
+.sk-wh-main > label { flex: 0 1 auto; }
+.sk-wh-more { position: relative; }
+.sk-wh-more > summary { list-style: none; min-height: 44px; white-space: nowrap; }
+.sk-wh-more > summary::-webkit-details-marker { display: none; }
+.sk-wh-more > summary.on { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+.sk-wh-drop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: min(420px, 86vw); max-height: 360px; overflow-y: auto; display: grid; gap: 2px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, .18); }
+.sk-wh-drop input[type=search] { position: static; opacity: 1; width: 100%; box-sizing: border-box; font-size: 16px; margin-bottom: 4px; }
+.sk-wh-g[hidden] { display: none; }
+.gd-view .doc-next h2 { margin: 0; font-size: 1.05rem; }
+.sk-wh-g { margin: 6px 4px 2px; font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.sk-wh-drop .sk-wh-opt { flex: none; }
+.sk-wh-drop .sk-wh-opt span { text-align: left; border: 0; border-radius: 8px; padding: 10px; }
+.sk-wh-drop .sk-wh-opt span:hover { background: var(--tag); }
+.sk-wh-drop .sk-wh-opt[hidden] { display: none; }
+@media (max-width: 640px) {
+  .gd-view .gd-lines td.num { display: flex; justify-content: space-between; }
+  .gd-view .gd-lines td.num::before { content: attr(data-label); color: var(--muted); font-weight: 400; }
+}
 
 /* Tồn kho: khu Thợ đang giữ / Chờ Xử lý thu gọn, bấm tiêu đề để mở; mỗi khu phân trang riêng. */
 .stock-group { margin-top: 18px; }
