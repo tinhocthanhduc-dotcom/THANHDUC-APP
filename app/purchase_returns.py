@@ -83,6 +83,9 @@ def create(session, user, receipt_id, version, return_date, reason, lines):
             with localcontext() as context:
                 context.prec=64
                 if part.qty==remaining:amount,vat=line.amount-int(old.amount if old else 0),line.vat_amount-int(old.vat if old else 0)
+                elif order.price_includes_vat:
+                    amount=quotes.proportion(line.amount,part.qty,line.qty)
+                    vat=quotes.proportion(line.vat_amount,part.qty,line.qty)
                 else:
                     amount=quotes._round(part.qty*line.unit_cost)
                     vat=quotes._round(Decimal(amount)*line.vat_rate/100)

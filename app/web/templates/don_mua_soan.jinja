@@ -1,5 +1,5 @@
 {# Đợt 3 · khuôn 5: soạn đơn mua (tạo mới hoặc nháp) cùng bố cục Đơn bán: NCC + ngày ở trên, dòng hàng gọn, cột phải là VAT, tổng và Bước tiếp. #}
-{% import '_ui.jinja' as ui %}
+{% import '_ui.jinja' as ui %}{% set inc_vat = d.get('price_includes_vat') in [true,'1',1] %}
 <div class="doc-detail quote-form-page po-compose">
 {% call ui.page_head(o.number if o else 'Tạo đơn mua', sub='Đơn mua · đặt hàng nhà cung cấp', back='/don-mua', badge_label='Nháp' if o else '', badge_tone='nhap') %}{% if o %}<a class="btn btn-ghost" href="/don-mua/{{ o.id }}/in">In đơn đặt hàng</a>{% endif %}{% endcall %}
 {{ ui.steps([('Nháp','cur'),('Đã đặt',''),('Nhận hàng',''),('Xong','')]) }}
@@ -29,7 +29,7 @@
 <div class="qf-find" data-po-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-po-q placeholder="+ Tìm hàng: mã, tên… (↑↓ chọn · Enter thêm · F2 về đây)" autocomplete="off" enterkeyhint="enter"></label>
 <div class="qf-find-drop" data-po-list aria-live="polite" hidden></div></div>
 <p class="qf-keys" data-po-keys><span><kbd>↑</kbd><kbd>↓</kbd> chọn</span><span><kbd>Enter</kbd> thêm, nhảy xuống Số lượng</span><span><kbd>Enter</kbd> ở Số lượng → Giá → về ô tìm</span><span>gõ <kbd>3*79a</kbd> thêm 3 cái</span><span><kbd>Esc</kbd> đóng</span></p>
-<div class="pol-head" aria-hidden="true"><span>Hàng</span><span>Kho</span><span>Tồn</span><span>Số lượng</span><span>Giá chưa VAT</span><span>VAT</span><span>Thành tiền</span><span></span></div>
+<div class="pol-head" aria-hidden="true"><span>Hàng</span><span>Kho</span><span>Tồn</span><span>Số lượng</span><span data-po-price-head>{{ 'Giá gồm VAT' if inc_vat else 'Giá chưa VAT' }}</span><span>VAT</span><span>Thành tiền</span><span></span></div>
 <div data-purchase-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_mua_dong.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-po-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>.</p>
 {{ ui.field_error(field_errors, 'lines') }}
@@ -40,7 +40,8 @@
 <p data-purchase-warning class="alert warn" hidden></p>
 </div>
 <aside class="qf-side">
-<section class="card qf-terms"><div class="qf-pick" role="group" aria-label="Thuế VAT cả đơn" data-po-vat-all data-value="{{ default_vat }}"><p class="qf-pick-label">Thuế VAT cả đơn <small data-pick-mixed hidden>· đang nhiều mức</small></p><div class="qf-quick">{% for rate in vat_rates|sort(reverse=true) %}<button type="button" class="chip{{ ' on' if rate|string == default_vat }}" data-pick="{{ rate }}">{{ rate }}%</button>{% endfor %}</div></div><p class="hint">Áp cho mọi dòng; dòng nào khác mức thì bấm ô VAT của dòng đó.</p></section>
+<section class="card qf-terms"><div class="qf-mode" role="group" aria-label="Giá nhập"><p class="qf-pick-label">Giá nhập</p><div class="seg stock-seg qf-seg2"><label><input type="radio" name="price_includes_vat" value="" {% if not inc_vat %}checked{% endif %}><span>Chưa VAT</span></label><label><input type="radio" name="price_includes_vat" value="1" {% if inc_vat %}checked{% endif %}><span>Đã gồm VAT</span></label></div><p class="hint">Đã gồm VAT: gõ đúng giá trên hóa đơn, app tự tách VAT. Giá vốn kho vẫn lưu chưa VAT.</p></div>
+<div class="qf-pick" role="group" aria-label="Thuế VAT cả đơn" data-po-vat-all data-value="{{ default_vat }}"><p class="qf-pick-label">Thuế VAT cả đơn <small data-pick-mixed hidden>· đang nhiều mức</small></p><div class="qf-quick">{% for rate in vat_rates|sort(reverse=true) %}<button type="button" class="chip{{ ' on' if rate|string == default_vat }}" data-pick="{{ rate }}">{{ rate }}%</button>{% endfor %}</div></div><p class="hint">Áp cho mọi dòng; dòng nào khác mức thì bấm ô VAT của dòng đó.</p></section>
 <section class="card qf-sum"><h2 class="qf-h">Tổng đơn mua</h2>
 <dl><div><dt>Tiền hàng chưa VAT</dt><dd data-po-sub>{{ (o.subtotal|money) if o else '0' }}</dd></div><div><dt>VAT</dt><dd data-po-vat>{{ (o.vat_total|money) if o else '0' }}</dd></div><div class="qf-grand"><dt>Tổng thanh toán</dt><dd data-po-total>{{ (o.total|money) if o else '0' }}</dd></div></dl>
 <p class="hint">Đơn vị: đồng. Tạm tính, số chính thức tính khi lưu.</p></section>

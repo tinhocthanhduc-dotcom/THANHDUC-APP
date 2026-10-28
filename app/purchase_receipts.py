@@ -94,6 +94,10 @@ def receive(session, user, order_id, version, receipt_date, lines):
                 if line.received_qty + part.qty == line.qty:
                     paid,vat_paid=previous.get(line.id,(0,0))
                     amount,vat=line.amount-paid,line.vat_amount-vat_paid
+                elif order.price_includes_vat:
+                    # Giá đã gồm VAT: chia theo tỷ lệ tiền của dòng, không nhân lại đơn giá đã làm tròn.
+                    amount=quotes.proportion(line.amount,part.qty,line.qty)
+                    vat=quotes.proportion(line.vat_amount,part.qty,line.qty)
                 else:
                     amount=quotes._round(part.qty*line.unit_cost)
                     vat=quotes._round(Decimal(amount)*line.vat_rate/100)

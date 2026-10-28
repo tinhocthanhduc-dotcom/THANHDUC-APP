@@ -965,6 +965,7 @@ class PurchaseOrder(Base):
     expected_date: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(16), default='NHAP')
     note: Mapped[str] = mapped_column(Text, default='')
+    price_includes_vat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
     subtotal: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_total: Mapped[int] = mapped_column(BigInteger, default=0)
     total: Mapped[int] = mapped_column(BigInteger, default=0)
@@ -987,6 +988,7 @@ class PurchaseOrderLine(Base):
         CheckConstraint('unit_cost >= 0 and amount >= 0 and vat_amount >= 0', name='ck_purchase_order_lines_money'),
         CheckConstraint(_in('vat_rate', VAT_RATES).replace("'", ''), name='ck_purchase_order_lines_vat'),
         CheckConstraint('received_qty >= 0 and received_qty <= qty', name='ck_purchase_order_lines_received'),
+        CheckConstraint('entered_price is null or entered_price >= 0', name='ck_purchase_order_lines_entered'),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey('purchase_orders.id'), index=True)
@@ -995,6 +997,8 @@ class PurchaseOrderLine(Base):
     warehouse_code: Mapped[str] = mapped_column(ForeignKey('warehouses.code'))
     qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
     unit_cost: Mapped[int] = mapped_column(BigInteger)
+    # Đơn giá đã gồm VAT người dùng nhập (chỉ khi đơn price_includes_vat); unit_cost luôn là giá chưa VAT.
+    entered_price: Mapped[int | None] = mapped_column(BigInteger)
     vat_rate: Mapped[int] = mapped_column(Integer)
     amount: Mapped[int] = mapped_column(BigInteger)
     vat_amount: Mapped[int] = mapped_column(BigInteger)
