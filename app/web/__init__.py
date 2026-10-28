@@ -124,6 +124,17 @@ def vn_long_date(value) -> str:
 
 
 templates.env.filters["vn_long_date"] = vn_long_date
+
+
+def vn_time(value) -> str:
+    """Giờ:phút theo giờ Việt Nam (Tổng quan: giờ đến khách, giờ hẹn)."""
+    if getattr(value, 'tzinfo', None) is not None:
+        from zoneinfo import ZoneInfo
+        value = value.astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
+    return value.strftime('%H:%M') if hasattr(value, 'strftime') else ''
+
+
+templates.env.filters["vn_time"] = vn_time
 templates.env.add_extension("jinja2.ext.do")
 templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals["tab_icons"] = nav.TAB_ICONS

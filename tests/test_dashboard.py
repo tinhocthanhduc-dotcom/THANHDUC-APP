@@ -201,8 +201,39 @@ def test_day_board_technicians_sales_counts_reasons_and_roles(client,db,people,m
     assert 'technicians' not in svc.day_board(db,p['finance'],today) and svc.day_board(db,p['finance'],today)['counts']['received']==2
     service_login(client,p['director']);page=client.get('/tong-quan').text
     assert 'Thợ hôm nay' in page and 'Chờ khách duyệt' in page and 'Kinh doanh hôm nay' in page
-    assert page.index('Cần để mắt ngay')<page.index('Thợ hôm nay')<page.index('Theo dõi · không gấp')<page.index('Tiền · tháng này')<page.index('Doanh thu 30 ngày gần nhất')
+    # Bản 2 (28/10/2026): ai đang làm gì · việc cần làm tiếp · việc đang diễn ra lên đầu; bảng thợ cũ, cảnh báo, tiền gập xuống dưới.
+    assert page.index('Ai đang làm gì')<page.index('Việc cần làm tiếp')<page.index('Việc đang diễn ra')<page.index('Kết quả hôm nay theo người')<page.index('Thợ hôm nay')
+    assert page.index('Thợ hôm nay')<page.index('Theo dõi · không gấp')<page.index('Tiền · tháng này')<page.index('Doanh thu 30 ngày gần nhất')
     # Khách vượt hạn mức là việc theo dõi, gập sẵn ở cuối, không tính vào việc đỏ (TUẤN 26/10/2026).
     assert page.index('Theo dõi · không gấp')<page.index('data-alert-kind="KHACH_VUOT_HAN_MUC"') and '<details class="alert-group" data-alert-kind="KHACH_VUOT_HAN_MUC" open' not in page
     service_login(client,p['finance']);page=client.get('/tong-quan').text
-    assert 'Thợ hôm nay' not in page and 'Kinh doanh hôm nay' not in page and 'Hôm nay nhìn nhanh' in page
+    assert 'Thợ hôm nay' not in page and 'Kinh doanh hôm nay' not in page and 'Ai đang làm gì' not in page and 'Việc đang diễn ra' in page
+
+
+
+def test_live_board_people_next_and_lanes(client,db,people,monkeypatch):
+    # Tổng quan bản 2 (TUẤN duyệt 28/10/2026): ai đang làm gì, việc cần làm tiếp, việc đang diễn ra; chỉ đọc.
+    from test_web import service_login
+    p=people;today=datetime.now(svc.TZ).date()
+    free=service_tickets.create(db,p['sales'],ServiceTicketIn(customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Kẹt giấy'))
+    t=service_tickets.create(db,p['sales'],ServiceTicketIn(customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Mờ bản in'))
+    service_tickets.assign(db,p['director'],t.id,p['technician'].id,t.version)
+    service_tickets.transition(db,p['technician'],t.id,'DA_NHAN',t.version)
+    at=service_tickets._now()+timedelta(minutes=30)
+    service_tickets.transition(db,p['technician'],t.id,'DA_HEN',t.version,appointment_at=at)
+    live=svc.live_board(db,p['director'],today)
+    nx=live['next']
+    late=[r for r in nx['late'] if r['ticket_id']==free.id]
+    assert late and late[0]['when']=='Chưa giao' and late[0]['none'] and nx['unassigned']>=1
+    if at.astimezone(svc.TZ).date()==today:
+        up=[r for r in nx['upcoming'] if r['ticket_id']==t.id]
+        assert up and up[0]['when']==at.astimezone(svc.TZ).strftime('%H:%M') and up[0]['ids']==[p['technician'].id]
+    dv=[l for l in live['lanes'] if l['key']=='dv'][0]
+    assert dv['todo']>=1 and dv['waiting']>=1 and dv['total']==dv['doing']+dv['waiting']+dv['todo']
+    tech=[x for x in live['board']['people'] if x['user_id']==p['technician'].id][0]
+    assert tech['left']>=1 and tech['pill'] in ('Chưa vào ca','Trong ca · chưa có việc')
+    assert all(0<=g['left']<=100 for x in live['board']['people'] for g in x['segs'])
+    fin=svc.live_board(db,p['finance'],today)
+    assert 'board' not in fin and all(p['finance'].id in r['ids'] for k in ('late','upcoming','day') for r in fin['next'][k])
+    service_login(client,p['director']);page=client.get('/tong-quan').text
+    assert 'Chưa giao' in page and 'Kẹt giấy' in page and 'data-lane="dv"' in page and f'data-user="{p["technician"].id}"' in page
