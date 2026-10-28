@@ -41,7 +41,8 @@
 <label>Ghi chú<input name="note" value="{{ d.note }}" maxlength="2000" placeholder="Ghi chú thêm"></label></div>
 </section>
 <section class="card qf-card qf-lines sk-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng trong phiếu <span class="qf-count" data-sk-count>{{ d.lines|length }} dòng</span></h2><span class="hint" data-sk-stock-note>Tồn: số có thể dùng ở kho đang chọn</span></div>
-{% if live %}<div class="qf-find" data-sk-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-sk-q placeholder="+ Tìm hàng để thêm: mã, tên… (Enter thêm kết quả đầu)" autocomplete="off"></label><div class="qf-find-drop" data-sk-list aria-live="polite" hidden></div></div>{% endif %}
+{% if live %}<div class="qf-find" data-sk-find><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-sk-q placeholder="+ Tìm hàng: mã, tên… (↑↓ chọn · Enter thêm · F2 về đây)" autocomplete="off" enterkeyhint="enter"></label><div class="qf-find-drop" data-sk-list aria-live="polite" hidden></div></div>
+<p class="qf-keys" data-sk-keys><span><kbd>↑</kbd><kbd>↓</kbd> chọn</span><span><kbd>Enter</kbd> thêm, nhảy xuống Số lượng</span><span><kbd>Enter</kbd> ở Số lượng → Đơn giá → về ô tìm</span><span>gõ <kbd>3*107a</kbd> thêm 3 cái</span><span><kbd>Esc</kbd> đóng</span></p>{% endif %}
 <div class="skl-head" aria-hidden="true"><span>Hàng</span><span>Tồn</span><span>Số lượng</span><span class="skl-cost-h">Đơn giá</span><span>Serial</span><span>Ghi chú dòng</span><span></span></div>
 <div data-stock-lines>{% for line in d.lines %}{% set loop_index = loop.index0 %}{% include 'phieu_dong.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-sk-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>.</p>

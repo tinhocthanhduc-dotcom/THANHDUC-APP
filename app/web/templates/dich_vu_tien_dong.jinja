@@ -16,7 +16,7 @@
 </div></fieldset>
 {% else %}<input type="hidden" name="line_product" value=""><input type="hidden" name="warehouse_{{ index }}" value="" data-charge-warehouse>{% endif %}
 <label>{{ 'Mô tả / ghi chú' if material else 'Mô tả phí' }}<input name="line_description" value="{{ line.description or '' }}" maxlength="500" {% if not material %}required{% endif %}></label>
-<div class="row2"><label>Số lượng<input name="line_qty" value="{{ line.qty }}" inputmode="decimal" required></label>
+<div class="row2"><label>Số lượng<input name="line_qty" value="{{ line.qty }}" inputmode="decimal" enterkeyhint="next" required></label>
 <label>Đơn giá (đồng)<input name="line_price" value="{{ line.unit_price }}" inputmode="numeric" data-money required></label></div>
 <fieldset><legend>VAT</legend><div class="seg stock-seg">
 {% for rate in [0,5,8,10] %}<label><input type="radio" name="vat_{{ index }}" value="{{ rate }}" data-charge-vat {% if line.vat_rate|string == rate|string %}checked{% endif %} required><span>{{ rate }}%</span></label>{% endfor %}

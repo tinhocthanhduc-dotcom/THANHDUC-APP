@@ -75,7 +75,16 @@
       if (!row.querySelector('[name=line_description]').value) row.querySelector('[name=line_description]').value = button.dataset.name;
       input = row.querySelector('[name=line_price]'); input.value = format(BigInt(button.dataset.price));
       changed();
+      // Chọn bằng bàn phím (Enter): nhảy xuống Số lượng như đơn bán.
+      if (event.detail === 0) { var qty = row.querySelector('[name=line_qty]'); qty.focus(); qty.select(); }
     }
+  });
+  // Enter trong dòng: Số lượng → Đơn giá → thôi; Enter không gửi form tiền ở đây.
+  form.addEventListener('keydown', function(event) {
+    var row = event.target.closest('[data-charge-line]');
+    if (event.key !== 'Enter' || !row || !event.target.matches('input') || event.target.name === 'line_product') return;
+    event.preventDefault();
+    if (event.target.name === 'line_qty') { var price = row.querySelector('[name=line_price]'); price.focus(); price.select(); }
   });
   document.querySelectorAll('[name=to_status][value=HOAN_THANH]').forEach(function(input) {
     var actionForm = input.form;

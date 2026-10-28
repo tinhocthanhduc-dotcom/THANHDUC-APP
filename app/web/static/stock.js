@@ -115,35 +115,64 @@
       window.tdToast && window.tdToast('Còn thiếu: ' + primary.dataset.missing, 'bad');
     }
   });
-  // Ô "+ Tìm hàng để thêm": kết quả kèm số có thể dùng ở kho đang chọn; Enter thêm kết quả đầu.
+  // Ô "+ Tìm hàng để thêm": kết quả kèm số có thể dùng ở kho đang chọn. Nhập nhanh như đơn bán:
+  // ↑↓ chọn, Enter thêm rồi nhảy xuống Số lượng → Đơn giá (nếu có) → về ô tìm; "3*107a" thêm 3 cái; F2 về ô tìm.
   var find = form.querySelector('[data-sk-find]');
   if (find) {
-    var q = find.querySelector('[data-sk-q]'), list = find.querySelector('[data-sk-list]'), timer, seq = 0;
+    var q = find.querySelector('[data-sk-q]'), list = find.querySelector('[data-sk-list]'), timer, seq = 0, hl = 0, moved = false, latest = Promise.resolve();
+    var typed = function() { var m = /^\s*(\d{1,4})\s*\*\s*(\S.*)$/.exec(q.value); return m ? {count: Number(m[1]) || 1, q: m[2]} : {count: 1, q: q.value}; };
+    var choices = function() { return [].slice.call(list.querySelectorAll('[data-sk-add]')); };
+    var mark = function() {
+      var all = choices(); hl = Math.max(0, Math.min(hl, all.length - 1));
+      all.forEach(function(b, i) { var item = b.closest('.qb-item') || b; item.classList.toggle('qb-hl', i === hl); if (i === hl && moved) item.scrollIntoView({block: 'nearest'}); });
+    };
     var load = function() {
       var cur = ++seq;
-      fetch('/phieu-kho/san-pham?' + new URLSearchParams({q: q.value, warehouse: wh()}), {credentials: 'same-origin'})
+      latest = fetch('/phieu-kho/san-pham?' + new URLSearchParams({q: typed().q, warehouse: wh()}), {credentials: 'same-origin'})
         .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
-        .then(function(html) { if (cur !== seq) return; list.innerHTML = html; list.hidden = false; })
-        .catch(function() { list.textContent = 'Không tải được kết quả, hãy thử lại.'; list.hidden = false; });
+        .then(function(html) { if (cur !== seq) return; list.innerHTML = html; hl = 0; moved = false; if (window.tdMarkHits) window.tdMarkHits(list, typed().q); mark(); })
+        .catch(function() { if (cur === seq) list.textContent = 'Không tải được kết quả, hãy thử lại.'; });
+      return latest;
     };
-    var add = function(button) {
-      var data = {code: button.dataset.code, name: button.dataset.name, unit: button.dataset.unit, stock: button.dataset.stock};
-      var dup = rows().filter(function(row) { return row.querySelector('[name=product_code]').value === data.code; })[0];
+    var focusQty = function(row) { var input = row.querySelector('[name=qty]'); input.focus(); input.select(); input.scrollIntoView({block: 'nearest'}); };
+    var add = function(button, count) {
+      var data = {code: button.dataset.code, name: button.dataset.name, unit: button.dataset.unit, stock: button.dataset.stock}, n = count || 1, row;
+      var dup = rows().filter(function(r) { return r.querySelector('[name=product_code]').value === data.code; })[0];
       if (dup && kind() !== 'KK' && !dup.querySelector('[name=serial]').value) {
-        var input = dup.querySelector('[name=qty]'); input.value = qtyText((num(input.value) || 0) + 1);
+        var input = dup.querySelector('[name=qty]'); input.value = qtyText((num(input.value) || 0) + n); row = dup;
         window.tdToast && window.tdToast(data.name + ': đã có trong phiếu, tăng số lượng lên ' + input.value);
-      } else addRow(data);
-      q.value = ''; list.hidden = true; update(); q.focus();
+      } else { row = addRow(data); if (n !== 1) row.querySelector('[name=qty]').value = qtyText(n); }
+      q.value = ''; clearTimeout(timer); timer = null; list.hidden = true; list.innerHTML = ''; update();
+      focusQty(row);
     };
-    q.addEventListener('input', function() { clearTimeout(timer); timer = setTimeout(load, 200); });
-    q.addEventListener('focus', function() { if (!list.innerHTML) load(); else list.hidden = false; });
+    q.addEventListener('input', function() { list.hidden = false; clearTimeout(timer); timer = setTimeout(function() { timer = null; load(); }, 200); });
+    q.addEventListener('focus', function() { if (!list.innerHTML) load(); list.hidden = false; });
     q.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') list.hidden = true;
+      if (e.key === 'Escape') { list.hidden = true; return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); list.hidden = false; moved = true; hl += e.key === 'ArrowDown' ? 1 : -1; mark(); return; }
       if (e.key !== 'Enter') return;
-      e.preventDefault(); var first = list.querySelector('[data-sk-add]'); if (first && !list.hidden) add(first);
+      e.preventDefault();
+      if (!q.value.trim() && !moved) return;
+      var want = typed().count;
+      // Gõ nhanh rồi Enter ngay (máy quét mã): chờ kết quả của chữ vừa gõ rồi mới thêm.
+      var go = function() { var b = choices()[hl]; if (b) add(b, want); else window.tdToast && window.tdToast('Không có mã nào khớp "' + typed().q + '".', 'bad'); };
+      if (timer || !list.innerHTML) { clearTimeout(timer); timer = null; load(); }
+      latest.then(go);
     });
-    list.addEventListener('click', function(e) { var b = e.target.closest('[data-sk-add]'); if (b) add(b); });
+    list.addEventListener('click', function(e) { var b = e.target.closest('[data-sk-add]'); if (b) add(b, typed().count); });
     document.addEventListener('click', function(e) { if (!find.contains(e.target)) list.hidden = true; });
+    // Enter trong dòng: Số lượng → Đơn giá (phiếu nhập, kiểm kê) → về ô tìm. Enter không bao giờ gửi phiếu ở đây.
+    lines.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' || !e.target.matches('input')) return;
+      var row = e.target.closest('[data-stock-line]'); if (!row) return;
+      e.preventDefault();
+      if (e.target.name === 'product_code') return; // ô chọn hàng tự xử lý Enter (base.jinja)
+      var cost = row.querySelector('[name=unit_cost]');
+      if (e.target.name === 'qty' && cost && !cost.disabled) { cost.focus(); cost.select(); return; }
+      if (e.target.name === 'qty' || e.target.name === 'unit_cost') { q.focus(); q.select(); return; }
+      focusQty(row);
+    });
+    document.addEventListener('keydown', function(e) { if (e.key === 'F2') { e.preventDefault(); q.focus(); q.select(); } });
     // Đổi kho: kết quả đang mở phải tính lại số có thể dùng.
     form.addEventListener('change', function(e) { if (e.target.name === 'warehouse_code' && list.innerHTML) list.innerHTML = ''; });
   }

@@ -86,12 +86,18 @@
     if (vatAll && vatAll.value!=='*') row.querySelectorAll('[data-quote-vat]').forEach(function(r){ r.checked=r.value===vatAll.value; });
     return row;
   }
-  function addProduct(b) {
-    var code=b.dataset.code, hit=null;
+  // Nhập nhanh: thêm xong nhảy tới Số lượng của dòng đó (điện thoại thì mở dòng ra trước).
+  function focusQty(row) {
+    var qty=row.querySelector('[name=qty]');
+    if (!qty.offsetParent) { row.classList.add('line-open'); var s=row.querySelector('[data-line-summary]'); if (s) s.setAttribute('aria-expanded','true'); }
+    qty.focus(); qty.select(); qty.scrollIntoView({block:'nearest'});
+  }
+  function addProduct(b,count) {
+    var code=b.dataset.code, hit=null, add=count||1;
     form.querySelectorAll('[data-quote-line]').forEach(function(row){ if (row.querySelector('[name=product_code]').value.trim().toUpperCase()===code) hit=hit||row; });
     if (hit) {
       var q=hit.querySelector('[name=qty]'), n=Number(q.value.replace(',','.'))||0;
-      q.value=String(Math.round((n+1)*1000)/1000).replace('.',',');
+      q.value=String(Math.round((n+add)*1000)/1000).replace('.',',');
       // Chọn lại hàng đã có: cộng vào dòng cũ, báo rõ để không tưởng là nhập trùng.
       if (window.tdToast) window.tdToast('Đã có '+(hit.querySelector('[name=description]').value||code)+': tăng số lượng lên '+q.value);
     } else {
@@ -103,33 +109,67 @@
       hit.querySelector('[name=unit_price]').value=thousands(b.dataset.lastPrice||b.dataset.price);
       hit.querySelector('[data-last-price-hint]').textContent=b.dataset.lastPrice ? 'Giá lần trước '+b.dataset.lastDate+': '+thousands(b.dataset.lastPrice) : '';
       hit.dataset.lineEdited='1'; hit.dataset.pickedProduct='1'; hit.querySelector('[name=description]').title=code; hit.classList.remove('line-open','line-error');
+      if (add!==1) hit.querySelector('[name=qty]').value=String(add);
     }
     hit.classList.remove('qline-flash'); void hit.offsetWidth; hit.classList.add('qline-flash');
     hit.querySelector('[name=qty]').dispatchEvent(new Event('input',{bubbles:true}));
-    syncLines();
+    changed(); syncLines();
+    return hit;
   }
   var browse=form.querySelector('[data-browse]');
   if (browse && editable) {
-    var bq=browse.querySelector('[data-browse-q]'), list=browse.querySelector('[data-browse-list]'), group='', timer, seq=0;
-    function load() {
-      var current=++seq, params=new URLSearchParams({q:bq.value, nhom:group, customer_code:form.querySelector('[name=customer_code]').value});
-      fetch('/bao-gia/san-pham?'+params,{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); })
-        .then(function(html){ if (current===seq) list.innerHTML=html; })
-        .catch(function(){ if (current===seq) list.textContent='Không tải được danh sách, hãy thử lại.'; });
+    var bq=browse.querySelector('[data-browse-q]'), list=browse.querySelector('[data-browse-list]'), group='', timer, seq=0, hl=0, moved=false, latest=Promise.resolve();
+    // "3*107a": thêm 3 cái mã khớp đầu; phần sau dấu * mới là chữ tìm.
+    function typed() { var m=/^\s*(\d{1,4})\s*\*\s*(\S.*)$/.exec(bq.value); return m ? {count:Number(m[1])||1,q:m[2]} : {count:1,q:bq.value}; }
+    function choices() { return [].slice.call(list.querySelectorAll('[data-browse-add]')); }
+    function mark() {
+      var all=choices(); hl=Math.max(0,Math.min(hl,all.length-1));
+      all.forEach(function(b,i){ var item=b.closest('.qb-item')||b; item.classList.toggle('qb-hl',i===hl); if (i===hl && moved) item.scrollIntoView({block:'nearest'}); });
     }
-    bq.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(load,250); });
+    function load() {
+      var current=++seq, params=new URLSearchParams({q:typed().q, nhom:group, customer_code:form.querySelector('[name=customer_code]').value});
+      var done=fetch('/bao-gia/san-pham?'+params,{credentials:'same-origin'}).then(function(r){ if (!r.ok) throw new Error(); return r.text(); })
+        .then(function(html){ if (current===seq) { list.innerHTML=html; hl=0; moved=false; if (window.tdMarkHits) window.tdMarkHits(list,typed().q); mark(); } })
+        .catch(function(){ if (current===seq) list.textContent='Không tải được danh sách, hãy thử lại.'; });
+      latest=done;
+      return done;
+    }
+    // Thêm dòng đang sáng: xóa ô tìm rồi nhảy xuống Số lượng.
+    function take(b,count) {
+      var row=addProduct(b,count);
+      bq.value=''; clearTimeout(timer); timer=null; load();
+      focusQty(row);
+    }
+    bq.addEventListener('input',function(){ clearTimeout(timer); timer=setTimeout(function(){ timer=null; load(); },200); });
     bq.addEventListener('keydown',function(e){
+      if (e.key==='ArrowDown' || e.key==='ArrowUp') { e.preventDefault(); moved=true; hl+=e.key==='ArrowDown' ? 1 : -1; mark(); return; }
       if (e.key!=='Enter') return;
       e.preventDefault();
-      var first=list.querySelector('[data-browse-add]');
-      if (first) { addProduct(first); bq.select(); }
+      if (!bq.value.trim() && !moved) return;
+      var want=typed().count;
+      // Gõ nhanh rồi Enter ngay (máy quét mã): chờ kết quả của chữ vừa gõ rồi mới thêm.
+      var go=function(){ var b=choices()[hl]; if (b) take(b,want); else if (window.tdToast) window.tdToast('Không có mã nào khớp "'+typed().q+'".','bad'); };
+      if (timer) { clearTimeout(timer); timer=null; load(); }
+      latest.then(go);
     });
     browse.addEventListener('click',function(e){
       var g=e.target.closest('[data-browse-group]');
       if (g) { group=g.dataset.browseGroup; browse.querySelectorAll('[data-browse-group]').forEach(function(x){ x.classList.toggle('on',x===g); }); load(); return; }
       var b=e.target.closest('[data-browse-add]');
-      if (b) addProduct(b);
+      if (b) take(b,typed().count);
     });
+    // Enter trong dòng: Số lượng → Đơn giá → về ô tìm. Enter không bao giờ gửi form ở đây.
+    lines.addEventListener('keydown',function(e){
+      if (e.key!=='Enter' || !e.target.matches('input')) return;
+      var row=e.target.closest('[data-quote-line]'); if (!row) return;
+      e.preventDefault();
+      if (e.target.name==='product_code') return; // ô chọn hàng tự xử lý Enter (base.jinja)
+      if (e.target.name==='qty') { var price=row.querySelector('[name=unit_price]'); price.focus(); price.select(); return; }
+      if (e.target.name==='unit_price') { bq.focus(); bq.select(); return; }
+      var qty=row.querySelector('[name=qty]'); qty.focus(); qty.select();
+    });
+    document.addEventListener('keydown',function(e){ if (e.key==='F2') { e.preventDefault(); bq.focus(); bq.select(); } });
+    mark();
     form.querySelector('[name=customer_code]').addEventListener('stock-picked',function(){ setTimeout(load,0); });
   }
   if (vatAll && editable) vatAll.addEventListener('change',function(){
