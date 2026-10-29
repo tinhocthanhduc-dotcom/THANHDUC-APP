@@ -121,14 +121,17 @@ def transfer_form(client,p,t,failed=False):
 
 
 @pytest.mark.parametrize('status',['DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'])
-def test_direct_transfer_clears_charges_returns_stock_preserves_appointment(client,db,held,status):
+def test_direct_transfer_clears_charges_moves_stock_preserves_appointment(client,db,held,status):
     p,own,_=held;transfer(db,p);t=ticket(db,p,'DANG_LAM' if status in ('CHO_LINH_KIEN','TAM_DUNG') else status)
     if status in ('CHO_LINH_KIEN','TAM_DUNG'):service_tickets.transition(db,p['technician'],t.id,status,t.version,note='Chờ xử lý',hold_reason='KHAC' if status=='TAM_DUNG' else '')
     service_charges.set_charges(db,p['technician'],t.id,ServiceCharges(version=t.version,billing='THU_TIEN',lines=[dict(kind='VAT_TU',product_code='TD-0001',warehouse_code=own.code,qty=2,unit_price=1),dict(kind='PHI',description='Phí cũ',qty=1,unit_price=500000)]))
     appointment=t.appointment_at;form=transfer_form(client,p,t,status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'));r=client.post(f'/tho/phieu/{t.id}/chuyen-tho',data=form,follow_redirects=False);assert r.status_code==303
     db.expire_all();assert t.assignee_id==p['other_tech'].id and t.status=='DA_GIAO' and t.appointment_at==appointment and not t.lines
-    request=db.scalar(select(TechnicianReturn).where(TechnicianReturn.ticket_id==t.id));assert request.status=='CHO_NHAN' and request.lines[0].qty==2 and request.technician_id==p['technician'].id
-    assert balance(db,own.code)==3 and request.stock_doc_id is None
+    # TUẤN 29/10/2026: hàng dự kiến cho phiếu đi theo thợ nhận, không còn yêu cầu trả kho.
+    assert db.scalar(select(TechnicianReturn).where(TechnicianReturn.ticket_id==t.id)) is None
+    assert balance(db,own.code)==1 and balance(db,'K502')==2
+    doc=db.scalar(select(StockDoc).where(StockDoc.source_kind=='DOI_THO'));assert doc.reason.startswith(t.number) and doc.warehouse_code==own.code and doc.to_warehouse_code=='K502'
+    assert 'Hàng đi theo phiếu sang kho thợ mới' in t.steps[-1].note
     if status=='DANG_LAM':assert db.scalar(select(ServiceVisit).where(ServiceVisit.ticket_id==t.id)).outcome=='KHONG_LAM_DUOC'
     assert client.get(f'/tho/phieu/{t.id}').status_code==403
     service_login(client,p['other_tech']);assert 'Nhận đơn' in client.get('/tho').text

@@ -332,7 +332,7 @@ def assign(session: Session, user: User, ticket_id: int, assignee_id: int, versi
         return assign_in_tx(session,user,ticket_id,assignee_id,version,note)
 
 
-def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "", *, _technician_transfer=False, _split_from=None) -> ServiceTicket:
+def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int, version: int | None, note: str = "", *, _technician_transfer=False, _split_from=None, _stock_moved=False) -> ServiceTicket:
     """Giao thợ, hoặc chuyển sang thợ khác (cũng là cách duyệt yêu cầu chuyển việc). Phiếu về DA_GIAO."""
     if not _technician_transfer and _split_from is None:
         _require(user, DISPATCHERS, "Chỉ điều phối hoặc giám đốc được giao thợ.")
@@ -358,6 +358,12 @@ def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int,
     if from_status == "DANG_LAM" and not _technician_transfer:
         service_visits.close_visit(session, t, "CHUYEN_THO", _now(), note.strip())
     action = "assign" if t.assignee_id is None else "reassign"
+    if action == "reassign" and t.assignee_id != tech.id and not _stock_moved:
+        # Hàng đã cấp cho phiếu đi theo thợ mới (TUẤN 29/10/2026).
+        from . import technician_reassign
+        moved = technician_reassign.describe(session, *technician_reassign.move_ticket_stock(session, user, t, tech.id))
+        if moved:
+            note = f"{note.strip()}. {moved}" if note.strip() else moved
     t.assignee_id, t.status, t.transfer_request = tech.id, "DA_GIAO", ""
     t.hold_reason = ""
     t.due_at = service_sla.due_at("DA_GIAO", t.priority, _now(), None)

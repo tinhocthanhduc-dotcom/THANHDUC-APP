@@ -7,7 +7,7 @@ from sqlalchemy import select
 from . import service_charges, service_tickets, technician_returns, technician_stock
 from .config import DEFAULT_VAT_RATE
 from .errors import BusinessError
-from .models import Product, StockBalance, User, TechnicianReturn
+from .models import Product, StockBalance, User
 from .schemas import ServiceCharges, SalesReceiptReport
 
 FEE_DESCRIPTION = 'Phí dịch vụ (gồm công và vật tư)'
@@ -150,7 +150,7 @@ def save_draft(session,user,ticket_id,data):
     return True
 
 
-def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entries=None):
+def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False):
     with technician_returns.photo_transaction(session):
         t=service_tickets._get(session,user,ticket_id,lock=True)
         if 'technician' not in user.roles or t.assignee_id!=user.id:
@@ -163,29 +163,12 @@ def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entr
         if len(reason)<3:raise BusinessError('REASON_REQUIRED','Phải ghi lý do chuyển thợ ít nhất 3 ký tự.')
         if assignee_id==user.id:raise BusinessError('SAME_ASSIGNEE','Chọn thợ khác với chính mình.')
         service_tickets._technician(session,assignee_id)
-        proposal=technician_returns.proposal(session,t,lock=True)
-        # Auto-return allocated stock; the form may split it by condition but may not omit it.
-        required=Counter()
-        for row in proposal['rows']:required[row['product_code']]+=row['qty']
-        submitted=proposal['rows'] if entries is None else entries
-        totals=Counter()
-        for row in submitted:totals[row['product_code']]+=technician_returns.quantity(row['qty'])
-        if any(totals[code]<qty for code,qty in required.items()):
-            raise BusinessError('RETURN_REQUIRED','Phải tạo yêu cầu trả đủ vật tư đang giữ của phiếu trước khi chuyển thợ.')
-        # Existing pending returns already cover their quantities; don't request the same stock twice.
-        pending=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.ticket_id==t.id,TechnicianReturn.technician_id==user.id,TechnicianReturn.status=='CHO_NHAN').with_for_update()))
-        covered=Counter()
-        for request in pending:
-            for line in request.lines:covered[line.product_code]+=line.qty
-        adjusted=[]
-        for row in submitted:
-            qty=technician_returns.quantity(row['qty']);skip=min(qty,covered[row['product_code']]);covered[row['product_code']]-=skip
-            adjusted.append({**row,'qty':qty-skip})
-        submitted=adjusted
-        grouped=technician_returns.prepare(session,proposal['warehouse'],submitted)
-        technician_returns.create_requests(session,user,user.id,proposal['warehouse'],t.id,grouped)
+        # Hàng đã cấp cho phiếu đi theo thợ mới, không còn bắt trả kho trước (TUẤN 29/10/2026).
+        # Chuyển trước khi xóa dòng vật tư dự kiến để phần dự kiến lấy kho thợ cũ cũng đi theo.
+        from . import technician_reassign
+        moved=technician_reassign.describe(session,*technician_reassign.move_ticket_stock(session,user,t,assignee_id))
         old_name=user.full_name;new_name=session.get(User,assignee_id).full_name
-        history=f'Thợ {old_name} chuyển cho thợ {new_name}: {reason}'
+        history=f'Thợ {old_name} chuyển cho thợ {new_name}: {reason}'+(f'. {moved}' if moved else '')
         # The visit outcome differs from a dispatcher reassignment.
         if failed and t.status=='DANG_LAM':
             from . import service_visits
@@ -194,5 +177,5 @@ def transfer(session,user,ticket_id,assignee_id,version,reason,failed=False,entr
         keep_free=bool(t.warranty_basis and t.billing=='MIEN_PHI')
         t.billing='MIEN_PHI' if keep_free else None
         t.free_reason=t.free_reason if keep_free else ''
-        service_tickets.assign_in_tx(session,user,t.id,assignee_id,None,history,_technician_transfer=True)
+        service_tickets.assign_in_tx(session,user,t.id,assignee_id,None,history,_technician_transfer=True,_stock_moved=True)
     return t

@@ -161,12 +161,29 @@ def test_08_use_existing_without_ck_and_other_orders_reservations(db,setup):
     fail('RESERVED_STOCK',move,db,p,b,1,'use')
 
 
-def test_09_reassign_requires_return(db,setup):
-    p=setup;o=assigned(db,p);move(db,p,o,4)
-    body=lambda:SalesDeliveryAssign(version=o.version,assignee_id=p['other_tech'].id)
-    fail('HELD_BY_TECH',svc.assign,db,p['dispatcher'],o.id,body())
-    move(db,p,o,4,'return');svc.assign(db,p['dispatcher'],o.id,body())
+def test_09_reassign_moves_held_stock_to_new_technician(db,setup):
+    # TUẤN 29/10/2026: đổi thợ thì hàng đang giữ ở kho thợ cũ đi theo đơn sang kho thợ mới.
+    p=setup;o=assigned(db,p,6);move(db,p,o,4)
+    total=db.scalar(select(func.sum(StockBalance.qty)))
+    svc.assign(db,p['dispatcher'],o.id,SalesDeliveryAssign(version=o.version,assignee_id=p['other_tech'].id))
     assert o.delivery_assignee_id==p['other_tech'].id
+    assert qty(db,'K501')==0 and qty(db,'K502')==4 and qty(db,'K58')==16
+    assert db.scalar(select(func.sum(StockBalance.qty)))==total
+    assert sorted(hold_state(db,o))==[('K502',4),('K58',2)]
+    doc=db.scalar(select(StockDoc).where(StockDoc.warehouse_code=='K501',StockDoc.to_warehouse_code=='K502'))
+    assert doc.status=='DA_GHI' and doc.source_kind=='TECHNICIAN_DELIVERY' and doc.reason.startswith(o.number)
+    o2=db.get(sales_orders.SalesOrder,o.id)
+    body=TechnicianDeliveryIn(version=o2.version,lines=[dict(order_line_no=1,qty=4)])
+    svc.deliver(db,p['other_tech'],o.id,body,[('giao.png',d5_image())])
+    assert qty(db,'K502')==0 and qty(db,'K501')==0
+
+
+def test_09b_reassign_without_new_warehouse_rolls_back(db,setup):
+    p=setup;o=assigned(db,p);move(db,p,o,4)
+    k502=db.get(Warehouse,'K502');k502.active=False;db.commit()
+    before=counts(db)
+    fail('NO_TECH_WAREHOUSE',svc.assign,db,p['dispatcher'],o.id,SalesDeliveryAssign(version=o.version,assignee_id=p['other_tech'].id))
+    assert counts(db)==before and qty(db,'K501')==4
 
 
 def test_10_multiwarehouse_hold_deliver_only_technician_keep_total(db,setup):
