@@ -1,3 +1,4 @@
+{% import '_ui.jinja' as ui %}
 <div class="doc-list quote-rows">{% if rows %}<div class="doc-row doc-head qrow" aria-hidden="true"><span>Số BG · ngày lập</span><span>Khách hàng · liên hệ</span><span>Nội dung</span><span>Người lập</span><span>Trạng thái</span><span>Hiệu lực</span><span class="doc-amt">Tiền (đồng)</span><span></span></div>{% endif %}
 {% for row in rows %}{% set left = (row.valid_until - today).days %}{% set order = orders.get(row.id) %}<div class="doc-row qrow doc-{{ row.status|lower }}">
 <span class="qcell"><a class="code qlink" href="/bao-gia/{{ row.id }}">{{ row.number }}</a><small>{{ row.created_at.astimezone(vn).strftime('%d/%m · %H:%M') }}</small></span>
@@ -9,4 +10,5 @@
 <span class="qcell doc-amt"><strong>{{ row.total|money }}</strong><small>Hàng {{ row.subtotal|money }} · VAT {{ row.vat_total|money }}</small></span>
 <span class="qact">{% if row.status=='CHAP_NHAN' and not order and can_order %}<a class="btn q-order" href="/don-ban/tu-bao-gia/{{ row.id }}">Tạo đơn bán</a>{% endif %}<a class="btn btn-ghost q-print" href="/bao-gia/{{ row.id }}/in" aria-label="In {{ row.number }}" title="In báo giá"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"></path></svg></a></span>
 </div>{% else %}<p class="empty">Không có báo giá phù hợp.</p>{% endfor %}
-{% if rows %}<p class="list-foot"><span>{{ rows|length }} báo giá</span><span>Tiền hàng <b>{{ rows|sum(attribute='subtotal')|money }}</b></span><span>VAT <b>{{ rows|sum(attribute='vat_total')|money }}</b></span><span>Tổng <b>{{ rows|sum(attribute='total')|money }} đ</b></span></p>{% endif %}</div>
+</div>
+{% call ui.list_foot(page, 'báo giá') %}Tiền hàng <b>{{ sums.subtotal|money }}</b> · VAT <b>{{ sums.vat|money }}</b> · Tổng <b>{{ sums.total|money }} đ</b>{% endcall %}

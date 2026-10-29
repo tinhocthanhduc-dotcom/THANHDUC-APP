@@ -1,9 +1,12 @@
 {% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Đơn cần thu{% endblock %}
 {% block main %}<div class="stock-page doc-page">
 <div class="recv-head doc-head-bar"><a class="btn" href="/don-ban" aria-label="Quay lại Đơn bán">←</a><div><h1>Đơn cần thu</h1><p class="hint">Đơn còn nợ, giao lâu nhất trước. Tiền chờ xác nhận chưa tính là đã thu.</p></div></div>
-{% set overdue = rows|selectattr('overdue_days','gt',0)|list %}
-<section class="stock-tiles debt-tiles" aria-label="Tổng cần thu"><div class="stock-tile debt-main"><span>Còn nợ</span><b>{{ rows|map(attribute='balance.remaining')|sum|money }} đồng</b></div><div class="stock-tile"><span>Số đơn</span><b>{{ rows|length }}</b></div><div class="stock-tile"><span>Quá hạn</span><b>{{ overdue|length }}</b></div><div class="stock-tile"><span>Chờ xác nhận</span><b>{{ rows|map(attribute='balance.pending')|sum|money }}</b></div></section>
+{% set overdue = every|selectattr('overdue_days','gt',0)|list %}
+<section class="stock-tiles debt-tiles" aria-label="Tổng cần thu"><div class="stock-tile debt-main"><span>Còn nợ</span><b>{{ every|map(attribute='balance.remaining')|sum|money }} đồng</b></div><div class="stock-tile"><span>Số đơn</span><b>{{ every|length }}</b></div><div class="stock-tile"><span>Quá hạn</span><b>{{ overdue|length }}</b></div><div class="stock-tile"><span>Chờ xác nhận</span><b>{{ every|map(attribute='balance.pending')|sum|money }}</b></div></section>
 <section class="card doc-list due-list">{% if rows %}<div class="doc-row doc-head" aria-hidden="true"><span>Số đơn</span><span>Khách hàng</span><span>Hạn</span><span>Quá hạn (ngày)</span><span>Phải thu · đã thu · chờ</span><span>Còn nợ</span></div>{% endif %}
 {% for row in rows %}<a class="doc-row{% if row.overdue_days>0 %} order-overdue{% endif %}" href="/don-ban/{{ row.order.id }}#thu-tien"><b class="code">{{ row.order.number }}</b><strong class="doc-who">{{ names.get(row.order.customer_code,row.order.customer_code) }}</strong><span class="meta">Hạn {{ row.due_date.strftime('%d/%m/%Y') if row.due_date else '—' }} · {{ row.days }} ngày từ lần giao đầu</span><span class="meta">{% if row.overdue_days>0 %}<b class="doc-bad">Quá hạn {{ row.overdue_days }} ngày</b>{% else %}Chưa quá hạn{% endif %}</span><span class="meta">Phải thu {{ row.balance.receivable|money }} · đã thu {{ row.balance.paid|money }}{% if row.balance.pending %} · chờ {{ row.balance.pending|money }}{% endif %}</span><strong class="doc-amt">{{ row.balance.remaining|money }} đồng</strong></a>{% else %}<p class="empty">Không có đơn còn nợ.</p>{% endfor %}</section>
+{{ ui.list_foot(page, 'đơn') }}
+<script src="{{ asset('pager.js') }}" defer></script>
 </div>{% endblock %}

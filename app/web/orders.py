@@ -242,7 +242,8 @@ def warehouse_view(request:Request,order_id:int,user:User=Depends(warehouse_user
 @router.get('/don-ban')
 def listing(request: Request,q: str='',status: str='',phan: int=0,
             from_date: str=Query(default='',alias='from'),to_date: str=Query(default='',alias='to'),holding: bool=False,fulfillment: str='',overdue: bool=False,
-            nguoi: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
+            nguoi: str='',trang: str='',so: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
+    from . import paging
     error=code=None
     http_status=200
     try:
@@ -250,13 +251,19 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
             start,end=(date.fromisoformat(v) if v else None for v in (from_date,to_date))
         except ValueError:
             raise BusinessError('BAD_DATE_RANGE','Khoảng ngày chưa hợp lệ, hãy nhập ngày theo lịch.')
-        rows=svc.search(session,user,q[:200],status or None,from_date=start,to_date=end,holding=holding,fulfillment=fulfillment or None,overdue=overdue)
+        rows=svc.search(session,user,q[:200],status or None,from_date=start,to_date=end,holding=holding,fulfillment=fulfillment or None,overdue=overdue,cap=False)
     except BusinessError as exc:
         rows=[]
         error,code,http_status=_error(exc)
     nguoi = int(nguoi) if nguoi.isdigit() else 0  # ô "Mọi người lập" gửi nguoi= rỗng
     if nguoi:  # Lọc hiển thị theo người lập; chỉ đọc.
         rows=[r for r in rows if r.created_by==nguoi]
+    # Phân trang: tổng tiền tính trên toàn bộ đơn đã lọc, chỉ tra cứu phụ cho các đơn của trang đang xem.
+    query=dict(q=q,status=status,fulfillment=fulfillment,nguoi=nguoi or '',overdue='1' if overdue else '',holding='1' if holding else '',
+               **{'from':from_date,'to':to_date})
+    page,shown=paging.slice_rows(rows,trang,so,query)
+    sums=dict(subtotal=sum(r.subtotal for r in rows),vat=sum(r.vat_total for r in rows),total=sum(r.total for r in rows))
+    rows=shown
     codes={r.customer_code for r in rows}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_(codes))).all())
     phones={}
@@ -266,7 +273,7 @@ def listing(request: Request,q: str='',status: str='',phan: int=0,
     makers=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({r.created_by for r in rows}))).all())
     quote_numbers=dict(session.execute(select(Quote.id,Quote.number).where(Quote.id.in_({r.quote_id for r in rows if r.quote_id})))
                        .all())
-    extra=dict(phones=phones,makers=makers,quote_numbers=quote_numbers,vn=ZoneInfo('Asia/Ho_Chi_Minh'),nguoi=nguoi)
+    extra=dict(phones=phones,makers=makers,quote_numbers=quote_numbers,vn=ZoneInfo('Asia/Ho_Chi_Minh'),nguoi=nguoi,page=page,sums=sums)
     if not phan:
         # Ô số liệu đầu trang: chỉ đếm, không tính nợ (nợ đã có ở Đơn cần thu).
         counts=dict(session.execute(select(SalesOrder.status,func.count()).group_by(SalesOrder.status)).all())

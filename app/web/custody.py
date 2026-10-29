@@ -126,7 +126,7 @@ VIEWS={'cho-nhan':'Chờ nhận','qua-han':'Quá hạn giữ'}
 
 
 @router.get('/may-dang-giu')
-def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
+def held(request:Request,location:str='',xem:str='',q:str='',trang:str='',so:str='',user:User=Depends(web_user),session:Session=Depends(get_session)):
     from .. import service_sla
     from ..models import Product
     from . import nav
@@ -167,5 +167,7 @@ def held(request:Request,location:str='',xem:str='',q:str='',user:User=Depends(w
         dict(label='Chờ nhận',n=waiting,href='/may-dang-giu?xem=cho-nhan',on=xem=='cho-nhan',sub='Bàn giao chưa xác nhận'),
         dict(label='Quá hạn giữ',n=late,href='/may-dang-giu?xem=qua-han',on=xem=='qua-han',tone='huy' if late else '',sub='Quá 7 ngày hoặc quá ngày về')]
     keep={k:v for k,v in dict(location=location,xem=xem).items() if v}
-    return render(request,'may_dang_giu.jinja',rows=rows,locations=svc.LOCATIONS,selected_location=location,xem=xem,q=q,keep=keep,
+    from . import paging
+    page,shown=paging.slice_rows(rows,trang,so,dict(keep,q=q))
+    return render(request,'may_dang_giu.jinja',rows=shown,page=page,locations=svc.LOCATIONS,selected_location=location,xem=xem,q=q,keep=keep,
         tiles=tiles,users=users,can_dispatch=nav.allowed(user,'/dieu-phoi'),total=len(everything))

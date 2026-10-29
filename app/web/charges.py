@@ -149,8 +149,11 @@ def receivables_page(request: Request, user: User = Depends(_viewer), session: S
     except BusinessError as exc:
         return render(request, 'dich_vu_can_thu.jinja', rows=[], names={}, total=0,
                       start=request.query_params.get('from', ''), end=request.query_params.get('to', ''), error=exc.message, status=exc.status)
+    from . import paging
     rows, names, total = _receivables(session, user, start, end)
-    return render(request, 'dich_vu_can_thu.jinja', rows=rows, names=names, total=total,
+    page, rows = paging.slice_rows(rows, request.query_params.get('trang'), request.query_params.get('so'),
+                                   {'from': start or '', 'to': end or ''})  # tổng cộng tính trên mọi phiếu đã lọc
+    return render(request, 'dich_vu_can_thu.jinja', rows=rows, names=names, total=total, page=page,
                   start=start or '', end=end or '', query=urlencode({'from': start or '', 'to': end or ''}), error=None)
 
 

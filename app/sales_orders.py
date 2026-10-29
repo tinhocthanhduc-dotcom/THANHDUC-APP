@@ -82,7 +82,8 @@ def load(session: Session, user, order_id):
     return _load(session, order_id)
 
 
-def search(session: Session, user, q='', status=None, customer_code=None, from_date=None, to_date=None, holding=False, fulfillment=None, overdue=False, today=None):
+def search(session: Session, user, q='', status=None, customer_code=None, from_date=None, to_date=None, holding=False, fulfillment=None, overdue=False, today=None, cap=True):
+    """cap=False: danh sách có phân trang lấy đủ kết quả (không cắt ngầm 100 đơn)."""
     check_reader(user)
     if status and status not in SALES_ORDER_STATUSES:
         raise BusinessError('BAD_STATUS', 'Trạng thái đơn bán không hợp lệ.')
@@ -113,7 +114,8 @@ def search(session: Session, user, q='', status=None, customer_code=None, from_d
             stmt = stmt.where(SalesOrder.created_at >= datetime.combine(from_date, time.min, tz))
         if to_date is not None and to_date < date.max:
             stmt = stmt.where(SalesOrder.created_at < datetime.combine(to_date + timedelta(days=1), time.min, tz))
-    return list(session.scalars(stmt.order_by(SalesOrder.id.desc()).limit(get_settings().search_limit * 5)))
+    stmt = stmt.order_by(SalesOrder.id.desc())
+    return list(session.scalars(stmt.limit(get_settings().search_limit * 5) if cap else stmt))
 
 
 def _version(order, version):
