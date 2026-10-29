@@ -1,4 +1,5 @@
 {% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Sổ quỹ {{ r.fund.code }}{% endblock %}
 {% block main %}
 <div class="po-page debt-page cash-book">
@@ -8,4 +9,6 @@
 <details class="card"><summary>Chuyển quỹ, đầu kỳ và cách tính</summary><dl class="receipt-balance"><dt>Chuyển vào</dt><dd>{{ r.transfer_in|money }} đồng</dd><dt>Chuyển ra</dt><dd>{{ r.transfer_out|money }} đồng</dd><dt>Đầu kỳ phát sinh trong khoảng</dt><dd>{{ r.opening_adjustment|money }} đồng</dd></dl><p class="hint">Ngày kế toán của phiếu; dòng đảo dùng ngày hủy và giảm tổng thu/chi của loại phiếu gốc. Chuyển quỹ và số dư đầu kỳ hiện riêng, không tính vào tổng thu chi. Số dư sau trong bảng được cộng theo ngày, kể cả phiếu ghi lùi ngày.</p></details>
 
 <table class="sales-report-table"><thead><tr><th>Ngày</th><th>Số phiếu</th><th>Nội dung</th><th>Thu</th><th>Chi</th><th>Số dư sau</th></tr></thead><tbody>{% for row in r.entries %}<tr><td data-label="Ngày">{{ row.entry_date.strftime('%d/%m/%Y') }}</td><td data-label="Số phiếu"><a href="/thu-chi/{{ row.doc_id }}">{{ row.number }}</a></td><td data-label="Nội dung">{% if row.is_reversal %}Đảo · {% endif %}{{ kinds[row.kind] }}{% if row.is_opening %} · Đầu kỳ{% endif %} · {{ row.description }}</td><td data-label="Thu">{{ (row.amount if row.amount>0 else 0)|money }}</td><td data-label="Chi">{{ (-row.amount if row.amount<0 else 0)|money }}</td><td data-label="Số dư sau">{{ row.balance|money }}</td></tr>{% else %}<tr><td colspan="6">Chưa phát sinh trong khoảng này.</td></tr>{% endfor %}</tbody></table>
+{{ ui.list_foot(page, 'dòng') }}
+<script src="{{ asset('pager.js') }}" defer></script>
 </div>{% endblock %}

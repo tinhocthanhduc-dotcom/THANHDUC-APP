@@ -6,7 +6,7 @@
 {% call ui.page_head('Điều phối', sub='Dịch vụ · phiếu cần theo dõi, sắp theo hạn') %}<a class="btn btn-ghost" href="/dieu-phoi/bao-cao">Báo cáo dịch vụ</a>{% if can_create %}<a class="btn btn-new" href="/dich-vu/moi">+ Nhận đơn dịch vụ</a>{% endif %}{% endcall %}
 {{ ui.tiles(tiles, keep_phone=true) }}
 <section class="card list-frame dispatch-list" aria-label="{{ title }}">
-<h2 class="dp-title">{{ title }} <span>{{ rows|length }}</span></h2>
+<h2 class="dp-title">{{ title }} <span>{{ page.total }}</span></h2>
 {% if rows %}<div class="table-scroll"><table class="list-table lt-cards dp-table">
 <thead><tr><th>Phiếu · hạn</th><th>Khách · máy</th><th>Trạng thái</th><th>Bước tiếp · ai làm</th><th>Thợ</th></tr></thead><tbody>
 {% for t in rows %}{% set late = t.due_at and t.due_at < now and t.status not in ['HOAN_THANH','DA_DONG','DA_HUY'] %}{% set nx = next_of[t.id] %}
@@ -18,6 +18,7 @@
 <td>{{ users.get(t.assignee_id, 'Chưa giao') }}{% if t.assignee_id %}<span class="lt-sub">{{ open_counts.get(t.assignee_id, 0) }} việc đang mở</span>{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}{{ ui.empty('Không có phiếu nào trong nhóm này.') }}{% endif %}
+{% if page.last > 1 %}{{ ui.list_foot(page, 'phiếu') }}{% endif %}
 </section>
 <section class="card list-frame dispatch-deliveries" aria-label="Đơn bán thợ giao">
 <h2 class="dp-title">Đơn bán chờ thợ giao <span>{{ delivery_orders|length }}</span></h2>
@@ -26,5 +27,6 @@
 {% for order in delivery_orders %}<tr data-href="/giao-don/{{ order.id }}"><td class="lt-first"><a class="lt-no" href="/giao-don/{{ order.id }}">{{ order.number }}</a></td><td>{{ order.delivery_address or 'Chưa có địa chỉ giao' }}</td><td class="lt-st">{{ ui.badge(delivery_labels[order.id], 'lam') }}</td><td>{% if order.delivery_assignee_id %}Đã giao thợ {{ users.get(order.delivery_assignee_id, 'Nhân viên') }}{% else %}<span class="lt-bad">Chưa giao thợ</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table></div>{% else %}<p class="hint dp-none">Không có đơn bán nào chờ thợ giao.</p>{% endif %}
 </section>
+<script src="{{ asset('pager.js') }}" defer></script>
 </div>
 {% endblock %}

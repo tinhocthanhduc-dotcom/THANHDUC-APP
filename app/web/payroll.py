@@ -128,10 +128,14 @@ def slip(request:Request,ident:int,user:User=Depends(web_user),session:Session=D
 
 
 def _advances(request,session,user,error=None,data=None):
-    rows=svc.advances(session,user);employee=session.scalar(select(Employee).where(Employee.user_id==user.id))
+    from . import paging
+    # Phiếu còn chờ duyệt/chờ chi lên đầu để luôn ở trang 1; ô đếm tính trên mọi phiếu.
+    every=sorted(svc.advances(session,user),key=lambda r:r['item'].status not in ('CHO_DUYET','DA_DUYET'))
+    page,rows=paging.slice_rows(every,request.query_params.get('trang'),request.query_params.get('so'),{})
+    employee=session.scalar(select(Employee).where(Employee.user_id==user.id))
     today=svc._now().astimezone(svc.TZ).date()
     eligible=bool(employee and employee.start_date<=today and (not employee.end_date or employee.end_date>=today) and employees.salary_on(session,employee.id,today))
-    return _render(request,'tam_ung.jinja',rows=rows,can_request=eligible,is_director=has_role(user,'director'),is_finance=has_role(user,'finance'),
+    return _render(request,'tam_ung.jinja',rows=rows,every=every,page=page,can_request=eligible,is_director=has_role(user,'director'),is_finance=has_role(user,'finance'),
         max_pct=get_settings().advance_max_pct,funds=_funds(session) if has_role(user,'finance') else [],pay_day=cash_docs.today(),
         d=data or {},error=error.message if error else None,error_code=error.code if error else '',status=error.status if error else 200)
 

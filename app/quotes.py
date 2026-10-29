@@ -70,7 +70,8 @@ def load(session: Session, user, quote_id):
     return _load(session, quote_id)
 
 
-def search(session: Session, user, q='', status=None):
+def search(session: Session, user, q='', status=None, cap=True):
+    """cap=False: danh sách có phân trang lấy đủ kết quả (không cắt ngầm 100 báo giá)."""
     check_reader(user)
     if status and status not in QUOTE_STATUSES:
         raise BusinessError('BAD_STATUS', 'Trạng thái báo giá không hợp lệ.')
@@ -80,7 +81,8 @@ def search(session: Session, user, q='', status=None):
         stmt = stmt.where(or_(Quote.number.ilike(like_pattern(needle)), and_(*tim.like_all(Customer.search_text, q))))
     if status:
         stmt = stmt.where(Quote.status == status)
-    return list(session.scalars(stmt.order_by(Quote.id.desc()).limit(get_settings().search_limit * 5)))
+    stmt = stmt.order_by(Quote.id.desc())
+    return list(session.scalars(stmt.limit(get_settings().search_limit * 5) if cap else stmt))
 
 
 def _version(row, version):

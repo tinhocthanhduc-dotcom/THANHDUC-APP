@@ -265,4 +265,8 @@ def print_doc(request: Request,doc_id: int,user: User=Depends(finance_user),sess
 def statement(request: Request,fund: str,user: User=Depends(finance_user),session: Session=Depends(get_session)):
     start,end=_period(request)
     report=posting.statement(session,user,fund,start,end)
-    return render(request,'so_quy.jinja',r=report,start=start.isoformat(),end=end.isoformat(),kinds=docs.KINDS)
+    from . import paging
+    # Số dư đầu/cuối và tổng thu chi tính trên cả kỳ; mỗi dòng giữ số dư sau của chính nó.
+    page,report['entries']=paging.slice_rows(report['entries'],request.query_params.get('trang'),request.query_params.get('so'),
+                                             {'from':start.isoformat(),'to':end.isoformat()})
+    return render(request,'so_quy.jinja',r=report,page=page,start=start.isoformat(),end=end.isoformat(),kinds=docs.KINDS)

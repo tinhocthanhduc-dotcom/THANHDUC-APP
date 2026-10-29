@@ -1,4 +1,5 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {% block title %}Dịch vụ cần thu{% endblock %}
 {% block main %}
 <div class="bar"><h1>Dịch vụ cần thu</h1><a href="/dich-vu">← Dịch vụ</a></div>
@@ -7,4 +8,6 @@
 <p class="hint">Theo ngày hoàn thành, giờ Việt Nam. Bỏ trống để xem toàn bộ. Chỉ hiển thị số còn cần thu do lõi trả về.</p>
 {% if not error %}<div class="bar"><strong>Tổng cộng: {{ total|money }} đồng</strong><a class="btn" href="/dich-vu/can-thu.csv?{{ query }}">Tải CSV</a></div>{% endif %}
 <ul class="list charge-receivables">{% for t in rows %}<li><a href="/dich-vu/{{ t.id }}"><span class="code">{{ t.number }}</span><strong>{{ names.get(t.customer_code, t.customer_code) }}</strong><span>Phải thu {{ t.receivable|money }} · Đã thu {{ t.paid|money }} · Chờ xác nhận {{ t.pending|money }} · Còn nợ <strong>{{ t.remaining|money }} đồng</strong></span><span class="meta">Hoàn thành: {{ t.priced_at|service_time }}</span></a></li>{% else %}<li class="empty">Không có phiếu cần thu phù hợp.</li>{% endfor %}</ul>
+{% if page %}{{ ui.list_foot(page, 'phiếu') }}{% endif %}
+<script src="{{ asset('pager.js') }}" defer></script>
 {% endblock %}

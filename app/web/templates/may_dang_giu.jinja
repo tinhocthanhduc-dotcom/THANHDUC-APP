@@ -20,7 +20,8 @@
 <td class="num"><a class="btn btn-ghost giu-go" href="{{ item.href }}">{{ item.action }} ›</a></td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}{{ ui.empty('Không có máy nào khớp bộ lọc.' if q or keep else 'Không có máy đang giữ.', '/may-dang-giu' if q or keep else '', 'Xem tất cả') }}{% endif %}
-<div class="lf-foot"><span class="pager-count">{{ rows|length }} máy{% if rows|length != total %} / {{ total }} máy đang giữ{% endif %}</span></div>
+{% call ui.list_foot(page, 'máy') %}{% if page.total != total %}{{ total }} máy đang giữ{% endif %}{% endcall %}
 </section>
+<script src="{{ asset('pager.js') }}" defer></script>
 </div>
 {% endblock %}

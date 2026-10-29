@@ -144,8 +144,9 @@ def _error(exc):
 
 
 @router.get('/bao-gia')
-def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,nguoi: str='',ky: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
-    rows = svc.search(session,user,q[:200],'DA_GUI' if han else (status or None))
+def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,nguoi: str='',ky: str='',trang: str='',so: str='',user: User=Depends(quote_user),session: Session=Depends(get_session)):
+    from . import paging
+    rows = svc.search(session,user,q[:200],'DA_GUI' if han else (status or None),cap=False)
     today = svc._today()
     if han:  # Ô "Sắp hết hạn": báo giá đã gửi, còn tối đa 2 ngày hoặc đã quá hạn.
         rows = [row for row in rows if row.valid_until <= today+timedelta(days=2)]
@@ -160,6 +161,11 @@ def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,ngu
     if ky in periods:
         start,end = periods[ky]
         rows = [row for row in rows if start <= row.created_at.astimezone(vn).date() <= end]
+    # Phân trang: tổng tiền tính trên toàn bộ báo giá đã lọc, chỉ tra cứu phụ cho trang đang xem.
+    query = dict(q=q,status=status,han='1' if han else '',nguoi=nguoi or '',ky=ky if ky in periods else '')
+    page,rows_page = paging.slice_rows(rows,trang,so,query)
+    sums = dict(subtotal=sum(r.subtotal for r in rows),vat=sum(r.vat_total for r in rows),total=sum(r.total for r in rows))
+    rows = rows_page
     codes = {row.customer_code for row in rows}
     names = dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_(codes))).all())
     phones = {}
@@ -174,7 +180,7 @@ def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,ngu
                    .all())
     extra = dict(rows=rows,q=q,selected_status=status,soon=han,today=today,statuses=STATUSES,can_write=has_role(user,*svc.WRITERS),
                  expired=_expired,names=names,phones=phones,makers=makers,orders=orders,revised=revised,vn=vn,
-                 can_order=has_role(user,*sales_orders.WRITERS),nguoi=nguoi,ky=ky)
+                 can_order=has_role(user,*sales_orders.WRITERS),nguoi=nguoi,ky=ky,page=page,sums=sums)
     if phan:
         return render(request,'bao_gia_dong.jinja',**extra)
     # Số trên đầu trang: chỉ đọc, đếm trên toàn bộ báo giá (không theo ô tìm).

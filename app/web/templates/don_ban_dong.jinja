@@ -1,3 +1,4 @@
+{% import '_ui.jinja' as ui %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 <div class="doc-list quote-rows order-rows">{% if rows %}<div class="doc-row doc-head qrow orow" aria-hidden="true"><span>Số DB · ngày lập</span><span>Khách hàng · liên hệ</span><span>Nội dung</span><span>Người lập</span><span>Trạng thái</span><span>Giao hàng</span><span class="doc-amt">Tiền (đồng)</span></div>{% endif %}
 {% for row in rows %}{% set s = summaries[row.id] %}{% set late = row.status in ['DA_CHOT','GIAO_MOT_PHAN'] and row.promised_date and row.promised_date<today %}<div class="doc-row qrow orow doc-{{ row.status|lower }}{% if late or s.overdue_days>0 %} order-overdue{% endif %}">
@@ -9,4 +10,5 @@
 <span class="qcell"><span>{{ s.delivery_label }}</span>{% if row.promised_date %}<small{% if late %} class="tag quote-expired"{% endif %}>Hẹn {{ row.promised_date.strftime('%d/%m/%Y') }}{% if late %} · Quá hẹn{% endif %}</small>{% endif %}</span>
 <span class="qcell doc-amt"><strong>{{ row.total|money }}</strong><small class="{{ 'q-bad' if s.overdue_days>0 else 'q-soon' if s.remaining else '' }}">{{ s.money_label }}{% if s.remaining %} {{ s.remaining|money }}{% endif %}{% if s.overdue_days>0 %} · Quá hạn {{ s.overdue_days }} ngày{% endif %}</small></span>
 </div>{% else %}<p class="empty">Không có đơn bán phù hợp.</p>{% endfor %}
-{% if rows %}<p class="list-foot"><span>{{ rows|length }} đơn</span><span>Tiền hàng <b>{{ rows|sum(attribute='subtotal')|money }}</b></span><span>VAT <b>{{ rows|sum(attribute='vat_total')|money }}</b></span><span>Tổng <b>{{ rows|sum(attribute='total')|money }} đ</b></span></p>{% endif %}</div>
+</div>
+{% call ui.list_foot(page, 'đơn') %}Tiền hàng <b>{{ sums.subtotal|money }}</b> · VAT <b>{{ sums.vat|money }}</b> · Tổng <b>{{ sums.total|money }} đ</b>{% endcall %}

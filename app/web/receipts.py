@@ -259,7 +259,9 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
 
 
 @router.get('/don-ban/can-thu')
-def receivables(request: Request,user: User=Depends(web_user),session: Session=Depends(get_session)):
-    rows=svc.receivables(session,user)
+def receivables(request: Request,trang: str='',so: str='',user: User=Depends(web_user),session: Session=Depends(get_session)):
+    from . import paging
+    every=svc.receivables(session,user)
+    page,rows=paging.slice_rows(every,trang,so,{})  # ô tổng đầu trang tính trên mọi đơn còn nợ
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({r['order'].customer_code for r in rows}))).all())
-    return render(request,'don_ban_can_thu.jinja',rows=rows,names=names)
+    return render(request,'don_ban_can_thu.jinja',rows=rows,every=every,page=page,names=names)
