@@ -1719,7 +1719,10 @@ def test_d7_overdue_excludes_closed_and_orders_oldest(client, db, service_people
     closed = d7_ticket(db, service_people, 'DV-26-00003', [], due='2026-10-09T08:00:00+07:00', status='HOAN_THANH')
     waiting = d7_ticket(db, service_people, 'DV-26-00004', [], status='CHO_LINH_KIEN')
     service_login(client, service_people['dispatcher'])
-    response = client.get('/dieu-phoi')
+    default = client.get('/dieu-phoi').text
+    assert waiting.number in default and older.number in default and closed.number not in default
+    assert 'Đơn đang mở' in default
+    response = client.get('/dieu-phoi?view=overdue')
     assert response.status_code == 200, response.text
     assert response.text.index(older.number) < response.text.index(later.number)
     assert closed.number not in response.text and waiting.number not in response.text
@@ -1738,7 +1741,7 @@ def test_d7_dashboard_not_truncated_by_search_limit(client, db, service_people, 
     for i in range(7):
         d7_ticket(db, service_people, f'DV-26-{i+1:05}', [], due='2026-01-01T00:00:00+07:00', status='DA_NHAN')
     service_login(client, service_people['dispatcher'])
-    response = client.get('/dieu-phoi')
+    response = client.get('/dieu-phoi?view=overdue')
     assert '<span class="t-label">Quá hạn</span><span class="t-n">7</span>' in response.text
     assert response.text.count('class="lt-no" href="/dich-vu/') == 7
 
