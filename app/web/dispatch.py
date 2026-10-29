@@ -38,7 +38,7 @@ def _delay(due_at, now):
 
 
 @router.get("/dieu-phoi")
-def dashboard(request: Request, view: str = "overdue", user: User = Depends(dispatch_user), session: Session = Depends(get_session)):
+def dashboard(request: Request, view: str = "open", user: User = Depends(dispatch_user), session: Session = Depends(get_session)):
     if view == 'deferred':
         raise BusinessError('NOT_FOUND', 'Không tìm thấy nhóm này.', status=404)
     now = _now()
@@ -50,10 +50,10 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         func.count().filter(ServiceTicket.status == "TAM_DUNG"),
     )).one()
     count_open, count_overdue, count_parts, count_paused = counts
-    if view == "open":
-        rows = list(session.scalars(select(ServiceTicket).where(opened)
-                                   .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())))
-        title = "Đơn đang mở"
+    if view == "overdue":
+        title = "Đơn quá hạn"
+        # Truyền limit theo tổng thực tế: không cắt danh sách ở giới hạn tìm kiếm mặc định.
+        rows = svc.search(session, user, overdue=True, limit=count_overdue or 1)
     elif view == 'new':
         rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'MOI')
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id)))
@@ -72,9 +72,10 @@ def dashboard(request: Request, view: str = "overdue", user: User = Depends(disp
         rows = svc.search(session, user, status="CHO_LINH_KIEN", limit=count_parts or 1)
         title = "Chờ linh kiện"
     else:
-        view, title = "overdue", "Đơn quá hạn"
-        # Truyền limit theo tổng thực tế: không cắt danh sách ở giới hạn tìm kiếm mặc định.
-        rows = svc.search(session, user, overdue=True, limit=count_overdue or 1)
+        # Mặc định (bấm menu Điều phối): mọi phiếu đang mở.
+        view, title = "open", "Đơn đang mở"
+        rows = list(session.scalars(select(ServiceTicket).where(opened)
+                                   .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id.desc())))
     from .. import technician_deliveries
     from ..models import SalesOrder
     delivery_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))).order_by(SalesOrder.id)))
