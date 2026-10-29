@@ -367,17 +367,17 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
 
 @router.post('/tho/phieu/{ticket_id}/chuyen-tho')
 def transfer_ticket(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
-    from .services import _detail,_message,_version,return_lines
+    from .services import _detail,_message,_version
     from .. import technician_work
     from pydantic import ValidationError
     owned(session,user,ticket_id);request.state.technician_return=True
     try:
         ident=str(form.get('assignee_id',''))
         if not ident.isascii() or not ident.isdigit() or len(ident)>18:raise BusinessError('BAD_ASSIGNEE','Chọn thợ nhận.')
-        technician_work.transfer(session,user,ticket_id,int(ident),_version(form),str(form.get('reason','')),form.get('failed')=='1',return_lines(form) if form.getlist('return_product') else None)
+        technician_work.transfer(session,user,ticket_id,int(ident),_version(form),str(form.get('reason','')),form.get('failed')=='1')
     except (BusinessError,ValidationError) as exc:
         message,code,status=_message(exc)
-        return _detail(request,session,user,ticket_id,form=dict(form),failed_action='tech-transfer',error=message,error_code=code,status=status,technician_view=True,return_form=return_lines(form,photos=False) if form.getlist('return_product') else None)
+        return _detail(request,session,user,ticket_id,form=dict(form),failed_action='tech-transfer',error=message,error_code=code,status=status,technician_view=True)
     return RedirectResponse('/tho?da_luu=1',status_code=303)
 
 

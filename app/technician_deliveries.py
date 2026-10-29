@@ -52,8 +52,10 @@ def assign(session,user,order_id,body):
         if order.fulfillment!='THO_GIAO':
             raise BusinessError('BAD_FULFILLMENT','Chỉ phân công thợ cho đơn Thợ giao.')
         warehouse(session,body.assignee_id)
-        if order.delivery_assignee_id!=body.assignee_id and held_by_tech(session,order):
-            raise BusinessError('HELD_BY_TECH','Phải trả hàng đang giữ ở kho thợ trước khi đổi thợ.',status=409)
+        if order.delivery_assignee_id is not None and order.delivery_assignee_id!=body.assignee_id:
+            # Đổi thợ: hàng đang giữ ở kho thợ cũ đi theo đơn sang kho thợ mới (TUẤN 29/10/2026).
+            from .technician_reassign import move_order_stock
+            move_order_stock(session,user,order,body.assignee_id)
         if body.service_ticket_id is not None:
             ticket=session.scalar(select(ServiceTicket).where(ServiceTicket.id==body.service_ticket_id).with_for_update(read=True))
             if ticket is None or ticket.customer_code!=order.customer_code or ticket.status not in ('MOI','DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):

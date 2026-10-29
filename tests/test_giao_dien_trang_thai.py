@@ -38,7 +38,7 @@ def test_full_handover_collapses_transfer_and_warns_before_reassign(db, setup, c
     p = setup; o = assigned(db, p); move(db, p, o, 4)
     service_login(client, p['dispatcher'])
     page = client.get(f'/giao-don/{o.id}').text
-    assert 'Muốn đổi thợ phải Trả kho trước' in page
+    assert 'tự chuyển sang kho thợ mới' in page and 'Muốn đổi thợ phải Trả kho trước' not in page
     service_login(client, p['warehouse'])
     page = client.get(f'/giao-don/{o.id}').text
     assert 'data-transfer-done' in page and 'Bước tiếp theo' not in page
