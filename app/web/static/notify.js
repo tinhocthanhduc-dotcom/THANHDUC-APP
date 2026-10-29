@@ -38,19 +38,37 @@
     markRead(null, true);
     draw(current.filter(function (i) { return !i.info; }).map(function (i) { return Object.assign({}, i, { read: true }); }));
   });
+  // Báo nổi gọn: tối đa 2 thẻ nhỏ một dòng, tự ẩn sau 5 giây; còn lại gộp thành "+N thông báo" mở chuông.
+  var MAX_POP = 2, POP_MS = 5000;
+  function openBell() {
+    var bells = document.querySelectorAll('[data-notify]'), b = bells[0];
+    for (var i = 0; i < bells.length; i++) if (bells[i].offsetParent) { b = bells[i]; break; }
+    b.open = true;
+  }
+  function popCard(stack, cls, head, text, onClick) {
+    var t = el('div', 'toast work-watch notify-toast ' + cls); t.setAttribute('role', 'status'); t.dataset.notifyToast = '';
+    var a = el(onClick ? 'button' : 'a', 'notify-toast-body');
+    if (onClick) { a.type = 'button'; a.addEventListener('click', function () { t.remove(); onClick(); }); }
+    a.textContent = text ? head + ' · ' + text : head; a.title = a.textContent;
+    var close = el('button', 'notify-toast-x', '✕'); close.type = 'button'; close.setAttribute('aria-label', 'Đóng');
+    close.addEventListener('click', function () { t.remove(); });
+    t.appendChild(a); t.appendChild(close); stack.appendChild(t);
+    setTimeout(function () { t.remove(); }, POP_MS);
+    return a;
+  }
   function pop(items) {
     if (!items.length) return;
-    var stack = document.querySelector('[data-toast-stack]');
-    items.slice(0, 3).forEach(function (item) {
-      var t = el('div', 'toast work-watch'); t.setAttribute('role', 'status'); t.dataset.notifyToast = '';
-      var a = el('a', '', item.title + ' · ' + item.text); a.href = item.link;
+    var stack = document.querySelector('[data-toast-stack]') || document.body;
+    // Thẻ cũ nhường chỗ cho thẻ mới, không chồng quá 2 thẻ.
+    Array.prototype.forEach.call(stack.querySelectorAll('[data-notify-toast]'), function (n) { n.remove(); });
+    var show = items.length > MAX_POP ? items.slice(0, MAX_POP - 1) : items;
+    show.forEach(function (item) {
+      var a = popCard(stack, '', item.title, item.text);
+      a.href = item.link;
       a.addEventListener('click', function () { markRead([item.id]); });
-      var close = el('button', '', '✕'); close.type = 'button'; close.setAttribute('aria-label', 'Đóng');
-      close.addEventListener('click', function () { t.remove(); });
-      t.appendChild(a); t.appendChild(close); (stack || document.body).appendChild(t);
-      setTimeout(function () { t.remove(); }, 15000);
     });
-    if (items.length > 3 && window.tdToast) window.tdToast('Và ' + (items.length - 3) + ' việc mới khác · bấm chuông để xem');
+    var rest = items.length - show.length;
+    if (rest) popCard(stack, 'notify-toast-more', '+' + rest + ' thông báo mới', 'xem ở chuông', openBell);
     try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
   }
   function here(item) {

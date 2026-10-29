@@ -609,7 +609,7 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
   .action-bar { position: sticky; bottom: 0; z-index: 4; margin: 16px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 2px solid var(--line); }
 }
 /* Thông báo nhỏ. */
-.toast-stack { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; display: grid; gap: 8px; justify-items: center; pointer-events: none; }
+.toast-stack { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 50; display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; justify-items: center; pointer-events: none; }
 .toast { pointer-events: auto; max-width: 520px; width: 100%; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.3); display: flex; gap: 12px; align-items: center; justify-content: space-between; }
 .toast.bad { background: var(--bad-solid); color: var(--bad-solid-text); }
 .toast button { background: none; border: 0; color: inherit; font-weight: 800; padding: 4px 8px; }
@@ -1234,6 +1234,10 @@ main:has(> .me-page) { max-width: 640px; }
 .notify-panel a small { color: var(--muted); }
 .notify-panel p { margin: 6px; }
 .toast a { color: inherit; }
+/* Báo nổi thông báo: thẻ nhỏ một dòng (dài thì cắt "…"), không gạch chân. */
+.toast.notify-toast { box-sizing: border-box; padding: 4px 4px 4px 12px; font-weight: 600; gap: 6px; font-size: .85rem; border-radius: 10px; }
+.toast .notify-toast-body { flex: 1; min-width: 0; display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; text-decoration: none; color: inherit; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.toast .notify-toast-x { flex: none; min-width: 32px; min-height: 32px; padding: 0; font-size: .9rem; }
 .notify-push { width: 100%; min-height: 44px; margin-bottom: 4px; }
 .notify-push-hint { margin: 4px 6px 8px; font-size: .85rem; }
 
@@ -1359,6 +1363,8 @@ main:has(> .me-page) { max-width: 640px; }
   .crumb strong { font-size: 1.05rem; max-width: 100%; }
   .crumb .crumb-sep { display: none; }
   .user-btn .identity, .user-btn .chev { display: none; }
+  /* Báo nổi nằm dưới thanh trên cùng, không che chuông và tên trang. */
+  .toast-stack { top: calc(64px + env(safe-area-inset-top)); left: 8px; right: 8px; gap: 6px; }
   .phone-tabs, .menu-toggle { position: fixed; bottom: 0; z-index: 41; height: calc(64px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--surface); }
   .phone-tabs { left: 0; right: 0; display: grid; grid-template-columns: repeat(var(--tabs, 4), minmax(0,1fr)); border-top: 1px solid var(--line); }
   .phone-tabs a, .menu-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); font-size: .72rem; font-weight: 600; text-decoration: none; min-width: 0; }
