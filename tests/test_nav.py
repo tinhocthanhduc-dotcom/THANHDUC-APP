@@ -25,7 +25,8 @@ EXPECTED = {
     'finance': {'/cho-xu-ly', '/linh-kien-thu-hoi', '/viec-cua-toi', '/tong-quan', '/khach-hang', '/bao-gia', '/don-ban', '/bao-cao/ban-hang',
                 '/hang-hoa', '/ton-kho', '/phieu-kho', '/don-mua', '/nha-cung-cap', '/bao-cao-mua-hang',
                 '/bao-thu', '/thu-chi', '/chot-so', '/dieu-chinh', '/cong-no-ncc', '/cong-no-khach-hang',
-                '/cham-cong/bang', '/bao-cao/cho-xu-ly', '/bao-cao/tai-chinh', '/ghep-tai-chinh'},
+                '/cham-cong/bang', '/bao-cao/cho-xu-ly', '/bao-cao/tai-chinh', '/ghep-tai-chinh',
+                '/chi-phi-tho'},  # TUẤN 30/10: kế toán duyệt + hoàn chi phí thợ ứng
 }
 for entries in EXPECTED.values():
     entries.add('/cham-cong')
