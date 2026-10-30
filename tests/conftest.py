@@ -20,7 +20,7 @@ from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
-TABLES = "production_order_lines, production_orders, notification_reads, push_subscriptions, push_keys, salary_advances, payroll_lines, payroll_months, payroll_inputs, commission_lines, commission_months, commission_rules, kpi_targets, attendance_punches, attendance_requests, attendance_holidays, attendance_month_locks, employee_salary_versions, employee_pay, employees, pending_item_moves, pending_dispositions, pending_items, technician_return_lines, technician_returns, service_recovered_parts, service_visits, sales_return_lines, sales_returns, sales_refunds, sales_delivery_attempts, sales_delivery_serials, sales_delivery_lines, sales_deliveries, stock_reservations, form_submissions, equipment_custody, part_requests, daily_digests, purchase_return_lines, purchase_returns, supplier_payments, supplier_opening_debts, purchase_receipt_lines, purchase_receipts, purchase_order_lines, purchase_orders, cash_corrections, day_closings, fund_ledger, fund_balances, cash_docs, finance_mappings, cash_categories, funds, sales_receipts, sales_order_lines, sales_orders, quote_lines, quotes, attachments, equipment, customer_sites, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, product_groups, products, suppliers, warehouses, users, doc_counters"
+TABLES = "production_order_lines, production_orders, notification_reads, push_subscriptions, push_keys, salary_advances, payroll_lines, payroll_months, payroll_inputs, commission_lines, commission_months, commission_rules, kpi_targets, attendance_punches, attendance_requests, attendance_holidays, attendance_month_locks, employee_salary_versions, employee_pay, employees, pending_item_moves, pending_dispositions, pending_items, technician_return_lines, technician_returns, service_recovered_parts, service_visits, service_expenses, sales_return_lines, sales_returns, sales_refunds, sales_delivery_attempts, sales_delivery_serials, sales_delivery_lines, sales_deliveries, stock_reservations, form_submissions, equipment_custody, part_requests, daily_digests, purchase_return_lines, purchase_returns, supplier_payments, supplier_opening_debts, purchase_receipt_lines, purchase_receipts, purchase_order_lines, purchase_orders, cash_corrections, day_closings, fund_ledger, fund_balances, cash_docs, finance_mappings, cash_categories, funds, sales_receipts, sales_order_lines, sales_orders, quote_lines, quotes, attachments, equipment, customer_sites, service_steps, service_tickets, stock_min_levels, stock_ledger, stock_balances, stock_doc_lines, stock_docs, audit_log, customer_phones, customer_contacts, customers, product_groups, products, suppliers, warehouses, users, doc_counters"
 PASSWORD = "matkhau-test-123"
 
 
@@ -50,7 +50,7 @@ def clean(engine):
         # Các dòng cấu hình cố định do migration tạo, phục hồi sau mỗi lần truncate.
         conn.execute(text("insert into finance_mappings (key, version) values "
                           "('THU_TIEN_MAT',1),('THU_CHUYEN_KHOAN',1),"
-                          "('DANH_MUC_BAN_HANG',1),('DANH_MUC_DICH_VU',1),('DANH_MUC_MUA_HANG',1),('DANH_MUC_HOAN_TIEN_BAN',1),('DANH_MUC_LUONG',1)"))
+                          "('DANH_MUC_BAN_HANG',1),('DANH_MUC_DICH_VU',1),('DANH_MUC_MUA_HANG',1),('DANH_MUC_HOAN_TIEN_BAN',1),('DANH_MUC_LUONG',1),('DANH_MUC_CHI_PHI_THO',1)"))
     yield
 
 

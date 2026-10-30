@@ -488,6 +488,10 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
     if technician_cancel:
         from .technician_returns import prepare_cancel, finish_cancel
         cancellation = prepare_cancel(session, t, return_lines)
+    if to_status == 'DANG_LAM' and t.status in ('DA_NHAN', 'DA_HEN') and not is_dispatcher and _split_from is None:
+        # TUẤN 30/10/2026: phiếu có hàng kèm theo thì thợ xác nhận đủ hàng (hoặc báo thiếu) trước khi đến khách.
+        from .service_goods import check_arrival
+        check_arrival(session, t)
     before, from_status = snapshot(t), t.status
     from . import service_charges  # service_charges cũng dùng module này
 

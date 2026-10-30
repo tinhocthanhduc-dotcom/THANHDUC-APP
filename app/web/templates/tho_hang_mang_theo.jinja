@@ -1,0 +1,16 @@
+{# TUẤN 30/10/2026 (mẫu DuHangChiPhi): phiếu có hàng kèm theo thì kiểm hàng rồi mới Đã đến khách. #}
+{% set gfail=failed_action=='goods' %}<section class="card tho-goods" id="hang-mang-theo" data-goods>
+<div class="tho-head"><h2>Hàng mang theo</h2><span class="hint">kiểm trước khi đi</span></div>
+<form id="goods-form" method="post" action="/tho/phieu/{{ t.id }}/du-hang" class="form">
+{% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+{% for group in goods['items']|groupby('group') %}<p class="group-label">{{ group.grouper }}</p>
+<ul class="tho-goods-list">{% for row in group.list %}<li><label><input type="checkbox" name="short" value="{{ row.key }}" data-goods-short hidden {% if gfail and row.key in form.getlist('short') %}checked{% endif %}><span class="tho-goods-name"><span><b>{{ row.code }}</b>{{ ' · ' if row.code else '' }}{{ row.name }}</span><small>SL {{ row.qty|qty }}</small></span><span class="tag tone-{{ 'ok' if row.ready else 'warn' }}">{{ row.label }}</span></label></li>{% endfor %}</ul>{% endfor %}
+{% if goods.step %}<p class="alert {{ 'ok' if goods.step.action=='goods_ok' else 'warn' }}" data-goods-done>{{ '✓ ' if goods.step.action=='goods_ok' else '' }}{{ goods.step.note.split('\n')[0] }} · {{ goods.step.at|service_short }}</p>{% endif %}
+{% if not goods.step %}<button type="submit" name="action" value="ok" class="btn-ok tho-goods-ok">Đã nhận đủ hàng</button>
+<p class="hint">Còn dòng "Chờ kho" mà bạn đã cầm hàng thật thì vẫn bấm Đã nhận đủ hàng. Chưa có hàng thì Báo thiếu.</p>{% endif %}
+<details id="bao-thieu" class="tho-goods-short" {% if gfail and form.get('action')=='short' %}open{% endif %} data-goods-report><summary>{{ 'Báo thiếu lại' if goods.step else 'Báo thiếu hàng' }}</summary>
+<p class="hint">Bấm vào dòng hàng thiếu ở trên (dòng chuyển đỏ), chọn lý do rồi gửi. Điều phối và kho nhận thông báo, bạn vẫn đi đến khách được.</p>
+<div class="chips">{% for reason in goods_reasons %}<label class="chip"><input type="radio" name="reason" value="{{ reason }}" {% if gfail and form.get('reason')==reason %}checked{% endif %}><span>{{ reason }}</span></label>{% endfor %}</div>
+<label>Ghi thêm (không bắt buộc)<textarea name="note" maxlength="1000">{{ form.get('note','') if gfail else '' }}</textarea></label>
+<button type="submit" name="action" value="short" class="btn-danger">Gửi báo thiếu</button></details>
+</form></section>

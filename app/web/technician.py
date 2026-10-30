@@ -221,7 +221,8 @@ def detail_context(session, user, ticket, ctx):
     issued_rows=[dict(product=x.product_code,name=x.description or x.product_code,warehouse=x.warehouse_code,qty=x.qty) for x in ticket.lines if x.stock_doc_id is not None]
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
-    return dict(technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    goods=ctx.get('goods') or {}
+    return dict(goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=equipment_svc.display_name(eq,product) if eq else '',**contact(ctx['customer'],ctx['site']))
 
@@ -379,6 +380,60 @@ def transfer_ticket(request:Request,ticket_id:int,form=Depends(checked_form),use
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,form=dict(form),failed_action='tech-transfer',error=message,error_code=code,status=status,technician_view=True)
     return RedirectResponse('/tho?da_luu=1',status_code=303)
+
+
+@router.post('/tho/phieu/{ticket_id}/du-hang')
+def confirm_goods(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """TUẤN 30/10/2026: Đã nhận đủ hàng / Báo thiếu hàng trước khi Đã đến khách."""
+    from .services import _detail,_message,_version
+    from .. import service_goods
+    from pydantic import ValidationError
+    owned(session,user,ticket_id);request.state.technician_return=True
+    try:
+        short=[str(k) for k in form.getlist('short')] if form.get('action')=='short' else []
+        if form.get('action')=='short' and not short:raise BusinessError('ITEMS_REQUIRED','Bấm vào dòng hàng còn thiếu trước khi gửi.')
+        service_goods.confirm(session,user,ticket_id,_version(form),short,str(form.get('reason','')),str(form.get('note','')))
+    except (BusinessError,ValidationError) as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,form=form,failed_action='goods',error=message,error_code=code,status=status,technician_view=True)
+    return RedirectResponse(f'/tho/phieu/{ticket_id}?da_luu=1#hang-mang-theo',status_code=303)
+
+
+@router.post('/tho/phieu/{ticket_id}/chi-phi')
+def add_expense(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """TUẤN 30/10/2026: chi phí phát sinh thợ tự trả theo phiếu (mua ngoài, không nhập kho)."""
+    from ..config import get_settings
+    from .. import service_expenses
+    from .services import _detail,_message
+    owned(session,user,ticket_id);request.state.technician_return=True
+    try:
+        upload=form.get('photo');photo=None
+        if upload is not None and getattr(upload,'filename',''):
+            data=upload.file.read(get_settings().max_upload_mb*1024*1024+1)
+            if data:
+                if len(data)>get_settings().max_upload_mb*1024*1024:raise BusinessError('FILE_TOO_LARGE','Ảnh quá lớn.')
+                if not attachments._prepare(data)[1].startswith('image/'):raise BusinessError('BAD_FILE_TYPE','Ảnh hóa đơn phải là ảnh JPEG, PNG hoặc WEBP.')
+                photo=(upload.filename,data)
+        row=service_expenses.create(session,user,ticket_id,str(form.get('kind','')),str(form.get('description','')),str(form.get('place','')),str(form.get('amount','')),photo)
+    except BusinessError as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,form=form,failed_action='expense',error=message,error_code=code,status=status,technician_view=True)
+    return RedirectResponse(f'/tho/phieu/{ticket_id}?da_luu=1#chi-phi-phat-sinh',status_code=303)
+
+
+@router.post('/tho/chi-phi/{expense_id}/xoa')
+def delete_expense(request:Request,expense_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from .. import service_expenses
+    from ..models import ServiceExpense
+    from .services import _detail,_message,_version
+    row=session.get(ServiceExpense,expense_id)
+    if row is None:raise BusinessError('NOT_FOUND','Không tìm thấy khoản chi phí.',status=404)
+    ticket_id=row.ticket_id;owned(session,user,ticket_id);request.state.technician_return=True
+    try:service_expenses.cancel(session,user,expense_id,_version(form))
+    except BusinessError as exc:
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,technician_view=True)
+    return RedirectResponse(f'/tho/phieu/{ticket_id}?da_luu=1#chi-phi-phat-sinh',status_code=303)
 
 
 @router.post('/tho/phieu/{ticket_id}/anh')

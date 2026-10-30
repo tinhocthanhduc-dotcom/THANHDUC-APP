@@ -614,6 +614,41 @@ class ServiceLine(Base):
     ticket: Mapped["ServiceTicket"] = relationship(back_populates="lines")
 
 
+SERVICE_EXPENSE_KINDS = ('LINH_KIEN', 'GUI_XE', 'CHO_MAY', 'KHAC')
+SERVICE_EXPENSE_STATUSES = ('CHO_DUYET', 'DA_DUYET', 'TU_CHOI', 'DA_HUY', 'DA_HOAN')
+
+
+class ServiceExpense(Base):
+    """Chi phí phát sinh thợ tự trả theo phiếu (TUẤN 30/10/2026): không qua kho; kế toán duyệt rồi hoàn bằng phiếu chi."""
+    __tablename__ = 'service_expenses'
+    __table_args__ = (
+        CheckConstraint(_in('kind', SERVICE_EXPENSE_KINDS), name='ck_service_expenses_kind'),
+        CheckConstraint(_in('status', SERVICE_EXPENSE_STATUSES), name='ck_service_expenses_status'),
+        CheckConstraint('amount > 0', name='ck_service_expenses_amount'),
+        CheckConstraint("btrim(description) <> ''", name='ck_service_expenses_description'),
+        CheckConstraint("(status = 'DA_HOAN') = (cash_doc_id is not null and paid_at is not null and paid_by is not null)", name='ck_service_expenses_paid'),
+        CheckConstraint("status <> 'TU_CHOI' or btrim(decision_note) <> ''", name='ck_service_expenses_reject_note'),
+        Index('ix_service_expenses_status_tech', 'status', 'technician_id'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), index=True)
+    technician_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    kind: Mapped[str] = mapped_column(String(16))
+    description: Mapped[str] = mapped_column(Text)
+    place: Mapped[str] = mapped_column(Text, default='', server_default='')
+    amount: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16), default='CHO_DUYET', server_default='CHO_DUYET')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    cash_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
+    paid_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+
+
 QUOTE_STATUSES = ('NHAP', 'DA_GUI', 'CHAP_NHAN', 'TU_CHOI', 'DA_HUY')
 
 
@@ -833,9 +868,9 @@ class CashCategory(Base):
 class FinanceMapping(Base):
     __tablename__ = 'finance_mappings'
     __table_args__ = (
-        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG')", name='ck_finance_mappings_key'),
+        CheckConstraint("key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN','DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG','DANH_MUC_CHI_PHI_THO')", name='ck_finance_mappings_key'),
         CheckConstraint("(key in ('THU_TIEN_MAT','THU_CHUYEN_KHOAN') and category_code is null) or "
-                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG') and fund_code is null)", name='ck_finance_mappings_target'),
+                        "(key in ('DANH_MUC_BAN_HANG','DANH_MUC_DICH_VU','DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG','DANH_MUC_CHI_PHI_THO') and fund_code is null)", name='ck_finance_mappings_target'),
     )
     key: Mapped[str] = mapped_column(String(32), primary_key=True)
     fund_code: Mapped[str | None] = mapped_column(ForeignKey('funds.code'))

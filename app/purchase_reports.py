@@ -1,11 +1,11 @@
 """M5: báo cáo mua hàng, tuổi nợ và lãi gộp; chỉ SELECT, không tự flush."""
 from calendar import monthrange
 
-from sqlalchemy import Date, Numeric, case, cast, func, literal, select, union, union_all
+from sqlalchemy import Date, Numeric, String, case, cast, func, literal, select, union, union_all
 
 from . import finance_reports, supplier_debts
 from .errors import BusinessError
-from .models import (Customer, Product, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, PurchaseReceiptLine,
+from .models import (Customer, ServiceExpense, Product, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, PurchaseReceiptLine,
                      PurchaseReturn, PurchaseReturnLine, SalesDelivery, SalesDeliveryLine, SalesOrder, SalesOrderLine, SalesReturn, SalesReturnLine, ServiceLine,
                      ServiceTicket, StockDoc, StockLedger, Supplier, SupplierOpeningDebt)
 from .sales_reports import _window
@@ -165,7 +165,12 @@ def _margin_sources(start, end):
         .select_from(documents).join(links,(links.c.kind==documents.c.kind)&(links.c.id==documents.c.id))
         .join(StockDoc,StockDoc.id==links.c.doc_id).join(StockLedger,StockLedger.doc_id==StockDoc.id)
         .where(StockDoc.kind.in_(('PX','PN')),StockDoc.status=='DA_GHI',StockLedger.is_reversal.is_(False))
-        .group_by(documents.c.kind,documents.c.id,StockLedger.product_code).cte('margin_costs'))
+        .group_by(documents.c.kind,documents.c.id,StockLedger.product_code))
+    # TUẤN 30/10/2026: chi phí phát sinh thợ tự trả (đã duyệt) tính vào giá vốn phiếu dịch vụ; không gắn mã hàng.
+    expenses = (select(documents.c.kind,documents.c.id,cast(literal(None),String).label('product_code'),func.sum(ServiceExpense.amount))
+        .select_from(documents).join(ServiceExpense,(documents.c.kind=='DV')&(ServiceExpense.ticket_id==documents.c.id))
+        .where(ServiceExpense.status.in_(('DA_DUYET','DA_HOAN'))).group_by(documents.c.kind,documents.c.id))
+    cost = union_all(cost,expenses).cte('margin_costs')
     return documents,cost
 
 

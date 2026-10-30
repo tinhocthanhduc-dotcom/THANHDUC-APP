@@ -63,6 +63,7 @@ GROUPS = (
         {'label': 'Thu chi · Sổ quỹ', 'href': '/thu-chi', 'prefixes': ('/thu-chi', '/so-quy'), 'roles': ('finance',)},
         {'label': 'Công nợ khách hàng', 'href': '/cong-no-khach-hang', 'prefixes': ('/cong-no-khach-hang',), 'roles': ('finance',)},
         {'label': 'Công nợ nhà cung cấp', 'href': '/cong-no-ncc', 'prefixes': ('/cong-no-ncc',), 'roles': ('finance',)},
+        {'label': 'Chi phí thợ ứng', 'href': '/chi-phi-tho', 'prefixes': ('/chi-phi-tho',), 'roles': ('finance',)},
         {'label': 'Điều chỉnh sổ', 'href': '/dieu-chinh', 'prefixes': ('/dieu-chinh',), 'roles': ('finance',)},
         {'label': 'Chốt sổ', 'href': '/chot-so', 'prefixes': ('/chot-so',), 'roles': ('finance',)},
     )},

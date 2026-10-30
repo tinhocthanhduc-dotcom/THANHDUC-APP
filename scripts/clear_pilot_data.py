@@ -32,7 +32,7 @@ WIPE = {
     "commission_lines", "commission_months", "attendance_punches", "attendance_requests",
     "attendance_month_locks", "pending_item_moves", "pending_dispositions", "pending_items",
     "technician_return_lines", "technician_returns", "service_recovered_parts", "service_visits",
-    "service_lines", "service_drafts", "sales_return_lines", "sales_returns", "sales_refunds",
+    "service_lines", "service_drafts", "service_expenses", "sales_return_lines", "sales_returns", "sales_refunds",
     "sales_delivery_attempts", "sales_delivery_serials", "sales_delivery_lines", "sales_deliveries", "stock_reservations",
     "form_submissions", "equipment_custody", "part_requests", "daily_digests", "purchase_return_lines",
     "purchase_returns", "supplier_payments", "purchase_receipt_lines", "purchase_receipts",

@@ -40,7 +40,8 @@ TRANSITIONS = {
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
-         "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ"}
+         "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ",
+         "goods_ok": "Đã nhận đủ hàng", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
 
 
 def local_time(value):
@@ -328,6 +329,16 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         ctx['primary_checks']=steps.service_checks(session,t,ctx['next_step']['primary'] if ctx['next_step'] else None)
         if t.status=='HOAN_THANH':ctx['primary_checks']=[]  # waiting to close never blocks reporting receipts
     ctx['auto_close_checks']=steps.service_checks(session,t,None) if t.status=='HOAN_THANH' else []
+    from .. import service_goods
+    ctx.update(goods=service_goods.state(session,t),goods_last=service_goods.last_step(session,t),goods_reasons=service_goods.SHORT_REASONS)
+    from .. import service_expenses
+    from ..models import Attachment
+    expenses=service_expenses.for_ticket(session,t.id)
+    photos={}
+    for a in session.scalars(select(Attachment).where(Attachment.entity=='service_expense',Attachment.entity_id.in_([str(e.id) for e in expenses]),Attachment.hidden.is_(False)).order_by(Attachment.id)):
+        photos.setdefault(int(a.entity_id),a.id)
+    ctx.update(expenses=expenses,expense_photos=photos,expense_kinds=service_expenses.KINDS,expense_statuses=service_expenses.STATUSES,
+        can_add_expense=technician_view and t.assignee_id==user.id and t.status in service_expenses.OPEN_WORK)
     if technician_view:
         from .technician import detail_context as technician_context
         ctx.update(technician_context(session,user,t,ctx))

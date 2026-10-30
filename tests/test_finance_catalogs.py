@@ -136,7 +136,7 @@ def test_actual_migration_seeds_only_four_empty_mappings_and_downgrades(engine,m
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         migration.upgrade()
         rows=conn.execute(text('select key,fund_code,category_code,updated_by,version from finance_mappings')).all()
-        assert {r.key for r in rows}==set(mappings.KEYS)-{'DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG'} and len(rows)==4
+        assert {r.key for r in rows}==set(mappings.KEYS)-{'DANH_MUC_MUA_HANG','DANH_MUC_HOAN_TIEN_BAN','DANH_MUC_LUONG','DANH_MUC_CHI_PHI_THO'} and len(rows)==4
         assert all(r.fund_code is None and r.category_code is None and r.updated_by is None and r.version==1 for r in rows)
         assert conn.scalar(text('select count(*) from funds'))==0
         assert conn.scalar(text('select count(*) from cash_categories'))==0
