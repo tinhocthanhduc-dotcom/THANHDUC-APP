@@ -237,3 +237,37 @@ def test_live_board_people_next_and_lanes(client,db,people,monkeypatch):
     assert 'board' not in fin and all(p['finance'].id in r['ids'] for k in ('late','upcoming','day') for r in fin['next'][k])
     service_login(client,p['director']);page=client.get('/tong-quan').text
     assert 'Chưa giao' in page and 'Kẹt giấy' in page and 'data-lane="dv"' in page and f'data-user="{p["technician"].id}"' in page
+
+
+def test_day_orders_list_sales_and_services_with_status_tabs_and_paging(client,db,people,monkeypatch):
+    # Đơn trong ngày (TUẤN 30/10/2026): đơn bán + phiếu dịch vụ hôm nay, trạng thái từng đơn, bấm mở, 25 dòng/trang.
+    from test_web import service_login
+    # Ngày tạo đơn/phiếu ghi theo giờ máy chủ thật, nên trang xem theo ngày Việt Nam thật.
+    p=people;received(db,p,qty=10);monkeypatch.setattr(sales_orders,'datetime',datetime);monkeypatch.setattr(svc,'_now',lambda:datetime.now(svc.TZ))
+    today=datetime.now(svc.TZ).date()
+    done=sold(db,p)
+    draft=sales_orders.create(db,p['sales'],SalesOrderIn(customer_code='KTD-000001',lines=[dict(kind='KHAC',description='Nháp',qty=1,unit_price=1000)]))
+    t=service_tickets.create(db,p['sales'],ServiceTicketIn(customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Mờ bản in'))
+    rows=svc.day_orders(db,p['director'],today)
+    by={(r['type'],r['id']):r for r in rows}
+    assert by[('ban',done.id)]['status']=='DA_GIAO' and by[('ban',done.id)]['done'] and by[('ban',done.id)]['tone']=='ok'
+    assert by[('ban',draft.id)]['status']=='NHAP' and not by[('ban',draft.id)]['done']
+    assert by[('dv',t.id)]['status']=='MOI' and by[('dv',t.id)]['who']=='Chưa giao thợ' and 'Mờ bản in' in by[('dv',t.id)]['detail']
+    assert len(rows)==3 and svc.day_orders(db,p['director'],today+timedelta(days=1))==[]
+    service_login(client,p['director']);page=client.get('/tong-quan').text
+    assert 'id="don-trong-ngay"' in page and f'href="/don-ban/{done.id}"' in page and f'href="/dich-vu/{t.id}"' in page
+    assert 'Đã giao' in page and 'Nháp' in page and 'Chưa xong <b>2</b>' in page
+    assert page.index('Việc đang diễn ra')<page.index('Đơn trong ngày')<page.index('Bên dưới · bấm để mở')
+    page=client.get('/tong-quan?don=dv').text
+    assert f'href="/dich-vu/{t.id}"' in page and f'href="/don-ban/{done.id}"' not in page
+    page=client.get('/tong-quan?don=mo').text
+    assert f'href="/don-ban/{draft.id}"' in page and f'href="/don-ban/{done.id}"' not in page
+    for n in range(26):
+        service_tickets.create(db,p['sales'],ServiceTicketIn(customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom=f'Máy {n}'))
+    page=client.get('/tong-quan').text
+    assert 'Hiện <b>1–25</b> / 29 đơn' in page and 'trang-don=2#don-trong-ngay' in page
+    page=client.get('/tong-quan?trang-don=2').text
+    assert 'Hiện <b>26–29</b> / 29 đơn' in page
+    # Kế toán vẫn thấy danh sách; phiếu dịch vụ mở bản chỉ đọc theo quyền.
+    service_login(client,p['finance']);page=client.get('/tong-quan').text
+    assert 'Đơn trong ngày' in page

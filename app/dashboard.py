@@ -474,3 +474,57 @@ def live_board(session,user,today=None,now=None,approvals=(0,0),technicians=None
             techs={r['user_id']:r for r in (technicians if technicians is not None else _technicians(session,today,now))}
             result['board']=_people(session,users,techs,nexts,today,now)
         return result
+
+
+# ---- Đơn trong ngày (TUẤN 30/10/2026): mọi đơn bán và phiếu dịch vụ phát sinh hoặc có việc hôm nay, kèm trạng thái.
+ORDER_DONE=('DA_GIAO','DA_HUY')
+SERVICE_DONE=('HOAN_THANH','DA_DONG','KHONG_LAM_DUOC','DA_HUY')
+
+
+def _tone(status,hold='',late=False):
+    if status in ('DA_HUY','KHONG_LAM_DUOC') or late:return 'bad'
+    if status in ORDER_DONE+SERVICE_DONE:return 'ok'
+    if status in ('MOI','NHAP'):return 'new'
+    if status in ('TAM_DUNG','CHO_LINH_KIEN') or status in WAITING:return 'wait'
+    return 'doing'
+
+
+def day_orders(session,user,today=None,now=None) -> list[dict]:
+    """Đơn bán: tạo, chốt, giao hoặc hẹn giao hôm nay. Phiếu dịch vụ: nhận, hẹn hoặc có bước xử lý hôm nay.
+    Mới nhất lên đầu; danh sách trong ngày nhỏ nên lọc và phân trang trong bộ nhớ."""
+    from sqlalchemy import exists, or_
+    from .models import Customer, SalesOrder, ServiceStep
+    with session.no_autoflush:
+        check_reader(user)
+        now=now or _now();today=today or now.astimezone(TZ).date()
+        o=SalesOrder;t=ServiceTicket;seller=User.__table__.alias('seller');tech=User.__table__.alias('tech')
+        orders=_rows(session,select(o.id,o.number,o.status,o.fulfillment,o.total,o.promised_date,o.created_at,o.confirmed_at,o.delivered_at,
+            Customer.name.label('customer'),seller.c.full_name.label('who'))
+            .join(Customer,Customer.code==o.customer_code).join(seller,seller.c.id==o.created_by)
+            .where(or_(and_(*_day_window(o.created_at,today)),and_(*_day_window(o.confirmed_at,today)),and_(*_day_window(o.delivered_at,today)),
+                and_(o.promised_date==today,o.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))))))
+        stepped=exists().where(ServiceStep.ticket_id==t.id,*_day_window(ServiceStep.at,today))
+        tickets=_rows(session,select(t.id,t.number,t.status,t.hold_reason,t.kind,t.symptom,t.total,t.appointment_at,t.due_at,t.created_at,
+            Customer.name.label('customer'),tech.c.full_name.label('who'))
+            .join(Customer,Customer.code==t.customer_code).outerjoin(tech,tech.c.id==t.assignee_id)
+            .where(or_(and_(*_day_window(t.created_at,today)),and_(*_day_window(t.appointment_at,today)),stepped)))
+    rows=[]
+    for r in orders:
+        note=[]
+        if r['promised_date']==today and r['status'] not in ORDER_DONE:note.append('hẹn giao hôm nay')
+        if r['delivered_at'] and r['delivered_at'].astimezone(TZ).date()==today:note.append('giao lúc '+_clock(r['delivered_at']))
+        rows.append(dict(type='ban',id=r['id'],number=r['number'],customer=r['customer'],status=r['status'],hold_reason='',fulfillment=r['fulfillment'],
+            detail=' · '.join(note),amount=int(r['total'] or 0),who=_short(r['who']),created_at=r['created_at'],
+            done=r['status'] in ORDER_DONE,tone=_tone(r['status'])))
+    for r in tickets:
+        late=bool(r['due_at'] and r['due_at']<now and r['status'] not in SERVICE_DONE)
+        note=[_cut(r['symptom'],48)] if r['symptom'] else []
+        if r['appointment_at'] and r['appointment_at'].astimezone(TZ).date()==today:note.insert(0,'hẹn '+_clock(r['appointment_at']))
+        rows.append(dict(type='dv',id=r['id'],number=r['number'],customer=r['customer'],status=r['status'],hold_reason=r['hold_reason'] or '',kind=r['kind'],
+            detail=' · '.join(note),amount=int(r['total']) if r['total'] is not None else None,who=_short(r['who']) if r['who'] else 'Chưa giao thợ',
+            none=not r['who'],created_at=r['created_at'],done=r['status'] in SERVICE_DONE,late=late,tone=_tone(r['status'],late=late)))
+    for r in rows:
+        at=r['created_at'].astimezone(TZ)
+        r['when']=at.strftime('%H:%M') if at.date()==today else at.strftime('%d/%m')
+    rows.sort(key=lambda r:(r['created_at'],r['id']),reverse=True)
+    return rows
