@@ -1,0 +1,8 @@
+{# Chi phí phát sinh thợ đã trả theo phiếu (mẫu DuHangChiPhi 2b). Dùng ở màn thợ và trang phiếu dịch vụ. #}
+{% if expenses %}<section class="card tho-expenses" id="chi-phi-phat-sinh" data-expenses>
+<div class="tho-head"><h2>{{ 'Chi phí phát sinh · bạn đã trả' if technician_view else 'Chi phí phát sinh thợ đã trả' }}</h2><b>{{ expenses|sum(attribute='amount')|money }}</b></div>
+<ul class="tho-expense-list">{% for e in expenses %}<li data-expense="{{ e.id }}"><div><b>{{ e.description }}</b><small>{{ expense_kinds[e.kind] }}{{ ' · ' ~ e.place if e.place else '' }}{% if expense_photos.get(e.id) %} · <a href="/attachments/{{ expense_photos[e.id] }}/file" target="_blank" rel="noopener">ảnh hóa đơn</a>{% endif %}{% if e.status=='TU_CHOI' %} · {{ e.decision_note }}{% endif %}</small></div>
+<div class="tho-expense-amount"><b>{{ e.amount|money }}</b><span class="tag tone-{{ {'CHO_DUYET':'warn','DA_DUYET':'info','DA_HOAN':'ok','TU_CHOI':'bad'}.get(e.status,'mute') }}">{{ expense_statuses[e.status] }}</span>
+{% if technician_view and e.status=='CHO_DUYET' and e.technician_id==user.id %}<form method="post" action="/tho/chi-phi/{{ e.id }}/xoa">{% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ e.version }}"><button class="btn-ghost tho-expense-del">Xóa</button></form>{% endif %}</div></li>{% endfor %}</ul>
+{% if technician_view %}<p class="hint">Công ty hoàn lại cho bạn sau khi kế toán duyệt. Khách có trả khoản này thì cộng vào Tiền thu khách.</p>{% else %}<p class="hint">Khoản đã duyệt tính vào giá vốn phiếu. Kế toán duyệt và hoàn tiền ở <a href="/chi-phi-tho">Chi phí thợ ứng</a>.</p>{% endif %}
+</section>{% endif %}

@@ -7,7 +7,7 @@ from sqlalchemy import Select, String, case, func, literal, or_, select, union_a
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels, supplier_debts, service_workshop
 from .config import get_settings
 from .errors import BusinessError
-from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
 from .models import ProductionOrder, StockDoc
 from .security import has_role
@@ -98,6 +98,10 @@ def _specs(user, today, now):
         add('service_return_ready','Máy sửa xong chờ trả',service.where(t.status=='TAM_DUNG',t.hold_reason=='SUA_XONG_CHO_TRA'), 'service','/dich-vu')
         recent=select(ServiceStep.ticket_id).join(User,User.id==ServiceStep.actor_id).where(ServiceStep.action=='reassign',ServiceStep.at>=now-timedelta(days=7),User.roles.contains(['technician']),ServiceStep.note.startswith('Thợ '))
         add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent),t.status.in_(service_tickets.OPEN)), 'service','/dich-vu')
+    if has_role(user, 'dispatcher', 'warehouse'):
+        # TUẤN 30/10/2026: thợ báo thiếu hàng mang theo; hết hiện khi thợ xác nhận lại đủ hàng hoặc phiếu qua bước đang làm.
+        last_goods=select(ServiceStep.action).where(ServiceStep.ticket_id==t.id,ServiceStep.action.in_(('goods_ok','goods_short'))).order_by(ServiceStep.id.desc()).limit(1).correlate(t).scalar_subquery()
+        add('service_goods_short','Thợ báo thiếu hàng mang theo',service.where(t.status.in_(('DA_NHAN','DA_HEN','DANG_LAM')),last_goods=='goods_short'),'service','/dich-vu')
         recovered_count=select(func.count()).where(ServiceRecoveredPart.ticket_id==t.id,
             ServiceRecoveredPart.status=='CHO_NOP').correlate(t).scalar_subquery()
         recovered_holders=select(func.string_agg(func.distinct(User.full_name),', ')).join(
@@ -235,6 +239,11 @@ def _specs(user, today, now):
                 t, t.id==SalesReceipt.ticket_id).join(Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code)).where(
                     SalesReceipt.status=='CHO_XAC_NHAN').order_by(SalesReceipt.reported_at, SalesReceipt.id)
         add('receipts_pending', 'Báo thu chờ xác nhận', pending, 'receipt', '/bao-thu')
+        # TUẤN 30/10/2026: chi phí phát sinh thợ tự trả, kế toán duyệt rồi hoàn bằng phiếu chi.
+        expense=select(ServiceExpense.id,t.number,ServiceExpense.status,(User.full_name+literal(' · ')+ServiceExpense.description).label('customer'),
+            ServiceExpense.amount,literal(False).label('overdue')).join(t,t.id==ServiceExpense.ticket_id).join(User,User.id==ServiceExpense.technician_id)
+        add('expenses_pending','Chi phí thợ ứng chờ duyệt',expense.where(ServiceExpense.status=='CHO_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho')
+        add('expenses_unpaid','Chi phí thợ ứng chờ hoàn tiền',expense.where(ServiceExpense.status=='DA_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho?tab=cho-hoan')
     if director:
         requests=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),
             (PendingDisposition.qty*func.coalesce(StockBalance.avg_cost,0)).label('amount'),literal(False).label('overdue')).join(
@@ -284,7 +293,7 @@ def _group(session, spec, page=1):
                 # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
                 link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
-            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho'}[kind]
+            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if kind=='production': row['link']='/san-xuat/'+row['number']
             if kind=='supplier_debt':row['link']='/cong-no-ncc/'+quote(row['number'],safe='')+'#tra-tien'
@@ -299,6 +308,7 @@ def _group(session, spec, page=1):
             if spec['key']=='receipts_rejected':
                 row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"
             if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"
+            if kind == 'expense':row['link'] = ('/chi-phi-tho?tab=cho-hoan#cp-' if row['status']=='DA_DUYET' else '/chi-phi-tho#cp-')+str(row['id'])
             row['amount'] = int(row['amount'] or 0)
         row['kind'] = 'order' if kind=='warehouse_order' else kind
         rows.append(row)

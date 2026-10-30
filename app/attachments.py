@@ -90,8 +90,18 @@ def _pending_disposition(session,user,entity_id,write):
         if row.status not in ('CHO_DUYET','DA_GHI'):raise BusinessError('BAD_STATUS','Không thêm ảnh vào phiếu đã từ chối hoặc hủy.',status=409)
 
 
+def _service_expense(session,user,entity_id,write):
+    from .models import ServiceExpense
+    row=session.get(ServiceExpense,int(entity_id))
+    if row is None:raise BusinessError('NOT_FOUND','Không tìm thấy khoản chi phí.',status=404)
+    if row.technician_id!=user.id and not has_role(user,'finance','dispatcher'):
+        raise BusinessError('FORBIDDEN','Chỉ thợ đã ghi, kế toán hoặc điều phối xem được ảnh hóa đơn.',status=403)
+    if write and (row.technician_id!=user.id or row.status!='CHO_DUYET'):
+        raise BusinessError('FORBIDDEN','Chỉ thợ đã ghi thêm ảnh khi khoản còn chờ duyệt.',status=403)
+
+
 # Loại chứng từ được đính kèm và cách kiểm quyền xem/ghi của từng loại.
-TARGETS = {"pending_disposition": _pending_disposition, "pending_item": _pending_item, "technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
+TARGETS = {"service_expense": _service_expense, "pending_disposition": _pending_disposition, "pending_item": _pending_item, "technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
 
 
 def _check(session: Session, user: User, entity: str, entity_id: str, write: bool):

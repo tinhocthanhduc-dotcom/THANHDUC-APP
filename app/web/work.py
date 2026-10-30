@@ -48,11 +48,11 @@ NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhậ
 
 # Mẫu ưu tiên (2026-10-25): ba khung theo độ gấp thay cho khung theo phân hệ.
 # Làm ngay: việc có khách/thợ đang chờ hoặc có hẹn; mọi dòng quá hạn của nhóm khác cũng kéo lên đây.
-URGENT = ('service_appointment_overdue', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
+URGENT = ('service_appointment_overdue', 'service_goods_short', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
     'orders_pickup_late', 'orders_cancel_requested', 'technician_deliveries', 'delivery_handover', 'orders_waiting',
     'parts_pending', 'machines_pending', 'machines_warehouse')
 # Tiền · làm sau: báo thu, xác nhận thu, trả NCC; gập sẵn khi còn việc gấp.
-MONEY = ('orders_unreported', 'service_unreported', 'receipts_pending', 'supplier_debts_due')
+MONEY = ('orders_unreported', 'service_unreported', 'receipts_pending', 'expenses_pending', 'expenses_unpaid', 'supplier_debts_due')
 WHY = dict(service_appointment_overdue='Hẹn ngày trước', service_today='Hẹn hôm nay', service_unassigned='Chưa giao thợ',
     service_assigned='Chờ nhận việc', service_return_ready='Khách chờ máy', orders_pickup_late='Hẹn lấy quá ngày',
     orders_cancel_requested='Đề nghị hủy', technician_deliveries='Cần giao', delivery_handover='Bàn giao thợ',

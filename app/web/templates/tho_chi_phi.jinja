@@ -1,0 +1,10 @@
+{# TUẤN 30/10/2026 (mẫu DuHangChiPhi 2a): Việc khác › Chi phí phát sinh. Một khoản mỗi lần, số tiền đã gồm VAT. #}
+{% set efail=failed_action=='expense' %}<form id="service-expense" method="post" action="/tho/phieu/{{ t.id }}/chi-phi" enctype="multipart/form-data" class="form">
+{% include 'tho_return.jinja' %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="field-group" role="group"><p class="group-label">Loại chi phí</p><div class="chips">{% for code,label in expense_kinds.items() %}<label class="chip"><input type="radio" name="kind" value="{{ code }}" required {% if (form.get('kind') if efail else 'LINH_KIEN')==code %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Mua gì / chi cho việc gì<input name="description" maxlength="500" value="{{ form.get('description','') if efail else '' }}" placeholder="Ví dụ: Bánh răng sấy M402"></label>
+<label>Mua ở đâu (không bắt buộc)<input name="place" maxlength="300" value="{{ form.get('place','') if efail else '' }}"></label>
+<label>Số tiền đã trả (gồm VAT)<input name="amount" inputmode="numeric" data-money required value="{{ form.get('amount','') if efail else '' }}"></label>
+<label>Ảnh hóa đơn (không bắt buộc)<input type="file" name="photo" accept="image/*" capture="environment"></label>
+<p class="hint">Hàng mua ngoài không nhập kho công ty. Kế toán duyệt rồi hoàn tiền cho bạn bằng phiếu chi.</p>
+<button class="btn-ok">Lưu chi phí</button></form>

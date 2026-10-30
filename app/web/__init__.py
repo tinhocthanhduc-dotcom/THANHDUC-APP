@@ -873,6 +873,8 @@ from .customer_debts import router as customer_debts_router
 
 router.include_router(supplier_debts_router)
 router.include_router(customer_debts_router)
+from .expenses import router as expenses_router
+router.include_router(expenses_router)
 
 from .purchase_returns import router as purchase_returns_router
 
