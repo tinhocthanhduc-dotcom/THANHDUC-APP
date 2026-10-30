@@ -36,6 +36,11 @@
 {% if not p.visits and not p['items'] and not p.events and not (p.own|selectattr('state','equalto','day')|list) %}<li class="muted">Hôm nay chưa có việc nào.</li>{% endif %}</ul></details>{% else %}<p class="alert-empty">Chưa có tài khoản nhân viên đang hoạt động.</p>{% endfor %}
 </section>{% endif %}
 
+<section class="sales-report-section card dn-box" id="don-trong-ngay" aria-labelledby="dn-title"><div class="lv-h"><h2 id="dn-title">Đơn trong ngày</h2><span class="hint">{{ orders.total }} đơn · {{ orders.ban }} đơn bán · {{ orders.dv }} phiếu dịch vụ · còn {{ orders.open }} chưa xong · bấm một dòng để mở</span></div>
+<nav class="dn-tabs" aria-label="Lọc đơn trong ngày">{% for t in orders.tabs %}<a class="chip-btn{% if t.key==orders.tab %} on{% endif %}" href="{{ t.href }}"{% if t.key==orders.tab %} aria-current="true"{% endif %}>{{ t.label }} <b>{{ t.n }}</b></a>{% endfor %}</nav>
+{% if orders.rows %}<div class="dn-head" aria-hidden="true"><span>Giờ</span><span>Loại</span><span>Đơn · khách</span><span>Người làm</span><span>Trạng thái</span><span></span></div>
+{% for r in orders.rows %}{{ order_row(r) }}{% endfor %}{{ pager.bar(orders.page,'đơn') }}{% else %}<p class="alert-empty">{{ 'Hôm nay chưa có đơn nào.' if not orders.total else 'Không có đơn nào trong mục này.' }}</p>{% endif %}
+<p class="hint lv-note">Gồm đơn bán tạo, chốt, giao hoặc hẹn giao hôm nay và phiếu dịch vụ nhận, hẹn hoặc có xử lý hôm nay. Giờ là lúc tạo đơn; ngày dd/mm là đơn tạo hôm trước.</p></section>
 <div class="overview-two lv-two">
 <section class="sales-report-section card lv-nextbox" aria-labelledby="lv-next-title"><div class="lv-h"><h2 id="lv-next-title">Việc cần làm tiếp</h2><span class="hint">{{ nx.total }} việc{% if not lb %} của bạn{% endif %} · việc trễ lên đầu · bấm một dòng để mở</span></div>
 {% if nx.late or nx.upcoming %}<p class="lv-gh">Theo giờ hôm nay · {{ nx.late|length + nx.upcoming|length }}</p>
@@ -49,11 +54,6 @@
 <div class="lv-ldet">{% for title,items in l.groups if items %}<p><b>{{ title }}</b><span>{% for it in items %}{% if can_open(it.link.split('?')[0]) %}<a href="{{ it.link }}">{{ it.label }} {{ it.n }}</a>{% else %}{{ it.label }} {{ it.n }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</span></p>{% else %}<p class="muted">Không có việc nào đang chạy.</p>{% endfor %}{% if can_open(l.link.split('?')[0]) %}<a class="lv-open" href="{{ l.link }}">Mở danh sách {{ l.label }} ›</a>{% endif %}</div></details>{% endfor %}
 <p class="hint lv-note">Đang làm = có người đang xử lý. Đang chờ = chờ khách, chờ hàng, chờ giờ hẹn. Cần xử lý = chưa ai làm, phải có người bắt tay vào.</p></section>
 </div>
-<section class="sales-report-section card dn-box" id="don-trong-ngay" aria-labelledby="dn-title"><div class="lv-h"><h2 id="dn-title">Đơn trong ngày</h2><span class="hint">{{ orders.total }} đơn · {{ orders.ban }} đơn bán · {{ orders.dv }} phiếu dịch vụ · còn {{ orders.open }} chưa xong · bấm một dòng để mở</span></div>
-<nav class="dn-tabs" aria-label="Lọc đơn trong ngày">{% for t in orders.tabs %}<a class="chip-btn{% if t.key==orders.tab %} on{% endif %}" href="{{ t.href }}"{% if t.key==orders.tab %} aria-current="true"{% endif %}>{{ t.label }} <b>{{ t.n }}</b></a>{% endfor %}</nav>
-{% if orders.rows %}<div class="dn-head" aria-hidden="true"><span>Giờ</span><span>Loại</span><span>Đơn · khách</span><span>Người làm</span><span>Trạng thái</span><span></span></div>
-{% for r in orders.rows %}{{ order_row(r) }}{% endfor %}{{ pager.bar(orders.page,'đơn') }}{% else %}<p class="alert-empty">{{ 'Hôm nay chưa có đơn nào.' if not orders.total else 'Không có đơn nào trong mục này.' }}</p>{% endif %}
-<p class="hint lv-note">Gồm đơn bán tạo, chốt, giao hoặc hẹn giao hôm nay và phiếu dịch vụ nhận, hẹn hoặc có xử lý hôm nay. Giờ là lúc tạo đơn; ngày dd/mm là đơn tạo hôm trước.</p></section>
 <p class="hint">Doanh thu chưa VAT gồm đơn Đã giao và dịch vụ Có thu tiền đã chốt giá. Tiền đã thu gồm VAT, theo ngày thu. Các khoản quỹ, nợ và tồn là số hiện tại.</p>
 
 <h2 class="overview-label">Bên dưới · bấm để mở</h2>

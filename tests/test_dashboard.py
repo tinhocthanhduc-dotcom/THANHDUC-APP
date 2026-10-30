@@ -257,7 +257,7 @@ def test_day_orders_list_sales_and_services_with_status_tabs_and_paging(client,d
     service_login(client,p['director']);page=client.get('/tong-quan').text
     assert 'id="don-trong-ngay"' in page and f'href="/don-ban/{done.id}"' in page and f'href="/dich-vu/{t.id}"' in page
     assert 'Đã giao' in page and 'Nháp' in page and 'Chưa xong <b>2</b>' in page
-    assert page.index('Việc đang diễn ra')<page.index('Đơn trong ngày')<page.index('Bên dưới · bấm để mở')
+    assert page.index('Ai đang làm gì')<page.index('Đơn trong ngày')<page.index('Việc cần làm tiếp')<page.index('Việc đang diễn ra')
     page=client.get('/tong-quan?don=dv').text
     assert f'href="/dich-vu/{t.id}"' in page and f'href="/don-ban/{done.id}"' not in page
     page=client.get('/tong-quan?don=mo').text
