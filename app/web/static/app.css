@@ -2992,6 +2992,29 @@ a.lv-nrow:hover { background: var(--tag, var(--bg)); }
   .lv-lrow small { display: block; margin: 0; }
   .lv-ldet p { grid-template-columns: 70px minmax(0, 1fr); } .lv-open { margin-left: 78px; }
 }
+/* ===== Tổng quan · Đơn trong ngày (TUẤN 30/10/2026): đơn bán + phiếu dịch vụ, trạng thái từng đơn ===== */
+.dn-box { margin-top: 12px; }
+.dn-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+.dn-tabs .chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; text-decoration: none; font-size: .88rem; }
+.dn-head, .dn-row { display: grid; grid-template-columns: 52px 40px minmax(0, 1fr) minmax(64px, 120px) 150px 14px; gap: 10px; align-items: center; }
+.dn-head { padding: 6px 8px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.dn-row { padding: 8px; border-top: 1px solid var(--line); border-left: 3px solid transparent; color: var(--text); text-decoration: none; min-height: 44px; box-sizing: border-box; }
+a.dn-row:hover { background: var(--tag, var(--bg)); }
+.dn-row.lv-bad { border-left-color: var(--bad); }
+.dn-when { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; }
+.dn-type { font-size: .72rem; font-weight: 700; color: var(--muted); }
+.dn-what { min-width: 0; } .dn-what b { white-space: nowrap; } .dn-what small { display: block; color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dn-who { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dn-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; white-space: nowrap; background: var(--tag, var(--bg)); color: var(--text); }
+.dn-ok { background: var(--ok-bg); color: var(--ok); } .dn-bad { background: var(--bad-bg); color: var(--bad); }
+.dn-wait { background: var(--warn-bg); color: var(--warn); } .dn-doing { background: var(--info-bg); color: var(--info-solid); }
+.dn-done .dn-what b, .dn-done .dn-what > span { color: var(--muted); }
+@media (max-width: 640px) {
+  .dn-head { display: none; }
+  .dn-row { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 8px; padding: 9px 6px; }
+  .dn-type { display: none; } .dn-what .lv-sep { display: none; } .dn-what > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dn-who { grid-column: 2; grid-row: 2; font-size: .78rem; color: var(--muted); } .dn-st { grid-column: 3; grid-row: 1 / span 2; } .lv-go { display: none; }
+}
 /* ===== Giao đơn / Giao hàng kho: khung 2 cột chung (TUẤN duyệt 28/10/2026) ===== */
 .gd-view .gd-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .gd-view .gd-box { display: grid; gap: 4px; align-content: start; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; overflow-wrap: anywhere; }
