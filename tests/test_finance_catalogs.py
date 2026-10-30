@@ -76,7 +76,7 @@ def test_mapping_validation_require_and_fixed_keys(db,finance_people):
         assert mappings.require(db,key)==code and row.version==2 and row.updated_by==d.id
     fails('BAD_MAPPING',mappings.set_mapping,db,d,'KHONG-CO',version=1)
     fails('BAD_MAPPING',mappings.require,db,'KHONG-CO')
-    assert len(mappings.search(db,f))==7
+    assert len(mappings.search(db,f))==8
 
 
 def test_in_use_preserves_mapping_validity_and_unmap(db,finance_people):
