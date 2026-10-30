@@ -2993,7 +2993,7 @@ a.lv-nrow:hover { background: var(--tag, var(--bg)); }
   .lv-ldet p { grid-template-columns: 70px minmax(0, 1fr); } .lv-open { margin-left: 78px; }
 }
 /* ===== Tổng quan · Đơn trong ngày (TUẤN 30/10/2026): đơn bán + phiếu dịch vụ, trạng thái từng đơn ===== */
-.dn-box { margin-top: 12px; }
+.dn-box { margin-top: 12px; margin-bottom: 12px; }
 .dn-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
 .dn-tabs .chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; text-decoration: none; font-size: .88rem; }
 .dn-head, .dn-row { display: grid; grid-template-columns: 52px 40px minmax(0, 1fr) minmax(64px, 120px) 150px 14px; gap: 10px; align-items: center; }
