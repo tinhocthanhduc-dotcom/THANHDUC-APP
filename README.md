@@ -17,6 +17,7 @@ Kế hoạch tổng thể: tài liệu "Kế hoạch chuyển sang Python + Post
 | `migrations/` | Lịch sử thay đổi cấu trúc database (Alembic) |
 | `scripts/` | Tạo tài khoản, nhập mẫu dữ liệu test, xóa dữ liệu test, sao lưu, khôi phục thử |
 | `deploy/` | Docker Compose, Caddy (HTTPS), mẫu file cấu hình |
+| `deploy/windows/` | Bộ cài trên Windows: đóng gói, cài lại một lệnh, khôi phục từ bản sao lưu (`HUONG-DAN-CAI-DAT.md`) |
 | `docs/TRIEN_KHAI_VPS.md` | Sổ tay dựng máy chủ từng bước |
 | `docs/API.md` | Cách app Apps Script gọi API |
 | `tests/` | Test chạy trên PostgreSQL thật |
