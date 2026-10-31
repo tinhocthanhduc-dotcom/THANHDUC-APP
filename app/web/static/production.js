@@ -35,8 +35,14 @@
   if (complete) {
     var reason = complete.querySelector('[data-sx-void]'), submit = complete.querySelector('[data-sx-submit]');
     var sync = function () {
-      if (reason) reason.hidden = sum('[data-sx-good]', complete) > 0;
+      var good = sum('[data-sx-good]', complete), scrap = sum('[data-sx-scrap]', complete);
+      if (reason) reason.hidden = good > 0;
       if (submit) submit.textContent = sum('[data-sx-used]', complete) > 0 ? submit.getAttribute('data-with') : submit.getAttribute('data-without');
+      // Ô tóm tắt ở cột phải và dòng Cộng của bảng theo số đang gõ.
+      complete.querySelectorAll('[data-sx-sum-good]').forEach(function (el) { el.textContent = good; });
+      complete.querySelectorAll('[data-sx-sum-scrap]').forEach(function (el) { el.textContent = scrap; });
+      var lines = 0; complete.querySelectorAll('[data-sx-used]').forEach(function (el) { if (!el.disabled && num(el) > 0) lines++; });
+      complete.querySelectorAll('[data-sx-sum-lines]').forEach(function (el) { el.textContent = lines; });
     };
     complete.addEventListener('input', sync);
     complete.addEventListener('click', function () { setTimeout(sync, 0); });
@@ -44,9 +50,16 @@
     sync();
   }
   // SX2: tổng số định làm của các thành phẩm ở form tạo.
-  var total = document.querySelector('[data-sx-plan-total]'), form = document.querySelector('[data-sx-form]');
-  if (total && form) {
-    var tally = function () { total.textContent = sum('[data-sx-plan]', form); };
+  var form = document.querySelector('[data-sx-form]');
+  if (form) {
+    var tally = function () {
+      var plan = sum('[data-sx-plan]', form), outs = 0, mats = 0;
+      form.querySelectorAll('[data-sx-plan]').forEach(function (el) { if (!el.disabled) outs++; });
+      form.querySelectorAll('[data-sx-material]').forEach(function (el) { if (!el.disabled && num(el) > 0) mats++; });
+      form.querySelectorAll('[data-sx-plan-total]').forEach(function (el) { el.textContent = plan; });
+      form.querySelectorAll('[data-sx-output-count]').forEach(function (el) { el.textContent = outs; });
+      form.querySelectorAll('[data-sx-material-count]').forEach(function (el) { el.textContent = mats; });
+    };
     form.addEventListener('input', tally);
     form.addEventListener('click', function () { setTimeout(tally, 0); });
     form.addEventListener('item-picker-refresh', tally);

@@ -1,37 +1,44 @@
 {% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% macro stepper(name, value, min, label, extra='') %}<span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ label }}">−</button><input name="{{ name }}" value="{{ value }}" inputmode="{{ 'decimal' if ',' in value|string else 'numeric' }}" min="{{ min }}" aria-label="{{ label }}" {{ extra }}><button type="button" data-step="1" aria-label="Thêm {{ label }}">+</button></span>{% endmacro %}
 {% block title %}Phiếu sản xuất mới{% endblock %}
-{% block main %}<div class="doc-detail sx-new">
-{# SX1 · form tạo: loại việc nút chạm, thành phẩm tìm-chọn, thợ và kho nút chạm, vật tư dự kiến tìm-chọn với nút − +. #}
-{{ ui.page_head('Phiếu sản xuất mới', sub='Thợ tự lập cho mình được; vật tư lấy từ kho thợ, thành phẩm nhập về kho công ty.', back='/san-xuat') }}
+{% block main %}<div class="doc-detail sx-new page-wide">
+{# SX2 bản 2 (TUẤN duyệt 31/10/2026): khung rộng; nút chọn gọn một khối; thành phẩm và vật tư dự kiến là bảng có cột tồn kho thợ; nút Lập phiếu ở cột phải. #}
+{{ ui.page_head('Phiếu sản xuất mới', sub='Chọn thành phẩm và số định làm; vật tư dự kiến để trống cũng được, thợ ghi lúc Hoàn thành.', back='/san-xuat') }}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lập được.</b> {{ error }}</p>{% endif %}
 <form method="post" action="/san-xuat/moi" class="form sx-form" data-busy data-sx-form>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <div class="doc-grid"><div class="doc-main">
-<section class="card doc-card"><h2 class="doc-h">Việc và thành phẩm</h2>
+<section class="card doc-card"><h2 class="doc-h">Việc</h2>
+<div class="sx-choices">
 <div class="field-group"><p class="group-label">Loại việc</p><div class="seg stock-seg">{% for k, label in kinds.items() %}<label><input type="radio" name="kind" value="{{ k }}" {% if d.get('kind', 'DO_MUC') == k %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
-{% set outs = d.get('outputs') or {} %}
-<fieldset class="sx-pick{{ ' field-invalid' if error_code in ['BAD_PRODUCT', 'BAD_OUTPUT'] }}" data-item-picker><legend class="group-label">Thành phẩm · mỗi mã một dòng, số định làm bên phải</legend>
-{% for p in products %}<div class="sx-row" data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng{% endif %}"{% if p.code not in outs %} data-pick-extra hidden{% endif %}><input type="hidden" name="output_product" value="{{ p.code }}"><span class="sx-row-main"><b>{{ p.name }}</b><small>{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng → nhập serial khi nhận kho{% endif %}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ p.name }}">−</button><input name="output_plan" value="{{ outs.get(p.code, '10') }}" inputmode="numeric" min="1" aria-label="Số định làm {{ p.name }}" data-sx-plan><button type="button" data-step="1" aria-label="Thêm {{ p.name }}">+</button></span><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></div>{% endfor %}
-{{ ui.item_picker('Thêm thành phẩm') }}<p class="hint">Không thấy mã? <a href="/hang-hoa/moi">+ Tạo mới mã hàng</a> (ví dụ "Hộp mực 12A đổ lại", "Máy in … đã qua sử dụng"). Tổng định làm: <b data-sx-plan-total>0</b> cái.</p>
-</fieldset>
-</section>
-<section class="card doc-card"><h2 class="doc-h">Ai làm, kho nào</h2>
 {% if tech_only %}<p class="hint">Phiếu này của bạn. Vật tư lấy từ kho của bạn{% if own %} ({{ own.code }}){% endif %}.</p>{% else %}
 <div class="field-group"><p class="group-label">Thợ làm</p><div class="seg stock-seg">{% for t in technicians %}<label><input type="radio" name="technician_id" value="{{ t.id }}" {% if d.get('technician_id')|string == t.id|string %}checked{% endif %}><span>{{ t.full_name }}</span></label>{% endfor %}<label><input type="radio" name="technician_id" value="" {% if not d.get('technician_id') %}checked{% endif %}><span>Giao sau</span></label></div></div>
 <div class="field-group"><p class="group-label">Vật tư lấy từ</p><div class="seg stock-seg"><label><input type="radio" name="from_warehouse_code" value="" {% if not d.get('from_warehouse_code') %}checked{% endif %}><span>Kho của thợ</span></label>{% for w in warehouses %}<label><input type="radio" name="from_warehouse_code" value="{{ w.code }}" {% if d.get('from_warehouse_code') == w.code %}checked{% endif %}><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}</div></div>{% endif %}
 <div class="field-group"><p class="group-label">Thành phẩm nhận về</p><div class="seg stock-seg">{% for w in warehouses %}<label><input type="radio" name="to_warehouse_code" value="{{ w.code }}" {% if d.get('to_warehouse_code') == w.code %}checked{% endif %} required><span>{{ w.code }} · {{ w.name }}</span></label>{% endfor %}</div></div>
+</div></section>
+{% set outs = d.get('outputs') or {} %}
+<section class="card doc-card{{ ' field-invalid' if error_code in ['BAD_PRODUCT', 'BAD_OUTPUT'] }}" data-item-picker aria-label="Thành phẩm"><h2 class="doc-h">Thành phẩm <span class="hint">mỗi mã một dòng</span></h2>
+<div class="table-scroll"><table class="list-table sx-edit"><thead><tr><th>Mã hàng</th><th class="num">Bảo hành</th><th class="num">Số định làm</th><th></th></tr></thead><tbody>
+{% for p in products %}<tr data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng{% endif %}"{% if p.code not in outs %} data-pick-extra hidden{% endif %}><td class="name"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}</span><input type="hidden" name="output_product" value="{{ p.code }}"></td><td class="num"><span class="sx-ph">Bảo hành </span>{% if p.warranty_months %}{{ p.warranty_months }} tháng · serial khi nhận{% else %}<span class="lt-sub">–</span>{% endif %}</td><td class="num sx-cell"><span class="sx-ph">Định làm </span>{{ stepper('output_plan', outs.get(p.code, '10'), 1, 'Số định làm ' ~ p.name, 'data-sx-plan') }}</td><td class="num"><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></td></tr>{% endfor %}
+<tr class="sx-total"><td><b>Cộng</b></td><td></td><td class="num"><span class="sx-ph">Định làm </span><b data-sx-plan-total>0</b></td><td></td></tr>
+</tbody></table></div>
+{{ ui.item_picker('Thêm thành phẩm') }}<p class="hint">Không thấy mã? <a href="/hang-hoa/moi">+ Tạo mới mã hàng</a> (ví dụ "Hộp mực 12A đổ lại", "Máy in … đã qua sử dụng").</p>
 </section>
-<section class="card doc-card"><div class="qf-card-head"><h2 class="doc-h">Vật tư dự kiến</h2><span class="hint">Để trống cũng được, thợ bổ sung lúc Hoàn thành</span></div>
-<fieldset class="sx-pick" data-item-picker><legend class="sr-only">Vật tư dự kiến</legend>
+<section class="card doc-card" data-item-picker aria-label="Vật tư dự kiến"><h2 class="doc-h">Vật tư dự kiến{% if own %} · kho {{ own.code }}{% endif %} <span class="hint">để trống cũng được, thợ bổ sung lúc Hoàn thành</span></h2>
 {% set chosen = {} %}{% for l in lines %}{% if chosen.update({l.code: l.qty}) %}{% endif %}{% endfor %}
-{% for p in products %}<div class="sx-row" data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}"{% if p.code not in chosen %} data-pick-extra hidden{% endif %}><input type="hidden" name="material_product" value="{{ p.code }}"><span class="sx-row-main"><b>{{ p.name }}</b><small>{{ p.code }}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ p.name }}">−</button><input name="material_plan" value="{{ chosen.get(p.code, '1')|string|replace('.', ',') }}" inputmode="decimal" min="0" aria-label="Số dự kiến {{ p.name }}"><button type="button" data-step="1" aria-label="Thêm {{ p.name }}">+</button></span><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></div>{% endfor %}
+<div class="table-scroll"><table class="list-table sx-edit"><thead><tr><th>Mã hàng</th>{% if own %}<th class="num">Tồn kho thợ</th>{% endif %}<th class="num">Dự kiến</th><th></th></tr></thead><tbody>
+{% for p in products %}<tr data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if own %} · tồn {{ held.get(p.code, 0)|qty }}{% endif %}"{% if p.code not in chosen %} data-pick-extra hidden{% endif %}><td class="name"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}</span><input type="hidden" name="material_product" value="{{ p.code }}"></td>{% if own %}<td class="num"><span class="sx-ph">Tồn kho thợ </span>{{ held.get(p.code, 0)|qty }}</td>{% endif %}<td class="num sx-cell"><span class="sx-ph">Dự kiến </span>{{ stepper('material_plan', chosen.get(p.code, '1')|string|replace('.', ','), 0, 'Số dự kiến ' ~ p.name, 'data-sx-material') }}</td><td class="num"><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></td></tr>{% endfor %}
+</tbody></table></div>
 {{ ui.item_picker('Thêm vật tư') }}
-</fieldset></section>
+</section>
 <section class="card doc-card"><label>Ghi chú<input name="note" value="{{ d.get('note', '') }}" maxlength="2000" placeholder="Ví dụ: vỏ hộp thu từ khách Minh Phát"></label></section>
 </div>
 <aside class="doc-side">
-{% call ui.next_box('sau khi lập', 'Phiếu sang Mới. Thợ thấy việc trong Việc của tôi · Trong ngày và màn Hôm nay; thợ tự lập thì bấm Bắt đầu làm ngay.') %}<button class="btn btn-new sx-primary">Lập phiếu</button><a class="btn btn-ghost" href="/san-xuat">Hủy</a>{% endcall %}
-<section class="card doc-card"><h2 class="doc-h">Sau đó</h2><ol class="sx-howto"><li>Thợ <b>Bắt đầu làm</b>, rồi <b>Hoàn thành</b>: ghi vật tư thật dùng, số tốt / hỏng. Kho tự trừ vật tư từ kho thợ.</li><li>Thủ kho <b>Nhận vào kho</b> theo từng mã: tổng vật tư chia cho các mã theo tỷ lệ giá bán × số tốt; có bảo hành thì nhập serial.</li><li>Không ghi vật tư nào vẫn hoàn thành được, nhưng phải xác nhận kèm lý do; khi đó giá vốn vật tư = 0.</li><li>Thợ được cộng KPI và hoa hồng theo số thành phẩm tốt.</li></ol></section>
+{% call ui.next_box('sau khi lập', 'Phiếu sang Mới') %}
+<div class="sx-sum"><div><b data-sx-plan-total>0</b><small>cái · <span data-sx-output-count>0</span> mã</small></div><div><b data-sx-material-count>0</b><small>dòng vật tư</small></div></div>
+<p class="hint">Thợ thấy việc trong Việc của tôi · Trong ngày và màn Hôm nay; thợ tự lập thì bấm Bắt đầu làm ngay.</p>
+<button class="btn btn-new sx-primary">Lập phiếu</button><a class="btn btn-ghost" href="/san-xuat">Hủy</a>{% endcall %}
+<section class="card doc-card"><h2 class="doc-h">Sau đó</h2><ol class="sx-howto"><li>Thợ <b>Bắt đầu làm</b>, rồi <b>Hoàn thành</b>: ghi tốt / hỏng từng mã, vật tư thật dùng; kho tự trừ từ kho thợ. Không vật tư thì xác nhận kèm lý do.</li><li>Thủ kho <b>Nhận vào kho</b> theo từng mã; giá vốn chia theo tỷ lệ giá bán × số tốt; có bảo hành thì nhập serial.</li><li>Thợ được cộng KPI và hoa hồng theo số thành phẩm tốt.</li></ol></section>
 </aside></div>
 </form></div>
 <script src="{{ asset('production.js') }}" defer></script>
