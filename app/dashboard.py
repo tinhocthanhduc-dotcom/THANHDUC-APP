@@ -384,7 +384,8 @@ def _people(session,users,techs,nexts,today,now):
         visits.setdefault(r['technician_id'],[]).append(r)
     sx=ProductionOrder
     production={}
-    for r in _rows(session,select(sx.technician_id,sx.number,sx.status,sx.qty_plan,sx.qty_good,sx.started_at,sx.finished_at,Product.name.label('product'))
+    from .production import title_extra
+    for r in _rows(session,select(sx.technician_id,sx.number,sx.status,sx.qty_plan,sx.qty_good,sx.started_at,sx.finished_at,(Product.name+title_extra()).label('product'))
             .join(Product,Product.code==sx.product_code).where(sx.technician_id.is_not(None),
                 (sx.status=='DANG_LAM')|and_(*_day_window(sx.finished_at,today))).order_by(sx.started_at.nulls_last(),sx.id)):
         production.setdefault(r['technician_id'],[]).append(r)

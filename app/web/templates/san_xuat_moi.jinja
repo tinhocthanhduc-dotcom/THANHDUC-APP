@@ -9,11 +9,11 @@
 <div class="doc-grid"><div class="doc-main">
 <section class="card doc-card"><h2 class="doc-h">Việc và thành phẩm</h2>
 <div class="field-group"><p class="group-label">Loại việc</p><div class="seg stock-seg">{% for k, label in kinds.items() %}<label><input type="radio" name="kind" value="{{ k }}" {% if d.get('kind', 'DO_MUC') == k %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
-<fieldset class="sx-pick{{ ' field-invalid' if error_code in ['BAD_PRODUCT'] }}" data-item-picker data-pick-single><legend class="group-label">Thành phẩm · một mã hàng</legend>
-{% for p in products %}<div class="sx-row" data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng{% endif %}"{% if d.get('product_code') != p.code %} data-pick-extra hidden{% endif %}><label class="sx-row-main"><input type="radio" name="product_code" value="{{ p.code }}" {% if d.get('product_code') == p.code %}checked{% endif %} required><span><b>{{ p.name }}</b><small>{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng → nhập serial khi nhận kho{% endif %}</small></span></label><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ chọn {{ p.name }}">Đổi</button></div>{% endfor %}
-{{ ui.item_picker('Chọn thành phẩm') }}<p class="hint">Không thấy mã? <a href="/hang-hoa/moi">+ Tạo mới mã hàng</a> (ví dụ "Hộp mực 12A đổ lại", "Máy in … đã qua sử dụng").</p>
+{% set outs = d.get('outputs') or {} %}
+<fieldset class="sx-pick{{ ' field-invalid' if error_code in ['BAD_PRODUCT', 'BAD_OUTPUT'] }}" data-item-picker><legend class="group-label">Thành phẩm · mỗi mã một dòng, số định làm bên phải</legend>
+{% for p in products %}<div class="sx-row" data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng{% endif %}"{% if p.code not in outs %} data-pick-extra hidden{% endif %}><input type="hidden" name="output_product" value="{{ p.code }}"><span class="sx-row-main"><b>{{ p.name }}</b><small>{{ p.code }}{% if p.warranty_months %} · bảo hành {{ p.warranty_months }} tháng → nhập serial khi nhận kho{% endif %}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ p.name }}">−</button><input name="output_plan" value="{{ outs.get(p.code, '10') }}" inputmode="numeric" min="1" aria-label="Số định làm {{ p.name }}" data-sx-plan><button type="button" data-step="1" aria-label="Thêm {{ p.name }}">+</button></span><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></div>{% endfor %}
+{{ ui.item_picker('Thêm thành phẩm') }}<p class="hint">Không thấy mã? <a href="/hang-hoa/moi">+ Tạo mới mã hàng</a> (ví dụ "Hộp mực 12A đổ lại", "Máy in … đã qua sử dụng"). Tổng định làm: <b data-sx-plan-total>0</b> cái.</p>
 </fieldset>
-<div class="sx-plan"><label>Số định làm<span class="stepper"><button type="button" data-step="-1" aria-label="Bớt 1">−</button><input name="qty_plan" value="{{ d.get('qty_plan', '10') }}" inputmode="numeric" min="1" required><button type="button" data-step="1" aria-label="Thêm 1">+</button></span></label></div>
 </section>
 <section class="card doc-card"><h2 class="doc-h">Ai làm, kho nào</h2>
 {% if tech_only %}<p class="hint">Phiếu này của bạn. Vật tư lấy từ kho của bạn{% if own %} ({{ own.code }}){% endif %}.</p>{% else %}
@@ -31,7 +31,7 @@
 </div>
 <aside class="doc-side">
 {% call ui.next_box('sau khi lập', 'Phiếu sang Mới. Thợ thấy việc trong Việc của tôi · Trong ngày và màn Hôm nay; thợ tự lập thì bấm Bắt đầu làm ngay.') %}<button class="btn btn-new sx-primary">Lập phiếu</button><a class="btn btn-ghost" href="/san-xuat">Hủy</a>{% endcall %}
-<section class="card doc-card"><h2 class="doc-h">Sau đó</h2><ol class="sx-howto"><li>Thợ <b>Bắt đầu làm</b>, rồi <b>Hoàn thành</b>: ghi vật tư thật dùng, số tốt / hỏng. Kho tự trừ vật tư từ kho thợ.</li><li>Thủ kho <b>Nhận vào kho</b>: giá vốn mỗi cái = tổng vật tư ÷ số tốt; có bảo hành thì nhập serial.</li><li>Thợ được cộng KPI và hoa hồng theo số thành phẩm tốt.</li></ol></section>
+<section class="card doc-card"><h2 class="doc-h">Sau đó</h2><ol class="sx-howto"><li>Thợ <b>Bắt đầu làm</b>, rồi <b>Hoàn thành</b>: ghi vật tư thật dùng, số tốt / hỏng. Kho tự trừ vật tư từ kho thợ.</li><li>Thủ kho <b>Nhận vào kho</b> theo từng mã: tổng vật tư chia cho các mã theo tỷ lệ giá bán × số tốt; có bảo hành thì nhập serial.</li><li>Không ghi vật tư nào vẫn hoàn thành được, nhưng phải xác nhận kèm lý do; khi đó giá vốn vật tư = 0.</li><li>Thợ được cộng KPI và hoa hồng theo số thành phẩm tốt.</li></ol></section>
 </aside></div>
 </form></div>
 <script src="{{ asset('production.js') }}" defer></script>

@@ -6,23 +6,23 @@
 {{ ui.tiles(tiles) }}
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}
-{% call ui.list_bar('/san-xuat', q, 'Tìm số phiếu, thành phẩm, mã hàng, thợ (không dấu)…', active=chips|length) %}{% if selected %}<input type="hidden" name="status" value="{{ selected }}">{% endif %}
+{% call ui.list_bar('/san-xuat', q, 'Tìm số phiếu, thành phẩm, mã hàng, thợ (không dấu)…', active=chips|length) %}{% if selected %}<input type="hidden" name="status" value="{{ selected }}">{% endif %}{% if vattu %}<input type="hidden" name="vattu" value="{{ vattu }}">{% endif %}
 <label>Loại việc<select name="loai"><option value="">Tất cả</option>{% for k, label in kinds.items() %}<option value="{{ k }}"{% if k == loai %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 {% if technicians %}<label>Thợ<select name="tho"><option value="">Tất cả</option>{% for t in technicians %}<option value="{{ t.id }}"{% if tho == t.id|string %} selected{% endif %}>{{ t.full_name }}</option>{% endfor %}</select></label>{% endif %}{% endcall %}
-{{ ui.filter_chips(chips, link(loai='', tho='')) }}
+{{ ui.filter_chips(chips, link(loai='', tho='', vattu='')) }}
 {% if rows %}<div class="table-scroll"><table class="list-table lt-cards sx-table">
 <thead><tr><th>Số phiếu</th><th>Thành phẩm</th><th>Thợ</th><th class="num">Định / tốt / hỏng</th><th>Kho nhận</th>{% if viewer %}<th class="num">Vốn 1 cái</th>{% endif %}<th>Bước tiếp</th></tr></thead><tbody>
 {% for r in rows %}<tr data-href="/san-xuat/{{ r.number }}">
 <td class="lt-first"><a class="lt-no" href="/san-xuat/{{ r.number }}"><b>{{ r.number }}</b></a><span class="lt-sub">{{ r.kind }}</span></td>
-<td><b>{{ r.product }}</b><span class="lt-sub">{{ r.code }}</span></td>
+<td><b>{{ r.product }}</b><span class="lt-sub">{{ r.code }}{% if r.no_material %} · {{ ui.badge('Không xuất vật tư', 'cho') }}{% endif %}</span></td>
 <td><span class="sx-ph">Thợ </span>{{ r.tech }}</td>
 <td class="num"><span class="sx-ph">Định / tốt / hỏng </span>{{ r.plan }} / {% if r.done %}<b class="lt-ok">{{ r.good }}</b> / <span class="{{ 'lt-bad' if r.scrap else '' }}">{{ r.scrap }}</span>{% else %}– / –{% endif %}</td>
 <td><span class="sx-ph">Kho nhận </span>{{ r.wh }}</td>
-{% if viewer %}<td class="num"><span class="sx-ph">Vốn 1 cái </span>{% if r.cost is not none %}{{ r.cost|money }}{% else %}–{% endif %}</td>{% endif %}
+{% if viewer %}<td class="num"><span class="sx-ph">Vốn 1 cái </span>{% if r.cost is not none %}{{ r.cost }}{% else %}–{% endif %}</td>{% endif %}
 <td class="lt-st">{{ ui.badge(r.next[0] ~ (' · ' ~ r.next[1] if r.next[1] else ''), r.tone) }}</td>
 </tr>{% endfor %}
 </tbody></table></div>
-{% else %}{{ ui.empty('Không có phiếu nào khớp "' ~ q ~ '".' if q else ('Không có phiếu sản xuất nào trong nhóm này.' if selected or chips else 'Chưa có phiếu sản xuất. Thợ rảnh lập phiếu để đổ mực, tân trang máy cũ hoặc lắp ráp; kho tự trừ vật tư và nhập thành phẩm.'), link(q='', status='', loai='', tho='') if q or selected or chips else '/san-xuat/moi', 'Xóa lọc' if q or selected or chips else 'Lập phiếu đầu tiên') }}{% endif %}
+{% else %}{{ ui.empty('Không có phiếu nào khớp "' ~ q ~ '".' if q else ('Không có phiếu sản xuất nào trong nhóm này.' if selected or chips else 'Chưa có phiếu sản xuất. Thợ rảnh lập phiếu để đổ mực, tân trang máy cũ hoặc lắp ráp; kho tự trừ vật tư và nhập thành phẩm.'), link(q='', status='', loai='', tho='', vattu='') if q or selected or chips else '/san-xuat/moi', 'Xóa lọc' if q or selected or chips else 'Lập phiếu đầu tiên') }}{% endif %}
 {% call ui.list_foot(page, 'phiếu') %}Định làm <b>{{ totals.plan }}</b> · tốt <b>{{ totals.good }}</b> · hỏng <b>{{ totals.scrap }}</b>{% if totals.value is not none %} · giá vốn thành phẩm đã nhập <b>{{ totals.value|money }}</b> đ{% endif %}{% endcall %}
 </section>
 </div>

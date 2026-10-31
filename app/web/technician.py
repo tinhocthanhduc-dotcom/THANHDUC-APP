@@ -274,7 +274,8 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
         for row in session.execute(select(t.id,t.number,t.status,Customer.name,due.label('due')).join(Customer,Customer.code==t.customer_code).where(
             t.assignee_id==user.id,t.status=='HOAN_THANH',t.billing=='THU_TIEN',t.priced_at.is_not(None),due>0).order_by(t.id))]
     from ..models import ProductionOrder
-    production_jobs=list(session.execute(select(ProductionOrder,Product.name).join(Product,Product.code==ProductionOrder.product_code).where(ProductionOrder.technician_id==user.id,ProductionOrder.status.in_(('MOI','DANG_LAM'))).order_by(ProductionOrder.id)))
+    from .. import production
+    production_jobs=list(session.execute(select(ProductionOrder,Product.name+production.title_extra()).join(Product,Product.code==ProductionOrder.product_code).where(ProductionOrder.technician_id==user.id,ProductionOrder.status.in_(('MOI','DANG_LAM'))).order_by(ProductionOrder.id)))
     return render(request,'tho_hom_nay.jinja',production_jobs=production_jobs,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))
 
