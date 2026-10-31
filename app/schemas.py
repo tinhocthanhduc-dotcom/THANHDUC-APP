@@ -14,16 +14,37 @@ class ProductionLineIn(BaseModel):
     note: str = Field(default='', max_length=2000)
 
 
+class ProductionOutputIn(BaseModel):
+    """SX2: một thành phẩm trên phiếu, mỗi mã một dòng."""
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    product_code: str = Field(min_length=1, max_length=16)
+    qty_plan: int = Field(gt=0, le=2147483647)
+
+
 class ProductionIn(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     kind: Literal['DO_MUC', 'TAN_TRANG', 'LAP_RAP']
-    product_code: str = Field(min_length=1, max_length=16)
-    qty_plan: int = Field(gt=0, le=2147483647)
+    # Một thành phẩm: product_code + qty_plan như SX1. Nhiều thành phẩm: outputs; khi đó hai ô kia để trống.
+    product_code: str | None = Field(default=None, min_length=1, max_length=16)
+    qty_plan: int | None = Field(default=None, gt=0, le=2147483647)
+    outputs: list[ProductionOutputIn] = Field(default_factory=list, max_length=50)
     technician_id: int | None = None
     from_warehouse_code: str | None = None
     to_warehouse_code: str = Field(min_length=1, max_length=16)
     note: str = Field(default='', max_length=2000)
     lines: list[ProductionLineIn] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode='after')
+    def _outputs(self):
+        if not self.outputs:
+            if not self.product_code or not self.qty_plan:
+                raise ValueError('Chọn ít nhất một thành phẩm và số định làm.')
+            self.outputs = [ProductionOutputIn(product_code=self.product_code, qty_plan=self.qty_plan)]
+        elif self.product_code or self.qty_plan:
+            raise ValueError('Nhiều thành phẩm thì chỉ gửi outputs.')
+        if len({o.product_code for o in self.outputs}) != len(self.outputs):
+            raise ValueError('Mỗi thành phẩm chỉ một dòng.')
+        return self
 
 
 class ProductionVersion(BaseModel):
@@ -42,17 +63,43 @@ class ProductionUsed(BaseModel):
     qty_used: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
 
 
-class ProductionComplete(ProductionVersion):
+class ProductionOutputDone(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    line_no: int | None = Field(default=None, gt=0)
+    product_code: str | None = None
     qty_good: int = Field(ge=0, le=2147483647)
-    qty_scrap: int = Field(ge=0, le=2147483647)
-    void_reason: str = Field(default='', max_length=2000)
+    qty_scrap: int = Field(default=0, ge=0, le=2147483647)
+
+
+class ProductionMaterials(ProductionVersion):
+    """Bổ sung vật tư cho phiếu đã hoàn thành không vật tư (trước khi nhận kho)."""
     lines: list[ProductionUsed] = Field(default_factory=list, max_length=200)
 
 
+class ProductionComplete(ProductionMaterials):
+    # Một thành phẩm: qty_good/qty_scrap như SX1. Nhiều thành phẩm: outputs theo từng mã.
+    qty_good: int | None = Field(default=None, ge=0, le=2147483647)
+    qty_scrap: int | None = Field(default=None, ge=0, le=2147483647)
+    outputs: list[ProductionOutputDone] = Field(default_factory=list, max_length=50)
+    void_reason: str = Field(default='', max_length=2000)
+    # Không có dòng vật tư nào: phải xác nhận kèm lý do, giá vốn vật tư = 0.
+    confirm_no_material: bool = False
+    no_material_reason: str = Field(default='', max_length=2000)
+
+
+class ProductionOutputReceive(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    line_no: int | None = Field(default=None, gt=0)
+    product_code: str | None = None
+    qty_received: int = Field(ge=0, le=2147483647)
+    serials: list[str] = Field(default_factory=list, max_length=1000)
+
+
 class ProductionReceive(ProductionVersion):
-    qty_received: int = Field(gt=0, le=2147483647)
+    qty_received: int | None = Field(default=None, gt=0, le=2147483647)
     note: str = Field(default="", max_length=2000)
     serials: list[str] = Field(default_factory=list, max_length=1000)
+    outputs: list[ProductionOutputReceive] = Field(default_factory=list, max_length=50)
 
 
 class ProductionVoid(ProductionVersion):

@@ -9,6 +9,7 @@ from .config import get_settings
 from .errors import BusinessError
 from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
+from . import production
 from .models import ProductionOrder, StockDoc
 from .security import has_role
 
@@ -261,7 +262,7 @@ def _specs(user, today, now):
         add('pending_supplier_returns','Trả hàng lỗi NCC chờ duyệt',pending_returns,'pending_supplier_return','/cho-xu-ly/duyet-tra-ncc')
     sx = ProductionOrder
     production_docs = select(sx.id, sx.number, sx.status,
-        (literal('Làm hàng: ') + sx.qty_plan.cast(String) + literal(' ') + Product.name).label('customer'),
+        (literal('Làm hàng: ') + sx.qty_plan.cast(String) + literal(' ') + Product.name + production.title_extra()).label('customer'),
         literal(0).label('amount'), literal(False).label('overdue')).join(Product, Product.code==sx.product_code)
     if 'technician' in user.roles:
         add('production_work','Hàng sản xuất',production_docs.where(sx.technician_id==user.id,sx.status.in_(('MOI','DANG_LAM'))).order_by(sx.id), 'production','/san-xuat')

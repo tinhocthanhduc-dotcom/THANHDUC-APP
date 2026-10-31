@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from decimal import Decimal
 from threading import Barrier
+import uuid
 
 import pytest
 from sqlalchemy import func, select, text
@@ -264,3 +265,147 @@ def test_populated_migration_downgrade_preserves_locked_commission(db,engine,sho
             assert conn.execute(select(StockLedger.id,StockLedger.amount,StockLedger.balance_qty,StockLedger.balance_value).order_by(StockLedger.id)).all()==ledger
     finally:
         command.upgrade(cfg,'head')
+
+
+# ===== SX2 (TUẤN 31/10/2026): nhiều thành phẩm một phiếu; hoàn thành không vật tư phải xác nhận kèm lý do. =====
+
+def multi(db,shop,prices=(150000,250000),role='technician'):
+    p,_,_,_=shop
+    db.add(Product(code='TD-0104',name='Hộp mực 85A đổ lại',sale_price=prices[1]))
+    db.get(Product,'TD-0100').sale_price=prices[0];db.commit()
+    return svc.create(db,p[role],ProductionIn(kind='DO_MUC',to_warehouse_code='K58',outputs=[dict(product_code='TD-0100',qty_plan=6),dict(product_code='TD-0104',qty_plan=4)],
+        lines=[dict(product_code='TD-0101',qty_plan=1),dict(product_code='TD-0102',qty_plan=2),dict(product_code='TD-0103',qty_plan=5)]))
+
+
+def test_multi_output_create_complete_split_by_sale_price_and_receive(db,client,shop):
+    p,_,_,_=shop;r=multi(db,shop)
+    assert r.product_code=='TD-0100' and r.qty_plan==10 and [(o.line_no,o.product_code,o.qty_plan) for o in r.outputs]==[(1,'TD-0100',6),(2,'TD-0104',4)]
+    assert my_work.filtered(db,p['technician'],'production_work')['rows'][0]['customer']=='Làm hàng: 10 Hộp mực tái sinh +1'
+    err('BAD_OUTPUT',svc.start,db,p['technician'],r.id,r.version) if False else svc.start(db,p['technician'],r.id,r.version)
+    # Phiếu nhiều mã phải ghi tốt / hỏng theo từng mã.
+    err('BAD_OUTPUT',svc.complete,db,p['technician'],r.id,ProductionComplete(version=r.version,qty_good=9,qty_scrap=1,lines=[dict(line_no=1,qty_used='.5')]))
+    err('BAD_QTY',svc.complete,db,p['technician'],r.id,ProductionComplete(version=r.version,outputs=[dict(line_no=1,qty_good=7),dict(line_no=2,qty_good=3,qty_scrap=1)],lines=[dict(line_no=1,qty_used='.5')]))
+    err('BAD_OUTPUT',svc.complete,db,p['technician'],r.id,ProductionComplete(version=r.version,outputs=[dict(line_no=1,qty_good=6),dict(line_no=1,qty_good=3)],lines=[dict(line_no=1,qty_used='.5')]))
+    r=svc.complete(db,p['technician'],r.id,ProductionComplete(version=r.version,outputs=[dict(product_code='TD-0100',qty_good=6),dict(line_no=2,qty_good=3,qty_scrap=1)],
+        lines=[dict(line_no=i,qty_used=q) for i,q in [(1,Decimal('.5')),(2,1),(3,4)]]))
+    # 790.000 chia theo giá bán × số tốt: 900 : 750 → 430.909 / 359.091 (mã cuối lấy phần dư, tổng đúng).
+    assert r.status=='HOAN_THANH' and r.material_cost==790000 and r.qty_good==9 and r.qty_scrap==1
+    assert [(o.qty_good,o.qty_scrap,o.unit_cost) for o in r.outputs]==[(6,0,71818),(3,1,119697)] and r.unit_cost==87778
+    assert 71818*6+119697*3 in range(790000-5,790000+5)
+    csrf=service_login(client,p['warehouse'])
+    assert '85A đổ lại' in client.get('/san-xuat/'+r.number).text and 'Hộp mực tái sinh +1' in client.get('/san-xuat').text
+    # Thủ kho nhận theo từng mã; 85A có bảo hành nên cần serial; nhận thiếu phải ghi chú.
+    db.get(Product,'TD-0104').warranty_months=1;db.commit()
+    err('BAD_OUTPUT',receive,db,shop,r,qty=9)
+    err('SERIAL_REQUIRED',svc.receive,db,p['warehouse'],r.id,ProductionReceive(version=r.version,outputs=[dict(line_no=1,qty_received=6),dict(line_no=2,qty_received=3)]))
+    err('REASON_REQUIRED',svc.receive,db,p['warehouse'],r.id,ProductionReceive(version=r.version,outputs=[dict(line_no=1,qty_received=5),dict(line_no=2,qty_received=3,serials=['A','B','C'])]))
+    err('BAD_QTY',svc.receive,db,p['warehouse'],r.id,ProductionReceive(version=r.version,outputs=[dict(line_no=1,qty_received=0),dict(line_no=2,qty_received=0)],note='Hỏng hết'))
+    response=client.post('/san-xuat/'+r.number+'/nhan-kho',data={'csrf':csrf,'form_key':str(uuid.uuid4()),'version':r.version,'out_line_no':['1','2'],'out_received':['5','3'],'out_serials_2':'A\nB\nC','note':'Một hộp rò mực'},follow_redirects=False)
+    assert response.status_code==303,response.text
+    db.expire_all();r=db.get(ProductionOrder,r.id)
+    assert r.status=='DA_NHAP' and r.qty_good==8 and r.qty_scrap==2 and [(o.qty_good,o.qty_scrap) for o in r.outputs]==[(5,1),(3,1)]
+    # Chia lại theo số thật nhận: 750 : 750 → 395.000 mỗi mã.
+    assert [o.unit_cost for o in r.outputs]==[79000,131667] and r.unit_cost==98750
+    pn=db.get(StockDoc,r.pn_doc_id)
+    assert [(l.product_code,l.qty,l.unit_cost,l.serial) for l in pn.lines]==[('TD-0100',5,79000,None),('TD-0104',1,131667,'A'),('TD-0104',1,131667,'B'),('TD-0104',1,131667,'C')]
+    assert db.get(StockBalance,('K58','TD-0100')).value==5*79000 and db.get(StockBalance,('K58','TD-0104')).qty==3
+    assert kpi.compute(db,JAN)[p['technician'].id]['tho_san_xuat']==8
+
+
+def test_multi_output_equal_split_without_sale_price_and_web_create(db,client,shop):
+    p,_,_,_=shop;csrf=service_login(client,p['technician'])
+    db.add(Product(code='TD-0104',name='Hộp mực 85A đổ lại'));db.commit()
+    response=client.post('/san-xuat/moi',data={'csrf':csrf,'form_key':str(uuid.uuid4()),'kind':'DO_MUC','to_warehouse_code':'K58','output_product':['TD-0100','TD-0104'],'output_plan':['6','4'],
+        'material_product':['TD-0101'],'material_plan':['1']},follow_redirects=False)
+    assert response.status_code==303,response.text
+    r=db.scalar(select(ProductionOrder).order_by(ProductionOrder.id.desc()))
+    assert [(o.product_code,o.qty_plan) for o in r.outputs]==[('TD-0100',6),('TD-0104',4)] and r.qty_plan==10 and len(r.lines)==1
+    response=client.post('/san-xuat/moi',data={'csrf':csrf,'form_key':str(uuid.uuid4()),'kind':'DO_MUC','to_warehouse_code':'K58','output_product':[],'output_plan':[]})
+    assert response.status_code==400 and 'BAD_PRODUCT' in response.text
+    svc.start(db,p['technician'],r.id,r.version)
+    svc.complete(db,p['technician'],r.id,ProductionComplete(version=r.version,outputs=[dict(line_no=1,qty_good=6),dict(line_no=2,qty_good=4)],lines=[dict(line_no=1,qty_used=1)]))
+    # Không có giá bán: chia đều theo cái, 600.000 / 10.
+    assert [o.unit_cost for o in r.outputs]==[60000,60000] and r.unit_cost==60000 and r.material_cost==600000
+
+
+def test_complete_without_materials_needs_confirm_and_reason_then_zero_cost(db,client,shop):
+    p,a,_,_=shop;r=create(db,shop);svc.start(db,p['technician'],r.id,r.version);before=amounts(db)
+    body=ProductionComplete(version=r.version,qty_good=9,qty_scrap=1,lines=[dict(line_no=1,qty_used=0),dict(line_no=2,qty_used=0)])
+    err('MATERIAL_REQUIRED',svc.complete,db,p['technician'],r.id,body)
+    err('REASON_REQUIRED',svc.complete,db,p['technician'],r.id,body.model_copy(update={'confirm_no_material':True,'no_material_reason':'ok'}))
+    assert r.status=='DANG_LAM' and amounts(db)==before
+    r=svc.complete(db,p['technician'],r.id,body.model_copy(update={'confirm_no_material':True,'no_material_reason':'Vỏ và mực khách đưa'}))
+    assert r.status=='HOAN_THANH' and r.px_doc_id is None and r.material_cost==0 and r.unit_cost==0 and r.no_material_reason=='Vỏ và mực khách đưa'
+    assert svc.no_material(r) and amounts(db)==before and db.query(StockDoc).filter_by(source_kind='SAN_XUAT').count()==0
+    # Thợ không thấy tiền, nhưng thấy nhãn; kho thấy ô đếm và lọc được.
+    service_login(client,p['technician']);page=client.get('/san-xuat/'+r.number).text
+    assert 'Không xuất vật tư' in page and 'material_cost' not in page and 'Bổ sung vật tư' in page
+    service_login(client,p['warehouse']);listing=client.get('/san-xuat?vattu=khong').text
+    assert 'Chưa xuất vật tư' in listing and r.number in listing and r.number not in client.get('/san-xuat?vattu=khong&loai=TAN_TRANG').text
+    assert my_work.filtered(db,p['warehouse'],'production_receive')['count']==1
+    d=stock_docs.create(db,p['warehouse'],StockDocIn(kind='PN',warehouse_code='K58',supplier_code='NCC-0001',doc_date=JAN,lines=[dict(product_code='TD-0100',qty=1,unit_cost=90000)]))
+    stock_posting.post(db,p['warehouse'],d.id,d.version)
+    receive(db,shop,r)
+    b=db.get(StockBalance,('K58','TD-0100'));pn=db.get(StockDoc,r.pn_doc_id)
+    assert r.status=='DA_NHAP' and pn.lines[0].unit_cost==0 and b.qty==10 and b.value==90000 and b.avg_cost==9000
+    assert kpi.compute(db,JAN)[p['technician'].id]['tho_san_xuat']==9
+
+
+def test_web_confirm_step_round_trip_without_materials(db,client,shop):
+    p,_,_,_=shop;r=create(db,shop);svc.start(db,p['technician'],r.id,r.version);csrf=service_login(client,p['technician'])
+    data={'csrf':csrf,'form_key':str(uuid.uuid4()),'version':r.version,'out_line_no':['1'],'out_good':['9'],'out_scrap':['1'],'line_no':['1','2','3'],'material_product':['TD-0101','TD-0102','TD-0103'],'qty_used':['0','0','0']}
+    response=client.post('/san-xuat/'+r.number+'/hoan-thanh',data=data)
+    assert response.status_code==400 and 'data-sx-confirm' in response.text and 'name="confirm_no_material"' in response.text and '9 tốt / 1 hỏng' in response.text
+    db.expire_all();assert db.get(ProductionOrder,r.id).status=='DANG_LAM'
+    response=client.post('/san-xuat/'+r.number+'/hoan-thanh',data={**data,'form_key':str(uuid.uuid4()),'confirm_no_material':'1','no_material_reason':'Chỉ vệ sinh, không thay gì'},follow_redirects=False)
+    assert response.status_code==303,response.text
+    db.expire_all();r=db.get(ProductionOrder,r.id)
+    assert r.status=='HOAN_THANH' and r.px_doc_id is None and r.qty_good==9 and r.no_material_reason=='Chỉ vệ sinh, không thay gì'
+    assert db.scalar(select(AuditLog.id).where(AuditLog.action=='production.complete'))
+
+
+def test_add_materials_before_receive_only(db,client,shop):
+    from app.schemas import ProductionMaterials
+    p,a,_,_=shop;r=create(db,shop);svc.start(db,p['technician'],r.id,r.version)
+    r=svc.complete(db,p['technician'],r.id,ProductionComplete(version=r.version,qty_good=9,qty_scrap=1,confirm_no_material=True,no_material_reason='Quên ghi'))
+    err('MATERIAL_REQUIRED',svc.add_materials,db,p['technician'],r.id,ProductionMaterials(version=r.version,lines=[dict(line_no=1,qty_used=0)]))
+    err('FORBIDDEN',svc.add_materials,db,p['other_tech'],r.id,ProductionMaterials(version=r.version,lines=[dict(line_no=1,qty_used=1)]))
+    err('NEGATIVE_STOCK',svc.add_materials,db,p['technician'],r.id,ProductionMaterials(version=r.version,lines=[dict(line_no=1,qty_used=5)]))
+    csrf=service_login(client,p['dispatcher'])
+    response=client.post('/san-xuat/'+r.number+'/bo-sung-vat-tu',data={'csrf':csrf,'form_key':str(uuid.uuid4()),'version':r.version,'line_no':['1','2','3'],'material_product':['TD-0101','TD-0102','TD-0103'],'qty_used':['0,5','1','4']},follow_redirects=False)
+    assert response.status_code==303,response.text
+    db.expire_all();r=db.get(ProductionOrder,r.id)
+    assert r.px_doc_id and r.material_cost==790000 and r.unit_cost==87778 and r.outputs[0].unit_cost==87778 and not svc.no_material(r) and r.status=='HOAN_THANH'
+    assert db.get(StockDoc,r.px_doc_id).source_kind=='SAN_XUAT' and db.scalar(select(AuditLog.id).where(AuditLog.action=='production.materials'))
+    err('BAD_STATUS',svc.add_materials,db,p['dispatcher'],r.id,ProductionMaterials(version=r.version,lines=[dict(line_no=1,qty_used=1)]))
+    assert 'data-sx-materials' not in client.get('/san-xuat/'+r.number).text
+    receive(db,shop,r)
+    err('BAD_STATUS',svc.add_materials,db,p['dispatcher'],r.id,ProductionMaterials(version=r.version,lines=[dict(line_no=1,qty_used=1)]))
+    response=client.post('/production-orders/'+r.number+'/bo-sung-vat-tu',json=dict(version=r.version,lines=[dict(line_no=1,qty_used=1)]),headers={'Authorization':'Bearer '+issue_token(p['dispatcher'])})
+    assert response.status_code==409
+
+
+def test_all_scrapped_without_materials_is_void_with_reason(db,shop):
+    p,_,_,_=shop;r=create(db,shop);svc.start(db,p['technician'],r.id,r.version);before=amounts(db)
+    r=svc.complete(db,p['technician'],r.id,ProductionComplete(version=r.version,qty_good=0,qty_scrap=10,void_reason='Hỏng hết',confirm_no_material=True,no_material_reason='Không dùng gì'))
+    assert r.status=='DA_HUY' and r.px_doc_id is None and r.material_cost==0 and amounts(db)==before
+
+
+def test_migration_0069_backfills_outputs_and_keeps_no_material_orders(db,engine,shop):
+    from alembic import command
+    from alembic.config import Config
+    p,_,_,_=shop;r=finish(db,shop);receive(db,shop,r)
+    x=create(db,shop);svc.start(db,p['technician'],x.id,x.version)
+    svc.complete(db,p['technician'],x.id,ProductionComplete(version=x.version,qty_good=2,qty_scrap=0,confirm_no_material=True,no_material_reason='Khách đưa vật tư'))
+    ids=(r.id,x.id);db.close()
+    cfg=Config('alembic.ini');cfg.attributes['database_url']=engine.url.render_as_string(hide_password=False)
+    command.downgrade(cfg,'0068')
+    try:
+        with engine.connect() as conn:
+            assert conn.execute(text('select id,status,px_doc_id from production_orders order by id')).all()==[(ids[0],'DA_NHAP',r.px_doc_id),(ids[1],'HOAN_THANH',None)]
+    finally:
+        command.upgrade(cfg,'head')
+    with engine.connect() as conn:
+        rows=conn.execute(text('select order_id,line_no,product_code,qty_plan,qty_good,qty_scrap,unit_cost from production_outputs order by order_id')).all()
+        assert rows==[(ids[0],1,'TD-0100',10,9,1,87778),(ids[1],1,'TD-0100',10,2,0,0)]
+        assert conn.scalar(text('select no_material_reason from production_orders where id=:i'),dict(i=ids[1]))=='Không rõ, phiếu trước SX2'

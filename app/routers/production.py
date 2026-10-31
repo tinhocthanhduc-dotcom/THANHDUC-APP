@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from .. import production as svc
 from ..db import get_session
 from ..models import User
-from ..schemas import ProductionIn, ProductionVersion, ProductionAssign, ProductionComplete, ProductionReceive, ProductionVoid
+from ..schemas import ProductionIn, ProductionVersion, ProductionAssign, ProductionComplete, ProductionMaterials, ProductionReceive, ProductionVoid
 from ..security import current_user
 
 router = APIRouter(prefix='/production-orders', tags=['Sản xuất'])
@@ -37,6 +37,11 @@ def start(number: str, body: ProductionVersion, user: User = Depends(current_use
 @router.post('/{number}/hoan-thanh')
 def complete(number: str, body: ProductionComplete, user: User = Depends(current_user), session: Session = Depends(get_session)):
     return svc.public(user, svc.complete(session, user, number, body))
+
+
+@router.post('/{number}/bo-sung-vat-tu')
+def add_materials(number: str, body: ProductionMaterials, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return svc.public(user, svc.add_materials(session, user, number, body))
 
 
 @router.post('/{number}/nhan-kho')

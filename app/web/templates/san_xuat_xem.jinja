@@ -3,16 +3,19 @@
 {% block title %}{{ r.number }} · Sản xuất{% endblock %}
 {% block main %}<div class="doc-detail sx-view" data-production="{{ r.number }}">
 {# SX1 · khung 2 cột: trái đọc (thành phẩm, vật tư, lịch sử), phải ô giá vốn (kho, kế toán, giám đốc) + Bước tiếp một nút chính. #}
-{% call ui.page_head(r.number, sub=kinds[r.kind] ~ ' · ' ~ product.name ~ ' · ' ~ r.qty_plan ~ ' cái · ' ~ (people.get(r.technician_id, 'chưa giao thợ')) ~ ' · về ' ~ r.to_warehouse_code, back='/san-xuat', badge_label=statuses[r.status], badge_tone=tone) %}{% endcall %}
+{% call ui.page_head(r.number, sub=kinds[r.kind] ~ ' · ' ~ label ~ ' · ' ~ r.qty_plan ~ ' cái · ' ~ (people.get(r.technician_id, 'chưa giao thợ')) ~ ' · về ' ~ r.to_warehouse_code, back='/san-xuat', badge_label=statuses[r.status], badge_tone=tone) %}{% if no_material %}{{ ui.badge('Không xuất vật tư', 'cho') }}{% endif %}{% endcall %}
 {% if r.status != 'DA_HUY' %}{{ ui.steps(steps) }}{% endif %}
 {% if request.query_params.get('da_luu') and not error %}{{ ui.toast('Đã lưu ' ~ r.number) }}{% endif %}
-{% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if error and not confirm %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if r.status == 'DA_HUY' %}<p class="alert warn">Đã hủy: {{ r.void_reason }}{% if r.px_doc_id %} · vật tư đã xuất vẫn trừ kho (chi phí không dùng tiền){% endif %}</p>{% endif %}
 <div class="doc-grid"><div class="doc-main">
-<section class="card doc-card" aria-label="Thành phẩm"><h2 class="doc-h">Thành phẩm</h2>
-<dl class="doc-kv"><dt>Mã hàng</dt><dd><b>{{ product.code }} · {{ product.name }}</b>{% if product.warranty_months %} · bảo hành {{ product.warranty_months }} tháng{% endif %}</dd>
-<dt>Định làm</dt><dd>{{ r.qty_plan }}</dd>
-<dt>Làm ra</dt><dd>{% if r.px_doc_id %}<b class="lt-ok">{{ r.qty_good }} tốt</b> · <span class="{{ 'lt-bad' if r.qty_scrap }}">{{ r.qty_scrap }} hỏng</span>{% else %}chưa ghi{% endif %}</dd>
+<section class="card doc-card" aria-label="Thành phẩm"><h2 class="doc-h">Thành phẩm{% if outputs|length > 1 %} · {{ outputs|length }} mã{% endif %}</h2>
+{% set done = r.finished_at is not none %}
+<div class="table-scroll"><table class="list-table sx-outputs"><thead><tr><th>Mã hàng</th><th class="num">Định</th><th class="num">Tốt</th><th class="num">Hỏng</th>{% if viewer %}<th class="num">Vốn 1 cái</th>{% endif %}</tr></thead><tbody>
+{% for o in outputs %}<tr><td><b>{{ o.name }}</b><span class="lt-sub">{{ o.code }}{% if o.warranty %} · bảo hành {{ o.warranty }} tháng{% endif %}</span></td><td class="num">{{ o.plan }}</td><td class="num">{% if done %}<b class="lt-ok">{{ o.good }}</b>{% else %}–{% endif %}</td><td class="num">{% if done %}<span class="{{ 'lt-bad' if o.scrap }}">{{ o.scrap }}</span>{% else %}–{% endif %}</td>{% if viewer %}<td class="num">{% if done and o.good %}{{ o.cost|money }}{% else %}–{% endif %}</td>{% endif %}</tr>{% endfor %}
+{% if outputs|length > 1 %}<tr><td><b>Cộng</b></td><td class="num"><b>{{ r.qty_plan }}</b></td><td class="num">{% if done %}<b>{{ r.qty_good }}</b>{% else %}–{% endif %}</td><td class="num">{% if done %}<b>{{ r.qty_scrap }}</b>{% else %}–{% endif %}</td>{% if viewer %}<td class="num">–</td>{% endif %}</tr>{% endif %}
+</tbody></table></div>
+<dl class="doc-kv">
 <dt>Thợ</dt><dd>{{ people.get(r.technician_id, 'Chưa giao') }}</dd>
 <dt>Vật tư từ</dt><dd>{{ r.from_warehouse_code or 'kho của thợ khi giao' }}</dd>
 <dt>Kho nhận</dt><dd>{{ r.to_warehouse_code }}</dd>
@@ -23,16 +26,19 @@
 {% if lines %}<div class="table-scroll"><table class="list-table"><thead><tr><th>Mã hàng</th><th class="num">Dự kiến</th><th class="num">Thật dùng</th>{% if viewer and r.px_doc_id %}<th class="num">Giá vốn</th>{% endif %}</tr></thead><tbody>
 {% for l in lines %}<tr><td><b>{{ l.name }}</b><span class="lt-sub">{{ l.code }}</span></td><td class="num">{{ l.plan|qty }}</td><td class="num">{% if r.px_doc_id %}<b>{{ l.used|qty }}</b>{% else %}–{% endif %}</td>{% if viewer and r.px_doc_id %}<td class="num">{{ (l.cost or 0)|money }}</td>{% endif %}</tr>{% endfor %}
 </tbody></table></div>{% else %}<p class="hint">Chưa có vật tư; thợ ghi lúc Hoàn thành.</p>{% endif %}
-{% if not r.px_doc_id %}<p class="hint">Thật dùng điền khi thợ Hoàn thành; khác dự kiến vẫn được, kho ghi theo số thật.</p>{% endif %}
+{% if no_material %}<p class="alert warn" data-no-material><b>Không xuất vật tư.</b> Lý do thợ ghi: {{ r.no_material_reason }}{% if can.materials %} · Có vật tư thật thì bấm <b>Bổ sung vật tư</b> ở cột phải trước khi nhận kho.{% endif %}</p>
+{% elif not r.px_doc_id %}<p class="hint">Thật dùng điền khi thợ Hoàn thành; khác dự kiến vẫn được, kho ghi theo số thật.</p>{% endif %}
 </section>
 <details class="card doc-card"><summary>Lịch sử · {{ history|length }} bước</summary><ol class="sx-history">{% for h in history %}<li><span class="lt-sub">{{ h.at|service_time }}</span> {{ h.who }} · {{ h.label }}</li>{% endfor %}</ol></details>
 </div>
 <aside class="doc-side">
 {% if viewer %}<section class="card doc-card money-box" aria-label="Giá vốn"><h2 class="doc-h">Giá vốn · kho, kế toán, giám đốc xem</h2>
-<dl class="doc-kv"><dt>Vật tư đã dùng</dt><dd>{% if r.px_doc_id %}{{ row.material_cost|money }} đồng{% else %}–{% endif %}</dd>
-<dt>Thành phẩm tốt</dt><dd>{% if r.px_doc_id %}{{ r.qty_good }}{% else %}–{% endif %}</dd>
+<dl class="doc-kv"><dt>Vật tư đã dùng</dt><dd>{% if r.px_doc_id %}{{ row.material_cost|money }} đồng{% elif no_material %}<b>0 đ</b> · không xuất{% else %}–{% endif %}</dd>
+<dt>Thành phẩm tốt</dt><dd>{% if done %}{{ r.qty_good }}{% else %}–{% endif %}</dd>
 <dt>Hỏng · chi phí không dùng tiền</dt><dd>{% if r.px_doc_id and r.qty_scrap %}{{ r.qty_scrap }} × {{ row.unit_cost|money }}{% else %}–{% endif %}</dd>
-<dt><b>Giá vốn 1 cái</b></dt><dd><b class="sx-unit">{% if r.px_doc_id and r.qty_good %}{{ row.unit_cost|money }} đồng{% else %}–{% endif %}</b></dd></dl>
+<dt><b>Giá vốn 1 cái</b></dt><dd><b class="sx-unit">{% if done and r.qty_good %}{{ row.unit_cost|money }} đồng{% if outputs|length > 1 %} <small>bình quân</small>{% endif %}{% else %}–{% endif %}</b></dd></dl>
+{% if outputs|length > 1 and done %}<p class="hint">Chia cho từng mã theo tỷ lệ giá bán × số cái (mã chưa có giá bán: chia đều theo cái); xem cột Vốn 1 cái ở bảng Thành phẩm.</p>{% endif %}
+{% if no_material %}<p class="hint">Nhập kho giá 0 sẽ kéo giá bình quân mã hàng ở {{ r.to_warehouse_code }} xuống.{% if can.materials %} Nếu không đúng, bổ sung vật tư trước.{% endif %}</p>{% endif %}
 <p class="hint">Công thợ không vào giá vốn; tính hoa hồng theo thành phẩm tốt khi chốt tháng.</p>
 {% if docs %}<p class="sx-docs">{% if r.px_doc_id %}<a href="/phieu-kho/{{ r.px_doc_id }}">Phiếu xuất {{ docs[r.px_doc_id] }}</a>{% endif %}{% if r.pn_doc_id %} · <a href="/phieu-kho/{{ r.pn_doc_id }}">Phiếu nhập {{ docs[r.pn_doc_id] }}</a>{% endif %}</p>{% endif %}
 </section>{% endif %}
@@ -40,26 +46,48 @@
 {% if can.assign %}<form method="post" action="/san-xuat/{{ r.number }}/giao" class="form sx-act" data-busy>{{ hidden() }}<div class="field-group"><p class="group-label">Thợ làm</p><div class="seg stock-seg">{% for t in technicians %}<label><input type="radio" name="technician_id" value="{{ t.id }}" {% if r.technician_id == t.id %}checked{% endif %} required><span>{{ t.full_name }}</span></label>{% endfor %}</div></div><button class="btn btn-info">{{ 'Đổi thợ' if r.technician_id else 'Giao thợ' }}</button></form>{% endif %}
 {% if can.start %}<form method="post" action="/san-xuat/{{ r.number }}/bat-dau" class="form sx-act" data-busy>{{ hidden() }}<button class="btn btn-ok sx-primary">Bắt đầu làm</button></form>{% endif %}
 {% endcall %}{% endif %}
-{% if can.complete %}{% call ui.next_box(people.get(r.technician_id, 'thợ'), 'Ghi vật tư thật dùng, số tốt / hỏng rồi Hoàn thành') %}
-<form method="post" action="/san-xuat/{{ r.number }}/hoan-thanh" class="form sx-act" data-busy data-item-picker data-sx-complete>{{ hidden() }}
-<div class="sx-goodbad"><label>Tốt<input name="qty_good" value="{{ d.get('qty_good', r.qty_plan) }}" inputmode="numeric" min="0" max="{{ r.qty_plan }}" required data-sx-good></label><label>Hỏng<input name="qty_scrap" value="{{ d.get('qty_scrap', 0) }}" inputmode="numeric" min="0" max="{{ r.qty_plan }}" required></label></div>
-<p class="group-label">Vật tư thật dùng · kho {{ r.from_warehouse_code }}</p>
-{% for l in lines %}<div class="sx-row" data-pick-row><input type="hidden" name="line_no" value="{{ l.line_no }}"><input type="hidden" name="material_product" value="{{ l.code }}"><span class="sx-row-main"><b>{{ l.name }}</b><small>{{ l.code }} · dự kiến {{ l.plan|qty }} · tồn {{ l.held|qty }}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ l.name }}">−</button><input name="qty_used" value="{{ (d.getlist('qty_used')[loop.index0] if d.getlist and d.getlist('qty_used')|length > loop.index0 else l.plan|qty) }}" inputmode="decimal" min="0" max="{{ l.held|qty|replace(',', '.') }}" aria-label="Thật dùng {{ l.name }}"><button type="button" data-step="1" aria-label="Thêm {{ l.name }}">+</button></span></div>{% endfor %}
-{% for p in products if p.code not in lines|map(attribute='code')|list %}<div class="sx-row" data-pick-row data-pick-extra hidden data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }} · tồn {{ held.get(p.code, 0)|qty }}"><input type="hidden" name="line_no" value=""><input type="hidden" name="material_product" value="{{ p.code }}"><span class="sx-row-main"><b>{{ p.name }}</b><small>{{ p.code }} · tồn {{ held.get(p.code, 0)|qty }}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ p.name }}">−</button><input name="qty_used" value="1" inputmode="decimal" min="0" max="{{ held.get(p.code, 0)|qty|replace(',', '.') }}" aria-label="Thật dùng {{ p.name }}"><button type="button" data-step="1" aria-label="Thêm {{ p.name }}">+</button></span><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></div>{% endfor %}
+{% macro material_rows() %}
+{% for l in lines %}<div class="sx-row" data-pick-row><input type="hidden" name="line_no" value="{{ l.line_no }}"><input type="hidden" name="material_product" value="{{ l.code }}"><span class="sx-row-main"><b>{{ l.name }}</b><small>{{ l.code }} · dự kiến {{ l.plan|qty }} · tồn {{ l.held|qty }}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ l.name }}">−</button><input name="qty_used" value="{{ (d.getlist('qty_used')[loop.index0] if d.getlist and d.getlist('qty_used')|length > loop.index0 else l.plan|qty) }}" inputmode="decimal" min="0" max="{{ l.held|qty|replace(',', '.') }}" aria-label="Thật dùng {{ l.name }}" data-sx-used><button type="button" data-step="1" aria-label="Thêm {{ l.name }}">+</button></span></div>{% endfor %}
+{% for p in products if p.code not in lines|map(attribute='code')|list %}<div class="sx-row" data-pick-row data-pick-extra hidden data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }} · tồn {{ held.get(p.code, 0)|qty }}"><input type="hidden" name="line_no" value=""><input type="hidden" name="material_product" value="{{ p.code }}"><span class="sx-row-main"><b>{{ p.name }}</b><small>{{ p.code }} · tồn {{ held.get(p.code, 0)|qty }}</small></span><span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ p.name }}">−</button><input name="qty_used" value="1" inputmode="decimal" min="0" max="{{ held.get(p.code, 0)|qty|replace(',', '.') }}" aria-label="Thật dùng {{ p.name }}" data-sx-used><button type="button" data-step="1" aria-label="Thêm {{ p.name }}">+</button></span><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></div>{% endfor %}
 {{ ui.item_picker('Thêm vật tư khác') }}
+{% endmacro %}
+{% if can.complete and confirm %}{% call ui.next_box(people.get(r.technician_id, 'thợ'), 'Chưa ghi vật tư nào · xác nhận hoàn thành không vật tư?') %}
+{# SX2 · bước cảnh báo: form đầu gửi lên không có vật tư, server trả về màn này; gửi lại kèm xác nhận + lý do. #}
+<form method="post" action="/san-xuat/{{ r.number }}/hoan-thanh" class="form sx-act" data-busy data-sx-confirm>{{ hidden() }}<input type="hidden" name="confirm_no_material" value="1">
+{% for n, g, x in confirm_rows %}<input type="hidden" name="out_line_no" value="{{ n }}"><input type="hidden" name="out_good" value="{{ g }}"><input type="hidden" name="out_scrap" value="{{ x }}">{% endfor %}
+<input type="hidden" name="void_reason" value="{{ d.get('void_reason', '') }}">
+<p class="alert warn" data-no-material-warn><b>Chưa ghi vật tư nào.</b> Phiếu sẽ đóng với <b>{{ confirm_good }} tốt / {{ confirm_scrap }} hỏng</b> mà <b>không lập phiếu xuất</b>, kho {{ r.from_warehouse_code }} không đổi. Thành phẩm nhập kho với giá vốn vật tư <b>0 đ</b>.</p>
+<p class="hint">Nếu có dùng mực, chip, vỏ… hãy quay lại ghi để kho trừ đúng.</p>
+<label>Vì sao không có vật tư? · bắt buộc<textarea name="no_material_reason" maxlength="2000" required minlength="3" placeholder="Ví dụ: vật tư khách đưa · đã xuất ở phiếu khác · chỉ vệ sinh, không thay gì">{{ d.get('no_material_reason', '') }}</textarea></label>
+<a class="btn btn-ghost" href="/san-xuat/{{ r.number }}">← Quay lại ghi vật tư</a>
+<button class="btn btn-warn sx-primary">Xác nhận hoàn thành không vật tư</button></form>
+{% endcall %}{% elif can.complete %}{% call ui.next_box(people.get(r.technician_id, 'thợ'), 'Ghi số tốt / hỏng từng thành phẩm, vật tư thật dùng rồi Hoàn thành') %}
+<form method="post" action="/san-xuat/{{ r.number }}/hoan-thanh" class="form sx-act" data-busy data-item-picker data-sx-complete>{{ hidden() }}
+<p class="group-label">Làm ra</p>
+{% set dg = d.getlist('out_good') if d.getlist else [] %}{% set dx = d.getlist('out_scrap') if d.getlist else [] %}
+{% for o in outputs %}<div class="sx-row sx-out"><input type="hidden" name="out_line_no" value="{{ o.line_no }}"><span class="sx-row-main"><b>{{ o.name }}</b><small>{{ o.code }} · định {{ o.plan }}</small></span><span class="sx-goodbad sx-gb"><label>Tốt<span class="stepper"><button type="button" data-step="-1" aria-label="Bớt tốt {{ o.name }}">−</button><input name="out_good" value="{{ dg[loop.index0] if dg|length > loop.index0 else o.plan }}" inputmode="numeric" min="0" max="{{ o.plan }}" required data-sx-good><button type="button" data-step="1" aria-label="Thêm tốt {{ o.name }}">+</button></span></label><label>Hỏng<span class="stepper"><button type="button" data-step="-1" aria-label="Bớt hỏng {{ o.name }}">−</button><input name="out_scrap" value="{{ dx[loop.index0] if dx|length > loop.index0 else 0 }}" inputmode="numeric" min="0" max="{{ o.plan }}" required><button type="button" data-step="1" aria-label="Thêm hỏng {{ o.name }}">+</button></span></label></span></div>{% endfor %}
+<p class="group-label">Vật tư thật dùng · kho {{ r.from_warehouse_code }}</p>
+{{ material_rows() }}
 <label data-sx-void hidden>Lý do hỏng hết<textarea name="void_reason" maxlength="2000">{{ d.get('void_reason', '') }}</textarea></label>
-<p class="hint">Thiếu tồn ở kho của bạn thì kho chặn, hãy gửi Yêu cầu linh kiện rồi làm tiếp.{% if is_tech %} Tháng này bạn đã làm <b>{{ month_good }}</b> thành phẩm.{% endif %}</p>
-<button class="btn btn-ok sx-primary">Hoàn thành · xuất vật tư</button></form>
+<p class="hint">Thiếu tồn ở kho của bạn thì kho chặn, hãy gửi Yêu cầu linh kiện rồi làm tiếp. Mọi dòng vật tư để 0 thì sang bước xác nhận không vật tư.{% if is_tech %} Tháng này bạn đã làm <b>{{ month_good }}</b> thành phẩm.{% endif %}</p>
+<button class="btn btn-ok sx-primary" data-sx-submit data-with="Hoàn thành · xuất vật tư" data-without="Hoàn thành · không vật tư">Hoàn thành · xuất vật tư</button></form>
 {% endcall %}{% endif %}
-{% if can.receive %}{% call ui.next_box('thủ kho ' ~ r.to_warehouse_code, 'Kiểm ' ~ r.qty_good ~ ' ' ~ product.name ~ ' rồi nhận vào ' ~ r.to_warehouse_code) %}
+{% if can.materials %}<details class="card doc-card" data-sx-materials{% if error_code in ['MATERIAL_REQUIRED', 'NEGATIVE_STOCK', 'BAD_MATERIAL'] and d.get('out_line_no') is none %} open{% endif %}><summary>Bổ sung vật tư · lập phiếu xuất và tính lại giá vốn</summary>
+<form method="post" action="/san-xuat/{{ r.number }}/bo-sung-vat-tu" class="form sx-act" data-busy data-item-picker>{{ hidden() }}
+<p class="group-label">Vật tư thật dùng · kho {{ r.from_warehouse_code }}</p>
+{{ material_rows() }}
+<p class="hint">Chỉ làm được trước khi thủ kho nhận vào kho; sau đó giá vốn chốt.</p>
+<button class="btn btn-ok sx-primary">Bổ sung vật tư · xuất kho</button></form></details>{% endif %}
+{% if can.receive %}{% call ui.next_box('thủ kho ' ~ r.to_warehouse_code, 'Kiểm ' ~ r.qty_good ~ ' ' ~ label ~ ' rồi nhận vào ' ~ r.to_warehouse_code) %}
 <form method="post" action="/san-xuat/{{ r.number }}/nhan-kho" class="form sx-act" data-busy>{{ hidden() }}
-<label>Số thật nhận<span class="stepper"><button type="button" data-step="-1" aria-label="Bớt 1">−</button><input name="qty_received" value="{{ d.get('qty_received', r.qty_good) }}" inputmode="numeric" min="1" max="{{ r.qty_good }}" required><button type="button" data-step="1" aria-label="Thêm 1">+</button></span></label>
-{% if product.warranty_months %}<label>Serial · {{ r.qty_good }} máy, mỗi dòng một serial (dán danh sách được)<textarea name="serials" rows="{{ [r.qty_good, 6]|min }}" required>{{ d.get('serials', '') }}</textarea></label>{% endif %}
-<label>Ghi chú{% if true %} · bắt buộc khi nhận thiếu{% endif %}<input name="note" value="{{ d.get('note', '') }}" maxlength="2000" placeholder="Ví dụ: 1 hộp rò mực, loại ra"></label>
-<p class="hint">Nhận ít hơn {{ r.qty_good }} thì phần chênh ghi Hỏng; giá vốn chia cho số thật nhận.</p>
+{% set dr = d.getlist('out_received') if d.getlist else [] %}
+{% for o in outputs %}<div class="sx-row sx-out sx-recv"><input type="hidden" name="out_line_no" value="{{ o.line_no }}"><span class="sx-row-main"><b>{{ o.name }}</b><small>{{ o.code }} · tốt {{ o.good }}{% if viewer and o.good %} · vốn 1 cái {{ o.cost|money }}{% endif %}{% if o.warranty %} · bảo hành {{ o.warranty }} tháng{% endif %}</small></span><label class="sx-gb">Thật nhận<span class="stepper"><button type="button" data-step="-1" aria-label="Bớt {{ o.name }}">−</button><input name="out_received" value="{{ dr[loop.index0] if dr|length > loop.index0 else o.good }}" inputmode="numeric" min="0" max="{{ o.good }}" required><button type="button" data-step="1" aria-label="Thêm {{ o.name }}">+</button></span></label>
+{% if o.warranty and o.good %}<label class="sx-serials">Serial · {{ o.good }} máy, mỗi dòng một serial (dán danh sách được)<textarea name="out_serials_{{ o.line_no }}" rows="{{ [o.good, 6]|min }}" required>{{ d.get('out_serials_' ~ o.line_no, '') }}</textarea></label>{% endif %}</div>{% endfor %}
+<label>Ghi chú · bắt buộc khi nhận thiếu<input name="note" value="{{ d.get('note', '') }}" maxlength="2000" placeholder="Ví dụ: 1 hộp rò mực, loại ra"></label>
+<p class="hint">Nhận ít hơn thì phần chênh ghi Hỏng; giá vốn chia theo số thật nhận{% if outputs|length > 1 %} và tỷ lệ giá bán từng mã{% endif %}.{% if no_material %} Phiếu này không xuất vật tư: nhập kho giá 0.{% endif %}</p>
 <button class="btn btn-ok sx-primary">Nhận vào kho {{ r.to_warehouse_code }}</button></form>
 {% endcall %}{% endif %}
-{% if r.status == 'DA_NHAP' %}{% call ui.next_box('xong', 'Đã nhập ' ~ r.qty_good ~ ' ' ~ product.name ~ ' vào ' ~ r.to_warehouse_code) %}<p class="hint">{{ people.get(r.technician_id, 'Thợ') }} được cộng {{ r.qty_good }} thành phẩm vào KPI và hoa hồng tháng {{ r.received_at.astimezone(tz).strftime('%m/%Y') if tz else '' }}.</p>{% endcall %}{% endif %}
+{% if r.status == 'DA_NHAP' %}{% call ui.next_box('xong', 'Đã nhập ' ~ r.qty_good ~ ' ' ~ label ~ ' vào ' ~ r.to_warehouse_code) %}<p class="hint">{{ people.get(r.technician_id, 'Thợ') }} được cộng {{ r.qty_good }} thành phẩm vào KPI và hoa hồng tháng {{ r.received_at.astimezone(tz).strftime('%m/%Y') if tz else '' }}.</p>{% endcall %}{% endif %}
 {% if can.void %}<details class="card po-danger"{% if error_code == 'REASON_REQUIRED' and d.get('reason') is not none %} open{% endif %}><summary>Hủy phiếu</summary><form method="post" action="/san-xuat/{{ r.number }}/huy" class="form" data-busy>{{ hidden() }}<label>Lý do hủy<input name="reason" value="{{ d.get('reason', '') }}" required minlength="3" maxlength="2000"></label><p class="hint">Chưa xuất vật tư nên hủy không đổi tồn kho.</p><button class="btn btn-danger">Hủy phiếu</button></form></details>{% endif %}
 </aside></div></div>
 <script src="{{ asset('production.js') }}" defer></script>

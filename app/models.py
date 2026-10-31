@@ -1732,7 +1732,7 @@ class ProductionOrder(Base):
         CheckConstraint("status in ('MOI','DANG_LAM','HOAN_THANH','DA_NHAP','DA_HUY')", name='ck_production_status'),
         CheckConstraint('qty_plan>0 and qty_good>=0 and qty_scrap>=0 and qty_good+qty_scrap<=qty_plan', name='ck_production_qty'),
         CheckConstraint('material_cost>=0 and unit_cost>=0', name='ck_production_cost'),
-        CheckConstraint("status not in ('HOAN_THANH','DA_NHAP') or px_doc_id is not null", name='ck_production_px'),
+        CheckConstraint("status not in ('HOAN_THANH','DA_NHAP') or px_doc_id is not null or length(trim(no_material_reason))>0", name='ck_production_px'),
         CheckConstraint("status<>'DA_NHAP' or pn_doc_id is not null", name='ck_production_pn'),
         CheckConstraint("status<>'DA_HUY' or length(trim(void_reason))>0", name='ck_production_void'),
         Index('ix_production_technician_status', 'technician_id', 'status'),
@@ -1760,9 +1760,13 @@ class ProductionOrder(Base):
     received_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     void_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    # SX2: thợ hoàn thành không xuất vật tư thì ghi lý do; px_doc_id trống, giá vốn 0.
+    no_material_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     __mapper_args__ = {'version_id_col': version}
     lines: Mapped[list['ProductionOrderLine']] = relationship(order_by='ProductionOrderLine.line_no', cascade='all, delete-orphan')
+    # SX2: nhiều thành phẩm; product_code/qty_* trên phiếu = mã đầu tiên và tổng các dòng.
+    outputs: Mapped[list['ProductionOutput']] = relationship(order_by='ProductionOutput.line_no', cascade='all, delete-orphan')
 
 
 class ProductionOrderLine(Base):
@@ -1774,6 +1778,19 @@ class ProductionOrderLine(Base):
     qty_plan: Mapped[Decimal] = mapped_column(Numeric(14,3), default=0, server_default='0')
     qty_used: Mapped[Decimal] = mapped_column(Numeric(14,3), default=0, server_default='0')
     note: Mapped[str] = mapped_column(Text, default='', server_default='')
+
+
+class ProductionOutput(Base):
+    __tablename__ = 'production_outputs'
+    __table_args__ = (CheckConstraint('qty_plan>0 and qty_good>=0 and qty_scrap>=0 and qty_good+qty_scrap<=qty_plan and unit_cost>=0', name='ck_production_output_qty'),
+                      UniqueConstraint('order_id', 'product_code', name='uq_production_output_product'))
+    order_id: Mapped[int] = mapped_column(ForeignKey('production_orders.id'), primary_key=True)
+    line_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_code: Mapped[str] = mapped_column(ForeignKey('products.code'))
+    qty_plan: Mapped[int] = mapped_column(Integer)
+    qty_good: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    qty_scrap: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    unit_cost: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
 
 
 class CommissionRule(Base):

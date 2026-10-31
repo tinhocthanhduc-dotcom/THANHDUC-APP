@@ -27,7 +27,7 @@ KEEP = {
     "customer_contacts", "customer_sites", "equipment", "push_keys", "push_subscriptions", "audit_log",
 }
 WIPE = {
-    "production_orders", "production_order_lines",
+    "production_orders", "production_order_lines", "production_outputs",
     "notification_reads", "salary_advances", "payroll_lines", "payroll_months", "payroll_inputs",
     "commission_lines", "commission_months", "attendance_punches", "attendance_requests",
     "attendance_month_locks", "pending_item_moves", "pending_dispositions", "pending_items",
