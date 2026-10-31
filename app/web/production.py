@@ -115,12 +115,13 @@ def listing(request: Request, q: str = '', status: str = '', loai: str = '', tho
 
 
 def _form_context(session, user, d, lines, error='', code='', status=200):
-    own = None
+    own, held = None, {}
     if svc._tech_only(user):
         from .. import technician_stock
         own = technician_stock.own_warehouse(session, user)
+        if own: held = {b.product_code: b.qty for b in session.scalars(select(StockBalance).where(StockBalance.warehouse_code == own.code, StockBalance.qty > 0))}
     return dict(d=d, lines=lines, error=error, error_code=code, status=status, kinds=svc.KINDS, products=_products(session),
-                technicians=_technicians(session), warehouses=_warehouses(session), tech_only=svc._tech_only(user), own=own)
+                technicians=_technicians(session), warehouses=_warehouses(session), tech_only=svc._tech_only(user), own=own, held=held)
 
 
 def _qty(raw):
