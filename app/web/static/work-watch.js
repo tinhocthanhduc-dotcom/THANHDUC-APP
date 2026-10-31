@@ -4,7 +4,7 @@
   var box = document.querySelector('[data-watch]');
   if (!box || !window.fetch) return;
   var url = box.dataset.watch, stamp = box.dataset.stamp, EVERY = 15000, IDLE = 3000, KEY = 'td-watch-scroll';
-  var lastTouch = Date.now(), changed = false, banner = null, busy = false;
+  var lastTouch = Date.now(), changed = false, banner = null, busy = false, dau = null, polls = 0;
   ['pointerdown', 'keydown', 'input', 'scroll'].forEach(function (name) {
     document.addEventListener(name, function () { lastTouch = Date.now(); }, { passive: true, capture: true });
   });
@@ -44,10 +44,14 @@
     if (busy || document.visibilityState !== 'visible') return;
     if (changed) { if (idle()) reload(); return; }
     busy = true;
-    fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+    // TD2: gửi lại dấu lần trước; máy chủ trả "không đổi" nếu chưa ai ghi gì. Mỗi phút một lần hỏi đầy đủ.
+    polls = (polls + 1) % 4;
+    var ask = dau && polls ? url + (url.indexOf('?') < 0 ? '?' : '&') + 'dau=' + encodeURIComponent(dau) : url;
+    fetch(ask, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
       .then(function (r) { return r.ok && /json/.test(r.headers.get('content-type') || '') ? r.json() : null; })
       .then(function (data) {
-        if (!data || !data.stamp || data.stamp === stamp) return;
+        if (data && data.dau) dau = data.dau;
+        if (!data || data.same || !data.stamp || data.stamp === stamp) return;
         changed = true; show();
         if (idle()) reload();
       })
