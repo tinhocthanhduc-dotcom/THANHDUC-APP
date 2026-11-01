@@ -1,5 +1,6 @@
 """Thông báo theo vị trí: chỉ SELECT từ hàng việc có sẵn, không bảng mới, không ghi."""
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from sqlalchemy import or_, select
 
@@ -56,6 +57,18 @@ def items(session, user):
     for row in session.scalars(select(AttendanceRequest).where(AttendanceRequest.user_id == user.id, AttendanceRequest.status.in_(tuple(REQUEST)),
                                                                AttendanceRequest.decided_at >= since)):
         out.append(_item('attendance_' + row.status.lower(), row.id, REQUEST[row.status], row.number, '/cham-cong', info=True))
+    # Trợ lý AI: nhắc việc gửi tới mình (giữ 1 ngày), đề xuất nhập hàng giám đốc đã duyệt (cho thủ kho).
+    from . import ai_agent
+    for row in ai_agent.reminders_for(session, user, my_work._now() - timedelta(days=1)):
+        if row.kind == 'NHAC_VIEC':
+            link = '/viec-cua-toi'
+            if row.ticket_id:
+                pure = 'technician' in user.roles and 'director' not in user.roles
+                link = f'/tho/phieu/{row.ticket_id}' if pure else f'/dich-vu/{row.ticket_id}'
+            out.append(_item('ai_remind', row.id, 'Nhắc từ Trợ lý AI', row.title, link, info=True))
+        else:
+            out.append(_item('ai_restock', row.id, 'Giám đốc duyệt nhập thêm hàng', row.title,
+                             '/ton-kho?' + urlencode({'canh-bao': '1', 'q': row.payload.get('product_code', '')}), info=True))
     return out
 
 

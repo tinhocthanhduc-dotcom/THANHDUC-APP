@@ -3316,3 +3316,27 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .device-report-new > summary::-webkit-details-marker { display: none; }
 .device-report-new[open] > summary { margin-bottom: 10px; }
 .device-report-new textarea { font-size: 16px; min-height: 80px; }
+/* Trợ lý AI (TUẤN 01/11/2026): biểu tượng cùng kiểu chuông; số chờ duyệt màu vàng để khác số đỏ của chuông. */
+.ai-badge { background: #f59e0b; color: #1f1300; }
+.ai-notify .notify-panel { gap: 8px; }
+.ai-pop-item { display: grid; gap: 4px; padding: 10px; border-radius: 10px; background: var(--tag); }
+.ai-pop-item small { color: var(--muted); }
+.ai-pop-kind { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); font-size: 11px; font-weight: 800; vertical-align: 2px; }
+.ai-pop-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.ai-pop-actions .btn { min-height: 40px; padding: 6px 14px; }
+.ai-open { width: 100%; }
+.ai-keybox, .ai-newkey { display: grid; gap: 10px; margin-bottom: 12px; }
+.ai-keyhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-keybox .ph-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-keyrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-keyrow code { flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 10px; border-radius: 8px; background: var(--tag); font-size: 14px; user-select: all; }
+.ai-list { display: grid; gap: 10px; padding: 12px; }
+.ai-item { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.ai-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-why { font-size: .92rem; padding: 8px 10px; border-radius: 8px; background: var(--tag); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.ai-reject[open] { flex-basis: 100%; }
+.ai-reject summary { list-style: none; }
+.ai-reject summary::-webkit-details-marker { display: none; }
+.ai-reject form { display: grid; gap: 8px; margin-top: 8px; }
+.ai-reject input { font-size: 16px; }

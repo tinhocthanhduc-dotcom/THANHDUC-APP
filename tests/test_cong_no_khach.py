@@ -9,6 +9,7 @@ from app.schemas import CustomerPatch, SalesReceiptReport
 from test_lg3_credit_limit import confirmed, paid
 from test_stock_reservations import people, purchase_people
 from test_web import service_login
+from app.web.lists import _today as _vn_today  # ngày VN: sau 17:00 UTC date.today() lệch một ngày
 
 PAGE = '/cong-no-khach-hang'
 
@@ -105,8 +106,7 @@ def test_empty_state_and_only_finance_or_director(client, db, people):
 def test_last_receipts_picks_latest_confirmed_only(db, people, configured_finance):
     p = people
     o1, _ = setup(db, p)
-    from app.web.lists import _today as vn_today  # ngày theo giờ VN; date.today() lệch sau 17:00 UTC
-    assert finance_reports.last_receipts(db, p['finance']) == {'KTD-000001': (vn_today(), 30)}
+    assert finance_reports.last_receipts(db, p['finance']) == {'KTD-000001': (_vn_today(), 30)}
     confirmed_rows = db.scalars(select(SalesReceipt).where(SalesReceipt.status == 'DA_XAC_NHAN')).all()
     assert len(confirmed_rows) == 1
 
