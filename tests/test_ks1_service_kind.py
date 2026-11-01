@@ -1,7 +1,7 @@
 """KS1: optional intake classification, completion guard and unchanged posting rules."""
 import re
 import importlib.util
-from datetime import timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -209,10 +209,11 @@ def test_commission_uses_selected_kind_or_general_rule_for_legacy_null(db,unclas
     if kind is None:
         # Defensive legacy data: a NULL kind must still match the general rule.
         t.kind=None;db.commit()
-    month=NOW.date().replace(day=1)
+    # Tháng hoa hồng theo ngày tạo phiếu thật (giờ VN), không theo NOW cố định.
+    month=t.created_at.astimezone(commissions.TZ).date().replace(day=1)
     from app.config import get_settings
     monkeypatch.setattr(get_settings(),'commission_start',month)
-    monkeypatch.setattr(commissions,'_now',lambda:NOW+timedelta(days=40))
+    monkeypatch.setattr(commissions,'_now',lambda:datetime.combine(month,time(),UTC)+timedelta(days=40))
     rows=[r for r in commissions.draft(db,month) if r['ticket_id']==t.id]
     assert len(rows)==1
     assert (rows[0]['rule_id'],rows[0]['amount'])==((specific.id,30000) if kind else (general.id,10000))

@@ -12,6 +12,7 @@ from app import (attachments, finance_mappings, purchase_orders, purchase_receip
 from app.errors import BusinessError
 from app.models import AuditLog, Customer, FundLedger, StockLedger, Supplier
 from app.schemas import PurchaseOrderIn, SalesOrderIn, SalesReceiptReport, ServiceCharges, ServiceTicketIn
+from app.web.lists import _today as vn_today
 from test_purchase_orders import purchase_people, DAY
 from test_supplier_debts import m3_people
 
@@ -23,6 +24,11 @@ def report_people(db,m3_people,monkeypatch):
     db.add(Customer(code='KTD-000001',name='Khách Thành Đức'))
     db.commit()
     return p
+
+
+def margin(db,p):
+    # Giao hàng ghi giờ thật, svc._today bị cố định ở DAY: lấy khoảng phủ cả hai.
+    return svc.gross_margin(db,p['finance'],DAY.replace(day=1),max(DAY,vn_today()))
 
 
 def received(db,p,qty=1,cost=100000,day=DAY,supplier='NCC-0001',vat=8,product='TD-0001',warehouse='K58'):
@@ -249,7 +255,7 @@ def test_margin_product_costs_do_not_multiply_when_one_px_has_two_products(db,re
     order=sold(db,p,[dict(kind='HANG',product_code='TD-0001',warehouse_code='K58',qty=2,unit_price=350000,vat_rate=10),
         dict(kind='HANG',product_code='TD-0002',warehouse_code='K58',qty=1,unit_price=900000,vat_rate=8)])
     assert order.lines[0].stock_doc_id==order.lines[1].stock_doc_id
-    result=svc.gross_margin(db,p['finance'])
+    result=margin(db,p)
     assert result['totals']==dict(documents=1,revenue=1600000,cost=600000,profit=1000000,rate=Decimal('62.5'))
     products={r['product_code']:r for r in result['products']}
     assert (products['TD-0001']['revenue'],products['TD-0001']['cost'])==(700000,200000)
@@ -264,6 +270,6 @@ def test_money_sums_remain_exact_above_javascript_integer_precision(db,report_pe
         sold(db,p,[dict(kind='KHAC',description='Dòng tự do',qty=1,unit_price=huge,vat_rate=0)])
     assert svc.purchase_totals(db,p['finance'])['net_total']==huge*2
     assert svc.purchases_by_product(db,p['finance'])[0]['avg_cost']==huge
-    result=svc.gross_margin(db,p['finance'])
+    result=margin(db,p)
     assert result['totals']==dict(documents=2,revenue=huge*2,cost=0,profit=huge*2,rate=Decimal('100.0'))
     assert result['products']==[]
