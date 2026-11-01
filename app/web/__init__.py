@@ -941,3 +941,6 @@ router.include_router(production_router)
 
 from .dang_web import router as dang_web_router
 router.include_router(dang_web_router)
+
+from .ai import router as ai_router
+router.include_router(ai_router)

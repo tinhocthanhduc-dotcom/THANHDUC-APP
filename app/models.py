@@ -1981,3 +1981,40 @@ class NotificationRead(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
     item_id: Mapped[str] = mapped_column(Text)
     read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AiKey(Base):
+    """Khóa riêng cho từng AI trên máy chủ. Chỉ lưu mã băm; mỗi AI một khóa còn hiệu lực, phạm vi riêng."""
+    __tablename__ = 'ai_keys'
+    __table_args__ = (Index('uq_ai_keys_active', 'agent', unique=True, postgresql_where=text('revoked_at is null')),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent: Mapped[str] = mapped_column(String(16))
+    scopes: Mapped[list[str]] = mapped_column(ARRAY(String(16)), default=list, server_default='{}')
+    prefix: Mapped[str] = mapped_column(String(16))
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AiAction(Base):
+    """Việc Trợ lý AI đã làm (nhắc, ghi chú, báo cáo) hoặc đề xuất chờ giám đốc duyệt."""
+    __tablename__ = 'ai_actions'
+    __table_args__ = (Index('ix_ai_actions_status', 'status', 'id'),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(12))
+    title: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    target_user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), index=True)
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
+    key_id: Mapped[int] = mapped_column(ForeignKey('ai_keys.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result: Mapped[str] = mapped_column(Text, default='', server_default='')
