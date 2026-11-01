@@ -6,16 +6,17 @@ web chạy nền làm ở container riêng, nên app không chậm. Không đụ
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, RedirectResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
 from dang_web import hang_doi as hd
+from dang_web.so_ten import so_khop_hang
 
 from . import checked_form, paging, render, web_user
 from .. import products as product_svc
@@ -27,7 +28,21 @@ from ..text import fold
 
 router = APIRouter(include_in_schema=False)
 
-TABS = (("san-pham", "Sản phẩm", "san_pham"), ("bai-viet", "Bài viết", "bai_viet"), ("da-dang", "Đã đăng", None))
+TABS = (("san-pham", "Sản phẩm", "san_pham"), ("bai-viet", "Bài viết", "bai_viet"), ("da-dang", "Đã đăng", None),
+        ("hang-hoa", "Hàng hóa", None))
+LOC_HANG = (("da-co", "Đã có trên web"), ("co-the", "Có thể đã có"), ("chua-co", "Chưa có"))
+TOI_DA_SOAN_NHIEU = 10
+# Chỉ đọc: Hàng hóa đang dùng và tồn ở các kho bán (giống dang_web/du_lieu.py).
+CAU_HANG = text("""
+select p.code, p.name, p.group_name, p.sale_price,
+       coalesce(sum(b.qty) filter (where w.kind = 'KHO' and w.active), 0) as ton
+from products p
+left join stock_balances b on b.product_code = p.code
+left join warehouses w on w.code = b.warehouse_code
+where p.active and not p.is_test
+group by p.code
+order by p.code
+""")
 LOC = (
     ("xem-truoc", "Chờ anh xem trước", (hd.XEM_TRUOC,)),
     ("trung", "Có thể trùng", (hd.CO_THE_TRUNG,)),
@@ -82,13 +97,6 @@ def _anh_dau(viec_id) -> str:
     return (v.get("anh_web") or [""])[0] if v else ""
 
 
-def _cu(luc: str, giay: int) -> bool:
-    try:
-        return (hd.bay_gio() - datetime.fromisoformat(luc)).total_seconds() > giay
-    except (TypeError, ValueError):
-        return True
-
-
 def _da_dang(q: str, chip: str) -> tuple[list[dict], dict]:
     tt = hd.doc_trang_thai(goc())
     web = hd.doc_json(hd.file_web(goc()), {})
@@ -122,7 +130,7 @@ def _da_dang(q: str, chip: str) -> tuple[list[dict], dict]:
 
 @router.get("/dang-web")
 def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "", chip: str = "tat-ca", trang: str = "1", so: str = "",
-            da_luu: str = "", user: User = Depends(web_user)):
+            da_luu: str = "", nhom: str = "", ton: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
     tab = tab if tab in [t[0] for t in TABS] else "san-pham"
     g = goc()
     loi_thu_muc = hd.kiem_ghi_duoc(g)
@@ -131,15 +139,16 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
     con = [v for v in viec if v.get("trang_thai") not in hd.XONG]
     tt = hd.doc_trang_thai(g)
     dem_da_dang = sum(1 for k in ("san_pham", "bai_viet") for x in tt[k].values() if isinstance(x, dict) and x.get("id"))
+    so_hang = session.execute(text("select count(*) from products where active and not is_test")).scalar_one()
+    dem_tab = {"da-dang": dem_da_dang, "hang-hoa": so_hang}
     tabs = [dict(label=label, href=f"/dang-web?tab={key}", on=key == tab,
-                 n=dem_da_dang if loai is None else sum(1 for v in con if v["loai"] == loai)) for key, label, loai in TABS]
+                 n=dem_tab.get(key, 0) if loai is None else sum(1 for v in con if v["loai"] == loai)) for key, label, loai in TABS]
     ctx = dict(tab=tab, tabs=tabs, nhip=nhip, loi_thu_muc=loi_thu_muc, da_luu=da_luu, q=q, chip=chip, loc=loc,
-               cach_viet=hd.CACH_VIET, cach_mac_dinh=_cach_mac_dinh(nhip))
+               cach_viet=hd.CACH_VIET, cach_mac_dinh=_cach_mac_dinh(nhip), cho_lam_moi=not loi_thu_muc and hd.dang_cho_lam_moi(g))
+    if tab == "hang-hoa":
+        return _tab_hang_hoa(request, session, g, ctx, loc, q.strip(), nhom, ton, trang, so)
     if tab == "da-dang":
-        rows, dem = _da_dang(q.strip(), chip)
-        # Mở tab là nhờ máy đăng web lấy lại trạng thái trên web (không quá 10 phút một lần).
-        if not loi_thu_muc and _cu(dem["luc_web"], 600):
-            hd.yeu_cau_lam_moi(g)
+        rows, dem = _da_dang(q.strip(), chip)  # trạng thái trên web chỉ lấy lại khi anh bấm "Cập nhật từ web"
         p = paging.build(trang, so, len(rows), dict(tab=tab, q=q, chip=chip))
         rows = rows[(p["page"] - 1) * p["size"]: p["page"] * p["size"]]
         return render(request, "dang_web.jinja", rows=rows, dem=dem, p=p, web_tt=WEB_TT, **ctx)
@@ -156,6 +165,117 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
         chu_de = [dict(ten=c, xong=c in tt["bai_viet"], dang=c in dang_co, trung=c in tt["nghi_trung"]) for c in hd.doc_chu_de(g)]
     return render(request, "dang_web.jinja", rows=rows, tiles=tiles, gan_day=gan_day, chu_de=chu_de, lich=hd.doc_lich(g),
                   co_chay=any(v["dang_chay"] for v in viec), **ctx)
+
+
+# ---------------- tab Hàng hóa: mã nào đã có trên web ----------------
+_KHOP_CACHE: dict = {}
+
+
+def _khop(hang: list[tuple[str, str]], ds_web: list[dict], luc: str) -> dict:
+    """So tên tốn vài trăm mili giây với vài nghìn mã, nên nhớ kết quả tới khi Hàng hóa hoặc danh sách web đổi."""
+    khoa = (luc, len(ds_web), hash(tuple(hang)))
+    if _KHOP_CACHE.get("khoa") != khoa:
+        _KHOP_CACHE.update(khoa=khoa, kq=so_khop_hang(hang, ds_web))
+    return _KHOP_CACHE["kq"]
+
+
+def _hang_hoa(session, g) -> tuple[list[dict], dict]:
+    web = hd.doc_json(hd.file_sp_web(g), {})
+    web = web if isinstance(web, dict) else {}
+    ds_web = [w for w in web.get("ds") or [] if isinstance(w, dict) and w.get("id")]
+    theo_id = {int(w["id"]): w for w in ds_web}
+    hang = session.execute(CAU_HANG).all()
+    khop = _khop([(h.code, h.name) for h in hang], ds_web, str(web.get("luc", "")))
+    xac = hd.doc_xac_nhan(g)
+    da_dang = hd.doc_trang_thai(g)["san_pham"]
+    co_anh = hd.ma_co_anh(g)
+    dang_lam = {v.get("ma") for v in hd.ds(g) if v.get("loai") == "san_pham" and v.get("trang_thai") not in hd.XONG}
+    rows = []
+    for h in hang:
+        x = xac.get(h.code) if isinstance(xac.get(h.code), dict) else {}
+        k = khop.get(h.code) or {}
+        web_sp, kieu, xac_nhan = None, "chua-co", False
+        if x.get("dung"):
+            web_sp = theo_id.get(int(x["dung"])) or {"id": int(x["dung"]), "ten": "", "trang_thai": ""}
+            kieu, xac_nhan = "da-co", True
+        elif k.get("kieu") == "sku":
+            web_sp, kieu = k["web"][0], "da-co"
+        elif isinstance(da_dang.get(h.code), dict) and da_dang[h.code].get("id"):
+            info = da_dang[h.code]
+            web_sp = theo_id.get(int(info["id"])) or {"id": info["id"], "ten": info.get("ten", ""), "xem": info.get("xem", ""),
+                                                      "sua": info.get("link", ""), "trang_thai": ""}
+            kieu = "da-co"
+        else:
+            khong = set(x.get("khong") or [])
+            con_lai = [w for w in k.get("web") or [] if w.get("id") not in khong]
+            if con_lai:
+                web_sp, kieu = con_lai[0], "co-the"
+        rows.append(dict(code=h.code, name=h.name, nhom=h.group_name or "Chưa có nhóm", gia=int(h.sale_price or 0), ton=h.ton,
+                         kieu=kieu, web=web_sp, xac_nhan=xac_nhan, co_anh=h.code in co_anh, dang_lam=h.code in dang_lam))
+    return rows, {"luc": str(web.get("luc", "")), "so_web": len(ds_web), "da_lay": bool(web)}
+
+
+def _tab_hang_hoa(request, session, g, ctx, loc, q, nhom, ton, trang, so):
+    loc = loc if loc in dict(LOC_HANG) else "chua-co"
+    rows, info = _hang_hoa(session, g)
+    tiles = [dict(label=label, n=sum(r["kieu"] == key for r in rows), href=f"/dang-web?{urlencode(dict(tab='hang-hoa', loc=key))}",
+                  on=loc == key) for key, label in LOC_HANG]
+    rows = [r for r in rows if r["kieu"] == loc]
+    nhom_dem: dict[str, int] = {}
+    for r in rows:
+        nhom_dem[r["nhom"]] = nhom_dem.get(r["nhom"], 0) + 1
+    if nhom:
+        rows = [r for r in rows if r["nhom"] == nhom]
+    if ton == "1":
+        rows = [r for r in rows if r["ton"] > 0]
+    if q:
+        f = fold(q)
+        rows = [r for r in rows if f in fold(f"{r['code']} {r['name']}")]
+    query = dict(tab="hang-hoa", loc=loc, q=q, nhom=nhom, ton=ton)
+    p = paging.build(trang, so, len(rows), query)
+    rows = rows[p["offset"]: p["offset"] + p["size"]]
+    return render(request, "dang_web.jinja", rows=rows, tiles=tiles, p=p, hang_info=info, nhom=nhom, ton=ton,
+                  nhom_dem=sorted(nhom_dem.items()), query=query, toi_da_soan_nhieu=TOI_DA_SOAN_NHIEU, **ctx)
+
+
+@router.post("/dang-web/hang-hoa/xac-nhan")
+def confirm_web(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    _can_ghi()
+    ma = str(form.get("ma", "")).strip().upper()
+    if not session.get(Product, ma):
+        raise BusinessError("BAD_PRODUCT", "Không thấy mã hàng này.")
+    quay_lai = "/dang-web?" + urlencode({k: str(form.get(k, "")) for k in ("tab", "loc", "q", "nhom", "ton", "trang") if form.get(k)})
+    if form.get("hanh_dong") == "bo":
+        hd.bo_xac_nhan(goc(), ma)
+        return RedirectResponse(quay_lai, status_code=303)
+    web_id = str(form.get("web_id", ""))
+    if not web_id.isdigit():
+        raise BusinessError("BAD_FORM", "Thiếu sản phẩm trên web.")
+    hd.xac_nhan(goc(), ma, int(web_id), form.get("hanh_dong") == "dung")
+    return RedirectResponse(quay_lai, status_code=303)
+
+
+@router.post("/dang-web/soan-nhieu")
+def create_many(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """Tick nhiều mã ở tab Hàng hóa: mỗi mã một việc, dùng ảnh đã chép sẵn trên Z2 (~/THANHDUC-WEB/anh-goc)."""
+    _can_ghi()
+    g = goc()
+    chon = list(dict.fromkeys(str(m).strip().upper() for m in form.getlist("ma") if str(m).strip()))
+    if not chon:
+        raise BusinessError("BAD_FORM", "Tick ít nhất một mã.")
+    if len(chon) > TOI_DA_SOAN_NHIEU:
+        raise BusinessError("BAD_FORM", f"Mỗi lần soạn tối đa {TOI_DA_SOAN_NHIEU} mã.")
+    co_anh = hd.ma_co_anh(g)
+    dang_lam = {v.get("ma") for v in hd.ds(g) if v.get("trang_thai") not in hd.XONG}
+    cach = _cach_mac_dinh(hd.doc_nhip(g))
+    so = 0
+    for code in chon:
+        sp = session.get(Product, code)
+        if not sp or not sp.active or code not in co_anh or code in dang_lam:
+            continue
+        hd.tao_viec(g, "san_pham", {"ma": sp.code, "ten": sp.name, "cach_viet": cach})
+        so += 1
+    return RedirectResponse(f"/dang-web?tab=san-pham&da_luu=tu-chon-{so}", status_code=303)
 
 
 # ---------------- soạn mới ----------------
@@ -370,9 +490,11 @@ def web_photo(ten: str, user: User = Depends(web_user)):
 # ---------------- làm mới, chủ đề, lịch ----------------
 @router.post("/dang-web/lam-moi")
 def refresh(request: Request, form=Depends(checked_form)):
+    """Chỉ chạy khi anh bấm nút: nhờ máy đăng web lấy lại trạng thái bài đã đăng và danh sách sản phẩm trên web."""
     _can_ghi()
     hd.yeu_cau_lam_moi(goc())
-    return RedirectResponse("/dang-web?tab=da-dang&da_luu=lam-moi", status_code=303)
+    tab = "hang-hoa" if form.get("tab") == "hang-hoa" else "da-dang"
+    return RedirectResponse(f"/dang-web?tab={tab}&da_luu=lam-moi", status_code=303)
 
 
 @router.post("/dang-web/chu-de")

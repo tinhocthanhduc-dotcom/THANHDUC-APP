@@ -79,6 +79,16 @@ def file_web(goc) -> Path:
     return Path(goc) / "trang-thai-web.json"
 
 
+def file_sp_web(goc) -> Path:
+    """Toàn bộ sản phẩm trên web (id, tên, mã SKU, trạng thái, link) lấy về lần anh bấm Cập nhật từ web gần nhất."""
+    return Path(goc) / "san-pham-web.json"
+
+
+def file_xac_nhan(goc) -> Path:
+    """Anh xác nhận ở tab Hàng hóa: {mã: {"dung": id web} hoặc {"khong": [id web, ...]}}."""
+    return Path(goc) / "xac-nhan-web.json"
+
+
 def file_danh_muc(goc) -> Path:
     return Path(goc) / "danh-muc-web.json"
 
@@ -284,12 +294,42 @@ def yeu_cau_lam_moi(goc) -> None:
     p.write_text(_luc())
 
 
+def dang_cho_lam_moi(goc) -> bool:
+    return (thu_muc_viec(goc) / "_lam-moi").exists()
+
+
 def lay_yeu_cau_lam_moi(goc) -> bool:
     p = thu_muc_viec(goc) / "_lam-moi"
     if p.exists():
         p.unlink(missing_ok=True)
         return True
     return False
+
+
+def doc_xac_nhan(goc) -> dict:
+    d = doc_json(file_xac_nhan(goc), {})
+    return d if isinstance(d, dict) else {}
+
+
+def xac_nhan(goc, ma: str, web_id: int, dung: bool) -> None:
+    """Đúng là nó: mã này đã có trên web (sản phẩm web_id). Không phải: bỏ web_id khỏi danh sách gần giống của mã."""
+    with khoa(goc):
+        d = doc_xac_nhan(goc)
+        x = d.get(ma) if isinstance(d.get(ma), dict) else {}
+        if dung:
+            x = {"dung": int(web_id), "luc": _luc()}
+        else:
+            khong = [int(i) for i in x.get("khong", []) if str(i).isdigit()]
+            x = {"khong": sorted(set(khong) | {int(web_id)}), "luc": _luc()}
+        d[ma] = x
+        ghi_json(file_xac_nhan(goc), d)
+
+
+def bo_xac_nhan(goc, ma: str) -> None:
+    with khoa(goc):
+        d = doc_xac_nhan(goc)
+        if d.pop(ma, None) is not None:
+            ghi_json(file_xac_nhan(goc), d)
 
 
 LICH_MAC_DINH = {"bat": False, "gio": "07:00", "so_sp": 2, "so_bai": 1, "lan_cuoi": ""}

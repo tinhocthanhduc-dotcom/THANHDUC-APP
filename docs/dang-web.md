@@ -67,6 +67,9 @@ Giám đốc mở menu **Quản lý → Website → Đăng web** trên điện t
 - **Có thể trùng:** web đã có sản phẩm hoặc bài gần giống thì app dừng lại (chưa tốn tiền AI), anh mở link xem rồi chọn **Đúng là trùng, bỏ qua**, **Không trùng, vẫn soạn** hoặc **Viết lại đè lên** bài cũ.
 - **Chờ dán ChatGPT:** chọn cách ChatGPT web thì bấm **Chép câu lệnh**, dán vào chatgpt.com, chép câu trả lời dán lại vào ô rồi bấm **Đọc câu trả lời**.
 - **Đã đăng:** mọi thứ đã lên web, trạng thái Nháp hay Đang hiện lấy từ web. Bấm một dòng: **Sửa trên web** mở thẳng trang sửa trong wp-admin; **Viết lại bằng AI** soạn bản mới, xem trước rồi ghi đè lên đúng bài đó.
+- **Hàng hóa:** so toàn bộ Hàng hóa trong app với sản phẩm đang có trên web, chia **Đã có trên web** (trùng mã TD ở ô SKU, hoặc app đã đăng), **Có thể đã có** (tên gần giống) và **Chưa có**. Ở "Có thể đã có" bấm **Mở** xem rồi chọn **Đúng là nó** hoặc **Không phải**. Ở "Chưa có" bấm **Soạn ›**, hoặc tick nhiều mã đã có ảnh trong `anh-goc` rồi bấm **Soạn các mã đã chọn** (tối đa 10 mã một lần).
+- **Cập nhật từ web:** danh sách trên web và trạng thái Nháp/Đang hiện chỉ lấy lại khi anh bấm nút này (ở tab Đã đăng hoặc Hàng hóa), không tự chạy.
+- **Máy tính:** danh sách hiện thành bảng; màn soạn và xem trước chia 2 cột (trái xem, phải sửa và bấm).
 - **Tự soạn mỗi sáng:** bật ở cuối tab Sản phẩm; máy soạn sẵn các mã đã có ảnh trong `anh-goc` và chủ đề chờ viết, anh vẫn phải bấm Đăng.
 
 Màn này cần **máy đăng web** chạy nền trên Z2 (bật một lần, tự chạy lại khi Z2 khởi động):

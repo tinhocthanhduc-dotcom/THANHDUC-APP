@@ -70,6 +70,9 @@ class _WP:
     def lay_bai_theo_ids(self, ids):
         return []
 
+    def tat_ca_sp(self):
+        return list(getattr(self, "tat_ca", []))
+
 
 class _ChatGPTGia:
     """Người viết giả trả JSON cố định cho bài viết."""
@@ -295,3 +298,94 @@ def test_lich_tu_soan_tao_viec_mot_lan_moi_ngay(goc, monkeypatch):
     assert may.kiem_lich() == 0
     v = hd.ds(goc)[0]
     assert v["ma"] == "TD-0123" and v["cach_viet"] == "mau" and v["nguon"] == "lich"
+
+
+# ---------- tab Hàng hóa: so Hàng hóa trong app với sản phẩm trên web (TUẤN duyệt màn 8 / D5) ----------
+@pytest.fixture
+def nhieu_hang(db):
+    db.add_all([
+        Product(code="TD-0123", name="Hộp mực Canon 326", group_name="Hộp mực", sale_price=355_000),
+        Product(code="TD-0215", name="Drum Brother DR-2385", group_name="Linh kiện", sale_price=280_000),
+        Product(code="TD-0341", name="Khay giấy HP M402", group_name="Linh kiện", sale_price=500_000),
+        Product(code="TD-0410", name="Mực Epson 003 đen", group_name="Mực in", sale_price=120_000),
+    ])
+    db.commit()
+
+
+def test_so_khop_hang_sku_giong_va_khac_mon():
+    from dang_web.so_ten import so_khop_hang
+
+    web = [{"id": 1, "ten": "Hộp mực Canon 326", "sku": "TD-0123"},
+           {"id": 2, "ten": "Cụm trống Brother DR2385", "sku": ""},
+           {"id": 3, "ten": "Bao lụa sấy HP M402", "sku": ""},
+           {"id": 4, "ten": "Hộp mực Canon 326 bản cũ", "sku": "TD-0999"}]
+    kq = so_khop_hang([("TD-0123", "Hộp mực Canon 326"), ("TD-0215", "Drum Brother DR-2385"),
+                       ("TD-0341", "Khay giấy HP M402"), ("TD-0410", "Mực Epson 003 đen")], web)
+    assert kq["TD-0123"]["kieu"] == "sku" and kq["TD-0123"]["web"][0]["id"] == 1
+    assert kq["TD-0215"]["kieu"] == "giong" and kq["TD-0215"]["web"][0]["id"] == 2
+    assert "TD-0341" not in kq  # cùng mã máy M402 nhưng khay giấy khác bao lụa
+    assert "TD-0410" not in kq
+
+
+def test_tab_hang_hoa_chi_cap_nhat_khi_bam_nut_roi_xac_nhan(client, web_login, goc, nhieu_hang):
+    csrf = web_login("giam.doc", "director")
+    r = client.get("/dang-web?tab=hang-hoa")
+    assert r.status_code == 200 and "Chưa lấy danh sách sản phẩm trên web" in r.text
+    assert "Khay giấy HP M402" in r.text  # trước khi so, mọi mã ở Chưa có
+    assert not hd.dang_cho_lam_moi(goc)  # mở tab không tự gọi web
+
+    client.get("/dang-web?tab=da-dang")
+    assert not hd.dang_cho_lam_moi(goc)  # tab Đã đăng cũng không tự cập nhật nữa
+
+    r = client.post("/dang-web/lam-moi", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), tab="hang-hoa"), follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/dang-web?tab=hang-hoa")
+    assert hd.dang_cho_lam_moi(goc)
+
+    wp = _WP()
+    wp.tat_ca = [{"id": 1, "name": "Hộp mực Canon 326", "sku": "TD-0123", "status": "publish", "permalink": "https://thanhduc.vn/a"},
+                 {"id": 2, "name": "Cụm trống Brother DR2385", "sku": "", "status": "draft", "permalink": "https://thanhduc.vn/b"}]
+    may = _may(goc, wp)
+    assert hd.lay_yeu_cau_lam_moi(goc)
+    may.lam_moi_web()
+    luu = hd.doc_json(hd.file_sp_web(goc), {})
+    assert [x["id"] for x in luu["ds"]] == [1, 2] and luu["ds"][0]["sua"].endswith("post=1&action=edit")
+
+    r = client.get("/dang-web?tab=hang-hoa&loc=da-co")
+    assert "Hộp mực Canon 326" in r.text and "Khay giấy" not in r.text
+    r = client.get("/dang-web?tab=hang-hoa&loc=co-the")
+    assert "Drum Brother DR-2385" in r.text and "Cụm trống Brother DR2385" in r.text and "Đúng là nó" in r.text
+    r = client.get("/dang-web?tab=hang-hoa")
+    assert "Khay giấy HP M402" in r.text and "Mực Epson 003 đen" in r.text and "Drum Brother" not in r.text
+
+    r = client.post("/dang-web/hang-hoa/xac-nhan", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma="TD-0215", web_id="2",
+                                                            hanh_dong="khong", tab="hang-hoa", loc="co-the"), follow_redirects=False)
+    assert r.status_code == 303 and "loc=co-the" in r.headers["location"]
+    assert "Drum Brother" in client.get("/dang-web?tab=hang-hoa&loc=chua-co").text
+    client.post("/dang-web/hang-hoa/xac-nhan", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma="TD-0215", web_id="2", hanh_dong="dung"))
+    r = client.get("/dang-web?tab=hang-hoa&loc=da-co")
+    assert "Drum Brother" in r.text and "Bỏ xác nhận" in r.text
+    client.post("/dang-web/hang-hoa/xac-nhan", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma="TD-0215", hanh_dong="bo"))
+    assert "Drum Brother" in client.get("/dang-web?tab=hang-hoa&loc=co-the").text
+
+    # Lọc nhóm, còn hàng, tìm không dấu
+    r = client.get("/dang-web?tab=hang-hoa&nhom=Linh+ki%E1%BB%87n")
+    assert "Khay giấy" in r.text and "Epson" not in r.text
+    assert "Khay giấy" in client.get("/dang-web?tab=hang-hoa&q=khay+giay").text
+    assert "Khay giấy" not in client.get("/dang-web?tab=hang-hoa&ton=1").text  # chưa có tồn
+
+
+def test_soan_nhieu_ma_chi_lay_ma_co_anh(client, web_login, goc, nhieu_hang):
+    csrf = web_login("giam.doc", "director")
+    (goc / "anh-goc").mkdir()
+    (goc / "anh-goc" / "TD-0410.jpg").write_bytes(_jpg())
+    r = client.get("/dang-web?tab=hang-hoa")
+    assert 'value="TD-0410" form="dw-soan-nhieu"' in r.text and 'value="TD-0341" form="dw-soan-nhieu"' not in r.text
+    r = client.post("/dang-web/soan-nhieu", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma=["TD-0410", "TD-0341"]),
+                    follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("da_luu=tu-chon-1")
+    viec = hd.ds(goc)
+    assert [v["ma"] for v in viec] == ["TD-0410"] and viec[0]["ten"] == "Mực Epson 003 đen"
+    client.post("/dang-web/soan-nhieu", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma=["TD-0410"]))
+    assert len(hd.ds(goc)) == 1  # mã đang có việc thì không tạo thêm
+    r = client.post("/dang-web/soan-nhieu", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma=[f"TD-{i:04d}" for i in range(11)]))
+    assert r.status_code == 400 and "tối đa 10" in r.text
