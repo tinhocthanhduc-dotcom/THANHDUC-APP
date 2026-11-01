@@ -87,8 +87,20 @@ class WordPress:
         return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload)
 
     def tat_ca_sp(self) -> list[dict]:
-        """Mọi sản phẩm trên web (cả nháp), chỉ lấy vài trường cho nhẹ."""
-        return self._tat_ca("wc/v3/products", {"status": "any", "_fields": "id,name,sku,status,permalink"})
+        """Mọi sản phẩm trên web (cả nháp), chỉ lấy các trường cần cho tab Trên web."""
+        return self._tat_ca("wc/v3/products", {"status": "any", "_fields": "id,name,sku,status,permalink,categories,regular_price,price,images"})
+
+    def lay_sp(self, sp_id: int) -> dict:
+        return self._json("GET", f"wc/v3/products/{int(sp_id)}")
+
+    def doi_danh_muc_sp(self, cap: list[tuple[int, list[int]]]) -> int:
+        """Chỉ đổi danh mục (không đụng nội dung, giá, trạng thái); WooCommerce nhận tối đa 100 dòng mỗi lần."""
+        so = 0
+        for i in range(0, len(cap), 100):
+            phan = [{"id": int(sp_id), "categories": [{"id": int(c)} for c in dm]} for sp_id, dm in cap[i:i + 100]]
+            kq = self._json("POST", "wc/v3/products/batch", json={"update": phan})
+            so += sum(1 for x in kq.get("update") or [] if isinstance(x, dict) and x.get("id") and not x.get("error"))
+        return so
 
     def lay_sp_theo_ids(self, ids: list[int]) -> list[dict]:
         ra = []
@@ -110,6 +122,32 @@ class WordPress:
                 "include": ",".join(map(str, phan)), "status": "publish,draft,pending,future,private",
                 "context": "edit", "per_page": 100})
         return ra
+
+    def tat_ca_bai(self) -> list[dict]:
+        """Mọi bài viết trên web (cả nháp, chờ duyệt, hẹn giờ)."""
+        return self._tat_ca("wp/v2/posts", {"status": "publish,draft,pending,future,private", "context": "edit",
+                                            "_fields": "id,title,status,link,categories,date,featured_media"})
+
+    def lay_bai(self, bai_id: int) -> dict:
+        return self._json("GET", f"wp/v2/posts/{int(bai_id)}", params={"context": "edit"})
+
+    def doi_chuyen_muc_bai(self, bai_id: int, cm: list[int]) -> dict:
+        return self._json("POST", f"wp/v2/posts/{int(bai_id)}", json={"categories": [int(c) for c in cm]})
+
+    def lay_anh(self, media_id: int) -> dict:
+        return self._json("GET", f"wp/v2/media/{int(media_id)}")
+
+    def tai_ve(self, url: str, toi_da: int = 15 * 1024 * 1024) -> bytes:
+        """Tải ảnh đang có trên web về để xử lý lại (chỉ ảnh của chính trang web này)."""
+        if not url.startswith(self.url + "/"):
+            raise LoiWeb("Chỉ tải ảnh nằm trên chính trang web.")
+        try:
+            r = self.client.get(url, headers={"User-Agent": USER_AGENT})
+        except httpx.HTTPError as e:
+            raise LoiWeb(f"Không tải được ảnh {url}: {e}") from e
+        if r.status_code >= 400 or len(r.content) > toi_da:
+            raise LoiWeb(f"Không tải được ảnh {url} ({r.status_code}).")
+        return r.content
 
     def chuyen_muc_bai(self) -> list[dict]:
         return self._tat_ca("wp/v2/categories")

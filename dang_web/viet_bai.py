@@ -172,6 +172,90 @@ def yeu_cau_bai_viet(chu_de: str, ghi_chu: str = "", hotline: str = "") -> str:
     return "\n\n".join(phan)
 
 
+# ---------- sửa bài / sản phẩm đang có trên web ----------
+_TOI_DA_HTML = 12000
+
+KHUON_XEP = {
+    "type": "object",
+    "properties": {
+        "ket_qua": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "danh_muc": {"type": "string", "description": "Đúng nguyên văn một dòng trong danh sách danh mục; không chắc thì để trống"},
+                    "chac": {"type": "boolean"},
+                },
+                "required": ["id", "danh_muc", "chac"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["ket_qua"],
+    "additionalProperties": False,
+}
+
+
+def don_vi_trong(html: str) -> str:
+    """Đơn vị tính đang ghi trên web ("Đơn vị tính: cái") để giữ nguyên khi viết lại."""
+    m = re.search(r"đơn vị tính\s*:\s*([^<\n]{1,20})", html or "", re.I)
+    return m.group(1).strip() if m else ""
+
+
+def yeu_cau_sua_san_pham(hien_tai: dict, sp: SanPham | None, ghi_chu: str = "", hotline: str = "") -> str:
+    phan = [
+        "Viết lại trang sản phẩm WooCommerce ĐANG CÓ trên thanhduc.vn cho rõ ràng, đầy đủ và chuẩn SEO hơn.",
+        "Giữ đúng sản phẩm, đúng thông số và máy tương thích đang ghi (không bịa thêm); bỏ câu trùng lặp, sửa lỗi chính tả.",
+        "Nội dung hiện tại trên web:",
+        json.dumps({k: (hien_tai.get(k) or "")[:_TOI_DA_HTML] for k in ("ten_web", "mo_ta_ngan_html", "mo_ta_html", "danh_muc")},
+                   ensure_ascii=False, indent=2),
+    ]
+    if sp:
+        phan += ["Thông tin từ kho (tin cậy):", json.dumps({"ma_hang": sp.code, "ten_trong_kho": sp.name, "nhom_hang": sp.group_name,
+                                                            "don_vi": sp.unit, "bao_hanh_thang": sp.warranty_months}, ensure_ascii=False)]
+        if sp.warranty_months:
+            phan.append(f"Nêu rõ bảo hành {sp.warranty_months} tháng tại Thành Đức.")
+    if ghi_chu.strip():
+        phan += ["Ghi chú thêm của Thành Đức (tin cậy, ưu tiên dùng):", ghi_chu.strip()]
+    if hotline:
+        phan.append(f"Cuối mô tả mời khách gọi hotline {hotline} để được tư vấn.")
+    phan.append("Tên web giữ gần tên hiện tại nếu đã đúng hãng và mã; slug giữ như cũ nếu đã ổn.")
+    return "\n\n".join(phan)
+
+
+def yeu_cau_sua_bai(hien_tai: dict, ghi_chu: str = "", hotline: str = "") -> str:
+    phan = [
+        "Viết lại bài blog ĐANG CÓ trên thanhduc.vn cho hữu ích, dễ đọc và chuẩn SEO hơn.",
+        "Giữ đúng chủ đề và các ý đúng của bài cũ, bổ sung phần còn thiếu; không bịa số liệu.",
+        "Bài hiện tại:",
+        json.dumps({k: (hien_tai.get(k) or "")[:_TOI_DA_HTML] for k in ("tieu_de", "tom_tat", "noi_dung_html", "danh_muc")},
+                   ensure_ascii=False, indent=2),
+    ]
+    if ghi_chu.strip():
+        phan += ["Ghi chú thêm của Thành Đức:", ghi_chu.strip()]
+    if hotline:
+        phan.append(f"Kết bài mời khách gọi hotline {hotline} nếu cần kỹ thuật hỗ trợ.")
+    return "\n\n".join(phan)
+
+
+def yeu_cau_xep_danh_muc(loai: str, muc: list[dict], danh_muc: list[str]) -> str:
+    ten_loai = "sản phẩm" if loai == "san_pham" else "bài viết"
+    return "\n\n".join([
+        f"Xếp mỗi {ten_loai} dưới đây vào ĐÚNG MỘT danh mục có sẵn trên website thanhduc.vn.",
+        "Chỉ chọn trong danh sách danh mục (ghi nguyên văn cả dòng, kể cả dấu ›). Không tạo danh mục mới. "
+        "Chọn danh mục cụ thể nhất phù hợp. Không chắc thì chac=false và danh_muc để trống.",
+        "Danh mục:", "\n".join(danh_muc),
+        f"Danh sách {ten_loai} (id, tên):", json.dumps([{"id": m["id"], "ten": m.get("ten", "")} for m in muc], ensure_ascii=False),
+    ])
+
+
+def _don_sua_sp(d: dict, hien_tai: dict, sp: SanPham | None) -> None:
+    don_vi = (sp.unit if sp else "") or don_vi_trong(hien_tai.get("mo_ta_ngan_html", "")) or don_vi_trong(hien_tai.get("mo_ta_html", ""))
+    for k in ("mo_ta_ngan_html", "mo_ta_html"):
+        d[k] = bo_cau_thua(lam_sach_html(d.get(k, "")), don_vi)
+
+
 class NguoiViet:
     def __init__(self, api_key: str, model: str = "claude-opus-5-5", effort: str = "medium", tra_web: bool = True, client=None):
         if client is None:
@@ -248,6 +332,19 @@ class NguoiViet:
         kq = self._goi(yeu_cau_bai_viet(chu_de, ghi_chu, hotline), KHUON_BAI_VIET)
         kq.du_lieu["noi_dung_html"] = lam_sach_html(kq.du_lieu["noi_dung_html"])
         return kq
+
+    def sua_san_pham(self, hien_tai: dict, sp: SanPham | None = None, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        kq = self._goi(yeu_cau_sua_san_pham(hien_tai, sp, ghi_chu, hotline), KHUON_SAN_PHAM)
+        _don_sua_sp(kq.du_lieu, hien_tai, sp)
+        return kq
+
+    def sua_bai(self, hien_tai: dict, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        kq = self._goi(yeu_cau_sua_bai(hien_tai, ghi_chu, hotline), KHUON_BAI_VIET)
+        kq.du_lieu["noi_dung_html"] = lam_sach_html(kq.du_lieu["noi_dung_html"])
+        return kq
+
+    def xep_danh_muc(self, loai: str, muc: list[dict], danh_muc: list[str]) -> KetQuaAI:
+        return self._goi(yeu_cau_xep_danh_muc(loai, muc, danh_muc), KHUON_XEP)
 
 
 def _la_loi_400(e: Exception) -> bool:
@@ -364,6 +461,14 @@ class NguoiVietMau:
     def viet_bai(self, chu_de: str, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
         raise RuntimeError("Bài viết cần AI; chế độ không AI chỉ dùng cho sản phẩm.")
 
+    def sua_san_pham(self, *a, **kw) -> KetQuaAI:
+        raise RuntimeError("Sửa bằng AI cần AI tự động hoặc ChatGPT web.")
+
+    sua_bai = sua_san_pham
+
+    def xep_danh_muc(self, *a, **kw) -> KetQuaAI:
+        raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY).")
+
 
 class ChoTraLoi(Exception):
     """Đã soạn câu lệnh cho ChatGPT web; chờ anh dán câu trả lời vào file."""
@@ -436,6 +541,19 @@ class NguoiVietChatGPTWeb:
         kq = self._lay("bai-" + slug(chu_de, 60), yeu_cau_bai_viet(chu_de, ghi_chu, hotline), KHUON_BAI_VIET)
         kq.du_lieu["noi_dung_html"] = lam_sach_html(kq.du_lieu["noi_dung_html"])
         return kq
+
+    def sua_san_pham(self, hien_tai: dict, sp: SanPham | None = None, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        kq = self._lay("sua-sp", yeu_cau_sua_san_pham(hien_tai, sp, ghi_chu, hotline), KHUON_SAN_PHAM)
+        _don_sua_sp(kq.du_lieu, hien_tai, sp)
+        return kq
+
+    def sua_bai(self, hien_tai: dict, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        kq = self._lay("sua-bai", yeu_cau_sua_bai(hien_tai, ghi_chu, hotline), KHUON_BAI_VIET)
+        kq.du_lieu["noi_dung_html"] = lam_sach_html(kq.du_lieu["noi_dung_html"])
+        return kq
+
+    def xep_danh_muc(self, *a, **kw) -> KetQuaAI:
+        raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY).")
 
 
 def chon_nguoi_viet(ch):

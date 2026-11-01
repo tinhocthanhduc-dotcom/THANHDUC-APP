@@ -31,6 +31,8 @@ GROUPS = (
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
+        # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
+        {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
     )},
     {'label': 'Dịch vụ', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
@@ -73,10 +75,6 @@ GROUPS = (
         {'label': 'Mua hàng', 'solo': 'Báo cáo mua hàng', 'href': '/bao-cao-mua-hang', 'prefixes': ('/bao-cao-mua-hang',), 'roles': ('warehouse', 'finance')},
         {'label': 'Hàng chờ xử lý', 'solo': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',)},
         {'label': 'Tài chính', 'solo': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
-    )},
-    # TUẤN duyệt 01/11/2026: soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn; chỉ Giám đốc.
-    {'label': 'Website', 'section': 'Quản lý', 'items': (
-        {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('director',)},
     )},
     {'label': 'Danh mục', 'section': 'Thiết lập', 'items': (
         {'label': 'Nhóm hàng', 'href': '/nhom-hang', 'prefixes': ('/nhom-hang',), 'roles': ('warehouse',)},
