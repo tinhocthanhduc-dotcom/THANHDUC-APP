@@ -18,6 +18,7 @@ from . import anh as anh_mod
 from . import dang
 from .cau_hinh import CauHinh
 from .du_lieu import dem_san_pham, ket_noi, lay_san_pham
+from .viet_bai import ChoTraLoi
 from .wordpress import LoiWeb, WordPress, slug, tim_danh_muc
 
 MA_RE = re.compile(r"^(TD-\d{4,})", re.I)
@@ -34,9 +35,28 @@ def _wp(ch: CauHinh) -> WordPress:
 
 
 def _nguoi_viet(ch: CauHinh):
-    from .viet_bai import NguoiViet
+    from .viet_bai import chon_nguoi_viet
 
-    return NguoiViet(ch.anthropic_api_key, ch.ai_model, ch.ai_effort, ch.ai_tra_web)
+    return chon_nguoi_viet(ch)
+
+
+def _chon_nguoi_viet(ch: CauHinh, args):
+    from .viet_bai import NguoiVietChatGPTWeb, NguoiVietMau
+
+    if getattr(args, "khong_ai", False):
+        return NguoiVietMau()
+    if getattr(args, "chatgpt_web", False):
+        return NguoiVietChatGPTWeb(ch.thu_muc / "chatgpt")
+    return _nguoi_viet(ch)
+
+
+def _bao_cho_tra_loi(e) -> None:
+    ten_lenh = e.file_lenh.name
+    ten_tl = e.file_tra_loi.name
+    in_("   CHỜ ANH: câu lệnh cho ChatGPT đã soạn. Làm 3 bước:")
+    in_(f"     1) cat ~/THANHDUC-WEB/chatgpt/{ten_lenh}   → bôi đen, chép, dán vào chatgpt.com")
+    in_(f"     2) nano ~/THANHDUC-WEB/chatgpt/{ten_tl}   → dán câu trả lời, Ctrl+O, Enter, Ctrl+X")
+    in_("     3) chạy lại đúng lệnh vừa rồi")
 
 
 # ---------------- kiem-tra ----------------
@@ -68,11 +88,15 @@ def lenh_kiem_tra(ch: CauHinh, args) -> int:
         loi += 1
         in_(f"   LỖI: {e}")
 
-    in_(f"3) Claude API ({ch.ai_model})")
+    in_("3) AI viết bài")
     try:
         nv = _nguoi_viet(ch)
-        m = nv.client.models.retrieve(ch.ai_model)
-        in_(f"   OK: {getattr(m, 'display_name', None) or ch.ai_model}")
+        in_(f"   Model: {nv.model}")
+        if not hasattr(nv, "client"):
+            in_("   OK: không dùng AI (mẫu cố định, miễn phí)")
+        else:
+            m = nv.client.models.retrieve(nv.model)
+            in_(f"   OK: {getattr(m, 'display_name', None) or getattr(m, 'id', None) or nv.model}")
     except Exception as e:
         loi += 1
         in_(f"   LỖI: {e}")
@@ -121,12 +145,12 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
     with ket_noi(ch.database_url) as conn:
         hang = lay_san_pham(conn, codes)
     wp = None if args.thu else _wp(ch)
-    nv = _nguoi_viet(ch)
+    nv = _chon_nguoi_viet(ch, args)
     danh_muc = wp.danh_muc_sp() if wp else []
     bang_nhom = dang.doc_bang_nhom(ch)
     tach_nen = ch.tach_nen and not args.khong_tach_nen
 
-    xong = loi = 0
+    xong = loi = cho = 0
     tong_phi = 0
     for code in codes:
         if xong >= gioi_han:
@@ -158,7 +182,7 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
             ten_anh = slug(f"{d.get('slug') or d['ten_web']}", 60) or code.lower()
             in_("   xử lý ảnh…")
             anh_ds = dang.xu_ly_anh(ch, ten_anh, files, tach_nen)
-            chi_tiet = [f"Tên web: {d['ten_web']}", f"Chi phí AI ước tính: ~{kq.chi_phi_vnd:,}đ".replace(",", ".")]
+            chi_tiet = [f"Tên web: {d['ten_web']}", f"Chi phí AI: {kq.mo_ta_chi_phi}"]
             chi_tiet += [f"Cần kiểm tra: {x}" for x in d.get("can_kiem_tra", [])] + kq.ghi_chu
             if args.thu:
                 p = dang.ghi_xem_truoc(ch, code, d["ten_web"], d, [a for a, _ in anh_ds])
@@ -177,6 +201,9 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
             dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Sản phẩm", code, "BẢN NHÁP", [f"Duyệt: {link}"] + chi_tiet))
             in_(f"   ĐÃ ĐĂNG NHÁP: {link}")
             xong += 1
+        except ChoTraLoi as e:
+            cho += 1
+            _bao_cho_tra_loi(e)
         except Exception as e:
             loi += 1
             in_(f"   LỖI: {e}")
@@ -185,7 +212,7 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
             dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Sản phẩm", code, "LỖI", [str(e)]))
     in_()
     phi = f"{tong_phi:,}".replace(",", ".")
-    in_(f"Xong {xong} mã, lỗi {loi}. Chi phí AI ước tính ~{phi}đ.")
+    in_(f"Xong {xong} mã, lỗi {loi}" + (f", chờ dán ChatGPT {cho}" if cho else "") + f". Chi phí AI ước tính ~{phi}đ.")
     in_(f"Kết quả ghi trong ~/THANHDUC-WEB/ket-qua/{dang.bay_gio():%Y-%m-%d}.md")
     return 0 if loi == 0 else 1
 
@@ -210,17 +237,17 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
         in_("Không có chủ đề. Ghi mỗi dòng một chủ đề vào ~/THANHDUC-WEB/chu-de.txt hoặc dùng --chu-de.")
         return 0
     wp = None if args.thu else _wp(ch)
-    nv = _nguoi_viet(ch)
+    nv = _chon_nguoi_viet(ch, args)
     chuyen_muc = None
     if wp and ch.chuyen_muc_bai:
         chuyen_muc = tim_danh_muc(ch.chuyen_muc_bai, wp.chuyen_muc_bai())
-    xong = loi = 0
+    xong = loi = cho = 0
     for cd in chu_de:
         in_(f"— {cd}")
         try:
             kq = nv.viet_bai(cd, dang.doc_ghi_chu(ch, slug(cd, 60)), ch.hotline)
             d = kq.du_lieu
-            chi_tiet = [f"Tiêu đề: {d['tieu_de']}", f"Chi phí AI ước tính: ~{kq.chi_phi_vnd:,}đ".replace(",", ".")]
+            chi_tiet = [f"Tiêu đề: {d['tieu_de']}", f"Chi phí AI: {kq.mo_ta_chi_phi}"]
             chi_tiet += [f"Cần kiểm tra: {x}" for x in d.get("can_kiem_tra", [])] + kq.ghi_chu
             files = [anh_mod.Path(args.anh)] if getattr(args, "anh", None) else anh_mod.tim_anh(ch.anh_bai, slug(cd, 60).upper())
             anh_ds = dang.xu_ly_anh(ch, slug(d.get("slug") or d["tieu_de"], 60), files, False) if files else []
@@ -253,6 +280,9 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
             dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Bài viết", cd, "BẢN NHÁP", [f"Duyệt: {link}"] + chi_tiet))
             in_(f"   ĐÃ ĐĂNG NHÁP: {link}")
             xong += 1
+        except ChoTraLoi as e:
+            cho += 1
+            _bao_cho_tra_loi(e)
         except Exception as e:
             loi += 1
             in_(f"   LỖI: {e}")
@@ -260,7 +290,7 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
                 traceback.print_exc()
             dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Bài viết", cd, "LỖI", [str(e)]))
     in_()
-    in_(f"Xong {xong} bài, lỗi {loi}.")
+    in_(f"Xong {xong} bài, lỗi {loi}" + (f", chờ dán ChatGPT {cho}" if cho else "") + ".")
     return 0 if loi == 0 else 1
 
 
@@ -276,6 +306,7 @@ def tao_parser() -> argparse.ArgumentParser:
     sp.add_argument("--khong-tach-nen", action="store_true")
     sp.add_argument("--khong-can-anh", action="store_true")
     sp.add_argument("--lam-lai", action="store_true", help="đăng lại dù đã đăng trước đó")
+    sp.add_argument("--khong-ai", action="store_true", help="không dùng AI, điền mẫu cố định (miễn phí)")
 
     bv = sub.add_parser("bai-viet", help="viết và đăng nháp bài viết")
     bv.add_argument("--chu-de")
@@ -284,6 +315,7 @@ def tao_parser() -> argparse.ArgumentParser:
     bv.add_argument("--anh", help="ảnh đại diện (đường dẫn trong container, ví dụ /data/anh-bai/x.jpg)")
 
     for p in (sp, bv):
+        p.add_argument("--chatgpt-web", action="store_true", help="không dùng API: soạn câu lệnh để dán vào ChatGPT web")
         p.add_argument("--thu", action="store_true", help="chỉ soạn, lưu bản xem trước, không đăng")
         p.add_argument("--chi-tiet", action="store_true", help="in chi tiết lỗi")
     return ap

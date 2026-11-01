@@ -91,9 +91,21 @@ class KetQuaAI:
 
     @property
     def chi_phi_vnd(self) -> int:
-        vao, ra = GIA_MODEL.get(self.model, GIA_MODEL["claude-opus-5-5"])
+        if self.model not in GIA_MODEL:
+            return 0  # model ngoài bảng giá (ví dụ ChatGPT): xem chi phí trên trang OpenAI
+        vao, ra = GIA_MODEL[self.model]
         usd = self.token_vao / 1e6 * vao + self.token_ra / 1e6 * ra + self.so_lan_tra_web * GIA_TRA_WEB_USD
         return int(round(usd * TY_GIA_VND, -2))
+
+
+    @property
+    def mo_ta_chi_phi(self) -> str:
+        if self.chi_phi_vnd:
+            return "~" + f"{self.chi_phi_vnd:,}".replace(",", ".") + "đ"
+        if not self.token_vao and not self.token_ra:
+            return "0đ"
+        vao, ra = (f"{n:,}".replace(",", ".") for n in (self.token_vao, self.token_ra))
+        return f"{vao} token vào, {ra} token ra (xem giá trên trang nhà cung cấp)"
 
 
 def yeu_cau_san_pham(sp: SanPham, ghi_chu: str, so_anh: int, hotline: str = "") -> str:
@@ -136,7 +148,7 @@ class NguoiViet:
             import anthropic
 
             if not api_key:
-                raise RuntimeError("Chưa có ANTHROPIC_API_KEY.")
+                raise RuntimeError("Chưa có khóa AI: đặt OPENAI_API_KEY hoặc ANTHROPIC_API_KEY trong deploy/.env.")
             client = anthropic.Anthropic(api_key=api_key, max_retries=3)
         self.client = client
         self.model = model
@@ -222,3 +234,188 @@ def _cong_usage(kq: KetQuaAI, resp) -> None:
     kq.token_ra += int(getattr(u, "output_tokens", 0) or 0)
     stu = getattr(u, "server_tool_use", None)
     kq.so_lan_tra_web += int(getattr(stu, "web_search_requests", 0) or 0) if stu else 0
+
+
+class NguoiVietOpenAI(NguoiViet):
+    """Cùng cách viết, cùng khuôn JSON, nhưng gọi ChatGPT qua OpenAI Responses API (anh đã có khóa OpenAI)."""
+
+    def __init__(self, api_key: str, model: str = "gpt-5.5", effort: str = "medium", tra_web: bool = True, client=None):
+        if client is None:
+            import openai
+
+            if not api_key:
+                raise RuntimeError("Chưa có OPENAI_API_KEY.")
+            client = openai.OpenAI(api_key=api_key, max_retries=3)
+        self.client = client
+        self.model = model
+        self.effort = "high" if effort in ("xhigh", "max") else effort
+        self.tra_web = tra_web
+
+    def _goi(self, yeu_cau: str, khuon: dict) -> KetQuaAI:
+        kq = KetQuaAI(du_lieu={}, model=self.model)
+        kw = dict(
+            model=self.model,
+            instructions=HE_THONG,
+            input=yeu_cau,
+            max_output_tokens=16000,
+            text={"format": {"type": "json_schema", "name": "noi_dung", "schema": khuon, "strict": True}},
+            reasoning={"effort": self.effort},
+        )
+        if self.tra_web:
+            kw["tools"] = [{"type": "web_search"}]
+        try:
+            resp = self.client.responses.create(**kw)
+        except Exception as e:  # model không hỗ trợ tra web / reasoning thì thử bản đơn giản
+            if not _la_loi_400(e):
+                raise
+            kq.ghi_chu.append(f"Gọi AI lần đầu lỗi ({e.__class__.__name__}); thử lại không tra web.")
+            kw.pop("tools", None)
+            kw.pop("reasoning", None)
+            resp = self.client.responses.create(**kw)
+        u = getattr(resp, "usage", None)
+        if u:
+            kq.token_vao += int(getattr(u, "input_tokens", 0) or 0)
+            kq.token_ra += int(getattr(u, "output_tokens", 0) or 0)
+        for item in getattr(resp, "output", []) or []:
+            if getattr(item, "type", "") == "web_search_call":
+                kq.so_lan_tra_web += 1
+            for c in getattr(item, "content", None) or []:
+                if getattr(c, "type", "") == "refusal":
+                    raise RuntimeError("AI từ chối viết nội dung này; đổi cách mô tả rồi thử lại.")
+        if getattr(resp, "status", "completed") == "incomplete":
+            raise RuntimeError("Bài AI viết bị cắt giữa chừng (quá dài); thử lại.")
+        van_ban = (getattr(resp, "output_text", "") or "").strip()
+        if not van_ban:
+            raise RuntimeError("AI không trả nội dung.")
+        try:
+            kq.du_lieu = json.loads(van_ban)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"AI trả nội dung không đúng khuôn: {e}") from e
+        thieu = [k for k in khuon["required"] if k not in kq.du_lieu]
+        if thieu:
+            raise RuntimeError(f"AI trả thiếu mục: {', '.join(thieu)}")
+        return kq
+
+
+class NguoiVietMau:
+    """Không dùng AI, miễn phí: điền thông tin kho vào khung có sẵn. Bài nào cũng giống nhau nên SEO yếu hơn."""
+
+    model = "mẫu cố định"
+
+    def viet_san_pham(self, sp: SanPham, ghi_chu: str = "", so_anh: int = 0, hotline: str = "") -> KetQuaAI:
+        from html import escape
+
+        ten = sp.name.strip()
+        e = escape(ten)
+        diem = [f"Mã hàng: {escape(sp.code)}", f"Nhóm: {escape(sp.group_name or 'Thiết bị văn phòng')}"]
+        if sp.warranty_months:
+            diem.append(f"Bảo hành {sp.warranty_months} tháng tại Thành Đức")
+        diem.append("Giao hàng nhanh nội thành TP.HCM, hỗ trợ kỹ thuật tận nơi")
+        ngan = "<ul>" + "".join(f"<li>{d}</li>" for d in diem) + "</ul>"
+        dai = [f"<h2>Giới thiệu {e}</h2>", f"<p>{e} được Tin Học Thành Đức phân phối và hỗ trợ kỹ thuật tại TP. Hồ Chí Minh.</p>"]
+        if ghi_chu.strip():
+            dai += ["<h2>Thông tin sản phẩm</h2>"] + [f"<p>{escape(x.strip())}</p>" for x in ghi_chu.splitlines() if x.strip()]
+        dai += [
+            "<h2>Dịch vụ tại Thành Đức</h2>",
+            "<ul><li>Tư vấn chọn đúng sản phẩm cho máy của khách</li><li>Giao hàng và lắp đặt tận nơi</li>"
+            "<li>Sửa chữa, bảo trì máy in, nạp mực, cung cấp mực định kỳ cho văn phòng</li></ul>",
+        ]
+        if hotline:
+            dai.append(f"<p>Gọi <strong>{escape(hotline)}</strong> để được tư vấn.</p>")
+        mo_ta_seo = f"{ten} chính hãng tại Thành Đức, giao nhanh TP.HCM, hỗ trợ kỹ thuật tận nơi."
+        d = {
+            "ten_web": ten, "slug": ten, "tu_khoa_chinh": ten.lower(),
+            "seo_title": f"{ten} | Thành Đức"[:60], "seo_description": mo_ta_seo[:155],
+            "mo_ta_ngan_html": ngan, "mo_ta_html": "".join(dai), "alt_anh": ten,
+            "can_kiem_tra": ["Nội dung theo mẫu cố định: nên bổ sung thông số, máy tương thích trước khi đăng"],
+        }
+        return KetQuaAI(du_lieu=d, model=self.model)
+
+    def viet_bai(self, chu_de: str, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        raise RuntimeError("Bài viết cần AI; chế độ không AI chỉ dùng cho sản phẩm.")
+
+
+class ChoTraLoi(Exception):
+    """Đã soạn câu lệnh cho ChatGPT web; chờ anh dán câu trả lời vào file."""
+
+    def __init__(self, file_lenh, file_tra_loi):
+        super().__init__(str(file_lenh))
+        self.file_lenh = file_lenh
+        self.file_tra_loi = file_tra_loi
+
+
+def _mo_ta_khuon(khuon: dict) -> str:
+    dong = []
+    for k, v in khuon["properties"].items():
+        kieu = "danh sách chuỗi" if v.get("type") == "array" else "chuỗi"
+        dong.append(f'- "{k}" ({kieu}){": " + v["description"] if v.get("description") else ""}')
+    return "\n".join(dong)
+
+
+def doc_json_tu_van_ban(van_ban: str) -> dict:
+    """Câu trả lời dán từ ChatGPT web có thể kèm lời dẫn hoặc ```json; lấy khối {...} ngoài cùng."""
+    dau, cuoi = van_ban.find("{"), van_ban.rfind("}")
+    if dau < 0 or cuoi <= dau:
+        raise RuntimeError("Câu trả lời không có khối JSON { ... }.")
+    try:
+        return json.loads(van_ban[dau : cuoi + 1])
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Câu trả lời dán vào không đúng JSON: {e}") from e
+
+
+class NguoiVietChatGPTWeb:
+    """Bán thủ công, không tốn phí API: soạn câu lệnh ra file, anh dán vào ChatGPT web rồi dán câu trả lời lại."""
+
+    model = "ChatGPT web (dán tay)"
+
+    def __init__(self, thu_muc):
+        from pathlib import Path
+
+        self.thu_muc = Path(thu_muc)
+
+    def _lay(self, ten: str, yeu_cau: str, khuon: dict) -> KetQuaAI:
+        self.thu_muc.mkdir(parents=True, exist_ok=True)
+        file_lenh = self.thu_muc / f"{ten}.txt"
+        file_tra_loi = self.thu_muc / f"{ten}-tra-loi.txt"
+        if file_tra_loi.exists() and file_tra_loi.read_text(encoding="utf-8").strip():
+            d = doc_json_tu_van_ban(file_tra_loi.read_text(encoding="utf-8"))
+            thieu = [k for k in khuon["required"] if k not in d]
+            if thieu:
+                raise RuntimeError(f"Câu trả lời thiếu mục: {', '.join(thieu)}")
+            for k, v in khuon["properties"].items():
+                if v.get("type") == "array" and not isinstance(d[k], list):
+                    d[k] = [str(d[k])]
+            return KetQuaAI(du_lieu=d, model=self.model)
+        lenh = "\n\n".join([
+            HE_THONG,
+            yeu_cau,
+            "Hãy tra cứu web nếu cần để lấy đúng thông số. Trả lời CHỈ bằng MỘT khối JSON (không giải thích thêm) gồm đủ các khóa sau:",
+            _mo_ta_khuon(khuon),
+        ])
+        file_lenh.write_text(lenh, encoding="utf-8")
+        raise ChoTraLoi(file_lenh, file_tra_loi)
+
+    def viet_san_pham(self, sp: SanPham, ghi_chu: str = "", so_anh: int = 0, hotline: str = "") -> KetQuaAI:
+        kq = self._lay(sp.code, yeu_cau_san_pham(sp, ghi_chu, so_anh, hotline), KHUON_SAN_PHAM)
+        kq.du_lieu["mo_ta_html"] = lam_sach_html(kq.du_lieu["mo_ta_html"])
+        kq.du_lieu["mo_ta_ngan_html"] = lam_sach_html(kq.du_lieu["mo_ta_ngan_html"])
+        return kq
+
+    def viet_bai(self, chu_de: str, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        from .wordpress import slug
+
+        kq = self._lay("bai-" + slug(chu_de, 60), yeu_cau_bai_viet(chu_de, ghi_chu, hotline), KHUON_BAI_VIET)
+        kq.du_lieu["noi_dung_html"] = lam_sach_html(kq.du_lieu["noi_dung_html"])
+        return kq
+
+
+def chon_nguoi_viet(ch):
+    """WEB_AI_NHA_CUNG_CAP=claude|openai|mau; để trống thì dùng loại nào có khóa (ưu tiên Claude)."""
+    ncc = ch.ai_nha_cung_cap
+    if ncc == "mau":
+        return NguoiVietMau()
+    if not ncc:
+        ncc = "claude" if ch.anthropic_api_key else ("openai" if ch.openai_api_key else "claude")
+    if ncc == "openai":
+        return NguoiVietOpenAI(ch.openai_api_key, ch.openai_model, ch.ai_effort, ch.ai_tra_web)
+    return NguoiViet(ch.anthropic_api_key, ch.ai_model, ch.ai_effort, ch.ai_tra_web)

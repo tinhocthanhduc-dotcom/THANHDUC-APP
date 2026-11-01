@@ -290,3 +290,113 @@ def test_chay_thu_san_pham_khong_dang(tmp_path, monkeypatch):
     assert (tmp_path / "xem-truoc" / "TD-0001.html").exists()
     assert (tmp_path / "anh-da-xu-ly" / "hop-muc-canon-326.webp").exists()
     assert dang.doc_trang_thai(tmp_path / "da-dang.json")["san_pham"] == {}  # chạy thử không đánh dấu đã đăng
+
+
+# ---------- ChatGPT (OpenAI) và chế độ không AI ----------
+class _FakeResponses:
+    def __init__(self, items):
+        self.items = list(items)
+        self.calls = []
+
+    def create(self, **kw):
+        self.calls.append(kw)
+        r = self.items.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+
+def _oa_resp(data, status="completed", refusal=False):
+    content = [SimpleNamespace(type="refusal", refusal="no")] if refusal else [SimpleNamespace(type="output_text", text="x")]
+    return SimpleNamespace(
+        status=status,
+        output=[SimpleNamespace(type="web_search_call"), SimpleNamespace(type="message", content=content)],
+        output_text=json.dumps(data, ensure_ascii=False),
+        usage=SimpleNamespace(input_tokens=1200, output_tokens=900),
+    )
+
+
+def test_openai_viet_san_pham():
+    from dang_web.viet_bai import NguoiVietOpenAI
+
+    fake = _FakeResponses([_oa_resp(_du_lieu_sp())])
+    kq = NguoiVietOpenAI("", client=SimpleNamespace(responses=fake)).viet_san_pham(_sp(), "LBP 6200d")
+    call = fake.calls[0]
+    assert call["model"] == "gpt-5.5" and call["tools"] == [{"type": "web_search"}]
+    assert call["text"]["format"]["strict"] is True and call["text"]["format"]["schema"] is KHUON_SAN_PHAM
+    assert "LBP 6200d" in call["input"] and kq.du_lieu["mo_ta_html"] == "<h2>A</h2><p>B</p>"
+    assert kq.so_lan_tra_web == 1 and kq.chi_phi_vnd == 0 and "token" in kq.mo_ta_chi_phi
+
+
+def test_openai_loi_400_thu_lai_va_bao_loi():
+    from dang_web.viet_bai import NguoiVietOpenAI
+
+    loi = Exception("bad")
+    loi.status_code = 400
+    fake = _FakeResponses([loi, _oa_resp(_du_lieu_sp())])
+    kq = NguoiVietOpenAI("", client=SimpleNamespace(responses=fake)).viet_san_pham(_sp())
+    assert "tools" not in fake.calls[1] and "reasoning" not in fake.calls[1] and kq.ghi_chu
+    for r in (_oa_resp({}, status="incomplete"), _oa_resp({}, refusal=True)):
+        with pytest.raises(RuntimeError):
+            NguoiVietOpenAI("", client=SimpleNamespace(responses=_FakeResponses([r]))).viet_san_pham(_sp())
+
+
+def test_chon_nguoi_viet_theo_khoa():
+    from dang_web.viet_bai import NguoiViet, NguoiVietMau, NguoiVietOpenAI, chon_nguoi_viet
+
+    assert isinstance(chon_nguoi_viet(CauHinh.tu_moi_truong({"OPENAI_API_KEY": "sk-x"})), NguoiVietOpenAI)
+    ch = CauHinh.tu_moi_truong({"OPENAI_API_KEY": "sk-x", "ANTHROPIC_API_KEY": "sk-ant", "WEB_AI_NHA_CUNG_CAP": "OpenAI"})
+    assert isinstance(chon_nguoi_viet(ch), NguoiVietOpenAI)
+    assert type(chon_nguoi_viet(CauHinh.tu_moi_truong({"ANTHROPIC_API_KEY": "sk-ant"}))) is NguoiViet
+    assert isinstance(chon_nguoi_viet(CauHinh.tu_moi_truong({"WEB_AI_NHA_CUNG_CAP": "mau"})), NguoiVietMau)
+    with pytest.raises(RuntimeError):
+        chon_nguoi_viet(CauHinh.tu_moi_truong({}))
+
+
+def test_khong_ai_dien_mau():
+    from dang_web.viet_bai import KHUON_SAN_PHAM, NguoiVietMau
+
+    d = NguoiVietMau().viet_san_pham(_sp(warranty_months=12, name="Hộp mực <Canon> 326"), "Dùng cho LBP 6200d", hotline="0909").du_lieu
+    assert set(KHUON_SAN_PHAM["required"]) <= set(d)
+    assert "&lt;Canon&gt;" in d["mo_ta_html"] and "LBP 6200d" in d["mo_ta_html"] and "0909" in d["mo_ta_html"]
+    assert "12 tháng" in d["mo_ta_ngan_html"] and len(d["seo_title"]) <= 60
+    with pytest.raises(RuntimeError):
+        NguoiVietMau().viet_bai("x")
+
+
+def test_chatgpt_web_soan_lenh_roi_doc_tra_loi(tmp_path):
+    from dang_web.viet_bai import ChoTraLoi, NguoiVietChatGPTWeb, doc_json_tu_van_ban
+
+    nv = NguoiVietChatGPTWeb(tmp_path)
+    with pytest.raises(ChoTraLoi) as e:
+        nv.viet_san_pham(_sp(), "LBP 6200d")
+    lenh = e.value.file_lenh.read_text(encoding="utf-8")
+    assert "TD-0001" in lenh and "LBP 6200d" in lenh and '"mo_ta_html"' in lenh and "JSON" in lenh
+    tra_loi = "Đây là kết quả:\n```json\n" + json.dumps(_du_lieu_sp() | {"can_kiem_tra": "số trang"}, ensure_ascii=False) + "\n```"
+    e.value.file_tra_loi.write_text(tra_loi, encoding="utf-8")
+    kq = nv.viet_san_pham(_sp())
+    assert kq.du_lieu["mo_ta_html"] == "<h2>A</h2><p>B</p>" and kq.du_lieu["can_kiem_tra"] == ["số trang"]
+    with pytest.raises(RuntimeError):
+        doc_json_tu_van_ban("không có json")
+
+
+def test_chay_chatgpt_web_bao_cho(tmp_path, monkeypatch, capsys):
+    import dang_web.__main__ as m
+
+    monkeypatch.setenv("WEB_THU_MUC_TRONG", str(tmp_path))
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(m, "ket_noi", lambda url: _Conn())
+    monkeypatch.setattr(m, "lay_san_pham", lambda conn, codes: {"TD-0001": _sp()})
+    (tmp_path / "anh-goc").mkdir()
+    _anh_mau(tmp_path / "anh-goc" / "TD-0001.jpg")
+    assert m.main(["san-pham", "--ma", "TD-0001", "--thu", "--chatgpt-web"]) == 0
+    out = capsys.readouterr().out
+    assert "CHỜ ANH" in out and "chờ dán ChatGPT 1" in out
+    assert (tmp_path / "chatgpt" / "TD-0001.txt").exists()

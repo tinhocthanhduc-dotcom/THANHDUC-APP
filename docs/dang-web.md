@@ -4,7 +4,11 @@ Công cụ chạy trên máy chủ Z2, trong container riêng `dang-web` (không
 
 1. Lấy mã, tên, nhóm, giá, bảo hành, tồn từ database app ở chế độ **chỉ đọc**.
 2. Xử lý ảnh ngay trên Z2: xoay đúng chiều, tách nền, nền trắng, ảnh vuông 1200×1200, đóng logo Thành Đức góc dưới phải, nén WebP.
-3. Claude viết tên web, mô tả ngắn, mô tả chi tiết, tiêu đề và mô tả SEO (Yoast), chữ thay thế cho ảnh; có tra web để lấy đúng máy tương thích.
+3. AI viết tên web, mô tả ngắn, mô tả chi tiết, tiêu đề và mô tả SEO (Yoast), chữ thay thế cho ảnh; có tra web để lấy đúng máy tương thích. Có 4 cách viết:
+   - **ChatGPT API** (khóa `OPENAI_API_KEY`, mặc định khi chỉ có khóa này),
+   - **Claude API** (khóa `ANTHROPIC_API_KEY`),
+   - **ChatGPT web, dán tay** (`--chatgpt-web`, không tốn phí API),
+   - **Mẫu cố định, không AI** (`--khong-ai`, miễn phí, chỉ cho sản phẩm).
 4. Đăng lên WooCommerce ở trạng thái **Bản nháp**. Người duyệt mở wp-admin, sửa nếu cần, bấm Đăng.
 
 Web thanhduc.vn vẫn ở hosting cũ, công cụ chỉ gọi REST API của web.
@@ -20,11 +24,12 @@ Web thanhduc.vn vẫn ở hosting cũ, công cụ chỉ gọi REST API của web
 
 Không thấy mục đó: plugin bảo mật đang tắt tính năng này, cần bật lại trong cài đặt plugin bảo mật.
 
-### 2. Khóa Claude API
+### 2. Khóa AI (một trong hai)
 
-1. Vào `https://console.anthropic.com` → **Settings → API Keys → Create Key**, đặt tên `Z2 dang web`.
-2. Vào **Billing** nạp tiền, và **Limits** đặt hạn mức tháng (ví dụ 10 USD) cho yên tâm.
-3. Chép khóa (bắt đầu bằng `sk-ant-`). Không gửi vào chat.
+- **ChatGPT (OpenAI):** vào `https://platform.openai.com/api-keys` → **Create new secret key**, đặt tên `Z2 dang web`. Trong **Limits** đặt hạn mức tháng. Khóa bắt đầu bằng `sk-`.
+- **Claude:** vào `https://console.anthropic.com` → **Settings → API Keys → Create Key**; nạp tiền ở **Billing**, đặt hạn mức ở **Limits**. Khóa bắt đầu bằng `sk-ant-`.
+
+Không gửi khóa vào chat. Không có khóa nào vẫn dùng được `--chatgpt-web` hoặc `--khong-ai`.
 
 ### 3. Ghi vào deploy/.env trên Z2
 
@@ -37,8 +42,10 @@ Thêm cuối file (thay phần trong ngoặc nhọn):
 ```
 WP_USER=<tên đăng nhập wp-admin>
 WP_APP_PASSWORD=<mật khẩu ứng dụng vừa tạo>
-ANTHROPIC_API_KEY=<khóa sk-ant-...>
+OPENAI_API_KEY=<khóa sk-...>
 ```
+
+(Dùng Claude thì thay dòng cuối bằng `ANTHROPIC_API_KEY=<khóa sk-ant-...>`.)
 
 Lưu: Ctrl+O, Enter, Ctrl+X.
 
@@ -90,6 +97,22 @@ Mỗi mã in ra link duyệt `.../wp-admin/post.php?post=...`. Kết quả, chi 
 
 Công cụ tự bỏ qua mã đã có trên web (trùng SKU = mã TD) và mã đã đăng trước đó. Muốn đăng lại thêm `--lam-lai`.
 
+### Không dùng API
+
+Mẫu cố định (miễn phí, nội dung đơn giản; nên tự thêm thông số khi duyệt):
+
+```bash
+scripts/dang-web.sh san-pham --ma TD-0123 --khong-ai
+```
+
+ChatGPT web, dán tay:
+
+```bash
+scripts/dang-web.sh san-pham --ma TD-0123 --chatgpt-web
+```
+
+Lần đầu công cụ soạn câu lệnh rồi dừng, in ra 3 bước: `cat ~/THANHDUC-WEB/chatgpt/TD-0123.txt` để chép câu lệnh dán vào chatgpt.com; `nano ~/THANHDUC-WEB/chatgpt/TD-0123-tra-loi.txt` dán câu trả lời của ChatGPT; chạy lại đúng lệnh đó để xử lý ảnh và đăng nháp.
+
 ### Bài viết
 
 ```bash
@@ -115,7 +138,9 @@ Thêm dòng (7 giờ sáng thứ 2 – thứ 7, mỗi lần 2 sản phẩm đã 
 
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| `WEB_AI_MODEL` | `claude-opus-5-5` | Model viết bài. `claude-sonnet-5-5` rẻ bằng nửa |
+| `WEB_AI_NHA_CUNG_CAP` | trống | `openai`, `claude` hoặc `mau` (không AI). Trống: dùng loại nào có khóa, có cả hai thì Claude |
+| `WEB_OPENAI_MODEL` | `gpt-5.5` | Model ChatGPT |
+| `WEB_AI_MODEL` | `claude-opus-5-5` | Model Claude. `claude-sonnet-5-5` rẻ bằng nửa |
 | `WEB_AI_TRA_WEB` | `true` | Cho AI tra web để lấy đúng máy tương thích |
 | `WEB_TACH_NEN` | `true` | Tách nền ảnh (tắt nếu ảnh đã nền trắng sẵn) |
 | `WEB_ANH_DINH_DANG` | `webp` | `jpg` nếu hosting không nhận WebP (công cụ cũng tự đổi khi bị từ chối) |
@@ -129,7 +154,7 @@ Ghép nhóm hàng với danh mục web: công cụ tìm danh mục trùng tên n
 
 ## Chi phí
 
-Mỗi lần chạy in chi phí AI ước tính. Với Opus 5.5 có tra web, khoảng 2.000–5.000đ mỗi sản phẩm hoặc bài viết. Xử lý ảnh chạy trên Z2, không tốn phí.
+Mỗi lần chạy in chi phí AI (Claude: số tiền ước tính; ChatGPT: số token, xem tiền trên trang OpenAI). Khoảng vài nghìn đồng mỗi sản phẩm hoặc bài viết. `--chatgpt-web` và `--khong-ai` không tốn phí API. Xử lý ảnh chạy trên Z2, không tốn phí.
 
 ## An toàn
 

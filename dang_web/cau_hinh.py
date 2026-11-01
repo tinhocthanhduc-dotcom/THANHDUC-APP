@@ -26,6 +26,9 @@ class CauHinh:
     wp_user: str = ""
     wp_app_password: str = ""
     anthropic_api_key: str = ""
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5.5"
+    ai_nha_cung_cap: str = ""
     ai_model: str = "claude-opus-5-5"
     ai_effort: str = "medium"
     ai_tra_web: bool = True
@@ -54,6 +57,9 @@ class CauHinh:
             # Application Password WordPress hiện dạng "abcd efgh ..."; bỏ dấu cách cho chắc.
             wp_app_password=(e.get("WP_APP_PASSWORD") or "").replace(" ", "").strip(),
             anthropic_api_key=(e.get("ANTHROPIC_API_KEY") or "").strip(),
+            openai_api_key=(e.get("OPENAI_API_KEY") or "").strip(),
+            openai_model=(e.get("WEB_OPENAI_MODEL") or "gpt-5.5").strip(),
+            ai_nha_cung_cap=ncc if (ncc := (e.get("WEB_AI_NHA_CUNG_CAP") or "").strip().lower()) in ("claude", "openai", "mau") else "",
             ai_model=(e.get("WEB_AI_MODEL") or "claude-opus-5-5").strip(),
             ai_effort=effort,
             ai_tra_web=_bool(e.get("WEB_AI_TRA_WEB"), True),
