@@ -11,6 +11,7 @@ from .customers import like_pattern
 from .errors import BusinessError
 from .models import Customer, CustomerSite, Equipment, Product
 from .schemas import EquipmentOut
+from .security import has_role
 from .text import fold
 
 
@@ -114,8 +115,21 @@ def create_in_tx(session: Session, user, body, check=True):
     return row
 
 
+# TUẤN 01/11: thợ chỉ thêm máy mới; máy đã có chỉ điều phối (và giám đốc) sửa.
+EDITORS = ('dispatcher',)
+
+
+def can_edit(user):
+    return has_role(user, *EDITORS)
+
+
+def check_editor(user):
+    if not can_edit(user):
+        raise BusinessError('FORBIDDEN', 'Thợ chỉ thêm máy mới. Máy đã có chỉ điều phối hoặc giám đốc sửa; thấy sai hãy báo điều phối.', status=403)
+
+
 def update(session: Session, user, serial, body):
-    check_writer(user)
+    check_editor(user)
     row = load(session, serial)
     if row.version != body.version:
         raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa thiết bị, hãy tải lại.', status=409)

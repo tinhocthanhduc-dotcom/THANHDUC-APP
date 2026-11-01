@@ -103,7 +103,8 @@ def _form(request, session, data, is_new=False, error=None, status=200, saved=Fa
                   custody_locations=LOCATIONS,custody_statuses=STATUSES,custody_accessories=ACCESSORIES,custody_users=dict(session.execute(select(User.id,User.full_name)).all()), d=data, sites=sites, selected_site=data.get('site_id'),
                   product_name=product.name if product else '', customer_name=customer.name if customer else '',
                   is_new=is_new, error=error, saved=saved, status=status,
-                  can_device_write=has_role(request.state.user, *customer_sites.WRITERS))
+                  can_device_write=has_role(request.state.user, *customer_sites.WRITERS) if is_new else equipment.can_edit(request.state.user),
+                  view_only_technician=not is_new and not equipment.can_edit(request.state.user) and has_role(request.state.user, *customer_sites.WRITERS))
 
 
 @router.get('/thiet-bi/moi')
@@ -165,7 +166,7 @@ def view(request: Request, serial: str, da_luu: int = 0, user: User = Depends(we
 
 @router.post('/thiet-bi/{serial:path}')
 def update(request: Request, serial: str, form=Depends(checked_form), session: Session = Depends(get_session)):
-    customer_sites.check_writer(request.state.user)
+    equipment.check_editor(request.state.user)
     shown = {**equipment.snapshot(equipment.load(session, serial)), 'version': form.get('version', ''),
              'product_code': str(form.get('product_code', '')), 'customer_code': form.get('customer_code') or None,
              'product_q': str(form.get('product_q', '')), 'customer_q': str(form.get('customer_q', ''))}

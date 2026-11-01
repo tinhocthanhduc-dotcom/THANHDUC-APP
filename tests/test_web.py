@@ -3279,3 +3279,27 @@ def test_from_quote_confirm_failure_keeps_draft_with_reason(client,db,web_login,
     order=db.query(SalesOrder).one()
     assert order.status=='NHAP' and r.status_code>=400
     assert f'Đã tạo đơn nháp {order.number} nhưng chưa chốt được' in r.text
+
+
+def test_technician_adds_device_but_cannot_edit_existing(client, web_login, d1_catalog, db):
+    """TUẤN 01/11: thợ chỉ thêm máy; máy đã có thì chỉ xem, điều phối/giám đốc mới sửa."""
+    from app.models import AuditLog, Equipment
+    csrf = web_login('ky.thuat', 'technician')
+    assert '+ Thêm thiết bị' in client.get('/thiet-bi').text
+    assert '>Lưu thiết bị<' in client.get('/thiet-bi/moi').text
+    r = client.post('/thiet-bi/moi', data=device_form(csrf), follow_redirects=False)
+    assert r.status_code == 303
+    page = client.get('/thiet-bi/AB123')
+    assert page.status_code == 200 and '>Lưu thiết bị<' not in page.text and 'Máy đã có chỉ xem' in page.text
+    r = client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, note='Thợ sửa', warranty_until='2031-01-01'))
+    assert r.status_code == 403
+    db.expire_all()
+    eq = db.get(Equipment, 'AB123')
+    assert eq.version == 1 and eq.note == 'Thiết bị quầy 1' and str(eq.warranty_until) == '2027-12-31'
+    assert db.query(AuditLog).filter(AuditLog.action == 'equipment.update').count() == 0
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    page = client.get('/thiet-bi/AB123')
+    assert '>Lưu thiết bị<' in page.text and 'Máy đã có chỉ xem' not in page.text
+    assert client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, note='Điều phối sửa')).status_code == 200
+    db.expire_all()
+    assert db.get(Equipment, 'AB123').note == 'Điều phối sửa'
