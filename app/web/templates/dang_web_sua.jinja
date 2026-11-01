@@ -1,0 +1,51 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% set bai = loai == 'bai_viet' %}
+{% block title %}Sửa bằng AI · {{ it.ten }}{% endblock %}
+{# TUẤN duyệt mẫu 01/11/2026: khung 12 (bấm một dòng ở Trên web › Sửa bằng AI). #}
+{% block main %}<div class="page-wide dw-page">
+{{ ui.page_head(it.ten, sub='Sửa bằng AI · ' ~ ('bài viết' if bai else 'sản phẩm') ~ ' đang có trên thanhduc.vn' ~ (' · ' ~ ma if ma else ''), back='/dang-web?tab=tren-web&loai=' ~ ('bai' if bai else 'sp')) }}
+{% if error %}<p class="alert bad" role="alert"><b>Chưa tạo được.</b> {{ error }}</p>{% endif %}
+{% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt; việc sẽ nằm chờ tới khi anh bật trên Z2 (<code>scripts/dang-web.sh bat-may</code>).</p>{% endif %}
+<form method="post" action="/dang-web/sua-ai" enctype="multipart/form-data" class="form dw-form" data-busy>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<input type="hidden" name="loai" value="{{ loai }}"><input type="hidden" name="id" value="{{ it.id }}">
+<div class="dw-cols dw-2"><div>
+<section class="card">
+<div class="dw-two">{% if it.xem %}<a class="btn btn-ghost" href="{{ it.xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}<a class="btn btn-ghost" href="{{ it.sua }}" target="_blank" rel="noopener">Sửa trên web ↗</a></div>
+<p class="hint">{{ {'draft': 'Bản nháp', 'publish': 'Đang hiện', 'pending': 'Chờ duyệt', 'private': 'Riêng tư', 'future': 'Hẹn giờ'}.get(it.trang_thai, it.trang_thai) }} trên web{% if not bai %} · {{ ('mã ' ~ ma ~ ' trong app: AI lấy thêm thông tin và giá từ app') if ma else 'không có mã TD: AI dựa vào nội dung đang có trên web, giữ giá web' }}{% endif %}.</p>
+<label><b>{{ 'Chuyên mục' if bai else 'Danh mục' }}</b>
+<select name="danh_muc_id"><option value="">{{ 'Giữ như cũ' ~ (' (' ~ dm_hien ~ ')' if dm_hien else ' (chưa phân loại)') }}</option>{% for i, ten in cay_lua %}<option value="{{ i }}"{{ ' selected' if d.danh_muc_id == i|string }}>{{ ten }}</option>{% endfor %}</select></label>
+</section>
+<section class="card">
+<b>AI sửa phần nào</b>
+<div class="dw-opts">
+<label class="dw-opt"><input type="checkbox" name="noi_dung" value="1"{{ ' checked' if d.noi_dung }}><span><b>Viết lại nội dung</b><small>{{ 'Tiêu đề, tóm tắt, nội dung bài; giữ đúng chủ đề và ý đúng của bài cũ.' if bai else 'Tên, mô tả ngắn, mô tả chi tiết; giữ đúng thông số và máy tương thích.' }}</small></span></label>
+<label class="dw-opt"><input type="checkbox" name="seo" value="1"{{ ' checked' if d.seo }}><span><b>Tiêu đề + mô tả Google</b><small>Yoast SEO, từ khóa chính.</small></span></label>
+<label class="dw-opt"><input type="checkbox" name="anh_lai" value="1"{{ ' checked' if d.anh }}><span><b>Ảnh</b><small>{{ 'Ảnh đại diện + ảnh trong thân bài.' if bai else 'Nền trắng, logo, chèn vào mô tả.' }} Không chọn ảnh mới thì lấy ảnh đang có trên web xử lý lại.</small></span></label>
+</div>
+<label><b>Ghi chú cho AI</b><textarea name="ghi_chu" rows="3" maxlength="3000" placeholder="{{ 'Ví dụ: thêm phần lỗi thường gặp ở Canon 2900…' if bai else 'Ví dụ: nhấn mạnh in được 12.000 trang…' }}">{{ d.ghi_chu }}</textarea></label>
+</section>
+</div><div class="dw-side">
+<section class="card dw-photos" data-dw-photos data-max="{{ toi_da_anh }}">
+<div class="bar"><b>Ảnh mới</b> <span class="hint">(không bắt buộc)</span><span class="photo-btns"><label class="btn photo-capture">📷 Chụp ảnh<input type="file" accept="image/*" capture="environment" data-dw-add data-tech-camera></label><label class="btn photo-capture">🖼 Ảnh có sẵn<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple data-dw-add data-tech-camera></label></span></div>
+<input type="file" name="anh" multiple hidden accept="image/*">
+<div class="dw-ph-list" data-dw-list></div>
+{% set rong = 'Chọn ảnh mới thì thay ảnh trên web (tối đa ' ~ toi_da_anh ~ ' ảnh).' %}
+<p class="hint" data-dw-note data-empty="{{ rong }}">{{ rong }}</p>
+{% if not bai %}<label class="chk"><input type="checkbox" name="nen_trang" value="1"{{ ' checked' if d.nen_trang }}> Ảnh đã nền trắng sẵn, không cần tách nền</label>{% endif %}
+<label class="chk"><input type="checkbox" name="da_co_logo" value="1"{{ ' checked' if d.da_co_logo }}> Ảnh đã có logo Thành Đức, không đóng thêm</label>
+</section>
+<section class="card">
+<b>Cách viết</b>
+<div class="dw-opts">{% for key in ('tu_dong', 'chatgpt_web') %}<label class="dw-opt"><input type="radio" name="cach_viet" value="{{ key }}"{{ ' checked' if d.cach_viet == key }}{{ ' disabled' if key == 'tu_dong' and not (nhip and nhip.ai) }}><span><b>{{ cach_viet[key] }}</b>{% if key == 'tu_dong' %}<small>{{ nhip.ai if nhip and nhip.ai else 'Chưa có khóa AI trên Z2' }}</small>{% else %}<small>Chép câu lệnh dán vào chatgpt.com, không tốn phí API.</small>{% endif %}</span></label>{% endfor %}</div>
+</section>
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · AI soạn, anh xem trước</span>
+<button class="btn btn-new dw-big">Soạn bản sửa</button>
+<p class="hint">Chưa ghi gì lên web. Bản sửa nằm ở “Chờ anh xem trước”; anh bấm Ghi đè mới thay trên web, giữ nguyên trạng thái và đường dẫn.</p>
+</section>
+</div></div>
+</form>
+</div>
+<script src="{{ asset('dang-web.js') }}" defer></script>
+{% endblock %}

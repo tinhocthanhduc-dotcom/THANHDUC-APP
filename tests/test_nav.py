@@ -37,7 +37,8 @@ for role in ('sales','technician'):
 EXPECTED['finance'].update(('/hoa-hong/thang','/luong/chi'))
 EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan-su','/cham-cong/duyet','/cham-cong/ngay-le','/kpi/tong','/kpi/muc-tieu','/hoa-hong/thang','/hoa-hong/quy-tac','/luong','/luong/chi'}  # UI0: trang mẫu giao diện, chỉ giám đốc
 EXPECTED['director'].add('/toc-do')  # TD1: trang Tốc độ app
-EXPECTED['director'].add('/dang-web')  # TUẤN 01/11/2026: màn Đăng web, chỉ giám đốc
+EXPECTED['director'].add('/dang-web')  # TUẤN 01/11/2026: màn Đăng web (nhóm Bán hàng)
+EXPECTED['sales'].add('/dang-web')  # TUẤN 01/11/2026: Kinh doanh dùng được Đăng web
 EXPECTED['director'].difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu'))  # Việc riêng của thợ không lên menu giám đốc.
 for _role in ('technician','dispatcher','warehouse','director'):
     EXPECTED[_role].add('/san-xuat')

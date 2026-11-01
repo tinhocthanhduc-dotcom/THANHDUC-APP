@@ -17,6 +17,7 @@ from . import hang_doi as hd
 from .cau_hinh import CauHinh
 from .viet_bai import ChoTraLoi
 from .so_ten import _ten
+from .tren_web import CayDanhMuc, gon_danh_muc
 from .wordpress import LoiWeb, WordPress, bai_co_the_trung, link_sua, slug, sp_co_the_trung, tim_danh_muc
 
 
@@ -108,7 +109,11 @@ class MayDangWeb:
 
     # ---------- soạn ----------
     def soan(self, v: dict) -> None:
-        if v["loai"] == "san_pham":
+        if v.get("kieu") == "sua_web":
+            self._soan_sua_web(v)
+        elif v.get("kieu") == "xep_danh_muc":
+            self._soan_xep(v)
+        elif v["loai"] == "san_pham":
             self._soan_san_pham(v)
         else:
             self._soan_bai(v)
@@ -160,9 +165,7 @@ class MayDangWeb:
                 return
         if self._kiem_trung(v, sp_co_the_trung, sp.name):
             return
-        files = self._anh_goc(v)
-        if not files and not v.get("wp_id"):
-            raise RuntimeError("Chưa có ảnh. Chụp hoặc chọn ít nhất 1 ảnh sản phẩm.")
+        files = self._anh_goc(v)  # không có ảnh vẫn soạn được: lên web dạng chữ, bổ sung ảnh sau bằng Sửa bằng AI
         nv = self.nguoi_viet(v)
         kq = self._goi_ai(v, nv, lambda: nv.viet_san_pham(sp, v.get("ghi_chu") or dang.doc_ghi_chu(self.ch, sp.code),
                                                           len(files), self.ch.hotline))
@@ -210,6 +213,10 @@ class MayDangWeb:
         return dang.tai_anh_len_day_du(self.wp(), self.ch, ds, alt, nguon, tach_nen, logo=not v.get("da_co_logo")) if ds else []
 
     def dang(self, v: dict) -> None:
+        if v.get("kieu") == "sua_web":
+            return self._dang_sua_web(v)
+        if v.get("kieu") == "xep_danh_muc":
+            return self._dang_xep(v)
         wp = self.wp()
         d = v["noi_dung"]
         if v["loai"] == "san_pham":
@@ -285,13 +292,202 @@ class MayDangWeb:
                 ra[khoa][str(it["id"])] = {"ten": ten, "trang_thai": it.get("status", ""),
                                            "xem": it.get("permalink") or it.get("link") or ""}
         hd.ghi_json(hd.file_web(self.goc), ra)
-        # Tab Hàng hóa: danh sách mọi sản phẩm trên web để app so với Hàng hóa (chỉ khi anh bấm Cập nhật từ web).
+        # Tab Trên web: mọi sản phẩm, bài viết và danh mục trên web (chỉ khi anh bấm Cập nhật từ web).
+        dm_sp = gon_danh_muc(wp.danh_muc_sp())
         sp_web = [{"id": it["id"], "ten": _ten(it), "sku": str(it.get("sku") or ""), "trang_thai": it.get("status", ""),
-                   "xem": it.get("permalink") or "", "sua": link_sua(self.ch.wp_url, it["id"])} for it in wp.tat_ca_sp() if it.get("id")]
-        hd.ghi_json(hd.file_sp_web(self.goc), {"luc": ra["luc"], "ds": sp_web})
-        in_(f"Cập nhật từ web: {len(sp_web)} sản phẩm")
+                   "xem": it.get("permalink") or "", "sua": link_sua(self.ch.wp_url, it["id"]),
+                   "dm": [c["id"] for c in it.get("categories") or [] if isinstance(c, dict) and c.get("id")],
+                   "gia": str(it.get("regular_price") or it.get("price") or ""),
+                   "anh": next((m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict)), ""),
+                   "so_anh": len(it.get("images") or [])} for it in wp.tat_ca_sp() if it.get("id")]
+        hd.ghi_json(hd.file_sp_web(self.goc), {"luc": ra["luc"], "ds": sp_web, "danh_muc": dm_sp})
+        bai_web = [{"id": it["id"], "ten": _ten(it), "trang_thai": it.get("status", ""), "xem": it.get("link") or "",
+                    "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
+                    "ngay": str(it.get("date") or "")[:10], "co_anh": bool(it.get("featured_media"))} for it in wp.tat_ca_bai() if it.get("id")]
+        hd.ghi_json(hd.file_bai_web(self.goc), {"luc": ra["luc"], "ds": bai_web, "danh_muc": gon_danh_muc(wp.chuyen_muc_bai())})
+        in_(f"Cập nhật từ web: {len(sp_web)} sản phẩm, {len(bai_web)} bài viết")
         self._danh_muc = None
         self.danh_muc()
+
+    # ---------- sửa bài / sản phẩm đang có trên web ----------
+    def _sua_ds_web(self, loai: str, web_id: int, **them) -> None:
+        """Ghi luôn thay đổi vào danh sách đã lấy về để tab Trên web thấy ngay, khỏi đợi lần Cập nhật từ web sau."""
+        f = hd.file_sp_web(self.goc) if loai == "san_pham" else hd.file_bai_web(self.goc)
+        with hd.khoa(self.goc):
+            d = hd.doc_json(f, {})
+            if not isinstance(d, dict):
+                return
+            for it in d.get("ds") or []:
+                if isinstance(it, dict) and it.get("id") == web_id:
+                    it.update(them)
+            hd.ghi_json(f, d)
+
+    def _cay(self, loai: str) -> CayDanhMuc:
+        f = hd.file_sp_web(self.goc) if loai == "san_pham" else hd.file_bai_web(self.goc)
+        d = hd.doc_json(f, {})
+        return CayDanhMuc(d.get("danh_muc") or [] if isinstance(d, dict) else [])
+
+    @staticmethod
+    def _hien_tai(loai: str, it: dict) -> dict:
+        if loai == "san_pham":
+            meta = {m.get("key"): m.get("value") for m in it.get("meta_data") or [] if isinstance(m, dict)}
+            anh = [m for m in it.get("images") or [] if isinstance(m, dict)]
+            return {"ten_web": _ten(it), "slug": it.get("slug", ""), "mo_ta_ngan_html": it.get("short_description") or "",
+                    "mo_ta_html": it.get("description") or "", "seo_title": str(meta.get("_yoast_wpseo_title") or ""),
+                    "seo_description": str(meta.get("_yoast_wpseo_metadesc") or ""), "tu_khoa_chinh": str(meta.get("_yoast_wpseo_focuskw") or ""),
+                    "alt_anh": (anh[0].get("alt") if anh else "") or _ten(it), "can_kiem_tra": [],
+                    "danh_muc": ", ".join(c.get("name", "") for c in it.get("categories") or [] if isinstance(c, dict))}
+
+        def raw(k):
+            x = it.get(k) or ""
+            return (x.get("raw") or x.get("rendered") or "") if isinstance(x, dict) else str(x)
+
+        yoast = it.get("yoast_head_json") or {}
+        meta = it.get("meta") if isinstance(it.get("meta"), dict) else {}
+        return {"tieu_de": _ten(it), "slug": it.get("slug", ""), "tom_tat": raw("excerpt"), "noi_dung_html": raw("content"),
+                "seo_title": str(meta.get("_yoast_wpseo_title") or yoast.get("title") or ""),
+                "seo_description": str(meta.get("_yoast_wpseo_metadesc") or yoast.get("description") or ""),
+                "tu_khoa_chinh": str(meta.get("_yoast_wpseo_focuskw") or ""), "alt_anh": _ten(it), "the": [], "can_kiem_tra": []}
+
+    def _anh_tu_web(self, v: dict, loai: str, it: dict) -> list[Path]:
+        """Không có ảnh mới thì tải ảnh đang có trên web về để xử lý lại (nền trắng, logo)."""
+        wp = self.wp()
+        if loai == "san_pham":
+            urls = [m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict)][:6]
+        else:
+            urls = [wp.lay_anh(it["featured_media"]).get("source_url", "")] if it.get("featured_media") else []
+        thu_muc = hd.thu_muc_mot_viec(self.goc, v["id"])
+        ra = []
+        for i, u in enumerate(u for u in urls if u):
+            p = thu_muc / f"web-{i + 1}{Path(u.split('?')[0]).suffix.lower() or '.jpg'}"
+            p.write_bytes(wp.tai_ve(u))
+            ra.append(p)
+        return ra
+
+    def _soan_sua_web(self, v: dict) -> None:
+        loai, web_id, sua = v["loai"], int(v["wp_id"]), v.get("sua") or {}
+        wp = self.wp()
+        it = wp.lay_sp(web_id) if loai == "san_pham" else wp.lay_bai(web_id)
+        ht = self._hien_tai(loai, it)
+        sp = self.lay_san_pham(v["ma"]) if v.get("ma") else None
+        d, kq, nv = dict(ht), None, None
+        if sua.get("noi_dung") or sua.get("seo"):
+            if v.get("cach_viet") == "mau":
+                raise RuntimeError("Sửa bằng AI cần AI tự động hoặc ChatGPT web.")
+            nv = self.nguoi_viet(v)
+            ghi_chu = v.get("ghi_chu") or ""
+            kq = self._goi_ai(v, nv, (lambda: nv.sua_san_pham(ht, sp, ghi_chu, self.ch.hotline)) if loai == "san_pham"
+                              else (lambda: nv.sua_bai(ht, ghi_chu, self.ch.hotline)))
+            if kq is None:
+                return
+            moi = kq.du_lieu
+            noi = ("ten_web", "mo_ta_ngan_html", "mo_ta_html", "alt_anh") if loai == "san_pham" else ("tieu_de", "tom_tat", "noi_dung_html", "alt_anh")
+            if sua.get("noi_dung"):
+                d.update({k: moi.get(k, d.get(k, "")) for k in noi})
+            if sua.get("seo"):
+                d.update({k: moi.get(k, "") for k in ("seo_title", "seo_description", "tu_khoa_chinh")})
+            d["can_kiem_tra"] = moi.get("can_kiem_tra", [])
+        anh_ds, files = [], []
+        if sua.get("anh"):
+            files = self._anh_goc(v) if (v.get("anh_goc") or v.get("ma")) else []
+            if not files:
+                files = self._anh_tu_web(v, loai, it)
+            if not files:
+                raise RuntimeError("Trên web chưa có ảnh để xử lý lại. Chụp hoặc chọn ảnh mới ở màn Sửa bằng AI.")
+            tach = loai == "san_pham" and self.ch.tach_nen and v.get("tach_nen", True)
+            files = files[:6 if loai == "san_pham" else SO_ANH_BAI_VIET]
+            anh_ds = dang.xu_ly_anh(self.ch, slug(ht.get("slug") or ht.get("ten_web") or ht.get("tieu_de"), 60) or f"web-{web_id}",
+                                    files, tach, logo=not v.get("da_co_logo"))
+        cay = self._cay(loai)
+        dm_id = v.get("danh_muc_id")
+        self._cap_nhat(
+            v, hd.XEM_TRUOC, noi_dung=d, anh_web=[a for a, _ in anh_ds], anh_nguon=[str(f) for f in files],
+            chi_phi=kq.mo_ta_chi_phi if kq else "0đ", model=getattr(nv, "model", "") if nv else "không dùng AI",
+            ghi_chu_ai=kq.ghi_chu if kq else [], can_kiem_tra=d.get("can_kiem_tra", []),
+            gia=(dang.gia_web(sp, self.ch) if sp else re.sub(r"\D", "", str(it.get("regular_price") or ""))) if loai == "san_pham" else "",
+            danh_muc=cay.duong(dm_id) if dm_id else "", link_xem=it.get("permalink") or it.get("link") or "",
+            link_sua=link_sua(self.ch.wp_url, web_id), ten=ht.get("ten_web") or ht.get("tieu_de") or v.get("ten", ""), loi="",
+        )
+
+    def _dang_sua_web(self, v: dict) -> None:
+        wp, loai, web_id, sua, d = self.wp(), v["loai"], int(v["wp_id"]), v.get("sua") or {}, v["noi_dung"]
+        dm_id = v.get("danh_muc_id")
+        anh = self._anh_len_web(v, d.get("alt_anh") or d.get("ten_web") or d.get("tieu_de") or "", False) if sua.get("anh") else []
+        payload: dict = {}
+        if loai == "san_pham":
+            if sua.get("noi_dung"):
+                payload.update(name=d["ten_web"], description=d["mo_ta_html"], short_description=d["mo_ta_ngan_html"])
+            if sua.get("seo"):
+                payload["meta_data"] = dang.meta_seo(d)
+            if anh:
+                payload["images"] = [{"id": m["id"]} for m in anh]
+                payload["description"] = dang.chen_anh(payload.get("description", d.get("mo_ta_html", "")), anh[:SO_ANH_TRONG_BAI])
+            gia = re.sub(r"\D", "", str(v.get("gia") or ""))
+            if gia and int(gia) > 0:
+                payload["regular_price"] = gia
+            if dm_id:
+                payload["categories"] = [{"id": int(dm_id)}]
+            moi = wp.sua_sp(web_id, payload)
+        else:
+            if sua.get("noi_dung"):
+                payload.update(title=d["tieu_de"], content=d["noi_dung_html"], excerpt=d.get("tom_tat", ""))
+            if sua.get("seo"):
+                payload["meta"] = {"_yoast_wpseo_title": d.get("seo_title", ""), "_yoast_wpseo_metadesc": d.get("seo_description", ""),
+                                   "_yoast_wpseo_focuskw": d.get("tu_khoa_chinh", "")}
+            if anh:
+                payload["featured_media"] = anh[0]["id"]
+                payload["content"] = dang.chen_anh(payload.get("content", d.get("noi_dung_html", "")), anh[1:1 + SO_ANH_TRONG_BAI])
+            if dm_id:
+                payload["categories"] = [int(dm_id)]
+            moi = wp.sua_bai(web_id, payload)
+        luc = hd.bay_gio().isoformat(timespec="minutes")
+        doi = {"ten": _ten(moi) or v.get("ten", "")}
+        if dm_id:
+            doi["dm"] = [int(dm_id)]
+        if anh and loai == "san_pham":
+            doi.update(anh=anh[0].get("url", ""), so_anh=len(anh))
+        self._sua_ds_web(loai, web_id, **doi)
+        self._cap_nhat(v, hd.DA_DANG, link_sua=link_sua(self.ch.wp_url, web_id), link_xem=moi.get("permalink") or moi.get("link") or "",
+                       trang_thai_web=moi.get("status", ""), dang_luc=luc, loi="")
+        dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm" if loai == "san_pham" else "Bài viết", v.get("ten", str(web_id)),
+                                                            "SỬA BẰNG AI", [f"Duyệt: {link_sua(self.ch.wp_url, web_id)}"]))
+
+    # ---------- xếp danh mục bằng AI ----------
+    def _soan_xep(self, v: dict) -> None:
+        loai, muc = v["loai"], [m for m in v.get("muc") or [] if isinstance(m, dict) and m.get("id")]
+        cay = self._cay(loai)
+        lua = cay.lua_chon()
+        if not lua:
+            raise RuntimeError("Chưa có danh mục trên web. Bấm Cập nhật từ web trước.")
+        if not ten_ai(self.ch) and self._nguoi_viet is None:
+            raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY).")
+        from .viet_bai import chon_nguoi_viet
+
+        nv = self._nguoi_viet or chon_nguoi_viet(self.ch)
+        kq = nv.xep_danh_muc(loai, muc, [p for _, p in lua])
+        theo_duong = {p: i for i, p in lua}
+        goi_y = {int(x.get("id", 0)): x for x in kq.du_lieu.get("ket_qua") or [] if isinstance(x, dict)}
+        de_xuat = []
+        for m in muc:
+            g = goi_y.get(int(m["id"])) or {}
+            dm_id = theo_duong.get(str(g.get("danh_muc") or "").strip())
+            de_xuat.append({"id": int(m["id"]), "ten": m.get("ten", ""), "dm_id": dm_id, "chac": bool(g.get("chac")) and bool(dm_id)})
+        self._cap_nhat(v, hd.XEM_TRUOC, de_xuat=de_xuat, chi_phi=kq.mo_ta_chi_phi, model=getattr(nv, "model", ""), loi="")
+
+    def _dang_xep(self, v: dict) -> None:
+        wp, loai = self.wp(), v["loai"]
+        ghi = [(int(x["id"]), int(x["dm_id"])) for x in v.get("ghi") or [] if x.get("id") and x.get("dm_id")]
+        if loai == "san_pham":
+            so = wp.doi_danh_muc_sp([(i, [dm]) for i, dm in ghi])
+        else:
+            so = 0
+            for i, dm in ghi:
+                wp.doi_chuyen_muc_bai(i, [dm])
+                so += 1
+        for i, dm in ghi:
+            self._sua_ds_web(loai, i, dm=[dm])
+        self._cap_nhat(v, hd.DA_DANG, so_da_ghi=so, dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="")
+        in_(f"Xếp danh mục: ghi {so} {'sản phẩm' if loai == 'san_pham' else 'bài viết'}")
 
     # ---------- lịch tự soạn ----------
     def kiem_lich(self) -> int:

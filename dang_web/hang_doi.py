@@ -84,6 +84,11 @@ def file_sp_web(goc) -> Path:
     return Path(goc) / "san-pham-web.json"
 
 
+def file_bai_web(goc) -> Path:
+    """Toàn bộ bài viết trên web và chuyên mục, lấy về lần anh bấm Cập nhật từ web gần nhất."""
+    return Path(goc) / "bai-web.json"
+
+
 def file_xac_nhan(goc) -> Path:
     """Anh xác nhận ở tab Hàng hóa: {mã: {"dung": id web} hoặc {"khong": [id web, ...]}}."""
     return Path(goc) / "xac-nhan-web.json"

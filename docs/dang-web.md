@@ -60,17 +60,19 @@ Lần đầu dựng image mất vài phút. Cuối cùng phải thấy `TẤT C�
 
 ## Dùng trên app (màn Đăng web, khuyên dùng)
 
-Giám đốc mở menu **Quản lý → Website → Đăng web** trên điện thoại hoặc máy tính:
+Giám đốc hoặc Kinh doanh mở menu **Bán hàng → Đăng web** trên điện thoại hoặc máy tính (bật/tắt Tự soạn mỗi sáng chỉ Giám đốc):
 
-- **Sản phẩm:** bấm **+ Soạn sản phẩm**, tìm mã, chụp ảnh ngay bằng điện thoại (tối đa 6 ảnh), chọn cách viết, bấm **Soạn bản xem trước**. Vài phút sau việc nằm ở ô **Chờ anh xem trước**: xem ảnh nền trắng có logo, sửa tên, mô tả, giá, danh mục, tiêu đề Google ngay trên màn rồi bấm **Đăng nháp lên thanhduc.vn**.
+- **Sản phẩm:** bấm **+ Soạn sản phẩm**, tìm mã, chụp ảnh ngay bằng điện thoại (tối đa 6 ảnh; chưa có ảnh vẫn đăng được, bản nháp gắn nhãn **Chưa có ảnh**, bổ sung sau bằng Sửa bằng AI › Ảnh), chọn cách viết, bấm **Soạn bản xem trước**. Vài phút sau việc nằm ở ô **Chờ anh xem trước**: xem ảnh nền trắng có logo, sửa tên, mô tả, giá, danh mục, tiêu đề Google ngay trên màn rồi bấm **Đăng nháp lên thanhduc.vn**.
 - **Bài viết:** gõ chủ đề hoặc thêm vào danh sách **Chủ đề chờ viết**. Có thể chụp hoặc chọn tối đa 4 ảnh: ảnh đầu làm ảnh đại diện, các ảnh sau chèn vào thân bài (trước các tiêu đề mục).
 - **Ảnh trong thân bài:** khi đăng, sản phẩm tự chèn tối đa 3 ảnh của nó vào mô tả chi tiết (ảnh đầu sau đoạn mở đầu, ảnh sau trước các tiêu đề mục). Nếu mô tả đã có ảnh thì giữ nguyên.
 - **Ảnh đã có logo:** ảnh banner hoặc ảnh đã đóng logo Thành Đức sẵn thì tick **Ảnh đã có logo Thành Đức, không đóng thêm** ở màn soạn để khỏi bị hai logo.
 - **Có thể trùng:** web đã có sản phẩm hoặc bài gần giống thì app dừng lại (chưa tốn tiền AI), anh mở link xem rồi chọn **Đúng là trùng, bỏ qua**, **Không trùng, vẫn soạn** hoặc **Viết lại đè lên** bài cũ.
 - **Chờ dán ChatGPT:** chọn cách ChatGPT web thì bấm **Chép câu lệnh**, dán vào chatgpt.com, chép câu trả lời dán lại vào ô rồi bấm **Đọc câu trả lời**.
-- **Đã đăng:** mọi thứ đã lên web, trạng thái Nháp hay Đang hiện lấy từ web. Bấm một dòng: **Sửa trên web** mở thẳng trang sửa trong wp-admin; **Viết lại bằng AI** soạn bản mới, xem trước rồi ghi đè lên đúng bài đó.
-- **Hàng hóa:** so toàn bộ Hàng hóa trong app với sản phẩm đang có trên web, chia **Đã có trên web** (trùng mã TD ở ô SKU, hoặc app đã đăng), **Có thể đã có** (tên gần giống) và **Chưa có**. Ở "Có thể đã có" bấm **Mở** xem rồi chọn **Đúng là nó** hoặc **Không phải**. Ở "Chưa có" bấm **Soạn ›**, hoặc tick nhiều mã đã có ảnh trong `anh-goc` rồi bấm **Soạn các mã đã chọn** (tối đa 10 mã một lần).
-- **Cập nhật từ web:** danh sách trên web và trạng thái Nháp/Đang hiện chỉ lấy lại khi anh bấm nút này (ở tab Đã đăng hoặc Hàng hóa), không tự chạy.
+- **Trên web:** toàn bộ sản phẩm và bài viết đang có trên thanhduc.vn (cả nháp), chia theo cây danh mục, có mục **Chưa phân loại**. Lọc thêm: Khớp mã app, Không có mã TD, Nháp, Chưa có ảnh (sản phẩm); Đang hiện, Nháp, App đã đăng (bài viết). Mỗi dòng có **Sửa bằng AI**, **Xem ↗** và **wp-admin ↗**.
+- **Sửa bằng AI:** tick phần cần sửa (Viết lại nội dung, Tiêu đề + mô tả Google, Ảnh) và/hoặc chọn danh mục mới. Không chọn ảnh mới thì máy tải ảnh đang có trên web về xử lý lại (nền trắng, logo). Sản phẩm không có mã TD thì AI dựa vào nội dung đang có và giữ giá web. Xem trước rồi bấm ghi đè: chỉ ghi phần đã tick, giữ nguyên trạng thái và đường dẫn.
+- **Xếp danh mục bằng AI:** ở mục Chưa phân loại bấm nút này, AI đề xuất danh mục cho tối đa 40 mục một lượt; dòng chắc chắn tick sẵn, dòng khác anh chọn tay, bấm ghi thì chỉ đổi danh mục của các dòng đã tick (cần khóa AI).
+- **Mã app chưa lên web / Có thể trùng** (trong Trên web › Sản phẩm, thay tab Hàng hóa cũ): mã trong app chưa có trên web thì bấm **Soạn ›** hoặc tick nhiều mã rồi bấm **Soạn các mã đã chọn** (tối đa 10 mã, có ảnh trong `anh-goc` thì dùng, không có vẫn đăng dạng chữ). Ở "Có thể trùng" mở xem rồi chọn **Đúng là nó** hoặc **Không phải**.
+- **Cập nhật từ web:** danh sách trên web, danh mục và trạng thái Nháp/Đang hiện chỉ lấy lại khi anh bấm nút này ở tab Trên web, không tự chạy. Sau mỗi lần cập nhật code nhớ bấm một lần để tải danh mục.
 - **Máy tính:** danh sách hiện thành bảng; màn soạn và xem trước chia 2 cột (trái xem, phải sửa và bấm).
 - **Tự soạn mỗi sáng:** bật ở cuối tab Sản phẩm; máy soạn sẵn các mã đã có ảnh trong `anh-goc` và chủ đề chờ viết, anh vẫn phải bấm Đăng.
 
