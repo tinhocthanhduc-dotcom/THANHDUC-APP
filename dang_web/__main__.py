@@ -5,6 +5,7 @@
   san-pham --tu-dong --so 3        tự chọn 3 mã đã có ảnh trong anh-goc mà chưa lên web
   bai-viet --chu-de "..."          viết một bài và đăng nháp
   bai-viet --tu-dong --so 2        lấy 2 chủ đề đầu tiên chưa viết trong chu-de.txt
+  cho-viec                         chạy nền, nhận việc từ màn Đăng web trong app
 Thêm --thu để chỉ soạn và lưu bản xem trước, không đăng.
 """
 from __future__ import annotations
@@ -325,6 +326,7 @@ def tao_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="dang-web", description="Soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn")
     sub = ap.add_subparsers(dest="lenh", required=True)
     sub.add_parser("kiem-tra", help="kiểm tra kết nối")
+    sub.add_parser("cho-viec", help="chạy nền, nhận việc từ màn Đăng web trong app")
 
     sp = sub.add_parser("san-pham", help="đăng nháp sản phẩm")
     sp.add_argument("--ma", help="các mã cách nhau dấu phẩy, ví dụ TD-0001,TD-0002")
@@ -355,6 +357,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.lenh == "kiem-tra":
             return lenh_kiem_tra(ch, args)
+        if args.lenh == "cho-viec":
+            from .may_chay import MayDangWeb
+
+            MayDangWeb(ch).chay()
+            return 0
         with dang.khoa(ch.thu_muc):
             if args.lenh == "san-pham":
                 if not args.tu_dong and not args.ma:

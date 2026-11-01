@@ -32,6 +32,8 @@ services:
       TD_PERF_LOG: ${TD_PERF_LOG:-true}
     volumes:
       - files:/app/data/files
+      # Thư mục làm việc của màn Đăng web, dùng chung với máy đăng web (deploy/docker-compose.web.yml).
+      - ${WEB_THU_MUC:-../../THANHDUC-WEB}:/web
     depends_on:
       db:
         condition: service_healthy

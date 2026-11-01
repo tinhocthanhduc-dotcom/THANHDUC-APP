@@ -58,7 +58,28 @@ scripts/dang-web.sh kiem-tra
 
 Lần đầu dựng image mất vài phút. Cuối cùng phải thấy `TẤT CẢ OK`.
 
-## Làm hằng ngày
+## Dùng trên app (màn Đăng web, khuyên dùng)
+
+Giám đốc mở menu **Quản lý → Website → Đăng web** trên điện thoại hoặc máy tính:
+
+- **Sản phẩm:** bấm **+ Soạn sản phẩm**, tìm mã, chụp ảnh ngay bằng điện thoại (tối đa 6 ảnh), chọn cách viết, bấm **Soạn bản xem trước**. Vài phút sau việc nằm ở ô **Chờ anh xem trước**: xem ảnh nền trắng có logo, sửa tên, mô tả, giá, danh mục, tiêu đề Google ngay trên màn rồi bấm **Đăng nháp lên thanhduc.vn**.
+- **Bài viết:** gõ chủ đề hoặc thêm vào danh sách **Chủ đề chờ viết**.
+- **Có thể trùng:** web đã có sản phẩm hoặc bài gần giống thì app dừng lại (chưa tốn tiền AI), anh mở link xem rồi chọn **Đúng là trùng, bỏ qua**, **Không trùng, vẫn soạn** hoặc **Viết lại đè lên** bài cũ.
+- **Chờ dán ChatGPT:** chọn cách ChatGPT web thì bấm **Chép câu lệnh**, dán vào chatgpt.com, chép câu trả lời dán lại vào ô rồi bấm **Đọc câu trả lời**.
+- **Đã đăng:** mọi thứ đã lên web, trạng thái Nháp hay Đang hiện lấy từ web. Bấm một dòng: **Sửa trên web** mở thẳng trang sửa trong wp-admin; **Viết lại bằng AI** soạn bản mới, xem trước rồi ghi đè lên đúng bài đó.
+- **Tự soạn mỗi sáng:** bật ở cuối tab Sản phẩm; máy soạn sẵn các mã đã có ảnh trong `anh-goc` và chủ đề chờ viết, anh vẫn phải bấm Đăng.
+
+Màn này cần **máy đăng web** chạy nền trên Z2 (bật một lần, tự chạy lại khi Z2 khởi động):
+
+```bash
+cd ~/THANHDUC-APP && git pull origin main
+scripts/dang-web.sh bat-may
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.tunnel.yml --env-file deploy/.env up -d --build
+```
+
+Lệnh thứ hai tạo thư mục `~/THANHDUC-WEB` đúng quyền và dựng máy đăng web (lần đầu vài phút). Lệnh thứ ba là lệnh cập nhật app thường lệ, để app nối vào thư mục đó. Sau này code đăng web có thay đổi thì chạy lại `scripts/dang-web.sh bat-may`. Xem nhật ký: `scripts/dang-web.sh nhat-ky`. Tắt: `scripts/dang-web.sh tat-may`.
+
+## Làm hằng ngày bằng lệnh (không qua app)
 
 ### Bỏ ảnh vào
 

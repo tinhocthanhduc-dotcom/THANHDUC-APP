@@ -938,3 +938,6 @@ router.include_router(payroll_router)
 
 from .production import router as production_router
 router.include_router(production_router)
+
+from .dang_web import router as dang_web_router
+router.include_router(dang_web_router)

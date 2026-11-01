@@ -74,6 +74,10 @@ GROUPS = (
         {'label': 'Hàng chờ xử lý', 'solo': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',)},
         {'label': 'Tài chính', 'solo': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
     )},
+    # TUẤN duyệt 01/11/2026: soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn; chỉ Giám đốc.
+    {'label': 'Website', 'section': 'Quản lý', 'items': (
+        {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('director',)},
+    )},
     {'label': 'Danh mục', 'section': 'Thiết lập', 'items': (
         {'label': 'Nhóm hàng', 'href': '/nhom-hang', 'prefixes': ('/nhom-hang',), 'roles': ('warehouse',)},
         {'label': 'Danh sách kho', 'href': '/kho', 'prefixes': ('/kho',), 'roles': ('warehouse',)},

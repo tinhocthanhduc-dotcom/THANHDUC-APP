@@ -1,7 +1,8 @@
-# Công cụ soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn. Chỉ chạy khi gọi, không chạy nền.
-# Dùng qua: scripts/dang-web.sh kiem-tra   (xem huong-dan trong docs/dang-web.md)
-services:
-  dang-web:
+# Công cụ soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn (xem docs/dang-web.md).
+#   dang-web      chạy một lệnh rồi thôi: scripts/dang-web.sh kiem-tra
+#   dang-web-may  chạy nền cho màn Đăng web trong app: scripts/dang-web.sh bat-may
+# Tách khỏi file chính để lệnh cập nhật app không phải dựng image này (nặng vì có bộ tách nền).
+x-dang-web: &dang-web
     build:
       context: ..
       dockerfile: dang_web/Dockerfile
@@ -32,3 +33,12 @@ services:
       - ${WEB_THU_MUC:-../../THANHDUC-WEB}:/data
     depends_on:
       - db
+
+services:
+  dang-web:
+    <<: *dang-web
+
+  dang-web-may:
+    <<: *dang-web
+    command: ["cho-viec"]
+    restart: unless-stopped
