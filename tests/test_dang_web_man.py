@@ -82,6 +82,10 @@ class _WP:
     def lay_bai(self, bai_id):
         return next(x for x in self.bai_web if x["id"] == bai_id)
 
+    def lay_anh_theo_ids(self, ids):
+        anh = getattr(self, "anh_media", {})
+        return {i: anh[i] for i in ids if i in anh}
+
     def lay_anh(self, media_id):
         return {"id": media_id, "source_url": "https://thanhduc.vn/wp-content/uploads/cu.jpg"}
 
@@ -674,7 +678,8 @@ def test_sua_bai_viet_chi_doi_chuyen_muc_khong_goi_ai(client, web_login, goc):
     assert "Máy in kẹt giấy" not in client.get("/dang-web?tab=tren-web&loai=bai&dm=chua").text
 
 
-def test_sua_anh_rieng_xu_ly_tung_anh_roi_xoa_anh_cu(client, web_login, goc, nhieu_hang):
+def test_sua_anh_rieng_dat_khung_tung_anh_roi_xoa_anh_cu(client, web_login, goc, nhieu_hang):
+    """TUẤN duyệt mẫu D2/2 ngày 02/11/2026: chỉ đặt ảnh vào khung web (căn giữa, xoay, zoom, logo), tick nhiều ảnh."""
     csrf = web_login("ban.hang", "sales")
     wp = _wp_co_hang()
     sp = wp.tat_ca[0]
@@ -682,32 +687,39 @@ def test_sua_anh_rieng_xu_ly_tung_anh_roi_xoa_anh_cu(client, web_login, goc, nhi
     sp["description"] = '<p>Mở đầu</p><figure class="td-anh"><img src="https://thanhduc.vn/wp-content/uploads/a.jpg"></figure><h2>A</h2><p>x</p><h2>B</h2><p>y</p><h2>C</h2>'
     may = _may(goc, wp)
     may.lam_moi_web()
-    assert "/dang-web/sua-anh?id=1" in client.get("/dang-web?tab=tren-web&loai=sp").text
+    ds = client.get("/dang-web?tab=tren-web&loai=sp").text
+    assert "/dang-web/sua-anh?loai=sp&amp;id=1" in ds and "Sửa AI" in ds and "dw-xbtn" in ds
     r = client.get("/dang-web/sua-anh?id=1")
-    assert r.status_code == 200 and 'name="che_do_5"' in r.text and 'value="web-6"' in r.text and "uploads/b.jpg" in r.text
-    base = dict(csrf=csrf, id="1", che_do_moi="giu", logo="1")
-    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-5", "web-6"], che_do_5="giu",
-                                                   che_do_6="giu", dai_dien="web-5"))
+    assert r.status_code == 200 and 'name="chon_web-5"' in r.text and 'value="web-6"' in r.text and "uploads/b.jpg" in r.text
+    assert "che_do" not in r.text and "Tách nền" not in r.text and "sua-anh.js" in r.text
+    base = dict(csrf=csrf, id="1", logo="1", logo_goc="trai")
+    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-5", "web-6"], dai_dien="web-5"))
     assert r.status_code == 400 and "Chưa có gì thay đổi" in r.text
-    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-5", "web-6"], xoa_5="1", xoa_6="1"))
+    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-5", "web-6"],
+                                                   **{"xoa_web-5": "1", "xoa_web-6": "1"}))
     assert r.status_code == 400 and "ít nhất 1 ảnh" in r.text and hd.ds(goc) == []
 
-    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-6", "web-5"], che_do_5="nen_trang",
-                                                   che_do_6="giu", dai_dien="web-6"),
+    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-6", "web-5", "moi-1"], dai_dien="web-6",
+                                                   **{"chon_web-5": "1", "bien_web-5": '{"z": 1.2, "r": 5, "x": 0.1, "q": 1, "f": true}',
+                                                      "bien_web-6": "{}", "bien_moi-1": '{"z": 99, "tu": 1}'}),
                     files=[("anh", ("moi.jpg", _jpg(), "image/jpeg"))], follow_redirects=False)
     assert r.status_code == 303
     v = hd.ds(goc)[0]
-    assert v["kieu"] == "sua_anh" and [(a["nguon"], a.get("media_id"), a["che_do"]) for a in v["anh"]] == [
-        ("web", 6, "giu"), ("web", 5, "nen_trang"), ("moi", None, "giu")]
+    assert v["kieu"] == "sua_anh" and v["logo_goc"] == "trai" and v["chen_mo_ta"] and v["xoa_cu"]
+    assert [(a["nguon"], a.get("media_id"), a["sua"]) for a in v["anh"]] == [("web", 6, False), ("web", 5, True), ("moi", None, True)]
+    assert v["anh"][1]["bien"]["z"] == 1.2 and v["anh"][1]["bien"]["q"] == 1 and v["anh"][1]["bien"]["f"] is True
+    assert v["anh"][2]["bien"]["z"] == 5 and v["anh"][2]["bien"]["tu"] is True  # thông số lạ bị chặn trong giới hạn
 
     assert may.lam_mot_viec()
     v = hd.doc(goc, v["id"])
     assert v["trang_thai"] == hd.XEM_TRUOC, v.get("loi")
-    assert wp.da_tai == ["https://thanhduc.vn/wp-content/uploads/a.jpg"]  # ảnh Giữ nguyên trên web không tải về
+    assert wp.da_tai == ["https://thanhduc.vn/wp-content/uploads/a.jpg"]  # ảnh không tick Sửa thì không tải về
     k = v["ket_anh"]
-    assert k[0]["media_id"] == 6 and not k[0]["sau"] and k[1]["sau"] and not k[2]["sau"] and k[2]["goc"]
+    assert k[0]["media_id"] == 6 and not k[0]["sau"] and k[1]["sau"] and k[2]["sau"] and k[2]["goc"]
+    with Image.open(may.ch.anh_da_xu_ly / k[1]["sau"]) as im:
+        assert im.size == (400, 400)  # khung vuông đúng cỡ ảnh web
     trang = client.get(f"/dang-web/viec/{v['id']}").text
-    assert "Ghi ảnh lên web" in trang and 'name="dung_1"' in trang and "Xóa ảnh cũ khỏi web" in trang
+    assert "Ghi ảnh lên web" in trang and 'name="dung_1"' in trang and "Xóa ảnh cũ khỏi web" in trang and "Đã chỉnh" in trang
 
     client.post(f"/dang-web/viec/{v['id']}", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), hanh_dong="dang", dung_1="sau",
                                                       chen_mo_ta="1", xoa_cu="1"))
@@ -722,6 +734,71 @@ def test_sua_anh_rieng_xu_ly_tung_anh_roi_xoa_anh_cu(client, web_login, goc, nhi
     luu = next(x for x in hd.doc_json(hd.file_sp_web(goc), {})["ds"] if x["id"] == 1)
     assert [m["id"] for m in luu["anhs"]] == [6, 901, 902] and luu["so_anh"] == 3
     assert "Đã thay 3 ảnh" in client.get(f"/dang-web/viec/{v['id']}").text
+
+
+def test_sua_anh_bai_viet_thay_anh_trong_bai_tai_cho(client, web_login, goc):
+    csrf = web_login("ban.hang", "sales")
+    wp = _wp_co_hang()
+    wp.anh_media = {77: {"src": "https://thanhduc.vn/wp-content/uploads/dd.jpg", "nho": "https://thanhduc.vn/wp-content/uploads/dd-300.jpg"}}
+    bai = wp.bai_web[1]
+    bai["content"] = {"raw": '<p>Giá</p><figure class="wp-block-image"><img class="wp-image-60" src="https://thanhduc.vn/wp-content/uploads/trong.jpg" '
+                             'srcset="https://thanhduc.vn/wp-content/uploads/trong-300.jpg 300w" alt="x"></figure><p>Hết</p>'}
+    may = _may(goc, wp)
+    may.lam_moi_web()
+    ds = client.get("/dang-web?tab=tren-web&loai=bai").text
+    assert "/dang-web/sua-anh?loai=bai&amp;id=51" in ds and "dd-300.jpg" in ds and "1 ảnh trong bài" in ds
+    assert "Chưa có ảnh đại diện" in ds and "Máy in kẹt giấy" in client.get("/dang-web?tab=tren-web&loai=bai&loc=chua-anh").text
+    assert "Giá nạp mực" not in client.get("/dang-web?tab=tren-web&loai=bai&loc=chua-anh").text
+    r = client.get("/dang-web/sua-anh?loai=bai&id=51")
+    assert r.status_code == 200 and 'value="web-77"' in r.text and 'value="bai-0"' in r.text and "sa-wide" in r.text
+    assert 'name="dai_dien"' not in r.text and "uploads/trong.jpg" in r.text
+    r = client.get("/dang-web/anh-tren-web?loai=bai&id=51&k=bai-9")
+    assert r.status_code == 404  # chỉ chuyển ảnh có trong danh sách của đúng bài đó
+
+    r = client.post("/dang-web/sua-anh", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), loai="bai", id="51", logo="1",
+                                                   thu_tu=["web-77", "bai-0"], **{"chon_bai-0": "1", "bien_bai-0": '{"tu": 1}'}),
+                    follow_redirects=False)
+    assert r.status_code == 303
+    v = hd.ds(goc)[0]
+    assert v["loai"] == "bai_viet" and not v["chen_mo_ta"] and not v["xoa_cu"]
+    assert [(a["key"], a["vai"], a["sua"]) for a in v["anh"]] == [("web-77", "dai_dien", False), ("bai-0", "bai", True)]
+    assert may.lam_mot_viec()
+    v = hd.doc(goc, v["id"])
+    assert v["trang_thai"] == hd.XEM_TRUOC, v.get("loi")
+    assert wp.da_tai == ["https://thanhduc.vn/wp-content/uploads/trong.jpg"]
+    with Image.open(may.ch.anh_da_xu_ly / v["ket_anh"][1]["sau"]) as im:
+        assert im.size == (1200, 675)  # bài viết dùng khung ngang 16:9
+    trang = client.get(f"/dang-web/viec/{v['id']}").text
+    assert "Ảnh trong bài" in trang and "Chèn ảnh vào mô tả" not in trang and "loai=bai" in trang
+
+    client.post(f"/dang-web/viec/{v['id']}", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), hanh_dong="dang", dung_1="sau"))
+    assert may.lam_mot_viec()
+    v = hd.doc(goc, v["id"])
+    assert v["trang_thai"] == hd.DA_DANG, v.get("loi")
+    bai_id, payload = wp.sua[0]
+    assert bai_id == 51 and payload["featured_media"] == 77 and wp.media == 1
+    assert "uploads/trong.jpg" not in payload["content"] and "wp-image-901" in payload["content"] and "wp-image-60" not in payload["content"]
+    assert "srcset" not in payload["content"] and "<p>Giá</p>" in payload["content"] and "<p>Hết</p>" in payload["content"]
+    assert not getattr(wp, "xoa", [])  # ảnh bài viết không xóa
+
+
+def test_dat_khung_can_giua_xoay_va_logo(tmp_path):
+    from dang_web import anh as anh_mod
+
+    im = Image.new("RGB", (800, 400), (255, 255, 255))
+    ImageDraw.Draw(im).rectangle((40, 40, 200, 200), fill=(200, 0, 0))  # sản phẩm lệch góc trái trên
+    tu = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, {"tu": True}, dinh_dang="jpg")))
+    assert tu.size == (600, 600)
+    hop = anh_mod.vung_san_pham(tu.convert("RGB"), (255, 255, 255))
+    cx, cy = (hop[0] + hop[2]) / 2, (hop[1] + hop[3]) / 2
+    assert abs(cx - 300) < 12 and abs(cy - 300) < 12 and hop[2] - hop[0] > 480  # nằm giữa, chiếm gần hết khung
+    ngang = Image.open(io.BytesIO(anh_mod.dat_khung(im, *anh_mod.KHUNG_BAI, {"q": 1, "r": 10}, dinh_dang="jpg")))
+    assert ngang.size == (1200, 675)
+    assert anh_mod.chuan_bien({"z": "abc", "r": 400, "x": -9, "q": 7}) == {"z": 1.0, "r": 45.0, "x": -1.5, "y": 0.0, "q": 3, "f": False, "tu": False}
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (100, 40), (0, 0, 255, 255)).save(logo)
+    co_logo = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, {}, logo=logo, logo_goc="trai", dinh_dang="jpg"))).convert("RGB")
+    assert co_logo.getpixel((40, 568))[0] < 80 and co_logo.getpixel((560, 568))[0] > 200  # logo góc trái dưới
 
 
 def test_xoa_anh_cu_giu_anh_con_dung_o_cho_khac(goc):
@@ -744,12 +821,12 @@ def test_sua_anh_chon_lai_thay_ban_dang_xem_truoc(client, web_login, goc, nhieu_
     wp = _wp_co_hang()
     may = _may(goc, wp)
     may.lam_moi_web()
-    data = dict(csrf=csrf, id="1", che_do_moi="giu", logo="1", thu_tu=["web-5"], che_do_5="nen_trang", dai_dien="web-5")
+    data = {"csrf": csrf, "id": "1", "logo": "1", "thu_tu": ["web-5"], "dai_dien": "web-5", "chon_web-5": "1", "bien_web-5": '{"z": 1.1}'}
     client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4())))
     cu = hd.ds(goc)[0]["id"]
     r = client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4())), follow_redirects=False)
     assert r.headers["location"] == f"/dang-web/viec/{cu}" and len(hd.ds(goc)) == 1  # đang chờ máy thì mở việc đó
     assert may.lam_mot_viec() and hd.doc(goc, cu)["trang_thai"] == hd.XEM_TRUOC
-    r = client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4()), che_do_5="tach_nen"), follow_redirects=False)
+    r = client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4()), **{"bien_web-5": '{"z": 1.5}'}), follow_redirects=False)
     moi = r.headers["location"].rsplit("/", 1)[-1]
-    assert moi != cu and hd.doc(goc, cu)["trang_thai"] == hd.BO and hd.doc(goc, moi)["anh"][0]["che_do"] == "tach_nen"
+    assert moi != cu and hd.doc(goc, cu)["trang_thai"] == hd.BO and hd.doc(goc, moi)["anh"][0]["bien"]["z"] == 1.5
