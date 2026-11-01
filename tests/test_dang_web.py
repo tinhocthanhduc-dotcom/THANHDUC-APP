@@ -341,8 +341,14 @@ def test_openai_loi_400_thu_lai_va_bao_loi():
             NguoiVietOpenAI("", client=SimpleNamespace(responses=_FakeResponses([r]))).viet_san_pham(_sp())
 
 
-def test_chon_nguoi_viet_theo_khoa():
+def test_chon_nguoi_viet_theo_khoa(monkeypatch):
+    import sys
+
     from dang_web.viet_bai import NguoiViet, NguoiVietMau, NguoiVietOpenAI, chon_nguoi_viet
+
+    # CI không cài thư viện AI (chỉ có trong image dang-web): thay bằng module giả.
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=lambda **kw: SimpleNamespace(kw=kw)))
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=lambda **kw: SimpleNamespace(kw=kw)))
 
     assert isinstance(chon_nguoi_viet(CauHinh.tu_moi_truong({"OPENAI_API_KEY": "sk-x"})), NguoiVietOpenAI)
     ch = CauHinh.tu_moi_truong({"OPENAI_API_KEY": "sk-x", "ANTHROPIC_API_KEY": "sk-ant", "WEB_AI_NHA_CUNG_CAP": "OpenAI"})
