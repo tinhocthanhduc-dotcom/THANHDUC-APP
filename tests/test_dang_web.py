@@ -46,8 +46,19 @@ def test_xu_ly_anh_jpg_va_cat_vien(tmp_path):
     data = anh.xu_ly(_anh_mau(tmp_path / "a.png", nen=(255, 255, 255)), tach_nen=False, kich_thuoc=600, dinh_dang="jpg", logo=None)
     im = Image.open(io.BytesIO(data)).convert("RGB")
     assert im.size == (600, 600)
-    # Viền trắng thừa đã cắt: sản phẩm chiếm gần hết vùng trong lề 10%.
-    assert im.getpixel((75, 300))[0] < 60
+    # Viền trắng thừa đã cắt: sản phẩm lấp gần hết khung, chỉ chừa lề mỏng 5%.
+    assert im.getpixel((40, 300))[0] < 60 and im.getpixel((300, 40))[0] < 60
+    assert min(im.getpixel((10, 10))) > 245
+
+
+def test_xu_ly_anh_co_nen_thi_cat_vuong_day_khung(tmp_path):
+    """Ảnh chụp có nền / banner (không tách nền): cắt vuông giữa ảnh, không để viền trắng trên dưới."""
+    data = anh.xu_ly(_anh_mau(tmp_path / "b.jpg"), tach_nen=False, kich_thuoc=600, dinh_dang="jpg", logo=None)
+    im = Image.open(io.BytesIO(data)).convert("RGB")
+    assert im.size == (600, 600)
+    for diem in ((3, 3), (596, 3), (3, 596), (300, 3), (300, 596)):
+        assert max(im.getpixel(diem)) < 245  # không có dải trắng
+    assert im.getpixel((300, 300))[0] < 60  # sản phẩm vẫn ở giữa
 
 
 def test_tim_anh_theo_ma(tmp_path):
@@ -218,6 +229,7 @@ def test_ai_viet_san_pham_doc_json_va_lam_sach():
     noi_dung = call["messages"][0]["content"]
     assert "TD-0001" in noi_dung and "LBP 6200d" in noi_dung and "12 tháng" in noi_dung and "0909" in noi_dung
     assert "sale_price" not in noi_dung and "355000" not in noi_dung  # không đưa giá cho AI
+    assert "so_anh" not in noi_dung and "con_hang" not in noi_dung  # không cho AI viết về số ảnh, tình trạng kho
     assert kq.chi_phi_vnd > 0
 
 
@@ -468,3 +480,24 @@ def test_nghi_trung_thi_dung_truoc_khi_goi_ai(tmp_path, monkeypatch, capsys):
     tt = dang.doc_trang_thai(tmp_path / "da-dang.json")
     assert tt["nghi_trung"]["TD-0001"] == ["https://web.test/326"] and tt["san_pham"] == {}
     assert chon_tu_dong(CauHinh(thu_muc=tmp_path), tt, 3) == []  # lịch tự động không chọn lại mã nghi trùng
+
+
+def test_bo_cau_thua_so_anh_ton_kho_va_don_vi_tinh():
+    from dang_web.viet_bai import bo_cau_thua
+
+    ngan = ("<ul><li>Khay giấy thay thế cho máy in HP.</li>"
+            "<li>Đơn vị tính: cái. Có 3 ảnh sản phẩm để khách kiểm tra hình dạng trước khi đặt.</li>"
+            "<li>Bảo hành 1 tháng tại Thành Đức.</li>"
+            "<li>Hiện kho ghi nhận chưa có hàng, vui lòng liên hệ để kiểm tra lại trước khi mua.</li></ul>")
+    assert bo_cau_thua(ngan, "cái") == ("<ul><li>Khay giấy thay thế cho máy in HP.</li><li>Đơn vị tính: cái</li>"
+                                         "<li>Bảo hành 1 tháng tại Thành Đức.</li></ul>")
+    assert bo_cau_thua("<p>Khay tốt. Có 3 ảnh để xem. Gọi ngay.</p>") == "<p>Khay tốt. Gọi ngay.</p>"
+    assert bo_cau_thua("<p>Xem ảnh để kiểm tra.</p><h2>Ảnh</h2>") == "<h2>Ảnh</h2>"
+
+
+def test_ai_tra_cau_thua_thi_bo_truoc_khi_xem_truoc():
+    du_lieu = _du_lieu_sp() | {"mo_ta_ngan_html": "<ul><li>Đơn vị tính: cái. Có 3 ảnh sản phẩm.</li><li>Tháo máy.</li></ul>"}
+    beta = _FakeMessages([_resp(du_lieu)])
+    client = SimpleNamespace(beta=SimpleNamespace(messages=beta), messages=_FakeMessages([]))
+    kq = NguoiViet("", client=client).viet_san_pham(_sp(unit="cái"), "", 3, "")
+    assert kq.du_lieu["mo_ta_ngan_html"] == "<ul><li>Đơn vị tính: cái</li><li>Tháo máy.</li></ul>"
