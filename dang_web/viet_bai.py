@@ -552,8 +552,11 @@ class NguoiVietChatGPTWeb:
         kq.du_lieu["noi_dung_html"] = lam_sach_html(kq.du_lieu["noi_dung_html"])
         return kq
 
-    def xep_danh_muc(self, *a, **kw) -> KetQuaAI:
-        raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY).")
+    def xep_danh_muc(self, loai: str, muc: list[dict], danh_muc: list[str]) -> KetQuaAI:
+        # Dùng được khi có người/AI trả lời câu lệnh (Codex trên máy chủ); khối ket_qua gồm id, danh_muc, chac.
+        return self._lay("xep", yeu_cau_xep_danh_muc(loai, muc, danh_muc)
+                         + '\n\nMỗi phần tử của "ket_qua" là {"id": số, "danh_muc": "nguyên văn dòng danh mục hoặc rỗng", "chac": true/false}.',
+                         KHUON_XEP)
 
 
 def chon_nguoi_viet(ch):

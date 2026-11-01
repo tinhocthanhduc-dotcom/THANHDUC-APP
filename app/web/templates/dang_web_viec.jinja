@@ -42,6 +42,7 @@
 
 {% elif v.trang_thai == 'cho_dan' %}
 {% if v.loi %}<p class="alert bad" role="alert">{{ v.loi }}</p>{% endif %}
+{% if v.cach_viet == 'codex' %}<p class="alert" role="status"><b>Codex trên máy chủ đang viết</b>, thường xong trong vài phút, anh không cần làm gì. Muốn làm tay thì vẫn chép câu lệnh và dán câu trả lời bên dưới được.</p>{% endif %}
 <section class="card">
 <div class="dw-step"><i>1</i><b>Chép câu lệnh</b></div>
 <textarea id="dw-lenh" class="dw-prompt" rows="6" readonly>{{ v.lenh_chatgpt }}</textarea>

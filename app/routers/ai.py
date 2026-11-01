@@ -4,16 +4,25 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import ai_agent as svc
+from .. import ai_dang_web as web_svc
 from ..db import get_session
 from ..models import AiKey
 
 router = APIRouter(prefix='/ai', tags=['Trợ lý AI'])
 
 
-def ai_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
+def _bearer(request: Request) -> str:
     raw = request.headers.get('authorization', '')
-    raw = raw[7:].strip() if raw.lower().startswith('bearer ') else ''
-    return svc.authenticate(session, raw, request.headers, 'dieu_phoi')
+    return raw[7:].strip() if raw.lower().startswith('bearer ') else ''
+
+
+def ai_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
+    return svc.authenticate(session, _bearer(request), request.headers, 'dieu_phoi')
+
+
+def web_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
+    """Khóa riêng của Codex đăng web (phạm vi dang_web): chỉ lấy câu lệnh và trả câu trả lời nháp."""
+    return svc.authenticate(session, _bearer(request), request.headers, 'dang_web')
 
 
 class RemindIn(BaseModel):
@@ -73,3 +82,29 @@ def my_proposals(_: AiKey = Depends(ai_key), session: Session = Depends(get_sess
     svc.expire(session)
     rows = session.scalars(select(AiAction).where(AiAction.kind.in_(svc.PROPOSALS)).order_by(AiAction.id.desc()).limit(50))
     return [dict(_out(r), ly_do_tu_choi=r.result if r.status == 'TU_CHOI' else '') for r in rows]
+
+
+# ---------- Codex đăng web (phạm vi dang_web) ----------
+
+class AnswerIn(BaseModel):
+    tra_loi: str = Field(max_length=web_svc.TOI_DA_TRA_LOI)
+
+
+class FailIn(BaseModel):
+    ly_do: str = Field('', max_length=300)
+
+
+@router.get('/dang-web/viec')
+def web_jobs(key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    """Các câu lệnh đang chờ Codex trả lời (gọi đều đặn: app dựa vào đây để biết Codex còn chạy)."""
+    return web_svc.lay_viec(session, key)
+
+
+@router.post('/dang-web/viec/{viec_id}/tra-loi')
+def web_answer(viec_id: str, body: AnswerIn, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    return web_svc.tra_loi(session, key, viec_id, body.tra_loi)
+
+
+@router.post('/dang-web/viec/{viec_id}/khong-lam-duoc')
+def web_fail(viec_id: str, body: FailIn, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    return web_svc.khong_lam_duoc(session, key, viec_id, body.ly_do)

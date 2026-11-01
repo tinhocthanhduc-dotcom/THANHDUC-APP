@@ -39,3 +39,18 @@ không sửa code, không chạy lệnh docker. Viết tiếng Việt có dấu,
 - Không nhắc một người quá 3 lần/ngày (app chặn), không nhắc ngoài giờ làm (07:30–11:30, 13:30–17:30, T2–T7).
 - Lỗi 423 "đang tạm dừng" thì dừng ngay, không thử lại. Lỗi 401 thì báo giám đốc tạo khóa mới.
 - Mỗi đề xuất phải có lý do cụ thể bằng số liệu từ `xem` (ví dụ "Phong 1 phiếu, Thạnh 4 phiếu").
+
+---
+
+# Codex · Đăng web (khóa riêng, phạm vi `dang_web`)
+
+Codex trên Z2 không tự nghĩ việc. Cron chạy `python3 /home/tuan/THANHDUC-APP/scripts/codex_dang_web.py` mỗi 5 phút:
+
+1. `GET /ai/dang-web/viec`: lấy các câu lệnh đang chờ (việc có cách viết "Codex trên máy chủ"). Lần hỏi này cũng là
+   nhịp: quá 30 phút không hỏi thì app coi Codex tắt, việc mới về AI tự động / mẫu, việc cũ chờ quá 60 phút tự chuyển.
+2. Mỗi câu lệnh chạy `codex exec --skip-git-repo-check --sandbox read-only -o <file> -` (gói ChatGPT, không tốn API).
+3. `POST /ai/dang-web/viec/{id}/tra-loi` với khối JSON. App ghi như khi anh dán tay; máy đăng web soạn bản xem trước.
+4. Codex lỗi / hết lượt / trả lời sai JSON: `POST /ai/dang-web/viec/{id}/khong-lam-duoc`. App chuyển sang AI tự động
+   (nếu máy đăng web có khóa API) hoặc về dán tay ChatGPT web.
+
+Khóa này không xem được việc điều phối, không tạo việc, không đăng, không thấy giá. Đăng lên web vẫn chỉ là nháp và anh bấm Đăng.

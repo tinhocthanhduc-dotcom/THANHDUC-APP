@@ -60,8 +60,8 @@ def _director(user):
 AGENTS = {
     'dieu-phoi': dict(name='Claude · Điều phối', scopes=('dieu_phoi',), ready=True,
                       hint='Xem việc, nhắc việc, đề xuất giao thợ / dời hẹn / nhập hàng.'),
-    'dang-web': dict(name='Codex · Đăng web', scopes=('dang_web',), ready=False,
-                     hint='Soạn nháp, sửa ảnh, xếp danh mục trên web. Chỉ lưu nháp, không đụng giá.'),
+    'dang-web': dict(name='Codex · Đăng web', scopes=('dang_web',), ready=True,
+                     hint='Viết nội dung nháp, sửa bài, xếp danh mục bằng gói ChatGPT trên máy chủ. Không đăng thẳng, không đụng giá.'),
 }
 
 

@@ -50,6 +50,7 @@ LOAI = ("san_pham", "bai_viet")
 CACH_VIET = {
     "tu_dong": "AI tự động",
     "chatgpt_web": "ChatGPT web (dán tay)",
+    "codex": "Codex trên máy chủ (gói ChatGPT, không tốn API)",
     "mau": "Mẫu có sẵn, không AI",
 }
 
@@ -278,6 +279,55 @@ def sua_trang_thai(goc, ham) -> dict:
 # ---------------- nhịp sống, yêu cầu làm mới, lịch ----------------
 def ghi_nhip(goc, thong_tin: dict) -> None:
     ghi_json(thu_muc_viec(goc) / "_nhip.json", {**thong_tin, "luc": _luc()})
+
+
+CODEX_SONG_GIAY = 30 * 60  # Codex trên Z2 hỏi việc mỗi ~5 phút; quá 30 phút không thấy thì coi như tắt
+CODEX_CHO_PHUT = 60  # việc Codex quá lâu không ai làm thì chuyển sang AI tự động (API) nếu có khóa
+
+
+def ghi_nhip_codex(goc) -> None:
+    ghi_json(thu_muc_viec(goc) / "_nhip_codex.json", {"luc": _luc()})
+
+
+def codex_song(goc) -> bool:
+    d = doc_json(thu_muc_viec(goc) / "_nhip_codex.json", None)
+    try:
+        return bool(d) and (bay_gio() - datetime.fromisoformat(d["luc"])).total_seconds() < CODEX_SONG_GIAY
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def viec_cho_codex(goc) -> list[dict]:
+    """Việc đang chờ câu trả lời và được giao cho Codex (cũ trước)."""
+    ra = [v for v in ds(goc) if v.get("trang_thai") == CHO_DAN and v.get("cach_viet") == "codex" and v.get("lenh_chatgpt")]
+    return sorted(ra, key=lambda v: v.get("cap_nhat", ""))
+
+
+def chuyen_codex_qua_han(goc, co_api: bool) -> int:
+    """Codex tắt hoặc kẹt: việc chờ Codex quá CODEX_CHO_PHUT chuyển sang AI tự động (có khóa API)
+    hoặc sang dán tay ChatGPT web (không có khóa). Không bao giờ mất việc."""
+    if codex_song(goc):
+        return 0
+    han = bay_gio() - timedelta(minutes=CODEX_CHO_PHUT)
+    so = 0
+    with khoa(goc):
+        for v in ds(goc):
+            if v.get("trang_thai") != CHO_DAN or v.get("cach_viet") != "codex":
+                continue
+            try:
+                if datetime.fromisoformat(v.get("cap_nhat", "")) > han:
+                    continue
+            except ValueError:
+                pass
+            if co_api:
+                v.update(cach_viet="tu_dong", trang_thai=CHO_SOAN, lenh_chatgpt="", file_tra_loi="",
+                         loi="Codex trên máy chủ không trả lời; chuyển sang AI tự động (API).")
+            else:
+                v.update(cach_viet="chatgpt_web", loi="Codex trên máy chủ không trả lời. Dán tay câu lệnh vào ChatGPT web.")
+            v["cap_nhat"] = _luc()
+            ghi_json(_file(goc, v["id"]), v)
+            so += 1
+    return so
 
 
 def doc_nhip(goc) -> dict | None:

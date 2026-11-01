@@ -36,8 +36,8 @@ def test_khoa_chan_dung_cach(client, db, ai):
     assert client.get('/ai/tong-quan', headers={'Authorization': 'Bearer ' + new}).status_code == 401
     with pytest.raises(BusinessError):
         svc.create_key(db, ai['dp'])
-    with pytest.raises(BusinessError):  # Đăng web chưa có lệnh nào, chưa cho tạo khóa.
-        svc.create_key(db, ai['director'], 'dang-web')
+    with pytest.raises(BusinessError):  # trợ lý không có trong danh sách thì không tạo khóa được
+        svc.create_key(db, ai['director'], 'khong-co')
 
 
 def test_khoa_sai_pham_vi_bi_chan(client, db, ai):

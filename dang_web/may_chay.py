@@ -87,7 +87,8 @@ class MayDangWeb:
         cach = v.get("cach_viet")
         if cach == "mau":
             return NguoiVietMau()
-        if cach == "chatgpt_web":
+        if cach in ("chatgpt_web", "codex"):
+            # Codex trên máy chủ trả lời qua cửa /ai/dang-web thay cho bước anh dán tay.
             return NguoiVietChatGPTWeb(hd.thu_muc_mot_viec(self.goc, v["id"]))
         if not ten_ai(self.ch):
             raise RuntimeError("Chưa có khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY). Chọn cách viết ChatGPT web hoặc Mẫu có sẵn.")
@@ -146,7 +147,7 @@ class MayDangWeb:
             return None
         except Exception as e:
             ten = v.get("file_tra_loi")
-            if v.get("cach_viet") == "chatgpt_web" and ten:
+            if v.get("cach_viet") in ("chatgpt_web", "codex") and ten:
                 p = hd.thu_muc_mot_viec(self.goc, v["id"]) / ten
                 if p.exists():
                     p.unlink()
@@ -591,12 +592,17 @@ class MayDangWeb:
         lua = cay.lua_chon()
         if not lua:
             raise RuntimeError("Chưa có danh mục trên web. Bấm Cập nhật từ web trước.")
-        if not ten_ai(self.ch) and self._nguoi_viet is None:
-            raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY).")
-        from .viet_bai import chon_nguoi_viet
+        from .viet_bai import NguoiVietChatGPTWeb, chon_nguoi_viet
 
-        nv = self._nguoi_viet or chon_nguoi_viet(self.ch)
-        kq = nv.xep_danh_muc(loai, muc, [p for _, p in lua])
+        if v.get("cach_viet") == "codex" and self._nguoi_viet is None:
+            nv = NguoiVietChatGPTWeb(hd.thu_muc_mot_viec(self.goc, v["id"]))
+        else:
+            if not ten_ai(self.ch) and self._nguoi_viet is None:
+                raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY) hoặc Codex trên máy chủ.")
+            nv = self._nguoi_viet or chon_nguoi_viet(self.ch)
+        kq = self._goi_ai(v, nv, lambda: nv.xep_danh_muc(loai, muc, [p for _, p in lua]))
+        if kq is None:
+            return
         theo_duong = {p: i for i, p in lua}
         goi_y = {int(x.get("id", 0)): x for x in kq.du_lieu.get("ket_qua") or [] if isinstance(x, dict)}
         de_xuat = []
@@ -633,13 +639,13 @@ class MayDangWeb:
         tt = hd.doc_trang_thai(self.goc)
         dang_co = {(v.get("ma") or v.get("chu_de")) for v in hd.ds(self.goc) if v.get("trang_thai") not in hd.XONG}
         bo_qua = set(tt["nghi_trung"]) | dang_co
-        cach = "tu_dong" if ten_ai(self.ch) else "mau"
+        cach = "codex" if hd.codex_song(self.goc) else ("tu_dong" if ten_ai(self.ch) else "mau")
         so = 0
         ma = hd.ma_co_anh(self.goc)
         for code in sorted(m for m in ma if m not in tt["san_pham"] and m not in bo_qua)[: int(lich.get("so_sp") or 0)]:
             hd.tao_viec(self.goc, "san_pham", {"ma": code, "ten": code, "cach_viet": cach, "nguon": "lich"})
             so += 1
-        if cach == "tu_dong":
+        if cach in ("tu_dong", "codex"):
             for cd in [c for c in hd.doc_chu_de(self.goc) if c not in tt["bai_viet"] and c not in bo_qua][: int(lich.get("so_bai") or 0)]:
                 hd.tao_viec(self.goc, "bai_viet", {"chu_de": cd, "ten": cd, "cach_viet": cach, "nguon": "lich"})
                 so += 1
@@ -649,6 +655,9 @@ class MayDangWeb:
     # ---------- vòng chạy ----------
     def nhip(self, dang_lam: str | None = None) -> None:
         hd.ghi_nhip(self.goc, {"ai": ten_ai(self.ch), "co_wp": self.co_wp, "dang_lam": dang_lam, "web": self.ch.wp_url})
+        if time.monotonic() - getattr(self, "_kiem_codex", -1e9) > 60:  # mỗi phút một lần
+            self._kiem_codex = time.monotonic()
+            hd.chuyen_codex_qua_han(self.goc, bool(ten_ai(self.ch)))
 
     def lam_mot_viec(self) -> bool:
         try:

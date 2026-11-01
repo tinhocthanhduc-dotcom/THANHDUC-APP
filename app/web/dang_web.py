@@ -86,12 +86,17 @@ def _khoa_viec(v: dict) -> str:
 
 
 def _cach_mac_dinh(nhip) -> str:
+    # Codex trên Z2 (gói ChatGPT, không tốn API) đang chạy thì ưu tiên; không thì AI tự động nếu có khóa API.
+    if hd.codex_song(goc()):
+        return "codex"
     return "tu_dong" if nhip and nhip.get("ai") else "mau"
 
 
 def _them_nhan(v: dict) -> dict:
     v = dict(v)
     v["nhan"] = hd.NHAN.get(v.get("trang_thai"), v.get("trang_thai"))
+    if v.get("trang_thai") == hd.CHO_DAN and v.get("cach_viet") == "codex":
+        v["nhan"] = "Chờ Codex"
     v["tone"] = TONE.get(v.get("trang_thai"), "nhap")
     v["dang_chay"] = v.get("trang_thai") in hd.DANG_CHAY
     return v
@@ -344,9 +349,10 @@ def _form_soan(request, session, d: dict, error="", status=200):
     nhip = hd.doc_nhip(goc())
     sp = session.get(Product, d.get("ma", "")) if d.get("ma") else None
     anh_co_san = bool(sp and hd.co_anh_goc(goc(), sp.code))
+    codex = hd.codex_song(goc())
     if not d.get("cach_viet"):
-        d["cach_viet"] = "tu_dong" if nhip and nhip.get("ai") else ("chatgpt_web" if d["loai"] == "bai_viet" else "mau")
-    return render(request, "dang_web_soan.jinja", d=d, sp=sp, anh_co_san=anh_co_san, nhip=nhip, cach_viet=hd.CACH_VIET,
+        d["cach_viet"] = "codex" if codex else ("tu_dong" if nhip and nhip.get("ai") else ("chatgpt_web" if d["loai"] == "bai_viet" else "mau"))
+    return render(request, "dang_web_soan.jinja", d=d, sp=sp, anh_co_san=anh_co_san, nhip=nhip, cach_viet=hd.CACH_VIET, codex=codex,
                   error=error, toi_da_anh=TOI_DA_ANH, status=status)
 
 
@@ -443,7 +449,7 @@ def _form_sua(request, session, loai: str, it: dict, cay: CayDanhMuc, d: dict, e
     hien = next((i for i in ids if not cay.chua_phan_loai([i])), None)
     ma = _ma_cua_web(session, it) if loai == "san_pham" else ""
     return render(request, "dang_web_sua.jinja", loai=loai, it=it, cay_lua=cay.lua_chon(), dm_hien=cay.duong(hien) if hien else "",
-                  d=d, ma=ma, nhip=hd.doc_nhip(goc()), cach_viet=hd.CACH_VIET, error=error, status=status,
+                  d=d, ma=ma, nhip=hd.doc_nhip(goc()), cach_viet=hd.CACH_VIET, codex=hd.codex_song(goc()), error=error, status=status,
                   toi_da_anh=TOI_DA_ANH if loai == "san_pham" else 4)
 
 
@@ -462,7 +468,7 @@ def edit_web_form(request: Request, loai: str = "sp", id: str = "", user: User =
     it, cay = _muc_web(loai, id)
     nhip = hd.doc_nhip(goc())
     return _form_sua(request, session, loai, it, cay, dict(noi_dung=True, seo=True, anh=False,
-                                                           cach_viet="tu_dong" if nhip and nhip.get("ai") else "chatgpt_web"))
+                                                           cach_viet="codex" if hd.codex_song(goc()) else ("tu_dong" if nhip and nhip.get("ai") else "chatgpt_web")))
 
 
 @router.post("/dang-web/sua-ai")
@@ -474,8 +480,8 @@ async def edit_web(request: Request, form=Depends(checked_form), session: Sessio
              danh_muc_id=str(form.get("danh_muc_id", "")), da_co_logo=form.get("da_co_logo") == "1", nen_trang=form.get("nen_trang") == "1")
     try:
         _can_ghi()
-        if d["cach_viet"] not in ("tu_dong", "chatgpt_web"):
-            raise BusinessError("BAD_FORM", "Chọn AI tự động hoặc ChatGPT web.")
+        if d["cach_viet"] not in ("codex", "tu_dong", "chatgpt_web"):
+            raise BusinessError("BAD_FORM", "Chọn Codex, AI tự động hoặc ChatGPT web.")
         anh = await _doc_anh(form)
         if loai == "bai_viet" and len(anh) > 4:
             raise BusinessError("PHOTO_LIMIT", "Bài viết tối đa 4 ảnh.")
@@ -580,6 +586,8 @@ def sort_categories(request: Request, form=Depends(checked_form)):
         raise BusinessError("BAD_STATE", "Không còn mục chưa phân loại (hoặc đang xếp). Bấm Cập nhật từ web nếu vừa đổi trên web.", status=409)
     ten_loai = "sản phẩm" if loai == "san_pham" else "bài viết"
     them = dict(kieu="xep_danh_muc", muc=muc, ten=f"Xếp danh mục · {len(muc)} {ten_loai}", van_dang=True)
+    if hd.codex_song(g):
+        them["cach_viet"] = "codex"
     if loai == "bai_viet":
         them["chu_de"] = them["ten"]
     viec_id = hd.tao_viec(g, loai, them)
