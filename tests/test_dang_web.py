@@ -406,3 +406,65 @@ def test_chay_chatgpt_web_bao_cho(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "CHỜ ANH" in out and "chờ dán ChatGPT 1" in out
     assert (tmp_path / "chatgpt" / "TD-0001.txt").exists()
+
+
+# ---------- kiểm tra trùng trước khi gọi AI ----------
+def test_do_giong_san_pham_va_bai():
+    from dang_web.wordpress import cau_tim, do_giong, do_giong_bai
+
+    assert do_giong("Hop muc Canon 326", "Hộp mực Canon 326 chính hãng") >= 0.7
+    assert do_giong("Hop muc Canon 326", "Hộp mực Canon 328") < 0.7
+    assert do_giong("May in HP M211dw", "Máy in HP LaserJet Pro M211DW") >= 0.7
+    assert cau_tim("Hop muc Canon 326") == "326" and cau_tim("May in HP M211dw") == "m211dw"
+    assert do_giong_bai("Máy in Canon LBP 2900 bị kẹt giấy", "Cách sửa máy in Canon 2900 kẹt giấy") >= 0.7
+    assert do_giong_bai("Canon 2900 kẹt giấy", "Canon 2900 không nhận lệnh in") < 0.7  # cùng máy, khác lỗi
+    assert do_giong_bai("Máy in kẹt giấy", "Nạp mực tận nơi có hại máy không") < 0.7
+
+
+def test_sp_co_the_trung_tim_tren_web():
+    from dang_web.wordpress import bai_co_the_trung, sp_co_the_trung
+
+    seen = []
+
+    def handler(req):
+        seen.append(req)
+        if "posts" in req.url.path:
+            return httpx.Response(200, json=[{"id": 4, "title": {"raw": "Cách sửa Canon 2900 kẹt giấy"}, "link": "l4", "status": "publish"}])
+        return httpx.Response(200, json=[{"id": 1, "name": "Hộp mực Canon 326 chính hãng", "permalink": "p1", "status": "publish"},
+                                         {"id": 2, "name": "Hộp mực Canon 328", "permalink": "p2", "status": "publish"}])
+
+    wp = _wp(handler)
+    assert [g["id"] for g in sp_co_the_trung(wp, "Hop muc Canon 326")] == [1]
+    assert seen[0].url.params["search"] == "326" and seen[0].url.params["status"] == "any"
+    assert [g["id"] for g in bai_co_the_trung(wp, "Máy in Canon 2900 bị kẹt giấy")] == [4]
+
+
+def test_nghi_trung_thi_dung_truoc_khi_goi_ai(tmp_path, monkeypatch, capsys):
+    import dang_web.__main__ as m
+
+    monkeypatch.setenv("WEB_THU_MUC_TRONG", str(tmp_path))
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def handler(req):
+        if req.url.path.endswith("/products/categories"):
+            return httpx.Response(200, json=[], headers={"X-WP-TotalPages": "1"})
+        if "sku" in req.url.params:
+            return httpx.Response(200, json=[])
+        return httpx.Response(200, json=[{"id": 9, "name": "Hộp mực Canon 326 cũ", "permalink": "https://web.test/326", "status": "publish"}])
+
+    monkeypatch.setattr(m, "ket_noi", lambda url: _Conn())
+    monkeypatch.setattr(m, "lay_san_pham", lambda conn, codes: {"TD-0001": _sp()})
+    monkeypatch.setattr(m, "_wp", lambda ch: _wp(handler))
+    monkeypatch.setattr(m, "_nguoi_viet", lambda ch: NguoiViet("", client=SimpleNamespace(beta=SimpleNamespace(messages=_FakeMessages([])))))
+    assert m.main(["san-pham", "--ma", "TD-0001"]) == 0
+    out = capsys.readouterr().out
+    assert "CÓ THỂ TRÙNG" in out and "https://web.test/326" in out and "--van-dang" in out
+    tt = dang.doc_trang_thai(tmp_path / "da-dang.json")
+    assert tt["nghi_trung"]["TD-0001"] == ["https://web.test/326"] and tt["san_pham"] == {}
+    assert chon_tu_dong(CauHinh(thu_muc=tmp_path), tt, 3) == []  # lịch tự động không chọn lại mã nghi trùng

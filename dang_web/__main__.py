@@ -19,7 +19,7 @@ from . import dang
 from .cau_hinh import CauHinh
 from .du_lieu import dem_san_pham, ket_noi, lay_san_pham
 from .viet_bai import ChoTraLoi
-from .wordpress import LoiWeb, WordPress, slug, tim_danh_muc
+from .wordpress import LoiWeb, WordPress, bai_co_the_trung, slug, sp_co_the_trung, tim_danh_muc
 
 MA_RE = re.compile(r"^(TD-\d{4,})", re.I)
 
@@ -48,6 +48,13 @@ def _chon_nguoi_viet(ch: CauHinh, args):
     if getattr(args, "chatgpt_web", False):
         return NguoiVietChatGPTWeb(ch.thu_muc / "chatgpt")
     return _nguoi_viet(ch)
+
+
+def _bao_trung(giong: list[dict]) -> None:
+    in_("   CÓ THỂ TRÙNG với bài đang có trên web (chưa gọi AI, chưa tốn tiền):")
+    for g in giong[:5]:
+        in_(f"     • {g['ten']} [{g['trang_thai']}] {g['link']}")
+    in_("     Xem các link trên. Vẫn muốn đăng thì chạy lại lệnh, thêm --van-dang")
 
 
 def _bao_cho_tra_loi(e) -> None:
@@ -125,7 +132,7 @@ def chon_tu_dong(ch: CauHinh, trang_thai: dict, so: int) -> list[str]:
             m = MA_RE.match(p.name if p.is_dir() else p.stem)
             if m and (p.is_dir() or p.suffix.lower() in anh_mod.DUOI_ANH):
                 ma.add(m.group(1).upper())
-    con = sorted(m for m in ma if m not in trang_thai["san_pham"])
+    con = sorted(m for m in ma if m not in trang_thai["san_pham"] and m not in trang_thai.get("nghi_trung", {}))
     return con[: max(0, so) * 3]  # lấy dư, vì có mã đã có trên web sẽ bị bỏ qua
 
 
@@ -150,7 +157,7 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
     bang_nhom = dang.doc_bang_nhom(ch)
     tach_nen = ch.tach_nen and not args.khong_tach_nen
 
-    xong = loi = cho = 0
+    xong = loi = cho = trung = 0
     tong_phi = 0
     for code in codes:
         if xong >= gioi_han:
@@ -169,6 +176,16 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
                 if co_san and not args.lam_lai:
                     in_(f"   bỏ qua: web đã có sản phẩm mã {code} ({co_san.get('status')}) {co_san.get('permalink', '')}")
                     trang_thai["san_pham"][code] = {"id": co_san["id"], "link": co_san.get("permalink", ""), "co_san": True}
+                    dang.ghi_trang_thai(ch.file_trang_thai, trang_thai)
+                    continue
+            if wp and not args.van_dang:
+                giong = sp_co_the_trung(wp, sp.name)
+                if giong:
+                    _bao_trung(giong)
+                    dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Sản phẩm", code, "CÓ THỂ TRÙNG",
+                                                               [f"{g['ten']} ({g['trang_thai']}) {g['link']}" for g in giong]))
+                    trung += 1
+                    trang_thai["nghi_trung"][code] = [g["link"] for g in giong]
                     dang.ghi_trang_thai(ch.file_trang_thai, trang_thai)
                     continue
             files = anh_mod.tim_anh(ch.anh_goc, code)
@@ -212,7 +229,7 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
             dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Sản phẩm", code, "LỖI", [str(e)]))
     in_()
     phi = f"{tong_phi:,}".replace(",", ".")
-    in_(f"Xong {xong} mã, lỗi {loi}" + (f", chờ dán ChatGPT {cho}" if cho else "") + f". Chi phí AI ước tính ~{phi}đ.")
+    in_(f"Xong {xong} mã, lỗi {loi}" + (f", chờ dán ChatGPT {cho}" if cho else "") + (f", có thể trùng {trung}" if trung else "") + f". Chi phí AI ước tính ~{phi}đ.")
     in_(f"Kết quả ghi trong ~/THANHDUC-WEB/ket-qua/{dang.bay_gio():%Y-%m-%d}.md")
     return 0 if loi == 0 else 1
 
@@ -230,7 +247,7 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
     ch.tao_thu_muc()
     trang_thai = dang.doc_trang_thai(ch.file_trang_thai)
     if args.tu_dong:
-        chu_de = [c for c in doc_chu_de(ch) if c not in trang_thai["bai_viet"]][: args.so]
+        chu_de = [c for c in doc_chu_de(ch) if c not in trang_thai["bai_viet"] and c not in trang_thai["nghi_trung"]][: args.so]
     else:
         chu_de = [args.chu_de] if args.chu_de else []
     if not chu_de:
@@ -241,10 +258,20 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
     chuyen_muc = None
     if wp and ch.chuyen_muc_bai:
         chuyen_muc = tim_danh_muc(ch.chuyen_muc_bai, wp.chuyen_muc_bai())
-    xong = loi = cho = 0
+    xong = loi = cho = trung = 0
     for cd in chu_de:
         in_(f"— {cd}")
         try:
+            if wp and not args.van_dang:
+                giong = bai_co_the_trung(wp, cd)
+                if giong:
+                    _bao_trung(giong)
+                    dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Bài viết", cd, "CÓ THỂ TRÙNG",
+                                                               [f"{g['ten']} ({g['trang_thai']}) {g['link']}" for g in giong]))
+                    trung += 1
+                    trang_thai["nghi_trung"][cd] = [g["link"] for g in giong]
+                    dang.ghi_trang_thai(ch.file_trang_thai, trang_thai)
+                    continue
             kq = nv.viet_bai(cd, dang.doc_ghi_chu(ch, slug(cd, 60)), ch.hotline)
             d = kq.du_lieu
             chi_tiet = [f"Tiêu đề: {d['tieu_de']}", f"Chi phí AI: {kq.mo_ta_chi_phi}"]
@@ -290,7 +317,7 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
                 traceback.print_exc()
             dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Bài viết", cd, "LỖI", [str(e)]))
     in_()
-    in_(f"Xong {xong} bài, lỗi {loi}" + (f", chờ dán ChatGPT {cho}" if cho else "") + ".")
+    in_(f"Xong {xong} bài, lỗi {loi}" + (f", chờ dán ChatGPT {cho}" if cho else "") + (f", có thể trùng {trung}" if trung else "") + ".")
     return 0 if loi == 0 else 1
 
 
@@ -315,6 +342,7 @@ def tao_parser() -> argparse.ArgumentParser:
     bv.add_argument("--anh", help="ảnh đại diện (đường dẫn trong container, ví dụ /data/anh-bai/x.jpg)")
 
     for p in (sp, bv):
+        p.add_argument("--van-dang", action="store_true", help="bỏ qua cảnh báo có thể trùng bài trên web")
         p.add_argument("--chatgpt-web", action="store_true", help="không dùng API: soạn câu lệnh để dán vào ChatGPT web")
         p.add_argument("--thu", action="store_true", help="chỉ soạn, lưu bản xem trước, không đăng")
         p.add_argument("--chi-tiet", action="store_true", help="in chi tiết lỗi")
