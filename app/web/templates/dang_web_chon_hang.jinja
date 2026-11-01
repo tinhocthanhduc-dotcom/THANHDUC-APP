@@ -1,0 +1,1 @@
+{% for row in rows %}<button type="button" class="dw-pick" data-dw-pick="{{ row.code }}" data-label="{{ row.code }} · {{ row.name }}">{{ row.code }} · {{ row.name }} <small>{{ row.sale_price|money }}đ</small></button>{% else %}{% if q.strip() %}<p class="hint">Không thấy mã nào khớp “{{ q }}”.</p>{% endif %}{% endfor %}

@@ -1,0 +1,70 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Đăng web{% endblock %}
+{# TUẤN duyệt mẫu 01/11/2026 (artifact 4WMm8cZSF37JZmCtxMoPq6): màn 1, 5, 7. #}
+{% macro thumb(v) %}<span class="dw-thumb">{% if v.anh_web %}<img src="/dang-web/anh-web/{{ v.anh_web[0] }}" alt="" loading="lazy">{% elif v.anh_goc %}<img src="/dang-web/anh/{{ v.id }}/{{ v.anh_goc[0] }}" alt="" loading="lazy">{% else %}<b aria-hidden="true">{{ 'SP' if v.loai == 'san_pham' else 'BV' }}</b>{% endif %}</span>{% endmacro %}
+{% macro luc(s) %}{% if s %}{{ s[11:16] }} {{ s[8:10] }}/{{ s[5:7] }}{% endif %}{% endmacro %}
+{% block main %}<div class="page-wide list-page dw-page">
+{% call ui.page_head('Đăng web', sub='Soạn sản phẩm, bài viết rồi đăng Bản nháp lên thanhduc.vn') %}{% if tab != 'da-dang' %}<a class="btn btn-new" href="/dang-web/soan?loai={{ tab }}">+ Soạn {{ 'bài viết' if tab == 'bai-viet' else 'sản phẩm' }}</a>{% endif %}{% endcall %}
+
+{% if loi_thu_muc %}<p class="alert bad" role="alert"><b>Chưa dùng được.</b> {{ loi_thu_muc }} Trên Z2 chạy <code>scripts/dang-web.sh bat-may</code> rồi chạy lại lệnh cập nhật app.</p>
+{% elif not nhip or not nhip.song %}<p class="alert warn" role="status"><b>Máy đăng web đang tắt.</b> Việc anh tạo sẽ nằm chờ tới khi bật. Trên Z2 chạy <code>cd ~/THANHDUC-APP && scripts/dang-web.sh bat-may</code>.</p>
+{% elif not nhip.co_wp %}<p class="alert warn" role="status"><b>Chưa nối được web.</b> Soạn thử được, nhưng muốn đăng phải ghi WP_USER và WP_APP_PASSWORD vào deploy/.env trên Z2 rồi chạy lại <code>scripts/dang-web.sh bat-may</code>.</p>{% endif %}
+{% if da_luu %}{% set tin = {'bo': 'Đã bỏ việc.', 'lam-moi': 'Đang lấy lại trạng thái trên web, tải lại sau ít giây.', 'them-chu-de': 'Đã thêm chủ đề.', 'xoa-chu-de': 'Đã xóa chủ đề.', 'lich': 'Đã lưu lịch tự soạn.'} %}{{ ui.toast(tin.get(da_luu) or ('Đã tạo ' ~ da_luu[8:] ~ ' việc từ ảnh có sẵn.' if da_luu.startswith('tu-chon-') else 'Đã lưu.'), 'ok') }}{% endif %}
+
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% if tab != 'da-dang' %}
+<div class="dw-pad">
+{{ ui.tiles(tiles, keep_phone=true) }}
+{% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ghost">Tự chọn 3 mã đã có ảnh trên Z2</button><span class="hint">Lấy ảnh anh đã chép vào ~/THANHDUC-WEB/anh-goc.</span></form>{% endif %}
+</div>
+{% if rows %}<ul class="dw-list">{% for v in rows %}
+<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}">{{ thumb(v) }}<span class="dw-main"><b>{{ v.ten or v.ma or v.chu_de }}</b><small>{% if v.ma %}{{ v.ma }} · {% endif %}{{ cach_viet.get(v.cach_viet, '') }}{% if v.viet_lai %} · viết lại{% endif %}{% if v.nguon == 'lich' %} · lịch tự soạn{% endif %} · {{ luc(v.cap_nhat) }}</small>{% if v.trang_thai == 'loi' and v.loi %}<small class="dw-err">{{ v.loi|truncate(110) }}</small>{% endif %}</span>{{ ui.badge(v.nhan ~ (' …' if v.dang_chay else ''), v.tone) }}</a></li>
+{% endfor %}</ul>
+{% else %}{{ ui.empty('Không có việc nào ở mục này.' if loc else 'Chưa có việc nào đang làm. Bấm “+ Soạn” để bắt đầu.') }}{% endif %}
+{% if gan_day %}<div class="dw-pad dw-recent"><p class="group-label"><b>Vừa đăng nháp</b></p><ul class="dw-list">{% for v in gan_day %}<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}">{{ thumb(v) }}<span class="dw-main"><b>{{ v.ten }}</b><small>{{ luc(v.dang_luc or v.cap_nhat) }}</small></span>{{ ui.badge('Nháp trên web', 'xong') }}</a></li>{% endfor %}</ul><a class="btn btn-ghost" href="/dang-web?tab=da-dang">Xem tất cả đã đăng ›</a></div>{% endif %}
+{% endif %}
+
+{% if tab == 'bai-viet' %}
+<div class="dw-pad">
+<form method="post" action="/dang-web/chu-de" class="dw-topic-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<label><b>Chủ đề chờ viết</b> <span class="hint">(lịch tự soạn lấy dần từ đây)</span><input name="chu_de" maxlength="200" minlength="8" required placeholder="Ví dụ: Nạp mực tận nơi có hại máy không?"></label>
+<button class="btn btn-ghost">+ Thêm chủ đề</button></form>
+{% if chu_de %}<ul class="dw-topics">{% for c in chu_de %}<li><span>{{ c.ten }}</span>
+{% if c.xong %}{{ ui.badge('Đã đăng', 'xong') }}{% elif c.dang %}{{ ui.badge('Đang làm', 'lam') }}{% elif c.trung %}{{ ui.badge('Có thể trùng', 'cho') }}{% else %}<a class="btn btn-ghost" href="/dang-web/soan?loai=bai-viet&amp;chu_de={{ c.ten|urlquote }}">Soạn ›</a>{% endif %}
+<form method="post" action="/dang-web/chu-de"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="chu_de" value="{{ c.ten }}"><button class="btn btn-ghost dw-x" name="hanh_dong" value="xoa" aria-label="Xóa chủ đề {{ c.ten }}" onclick='return confirm({{ ("Xóa chủ đề này khỏi danh sách?")|tojson }})'>×</button></form></li>{% endfor %}</ul>{% endif %}
+</div>
+{% endif %}
+
+{% if tab != 'da-dang' %}
+<details class="dw-pad dw-lich"{% if lich.bat %} open{% endif %}><summary><b>Tự soạn mỗi sáng</b> · {{ 'đang bật, ' ~ lich.gio ~ ' thứ 2 – thứ 7' if lich.bat else 'đang tắt' }}</summary>
+<form method="post" action="/dang-web/lich" class="dw-lich-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tab" value="{{ tab }}">
+<label class="chk"><input type="checkbox" name="bat" value="1" {% if lich.bat %}checked{% endif %}> Bật</label>
+<label>Giờ<input type="time" name="gio" value="{{ lich.gio }}" required></label>
+<label>Số sản phẩm<input type="number" name="so_sp" min="0" max="5" value="{{ lich.so_sp }}" inputmode="numeric"></label>
+<label>Số bài viết<input type="number" name="so_bai" min="0" max="3" value="{{ lich.so_bai }}" inputmode="numeric"></label>
+<button class="btn btn-ok">Lưu lịch</button>
+<p class="hint">Máy đăng web tự soạn sẵn các mã đã có ảnh trong ~/THANHDUC-WEB/anh-goc và chủ đề chờ viết. Soạn xong nằm ở “Chờ anh xem trước”, anh bấm Đăng mới lên web.</p>
+</form></details>
+{% else %}
+<form class="filter-bar lf-bar" method="get" action="/dang-web" role="search"><input type="hidden" name="tab" value="da-dang"><input type="hidden" name="chip" value="{{ chip }}"><input type="search" name="q" value="{{ q }}" placeholder="Tìm tên, mã hàng (không dấu)…" aria-label="Tìm" autocomplete="off"><noscript><button>Tìm</button></noscript></form>
+<div class="dw-pad dw-chips">{% for key, label in [('tat-ca','Tất cả'),('nhap','Nháp'),('dang-hien','Đang hiện'),('bai-viet','Bài viết')] %}<a class="dw-chip{{ ' on' if chip == key }}" href="/dang-web?tab=da-dang&amp;chip={{ key }}{% if q %}&amp;q={{ q|urlquote }}{% endif %}">{{ label }} {{ dem[key] }}</a>{% endfor %}
+<form method="post" action="/dang-web/lam-moi" class="dw-refresh"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ghost">↻ Cập nhật từ web</button></form>
+<span class="hint">{% if dem.luc_web %}Trạng thái lấy từ web lúc {{ luc(dem.luc_web) }}.{% else %}Chưa lấy trạng thái từ web.{% endif %}</span></div>
+{% if rows %}<ul class="dw-list">{% for r in rows %}
+<li><details class="dw-done"><summary class="dw-row"><span class="dw-thumb">{% if r.anh %}<img src="/dang-web/anh-web/{{ r.anh }}" alt="" loading="lazy">{% else %}<b aria-hidden="true">{{ 'SP' if r.loai == 'san_pham' else 'BV' }}</b>{% endif %}</span><span class="dw-main"><b>{{ r.ten }}</b><small>{{ r.khoa if r.loai == 'san_pham' else 'Bài viết' }} · {{ luc(r.luc) }}{% if r.co_san %} · có sẵn trên web{% endif %}</small></span>{{ ui.badge(r.nhan, r.tone) }}</summary>
+<div class="dw-acts">
+{% if r.link_sua %}<a class="btn btn-new" href="{{ r.link_sua }}" target="_blank" rel="noopener">Sửa trên web ↗</a>{% endif %}
+<div class="dw-two">{% if r.xem %}<a class="btn btn-ghost" href="{{ r.xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}
+<a class="btn btn-ghost" href="/dang-web/soan?loai={{ 'san-pham' if r.loai == 'san_pham' else 'bai-viet' }}&amp;{{ 'ma' if r.loai == 'san_pham' else 'chu_de' }}={{ r.khoa|urlquote }}&amp;wp_id={{ r.id }}">Viết lại bằng AI</a></div>
+<p class="hint">“Sửa trên web” mở thẳng trang sửa trong wp-admin. “Viết lại” soạn bản mới để anh xem trước, bấm Đăng mới ghi đè lên đúng bài này.</p>
+</div></details></li>
+{% endfor %}</ul>
+{% else %}{{ ui.empty('Không có bài nào khớp.' if q or chip != 'tat-ca' else 'Chưa đăng gì lên web.', '/dang-web?tab=da-dang' if q or chip != 'tat-ca' else '', 'Xem tất cả') }}{% endif %}
+{% call ui.list_foot(p, 'bài') %}{{ p.total }} bài{% endcall %}
+{% endif %}
+</section>
+</div>
+{% if co_chay %}<script>setTimeout(function () { if (!document.activeElement || !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) location.reload(); }, 8000);</script>{% endif %}
+{% endblock %}

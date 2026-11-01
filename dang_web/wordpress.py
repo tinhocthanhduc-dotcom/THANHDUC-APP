@@ -93,7 +93,32 @@ class WordPress:
         payload = {**payload, "status": "draft"}
         return self._json("POST", "wc/v3/products", json=payload)
 
+    def sua_sp(self, sp_id: int, payload: dict) -> dict:
+        """Ghi đè nội dung sản phẩm đã có (Viết lại). Giữ nguyên trạng thái và mã SKU trên web."""
+        payload = {k: v for k, v in payload.items() if k not in ("status", "sku", "type")}
+        return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload)
+
+    def lay_sp_theo_ids(self, ids: list[int]) -> list[dict]:
+        ra = []
+        for i in range(0, len(ids), 100):
+            phan = ids[i:i + 100]
+            ra += self._json("GET", "wc/v3/products", params={"include": ",".join(map(str, phan)), "status": "any", "per_page": 100})
+        return ra
+
     # ---- bài viết ----
+    def sua_bai(self, bai_id: int, payload: dict) -> dict:
+        payload = {k: v for k, v in payload.items() if k != "status"}
+        return self._json("POST", f"wp/v2/posts/{int(bai_id)}", json=payload)
+
+    def lay_bai_theo_ids(self, ids: list[int]) -> list[dict]:
+        ra = []
+        for i in range(0, len(ids), 100):
+            phan = ids[i:i + 100]
+            ra += self._json("GET", "wp/v2/posts", params={
+                "include": ",".join(map(str, phan)), "status": "publish,draft,pending,future,private",
+                "context": "edit", "per_page": 100})
+        return ra
+
     def chuyen_muc_bai(self) -> list[dict]:
         return self._tat_ca("wp/v2/categories")
 

@@ -6,6 +6,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY migrations ./migrations
 COPY scripts ./scripts
+# Màn Đăng web dùng chung khuôn hàng việc với máy đăng web (chỉ thư viện chuẩn).
+COPY dang_web ./dang_web
 COPY alembic.ini .
 RUN useradd --system --uid 1000 td && mkdir -p /app/data/files && chown -R td /app
 USER td
