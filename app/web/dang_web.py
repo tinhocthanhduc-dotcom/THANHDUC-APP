@@ -502,6 +502,68 @@ async def edit_web(request: Request, form=Depends(checked_form), session: Sessio
     return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
 
 
+# ---------- sửa ảnh riêng (không AI, TUẤN duyệt mẫu 14, 15, D8 ngày 01/11/2026) ----------
+CHE_DO_ANH = {"tach_nen": "Tách nền", "nen_trang": "Đã nền trắng", "giu": "Giữ nguyên"}
+
+
+def _form_sua_anh(request, session, it: dict, d: dict, error="", status=200):
+    return render(request, "dang_web_sua_anh.jinja", it=it, anhs=[m for m in it.get("anhs") or [] if isinstance(m, dict) and m.get("id")],
+                  co_ds_anh="anhs" in it, d=d, ma=_ma_cua_web(session, it), nhip=hd.doc_nhip(goc()), che_do_anh=CHE_DO_ANH,
+                  toi_da_anh=TOI_DA_ANH, error=error, status=status)
+
+
+@router.get("/dang-web/sua-anh")
+def edit_photos_form(request: Request, id: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)):
+    it, _ = _muc_web("san_pham", id)
+    return _form_sua_anh(request, session, it, dict(logo=True, che_do_moi="tach_nen"))
+
+
+@router.post("/dang-web/sua-anh")
+async def edit_photos(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    it, _ = _muc_web("san_pham", str(form.get("id", "")))
+    d = dict(logo=form.get("logo") == "1", che_do_moi=str(form.get("che_do_moi", "tach_nen")))
+    try:
+        _can_ghi()
+        if "anhs" not in it:
+            raise BusinessError("BAD_STATE", "Danh sách web cũ chưa có ảnh. Bấm Cập nhật từ web rồi mở lại.", status=409)
+        tren_web = {int(m["id"]): m.get("src", "") for m in it["anhs"] if str(m.get("id", "")).isdigit()}
+        moi = await _doc_anh(form)
+        che_moi = d["che_do_moi"] if d["che_do_moi"] in CHE_DO_ANH else "tach_nen"
+        ds = []
+        for khoa in [str(x) for x in form.getlist("thu_tu")]:  # thứ tự trên màn (nút ‹ ›)
+            if not khoa.startswith("web-") or not khoa[4:].isdigit() or int(khoa[4:]) not in tren_web:
+                continue
+            mid = int(khoa[4:])
+            if form.get(f"xoa_{mid}") == "1" or any(x["media_id"] == mid for x in ds if x["nguon"] == "web"):
+                continue
+            cd = str(form.get(f"che_do_{mid}", "giu"))
+            ds.append({"nguon": "web", "media_id": mid, "src": tren_web[mid], "che_do": cd if cd in CHE_DO_ANH else "giu"})
+        moi_ds = [{"nguon": "moi", "so": i, "che_do": che_moi} for i in range(1, len(moi) + 1)]  # ảnh mới thứ i (anh_goc của việc)
+        dai_dien = str(form.get("dai_dien", ""))
+        if dai_dien == "moi" and moi_ds:
+            ds = moi_ds[:1] + ds + moi_ds[1:]
+        else:
+            ds += moi_ds
+            if dai_dien.startswith("web-") and dai_dien[4:].isdigit():
+                ds.sort(key=lambda x: 0 if x.get("media_id") == int(dai_dien[4:]) else 1)
+        if not ds:
+            raise BusinessError("BAD_FORM", "Sản phẩm cần ít nhất 1 ảnh: giữ lại ảnh trên web hoặc thêm ảnh mới.")
+        if len(ds) > TOI_DA_ANH:
+            raise BusinessError("PHOTO_LIMIT", f"Tối đa {TOI_DA_ANH} ảnh mỗi sản phẩm (đang có {len(ds)}). Bỏ bớt ảnh.")
+        if all(x["nguon"] == "web" and x["che_do"] == "giu" for x in ds) and [x["media_id"] for x in ds] == list(tren_web):
+            raise BusinessError("BAD_FORM", "Chưa có gì thay đổi: chọn cách xử lý, đổi thứ tự, bỏ hoặc thêm ảnh.")
+        g = goc()
+        dang_lam = [v for v in hd.ds(g) if v.get("kieu") == "sua_anh" and v.get("wp_id") == int(it["id"]) and v.get("trang_thai") not in hd.XONG]
+        for v in dang_lam:  # bản đang chờ xem trước hoặc lỗi thì "Chọn lại ảnh" thay nó; đang chạy thì mở việc đó
+            if hd.sua(g, v["id"], lambda x: x.update(trang_thai=hd.BO), (hd.XEM_TRUOC, hd.LOI)) is None:
+                return RedirectResponse(f"/dang-web/viec/{v['id']}", status_code=303)
+        viec_id = hd.tao_viec(g, "san_pham", dict(kieu="sua_anh", wp_id=int(it["id"]), ten=it.get("ten", ""), ma=_ma_cua_web(session, it),
+                                                  anh=ds, logo=d["logo"], chen_mo_ta=True, xoa_cu=True, van_dang=True, viet_lai=True), moi)
+    except BusinessError as exc:
+        return _form_sua_anh(request, session, it, d, error=exc.message, status=exc.status)
+    return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
+
+
 @router.post("/dang-web/xep-danh-muc")
 def sort_categories(request: Request, form=Depends(checked_form)):
     """AI đề xuất danh mục cho tối đa TOI_DA_XEP mục chưa phân loại; anh tick đồng ý rồi mới ghi lên web."""
@@ -533,7 +595,7 @@ def _page_viec(request, v, error="", status=200):
     g = goc()
     cay_lua = _cay(v["loai"]).lua_chon() if v.get("kieu") in ("sua_web", "xep_danh_muc") else []
     return render(request, "dang_web_viec.jinja", v=_them_nhan(v), nhip=hd.doc_nhip(g), error=error, status=status,
-                  danh_muc=hd.doc_json(hd.file_danh_muc(g), []), cach_viet=hd.CACH_VIET, cay_lua=cay_lua)
+                  danh_muc=hd.doc_json(hd.file_danh_muc(g), []), cach_viet=hd.CACH_VIET, cay_lua=cay_lua, che_do_anh=CHE_DO_ANH)
 
 
 @router.get("/dang-web/viec/{viec_id}")
@@ -554,9 +616,18 @@ def _nap_xep(v: dict, form) -> None:
     v["ghi"] = ghi
 
 
+def _nap_sua_anh(v: dict, form) -> None:
+    for i, k in enumerate(v.get("ket_anh") or []):
+        k["dung"] = "goc" if form.get(f"dung_{i}") == "goc" else "sau"
+    v["chen_mo_ta"] = form.get("chen_mo_ta") == "1"
+    v["xoa_cu"] = form.get("xoa_cu") == "1"
+
+
 def _nap_sua(v: dict, form) -> None:
     if v.get("kieu") == "xep_danh_muc":
         return _nap_xep(v, form)
+    if v.get("kieu") == "sua_anh":
+        return _nap_sua_anh(v, form)
     d = dict(v.get("noi_dung") or {})
     for k in (SUA_SP if v["loai"] == "san_pham" else SUA_BAI):
         if k in form:
@@ -636,7 +707,7 @@ def act(request: Request, viec_id: str, form=Depends(checked_form)):
 
             kq = doi(hd.CHO_SOAN, (hd.CHO_DAN,), ham)
         elif hanh_dong == "thu_lai":
-            sau = hd.CHO_DANG if v.get("buoc_loi") == "dang" and (v.get("noi_dung") or v.get("ghi")) else hd.CHO_SOAN
+            sau = hd.CHO_DANG if v.get("buoc_loi") == "dang" and (v.get("noi_dung") or v.get("ghi") or v.get("ket_anh")) else hd.CHO_SOAN
             kq = doi(sau, (hd.LOI,), lambda x: x.update(loi=""))
         elif hanh_dong == "bo":
             kq = doi(hd.BO, hd.NGUOI_LAM)

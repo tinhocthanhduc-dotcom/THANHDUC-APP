@@ -5,6 +5,7 @@ Mọi thứ tạo ra đều ở trạng thái Bản nháp (draft); người duy�
 from __future__ import annotations
 
 import base64
+import re
 
 import httpx
 
@@ -157,6 +158,22 @@ class WordPress:
         return self._json("POST", "wp/v2/posts", json=payload)
 
     # ---- ảnh ----
+    def xoa_anh(self, media_id: int) -> None:
+        """Xóa hẳn ảnh khỏi thư viện Media (cả các cỡ thu nhỏ WordPress tự tạo)."""
+        self._goi("DELETE", f"wp/v2/media/{int(media_id)}", params={"force": "true"})
+
+    def anh_con_dung(self, ten_file: str, bo_sp_id: int) -> bool:
+        """Ảnh còn nằm trong nội dung sản phẩm, bài viết hay trang nào khác không (tìm theo tên file)."""
+        goc = re.sub(r"\.[a-z0-9]+$", "", ten_file.rsplit("/", 1)[-1], flags=re.I)
+        if len(goc) < 4:
+            return True  # tên quá ngắn, không dám chắc: giữ lại
+        for duong, them in (("wc/v3/products", {"status": "any"}), ("wp/v2/posts", {"status": "any"}),
+                            ("wp/v2/pages", {"status": "any"})):
+            for it in self._json("GET", duong, params={"search": goc, "per_page": 20, "_fields": "id", **them}):
+                if not (duong.startswith("wc/") and int(it.get("id", 0)) == int(bo_sp_id)):
+                    return True
+        return False
+
     def tai_anh(self, data: bytes, ten_file: str, mime: str, alt: str = "", tieu_de: str = "") -> dict:
         media = self._json(
             "POST",

@@ -228,5 +228,26 @@ def xu_ly(
     return out.getvalue()
 
 
+def giu_nguyen(nguon: Path | bytes, *, canh_toi_da: int = 1600, dinh_dang: str = "webp") -> bytes:
+    """Ảnh "giữ nguyên" (banner, ảnh thông số): chỉ xoay đúng chiều, thu nhỏ nếu quá lớn, nén lại; không cắt, không tách nền, không logo."""
+    im = Image.open(io.BytesIO(nguon) if isinstance(nguon, (bytes, bytearray)) else nguon)
+    im = ImageOps.exif_transpose(im)
+    im.load()
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGBA")
+        nen = Image.new("RGB", im.size, (255, 255, 255))
+        nen.paste(im, mask=im.split()[-1])
+        im = nen
+    else:
+        im = im.convert("RGB")
+    im.thumbnail((canh_toi_da, canh_toi_da), Image.Resampling.LANCZOS)
+    out = io.BytesIO()
+    if dinh_dang == "jpg":
+        im.save(out, "JPEG", quality=88, optimize=True, progressive=True)
+    else:
+        im.save(out, "WEBP", quality=85, method=6)
+    return out.getvalue()
+
+
 def mime(dinh_dang: str) -> str:
     return "image/jpeg" if dinh_dang == "jpg" else "image/webp"
