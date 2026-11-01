@@ -13,6 +13,10 @@ services:
       WP_USER: ${WP_USER:-}
       WP_APP_PASSWORD: ${WP_APP_PASSWORD:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # claude | openai | mau (không AI). Để trống: dùng loại nào có khóa.
+      WEB_AI_NHA_CUNG_CAP: ${WEB_AI_NHA_CUNG_CAP:-}
+      WEB_OPENAI_MODEL: ${WEB_OPENAI_MODEL:-gpt-5.5}
       WEB_AI_MODEL: ${WEB_AI_MODEL:-claude-opus-5-5}
       WEB_AI_EFFORT: ${WEB_AI_EFFORT:-medium}
       WEB_AI_TRA_WEB: ${WEB_AI_TRA_WEB:-true}

@@ -1,4 +1,5 @@
 anthropic==2.3.0
+openai==3.42.0
 httpx==0.28.1
 pillow==12.3.0
 pillow-heif==1.8.1
