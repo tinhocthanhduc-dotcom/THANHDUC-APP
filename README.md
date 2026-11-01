@@ -20,6 +20,7 @@ Kế hoạch tổng thể: tài liệu "Kế hoạch chuyển sang Python + Post
 | `deploy/windows/` | Bộ cài trên Windows: đóng gói, cài lại một lệnh, khôi phục từ bản sao lưu (`HUONG-DAN-CAI-DAT.md`) |
 | `docs/TRIEN_KHAI_VPS.md` | Sổ tay dựng máy chủ từng bước |
 | `docs/API.md` | Cách app Apps Script gọi API |
+| `dang_web/` | Công cụ soạn ảnh + nội dung bằng AI, đăng nháp sản phẩm/bài viết lên thanhduc.vn (`docs/dang-web.md`) |
 | `tests/` | Test chạy trên PostgreSQL thật |
 
 Code chuyển từ thư mục `core/` của repo SALE_THANHDUC sang đây ngày 17/10/2026, giữ nguyên lịch sử.

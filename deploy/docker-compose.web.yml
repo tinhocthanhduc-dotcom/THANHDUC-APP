@@ -1,0 +1,30 @@
+# Công cụ soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn. Chỉ chạy khi gọi, không chạy nền.
+# Dùng qua: scripts/dang-web.sh kiem-tra   (xem huong-dan trong docs/dang-web.md)
+services:
+  dang-web:
+    build:
+      context: ..
+      dockerfile: dang_web/Dockerfile
+    profiles: ["web"]
+    environment:
+      # Chỉ đọc: công cụ tự đặt phiên database ở chế độ read-only.
+      TD_DATABASE_URL: postgresql+psycopg://thanhduc:${DB_PASSWORD}@db:5432/thanhduc
+      WP_URL: ${WP_URL:-https://thanhduc.vn}
+      WP_USER: ${WP_USER:-}
+      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WEB_AI_MODEL: ${WEB_AI_MODEL:-claude-opus-5-5}
+      WEB_AI_EFFORT: ${WEB_AI_EFFORT:-medium}
+      WEB_AI_TRA_WEB: ${WEB_AI_TRA_WEB:-true}
+      WEB_TACH_NEN: ${WEB_TACH_NEN:-true}
+      WEB_ANH_DINH_DANG: ${WEB_ANH_DINH_DANG:-webp}
+      WEB_ANH_KICH_THUOC: ${WEB_ANH_KICH_THUOC:-1200}
+      WEB_DANG_GIA: ${WEB_DANG_GIA:-true}
+      WEB_VAT_PHAN_TRAM: ${WEB_VAT_PHAN_TRAM:-0}
+      WEB_HOTLINE: ${WEB_HOTLINE:-}
+      WEB_CHUYEN_MUC_BAI: ${WEB_CHUYEN_MUC_BAI:-}
+    volumes:
+      # ~/THANHDUC-WEB trên Z2: anh-goc, ghi-chu, chu-de.txt, ket-qua...
+      - ${WEB_THU_MUC:-../../THANHDUC-WEB}:/data
+    depends_on:
+      - db
