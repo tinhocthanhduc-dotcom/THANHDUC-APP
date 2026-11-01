@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import fcntl
 import html
+import re
 import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -135,21 +136,23 @@ def ghi_xem_truoc(ch: CauHinh, ten: str, tieu_de: str, d: dict, anh_files: list[
 
 
 # ---------- xử lý và tải ảnh ----------
-def xu_ly_anh(ch: CauHinh, ten_goc: str, files: list[Path], tach_nen: bool) -> list[tuple[str, bytes]]:
+def xu_ly_anh(ch: CauHinh, ten_goc: str, files: list[Path], tach_nen: bool, logo: bool = True) -> list[tuple[str, bytes]]:
     ch.anh_da_xu_ly.mkdir(parents=True, exist_ok=True)
     duoi = "jpg" if ch.anh_dinh_dang == "jpg" else "webp"
     ra: list[tuple[str, bytes]] = []
     for i, f in enumerate(files, 1):
-        data = anh_mod.xu_ly(f, tach_nen=tach_nen, kich_thuoc=ch.anh_kich_thuoc, dinh_dang=ch.anh_dinh_dang)
+        data = anh_mod.xu_ly(f, tach_nen=tach_nen, kich_thuoc=ch.anh_kich_thuoc, dinh_dang=ch.anh_dinh_dang,
+                             logo=anh_mod.LOGO_MAC_DINH if logo else None)
         ten = f"{ten_goc}{'' if i == 1 else f'-{i}'}.{duoi}"
         (ch.anh_da_xu_ly / ten).write_bytes(data)
         ra.append((ten, data))
     return ra
 
 
-def tai_anh_len(wp: WordPress, ch: CauHinh, ds: list[tuple[str, bytes]], alt: str, files: list[Path], tach_nen: bool) -> list[int]:
-    """Tải ảnh lên thư viện Media. Host không nhận WebP thì tự chuyển sang JPG."""
-    ids: list[int] = []
+def tai_anh_len_day_du(wp: WordPress, ch: CauHinh, ds: list[tuple[str, bytes]], alt: str, files: list[Path],
+                       tach_nen: bool, logo: bool = True) -> list[dict]:
+    """Tải ảnh lên thư viện Media, trả [{id, url, alt}]. Host không nhận WebP thì tự chuyển sang JPG."""
+    ra: list[dict] = []
     for i, (ten, data) in enumerate(ds):
         mime = anh_mod.mime("jpg" if ten.endswith(".jpg") else "webp")
         nhan = alt if i == 0 else f"{alt} {i + 1}"
@@ -158,10 +161,40 @@ def tai_anh_len(wp: WordPress, ch: CauHinh, ds: list[tuple[str, bytes]], alt: st
         except LoiWeb as e:
             if not ten.endswith(".webp") or e.status not in (400, 415, 500):
                 raise
-            data = anh_mod.xu_ly(files[i], tach_nen=tach_nen, kich_thuoc=ch.anh_kich_thuoc, dinh_dang="jpg")
+            data = anh_mod.xu_ly(files[i], tach_nen=tach_nen, kich_thuoc=ch.anh_kich_thuoc, dinh_dang="jpg",
+                                 logo=anh_mod.LOGO_MAC_DINH if logo else None)
             m = wp.tai_anh(data, ten[:-5] + ".jpg", "image/jpeg", alt=nhan)
-        ids.append(int(m["id"]))
-    return ids
+        ra.append({"id": int(m["id"]), "url": str(m.get("source_url") or ""), "alt": nhan})
+    return ra
+
+
+def tai_anh_len(wp: WordPress, ch: CauHinh, ds: list[tuple[str, bytes]], alt: str, files: list[Path], tach_nen: bool) -> list[int]:
+    return [m["id"] for m in tai_anh_len_day_du(wp, ch, ds, alt, files, tach_nen)]
+
+
+def _the_anh(m: dict) -> str:
+    return (f'<figure class="td-anh"><img src="{html.escape(m["url"], quote=True)}" alt="{html.escape(m["alt"], quote=True)}"'
+            f' class="wp-image-{int(m["id"])}" loading="lazy"></figure>')
+
+
+def chen_anh(noi_dung: str, anh: list[dict]) -> str:
+    """Chèn ảnh vào thân bài: ảnh đầu sau đoạn mở đầu, các ảnh sau đặt trước tiêu đề mục thứ 2, 3…
+    Thiếu chỗ thì bỏ bớt ảnh. Bài đã có ảnh (viết tay trong HTML) thì giữ nguyên."""
+    anh = [m for m in anh if m.get("url")]
+    if not anh or re.search(r"<img\b", noi_dung or "", re.I):
+        return noi_dung or ""
+    s = noi_dung or ""
+    m = re.search(r"</p>", s, re.I)
+    if m:
+        s = s[:m.end()] + _the_anh(anh[0]) + s[m.end():]
+    else:
+        s = _the_anh(anh[0]) + s
+    con = anh[1:]
+    if con:
+        vi_tri = [x.start() for x in re.finditer(r"<h2\b", s, re.I)][1:1 + len(con)]
+        for pos, a in sorted(zip(vi_tri, con), reverse=True):
+            s = s[:pos] + _the_anh(a) + s[pos:]
+    return s
 
 
 def dong_ket_qua(loai: str, ten: str, trang_thai: str, chi_tiet: list[str]) -> list[str]:

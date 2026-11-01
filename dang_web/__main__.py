@@ -208,11 +208,13 @@ def lenh_san_pham(ch: CauHinh, args) -> int:
                 dang.ghi_ket_qua(ch.ket_qua, dang.dong_ket_qua("Sản phẩm (thử)", code, "chưa đăng", chi_tiet))
                 xong += 1
                 continue
-            ids = dang.tai_anh_len(wp, ch, anh_ds, d["alt_anh"], files, tach_nen)
+            anh = dang.tai_anh_len_day_du(wp, ch, anh_ds, d["alt_anh"], files, tach_nen)
             dm = tim_danh_muc(sp.group_name, danh_muc, bang_nhom)
             if not dm:
                 chi_tiet.append(f"Chưa gán danh mục: nhóm '{sp.group_name}' không khớp danh mục nào trên web")
-            moi = wp.tao_sp(dang.payload_san_pham(sp, d, ch, ids, dm))
+            payload = dang.payload_san_pham(sp, d, ch, [m["id"] for m in anh], dm)
+            payload["description"] = dang.chen_anh(payload["description"], anh[:3])
+            moi = wp.tao_sp(payload)
             link = dang.link_bai(ch, moi["id"])
             trang_thai["san_pham"][code] = {"id": moi["id"], "link": link, "luc": dang.bay_gio().isoformat(timespec="minutes")}
             dang.ghi_trang_thai(ch.file_trang_thai, trang_thai)

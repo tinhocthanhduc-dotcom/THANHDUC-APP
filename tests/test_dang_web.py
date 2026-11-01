@@ -501,3 +501,15 @@ def test_ai_tra_cau_thua_thi_bo_truoc_khi_xem_truoc():
     client = SimpleNamespace(beta=SimpleNamespace(messages=beta), messages=_FakeMessages([]))
     kq = NguoiViet("", client=client).viet_san_pham(_sp(unit="cái"), "", 3, "")
     assert kq.du_lieu["mo_ta_ngan_html"] == "<ul><li>Đơn vị tính: cái</li><li>Tháo máy.</li></ul>"
+
+
+def test_chen_anh_vao_than_bai():
+    anh = [{"id": i, "url": f"https://x/{i}.webp", "alt": "Hộp mực \"A\""} for i in (1, 2, 3)]
+    html = "<p>Mở</p><h2>Một</h2><p>1</p><h2>Hai</h2><p>2</p>"
+    ra = dang.chen_anh(html, anh)
+    assert ra.startswith('<p>Mở</p><figure class="td-anh"><img src="https://x/1.webp"')
+    assert "&quot;A&quot;" in ra and ra.count("<img") == 2  # chỉ 1 tiêu đề sau tiêu đề đầu → thừa ảnh 3 thì bỏ
+    assert ra.index("<h2>Một") < ra.index("x/2.webp") < ra.index("<h2>Hai")
+    assert dang.chen_anh('<p>a</p><img src="y">', anh) == '<p>a</p><img src="y">'
+    assert dang.chen_anh("<p>a</p>", []) == "<p>a</p>"
+    assert dang.chen_anh("Không có đoạn", anh[:1]).startswith("<figure")

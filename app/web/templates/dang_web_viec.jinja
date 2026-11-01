@@ -68,6 +68,7 @@
 </section>
 <section class="card">
 <details class="dw-html" open><summary><b>{{ 'Nội dung bài' if bai else 'Mô tả chi tiết' }}</b> · xem trước</summary><iframe class="dw-frame" sandbox title="Xem trước {{ 'nội dung' if bai else 'mô tả' }}" srcdoc="{{ css_xem ~ (d.noi_dung_html if bai else d.mo_ta_html) }}"></iframe></details>
+{% set so_chen = ((v.anh_web|length - 1) if bai else v.anh_web|length) if v.anh_web else 0 %}{% if so_chen > 0 %}<p class="hint">Khi đăng, {{ [so_chen, 3]|min }} ảnh sẽ tự chèn vào {{ 'thân bài' if bai else 'mô tả chi tiết' }}: ảnh đầu sau đoạn mở đầu, ảnh sau đặt trước các tiêu đề mục.</p>{% endif %}
 </section>
 </div><div class="dw-side">
 <section class="card">

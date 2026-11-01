@@ -24,17 +24,20 @@
 <div class="dw-ph-list" data-dw-list></div>
 {% set rong = ('Chưa chọn ảnh. Trên Z2 đã có ảnh của mã này, để trống sẽ dùng ảnh đó.' if anh_co_san else ('Không bắt buộc khi viết lại: để trống thì giữ ảnh đang có trên web.' if d.wp_id else 'Chụp hoặc chọn 1 đến ' ~ toi_da_anh ~ ' ảnh. Ảnh đầu tiên làm ảnh chính.')) %}
 <p class="hint" data-dw-note data-empty="{{ rong }}">{{ rong }}</p>
-<p class="hint">App tự tách nền, làm nền trắng, ảnh vuông và đóng logo Thành Đức.</p>
+<p class="hint">App tự tách nền, làm nền trắng, ảnh vuông và đóng logo Thành Đức. Khi đăng, tối đa 3 ảnh được chèn vào mô tả chi tiết.</p>
 <label class="chk"><input type="checkbox" name="nen_trang" value="1" {% if d.nen_trang %}checked{% endif %}> Ảnh đã nền trắng sẵn, không cần tách nền</label>
+<label class="chk"><input type="checkbox" name="da_co_logo" value="1" {% if d.da_co_logo %}checked{% endif %}> Ảnh đã có logo Thành Đức, không đóng thêm</label>
 </section>
 {% else %}
 <section class="card">
 <label><b>Chủ đề bài viết</b><textarea name="chu_de" rows="2" maxlength="200" minlength="8" required placeholder="Ví dụ: Máy in Canon LBP 2900 kẹt giấy: nguyên nhân và cách xử lý" {% if d.wp_id %}readonly{% endif %}>{{ d.chu_de }}</textarea></label>
 </section>
-<section class="card dw-photos" data-dw-photos data-max="1">
-<div class="bar"><b>Ảnh đại diện</b> <span class="hint">(không bắt buộc)</span><span class="photo-btns"><label class="btn photo-capture">🖼 Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" data-dw-add data-tech-camera></label></span></div>
-<input type="file" name="anh" hidden accept="image/*">
+<section class="card dw-photos" data-dw-photos data-max="4">
+<div class="bar"><b>Ảnh cho bài</b> <span class="hint">(không bắt buộc, tối đa 4)</span><span class="photo-btns"><label class="btn photo-capture">📷 Chụp ảnh<input type="file" accept="image/*" capture="environment" data-dw-add data-tech-camera></label><label class="btn photo-capture">🖼 Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple data-dw-add data-tech-camera></label></span></div>
+<input type="file" name="anh" multiple hidden accept="image/*">
 <div class="dw-ph-list" data-dw-list></div><p class="hint" data-dw-note data-empty="Chưa chọn ảnh."></p>
+<p class="hint">Ảnh đầu làm ảnh đại diện; các ảnh sau tự chèn vào thân bài, trước các tiêu đề mục.</p>
+<label class="chk"><input type="checkbox" name="da_co_logo" value="1" {% if d.da_co_logo %}checked{% endif %}> Ảnh đã có logo Thành Đức, không đóng thêm</label>
 </section>
 {% endif %}
 <section class="card">

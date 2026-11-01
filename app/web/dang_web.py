@@ -324,7 +324,7 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
     loai = "bai_viet" if form.get("loai") == "bai_viet" else "san_pham"
     d = dict(loai=loai, ma=str(form.get("ma", "")).strip().upper(), chu_de=" ".join(str(form.get("chu_de", "")).split()),
              ghi_chu=str(form.get("ghi_chu", "")).strip()[:3000], cach_viet=str(form.get("cach_viet", "")),
-             nen_trang=form.get("nen_trang") == "1", wp_id=str(form.get("wp_id", "")).strip())
+             nen_trang=form.get("nen_trang") == "1", da_co_logo=form.get("da_co_logo") == "1", wp_id=str(form.get("wp_id", "")).strip())
     try:
         _can_ghi()
         g = goc()
@@ -334,7 +334,10 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
             raise BusinessError("BAD_FORM", "Bài viết cần AI hoặc ChatGPT web; mẫu có sẵn chỉ dùng cho sản phẩm.")
         wp_id = int(d["wp_id"]) if d["wp_id"].isdigit() else None
         anh = await _doc_anh(form)
-        them = dict(cach_viet=d["cach_viet"], ghi_chu=d["ghi_chu"], wp_id=wp_id, van_dang=bool(wp_id), viet_lai=bool(wp_id))
+        them = dict(cach_viet=d["cach_viet"], ghi_chu=d["ghi_chu"], wp_id=wp_id, van_dang=bool(wp_id), viet_lai=bool(wp_id),
+                    da_co_logo=d["da_co_logo"])
+        if loai == "bai_viet" and len(anh) > 4:
+            raise BusinessError("PHOTO_LIMIT", "Bài viết tối đa 4 ảnh.")
         if loai == "san_pham":
             sp = session.get(Product, d["ma"]) if d["ma"] else None
             if not sp or not sp.active:

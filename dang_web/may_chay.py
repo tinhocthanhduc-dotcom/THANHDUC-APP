@@ -21,6 +21,10 @@ from .wordpress import LoiWeb, WordPress, bai_co_the_trung, link_sua, slug, sp_c
 
 
 
+SO_ANH_TRONG_BAI = 3  # tối đa số ảnh chèn vào thân mô tả / thân bài
+SO_ANH_BAI_VIET = 4  # bài viết: ảnh đầu làm ảnh đại diện, tối đa 3 ảnh sau chèn vào thân bài
+
+
 def in_(s: str = "") -> None:
     print(f"[{hd.bay_gio():%H:%M:%S}] {s}", flush=True)
 
@@ -166,7 +170,7 @@ class MayDangWeb:
             return
         d = kq.du_lieu
         ten_anh = slug(d.get("slug") or d["ten_web"], 60) or sp.code.lower()
-        anh_ds = dang.xu_ly_anh(self.ch, ten_anh, files, self.ch.tach_nen and v.get("tach_nen", True))
+        anh_ds = dang.xu_ly_anh(self.ch, ten_anh, files, self.ch.tach_nen and v.get("tach_nen", True), logo=not v.get("da_co_logo"))
         dm = None
         try:
             dm = tim_danh_muc(sp.group_name, self.danh_muc(), dang.doc_bang_nhom(self.ch)) if self.co_wp else None
@@ -189,8 +193,9 @@ class MayDangWeb:
         if kq is None:
             return
         d = kq.du_lieu
-        files = self._anh_goc(v)[:1]
-        anh_ds = dang.xu_ly_anh(self.ch, slug(d.get("slug") or d["tieu_de"], 60), files, False) if files else []
+        files = self._anh_goc(v)[:SO_ANH_BAI_VIET]
+        anh_ds = dang.xu_ly_anh(self.ch, slug(d.get("slug") or d["tieu_de"], 60), files, False,
+                                logo=not v.get("da_co_logo")) if files else []
         self._cap_nhat(
             v, hd.XEM_TRUOC,
             ten=d["tieu_de"], noi_dung=d, anh_web=[a for a, _ in anh_ds], anh_nguon=[str(f) for f in files],
@@ -199,10 +204,10 @@ class MayDangWeb:
         )
 
     # ---------- đăng ----------
-    def _anh_len_web(self, v: dict, alt: str, tach_nen: bool) -> list[int]:
+    def _anh_len_web(self, v: dict, alt: str, tach_nen: bool) -> list[dict]:
         ds = [(t, (self.ch.anh_da_xu_ly / t).read_bytes()) for t in v.get("anh_web", []) if (self.ch.anh_da_xu_ly / t).exists()]
         nguon = [Path(p) for p in v.get("anh_nguon", [])]
-        return dang.tai_anh_len(self.wp(), self.ch, ds, alt, nguon, tach_nen) if ds else []
+        return dang.tai_anh_len_day_du(self.wp(), self.ch, ds, alt, nguon, tach_nen, logo=not v.get("da_co_logo")) if ds else []
 
     def dang(self, v: dict) -> None:
         wp = self.wp()
@@ -211,9 +216,11 @@ class MayDangWeb:
             sp = self.lay_san_pham(v["ma"])
             if not sp:
                 raise RuntimeError(f"Không thấy mã {v['ma']} trong Hàng hóa (hoặc đã ngừng dùng).")
-            ids = self._anh_len_web(v, d.get("alt_anh") or d["ten_web"], self.ch.tach_nen and v.get("tach_nen", True))
+            anh = self._anh_len_web(v, d.get("alt_anh") or d["ten_web"], self.ch.tach_nen and v.get("tach_nen", True))
+            ids = [m["id"] for m in anh]
             dm = tim_danh_muc(v.get("danh_muc") or sp.group_name, self.danh_muc(), dang.doc_bang_nhom(self.ch))
             payload = dang.payload_san_pham(sp, d, self.ch, ids, dm)
+            payload["description"] = dang.chen_anh(payload["description"], anh[:SO_ANH_TRONG_BAI])
             gia = re.sub(r"\D", "", str(v.get("gia") or ""))
             if gia and int(gia) > 0:
                 payload["regular_price"] = gia
@@ -240,9 +247,10 @@ class MayDangWeb:
                 cm = tim_danh_muc(self.ch.chuyen_muc_bai, wp.chuyen_muc_bai())
                 if cm:
                     payload["categories"] = [cm["id"]]
-            ids = self._anh_len_web(v, d.get("alt_anh") or d["tieu_de"], False)
-            if ids:
-                payload["featured_media"] = ids[0]
+            anh = self._anh_len_web(v, d.get("alt_anh") or d["tieu_de"], False)
+            if anh:
+                payload["featured_media"] = anh[0]["id"]  # ảnh đầu làm ảnh đại diện, các ảnh sau chèn vào thân bài
+                payload["content"] = dang.chen_anh(payload["content"], anh[1:1 + SO_ANH_TRONG_BAI])
             moi = wp.sua_bai(v["wp_id"], payload) if v.get("wp_id") else wp.tao_bai(payload)
             khoa_tt, khoa = "bai_viet", v["chu_de"]
             ten = d["tieu_de"]
