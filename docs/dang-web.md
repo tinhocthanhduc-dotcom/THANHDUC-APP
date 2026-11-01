@@ -3,7 +3,7 @@
 Công cụ chạy trên máy chủ Z2, trong container riêng `dang-web` (không đụng app đang chạy):
 
 1. Lấy mã, tên, nhóm, giá, bảo hành, tồn từ database app ở chế độ **chỉ đọc**.
-2. Xử lý ảnh ngay trên Z2: xoay đúng chiều, tách nền, nền trắng, ảnh vuông 1200×1200, đóng logo Thành Đức góc dưới phải, nén WebP.
+2. Xử lý ảnh ngay trên Z2: xoay đúng chiều, tách nền (mô hình isnet-general-use, lần đầu tải ~180 MB), bỏ vết sót và bóng mờ, nền trắng tinh, cắt sát rồi đặt giữa ảnh vuông 1200×1200 với lề 4%, làm nét nhẹ, đóng logo Thành Đức góc dưới phải (sản phẩm che logo thì tự thu nhỏ tối đa ~14%), nén WebP.
 3. AI viết tên web, mô tả ngắn, mô tả chi tiết, tiêu đề và mô tả SEO (Yoast), chữ thay thế cho ảnh; có tra web để lấy đúng máy tương thích. Có 4 cách viết:
    - **ChatGPT API** (khóa `OPENAI_API_KEY`, mặc định khi chỉ có khóa này),
    - **Claude API** (khóa `ANTHROPIC_API_KEY`),
@@ -174,6 +174,7 @@ Thêm dòng (7 giờ sáng thứ 2 – thứ 7, mỗi lần 2 sản phẩm đã 
 | `WEB_AI_MODEL` | `claude-opus-5-5` | Model Claude. `claude-sonnet-5-5` rẻ bằng nửa |
 | `WEB_AI_TRA_WEB` | `true` | Cho AI tra web để lấy đúng máy tương thích |
 | `WEB_TACH_NEN` | `true` | Tách nền ảnh (tắt nếu ảnh đã nền trắng sẵn) |
+| `WEB_MO_HINH_TACH_NEN` | `isnet-general-use` | Mô hình tách nền; `u2net` là bản cũ |
 | `WEB_ANH_DINH_DANG` | `webp` | `jpg` nếu hosting không nhận WebP (công cụ cũng tự đổi khi bị từ chối) |
 | `WEB_DANG_GIA` | `true` | Ghi giá bán vào sản phẩm nháp |
 | `WEB_VAT_PHAN_TRAM` | `0` | Giá web = giá bán trong app cộng % này (làm tròn nghìn). Đặt 8 hoặc 10 nếu web để giá gồm VAT |

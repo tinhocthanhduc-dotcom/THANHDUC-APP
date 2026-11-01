@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import io
+import os
 import re
+from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 DUOI_ANH = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 LOGO_MAC_DINH = Path(__file__).with_name("logo-thanh-duc.png")
@@ -47,13 +49,55 @@ def tim_anh(thu_muc: Path, code: str) -> list[Path]:
     return ket_qua
 
 
+# Mô hình tách nền: isnet-general-use viền sắc, ít sót nền hơn u2net (tải ~180 MB lần đầu vào /data/.mo-hinh).
+MO_HINH_MAC_DINH = "isnet-general-use"
+
+
 def _tach_nen(im: Image.Image) -> Image.Image:
     global _rembg_session
     import rembg
 
     if _rembg_session is None:
-        _rembg_session = rembg.new_session("u2net")
-    return rembg.remove(im, session=_rembg_session)
+        _rembg_session = rembg.new_session(os.environ.get("WEB_MO_HINH_TACH_NEN") or MO_HINH_MAC_DINH)
+    return rembg.remove(im, session=_rembg_session, post_process_mask=True)
+
+
+def _vung_chinh(mat_na: Image.Image, canh: int = 200, toi_thieu: float = 0.04) -> Image.Image:
+    """Giữ các mảng lớn của mặt nạ (sản phẩm), bỏ mảng nhỏ rời rạc: vết bẩn, dây cáp, góc bàn sót lại.
+    Mảng giữ lại khi rộng ít nhất `toi_thieu` lần mảng lớn nhất. Trả về mặt nạ cùng cỡ ảnh gốc."""
+    w, h = mat_na.size
+    k = min(1.0, canh / max(w, h))
+    nw, nh = max(1, round(w * k)), max(1, round(h * k))
+    nho = mat_na.resize((nw, nh), Image.Resampling.BOX).point(lambda v: 255 if v >= 64 else 0)
+    px = nho.load()
+    nhan = [[0] * nw for _ in range(nh)]
+    mang: list[list[tuple[int, int]]] = []
+    for y in range(nh):
+        for x in range(nw):
+            if px[x, y] and not nhan[y][x]:
+                so = len(mang) + 1
+                nhan[y][x] = so
+                q, o = deque([(x, y)]), []
+                while q:
+                    cx, cy = q.popleft()
+                    o.append((cx, cy))
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        ax, ay = cx + dx, cy + dy
+                        if 0 <= ax < nw and 0 <= ay < nh and px[ax, ay] and not nhan[ay][ax]:
+                            nhan[ay][ax] = so
+                            q.append((ax, ay))
+                mang.append(o)
+    if len(mang) <= 1:
+        return mat_na
+    lon = max(len(o) for o in mang)
+    giu = Image.new("L", (nw, nh), 0)
+    gp = giu.load()
+    for o in mang:
+        if len(o) >= toi_thieu * lon:
+            for x, y in o:
+                gp[x, y] = 255
+    giu = giu.filter(ImageFilter.MaxFilter(3)).resize((w, h), Image.Resampling.NEAREST)
+    return ImageChops.multiply(mat_na, giu)
 
 
 def _len_nen_trang(im: Image.Image) -> Image.Image:
@@ -71,12 +115,38 @@ def _vien_la_nen_trang(im: Image.Image, nguong: int = 242, ty_le: float = 0.85) 
     return sum(v >= nguong for v in vien) >= ty_le * len(vien)
 
 
-def _cat_vien_trang(im: Image.Image, nguong: int = 14) -> Image.Image:
-    """Cắt phần nền trắng thừa quanh sản phẩm."""
+def _mat_na_khac_trang(im: Image.Image, nguong: int = 28) -> Image.Image:
+    """Điểm khác nền trắng rõ rệt; bóng mờ nhạt và hạt nhiễu lẻ không tính."""
     trang = Image.new("RGB", im.size, (255, 255, 255))
-    diff = ImageChops.difference(im, trang).convert("L").point(lambda v: 255 if v > nguong else 0)
-    bbox = diff.getbbox()
+    m = ImageChops.difference(im.convert("RGB"), trang).convert("L").point(lambda v: 255 if v > nguong else 0)
+    return m.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3))
+
+
+def _cat_vien_trang(im: Image.Image, nguong: int = 28) -> Image.Image:
+    """Cắt phần nền trắng thừa quanh sản phẩm (bỏ qua bóng mờ, vết bẩn nhỏ ở góc)."""
+    bbox = _vung_chinh(_mat_na_khac_trang(im, nguong)).getbbox()
     return im.crop(bbox) if bbox else im
+
+
+def _lam_trang_nen(im: Image.Image, nguong: int = 246) -> Image.Image:
+    """Nền gần trắng (xám nhạt do chụp) thành trắng tinh để ảnh liền với nền web."""
+    rgb = im.convert("RGB")
+    sang = ImageChops.darker(ImageChops.darker(*rgb.split()[:2]), rgb.split()[2])  # kênh tối nhất
+    trang = sang.point(lambda v: 255 if v >= nguong else 0)
+    return Image.composite(Image.new("RGB", rgb.size, (255, 255, 255)), rgb, trang)
+
+
+def _lam_net(im: Image.Image) -> Image.Image:
+    """Tăng tương phản nhẹ và làm nét vừa phải cho ảnh chụp điện thoại."""
+    im = ImageEnhance.Contrast(im).enhance(1.06)
+    return im.filter(ImageFilter.UnsharpMask(radius=1.6, percent=55, threshold=3))
+
+
+def _de_logo(mat_na: Image.Image, hop: tuple[int, int, int, int]) -> float:
+    """Tỷ lệ phần ô logo bị sản phẩm che."""
+    o = mat_na.crop(hop)
+    hist = o.histogram()
+    return sum(hist[128:]) / max(1, o.width * o.height)
 
 
 def xu_ly(
@@ -86,8 +156,8 @@ def xu_ly(
     kich_thuoc: int = 1200,
     dinh_dang: str = "webp",
     logo: Path | None = LOGO_MAC_DINH,
-    le: float = 0.05,
-    ty_le_logo: float = 0.14,
+    le: float = 0.04,
+    ty_le_logo: float = 0.13,
 ) -> bytes:
     """Trả về ảnh vuông kich_thuoc x kich_thuoc, nền trắng, logo góc dưới phải."""
     if isinstance(nguon, Image.Image):
@@ -98,25 +168,51 @@ def xu_ly(
         im = Image.open(nguon)
     im = ImageOps.exif_transpose(im)
     im.load()
-    if tach_nen:
-        im = _tach_nen(im.convert("RGB"))
-    im = _len_nen_trang(im)
+    rong_logo = max(48, int(kich_thuoc * ty_le_logo)) if logo and Path(logo).exists() else 0
 
-    if _vien_la_nen_trang(im):
-        # Sản phẩm trên nền trắng: cắt sát rồi đặt giữa khung, chừa lề mỏng để sản phẩm to, đều mọi ảnh.
-        im = _cat_vien_trang(im)
+    san_pham = mat_na = None
+    if tach_nen:
+        rgba = _tach_nen(im.convert("RGB")).convert("RGBA")
+        a = _vung_chinh(rgba.getchannel("A").point(lambda v: 0 if v < 24 else v))
+        bbox = a.getbbox()
+        # Tách được vật rõ ràng (≥3% ảnh) thì dùng; không thì coi như ảnh chụp thường.
+        if bbox and (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) >= 0.03 * im.width * im.height:
+            rgba.putalpha(a)
+            rgba = rgba.crop(bbox)
+            mat_na = rgba.getchannel("A")
+            san_pham = _len_nen_trang(rgba)
+    if san_pham is None:
+        im = _len_nen_trang(im)
+        if _vien_la_nen_trang(im):
+            san_pham = _lam_trang_nen(_cat_vien_trang(im))
+            mat_na = _mat_na_khac_trang(san_pham)
+
+    if san_pham is not None:
+        # Sản phẩm trên nền trắng: cắt sát, đặt giữa khung, lề mỏng; nếu che logo thì thu nhỏ một chút.
+        san_pham = _lam_net(san_pham)
+        canh = int(kich_thuoc * 0.03)
+        hop_logo = (kich_thuoc - rong_logo - canh, kich_thuoc - rong_logo - canh, kich_thuoc - canh, kich_thuoc - canh)
         vung = int(kich_thuoc * (1 - 2 * le))
-        im = ImageOps.contain(im, (vung, vung), Image.Resampling.LANCZOS)
+        for _ in range(4):  # thu nhỏ tối đa ~14%, quá nữa thì chấp nhận logo đè mép sản phẩm
+            sp = ImageOps.contain(san_pham, (vung, vung), Image.Resampling.LANCZOS)
+            mn = ImageOps.contain(mat_na, (vung, vung), Image.Resampling.BILINEAR) if mat_na is not None else None
+            x, y = (kich_thuoc - sp.width) // 2, (kich_thuoc - sp.height) // 2
+            if not rong_logo or mn is None:
+                break
+            day = Image.new("L", (kich_thuoc, kich_thuoc), 0)
+            day.paste(mn, (x, y))
+            if _de_logo(day, hop_logo) <= 0.06 or _ == 3:
+                break
+            vung = int(vung * 0.95)
         khung = Image.new("RGB", (kich_thuoc, kich_thuoc), (255, 255, 255))
-        khung.paste(im, ((kich_thuoc - im.width) // 2, (kich_thuoc - im.height) // 2))
+        khung.paste(sp, (x, y))
     else:
         # Ảnh chụp có nền / ảnh banner: cắt vuông giữa ảnh cho đầy khung, không để viền trắng lệch.
         khung = ImageOps.fit(im, (kich_thuoc, kich_thuoc), Image.Resampling.LANCZOS, centering=(0.5, 0.5))
 
-    if logo and Path(logo).exists():
+    if rong_logo:
         lg = Image.open(logo).convert("RGBA")
-        rong = max(48, int(kich_thuoc * ty_le_logo))
-        lg = ImageOps.contain(lg, (rong, rong), Image.Resampling.LANCZOS)
+        lg = ImageOps.contain(lg, (rong_logo, rong_logo), Image.Resampling.LANCZOS)
         alpha = lg.getchannel("A").point(lambda v: int(v * 0.9))
         lg.putalpha(alpha)
         canh = int(kich_thuoc * 0.03)
