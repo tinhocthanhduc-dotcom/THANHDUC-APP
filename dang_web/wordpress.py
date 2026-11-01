@@ -127,13 +127,25 @@ class WordPress:
     def tat_ca_bai(self) -> list[dict]:
         """Mọi bài viết trên web (cả nháp, chờ duyệt, hẹn giờ)."""
         return self._tat_ca("wp/v2/posts", {"status": "publish,draft,pending,future,private", "context": "edit",
-                                            "_fields": "id,title,status,link,categories,date,featured_media"})
+                                            "_fields": "id,title,status,link,categories,date,featured_media,content"})
 
     def lay_bai(self, bai_id: int) -> dict:
         return self._json("GET", f"wp/v2/posts/{int(bai_id)}", params={"context": "edit"})
 
     def doi_chuyen_muc_bai(self, bai_id: int, cm: list[int]) -> dict:
         return self._json("POST", f"wp/v2/posts/{int(bai_id)}", json={"categories": [int(c) for c in cm]})
+
+    def lay_anh_theo_ids(self, ids: list[int]) -> dict[int, dict]:
+        """Nhiều ảnh một lượt (100 ảnh mỗi lần gọi): id → {src: ảnh gốc, nho: ảnh nhỏ cho danh sách}."""
+        ra: dict[int, dict] = {}
+        ids = sorted({int(i) for i in ids if int(i) > 0})
+        for i in range(0, len(ids), 100):
+            for m in self._json("GET", "wp/v2/media", params={"include": ",".join(map(str, ids[i:i + 100])), "per_page": 100,
+                                                              "_fields": "id,source_url,media_details"}):
+                co = ((m.get("media_details") or {}).get("sizes") or {})
+                nho = next((co[k].get("source_url") for k in ("medium", "thumbnail", "medium_large") if isinstance(co.get(k), dict)), "")
+                ra[int(m["id"])] = {"src": m.get("source_url") or "", "nho": nho or m.get("source_url") or ""}
+        return ra
 
     def lay_anh(self, media_id: int) -> dict:
         return self._json("GET", f"wp/v2/media/{int(media_id)}")
@@ -184,6 +196,41 @@ class WordPress:
         if alt or tieu_de:
             media = self._json("POST", f"wp/v2/media/{media['id']}", json={"alt_text": alt, "title": tieu_de or alt})
         return media
+
+
+_IMG_RE = re.compile(r"<img\b[^>]*>", re.I)
+
+
+def anh_trong_bai(html: str, toi_da: int = 8) -> list[dict]:
+    """Ảnh trong thân bài: [{id: số media (0 nếu không rõ), src}] theo thứ tự xuất hiện, bỏ trùng."""
+    ra, thay = [], set()
+    for the in _IMG_RE.findall(html or ""):
+        m = re.search(r'\ssrc=["\']([^"\']+)["\']', the, re.I)
+        src = m.group(1).strip() if m else ""
+        if not src.startswith(("http://", "https://")) or src in thay:
+            continue
+        thay.add(src)
+        mid = re.search(r"wp-image-(\d+)", the)
+        ra.append({"id": int(mid.group(1)) if mid else 0, "src": src})
+        if len(ra) >= toi_da:
+            break
+    return ra
+
+
+def thay_anh_trong_bai(html: str, cu: str, moi: str, id_cu: int = 0, id_moi: int = 0) -> str:
+    """Đổi một ảnh trong thân bài sang ảnh mới (bỏ srcset/sizes cũ để trình duyệt không lấy lại ảnh cũ)."""
+    def doi(m):
+        the = m.group(0)
+        if cu not in the:
+            return the
+        the = re.sub(r'\s(srcset|sizes)=("[^"]*"|\'[^\']*\')', "", the, flags=re.I).replace(cu, moi)
+        if id_cu and id_moi:
+            the = the.replace(f"wp-image-{id_cu}", f"wp-image-{id_moi}")
+        return the
+    html = _IMG_RE.sub(doi, html or "")
+    if id_cu and id_moi:
+        html = re.sub(rf'("id":\s*){id_cu}\b', rf"\g<1>{id_moi}", html)  # khối ảnh Gutenberg <!-- wp:image {"id":123} -->
+    return html
 
 
 def link_sua(wp_url: str, post_id: int) -> str:

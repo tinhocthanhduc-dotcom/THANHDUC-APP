@@ -18,7 +18,7 @@ from .cau_hinh import CauHinh
 from .viet_bai import ChoTraLoi
 from .so_ten import _ten
 from .tren_web import CayDanhMuc, gon_danh_muc
-from .wordpress import LoiWeb, WordPress, bai_co_the_trung, link_sua, slug, sp_co_the_trung, tim_danh_muc
+from .wordpress import LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, link_sua, slug, sp_co_the_trung, thay_anh_trong_bai, tim_danh_muc
 
 
 
@@ -308,9 +308,25 @@ class MayDangWeb:
                    "anhs": [{"id": int(m["id"]), "src": m.get("src", "")} for m in it.get("images") or []
                             if isinstance(m, dict) and str(m.get("id", "")).isdigit()]} for it in wp.tat_ca_sp() if it.get("id")]
         hd.ghi_json(hd.file_sp_web(self.goc), {"luc": ra["luc"], "ds": sp_web, "danh_muc": dm_sp})
-        bai_web = [{"id": it["id"], "ten": _ten(it), "trang_thai": it.get("status", ""), "xem": it.get("link") or "",
-                    "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
-                    "ngay": str(it.get("date") or "")[:10], "co_anh": bool(it.get("featured_media"))} for it in wp.tat_ca_bai() if it.get("id")]
+        bai_goc = [it for it in wp.tat_ca_bai() if it.get("id")]
+        try:  # ảnh đại diện để danh sách hiện ảnh nhỏ và màn Sửa ảnh có ảnh gốc
+            anh_dd = wp.lay_anh_theo_ids([int(it.get("featured_media") or 0) for it in bai_goc])
+        except LoiWeb as e:
+            in_(f"  Không lấy được ảnh đại diện bài viết: {e}")
+            anh_dd = {}
+
+        def _noi_dung(it):
+            c = it.get("content") or ""
+            return (c.get("raw") or c.get("rendered") or "") if isinstance(c, dict) else str(c)
+
+        bai_web = []
+        for it in bai_goc:
+            fm = int(it.get("featured_media") or 0)
+            bai_web.append({"id": it["id"], "ten": _ten(it), "trang_thai": it.get("status", ""), "xem": it.get("link") or "",
+                            "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
+                            "ngay": str(it.get("date") or "")[:10], "co_anh": bool(fm), "anh_id": fm,
+                            "anh": (anh_dd.get(fm) or {}).get("nho", ""), "anh_goc": (anh_dd.get(fm) or {}).get("src", ""),
+                            "anhs_bai": anh_trong_bai(_noi_dung(it))})
         hd.ghi_json(hd.file_bai_web(self.goc), {"luc": ra["luc"], "ds": bai_web, "danh_muc": gon_danh_muc(wp.chuyen_muc_bai())})
         in_(f"Cập nhật từ web: {len(sp_web)} sản phẩm, {len(bai_web)} bài viết")
         self._danh_muc = None
@@ -501,24 +517,46 @@ class MayDangWeb:
                 giu += 1
         return {"so_anh_xoa": da_xoa, "so_anh_giu": giu}
 
-    def _soan_sua_anh(self, v: dict) -> None:
-        """Xử lý từng ảnh theo cách anh chọn; ảnh web để Giữ nguyên thì không tải về, dùng lại đúng ảnh đó."""
+    def _anh_tren_web(self, v: dict) -> tuple[dict, dict[int, str], list[dict]]:
+        """Bài/sản phẩm hiện trên web, ảnh trên web theo media id, và (bài viết) ảnh trong thân bài."""
         wp, web_id = self.wp(), int(v["wp_id"])
+        if v.get("loai") == "bai_viet":
+            it = wp.lay_bai(web_id)
+            c = it.get("content") or ""
+            html = (c.get("raw") or c.get("rendered") or "") if isinstance(c, dict) else str(c)
+            trong_bai = anh_trong_bai(html, toi_da=50)
+            tren_web = {int(m["id"]): m["src"] for m in trong_bai if m.get("id")}
+            fm = int(it.get("featured_media") or 0)
+            if fm:
+                tren_web.setdefault(fm, (wp.lay_anh_theo_ids([fm]).get(fm) or {}).get("src", ""))
+            return it, tren_web, trong_bai
         it = wp.lay_sp(web_id)
-        tren_web = {int(m["id"]): m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict) and m.get("id")}
+        return it, {int(m["id"]): m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict) and m.get("id")}, []
+
+    def _soan_sua_anh(self, v: dict) -> None:
+        """Ảnh anh không đụng tới thì không tải về, dùng lại đúng ảnh đó; ảnh có chỉnh (hoặc ảnh mới) thì đặt vào khung web
+        theo thông số anh chỉnh trên màn (căn giữa, xoay, phóng, lật, logo). Việc cũ còn ghi che_do thì xử lý kiểu cũ."""
+        wp, web_id = self.wp(), int(v["wp_id"])
+        bai = v.get("loai") == "bai_viet"
+        it, tren_web, _ = self._anh_tren_web(v)
         thu_muc = hd.thu_muc_mot_viec(self.goc, v["id"])
-        goc_ten = slug(_ten(it), 50) or f"sp-{web_id}"
+        goc_ten = slug(_ten(it), 50) or f"{'bai' if bai else 'sp'}-{web_id}"
         duoi = "jpg" if self.ch.anh_dinh_dang == "jpg" else "webp"
+        W, H = anh_mod.KHUNG_BAI if bai else (self.ch.anh_kich_thuoc, self.ch.anh_kich_thuoc)
+        logo = anh_mod.LOGO_MAC_DINH if v.get("logo", True) else None
         self.ch.anh_da_xu_ly.mkdir(parents=True, exist_ok=True)
         ket = []
         for i, a in enumerate(v.get("anh") or [], 1):
-            che_do = a.get("che_do") if a.get("che_do") in ("tach_nen", "nen_trang", "giu") else "tach_nen"
-            k = {"che_do": che_do, "nguon": a.get("nguon"), "media_id": None, "truoc": "", "truoc_file": "", "sau": "", "goc": ""}
+            kieu_cu = "bien" not in a
+            che_do = (a.get("che_do") if a.get("che_do") in ("tach_nen", "nen_trang", "giu") else "tach_nen") if kieu_cu else ""
+            giu = che_do == "giu" if kieu_cu else not a.get("sua")
+            k = {"che_do": che_do, "nguon": a.get("nguon"), "vai": a.get("vai", ""), "media_id": None, "truoc": "", "truoc_file": "",
+                 "sau": "", "goc": ""}
             if a.get("nguon") == "web":
                 mid = int(a["media_id"])
                 src = tren_web.get(mid) or a.get("src", "")
                 k.update(media_id=mid, truoc=src)
-                if che_do == "giu":
+                if giu:
                     ket.append(k)
                     continue
                 f = thu_muc / f"web-{i}{Path(src.split('?')[0]).suffix.lower() or '.jpg'}"
@@ -533,43 +571,50 @@ class MayDangWeb:
                 ten_goc = f"{goc_ten}-{v['id'][-6:]}-{i}-goc.{duoi}"
                 (self.ch.anh_da_xu_ly / ten_goc).write_bytes(anh_mod.giu_nguyen(f, dinh_dang=self.ch.anh_dinh_dang))
                 k["goc"] = ten_goc
-                if che_do == "giu":
+                if kieu_cu and giu:
                     ket.append(k)
                     continue
-            data = anh_mod.xu_ly(f, tach_nen=che_do == "tach_nen" and self.ch.tach_nen, kich_thuoc=self.ch.anh_kich_thuoc,
-                                 dinh_dang=self.ch.anh_dinh_dang, logo=anh_mod.LOGO_MAC_DINH if v.get("logo", True) else None)
+            if kieu_cu:
+                data = anh_mod.xu_ly(f, tach_nen=che_do == "tach_nen" and self.ch.tach_nen, kich_thuoc=self.ch.anh_kich_thuoc,
+                                     dinh_dang=self.ch.anh_dinh_dang, logo=logo)
+            else:
+                data = anh_mod.dat_khung(f, W, H, a.get("bien"), logo=logo, logo_goc=v.get("logo_goc", "phai"), dinh_dang=self.ch.anh_dinh_dang)
             ten = f"{goc_ten}-{v['id'][-6:]}-{i}.{duoi}"
             (self.ch.anh_da_xu_ly / ten).write_bytes(data)
             k["sau"] = ten
             ket.append(k)
         if not ket:
             raise RuntimeError("Không còn ảnh nào để ghi. Mở lại Sửa ảnh, giữ hoặc thêm ít nhất 1 ảnh.")
-        self._cap_nhat(v, hd.XEM_TRUOC, ket_anh=ket, anh_web=[k["sau"] or k["goc"] for k in ket if k["sau"] or k["goc"]], anh_cu=[{"id": i, "src": s} for i, s in tren_web.items()],
-                       ten=_ten(it) or v.get("ten", ""), link_xem=it.get("permalink") or "", link_sua=link_sua(self.ch.wp_url, web_id),
-                       chi_phi="0đ", model="không dùng AI", loi="")
+        link_xem = (it.get("link") if bai else it.get("permalink")) or ""
+        self._cap_nhat(v, hd.XEM_TRUOC, ket_anh=ket, anh_web=[k["sau"] or k["goc"] for k in ket if k["sau"] or k["goc"]],
+                       anh_cu=[{"id": i, "src": s} for i, s in tren_web.items()], ten=_ten(it) or v.get("ten", ""), link_xem=link_xem,
+                       link_sua=link_sua(self.ch.wp_url, web_id), chi_phi="0đ", model="không dùng AI", loi="")
+
+    def _tai_anh_len(self, k: dict, i: int, alt: str) -> dict:
+        """Ảnh giữ nguyên trên web thì dùng lại; ảnh đã xử lý (hoặc ảnh gốc anh chọn dùng) thì tải lên thư viện ảnh."""
+        dung_goc = k.get("dung") == "goc" or not k.get("sau")
+        if k.get("media_id") and dung_goc:
+            return {"id": int(k["media_id"]), "url": k.get("truoc", ""), "alt": alt, "moi": False}
+        ten = k.get("goc") if dung_goc else k.get("sau")
+        p = self.ch.anh_da_xu_ly / str(ten or "")
+        if not ten or not p.is_file():
+            raise RuntimeError(f"Thiếu ảnh {i + 1} đã xử lý trên Z2. Bấm Soạn lại.")
+        data, mime = p.read_bytes(), anh_mod.mime("jpg" if p.suffix == ".jpg" else "webp")
+        wp = self.wp()
+        try:
+            m = wp.tai_anh(data, p.name, mime, alt=alt)
+        except LoiWeb as e:
+            if p.suffix != ".webp" or e.status not in (400, 415, 500):
+                raise
+            m = wp.tai_anh(anh_mod.giu_nguyen(data, canh_toi_da=4000, dinh_dang="jpg"), p.stem + ".jpg", "image/jpeg", alt=alt)
+        return {"id": int(m["id"]), "url": str(m.get("source_url") or ""), "alt": alt, "moi": True}
 
     def _dang_sua_anh(self, v: dict) -> None:
+        if v.get("loai") == "bai_viet":
+            return self._dang_sua_anh_bai(v)
         wp, web_id = self.wp(), int(v["wp_id"])
         alt = v.get("ten") or ""
-        anh = []
-        for i, k in enumerate(v.get("ket_anh") or []):
-            dung_goc = k.get("dung") == "goc" or not k.get("sau")
-            if k.get("media_id") and dung_goc:
-                anh.append({"id": int(k["media_id"]), "url": k.get("truoc", ""), "alt": alt})
-                continue
-            ten = k.get("goc") if dung_goc else k.get("sau")
-            p = self.ch.anh_da_xu_ly / str(ten or "")
-            if not ten or not p.is_file():
-                raise RuntimeError(f"Thiếu ảnh {i + 1} đã xử lý trên Z2. Bấm Soạn lại.")
-            data, mime = p.read_bytes(), anh_mod.mime("jpg" if p.suffix == ".jpg" else "webp")
-            nhan = alt if i == 0 else f"{alt} {i + 1}"
-            try:
-                m = wp.tai_anh(data, p.name, mime, alt=nhan)
-            except LoiWeb as e:
-                if p.suffix != ".webp" or e.status not in (400, 415, 500):
-                    raise
-                m = wp.tai_anh(anh_mod.giu_nguyen(data, canh_toi_da=4000, dinh_dang="jpg"), p.stem + ".jpg", "image/jpeg", alt=nhan)
-            anh.append({"id": int(m["id"]), "url": str(m.get("source_url") or ""), "alt": nhan})
+        anh = [self._tai_anh_len(k, i, alt if i == 0 else f"{alt} {i + 1}") for i, k in enumerate(v.get("ket_anh") or [])]
         payload: dict = {"images": [{"id": m["id"]} for m in anh]}
         if v.get("chen_mo_ta", True):
             it = wp.lay_sp(web_id)
@@ -584,6 +629,41 @@ class MayDangWeb:
                        trang_thai_web=moi.get("status", ""), dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="", **xoa)
         dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm", v.get("ten", str(web_id)), "SỬA ẢNH",
                                                             [f"{len(anh)} ảnh, xóa {xoa.get('so_anh_xoa', 0)} ảnh cũ"]))
+
+    def _dang_sua_anh_bai(self, v: dict) -> None:
+        """Bài viết: thay ảnh đại diện, đổi ảnh trong thân bài tại chỗ, ảnh mới thêm vào cuối bài. Không xóa ảnh cũ
+        (ảnh bài viết hay dùng lại ở bài khác), giữ nguyên chữ và trạng thái bài."""
+        wp, web_id = self.wp(), int(v["wp_id"])
+        alt = v.get("ten") or ""
+        it = wp.lay_bai(web_id)
+        c = it.get("content") or ""
+        html = (c.get("raw") or c.get("rendered") or "") if isinstance(c, dict) else str(c)
+        dai_dien, them, so_moi = None, [], 0
+        for i, k in enumerate(v.get("ket_anh") or []):
+            if k.get("nguon") == "web" and (k.get("dung") == "goc" or not k.get("sau")):  # ảnh trên web giữ nguyên
+                if k.get("vai") == "dai_dien" and k.get("media_id"):
+                    dai_dien = {"id": int(k["media_id"]), "url": k.get("truoc", "")}
+                continue
+            m = self._tai_anh_len(k, i, alt if i == 0 else f"{alt} {i + 1}")
+            so_moi += m["moi"]
+            if k.get("vai") == "dai_dien":
+                dai_dien = m
+            elif k.get("nguon") == "web":
+                if m["moi"]:
+                    html = thay_anh_trong_bai(html, k.get("truoc", ""), m["url"], int(k.get("media_id") or 0), m["id"])
+            else:
+                them.append(m)
+        if them:
+            html += "".join(dang._the_anh(m) for m in them)
+        payload: dict = {"content": html, "featured_media": dai_dien["id"] if dai_dien else 0}
+        moi = wp.sua_bai(web_id, payload)
+        self._sua_ds_web("bai_viet", web_id, co_anh=bool(dai_dien), anh_id=dai_dien["id"] if dai_dien else 0,
+                         anh=dai_dien["url"] if dai_dien else "", anh_goc=dai_dien["url"] if dai_dien else "",
+                         anhs_bai=anh_trong_bai(html))
+        self._cap_nhat(v, hd.DA_DANG, so_anh_moi=so_moi, link_xem=moi.get("link") or v.get("link_xem", ""),
+                       trang_thai_web=moi.get("status", ""), dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="",
+                       so_anh_xoa=0, so_anh_giu=0)
+        dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Bài viết", v.get("ten", str(web_id)), "SỬA ẢNH", [f"{so_moi} ảnh mới"]))
 
     # ---------- xếp danh mục bằng AI ----------
     def _soan_xep(self, v: dict) -> None:

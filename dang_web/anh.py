@@ -251,3 +251,109 @@ def giu_nguyen(nguon: Path | bytes, *, canh_toi_da: int = 1600, dinh_dang: str =
 
 def mime(dinh_dang: str) -> str:
     return "image/jpeg" if dinh_dang == "jpg" else "image/webp"
+
+
+# ---------- Sửa ảnh kiểu mới (TUẤN duyệt mẫu D2/2 ngày 02/11/2026) ----------
+# Không tách nền: chỉ đặt ảnh vào đúng khung web (vuông cho sản phẩm, ngang 16:9 cho bài viết), căn giữa,
+# xoay chỉnh góc, phóng to/thu nhỏ, lật, đóng logo. Màn sửa ảnh xem trước bằng CSS theo đúng công thức dưới đây.
+KHUNG_BAI = (1200, 675)
+
+
+def chuan_bien(b: dict | None) -> dict:
+    """Thông số anh chỉnh trên màn: z phóng (1 = vừa khít khung), r độ xoay (chiều kim đồng hồ),
+    x, y dời tâm ảnh theo tỷ lệ khung, q số lần xoay 90°, f lật ngang, tu = để máy tự căn giữa."""
+    b = b if isinstance(b, dict) else {}
+
+    def so(k, mac, lo, hi):
+        try:
+            v = float(b.get(k, mac))
+        except (TypeError, ValueError):
+            return mac
+        return mac if v != v else max(lo, min(hi, v))  # v != v: NaN
+
+    return {"z": so("z", 1.0, 0.2, 5.0), "r": so("r", 0.0, -45.0, 45.0), "x": so("x", 0.0, -1.5, 1.5),
+            "y": so("y", 0.0, -1.5, 1.5), "q": int(so("q", 0, 0, 3)), "f": bool(b.get("f")), "tu": bool(b.get("tu"))}
+
+
+def _mo_rgb(nguon: Path | bytes | Image.Image) -> Image.Image:
+    im = nguon if isinstance(nguon, Image.Image) else Image.open(io.BytesIO(nguon) if isinstance(nguon, (bytes, bytearray)) else nguon)
+    im = ImageOps.exif_transpose(im)
+    im.load()
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGBA")
+        nen = Image.new("RGB", im.size, (255, 255, 255))
+        nen.paste(im, mask=im.split()[-1])
+        return nen
+    return im.convert("RGB")
+
+
+def mau_nen(im: Image.Image) -> tuple[int, int, int]:
+    """Màu viền ảnh (trung vị các điểm sát mép) để tô phần khung trống khi thu nhỏ hoặc xoay; gần trắng thì trắng hẳn."""
+    nho = im.copy()
+    nho.thumbnail((200, 200))
+    w, h = nho.size
+    d = max(1, int(min(w, h) * 0.03))
+    px = [nho.getpixel((x, y)) for y in range(h) for x in range(w) if x < d or y < d or x >= w - d or y >= h - d]
+    mau = tuple(sorted(p[k] for p in px)[len(px) // 2] for k in range(3))
+    return (255, 255, 255) if min(mau) >= 235 else mau  # type: ignore[return-value]
+
+
+def vung_san_pham(im: Image.Image, nen: tuple[int, int, int], nguong: int = 32) -> tuple[int, int, int, int] | None:
+    """Khung bao phần khác màu nền (sản phẩm); bỏ đốm nhỏ lẻ."""
+    nho = im.copy()
+    nho.thumbnail((400, 400))
+    k = im.width / nho.width
+    diff = ImageChops.difference(nho, Image.new("RGB", nho.size, nen)).convert("L").point(lambda v: 255 if v > nguong else 0)
+    diff = diff.filter(ImageFilter.MedianFilter(5))
+    hop = diff.getbbox()
+    if not hop or (hop[2] - hop[0]) * (hop[3] - hop[1]) < 0.01 * nho.width * nho.height:
+        return None
+    return tuple(int(round(v * k)) for v in hop)  # type: ignore[return-value]
+
+
+def tu_can_giua(iw: int, ih: int, hop, W: int, H: int, day: float = 0.9) -> dict:
+    """z, x, y để khung bao sản phẩm nằm giữa và chiếm `day` khung (cùng công thức với nút Căn giữa tự động trên màn)."""
+    s0 = min(W / iw, H / ih)
+    if not hop:
+        return {"z": 1.0, "x": 0.0, "y": 0.0}
+    bw, bh = max(1, hop[2] - hop[0]), max(1, hop[3] - hop[1])
+    s = day * min(W / bw, H / bh)
+    cx, cy = (hop[0] + hop[2]) / 2 - iw / 2, (hop[1] + hop[3]) / 2 - ih / 2
+    return {"z": max(0.2, min(5.0, s / s0)), "x": -cx * s / W, "y": -cy * s / H}
+
+
+def dat_khung(nguon: Path | bytes | Image.Image, W: int, H: int, bien: dict | None = None, *, logo: Path | None = None,
+              logo_goc: str = "phai", dinh_dang: str = "webp", ty_le_logo: float = 0.13) -> bytes:
+    """Đặt ảnh vào khung W×H theo thông số chỉnh trên màn Sửa ảnh. Không tách nền, không đổi màu."""
+    b = chuan_bien(bien)
+    im = _mo_rgb(nguon)
+    if b["q"]:
+        im = im.rotate(-90 * b["q"], expand=True)
+    if b["f"]:
+        im = ImageOps.mirror(im)
+    nen = mau_nen(im)
+    if b["tu"]:
+        b.update(tu_can_giua(im.width, im.height, vung_san_pham(im, nen), W, H), r=0.0)
+    s = min(W / im.width, H / im.height) * b["z"]
+    nw, nh = max(1, round(im.width * s)), max(1, round(im.height * s))
+    lop = im.resize((nw, nh), Image.Resampling.LANCZOS).convert("RGBA")
+    if b["r"]:
+        lop = lop.rotate(-b["r"], resample=Image.Resampling.BICUBIC, expand=True, fillcolor=(0, 0, 0, 0))
+    khung = Image.new("RGB", (W, H), nen)
+    cx, cy = W / 2 + b["x"] * W, H / 2 + b["y"] * H
+    khung.paste(lop, (round(cx - lop.width / 2), round(cy - lop.height / 2)), lop)
+    if logo and Path(logo).exists():
+        rong = max(48, int(min(W, H) * ty_le_logo))
+        lg = ImageOps.contain(Image.open(logo).convert("RGBA"), (rong, rong), Image.Resampling.LANCZOS)
+        lg.putalpha(lg.getchannel("A").point(lambda v: int(v * 0.9)))
+        canh = int(min(W, H) * 0.03)
+        x = canh if logo_goc == "trai" else W - lg.width - canh
+        khung = khung.convert("RGBA")
+        khung.alpha_composite(lg, (x, H - lg.height - canh))
+        khung = khung.convert("RGB")
+    out = io.BytesIO()
+    if dinh_dang == "jpg":
+        khung.save(out, "JPEG", quality=86, optimize=True, progressive=True)
+    else:
+        khung.save(out, "WEBP", quality=84, method=6)
+    return out.getvalue()

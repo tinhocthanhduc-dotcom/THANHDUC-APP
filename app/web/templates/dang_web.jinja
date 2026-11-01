@@ -67,13 +67,8 @@
 <div class="dw-tw{{ ' dw-tw-app' if che_do == 'app' }}">
 {% if che_do == 'web' %}
 <nav class="dw-cats" aria-label="Danh mục">
-<form method="get" action="/dang-web" class="dw-m dw-cat-pick">{{ an('tab', 'tren-web') }}{{ an('loai', loai) }}{{ an('loc', loc) }}{% if q %}{{ an('q', q) }}{% endif %}
-<label><b>Danh mục</b><select name="dm" onchange="this.form.submit()"><option value="">Tất cả danh mục</option>{% for c in cats %}<option value="{{ c.id }}"{{ ' selected' if dm == c.id|string }}>{{ '— ' * c.sau }}{{ c.ten }} ({{ c.n }})</option>{% endfor %}{% if dem_chua %}<option value="chua"{{ ' selected' if dm == 'chua' }}>Chưa phân loại ({{ dem_chua }})</option>{% endif %}</select></label><noscript><button class="btn btn-ghost">Lọc</button></noscript></form>
-<div class="dw-d dw-cat-list">
-<a class="dw-cat{{ ' on' if not dm }}" href="/dang-web?{{ dict(query, dm='', trang='')|urlencode }}"><span>Tất cả</span><b>{{ web.ds|length }}</b></a>
-{% for c in cats %}<a class="dw-cat{{ ' on' if dm == c.id|string }}" style="padding-left: {{ 10 + c.sau * 14 }}px" href="/dang-web?{{ dict(query, dm=c.id, trang='')|urlencode }}"><span>{{ c.ten }}</span><b>{{ c.n }}</b></a>{% endfor %}
-{% if dem_chua %}<a class="dw-cat dw-cat-chua{{ ' on' if dm == 'chua' }}" href="/dang-web?{{ dict(query, dm='chua', trang='')|urlencode }}"><span>Chưa phân loại</span><b>{{ dem_chua }}</b></a>{% endif %}
-</div>
+<form method="get" action="/dang-web" class="dw-cat-pick">{{ an('tab', 'tren-web') }}{{ an('loai', loai) }}{{ an('loc', loc) }}{% if q %}{{ an('q', q) }}{% endif %}
+<label><b>{{ 'Danh mục' if loai == 'sp' else 'Chuyên mục' }}</b><select name="dm" onchange="this.form.submit()"><option value="">Tất cả ({{ web.ds|length }})</option>{% for c in cats %}<option value="{{ c.id }}"{{ ' selected' if dm == c.id|string }}>{{ '— ' * c.sau }}{{ c.ten }} ({{ c.n }})</option>{% endfor %}{% if dem_chua %}<option value="chua"{{ ' selected' if dm == 'chua' }}>Chưa phân loại ({{ dem_chua }})</option>{% endif %}</select></label><noscript><button class="btn btn-ghost">Lọc</button></noscript></form>
 {% if dem_chua %}<form method="post" action="/dang-web/xep-danh-muc">{{ csrf_in() }}{{ an('loai', loai) }}<button class="btn btn-ghost dw-xep">Xếp {{ 'danh mục' if loai == 'sp' else 'chuyên mục' }} bằng AI cho {{ [dem_chua, toi_da_xep]|min }} {{ ten_loai }} chưa phân loại</button></form>{% endif %}
 </nav>
 {% endif %}
@@ -112,16 +107,21 @@
 {% call ui.list_foot(p, 'mã') %}{{ p.total }} mã{% endcall %}
 {% else %}
 {% if rows %}<ul class="dw-list dw-web dw-web-{{ loai }}">
-<li class="dw-head" aria-hidden="true">{% if loai == 'sp' %}<span></span><span>Tên trên web</span><span>Danh mục</span><span>Mã app</span><span class="dw-n">Giá web</span><span>Trạng thái</span><span></span>{% else %}<span>Tiêu đề</span><span>Chuyên mục</span><span>Ngày</span><span>Trạng thái</span><span></span>{% endif %}</li>
+<li class="dw-head" aria-hidden="true">{% if loai == 'sp' %}<span></span><span>Tên trên web</span><span>Danh mục</span><span>Mã app</span><span class="dw-n">Giá web</span><span>Trạng thái</span><span class="dw-n">Thao tác</span>{% else %}<span>Ảnh</span><span>Tiêu đề</span><span>Chuyên mục</span><span>Ngày</span><span>Trạng thái</span><span class="dw-n">Thao tác</span>{% endif %}</li>
 {% for r in rows %}
+{% set ngay = (r.ngay[8:10] ~ '/' ~ r.ngay[5:7] ~ '/' ~ r.ngay[:4]) if r.ngay else '' %}
+{% set so_bai = (r.anhs_bai or [])|length %}
 <li class="dw-wrow">
-{% if loai == 'sp' %}<span class="dw-thumb">{% if r.anh %}<img src="{{ r.anh }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% else %}<b aria-hidden="true">SP</b>{% endif %}</span>{% endif %}
-<span class="dw-main"><b>{{ r.ten }}</b><small class="dw-m">{% if r.chua_pl %}Chưa phân loại{% else %}{{ r.dm_ten }}{% endif %}{% if loai == 'sp' %} · {{ r.ma or 'không có mã TD' }}{% if r.gia %} · {{ r.gia|money }}{% endif %}{% else %}{% if r.ngay %} · {{ r.ngay[8:10] }}/{{ r.ngay[5:7] }}/{{ r.ngay[:4] }}{% endif %}{% if r.app %} · app đăng{% endif %}{% endif %}</small>
-{% if not r.co_anh %}<small class="dw-warn">Chưa có ảnh</small>{% endif %}<span class="dw-m dw-wbadge">{{ ui.badge(r.nhan, r.tone) }}</span></span>
-<span class="dw-d">{% if r.chua_pl %}{{ ui.badge('Chưa phân loại', 'cho') }}{% else %}{{ r.dm_ten }}{% endif %}</span>
-{% if loai == 'sp' %}<span class="dw-d">{{ r.ma or '—' }}</span><span class="dw-d dw-n">{{ r.gia|money if r.gia else '—' }}</span>{% else %}<span class="dw-d">{% if r.ngay %}{{ r.ngay[8:10] }}/{{ r.ngay[5:7] }}/{{ r.ngay[:4] }}{% endif %}{% if r.app %}<small class="hint"> · app đăng</small>{% endif %}</span>{% endif %}
+<span class="dw-thumb{{ ' dw-thumb-bai' if loai == 'bai' }}">{% if r.anh %}<img src="{{ r.anh }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% else %}<b aria-hidden="true">{{ 'SP' if loai == 'sp' else 'chưa có' }}</b>{% endif %}</span>
+<span class="dw-main dw-wmain"><b title="{{ r.ten }}">{{ r.ten }}</b>
+<small class="dw-d">{% if loai == 'sp' %}{{ r.ma or 'Không có mã TD' }} · {{ r.so_anh or 0 }} ảnh{% else %}{% if r.app %}app đăng · {% endif %}{% if not r.co_anh %}<span class="dw-warn">chưa có ảnh đại diện</span>{% if so_bai %} · {% endif %}{% endif %}{% if so_bai %}{{ so_bai }} ảnh trong bài{% elif r.co_anh %}chỉ có ảnh đại diện{% endif %}{% endif %}</small>
+<small class="dw-m">{% if loai == 'sp' %}{{ r.ma or 'không có mã TD' }}{% if r.gia %} · {{ r.gia|money }}{% endif %}{% else %}{{ ngay }}{% endif %} · <span class="dw-wtt dw-wtt-{{ r.tone }}">● {{ r.nhan }}</span>{% if not r.co_anh %} · <span class="dw-warn">chưa có ảnh</span>{% endif %}</small></span>
+<span class="dw-d dw-dm">{% if r.chua_pl %}{{ ui.badge('Chưa phân loại', 'cho') }}{% else %}{{ r.dm_ten }}{% endif %}</span>
+{% if loai == 'sp' %}<span class="dw-d">{{ r.ma or '—' }}</span><span class="dw-d dw-n">{{ r.gia|money if r.gia else '—' }}</span>{% else %}<span class="dw-d dw-ngay">{{ ngay }}</span>{% endif %}
 <span class="dw-d">{{ ui.badge(r.nhan, r.tone) }}</span>
-<span class="dw-row-acts"><a class="btn btn-new dw-sbtn" href="/dang-web/sua-ai?loai={{ loai }}&amp;id={{ r.id }}">Sửa bằng AI</a>{% if loai == 'sp' %}<a class="btn btn-ghost dw-sbtn" href="/dang-web/sua-anh?id={{ r.id }}">Sửa ảnh</a>{% endif %}{% if r.xem %}<a class="btn btn-ghost dw-sbtn" href="{{ r.xem }}" target="_blank" rel="noopener">Xem ↗</a>{% endif %}<a class="btn btn-ghost dw-sbtn" href="{{ r.sua }}" target="_blank" rel="noopener">wp-admin ↗</a></span>
+<span class="dw-row-acts dw-wacts"><a class="btn btn-new dw-xbtn" href="/dang-web/sua-ai?loai={{ loai }}&amp;id={{ r.id }}" title="Sửa bằng AI">Sửa AI</a><a class="btn btn-ghost dw-xbtn dw-xbtn-info" href="/dang-web/sua-anh?loai={{ loai }}&amp;id={{ r.id }}">Sửa ảnh</a>
+<span class="dw-d dw-wlinks">{% if r.xem %}<a class="btn btn-ghost dw-xbtn" href="{{ r.xem }}" target="_blank" rel="noopener">Xem ↗</a>{% endif %}<a class="btn btn-ghost dw-xbtn" href="{{ r.sua }}" target="_blank" rel="noopener" aria-label="Mở trong wp-admin">wp ↗</a></span>
+<details class="dw-m dw-more"><summary class="btn btn-ghost dw-xbtn" aria-label="Thêm: Xem, wp-admin">⋯</summary><div class="dw-more-pop">{% if r.xem %}<a href="{{ r.xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}<a href="{{ r.sua }}" target="_blank" rel="noopener">Mở wp-admin ↗</a></div></details></span>
 </li>
 {% endfor %}</ul>
 {% else %}{{ ui.empty('Không có ' ~ ten_loai ~ ' nào khớp.' if q or loc or dm else 'Chưa có ' ~ ten_loai ~ ' nào.', '/dang-web?tab=tren-web&loai=' ~ loai if q or loc or dm else '', 'Xem tất cả') }}{% endif %}
