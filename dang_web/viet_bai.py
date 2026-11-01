@@ -28,7 +28,9 @@ Nguyên tắc bắt buộc:
 - Không ghi giá tiền trong nội dung (giá hiển thị riêng). Không hứa khuyến mãi. Không nêu tên hay hạ thấp đối thủ.
 - Chỉ dùng các thẻ HTML: """ + THE_HTML_DUOC_DUNG + """. Không dùng h1, không style, không script, không link ngoài.
 - Từ khóa chính xuất hiện tự nhiên trong tiêu đề SEO, mô tả SEO, đoạn mở đầu và ít nhất một thẻ h2; không nhồi từ khóa.
-- seo_title tối đa 60 ký tự, seo_description 120–155 ký tự, slug không dấu, nối bằng gạch ngang."""
+- seo_title tối đa 60 ký tự, seo_description 120–155 ký tự, slug không dấu, nối bằng gạch ngang.
+- KHÔNG nhắc số lượng ảnh hay "xem ảnh để kiểm tra". KHÔNG nhắc tình trạng kho, còn hàng, hết hàng, tồn kho (web tự hiện).
+- Nếu ghi đơn vị tính thì ghi một gạch đầu dòng riêng đúng dạng "Đơn vị tính: <đơn vị>", không thêm câu nào khác vào dòng đó."""
 
 KHUON_SAN_PHAM = {
     "type": "object",
@@ -108,6 +110,36 @@ class KetQuaAI:
         return f"{vao} token vào, {ra} token ra (xem giá trên trang nhà cung cấp)"
 
 
+_CAU_CAM = re.compile(
+    r"[^.!?<>]*(?:\d+\s*(?:ảnh|hình)|(?:xem|kiểm tra)[^.!?<>]{0,20}(?:ảnh|hình)|"
+    r"(?:ảnh|hình ảnh) sản phẩm để|chưa có hàng|còn hàng|hết hàng|tồn kho|"
+    r"kho[^.!?<>]{0,15}(?:ghi nhận|chưa có|còn|hết))[^.!?<>]*[.!?]?",
+    re.I,
+)
+_LI = re.compile(r"<li>(.*?)</li>", re.I | re.S)
+
+
+def bo_cau_thua(html: str, don_vi: str = "") -> str:
+    """Bỏ câu nhắc số ảnh / tình trạng kho; dòng "Đơn vị tính" chỉ giữ đúng đơn vị (theme lấy dòng này làm Thông tin nhanh)."""
+
+    def li(m: re.Match) -> str:
+        noi = m.group(1)
+        if re.search(r"đơn vị tính", noi, re.I):
+            return f"<li>Đơn vị tính: {don_vi.strip()}</li>" if don_vi.strip() else ""
+        noi = _CAU_CAM.sub("", noi).strip()
+        return f"<li>{noi}</li>" if re.sub(r"<[^>]+>", "", noi).strip() else ""
+
+    html = _LI.sub(li, html or "")
+    html = re.sub(r"(<p>)(.*?)(</p>)", lambda m: m.group(1) + _CAU_CAM.sub("", m.group(2)).strip() + m.group(3), html, flags=re.I | re.S)
+    html = re.sub(r"<p>\s*</p>|<ul>\s*</ul>", "", html, flags=re.I)
+    return html.strip()
+
+
+def don_san_pham(d: dict, sp: SanPham) -> None:
+    for k in ("mo_ta_ngan_html", "mo_ta_html"):
+        d[k] = bo_cau_thua(lam_sach_html(d.get(k, "")), sp.unit or "")
+
+
 def yeu_cau_san_pham(sp: SanPham, ghi_chu: str, so_anh: int, hotline: str = "") -> str:
     thong_tin = {
         "ma_hang": sp.code,
@@ -115,8 +147,6 @@ def yeu_cau_san_pham(sp: SanPham, ghi_chu: str, so_anh: int, hotline: str = "") 
         "nhom_hang": sp.group_name,
         "don_vi": sp.unit,
         "bao_hanh_thang": sp.warranty_months,
-        "con_hang": sp.con_hang,
-        "so_anh": so_anh,
     }
     phan = [
         "Viết trang sản phẩm WooCommerce cho mặt hàng sau.",
@@ -211,9 +241,7 @@ class NguoiViet:
 
     def viet_san_pham(self, sp: SanPham, ghi_chu: str = "", so_anh: int = 0, hotline: str = "") -> KetQuaAI:
         kq = self._goi(yeu_cau_san_pham(sp, ghi_chu, so_anh, hotline), KHUON_SAN_PHAM)
-        d = kq.du_lieu
-        d["mo_ta_html"] = lam_sach_html(d["mo_ta_html"])
-        d["mo_ta_ngan_html"] = lam_sach_html(d["mo_ta_ngan_html"])
+        don_san_pham(kq.du_lieu, sp)
         return kq
 
     def viet_bai(self, chu_de: str, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
@@ -310,6 +338,8 @@ class NguoiVietMau:
         diem = [f"Mã hàng: {escape(sp.code)}", f"Nhóm: {escape(sp.group_name or 'Thiết bị văn phòng')}"]
         if sp.warranty_months:
             diem.append(f"Bảo hành {sp.warranty_months} tháng tại Thành Đức")
+        if (sp.unit or "").strip():
+            diem.append(f"Đơn vị tính: {escape(sp.unit.strip())}")
         diem.append("Giao hàng nhanh nội thành TP.HCM, hỗ trợ kỹ thuật tận nơi")
         ngan = "<ul>" + "".join(f"<li>{d}</li>" for d in diem) + "</ul>"
         dai = [f"<h2>Giới thiệu {e}</h2>", f"<p>{e} được Tin Học Thành Đức phân phối và hỗ trợ kỹ thuật tại TP. Hồ Chí Minh.</p>"]
@@ -397,8 +427,7 @@ class NguoiVietChatGPTWeb:
 
     def viet_san_pham(self, sp: SanPham, ghi_chu: str = "", so_anh: int = 0, hotline: str = "") -> KetQuaAI:
         kq = self._lay(sp.code, yeu_cau_san_pham(sp, ghi_chu, so_anh, hotline), KHUON_SAN_PHAM)
-        kq.du_lieu["mo_ta_html"] = lam_sach_html(kq.du_lieu["mo_ta_html"])
-        kq.du_lieu["mo_ta_ngan_html"] = lam_sach_html(kq.du_lieu["mo_ta_ngan_html"])
+        don_san_pham(kq.du_lieu, sp)
         return kq
 
     def viet_bai(self, chu_de: str, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
