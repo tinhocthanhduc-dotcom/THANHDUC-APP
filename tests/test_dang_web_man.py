@@ -46,7 +46,7 @@ class _WP:
 
     def tai_anh(self, data, ten, mime, alt=""):
         self.media += 1
-        return {"id": 900 + self.media}
+        return {"id": 900 + self.media, "source_url": f"https://thanhduc.vn/wp-content/uploads/{ten}"}
 
     def tao_sp(self, payload):
         self.tao.append(payload)
@@ -161,6 +161,7 @@ def test_tron_vong_soan_xem_truoc_sua_roi_dang_nhap(client, web_login, goc, san_
     p = wp.tao[0]
     assert p["status"] == "draft" and p["name"] == "Hộp mực Canon 326 chính hãng" and p["regular_price"] == "360000"
     assert p["sku"] == "TD-0123" and p["categories"] == [{"id": 7}] and p["images"]
+    assert p["description"].startswith("<p>Dài</p><figure class=\"td-anh\"><img src=\"https://thanhduc.vn/wp-content/uploads/")
     assert hd.doc_trang_thai(goc)["san_pham"]["TD-0123"]["id"] == 101
 
     may.lam_moi_web()
@@ -389,3 +390,43 @@ def test_soan_nhieu_ma_chi_lay_ma_co_anh(client, web_login, goc, nhieu_hang):
     assert len(hd.ds(goc)) == 1  # mã đang có việc thì không tạo thêm
     r = client.post("/dang-web/soan-nhieu", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), ma=[f"TD-{i:04d}" for i in range(11)]))
     assert r.status_code == 400 and "tối đa 10" in r.text
+
+
+def test_bai_viet_4_anh_anh_dau_dai_dien_con_lai_chen_than_bai(client, web_login, goc, monkeypatch):
+    csrf = web_login("giam.doc", "director")
+    nhieu = [("anh", (f"a{i}.jpg", _jpg(), "image/jpeg")) for i in range(5)]
+    base = dict(csrf=csrf, loai="bai_viet", chu_de="Máy in kẹt giấy", cach_viet="tu_dong")
+    r = client.post("/dang-web/soan", data=dict(base, form_key=str(uuid.uuid4())), files=nhieu, follow_redirects=False)
+    assert r.status_code != 303 and "Bài viết tối đa 4 ảnh." in r.text
+    r = client.post("/dang-web/soan", data=dict(base, form_key=str(uuid.uuid4()), da_co_logo="1"), files=nhieu[:4],
+                    follow_redirects=False)
+    assert r.status_code == 303
+    viec_id = r.headers["location"].rsplit("/", 1)[1]
+    assert hd.doc(goc, viec_id)["da_co_logo"] is True
+
+    from dang_web import anh as anh_mod
+    goi_logo = []
+    that = anh_mod.xu_ly
+
+    def xu_ly(*a, **kw):
+        goi_logo.append(kw.get("logo"))
+        return that(*a, **kw)
+
+    monkeypatch.setattr(anh_mod, "xu_ly", xu_ly)
+    wp = _WP()
+    may = _may(goc, wp, nguoi_viet=_ChatGPTGia())
+    may.lam_mot_viec()
+    v = hd.doc(goc, viec_id)
+    assert v["trang_thai"] == hd.XEM_TRUOC and len(v["anh_web"]) == 4
+    assert goi_logo == [None] * 4  # ảnh đã có logo thì không đóng thêm
+    page = client.get(f"/dang-web/viec/{viec_id}")
+    noi_dung = "<p>Mở đầu</p><h2>A</h2><p>a</p><h2>B</h2><p>b</p><h2>C</h2><p>c</p>"
+    client.post(f"/dang-web/viec/{viec_id}", data=dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="dang",
+                                                      tieu_de="Máy in kẹt giấy", tom_tat="", noi_dung_html=noi_dung))
+    may.lam_mot_viec()
+    assert hd.doc(goc, viec_id)["trang_thai"] == hd.DA_DANG
+    p = wp.tao[0]
+    assert p["featured_media"] == 901
+    assert p["content"].count("<img") == 3 and "wp-image-902" in p["content"] and "wp-image-904" in p["content"]
+    assert p["content"].index("wp-image-902") < p["content"].index("<h2>A")
+    assert p["content"].index("<h2>A") < p["content"].index("wp-image-903") < p["content"].index("<h2>B")

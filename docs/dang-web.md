@@ -63,7 +63,9 @@ Lần đầu dựng image mất vài phút. Cuối cùng phải thấy `TẤT C�
 Giám đốc mở menu **Quản lý → Website → Đăng web** trên điện thoại hoặc máy tính:
 
 - **Sản phẩm:** bấm **+ Soạn sản phẩm**, tìm mã, chụp ảnh ngay bằng điện thoại (tối đa 6 ảnh), chọn cách viết, bấm **Soạn bản xem trước**. Vài phút sau việc nằm ở ô **Chờ anh xem trước**: xem ảnh nền trắng có logo, sửa tên, mô tả, giá, danh mục, tiêu đề Google ngay trên màn rồi bấm **Đăng nháp lên thanhduc.vn**.
-- **Bài viết:** gõ chủ đề hoặc thêm vào danh sách **Chủ đề chờ viết**.
+- **Bài viết:** gõ chủ đề hoặc thêm vào danh sách **Chủ đề chờ viết**. Có thể chụp hoặc chọn tối đa 4 ảnh: ảnh đầu làm ảnh đại diện, các ảnh sau chèn vào thân bài (trước các tiêu đề mục).
+- **Ảnh trong thân bài:** khi đăng, sản phẩm tự chèn tối đa 3 ảnh của nó vào mô tả chi tiết (ảnh đầu sau đoạn mở đầu, ảnh sau trước các tiêu đề mục). Nếu mô tả đã có ảnh thì giữ nguyên.
+- **Ảnh đã có logo:** ảnh banner hoặc ảnh đã đóng logo Thành Đức sẵn thì tick **Ảnh đã có logo Thành Đức, không đóng thêm** ở màn soạn để khỏi bị hai logo.
 - **Có thể trùng:** web đã có sản phẩm hoặc bài gần giống thì app dừng lại (chưa tốn tiền AI), anh mở link xem rồi chọn **Đúng là trùng, bỏ qua**, **Không trùng, vẫn soạn** hoặc **Viết lại đè lên** bài cũ.
 - **Chờ dán ChatGPT:** chọn cách ChatGPT web thì bấm **Chép câu lệnh**, dán vào chatgpt.com, chép câu trả lời dán lại vào ô rồi bấm **Đọc câu trả lời**.
 - **Đã đăng:** mọi thứ đã lên web, trạng thái Nháp hay Đang hiện lấy từ web. Bấm một dòng: **Sửa trên web** mở thẳng trang sửa trong wp-admin; **Viết lại bằng AI** soạn bản mới, xem trước rồi ghi đè lên đúng bài đó.
