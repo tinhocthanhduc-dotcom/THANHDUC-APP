@@ -344,10 +344,13 @@ def test_lich_tu_soan_tao_viec_mot_lan_moi_ngay(goc, monkeypatch):
     hd.ghi_lich(goc, {"bat": True, "gio": "07:00", "so_sp": 2, "so_bai": 1})
     monkeypatch.setattr(hd, "bay_gio", lambda: datetime(2026, 11, 2, 7, 30, tzinfo=hd.GIO_VN))  # thứ 2
     may = _may(goc, _WP())
-    assert may.kiem_lich() == 1  # chưa có khóa AI: chỉ soạn sản phẩm bằng mẫu, không tự viết bài
-    assert may.kiem_lich() == 0
-    v = hd.ds(goc)[0]
-    assert v["ma"] == "TD-0123" and v["cach_viet"] == "mau" and v["nguon"] == "lich"
+    assert may.kiem_lich() == 0 and hd.ds(goc) == []  # chưa có Codex hay khóa AI: không soạn bằng mẫu nữa
+    hd.ghi_lich(goc, {"lan_cuoi": ""})
+    hd.ghi_nhip_codex(goc)
+    assert may.kiem_lich() == 2  # Codex đang chạy: 1 sản phẩm + 1 bài viết
+    assert may.kiem_lich() == 0  # mỗi ngày một lần
+    v = next(x for x in hd.ds(goc) if x["loai"] == "san_pham")
+    assert v["ma"] == "TD-0123" and v["cach_viet"] == "codex" and v["nguon"] == "lich"
 
 
 # ---------- tab Hàng hóa: so Hàng hóa trong app với sản phẩm trên web (TUẤN duyệt màn 8 / D5) ----------
