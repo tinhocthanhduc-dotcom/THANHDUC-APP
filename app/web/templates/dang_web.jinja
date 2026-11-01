@@ -5,7 +5,7 @@
 {% macro thumb(v) %}<span class="dw-thumb">{% if v.anh_web %}<img src="/dang-web/anh-web/{{ v.anh_web[0] }}" alt="" loading="lazy">{% elif v.anh_goc %}<img src="/dang-web/anh/{{ v.id }}/{{ v.anh_goc[0] }}" alt="" loading="lazy">{% else %}<b aria-hidden="true">{{ 'SP' if v.loai == 'san_pham' else 'BV' }}</b>{% endif %}</span>{% endmacro %}
 {% macro luc(s) %}{% if s %}{{ s[11:16] }} {{ s[8:10] }}/{{ s[5:7] }}{% endif %}{% endmacro %}
 {% macro an(name, value) %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endmacro %}
-{% macro csrf_in() %}{{ an('csrf', csrf) }}{{ an('form_key', form_key()) }}{% endmacro %}
+{% macro csrf_in() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% endmacro %}
 {% macro nut_lam_moi(t) %}<form method="post" action="/dang-web/lam-moi" class="dw-refresh">{{ csrf_in() }}{{ an('tab', t) }}<button class="btn btn-ghost"{% if cho_lam_moi %} disabled{% endif %}>{{ '↻ Đang cập nhật…' if cho_lam_moi else '↻ Cập nhật từ web' }}</button></form>{% endmacro %}
 {% block main %}<div class="page-wide list-page dw-page">
 {% call ui.page_head('Đăng web', sub='Soạn sản phẩm, bài viết rồi đăng Bản nháp lên thanhduc.vn') %}{% if tab in ('san-pham', 'bai-viet') %}{% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-d">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã có ảnh</button></form>{% endif %}<a class="btn btn-new" href="/dang-web/soan?loai={{ tab }}">+ Soạn {{ 'bài viết' if tab == 'bai-viet' else 'sản phẩm' }}</a>{% endif %}{% endcall %}
