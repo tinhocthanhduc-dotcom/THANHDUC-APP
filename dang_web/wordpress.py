@@ -5,11 +5,13 @@ Mọi thứ tạo ra đều ở trạng thái Bản nháp (draft); người duy�
 from __future__ import annotations
 
 import base64
-import html
-import re
-import unicodedata
 
 import httpx
+
+from .so_ten import (  # noqa: F401  (giữ tên cũ cho chỗ khác import từ đây)
+    HANG_MAY, TU_BO_QUA, _ten, _tu_noi_dung, _ty_le_tu_chung, bo_dau, cau_tim, chuan_ten, do_giong, do_giong_bai,
+    ma_model, slug, tim_gan_giong, tu_khoa,
+)
 
 USER_AGENT = "ThanhDucDangWeb/1.0 (+https://quanlythanhduc.com)"
 
@@ -19,20 +21,6 @@ class LoiWeb(RuntimeError):
         super().__init__(thong_bao)
         self.status = status
         self.ma = ma
-
-
-def bo_dau(s: str) -> str:
-    s = s.replace("đ", "d").replace("Đ", "D")
-    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
-
-
-def chuan_ten(s: str) -> str:
-    return re.sub(r"\s+", " ", bo_dau(html.unescape(s)).lower()).strip()
-
-
-def slug(s: str, toi_da: int = 80) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", bo_dau(s).lower()).strip("-")
-    return s[:toi_da].rstrip("-")
 
 
 class WordPress:
@@ -98,6 +86,10 @@ class WordPress:
         payload = {k: v for k, v in payload.items() if k not in ("status", "sku", "type")}
         return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload)
 
+    def tat_ca_sp(self) -> list[dict]:
+        """Mọi sản phẩm trên web (cả nháp), chỉ lấy vài trường cho nhẹ."""
+        return self._tat_ca("wc/v3/products", {"status": "any", "_fields": "id,name,sku,status,permalink"})
+
     def lay_sp_theo_ids(self, ids: list[int]) -> list[dict]:
         ra = []
         for i in range(0, len(ids), 100):
@@ -157,79 +149,6 @@ def tim_danh_muc(ten_nhom: str, danh_muc: list[dict], bang_map: dict[str, str] |
         if chuan_ten(dm.get("name", "")) == can or dm.get("slug") == slug(muc_tieu):
             return dm
     return None
-
-
-# ---------- kiểm tra trùng ----------
-TU_BO_QUA = {
-    "may", "in", "muc", "hop", "cho", "va", "cua", "cach", "cac", "nhung", "mot", "khi", "bi", "loi", "la", "co",
-    "khong", "de", "tai", "thanh", "duc", "chinh", "hang", "gia", "re", "moi", "cu", "the", "nao", "voi", "tu", "o",
-}
-
-
-def tu_khoa(s: str) -> list[str]:
-    return [t for t in re.findall(r"[a-z0-9]+", chuan_ten(s)) if t not in TU_BO_QUA and len(t) > 1]
-
-
-def ma_model(s: str) -> set[str]:
-    """Mã máy / mã mực: từ có cả số, hoặc số từ 3 chữ số (326, lbp2900, m211dw, cf217a)."""
-    return {t for t in tu_khoa(s) if any(c.isdigit() for c in t) and len(t) >= 3}
-
-
-def _ty_le_tu_chung(a: str, b: str) -> float:
-    ta, tb = set(tu_khoa(a)), set(tu_khoa(b))
-    if not ta or not tb:
-        return 0.0
-    return len(ta & tb) / min(len(ta), len(tb))
-
-
-def do_giong(a: str, b: str) -> float:
-    """Sản phẩm, 0..1: trùng mã máy/mã mực coi như giống (0.9); không có mã thì so tỉ lệ từ chung."""
-    if ma_model(a) & ma_model(b):
-        return 0.9
-    return _ty_le_tu_chung(a, b)
-
-
-HANG_MAY = {
-    "canon", "hp", "brother", "epson", "samsung", "ricoh", "xerox", "fuji", "kyocera", "lexmark", "panasonic",
-    "toshiba", "sharp", "konica", "oki", "pantum", "lbp", "mf", "laserjet", "deskjet", "ecotank", "dcp", "hl",
-}
-
-
-def _tu_noi_dung(s: str) -> set[str]:
-    """Từ nói về nội dung bài (bỏ hãng máy và mã máy)."""
-    ma = ma_model(s)
-    return {t for t in tu_khoa(s) if t not in HANG_MAY and t not in ma}
-
-
-def do_giong_bai(a: str, b: str) -> float:
-    """Bài viết: cùng máy chưa đủ (cùng máy nhưng khác lỗi), phần nội dung cũng phải giống."""
-    ta, tb = _tu_noi_dung(a), _tu_noi_dung(b)
-    chung = len(ta & tb) / min(len(ta), len(tb)) if ta and tb else 0.0
-    return 0.5 + 0.5 * chung if ma_model(a) & ma_model(b) else chung
-
-
-def cau_tim(s: str) -> str:
-    ma = sorted(ma_model(s), key=len, reverse=True)
-    if ma:
-        return ma[0]
-    return " ".join(tu_khoa(s)[:3])
-
-
-def _ten(item: dict) -> str:
-    t = item.get("name") or item.get("title") or ""
-    if isinstance(t, dict):
-        t = t.get("raw") or t.get("rendered") or ""
-    return html.unescape(t)
-
-
-def tim_gan_giong(ds: list[dict], ten: str, nguong: float = 0.7, ham=do_giong) -> list[dict]:
-    ra = []
-    for it in ds:
-        diem = ham(ten, _ten(it))
-        if diem >= nguong:
-            ra.append({"id": it.get("id"), "ten": _ten(it), "link": it.get("permalink") or it.get("link") or "",
-                       "trang_thai": it.get("status", ""), "diem": round(diem, 2)})
-    return sorted(ra, key=lambda x: -x["diem"])
 
 
 def _tim(wp: "WordPress", duong: str, ten: str, them: dict) -> list[dict]:

@@ -79,4 +79,26 @@
     var a = document.activeElement;
     if (!a || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) location.reload();
   }, parseInt(auto.dataset.dwReload, 10) || 5000);
+
+  // ---- Tab Hàng hóa: tick nhiều mã rồi soạn một lượt ----
+  var multi = document.querySelector('[data-dw-multi]');
+  if (multi) {
+    var max = parseInt(multi.dataset.max, 10) || 10;
+    var btn = document.querySelector('[data-dw-multi-btn]');
+    var boxes = function () { return Array.prototype.slice.call(document.querySelectorAll('input[name="ma"][form="' + multi.id + '"]')); };
+    var update = function () {
+      var n = boxes().filter(function (b) { return b.checked; }).length;
+      if (btn) { btn.disabled = n === 0; btn.textContent = n ? 'Soạn ' + n + ' mã đã chọn' : 'Soạn các mã đã chọn'; }
+    };
+    document.addEventListener('change', function (event) {
+      var b = event.target;
+      if (!b.matches || !b.matches('input[name="ma"]')) return;
+      if (b.checked && boxes().filter(function (x) { return x.checked; }).length > max) {
+        b.checked = false;
+        if (window.tdToast) window.tdToast('Mỗi lần tối đa ' + max + ' mã', 'warn');
+      }
+      update();
+    });
+    update();
+  }
 })();

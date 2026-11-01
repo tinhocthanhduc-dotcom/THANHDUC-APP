@@ -3226,3 +3226,32 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .dw-ok { display: grid; gap: 10px; }
 .dw-recent { border-top: 1px solid var(--line); }
 @media (max-width: 480px) { .dw-ph-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dw-refresh { margin-left: 0; } }
+/* Đăng web · bản máy tính (TUẤN duyệt D1–D5 01/11/2026) + tab Hàng hóa */
+.dw-d, .dw-list .dw-head { display: none; }
+.dw-sbtn { min-height: 40px; padding: 4px 12px; font-size: .88rem; white-space: nowrap; }
+.dw-n { text-align: right; font-variant-numeric: tabular-nums; }
+.dw-hrow { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 10px; align-items: center; padding: 10px 14px; }
+.dw-hrow > .dw-row-acts { grid-column: 2; justify-content: flex-end; }
+.dw-hrow .dw-row-acts form { display: flex; flex-wrap: wrap; gap: 8px; }
+.dw-tick input { width: 22px; height: 22px; }
+.dw-multi-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 1px solid var(--line); }
+.dw-cols { display: grid; gap: 12px; min-width: 0; }
+.dw-cols > div { display: grid; gap: 12px; align-content: start; min-width: 0; }
+@media (min-width: 1024px) {
+  .dw-m { display: none !important; }
+  .dw-d { display: block; min-width: 0; overflow-wrap: anywhere; }
+  .dw-row-acts.dw-d { display: flex; }
+  .dw-list .dw-head { display: grid; gap: 10px; padding: 8px 14px; font-size: .78rem; font-weight: 700; color: var(--muted); background: var(--tag, #eef1f6); }
+  .dw-jobs .dw-row, .dw-jobs .dw-head { grid-template-columns: 48px minmax(0, 2.2fr) 100px 150px 110px 150px 90px; }
+  .dw-jobs .dw-row > :last-child { text-align: right; }
+  .dw-list .dw-row > .badge, .dw-hh .dw-hrow .badge { justify-self: start; width: max-content; }
+  .dw-done-list .dw-row, .dw-done-list .dw-head { grid-template-columns: 48px minmax(0, 2fr) 110px 110px 110px minmax(380px, auto); }
+  .dw-done-list summary.dw-row { cursor: default; }
+  .dw-done-list .dw-row-acts { justify-content: flex-end; flex-wrap: nowrap; }
+  .dw-hh .dw-hrow, .dw-hh .dw-head { grid-template-columns: 28px 80px minmax(0, 1fr) 110px 50px 90px 50px 110px minmax(150px, 220px); gap: 10px; }
+  .dw-hh .dw-row-acts { justify-content: flex-end; }
+  .dw-hh .dw-hrow { grid-template-rows: auto; }
+  .dw-hh .dw-hrow > .dw-row-acts { grid-column: auto; }
+  .dw-hh .dw-hrow + .dw-hrow { border-top: 1px solid var(--line); }
+  .dw-cols.dw-2 { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+}

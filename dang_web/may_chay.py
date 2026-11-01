@@ -16,6 +16,7 @@ from . import dang
 from . import hang_doi as hd
 from .cau_hinh import CauHinh
 from .viet_bai import ChoTraLoi
+from .so_ten import _ten
 from .wordpress import LoiWeb, WordPress, bai_co_the_trung, link_sua, slug, sp_co_the_trung, tim_danh_muc
 
 
@@ -276,6 +277,11 @@ class MayDangWeb:
                 ra[khoa][str(it["id"])] = {"ten": ten, "trang_thai": it.get("status", ""),
                                            "xem": it.get("permalink") or it.get("link") or ""}
         hd.ghi_json(hd.file_web(self.goc), ra)
+        # Tab Hàng hóa: danh sách mọi sản phẩm trên web để app so với Hàng hóa (chỉ khi anh bấm Cập nhật từ web).
+        sp_web = [{"id": it["id"], "ten": _ten(it), "sku": str(it.get("sku") or ""), "trang_thai": it.get("status", ""),
+                   "xem": it.get("permalink") or "", "sua": link_sua(self.ch.wp_url, it["id"])} for it in wp.tat_ca_sp() if it.get("id")]
+        hd.ghi_json(hd.file_sp_web(self.goc), {"luc": ra["luc"], "ds": sp_web})
+        in_(f"Cập nhật từ web: {len(sp_web)} sản phẩm")
         self._danh_muc = None
         self.danh_muc()
 

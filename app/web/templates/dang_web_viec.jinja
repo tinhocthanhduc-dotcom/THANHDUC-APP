@@ -3,8 +3,8 @@
 {% set bai = v.loai == 'bai_viet' %}
 {% set d = v.noi_dung or {} %}
 {% block title %}{{ v.ma or 'Bài viết' }} · {{ v.nhan }}{% endblock %}
-{# TUẤN duyệt mẫu 01/11/2026: màn 3 (dán ChatGPT), 4 (xem trước, sửa, đăng nháp), 6 (có thể trùng). #}
-{% block main %}<div class="page-mid dw-page">
+{# TUẤN duyệt mẫu 01/11/2026: màn 3 (dán ChatGPT), 4 (xem trước, sửa, đăng nháp), 6 (có thể trùng), bản máy tính D3 (2 cột). #}
+{% block main %}<div class="{{ 'page-wide' if v.trang_thai == 'xem_truoc' else 'page-mid' }} dw-page">
 {{ ui.page_head(v.ten or v.ma or v.chu_de, sub=('Bài viết' if bai else v.ma) ~ ' · ' ~ cach_viet.get(v.cach_viet, '') ~ (' · viết lại đè lên bài trên web' if v.viet_lai else ''), back='/dang-web?tab=' ~ ('bai-viet' if bai else 'san-pham'), badge_label=v.nhan, badge_tone=v.tone) }}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
 {% macro nut(hanh_dong, label, cls='btn-ghost', confirm='') %}<button class="btn {{ cls }}" name="hanh_dong" value="{{ hanh_dong }}" formnovalidate{% if confirm %} onclick='return confirm({{ confirm|tojson }})'{% endif %}>{{ label }}</button>{% endmacro %}
@@ -54,29 +54,36 @@
 </form>
 
 {% elif v.trang_thai == 'xem_truoc' %}
+{% set css_xem = '<meta charset=utf-8><style>body{font:15px/1.6 system-ui,sans-serif;margin:8px;color:#1d2330}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}</style>' %}
 {{ mo_form() }}
+<div class="dw-cols dw-2"><div>
 {% if v.anh_web or v.anh_goc %}<section class="card">
+<p class="group-label"><b>Ảnh trước / sau</b></p>
 <div class="dw-ba">{% if v.anh_goc %}<figure><img src="/dang-web/anh/{{ v.id }}/{{ v.anh_goc[0] }}" alt="Ảnh gốc"><figcaption>Ảnh gốc</figcaption></figure>{% endif %}
 {% for a in v.anh_web %}<figure><img src="/dang-web/anh-web/{{ a }}" alt="Ảnh lên web {{ loop.index }}"><figcaption>{{ 'Lên web (nền trắng + logo)' if loop.first else 'Ảnh ' ~ loop.index }}</figcaption></figure>{% endfor %}</div>
 </section>{% endif %}
 <section class="card">
 <p class="group-label"><b>Google sẽ hiện</b></p>
 <div class="dw-seo"><span class="t">{{ d.seo_title }}</span><span class="u">thanhduc.vn › {{ d.slug }}</span><span class="dsc">{{ d.seo_description }}</span></div>
+</section>
+<section class="card">
+<details class="dw-html" open><summary><b>{{ 'Nội dung bài' if bai else 'Mô tả chi tiết' }}</b> · xem trước</summary><iframe class="dw-frame" sandbox title="Xem trước {{ 'nội dung' if bai else 'mô tả' }}" srcdoc="{{ css_xem ~ (d.noi_dung_html if bai else d.mo_ta_html) }}"></iframe></details>
+</section>
+</div><div class="dw-side">
+<section class="card">
 {% if bai %}
 <label><b>Tiêu đề</b><input name="tieu_de" value="{{ d.tieu_de }}" required maxlength="200"></label>
 <label><b>Tóm tắt</b><textarea name="tom_tat" rows="3" maxlength="1000">{{ d.tom_tat }}</textarea></label>
-<details class="dw-html" open><summary><b>Nội dung bài</b> · xem trước</summary><iframe class="dw-frame" sandbox title="Xem trước nội dung" srcdoc="{{ '<meta charset=utf-8><style>body{font:15px/1.6 system-ui,sans-serif;margin:8px;color:#1d2330}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}</style>' ~ d.noi_dung_html }}"></iframe></details>
 <details class="dw-html"><summary><b>Sửa nội dung</b> (HTML)</summary><textarea name="noi_dung_html" rows="14">{{ d.noi_dung_html }}</textarea></details>
 {% else %}
 <label><b>Tên trên web</b><input name="ten_web" value="{{ d.ten_web }}" required maxlength="200"></label>
-<label><b>Mô tả ngắn</b> <span class="hint">(HTML)</span><textarea name="mo_ta_ngan_html" rows="4">{{ d.mo_ta_ngan_html }}</textarea></label>
-<details class="dw-html" open><summary><b>Mô tả chi tiết</b> · xem trước</summary><iframe class="dw-frame" sandbox title="Xem trước mô tả" srcdoc="{{ '<meta charset=utf-8><style>body{font:15px/1.6 system-ui,sans-serif;margin:8px;color:#1d2330}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}</style>' ~ d.mo_ta_html }}"></iframe></details>
-<details class="dw-html"><summary><b>Sửa mô tả chi tiết</b> (HTML)</summary><textarea name="mo_ta_html" rows="14">{{ d.mo_ta_html }}</textarea></details>
 <div class="row2">
 <label><b>Giá web</b><input name="gia" value="{{ (v.gia|int)|money if v.gia else '' }}" inputmode="numeric" data-money placeholder="Để trống: không ghi giá"></label>
 <label><b>Danh mục</b><input name="danh_muc" value="{{ v.danh_muc }}" list="dw-danh-muc" maxlength="200"></label>
 </div>
 <datalist id="dw-danh-muc">{% for x in danh_muc %}<option value="{{ x }}">{% endfor %}</datalist>
+<label><b>Mô tả ngắn</b> <span class="hint">(HTML)</span><textarea name="mo_ta_ngan_html" rows="4">{{ d.mo_ta_ngan_html }}</textarea></label>
+<details class="dw-html"><summary><b>Sửa mô tả chi tiết</b> (HTML)</summary><textarea name="mo_ta_html" rows="14">{{ d.mo_ta_html }}</textarea></details>
 {% endif %}
 <label><b>Tiêu đề Google</b> <span class="hint">(nên dưới 60 ký tự)</span><input name="seo_title" value="{{ d.seo_title }}" maxlength="120"></label>
 <label><b>Mô tả Google</b> <span class="hint">(nên dưới 155 ký tự)</span><textarea name="seo_description" rows="2" maxlength="320">{{ d.seo_description }}</textarea></label>
@@ -84,10 +91,13 @@
 <label><b>Chữ thay ảnh</b><input name="alt_anh" value="{{ d.alt_anh }}" maxlength="200"></label></div>
 </section>
 {% if v.can_kiem_tra or v.ghi_chu_ai %}<div class="alert warn"><b>Cần anh kiểm tra</b><ul>{% for x in v.can_kiem_tra %}<li>{{ x }}</li>{% endfor %}{% for x in v.ghi_chu_ai %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
-<p class="hint">{{ v.model }}{% if v.chi_phi %} · {{ v.chi_phi }}{% endif %}{% if not bai and v.danh_muc %} · Danh mục: {{ v.danh_muc }}{% endif %}</p>
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · Giám đốc bấm đăng</span>
 <button class="btn btn-ok dw-big" name="hanh_dong" value="dang">{{ 'Ghi đè lên bài trên web' if v.viet_lai else 'Đăng nháp lên thanhduc.vn' }}</button>
 <div class="dw-two">{{ nut('viet_lai', 'Viết lại', 'btn-ghost', 'Bỏ bản này và cho AI viết lại?') }}{{ nut('bo', 'Bỏ', 'btn-danger', 'Bỏ việc này?') }}</div>
 <p class="hint">{% if v.viet_lai %}Ghi đè nội dung, ảnh (nếu có ảnh mới) và SEO; giữ nguyên trạng thái đang hiện hay nháp trên web.{% else %}Lên web ở dạng Bản nháp; khách chưa thấy tới khi anh bấm Đăng trong wp-admin.{% endif %}</p>
+<p class="hint">{{ v.model }}{% if v.chi_phi %} · {{ v.chi_phi }}{% endif %}{% if not bai and v.danh_muc %} · Danh mục: {{ v.danh_muc }}{% endif %}</p>
+</section>
+</div></div>
 </form>
 
 {% elif v.trang_thai == 'loi' %}
