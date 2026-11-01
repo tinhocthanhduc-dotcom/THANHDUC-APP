@@ -1986,6 +1986,7 @@ class NotificationRead(Base):
 class AiKey(Base):
     """Khóa riêng cho từng AI trên máy chủ. Chỉ lưu mã băm; mỗi AI một khóa còn hiệu lực, phạm vi riêng."""
     __tablename__ = 'ai_keys'
+    __table_args__ = (Index('uq_ai_keys_active', 'agent', unique=True, postgresql_where=text('revoked_at is null')),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     agent: Mapped[str] = mapped_column(String(16))
     scopes: Mapped[list[str]] = mapped_column(ARRAY(String(16)), default=list, server_default='{}')
@@ -2002,6 +2003,7 @@ class AiKey(Base):
 class AiAction(Base):
     """Việc Trợ lý AI đã làm (nhắc, ghi chú, báo cáo) hoặc đề xuất chờ giám đốc duyệt."""
     __tablename__ = 'ai_actions'
+    __table_args__ = (Index('ix_ai_actions_status', 'status', 'id'),)
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(12))
