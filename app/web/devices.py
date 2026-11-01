@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import _customer_dict, _customer_form, checked_form, render, web_user
-from .. import customer_sites, customers, equipment, products
+from .. import customer_sites, customers, equipment, equipment_reports, products
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, CustomerSite, Equipment, Product, User
@@ -90,7 +90,7 @@ def pick_site(request: Request, customer_code: str = '', user: User = Depends(we
     return render(request, 'thiet_bi_dia_diem.jinja', sites=customer_sites.search(session, customer_code, active_only=True), selected_site=None)
 
 
-def _form(request, session, data, is_new=False, error=None, status=200, saved=False):
+def _form(request, session, data, is_new=False, error=None, status=200, saved=False, reported=False, report_error=None, report_note=''):
     sites = []
     selected = int(str(data.get('site_id'))) if str(data.get('site_id', '')).isdigit() else None
     if data.get('customer_code'):
@@ -103,7 +103,11 @@ def _form(request, session, data, is_new=False, error=None, status=200, saved=Fa
                   custody_locations=LOCATIONS,custody_statuses=STATUSES,custody_accessories=ACCESSORIES,custody_users=dict(session.execute(select(User.id,User.full_name)).all()), d=data, sites=sites, selected_site=data.get('site_id'),
                   product_name=product.name if product else '', customer_name=customer.name if customer else '',
                   is_new=is_new, error=error, saved=saved, status=status,
-                  can_device_write=has_role(request.state.user, *customer_sites.WRITERS))
+                  can_device_write=has_role(request.state.user, *customer_sites.WRITERS) if is_new else equipment.can_edit(request.state.user),
+                  reports=equipment_reports.open_rows(session, data['serial']) if not is_new else [],
+                  can_report=not is_new and has_role(request.state.user, *customer_sites.WRITERS),
+                  reported=reported, report_error=report_error, report_note=report_note,
+                  view_only_technician=not is_new and not equipment.can_edit(request.state.user) and has_role(request.state.user, *customer_sites.WRITERS))
 
 
 @router.get('/thiet-bi/moi')
@@ -158,14 +162,29 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
     return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_luu=1', status_code=303)
 
 
-@router.get('/thiet-bi/{serial:path}')
-def view(request: Request, serial: str, da_luu: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return _form(request, session, equipment.snapshot(equipment.load(session, serial)), saved=bool(da_luu))
+# TUẤN 01/11/2026: thợ không sửa máy đã có; Báo sai thông tin để điều phối sửa. Serial gửi trong form vì serial có thể chứa "/"; đường dẫn chữ thường không trùng serial (serial luôn chữ hoa), và phải khai báo trước route /thiet-bi/{serial:path}.
+@router.post('/thiet-bi/bao-sai')
+def report_wrong(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    serial = str(form.get('serial', ''))
+    try:
+        row = equipment_reports.report(session, request.state.user, serial, str(form.get('note', '')))
+    except BusinessError as exc:
+        if exc.status in (403, 404):
+            raise
+        return _form(request, session, equipment.snapshot(equipment.load(session, serial)), report_error=exc.message,
+                     report_note=str(form.get('note', '')), status=exc.status)
+    return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_bao=1#bao-sai', status_code=303)
+
+
+@router.post('/thiet-bi/bao-sai/{report_id}/xong')
+def report_done(request: Request, report_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    row = equipment_reports.resolve(session, request.state.user, report_id)
+    return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '#bao-sai', status_code=303)
 
 
 @router.post('/thiet-bi/{serial:path}')
 def update(request: Request, serial: str, form=Depends(checked_form), session: Session = Depends(get_session)):
-    customer_sites.check_writer(request.state.user)
+    equipment.check_editor(request.state.user)
     shown = {**equipment.snapshot(equipment.load(session, serial)), 'version': form.get('version', ''),
              'product_code': str(form.get('product_code', '')), 'customer_code': form.get('customer_code') or None,
              'product_q': str(form.get('product_q', '')), 'customer_q': str(form.get('customer_q', ''))}
@@ -176,3 +195,8 @@ def update(request: Request, serial: str, form=Depends(checked_form), session: S
     except (BusinessError, ValidationError) as exc:
         return _form(request, session, shown, error=_error(exc), status=getattr(exc, 'status', 400))
     return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_luu=1', status_code=303)
+
+
+@router.get('/thiet-bi/{serial:path}')
+def view(request: Request, serial: str, da_luu: int = 0, da_bao: int = 0, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _form(request, session, equipment.snapshot(equipment.load(session, serial)), saved=bool(da_luu), reported=bool(da_bao))

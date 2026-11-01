@@ -1973,6 +1973,21 @@ class PushSubscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class EquipmentReport(Base):
+    """TUẤN 01/11/2026: thợ không sửa máy đã có, chỉ báo sai thông tin; điều phối sửa rồi đánh dấu đã xử lý."""
+    __tablename__ = 'equipment_reports'
+    __table_args__ = (CheckConstraint("status in ('MO','DA_XU_LY')", name='ck_equipment_report_status'),
+                      CheckConstraint("length(trim(note))>0", name='ck_equipment_report_note'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    serial: Mapped[str] = mapped_column(ForeignKey('equipment.serial', ondelete='CASCADE'), index=True)
+    note: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(8), default='MO', server_default='MO')
+    reported_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class NotificationRead(Base):
     """Người dùng đã xem thông báo nào (mã việc dạng nhóm:id); chỉ để đánh dấu Mới/Đã xem, không đụng nghiệp vụ."""
     __tablename__ = 'notification_reads'

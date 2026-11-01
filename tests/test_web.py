@@ -3279,3 +3279,65 @@ def test_from_quote_confirm_failure_keeps_draft_with_reason(client,db,web_login,
     order=db.query(SalesOrder).one()
     assert order.status=='NHAP' and r.status_code>=400
     assert f'Đã tạo đơn nháp {order.number} nhưng chưa chốt được' in r.text
+
+
+def test_technician_adds_device_but_cannot_edit_existing(client, web_login, d1_catalog, db):
+    """TUẤN 01/11: thợ chỉ thêm máy; máy đã có thì chỉ xem, điều phối/giám đốc mới sửa."""
+    from app.models import AuditLog, Equipment
+    csrf = web_login('ky.thuat', 'technician')
+    assert '+ Thêm thiết bị' in client.get('/thiet-bi').text
+    assert '>Lưu thiết bị<' in client.get('/thiet-bi/moi').text
+    r = client.post('/thiet-bi/moi', data=device_form(csrf), follow_redirects=False)
+    assert r.status_code == 303
+    page = client.get('/thiet-bi/AB123')
+    assert page.status_code == 200 and '>Lưu thiết bị<' not in page.text and 'Máy đã có chỉ xem' in page.text
+    r = client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, note='Thợ sửa', warranty_until='2031-01-01'))
+    assert r.status_code == 403
+    db.expire_all()
+    eq = db.get(Equipment, 'AB123')
+    assert eq.version == 1 and eq.note == 'Thiết bị quầy 1' and str(eq.warranty_until) == '2027-12-31'
+    assert db.query(AuditLog).filter(AuditLog.action == 'equipment.update').count() == 0
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    page = client.get('/thiet-bi/AB123')
+    assert '>Lưu thiết bị<' in page.text and 'Máy đã có chỉ xem' not in page.text
+    assert client.post('/thiet-bi/AB123', data=device_form(csrf, version=1, note='Điều phối sửa')).status_code == 200
+    db.expire_all()
+    assert db.get(Equipment, 'AB123').note == 'Điều phối sửa'
+
+
+def test_technician_reports_wrong_device_info_dispatcher_resolves(client, web_login, d1_catalog, db):
+    from app.models import AuditLog, EquipmentReport
+    from web_forms import Forms
+
+    def key(action):
+        page = client.get('/thiet-bi/AB123')
+        return next(f['fields']['form_key'] for f in Forms(page.text, str(page.url)).forms if f['path'] == action)
+    csrf = web_login('dieu.phoi', 'dispatcher')
+    client.post('/thiet-bi/moi', data=device_form(csrf))
+    csrf = web_login('ky.thuat', 'technician')
+    page = client.get('/thiet-bi/AB123')
+    assert 'Báo sai thông tin' in page.text and 'Đã xử lý' not in page.text
+    r = client.post('/thiet-bi/bao-sai', data=dict(csrf=csrf, form_key=key('/thiet-bi/bao-sai'), serial='AB123', note='   '))
+    assert r.status_code == 400 and 'Ghi ngắn chỗ nào sai' in r.text
+    r = client.post('/thiet-bi/bao-sai', data=dict(csrf=csrf, form_key=key('/thiet-bi/bao-sai'), serial='AB123', note='Máy là Canon 2900'), follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'].startswith('/thiet-bi/AB123?da_bao=1')
+    page = client.get('/thiet-bi/AB123?da_bao=1')
+    assert 'Đã gửi báo sai cho điều phối.' in page.text and 'Máy là Canon 2900' in page.text and '>Đã xử lý<' not in page.text
+    report = db.query(EquipmentReport).one()
+    assert client.post(f'/thiet-bi/bao-sai/{report.id}/xong', data=dict(csrf=csrf, form_key=key('/thiet-bi/bao-sai'))).status_code == 403
+    assert client.post('/thiet-bi/bao-sai', data=dict(csrf=csrf, form_key=key('/thiet-bi/bao-sai'), serial='KHONG-CO', note='x')).status_code == 404
+    csrf = web_login('ban.hang', 'sales')
+    page = client.get('/thiet-bi/AB123')
+    assert '>Gửi báo sai<' not in page.text and '>Đã xử lý<' not in page.text
+    csrf = web_login('dieu.phoi2', 'dispatcher')
+    work = client.get('/viec-cua-toi')
+    assert 'Thợ báo sai thông tin máy' in work.text and '/thiet-bi/AB123#bao-sai' in work.text
+    page = client.get('/thiet-bi/AB123')
+    assert '>Đã xử lý<' in page.text and '>Lưu thiết bị<' in page.text
+    r = client.post(f'/thiet-bi/bao-sai/{report.id}/xong', data=dict(csrf=csrf, form_key=key(f'/thiet-bi/bao-sai/{report.id}/xong')), follow_redirects=False)
+    assert r.status_code == 303
+    db.expire_all()
+    assert db.get(EquipmentReport, report.id).status == 'DA_XU_LY'
+    assert '/thiet-bi/AB123#bao-sai' not in client.get('/viec-cua-toi').text
+    assert [a.action for a in db.query(AuditLog).filter(AuditLog.action.like('equipment_report.%')).order_by(AuditLog.id)] == [
+        'equipment_report.create', 'equipment_report.resolve']

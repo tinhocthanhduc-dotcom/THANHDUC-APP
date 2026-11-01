@@ -3304,6 +3304,18 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .dw-sa-ba figcaption { font-size: .78rem; color: var(--muted); text-align: center; }
 @media (min-width: 1024px) { .dw-sa-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
+/* TUẤN 01/11/2026: thợ báo sai thông tin máy, điều phối bấm Đã xử lý. */
+.device-reports { display: grid; gap: 10px; }
+.device-reports h2 { margin: 0; font-size: 1rem; }
+.device-report-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.device-report-list li { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.device-report-list p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.device-report-list li > div { min-width: 0; flex: 1; }
+.device-report-list li .btn { white-space: nowrap; flex-shrink: 0; }
+.device-report-new > summary { list-style: none; width: 100%; }
+.device-report-new > summary::-webkit-details-marker { display: none; }
+.device-report-new[open] > summary { margin-bottom: 10px; }
+.device-report-new textarea { font-size: 16px; min-height: 80px; }
 /* Trợ lý AI (TUẤN 01/11/2026): biểu tượng cùng kiểu chuông; số chờ duyệt màu vàng để khác số đỏ của chuông. */
 .ai-badge { background: #f59e0b; color: #1f1300; }
 .ai-notify .notify-panel { gap: 8px; }
