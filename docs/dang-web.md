@@ -97,6 +97,11 @@ Mỗi mã in ra link duyệt `.../wp-admin/post.php?post=...`. Kết quả, chi 
 
 Công cụ tự bỏ qua mã đã có trên web (trùng SKU = mã TD) và mã đã đăng trước đó. Muốn đăng lại thêm `--lam-lai`.
 
+**Kiểm tra trùng trước khi gọi AI:** công cụ tìm trên web (cả bản nháp) sản phẩm hoặc bài viết có tên gần giống, ví dụ sản phẩm cũ chưa ghi mã TD, hoặc bài cùng máy cùng lỗi. Thấy giống thì **dừng mã đó, không tốn tiền AI**, in ra link bài trên web và ghi vào `ket-qua/<ngày>.md` mục `CÓ THỂ TRÙNG`. Mở link xem:
+
+- Đúng là trùng: không làm gì, lần chạy tự động sau sẽ không lấy lại mã/chủ đề đó.
+- Không trùng: chạy lại lệnh đó kèm `--van-dang`.
+
 ### Không dùng API
 
 Mẫu cố định (miễn phí, nội dung đơn giản; nên tự thêm thông số khi duyệt):

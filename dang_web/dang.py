@@ -28,6 +28,7 @@ def doc_trang_thai(path: Path) -> dict:
         d = {}
     d.setdefault("san_pham", {})
     d.setdefault("bai_viet", {})
+    d.setdefault("nghi_trung", {})  # mã/chủ đề bị nghi trùng: lịch tự động bỏ qua, chạy tay với --van-dang
     return d
 
 
