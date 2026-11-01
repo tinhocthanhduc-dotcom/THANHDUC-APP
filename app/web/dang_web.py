@@ -89,7 +89,7 @@ def _cach_mac_dinh(nhip) -> str:
     # Codex trên Z2 (gói ChatGPT, không tốn API) đang chạy thì ưu tiên; không thì AI tự động nếu có khóa API.
     if hd.codex_song(goc()):
         return "codex"
-    return "tu_dong" if nhip and nhip.get("ai") else "mau"
+    return "tu_dong" if nhip and nhip.get("ai") else "chatgpt_web"  # TUẤN 01/11: bỏ "Mẫu có sẵn"
 
 
 def _them_nhan(v: dict) -> dict:
@@ -351,7 +351,7 @@ def _form_soan(request, session, d: dict, error="", status=200):
     anh_co_san = bool(sp and hd.co_anh_goc(goc(), sp.code))
     codex = hd.codex_song(goc())
     if not d.get("cach_viet"):
-        d["cach_viet"] = "codex" if codex else ("tu_dong" if nhip and nhip.get("ai") else ("chatgpt_web" if d["loai"] == "bai_viet" else "mau"))
+        d["cach_viet"] = "codex" if codex else ("tu_dong" if nhip and nhip.get("ai") else "chatgpt_web")
     return render(request, "dang_web_soan.jinja", d=d, sp=sp, anh_co_san=anh_co_san, nhip=nhip, cach_viet=hd.CACH_VIET, codex=codex,
                   error=error, toi_da_anh=TOI_DA_ANH, status=status)
 

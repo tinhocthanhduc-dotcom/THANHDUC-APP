@@ -639,7 +639,10 @@ class MayDangWeb:
         tt = hd.doc_trang_thai(self.goc)
         dang_co = {(v.get("ma") or v.get("chu_de")) for v in hd.ds(self.goc) if v.get("trang_thai") not in hd.XONG}
         bo_qua = set(tt["nghi_trung"]) | dang_co
-        cach = "codex" if hd.codex_song(self.goc) else ("tu_dong" if ten_ai(self.ch) else "mau")
+        cach = "codex" if hd.codex_song(self.goc) else ("tu_dong" if ten_ai(self.ch) else None)
+        if cach is None:  # TUẤN 01/11: bỏ "Mẫu có sẵn"; không có Codex hay khóa API thì lịch không tự soạn
+            in_("Lịch tự soạn: chưa có Codex hay khóa AI, bỏ qua hôm nay")
+            return 0
         so = 0
         ma = hd.ma_co_anh(self.goc)
         for code in sorted(m for m in ma if m not in tt["san_pham"] and m not in bo_qua)[: int(lich.get("so_sp") or 0)]:
