@@ -93,6 +93,12 @@ class _WP:
         self.doi_dm = getattr(self, "doi_dm", []) + list(cap)
         return len(cap)
 
+    def xoa_anh(self, media_id):
+        self.xoa = getattr(self, "xoa", []) + [media_id]
+
+    def anh_con_dung(self, ten_file, bo_sp_id):
+        return ten_file in getattr(self, "con_dung", set())
+
     def doi_chuyen_muc_bai(self, bai_id, dm):
         self.doi_dm = getattr(self, "doi_dm", []) + [(bai_id, dm)]
 
@@ -564,6 +570,12 @@ def test_sua_bang_ai_anh_lay_anh_tren_web_khi_khong_chon_anh_moi(client, web_log
     assert v["trang_thai"] == hd.XEM_TRUOC, v.get("loi")
     assert wp.da_tai == ["https://thanhduc.vn/wp-content/uploads/a.jpg"] and len(v["anh_web"]) == 1
     assert v["gia"] == "355000"  # có mã app thì lấy giá app
+    assert v["anh_cu"] == [{"id": 5, "src": "https://thanhduc.vn/wp-content/uploads/a.jpg"}]
+    client.post(f"/dang-web/viec/{v['id']}", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), hanh_dong="dang", gia=""))
+    assert may.lam_mot_viec()
+    v = hd.doc(goc, v["id"])
+    assert v["trang_thai"] == hd.DA_DANG, v.get("loi")
+    assert wp.sua[0][1]["images"] == [{"id": 901}] and wp.xoa == [5] and v["so_anh_xoa"] == 1  # ghi ảnh mới xong mới xóa ảnh cũ
 
 
 def test_xep_danh_muc_bang_ai_chi_ghi_dong_da_tick(client, web_login, goc, nhieu_hang):
@@ -657,3 +669,84 @@ def test_sua_bai_viet_chi_doi_chuyen_muc_khong_goi_ai(client, web_login, goc):
     assert hd.doc(goc, v["id"])["trang_thai"] == hd.DA_DANG
     assert wp.sua == [(50, {"categories": [3]})]
     assert "Máy in kẹt giấy" not in client.get("/dang-web?tab=tren-web&loai=bai&dm=chua").text
+
+
+def test_sua_anh_rieng_xu_ly_tung_anh_roi_xoa_anh_cu(client, web_login, goc, nhieu_hang):
+    csrf = web_login("ban.hang", "sales")
+    wp = _wp_co_hang()
+    sp = wp.tat_ca[0]
+    sp["images"] = [{"id": 5, "src": "https://thanhduc.vn/wp-content/uploads/a.jpg"}, {"id": 6, "src": "https://thanhduc.vn/wp-content/uploads/b.jpg"}]
+    sp["description"] = '<p>Mở đầu</p><figure class="td-anh"><img src="https://thanhduc.vn/wp-content/uploads/a.jpg"></figure><h2>A</h2><p>x</p><h2>B</h2><p>y</p><h2>C</h2>'
+    may = _may(goc, wp)
+    may.lam_moi_web()
+    assert "/dang-web/sua-anh?id=1" in client.get("/dang-web?tab=tren-web&loai=sp").text
+    r = client.get("/dang-web/sua-anh?id=1")
+    assert r.status_code == 200 and 'name="che_do_5"' in r.text and 'value="web-6"' in r.text and "uploads/b.jpg" in r.text
+    base = dict(csrf=csrf, id="1", che_do_moi="giu", logo="1")
+    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-5", "web-6"], che_do_5="giu",
+                                                   che_do_6="giu", dai_dien="web-5"))
+    assert r.status_code == 400 and "Chưa có gì thay đổi" in r.text
+    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-5", "web-6"], xoa_5="1", xoa_6="1"))
+    assert r.status_code == 400 and "ít nhất 1 ảnh" in r.text and hd.ds(goc) == []
+
+    r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-6", "web-5"], che_do_5="nen_trang",
+                                                   che_do_6="giu", dai_dien="web-6"),
+                    files=[("anh", ("moi.jpg", _jpg(), "image/jpeg"))], follow_redirects=False)
+    assert r.status_code == 303
+    v = hd.ds(goc)[0]
+    assert v["kieu"] == "sua_anh" and [(a["nguon"], a.get("media_id"), a["che_do"]) for a in v["anh"]] == [
+        ("web", 6, "giu"), ("web", 5, "nen_trang"), ("moi", None, "giu")]
+
+    assert may.lam_mot_viec()
+    v = hd.doc(goc, v["id"])
+    assert v["trang_thai"] == hd.XEM_TRUOC, v.get("loi")
+    assert wp.da_tai == ["https://thanhduc.vn/wp-content/uploads/a.jpg"]  # ảnh Giữ nguyên trên web không tải về
+    k = v["ket_anh"]
+    assert k[0]["media_id"] == 6 and not k[0]["sau"] and k[1]["sau"] and not k[2]["sau"] and k[2]["goc"]
+    trang = client.get(f"/dang-web/viec/{v['id']}").text
+    assert "Ghi ảnh lên web" in trang and 'name="dung_1"' in trang and "Xóa ảnh cũ khỏi web" in trang
+
+    client.post(f"/dang-web/viec/{v['id']}", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), hanh_dong="dang", dung_1="sau",
+                                                      chen_mo_ta="1", xoa_cu="1"))
+    assert may.lam_mot_viec()
+    v = hd.doc(goc, v["id"])
+    assert v["trang_thai"] == hd.DA_DANG, v.get("loi")
+    sp_id, payload = wp.sua[0]
+    assert sp_id == 1 and set(payload) == {"images", "description"}
+    assert payload["images"] == [{"id": 6}, {"id": 901}, {"id": 902}] and wp.media == 2
+    assert "uploads/a.jpg" not in payload["description"] and payload["description"].count('class="td-anh"') == 3
+    assert wp.xoa == [5] and v["so_anh_xoa"] == 1 and v["so_anh_giu"] == 0  # ảnh 6 vẫn dùng nên không xóa
+    luu = next(x for x in hd.doc_json(hd.file_sp_web(goc), {})["ds"] if x["id"] == 1)
+    assert [m["id"] for m in luu["anhs"]] == [6, 901, 902] and luu["so_anh"] == 3
+    assert "Đã thay 3 ảnh" in client.get(f"/dang-web/viec/{v['id']}").text
+
+
+def test_xoa_anh_cu_giu_anh_con_dung_o_cho_khac(goc):
+    wp = _wp_co_hang()
+    wp.tat_ca[1]["images"] = [{"id": 7, "src": "https://thanhduc.vn/wp-content/uploads/chung.jpg"}]
+    wp.con_dung = {"trong-bai.jpg"}
+    may = _may(goc, wp)
+    may.lam_moi_web()
+    cu = [{"id": 7, "src": "https://thanhduc.vn/wp-content/uploads/chung.jpg"},
+          {"id": 8, "src": "https://thanhduc.vn/wp-content/uploads/trong-bai.jpg"},
+          {"id": 9, "src": "https://thanhduc.vn/wp-content/uploads/con-trong-mo-ta.jpg"},
+          {"id": 10, "src": "https://thanhduc.vn/wp-content/uploads/bo-di.jpg"},
+          {"id": 11, "src": "https://thanhduc.vn/wp-content/uploads/van-giu.jpg"}]
+    kq = may._xoa_anh_cu(1, cu, {11}, '<img src="https://thanhduc.vn/wp-content/uploads/con-trong-mo-ta.jpg">')
+    assert wp.xoa == [10] and kq == {"so_anh_xoa": 1, "so_anh_giu": 3}
+
+
+def test_sua_anh_chon_lai_thay_ban_dang_xem_truoc(client, web_login, goc, nhieu_hang):
+    csrf = web_login("ban.hang", "sales")
+    wp = _wp_co_hang()
+    may = _may(goc, wp)
+    may.lam_moi_web()
+    data = dict(csrf=csrf, id="1", che_do_moi="giu", logo="1", thu_tu=["web-5"], che_do_5="nen_trang", dai_dien="web-5")
+    client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4())))
+    cu = hd.ds(goc)[0]["id"]
+    r = client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4())), follow_redirects=False)
+    assert r.headers["location"] == f"/dang-web/viec/{cu}" and len(hd.ds(goc)) == 1  # đang chờ máy thì mở việc đó
+    assert may.lam_mot_viec() and hd.doc(goc, cu)["trang_thai"] == hd.XEM_TRUOC
+    r = client.post("/dang-web/sua-anh", data=dict(data, form_key=str(uuid.uuid4()), che_do_5="tach_nen"), follow_redirects=False)
+    moi = r.headers["location"].rsplit("/", 1)[-1]
+    assert moi != cu and hd.doc(goc, cu)["trang_thai"] == hd.BO and hd.doc(goc, moi)["anh"][0]["che_do"] == "tach_nen"

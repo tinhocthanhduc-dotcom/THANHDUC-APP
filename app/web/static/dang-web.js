@@ -62,6 +62,17 @@
     if (hidden && !window.DataTransfer) { hidden.hidden = false; box.querySelectorAll('[data-dw-add]').forEach(function (b) { b.closest('label').hidden = true; }); }
   });
 
+  // ---- Sửa ảnh: ‹ › đổi chỗ ảnh (thứ tự gửi theo ô ẩn thu_tu) ----
+  document.addEventListener('click', function (event) {
+    var b = event.target.closest && event.target.closest('[data-dw-move]');
+    if (!b) return;
+    var li = b.closest('li'), list = li && li.parentNode;
+    if (!list) return;
+    if (b.dataset.dwMove === '-1' && li.previousElementSibling) list.insertBefore(li, li.previousElementSibling);
+    else if (b.dataset.dwMove === '1' && li.nextElementSibling) list.insertBefore(li.nextElementSibling, li);
+    b.focus();
+  });
+
   // ---- Chép câu lệnh ChatGPT ----
   document.addEventListener('click', function (event) {
     var b = event.target.closest && event.target.closest('[data-dw-copy]');

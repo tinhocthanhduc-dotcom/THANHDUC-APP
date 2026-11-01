@@ -3288,3 +3288,18 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
   .dw-web .dw-wrow + .dw-wrow { border-top: 1px solid var(--line); }
   .dw-web .badge { justify-self: start; width: max-content; }
 }
+/* Đăng web · Sửa ảnh (TUẤN duyệt mẫu 14, 15, D8 ngày 01/11/2026) */
+.dw-sa-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dw-sa { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.dw-sa:has(input[name=dai_dien]:checked) { border-color: var(--info-solid); box-shadow: inset 0 0 0 1px var(--info-solid); }
+.dw-sa:has(.dw-sa-xoa input:checked) img { opacity: .35; }
+.dw-sa img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+.dw-sa select { width: 100%; min-height: 44px; font-size: 16px; }
+.dw-sa-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dw-sa-acts .dw-sbtn { min-width: 44px; min-height: 40px; }
+.dw-sa-xoa { margin-left: auto; color: var(--bad-solid, #b91c1c); }
+.dw-sa-ba { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dw-sa-ba figure { margin: 0; display: grid; gap: 3px; }
+.dw-sa-ba img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+.dw-sa-ba figcaption { font-size: .78rem; color: var(--muted); text-align: center; }
+@media (min-width: 1024px) { .dw-sa-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
