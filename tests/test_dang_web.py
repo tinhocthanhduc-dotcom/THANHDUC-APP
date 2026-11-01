@@ -513,3 +513,37 @@ def test_chen_anh_vao_than_bai():
     assert dang.chen_anh('<p>a</p><img src="y">', anh) == '<p>a</p><img src="y">'
     assert dang.chen_anh("<p>a</p>", []) == "<p>a</p>"
     assert dang.chen_anh("Không có đoạn", anh[:1]).startswith("<figure")
+
+
+def test_xu_ly_anh_bo_vet_ban_va_bong_mo_roi_dat_giua():
+    """Sản phẩm chụp lệch trái, có bóng mờ và vết bẩn ở góc: cắt đúng sản phẩm, đặt giữa khung."""
+    im = Image.new("RGB", (1200, 900), (250, 250, 248))
+    d = ImageDraw.Draw(im)
+    d.ellipse((80, 700, 700, 780), fill=(236, 236, 234))  # bóng mờ dưới máy
+    d.rectangle((100, 300, 600, 700), fill=(30, 30, 30))  # sản phẩm lệch trái
+    d.rectangle((1150, 40, 1160, 50), fill=(90, 90, 90))  # vết bẩn góc phải
+    out = Image.open(io.BytesIO(anh.xu_ly(im, tach_nen=False, kich_thuoc=800, logo=None))).convert("RGB")
+    cot = [x for x in range(800) if out.getpixel((x, 400))[0] < 100]
+    hang = [y for y in range(800) if out.getpixel((400, y))[0] < 100]
+    trai, phai = cot[0], 799 - cot[-1]
+    tren, duoi = hang[0], 799 - hang[-1]
+    assert abs(trai - phai) <= 3 and trai <= 40  # giữa khung, lề mỏng 4%
+    assert abs(tren - duoi) <= 3
+    assert min(out.getpixel((790, 790))) == 255 and min(out.getpixel((10, 10))) == 255  # nền trắng tinh
+
+
+def test_vung_chinh_giu_san_pham_bo_mang_nho():
+    m = Image.new("L", (400, 300), 0)
+    d = ImageDraw.Draw(m)
+    d.rectangle((50, 50, 250, 250), fill=255)
+    d.rectangle((380, 10, 386, 16), fill=255)
+    assert anh._vung_chinh(m).getbbox() == (50, 50, 251, 251)
+
+
+def test_san_pham_che_logo_thi_thu_nho_mot_chut():
+    im = Image.new("RGB", (900, 900), (255, 255, 255))
+    ImageDraw.Draw(im).rectangle((100, 100, 800, 800), fill=(20, 20, 20))
+    co = Image.open(io.BytesIO(anh.xu_ly(im, tach_nen=False, kich_thuoc=800))).convert("RGB")
+    khong = Image.open(io.BytesIO(anh.xu_ly(im, tach_nen=False, kich_thuoc=800, logo=None))).convert("RGB")
+    trai = lambda o: next(x for x in range(800) if o.getpixel((x, 400))[0] < 100)  # noqa: E731
+    assert trai(khong) <= 33 and 33 < trai(co) <= 90  # nhỏ đi nhưng không quá 14%
