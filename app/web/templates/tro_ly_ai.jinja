@@ -1,0 +1,58 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Trợ lý AI{% endblock %}
+{% block main %}<div class="page-wide list-page ai-page">
+{# Trợ lý AI (bản mẫu TUẤN duyệt 01/11/2026): Claude trên máy chủ Z2 vào app bằng khóa riêng. Tự nhắc việc, còn giao thợ / đổi hẹn / nhập hàng phải chờ giám đốc Duyệt. Không đụng tiền, kho, lương. #}
+{% call ui.page_head('Trợ lý AI', sub='AI trên máy chủ đọc việc của mọi người, tự nhắc việc, và đề xuất giao thợ hoặc đổi hẹn để anh duyệt. Không được đụng tiền, kho, lương, không nhắn khách.') %}{% endcall %}
+
+{% if new_key %}<section class="card ai-newkey" aria-live="polite"><b>Khóa mới của Trợ lý AI · chỉ hiện một lần</b>
+<p>Chép khóa này vào máy chủ Z2 theo hướng dẫn. Tải lại trang là khóa không hiện nữa; nếu làm mất thì tạo khóa mới.</p>
+<div class="ai-keyrow"><code id="ai-key-value">{{ new_key }}</code><button type="button" class="btn btn-ghost" data-copy-key>Chép</button></div></section>{% endif %}
+
+{% macro hidden(code) %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tro_ly" value="{{ code }}">{% endmacro %}
+{% for code, agent in agents.items() %}{% set key = keys.get(code) %}
+<section class="card ai-keybox" id="khoa-{{ code }}">
+<div class="ai-keyhead"><b>{{ agent.name }}</b>{% if not key %}{{ ui.badge('Chưa bật', 'nhap') }}{% elif key.paused %}{{ ui.badge('Đang tạm dừng', 'cho') }}{% else %}{{ ui.badge('Đang chạy', 'xong') }}{% endif %}</div>
+<span class="mu">{{ agent.hint }}{% if key %} · Khóa {{ key.prefix }}… · tạo {{ key.created_at|vn_time }}{% if key.last_used_at %} · dùng lần cuối {{ key.last_used_at|vn_time }}{% else %} · chưa dùng lần nào{% endif %}{% endif %}</span>
+{% if key %}<div class="ph-actions">
+<form method="post" action="/tro-ly-ai/tam-dung">{{ hidden(code) }}{% if key.paused %}<button class="btn btn-ok" name="dung" value="0">Cho chạy tiếp</button>{% else %}<button class="btn btn-ghost" name="dung" value="1">Tạm dừng</button>{% endif %}</form>
+<form method="post" action="/tro-ly-ai/khoa/tao">{{ hidden(code) }}<button class="btn btn-ghost">Tạo khóa mới</button></form>
+<form method="post" action="/tro-ly-ai/khoa/thu-hoi">{{ hidden(code) }}<button class="btn btn-danger">Khóa truy cập</button></form></div>
+<p class="hint">"Tạm dừng" thì bật lại là chạy tiếp. "Khóa truy cập" cắt hẳn, muốn dùng lại phải tạo khóa mới và chép vào máy chủ.</p>
+{% else %}<form method="post" action="/tro-ly-ai/khoa/tao">{{ hidden(code) }}<button class="btn btn-new">Tạo khóa cho {{ agent.name }}</button></form>{% endif %}
+</section>
+{% endfor %}
+
+{{ ui.tiles(tabs, keep_phone=true) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% if tab == 'nhat-ky' %}
+<div class="table-scroll"><table class="list ai-log"><thead><tr><th>Lúc</th><th>Ai</th><th>Thao tác</th></tr></thead><tbody>
+{% for r in rows %}<tr><td class="num">{{ r.at|vn_time }}</td><td>{{ r.who }}</td><td>{{ r.text }}{% if r.reason %}<br><small class="mu">"{{ r.reason }}"</small>{% endif %}</td></tr>
+{% else %}<tr><td colspan="3">{{ ui.empty('Chưa có thao tác nào.') }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}
+<div class="ai-list">
+{% for item in rows %}{% set r = item.row %}
+<article class="ai-item" id="ai-{{ r.id }}">
+<div class="ai-head">{{ ui.badge(item.kind, 'cho' if r.status == 'CHO_DUYET' else ('xong' if r.status in ('DA_GUI','DA_DUYET') else ('huy' if r.status in ('TU_CHOI','LOI') else 'nhap'))) }}
+<span class="mu">{{ r.created_at|vn_time }}{% if item.target %} · gửi {{ item.target }}{% endif %}{% if item.ticket %} · {% if can_open('/dich-vu') %}<a href="/dich-vu/{{ r.ticket_id }}">{{ item.ticket }}</a>{% else %}{{ item.ticket }}{% endif %}{% endif %}</span></div>
+<b class="ai-title">{{ r.title }}</b>
+{% if r.reason %}<div class="ai-why{{ ' ai-report' if r.kind == 'BAO_CAO' }}">{% if r.kind not in ('BAO_CAO','GHI_CHU') %}<b>Vì sao:</b> {% endif %}{{ r.reason }}</div>{% endif %}
+{% if r.status == 'CHO_DUYET' %}
+<div class="ai-actions">
+<form method="post" action="/tro-ly-ai/{{ r.id }}/duyet"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ok">Duyệt</button></form>
+<details class="ai-reject"><summary class="btn btn-danger">Từ chối</summary><form method="post" action="/tro-ly-ai/{{ r.id }}/tu-choi"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><label><b>Lý do (để AI rút kinh nghiệm, có thể bỏ trống)</b><input name="ly_do" maxlength="300" autocomplete="off"></label><button class="btn btn-danger">Xác nhận từ chối</button></form></details>
+</div>
+<small class="mu">Tự hết hạn lúc {{ r.expires_at|vn_time }} nếu anh chưa duyệt.</small>
+{% elif r.status != 'DA_GUI' %}<small class="mu">{{ status_labels[r.status] }}{% if item.decided_by %} · {{ item.decided_by }}{% endif %}{% if r.decided_at %} · {{ r.decided_at|vn_time }}{% endif %}{% if r.result %} · {{ r.result }}{% endif %}</small>{% endif %}
+</article>
+{% else %}{{ ui.empty('Chưa có đề xuất nào chờ duyệt.' if tab == 'cho-duyet' else 'Chưa có mục nào.') }}{% endfor %}
+</div>
+{% endif %}
+{{ ui.list_foot(p, 'mục') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+<script>document.addEventListener('click',function(e){var b=e.target.closest('[data-copy-key]');if(!b)return;var t=document.getElementById('ai-key-value').textContent;function sel(){var r=document.createRange();r.selectNodeContents(document.getElementById('ai-key-value'));var s=getSelection();s.removeAllRanges();s.addRange(r);}if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){b.textContent='Đã chép';},sel);}else sel();});</script>
+{% endblock %}

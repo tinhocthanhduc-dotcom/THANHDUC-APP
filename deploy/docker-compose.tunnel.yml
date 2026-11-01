@@ -7,6 +7,12 @@ services:
   caddy:
     profiles: ["vps"]
 
+  # Trợ lý AI: Claude trên chính máy chủ gọi app qua cổng này. Chỉ mở cho 127.0.0.1 (trong máy),
+  # mạng LAN và Internet không vào được; khóa AI cũng bị chặn nếu đi qua Cloudflare.
+  api:
+    ports:
+      - "127.0.0.1:8010:8000"
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped

@@ -83,6 +83,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
   <a class="brand top-brand" href="{{ navigation.home }}" aria-label="Thành Đức"><span class="brand-mark">TĐ</span></a>
   <div class="crumb">{% if navigation.crumb %}<span>{{ navigation.crumb[0] }}</span><svg class="crumb-sep" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><strong>{{ navigation.crumb[1] }}</strong>{% else %}<strong>{{ self.title() }}</strong>{% endif %}</div>
   <form method="post" action="/dang-xuat" class="who">
+    {% if 'director' in user.roles %}{# Trợ lý AI (TUẤN 01/11/2026): robot chữ AI cạnh chuông, cùng kiểu chuông; số vàng = đề xuất chờ duyệt. #}<details class="notify ai-notify" data-ai-notify="/tro-ly-ai/cho-duyet.json" data-csrf="{{ csrf }}"><summary class="notify-btn" aria-label="Trợ lý AI"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5v3"></path><circle cx="12" cy="2.5" r="1" fill="currentColor" stroke="none"></circle><rect x="3.5" y="6" width="17" height="13" rx="3.5"></rect><path d="M2 11.5v3M22 11.5v3"></path><text x="12" y="15.6" text-anchor="middle" font-size="8.5" font-weight="800" font-family="Arial,sans-serif" fill="currentColor" stroke="none">AI</text></svg><span class="notify-badge ai-badge" data-ai-count hidden></span></summary><div class="notify-panel"><div class="notify-head"><strong data-ai-title>Trợ lý AI</strong></div><div class="notify-list" data-ai-list><p class="mu">Đang tải…</p></div><a class="btn btn-ghost ai-open" href="/tro-ly-ai">Mở màn Trợ lý AI ›</a></div></details>{% endif %}
     {{ notify_bell('top-notify') }}
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
     <details class="user-menu"><summary class="user-btn" aria-label="Tài khoản"><span class="avatar">{{ ((name_parts[-2][:1] if name_parts|length > 1 else '') ~ (name_parts[-1][:1] if name_parts else '?'))|upper }}</span><span class="identity"><strong>{{ user.full_name }}</strong><small>{{ navigation.roles }}</small></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></summary>
@@ -97,6 +98,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 {% endif %}
 <script src="{{ asset('nav.js') }}" defer></script>
 <script src="{{ asset('notify.js') }}" defer></script>
+{% if user and 'director' in user.roles %}<script src="{{ asset('ai.js') }}" defer></script>{% endif %}
 {% if request.scope.get('route') %}<span hidden data-perf-route="{{ request.scope.get('route').path }}" data-csrf="{{ csrf }}"></span><script src="{{ asset('perf.js') }}" defer></script>{% endif %}
 <noscript><style>.menu-shell > .menu-toggle { display: flex; }</style></noscript>
 {% endif %}
