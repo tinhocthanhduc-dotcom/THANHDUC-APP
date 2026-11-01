@@ -101,7 +101,7 @@ def test_fifo_multiple_source_lots_one_px_per_disposition_and_normal_sales_money
     assert [(m.item_id,m.qty) for m in moves]==[(first.id,3),(second.id,2)]
     assert (o.status,o.receivable,gh.subtotal,gh.vat_total,gh.total)==('DA_GIAO',1080,1000,80,1080)
     assert finance_reports.debt_totals(db,p['finance'])['remaining']==1080
-    assert sales_reports.totals(db,p['finance'])['total']==1080 and sales_returns.original_cost(db,gh.lines[0])==(100,500)
+    assert sales_reports.totals(db,p['finance'],*[gh.delivered_at.astimezone(sales_reports.TZ).date()]*2)['total']==1080 and sales_returns.original_cost(db,gh.lines[0])==(100,500)
     assert liq.sold_quantities(db,[first.id,second.id])=={first.id:3,second.id:2};assert_pending_invariant(db)
 
 

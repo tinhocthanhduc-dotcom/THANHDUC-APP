@@ -321,7 +321,8 @@ def test_commission_belongs_to_repairer_not_returner(db,returning,configured_fin
     monkeypatch.setenv('TD_COMMISSION_START','2026-01-01');get_settings.cache_clear()
     try:
         commissions.add_rule(db,p['director'],dict(target='THO',pct=10,fixed_amount=0,effective_from='2026-01-01',reason='MV1 thử hoa hồng'))
-        month=NOW.date().replace(day=1)
+        # Tháng hoa hồng theo ngày tạo phiếu thật (giờ VN), không theo NOW cố định của fixture.
+        month=t.created_at.astimezone(commissions.TZ).date().replace(day=1)
         rows=[x for x in commissions.draft(db,month) if x['ticket_id']==t.id]
         assert len(rows)==1 and rows[0]['user_id']==p['other_tech'].id and rows[0]['amount']==50000
         assert not any(x['user_id']==p['returner'].id for x in rows)
