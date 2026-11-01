@@ -105,7 +105,8 @@ def test_empty_state_and_only_finance_or_director(client, db, people):
 def test_last_receipts_picks_latest_confirmed_only(db, people, configured_finance):
     p = people
     o1, _ = setup(db, p)
-    assert finance_reports.last_receipts(db, p['finance']) == {'KTD-000001': (date.today(), 30)}
+    from app.web.lists import _today as vn_today  # ngày theo giờ VN; date.today() lệch sau 17:00 UTC
+    assert finance_reports.last_receipts(db, p['finance']) == {'KTD-000001': (vn_today(), 30)}
     confirmed_rows = db.scalars(select(SalesReceipt).where(SalesReceipt.status == 'DA_XAC_NHAN')).all()
     assert len(confirmed_rows) == 1
 

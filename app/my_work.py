@@ -10,7 +10,7 @@ from .errors import BusinessError
 from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
 from . import production
-from .models import ProductionOrder, StockDoc
+from .models import EquipmentReport, ProductionOrder, StockDoc
 from .security import has_role
 
 LIMIT = 20
@@ -103,6 +103,12 @@ def _specs(user, today, now):
         # TUẤN 30/10/2026: thợ báo thiếu hàng mang theo; hết hiện khi thợ xác nhận lại đủ hàng hoặc phiếu qua bước đang làm.
         last_goods=select(ServiceStep.action).where(ServiceStep.ticket_id==t.id,ServiceStep.action.in_(('goods_ok','goods_short'))).order_by(ServiceStep.id.desc()).limit(1).correlate(t).scalar_subquery()
         add('service_goods_short','Thợ báo thiếu hàng mang theo',service.where(t.status.in_(('DA_NHAN','DA_HEN','DANG_LAM')),last_goods=='goods_short'),'service','/dich-vu')
+    if has_role(user, 'dispatcher'):
+        # TUẤN 01/11/2026: thợ không sửa máy đã có, chỉ báo sai; điều phối sửa rồi bấm Đã xử lý.
+        reports=select(EquipmentReport.id,EquipmentReport.serial.label('number'),EquipmentReport.status,
+            (User.full_name+': '+EquipmentReport.note).label('customer'),literal(0).label('amount'),literal(False).label('overdue')).join(
+            User,User.id==EquipmentReport.reported_by).where(EquipmentReport.status=='MO').order_by(EquipmentReport.id)
+        add('device_reports','Thợ báo sai thông tin máy',reports,'device_report','/thiet-bi')
         recovered_count=select(func.count()).where(ServiceRecoveredPart.ticket_id==t.id,
             ServiceRecoveredPart.status=='CHO_NOP').correlate(t).scalar_subquery()
         recovered_holders=select(func.string_agg(func.distinct(User.full_name),', ')).join(
@@ -294,9 +300,10 @@ def _group(session, spec, page=1):
                 # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
                 link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
-            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-'}[kind]
+            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-', 'device_report':'/thiet-bi'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if kind=='production': row['link']='/san-xuat/'+row['number']
+            if kind=='device_report': row['link']='/thiet-bi/'+quote(row['number'],safe='')+'#bao-sai'
             if kind=='supplier_debt':row['link']='/cong-no-ncc/'+quote(row['number'],safe='')+'#tra-tien'
             if kind=='pending_supplier_return':row['link']=f"/cho-xu-ly/duyet-tra-ncc#xl-{row['id']}"
             if kind=='pending_disposition':row['link']=f"/cho-xu-ly/duyet-huy#xl-{row['id']}"

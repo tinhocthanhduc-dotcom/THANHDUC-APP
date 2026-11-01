@@ -4,8 +4,13 @@
 <div class="bar device-header"><h1>{{ d.serial if not is_new else 'Thêm thiết bị' }}</h1><a href="/thiet-bi">← Thiết bị</a></div>
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+{% if view_only_technician %}<p class="alert info">Máy đã có chỉ xem. Thông tin sai thì báo điều phối sửa.</p>{% endif %}
+{% if reported %}<p class="alert ok">Đã gửi báo sai cho điều phối.</p>{% endif %}
+{% if reports %}<section class="card device-reports" id="bao-sai" aria-label="Thợ báo sai thông tin"><h2>Thợ báo sai · {{ reports|length }}</h2><ul class="device-report-list">
+{% for r, who in reports %}<li><div><b>{{ who }}</b> <small class="hint">{{ r.reported_at|vn_time }} {{ r.reported_at|vn_date }}</small><p>{{ r.note }}</p></div>
+{% if can_device_write %}<form method="post" action="/thiet-bi/bao-sai/{{ r.id }}/xong" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ok">Đã xử lý</button></form>{% endif %}</li>
+{% endfor %}</ul>{% if can_device_write %}<p class="hint">Sửa thông tin ở form bên dưới, lưu, rồi bấm Đã xử lý.</p>{% endif %}</section>{% endif %}
 {% if view_only_technician %}{# TUẤN 01/11: thợ chỉ thêm máy; máy đã có chỉ xem, sửa do điều phối/giám đốc. #}
-<p class="alert info">Máy đã có chỉ xem. Thông tin sai thì báo điều phối sửa.</p>
 <section class="card doc-card device-view" aria-label="Thông tin máy"><dl class="doc-kv">
 <dt>Khách hàng</dt><dd>{% if d.customer_code %}<b>{{ d.customer_code }}{% if customer_name %} · {{ customer_name }}{% endif %}</b>{% else %}—{% endif %}</dd>
 {% if d.site_id %}{% for s in sites if s.id == d.site_id %}<dt>Địa điểm</dt><dd>{{ s.name }}{% if s.address %} — {{ s.address }}{% endif %}</dd>{% endfor %}{% endif %}
@@ -45,6 +50,11 @@
 {% if can_device_write %}<button class="primary">Lưu thiết bị</button>{% endif %}
 </form>
 {% endif %}
+{% if view_only_technician %}<section class="card device-reports"{% if not reports %} id="bao-sai"{% endif %}><details class="device-report-new" {% if report_error %}open{% endif %}><summary class="btn btn-ghost">Báo sai thông tin</summary>
+<form method="post" action="/thiet-bi/bao-sai" class="form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="serial" value="{{ d.serial }}">
+<label>Sai chỗ nào?<textarea name="note" required maxlength="1000" placeholder="Ví dụ: máy là Canon 2900 không phải 3300; máy đã chuyển sang khách khác…" {% if report_error %}aria-invalid="true"{% endif %}>{{ report_note }}</textarea></label>
+{% if report_error %}<p class="field-error" role="alert">{{ report_error }}</p>{% endif %}
+<button class="btn btn-ok">Gửi báo sai</button></form></details></section>{% endif %}
 {% if not is_new %}<section class="card service-action"><h2>Lịch sử giữ máy</h2>{% include 'giu_may_lich_su.jinja' %}</section>{% endif %}
 <script src="{{ asset('devices.js') }}" defer></script>
 {% endblock %}
