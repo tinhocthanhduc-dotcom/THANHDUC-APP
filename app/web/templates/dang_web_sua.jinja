@@ -38,7 +38,7 @@
 </section>
 <section class="card">
 <b>Cách viết</b>
-<div class="dw-opts">{% for key in ('tu_dong', 'chatgpt_web') %}<label class="dw-opt"><input type="radio" name="cach_viet" value="{{ key }}"{{ ' checked' if d.cach_viet == key }}{{ ' disabled' if key == 'tu_dong' and not (nhip and nhip.ai) }}><span><b>{{ cach_viet[key] }}</b>{% if key == 'tu_dong' %}<small>{{ nhip.ai if nhip and nhip.ai else 'Chưa có khóa AI trên Z2' }}</small>{% else %}<small>Chép câu lệnh dán vào chatgpt.com, không tốn phí API.</small>{% endif %}</span></label>{% endfor %}</div>
+<div class="dw-opts">{% for key in ('codex', 'tu_dong', 'chatgpt_web') %}<label class="dw-opt"><input type="radio" name="cach_viet" value="{{ key }}"{{ ' checked' if d.cach_viet == key }}{{ ' disabled' if (key == 'tu_dong' and not (nhip and nhip.ai)) or (key == 'codex' and not codex) }}><span><b>{{ cach_viet[key] }}</b>{% if key == 'codex' %}<small>{{ 'Không tốn phí API, tự viết trong vài phút.' if codex else 'Chưa thấy Codex chạy trên Z2' }}</small>{% elif key == 'tu_dong' %}<small>{{ nhip.ai if nhip and nhip.ai else 'Chưa có khóa AI trên Z2' }}</small>{% else %}<small>Chép câu lệnh dán vào chatgpt.com, không tốn phí API.</small>{% endif %}</span></label>{% endfor %}</div>
 </section>
 <section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · AI soạn, anh xem trước</span>
 <button class="btn btn-new dw-big">Soạn bản sửa</button>

@@ -48,6 +48,7 @@
 <section class="card">
 <p class="group-label"><b>Cách viết</b></p>
 <div class="dw-opts">
+<label class="dw-opt"><input type="radio" name="cach_viet" value="codex" {% if d.cach_viet == 'codex' %}checked{% endif %} {% if not codex %}disabled{% endif %}><span><b>Codex trên máy chủ</b><small>{% if codex %}Không tốn phí API · dùng gói ChatGPT trên Z2, tự viết trong vài phút{% else %}Chưa thấy Codex chạy trên Z2{% endif %}</small></span></label>
 <label class="dw-opt"><input type="radio" name="cach_viet" value="tu_dong" {% if d.cach_viet == 'tu_dong' %}checked{% endif %} {% if not (nhip and nhip.ai) %}disabled{% endif %}><span><b>{{ nhip.ai if nhip and nhip.ai else 'AI tự động' }}</b><small>{% if nhip and nhip.ai %}Nhanh nhất, có tra web · vài nghìn đồng mỗi lần{% else %}Chưa có khóa AI trên Z2{% endif %}</small></span></label>
 <label class="dw-opt"><input type="radio" name="cach_viet" value="chatgpt_web" {% if d.cach_viet == 'chatgpt_web' %}checked{% endif %}><span><b>ChatGPT web (dán tay)</b><small>Không tốn phí API · anh chép câu lệnh và dán câu trả lời</small></span></label>
 {% if not bai %}<label class="dw-opt"><input type="radio" name="cach_viet" value="mau" {% if d.cach_viet == 'mau' %}checked{% endif %}><span><b>Mẫu có sẵn, không AI</b><small>Miễn phí · nội dung đơn giản, nên tự bổ sung khi xem trước</small></span></label>{% endif %}
