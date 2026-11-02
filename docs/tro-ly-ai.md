@@ -52,5 +52,9 @@ Codex trên Z2 không tự nghĩ việc. Cron chạy `python3 /home/tuan/THANHDU
 3. `POST /ai/dang-web/viec/{id}/tra-loi` với khối JSON. App ghi như khi anh dán tay; máy đăng web soạn bản xem trước.
 4. Codex lỗi / hết lượt / trả lời sai JSON: `POST /ai/dang-web/viec/{id}/khong-lam-duoc`. App chuyển sang AI tự động
    (nếu máy đăng web có khóa API) hoặc về dán tay ChatGPT web.
+5. Vẽ ảnh minh họa bài viết (02/11/2026, chỉ bài viết): `GET /ai/dang-web/ve-anh` lấy yêu cầu vẽ (câu lệnh dùng công cụ
+   `image_gen` của gói ChatGPT); Codex vẽ trong thư mục tạm, gửi từng ảnh bằng `POST /ai/dang-web/ve-anh/{id}/anh`
+   (thân request là file ảnh, ≤ 20 MB; app mở lại bằng Pillow, lưu JPEG ≤ 1800px), rồi `POST /ai/dang-web/ve-anh/{id}/xong`
+   (`ly_do` trống = xong, có lý do = không vẽ được). Anh chọn ảnh ở màn Sửa ảnh hoặc màn xem trước bài mới.
 
 Khóa này không xem được việc điều phối, không tạo việc, không đăng, không thấy giá. Đăng lên web vẫn chỉ là nháp và anh bấm Đăng.

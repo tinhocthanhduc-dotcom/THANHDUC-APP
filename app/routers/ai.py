@@ -108,3 +108,28 @@ def web_answer(viec_id: str, body: AnswerIn, key: AiKey = Depends(web_key), sess
 @router.post('/dang-web/viec/{viec_id}/khong-lam-duoc')
 def web_fail(viec_id: str, body: FailIn, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
     return web_svc.khong_lam_duoc(session, key, viec_id, body.ly_do)
+
+
+@router.get('/dang-web/ve-anh')
+def web_draw_jobs(key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    """Yêu cầu vẽ ảnh minh họa bài viết đang chờ Codex (chỉ bài viết)."""
+    return web_svc.lay_ve_anh(session, key)
+
+
+@router.post('/dang-web/ve-anh/{yc_id}/anh')
+async def web_draw_upload(yc_id: str, request: Request, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    """Codex gửi một ảnh đã vẽ (thân request là file ảnh, tối đa 20 MB)."""
+    from dang_web.ve_anh import TOI_DA_BYTE
+
+    from ..errors import BusinessError
+
+    if int(request.headers.get('content-length') or 0) > TOI_DA_BYTE:
+        raise BusinessError('FILE_TOO_LARGE', 'Ảnh quá lớn.', status=413)
+    data = await request.body()
+    return web_svc.nhan_anh(session, key, yc_id, data[:TOI_DA_BYTE + 1])
+
+
+@router.post('/dang-web/ve-anh/{yc_id}/xong')
+def web_draw_done(yc_id: str, body: FailIn, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    """Codex báo vẽ xong (ly_do trống) hoặc không vẽ được (ly_do = lý do)."""
+    return web_svc.xong_ve_anh(session, key, yc_id, body.ly_do)

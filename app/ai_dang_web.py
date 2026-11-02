@@ -103,3 +103,45 @@ def khong_lam_duoc(session, key, viec_id: str, ly_do: str = '') -> dict:
                  dict(cach_viet=kq['cach_viet'], key=key.prefix), ly_do)
     session.commit()
     return dict(id=viec_id, trang_thai=kq['trang_thai'], cach_viet=kq['cach_viet'])
+
+
+# ---------- vẽ ảnh minh họa bài viết (TUẤN duyệt mẫu D4/4, D5/5 ngày 02/11/2026) ----------
+def lay_ve_anh(session, key) -> list[dict]:
+    """Codex hỏi yêu cầu vẽ ảnh: chuyển sang đang vẽ, trả câu lệnh vẽ."""
+    from dang_web import ve_anh
+
+    g = _goc()
+    _can_ghi(g)
+    hd.ghi_nhip_codex(g)
+    return [dict(id=d['id'], ten=d.get('chu_de', ''), so_anh=d.get('so_anh', ve_anh.SO_ANH), lenh=d['lenh'])
+            for d in ve_anh.nhan_cho_codex(g)]
+
+
+def nhan_anh(session, key, yc_id: str, data: bytes) -> dict:
+    from dang_web import ve_anh
+
+    g = _goc()
+    _can_ghi(g)
+    if not ve_anh.doc(g, yc_id):
+        raise BusinessError('NOT_FOUND', 'Không thấy yêu cầu vẽ ảnh này.', status=404)
+    try:
+        ten = ve_anh.nhan_anh(g, yc_id, data)
+    except ValueError as exc:
+        raise BusinessError('BAD_FORM', str(exc), status=422) from exc
+    except LookupError as exc:
+        raise BusinessError('BAD_STATE', str(exc), status=409) from exc
+    audit.record(session, None, 'ai.dang_web_image', 'dang_web', yc_id, None, dict(ten=ten, key=key.prefix, byte=len(data)))
+    session.commit()
+    return dict(id=yc_id, ten=ten)
+
+
+def xong_ve_anh(session, key, yc_id: str, ly_do: str = '') -> dict:
+    from dang_web import ve_anh
+
+    g = _goc()
+    _can_ghi(g)
+    kq = ve_anh.ket_thuc(g, yc_id, (ly_do or '').strip()[:300])
+    if kq is None:
+        raise BusinessError('BAD_STATE', 'Yêu cầu này không còn chờ ảnh.', status=409)
+    hd.ghi_nhip_codex(g)
+    return dict(id=yc_id, trang_thai=kq['trang_thai'], so_anh=len(kq.get('anh') or []))

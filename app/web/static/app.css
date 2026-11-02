@@ -3404,3 +3404,19 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .ai-reject summary::-webkit-details-marker { display: none; }
 .ai-reject form { display: grid; gap: 8px; margin-top: 8px; }
 .ai-reject input { font-size: 16px; }
+/* Tạo ảnh minh họa bằng AI cho bài viết (TUẤN duyệt mẫu D4/4, D5/5 ngày 02/11/2026). */
+.va { display: grid; gap: 10px; }
+.va-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.va-codex { font-size: .82rem; font-weight: 600; color: var(--ok-solid, #15803d); }
+.va-codex.va-tat { color: var(--muted); }
+.va-wait { display: flex; gap: 10px; align-items: center; margin: 0; }
+.va-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.va-item { display: grid; gap: 6px; align-content: start; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.va-item:has(input:checked) { border-color: var(--info-solid); box-shadow: inset 0 0 0 1px var(--info-solid); }
+.va-item img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: #fff; }
+.va-item .btn { width: 100%; min-height: 40px; }
+.va input[name=dan] { font-size: 16px; }
+.va-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.dw-ve-anh { align-items: flex-start; }
+.va .dw-xbtn-info { border-color: var(--info-solid); color: var(--info-solid); }
+.va .dw-xbtn-info.btn-new { color: #fff; }
