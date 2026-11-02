@@ -1,0 +1,22 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Nợ đầu kỳ · {{ c.name }}{% endblock %}
+{% block main %}<div class="page-wide doc-view cnn-view" data-customer-opening="{{ c.code }}">
+{# Nợ đầu kỳ khách (TUẤN 02/11/2026): nợ cũ trước khi dùng app, gồm VAT. Giám đốc nhập; kế toán Báo thu trừ dần, giám đốc/kế toán khác xác nhận. Số còn nợ cộng vào Công nợ khách, hạn mức, cảnh báo. #}
+{% call ui.page_head(c.name, sub=c.code, back='/cong-no-khach-hang', kicker='Nợ đầu kỳ khách hàng') %}<a class="btn btn-ghost" href="/khach-hang/{{ c.code|urlquote }}">Trang khách</a>{% endcall %}
+{% if error %}<p class="alert bad form-alert" data-error-code="{{ error_code }}" role="alert">{{ error }}</p>{% if error_code=='MAPPING_REQUIRED' %}<a href="/ghep-tai-chinh">Giám đốc ghép quỹ và danh mục</a>{% endif %}{% endif %}{% if saved %}{{ ui.toast('Đã lưu') }}<p class="alert ok">Đã lưu.</p>{% endif %}
+<div class="doc-grid"><div class="doc-main">
+<section class="card doc-card" id="no-dau-ky"><div class="doc-card-head"><h2 class="doc-h">Nợ cũ trước khi dùng app</h2></div>
+{% if opening %}<dl class="kx-kv cnn-pad"><dt>Số</dt><dd><b>{{ opening.number }}</b></dd><dt>Ngày chốt nợ</dt><dd>{{ opening.as_of.strftime('%d/%m/%Y') }}</dd><dt>Số nợ (gồm VAT)</dt><dd><b>{{ opening.amount|money }} đồng</b></dd>{% if opening.note %}<dt>Ghi chú</dt><dd>{{ opening.note }}</dd>{% endif %}</dl>
+{% else %}<p class="hint cnn-pad">Khách chưa có nợ đầu kỳ.{% if not director %} Chỉ giám đốc được nhập.{% endif %}</p>{% endif %}
+{% if director %}<details class="cnn-pad"{% if opening_open %} open{% endif %}><summary class="btn btn-ghost">{{ 'Sửa nợ đầu kỳ' if opening else 'Nhập nợ đầu kỳ' }}</summary>
+<form method="post" action="{{ url }}" class="form" data-customer-opening-form><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ shown.version }}">
+<label><b>Số tiền khách còn nợ (gồm VAT)</b><input name="amount" value="{{ shown.amount }}" inputmode="numeric" data-money required></label>
+<label><b>Tính đến ngày</b><input type="date" name="as_of" value="{{ shown.as_of }}" required></label>
+<label><b>Ghi chú</b><textarea name="note" maxlength="4000" placeholder="Ví dụ: các hóa đơn còn nợ theo sổ Finance cũ">{{ shown.note }}</textarea></label>
+<p class="hint">{% if opening %}Không được nhỏ hơn số đã thu và đang chờ xác nhận. Nhập 0 để xóa (chỉ khi chưa có báo thu nào).{% else %}Lấy số nợ còn lại của khách ở sổ cũ, tính đến ngày bắt đầu dùng app.{% endif %}</p>
+<button class="primary">Lưu nợ đầu kỳ</button></form></details>{% endif %}
+</section>
+</div><aside class="doc-side">
+{% if opening and collection %}{% include 'bao_thu_trong_don.jinja' %}{% endif %}
+</aside></div>
+</div>{% endblock %}

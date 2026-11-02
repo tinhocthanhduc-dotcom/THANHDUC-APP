@@ -41,9 +41,10 @@
 <dl class="kx-kv"><dt>Hạn mức</dt><dd>{% if c.allow_debt %}{{ c.credit_limit|money }}{% if c.credit_limit > debt.total %} · còn {{ (c.credit_limit - debt.total)|money }}{% else %} · <span class="lt-bad">vượt</span>{% endif %}{% else %}Không cho nợ{% endif %}</dd>
 <dt>Nợ từ</dt><dd{% if debt.old %} class="lt-bad"{% endif %}>{{ debt.since.strftime('%d/%m/%Y') }} · {{ debt.days }} ngày</dd>
 {% if debt.pending %}<dt>Chờ xác nhận</dt><dd>{{ debt.pending|money }}</dd>{% endif %}</dl>
-<ul class="kx-owe">{% for r in debt.docs[:5] %}<li><a href="{{ '/don-ban/' if r.kind == 'DB' else '/dich-vu/' }}{{ r.id }}">{{ r.number }}</a><span>{{ r.remaining|money }}</span></li>{% endfor %}</ul>
+<ul class="kx-owe">{% for r in debt.docs[:5] %}<li><a href="{% if r.kind == 'DK' %}/cong-no-khach-hang/dau-ky/{{ c.code|urlencode }}{% else %}{{ '/don-ban/' if r.kind == 'DB' else '/dich-vu/' }}{{ r.id }}{% endif %}">{{ r.number }}{% if r.kind == 'DK' %} · nợ đầu kỳ{% endif %}</a><span>{{ r.remaining|money }}</span></li>{% endfor %}</ul>
 {% else %}<p class="hint">Khách không còn nợ.{% if c.allow_debt %} Hạn mức {{ c.credit_limit|money }} đ.{% endif %}</p>{% endif %}
 <a class="btn btn-ghost" href="/bao-cao/tai-chinh?khach={{ c.code | urlencode }}#chung-tu">Xem sổ công nợ</a>
+{% if is_director %}<a class="btn btn-ghost" href="/cong-no-khach-hang/dau-ky/{{ c.code|urlencode }}">Nợ đầu kỳ</a>{% endif %}
 </section>{% endif %}
 <section class="card kx-contact"><h2 class="qf-h">Liên hệ</h2>
 <dl class="kx-kv">

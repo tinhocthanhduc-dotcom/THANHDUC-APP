@@ -12,7 +12,7 @@ from .config import get_settings
 from .errors import BusinessError
 from .models import (AttendanceHoliday as Holiday, AttendanceMonthLock as MonthLock,
                      AttendancePunch as Punch, AttendanceRequest as Request, Employee, SalesDelivery, SalesOrder,
-                     ServiceStep, ServiceTicket, ServiceVisit, User)
+                     PayrollMonth, ServiceStep, ServiceTicket, ServiceVisit, User)
 from .security import has_role
 from .stock_docs import _transaction
 
@@ -333,8 +333,12 @@ def unlock_month(session,user,month,reason):
     director(user);month=month_day(_date(month));reason=str(reason or '').strip()
     if not reason:raise BusinessError('REASON_REQUIRED','Mở khóa phải có lý do.')
     with _transaction(session):
+        # G04: khóa chung với lệnh duyệt lương (payroll._guard) rồi mới đọc, để không chạy đua.
+        session.execute(text('select pg_advisory_xact_lock_shared(836005,0)'))
         _month_locks(session,month,month,False);row=session.get(MonthLock,month)
         if not is_locked(row):raise BusinessError('MONTH_NOT_LOCKED','Tháng chưa khóa.',status=409)
+        if session.get(PayrollMonth,month,populate_existing=True) is not None:
+            raise BusinessError('LUONG_DA_DUYET','Lương tháng này đã duyệt, không mở khóa công được. Điều chỉnh vào tháng sau.',status=409)
         before=_snapshot(row);row.unlocked_by=user.id;row.unlocked_at=max(_now(),row.locked_at+timedelta(microseconds=1));row.unlock_reason=reason
         _record(session,user,'unlock','attendance_month_lock',row,before,reason)
     return row

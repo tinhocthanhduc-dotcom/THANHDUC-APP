@@ -120,7 +120,7 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         debts=union_all(select(sales.c.customer_code,sales.c.remaining,sales.c.days,
                 cast(func.timezone('Asia/Ho_Chi_Minh',sales.c.confirmed_at),Date).label('oldest')),
             select(all_debts.c.customer_code,all_debts.c.remaining,service_days,all_debts.c.day)
-                .where(all_debts.c.kind=='DV')).subquery()
+                .where(all_debts.c.kind.in_(('DV','DK')))).subquery()
         add('KHACH_NO_QUA_HAN',select(Customer.code.label('link_key'),Customer.name,func.sum(debts.c.remaining).label('amount'),
             func.max(debts.c.days).label('days'),func.min(debts.c.oldest).label('oldest'),
             case((func.max(debts.c.days)>config.ALERT_DEBT_DAYS,'DO'),else_='VANG').label('level'))

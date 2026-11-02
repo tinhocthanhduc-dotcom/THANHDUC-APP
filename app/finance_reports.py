@@ -7,7 +7,7 @@ from sqlalchemy import Date, case, cast, func, literal, select, union_all
 
 from . import sales_orders
 from .errors import BusinessError
-from .models import PendingDisposition, CashCategory, CashDoc, Customer, Fund, FundBalance, FundLedger, SalesOrder, SalesReceipt, ServiceTicket
+from .models import PendingDisposition, CashCategory, CashDoc, Customer, CustomerOpeningDebt, Fund, FundBalance, FundLedger, SalesOrder, SalesReceipt, ServiceTicket
 from .security import has_role
 
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -117,8 +117,18 @@ def _debts():
                 model.receivable, paid.label('paid'), pending.label('pending'), (model.receivable - paid).label('remaining'))
             .outerjoin(receipts, receipts.c.parent_id == model.id)
             .where(model.status.in_(status), model.receivable > paid))
+    def opening():
+        # Nợ đầu kỳ khách (DK): nợ cũ trước khi dùng app, ngày nợ = ngày chốt số nợ.
+        from . import sales_receipts
+        o = CustomerOpeningDebt
+        receipts = sales_receipts.totals(o)
+        paid, pending = func.coalesce(receipts.c.paid, 0), func.coalesce(receipts.c.pending, 0)
+        return (select(literal('DK').label('kind'), o.id, o.number, o.customer_code, o.as_of.label('day'),
+                o.amount.label('receivable'), paid.label('paid'), pending.label('pending'), (o.amount - paid).label('remaining'))
+            .outerjoin(receipts, receipts.c.parent_id == o.id).where(o.amount > paid))
     return union_all(source(SalesOrder, SalesReceipt.order_id, ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'), sales_orders.first_delivery(), 'DB'),
-                     source(ServiceTicket, SalesReceipt.ticket_id, ('HOAN_THANH', 'DA_DONG'), ServiceTicket.priced_at, 'DV')).subquery()
+                     source(ServiceTicket, SalesReceipt.ticket_id, ('HOAN_THANH', 'DA_DONG'), ServiceTicket.priced_at, 'DV'),
+                     opening()).subquery()
 
 
 def customers(session, user):
@@ -149,10 +159,11 @@ def customer_docs(session, user, customer_code):
 def last_receipts(session, user):
     """Lần thu đã xác nhận gần nhất của từng khách: {mã khách: (ngày thu, số tiền)}. Chỉ đọc, dùng cho màn Công nợ khách hàng."""
     check_reader(user)
-    customer = func.coalesce(SalesOrder.customer_code, ServiceTicket.customer_code).label('customer_code')
+    customer = func.coalesce(SalesOrder.customer_code, ServiceTicket.customer_code, CustomerOpeningDebt.customer_code).label('customer_code')
     stmt = (select(customer, SalesReceipt.received_at, SalesReceipt.amount)
             .outerjoin(SalesOrder, SalesOrder.id == SalesReceipt.order_id)
             .outerjoin(ServiceTicket, ServiceTicket.id == SalesReceipt.ticket_id)
+            .outerjoin(CustomerOpeningDebt, CustomerOpeningDebt.id == SalesReceipt.opening_id)
             .where(SalesReceipt.status == 'DA_XAC_NHAN')
             .distinct(customer).order_by(customer, SalesReceipt.received_at.desc(), SalesReceipt.decided_at.desc(), SalesReceipt.id.desc()))
     with session.no_autoflush:

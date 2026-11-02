@@ -133,7 +133,7 @@ def _draft_query(month):
     prior as (select l.source,l.order_id,l.ticket_id,l.production_id,l.delivery_id,sum(l.amount) previous from commission_lines l
          join commission_months m on m.month=l.month where l.month<:month and l.source<>'DIEU_CHINH'
          group by l.source,l.order_id,l.ticket_id,l.production_id,l.delivery_id),
-    finished as (select distinct on (s.ticket_id) s.ticket_id,s.actor_id,s.at from service_steps s
+    finished as (select distinct on (s.ticket_id) s.ticket_id,s.actor_id,s.assignee_id,s.at from service_steps s
          where s.to_status='HOAN_THANH' and s.at<:hi order by s.ticket_id,s.at,s.id),
     fees as (select ticket_id,sum(amount) base from service_lines where kind='PHI' group by ticket_id),
     sources as (
@@ -149,7 +149,7 @@ def _draft_query(month):
       left join prior p on p.order_id=o.id and p.source='DON_BAN'
       where o.created_at>=:start_at and o.created_at<:hi and (m.order_id is not null or p.order_id is not null)
       union all
-      select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.actor_id),null,t.id,null,null,1,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
+      select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.assignee_id,f.actor_id),null,t.id,null,null,1,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
         coalesce(fee.base,0),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
         t.status='DA_HUY' or w.number is not null or t.declined_at is not null,
         case when t.declined_at is not null then 'Khách không sửa' when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,

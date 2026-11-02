@@ -179,4 +179,4 @@ def build(request, session, user, c, tab='mo', trang='', so='', saved=False, war
     return render(request, 'khach_xem.jinja', c=c, phones=phones, contacts=c.contacts, sites=site_svc.search(session, code),
                   quick=quick, tiles=tiles, tabs=tabs, tab=tab, rows=rows, page=page, debt=debt, can_debt=can_debt,
                   can_write=has_role(user, *CUSTOMER_WRITERS), saved=saved, warnings=warnings,
-                  open_count=len(open_docs))
+                  open_count=len(open_docs), is_director=has_role(user, 'director'))

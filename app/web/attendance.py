@@ -13,7 +13,7 @@ from .. import attendance as svc
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import AttendanceHoliday,AttendanceMonthLock,AttendancePunch,Employee,User
+from ..models import AttendanceHoliday,AttendanceMonthLock,AttendancePunch,Employee,PayrollMonth,User
 from ..security import has_role
 from . import checked_form,render,web_user
 from .dispatch import _csv_text
@@ -106,6 +106,7 @@ def board(request:Request,user:User=Depends(reader_user),session:Session=Depends
     return _render(request,'cham_cong_bang.jinja',month=month,rows=svc.board(session,user,month),
         dates=list(svc._days(month,svc.month_end(month))),locked=svc.is_locked(session.get(AttendanceMonthLock,month)),
         lock=session.get(AttendanceMonthLock,month),is_director=is_director,today=svc.today(),
+        payroll_approved=session.get(PayrollMonth,month) is not None,
         pending=svc.pending_count(session,user) if is_director else 0)
 
 
