@@ -144,3 +144,17 @@ def test_hang_moi_nhap_chua_len_web(client, db, web_login, goc, make_user):
     assert "Hàng mới nhập chưa có trên web" not in client.get("/dang-web?tab=san-pham").text
     hd.bo_ghep_web(goc, 2)
     assert 'value="TD-0001"' in client.get("/dang-web?tab=tren-web&loai=sp&loc=chua-len&moi=1").text
+
+
+def test_app_khong_can_httpx_khi_mo_man_sua_anh():
+    """Máy app (api) không cài httpx — chỉ máy đăng web có. Lỗi 500 Sửa ảnh ngày 02/11/2026."""
+    import subprocess
+    import sys
+
+    ma = ("import sys; sys.modules['httpx'] = None\n"
+          "from app.web.dang_web import _anh_cua_muc\n"
+          "it = {'anhs': [{'id': 5, 'src': 'https://w/a.jpg'}], 'anhs_mo_ta': [{'id': 0, 'src': 'https://w/a-300x300.jpg'}]}\n"
+          "assert _anh_cua_muc('san_pham', it)[1]['trung']\n"
+          "from dang_web.so_ten import slug\n")
+    kq = subprocess.run([sys.executable, "-c", ma], capture_output=True, text=True)
+    assert kq.returncode == 0, kq.stderr[-800:]
