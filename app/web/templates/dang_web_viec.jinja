@@ -173,8 +173,8 @@
 {% set loi_ghi = v.loi_ghi or [] %}
 <section class="card"><div class="tiles keep-phone"><span class="tile t-static"><span class="t-label">Đã ghi</span><span class="t-n">{{ v.so_da_ghi or 0 }}</span></span><span class="tile t-static"><span class="t-label">Lỗi</span><span class="t-n">{{ loi_ghi|length }}</span></span></div>
 {% if loi_ghi %}<p class="group-label"><b>Không ghi được</b></p>
-<ul class="dw-list">{% for x in loi_ghi %}<li><div class="dw-row"><span class="dw-main"><b>{{ x.ma }} · {{ x.ten }}</b><small class="dw-err">{{ x.loi }}</small></span>
-<a class="btn btn-ghost dw-sbtn" href="/dang-web/ghep-ma?nhom=cho-ghi&amp;q={{ x.ma|urlquote }}">Ghép lại</a></div></li>{% endfor %}</ul>
+<ul class="dw-list">{% for x in loi_ghi %}<li><div class="dw-row"><span class="dw-main"><b>{{ x.ma or ('bỏ ' ~ x.ma_cu) }} · {{ x.ten }}</b><small class="dw-err">{{ x.loi }}</small></span>
+<a class="btn btn-ghost dw-sbtn" href="/dang-web/ghep-ma?nhom=cho-ghi&amp;q={{ (x.ma or x.ma_cu)|urlquote }}">Ghép lại</a></div></li>{% endfor %}</ul>
 <p class="hint">Sản phẩm lỗi vẫn nằm ở “Đã ghép · chờ ghi lên web”. Sửa xong bấm Ghi lại ở màn Ghép mã.</p>{% endif %}
 <p class="hint">Chỉ đổi ô Mã (SKU) trên web. Tên, giá, ảnh, mô tả, trạng thái giữ nguyên.</p>
 <div class="dw-two"><a class="btn btn-ghost" href="/dang-web/ghep-ma">Về Ghép mã</a><a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai=sp">Danh sách trên web</a></div>

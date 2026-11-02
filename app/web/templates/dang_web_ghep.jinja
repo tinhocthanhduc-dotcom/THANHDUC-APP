@@ -22,7 +22,7 @@
 <button class="btn btn-ok" name="hanh_dong" value="dung_nhieu" data-gm-ok disabled>✓ Đúng hết đã tick (<span data-gm-n>0</span>)</button>
 </form>{% endif %}
 {% if rows %}<ul class="dw-list gm-list">
-<li class="dw-head gm-row" aria-hidden="true"><span></span><span></span><span>Sản phẩm trên web</span><span>{{ 'Mã đã ghép' if nhom == 'cho-ghi' else 'Gợi ý mã TD trong app' }}</span><span class="dw-n">Giá web · app</span><span class="dw-n">Thao tác</span></li>
+<li class="dw-head gm-row" aria-hidden="true"><span></span><span></span><span>Sản phẩm trên web</span><span>{{ 'Mã đã ghép' if nhom in ('cho-ghi', 'da-co') else 'Gợi ý mã TD trong app' }}</span><span class="dw-n">Giá web · app</span><span class="dw-n">Thao tác</span></li>
 {% for r in rows %}
 <li class="gm-row">
 <span class="dw-tick">{% if r.ma and nhom in ('chac', 'xem') %}<input type="checkbox" name="chon" value="{{ r.id }}:{{ r.ma }}" form="gm-nhieu" data-gm-chon aria-label="Chọn {{ r.ten }}">{% endif %}</span>
@@ -35,6 +35,9 @@
 <span class="gm-acts">
 {% if nhom == 'cho-ghi' %}
 {% if r.bo_duoc %}<form method="post" action="/dang-web/ghep-ma">{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}<button class="btn btn-danger dw-sbtn" name="hanh_dong" value="bo">Bỏ ghép</button></form>{% else %}<span class="hint">App đã đăng</span>{% endif %}
+{% elif nhom == 'da-co' %}
+{% if r.bo_duoc %}<form method="post" action="/dang-web/ghep-ma">{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}<button class="btn btn-danger dw-sbtn" name="hanh_dong" value="bo_web" onclick='return confirm({{ ("Bỏ mã " ~ r.ma ~ " khỏi “" ~ r.ten ~ "” trên web? Ô Mã (SKU) trên web sẽ để trống để anh ghép lại.")|tojson }})'>Bỏ ghép</button></form>{% else %}<span class="hint">App đã đăng</span>{% endif %}
+{% if r.xem %}<a class="btn btn-ghost dw-sbtn" href="{{ r.xem }}" target="_blank" rel="noopener">Xem ↗</a>{% endif %}
 {% else %}
 {% if r.ma %}<form method="post" action="/dang-web/ghep-ma">{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}{{ an('ma', r.ma) }}<button class="btn btn-ok dw-sbtn" name="hanh_dong" value="dung">Đúng</button></form>{% endif %}
 <details class="gm-khac"><summary class="btn btn-ghost dw-sbtn">{{ 'Chọn mã khác' if r.ma else 'Chọn mã' }}</summary>

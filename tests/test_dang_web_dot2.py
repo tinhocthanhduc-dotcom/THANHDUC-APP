@@ -93,6 +93,19 @@ def test_ghep_ma_goi_y_dung_khong_co_roi_ghi_sku_len_web(client, web_login, goc,
     r = client.post(f"/dang-web/viec/{viec_id}", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), hanh_dong="viet_lai"))
     assert r.status_code == 409
 
+    # Ô thứ 5 "Đã có mã TD": Bỏ ghép xóa liên kết trong app và xóa SKU trên web để ghép lại.
+    da_co = client.get("/dang-web/ghep-ma?nhom=da-co").text
+    assert "Mực in Epson 003" in da_co and "Hộp mực Canon 326" in da_co and "Bỏ ghép" in da_co
+    r = _post(client, csrf, nhom="da-co", hanh_dong="bo_web", web_id="3")
+    assert r.status_code == 303
+    v2 = hd.doc(goc, r.headers["location"].rsplit("/", 1)[1])
+    assert v2["kieu"] == "ghi_sku" and v2["ghi"][0]["ma"] == "" and v2["ghi"][0]["ma_cu"] == "TD-0410"
+    assert "TD-0410" not in hd.doc_xac_nhan(goc)
+    assert may.lam_mot_viec()
+    assert wp.ghi[-1] == [(3, "")]
+    ds = {x["id"]: x for x in hd.doc_json(hd.file_sp_web(goc), {})["ds"]}
+    assert ds[3]["sku"] == "" and "Mực in Epson 003" not in client.get("/dang-web/ghep-ma?nhom=da-co").text
+
 
 def test_wordpress_ghi_sku_chi_gui_sku_va_doc_loi_theo_thu_tu():
     wp = WordPress.__new__(WordPress)
