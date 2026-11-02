@@ -11,7 +11,7 @@ from html import unescape
 import httpx
 
 from .so_ten import (  # noqa: F401  (giữ tên cũ cho chỗ khác import từ đây)
-    HANG_MAY, TU_BO_QUA, _ten, _tu_noi_dung, _ty_le_tu_chung, bo_dau, cau_tim, chuan_ten, do_giong, do_giong_bai,
+    HANG_MAY, TU_BO_QUA, _ten, cung_anh, _tu_noi_dung, _ty_le_tu_chung, bo_dau, cau_tim, chuan_ten, do_giong, do_giong_bai,
     ma_model, slug, tim_gan_giong, tu_khoa,
 )
 
@@ -284,15 +284,6 @@ def xoa_anh_trong_bai(html: str, src: str) -> str:
     html = _IMG_RE.sub(lambda m: "" if src in m.group(0) else m.group(0), html)
     html = re.sub(r"<!--\s*wp:image\b[^>]*-->\s*<!--\s*/wp:image\s*-->", "", html)
     return re.sub(r"<p>\s*</p>", "", html)
-
-
-def cung_anh(a: str, b: str) -> bool:
-    """Hai địa chỉ ảnh cùng một file gốc (bỏ đuôi cỡ -300x200 WordPress tự tạo)."""
-    def goc(u):
-        ten = (u or "").split("?")[0].rsplit("/", 1)[-1]
-        ten = ten.rsplit(".", 1)[0]
-        return re.sub(r"-\d+x\d+$", "", ten).lower()
-    return bool(a and b) and goc(a) == goc(b)
 
 
 def link_sua(wp_url: str, post_id: int) -> str:

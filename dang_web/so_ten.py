@@ -155,3 +155,12 @@ def so_khop_hang(hang: list[tuple[str, str]], web: list[dict], toi_da: int = 3) 
             giong.sort(key=lambda x: -x["diem"])
             ra[code] = {"kieu": "giong", "web": giong[:toi_da]}
     return ra
+
+
+def cung_anh(a: str, b: str) -> bool:
+    """Hai địa chỉ ảnh cùng một file gốc (bỏ đuôi cỡ -300x200 WordPress tự tạo)."""
+    def goc(u):
+        ten = (u or "").split("?")[0].rsplit("/", 1)[-1]
+        ten = ten.rsplit(".", 1)[0]
+        return re.sub(r"-\d+x\d+$", "", ten).lower()
+    return bool(a and b) and goc(a) == goc(b)

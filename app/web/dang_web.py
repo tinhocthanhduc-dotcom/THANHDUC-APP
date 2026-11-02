@@ -596,7 +596,7 @@ def _anh_cua_muc(loai: str, it: dict) -> list[dict]:
     """Ảnh đang trên web của một sản phẩm/bài viết: key (ổn định trên màn), src, media_id, vai.
     Sản phẩm 3 nhóm (TUẤN duyệt mẫu D8/8 ngày 02/11/2026): dai_dien (ảnh đầu), album (ảnh sau), mo_ta (ảnh nằm trong mô tả).
     Bài viết: dai_dien, bai. Ảnh mô tả/trong bài trùng ảnh đại diện thì đánh dấu trung để anh bỏ."""
-    from dang_web.wordpress import cung_anh
+    from dang_web.so_ten import cung_anh
 
     if loai == "san_pham":
         ra = [{"key": f"web-{int(m['id'])}", "src": m.get("src", ""), "media_id": int(m["id"]), "vai": "album"}
@@ -849,7 +849,7 @@ def _nap_sua_anh(v: dict, form) -> None:
 def _nap_anh_ai(v: dict, chon: str) -> None:
     """Bài viết mới: ảnh AI anh chọn ở màn xem trước được đặt vào khung 1200×675, đóng logo, làm ảnh đại diện."""
     from dang_web import anh as anh_mod
-    from dang_web.wordpress import slug
+    from dang_web.so_ten import slug
 
     v["anh_web"] = [t for t in v.get("anh_web") or [] if not t.startswith("ai-")]
     v["anh_nguon"] = [p for p in v.get("anh_nguon") or [] if "/ve-anh/" not in p]
