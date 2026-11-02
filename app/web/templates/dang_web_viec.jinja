@@ -63,18 +63,23 @@
 {{ mo_form() }}
 <div class="dw-cols dw-2"><div>
 {% for k in v.ket_anh %}<section class="card">
-{% set vai = {'dai_dien': 'Ảnh đại diện', 'bai': 'Ảnh trong bài', 'them': 'Thêm vào cuối bài'}.get(k.vai, '') if bai else ('Đại diện' if loop.first else '') %}
+{% set h2 = v.h2 or [] %}{% set noi = ('dưới mục “' ~ h2[k.vi_tri|int] ~ '”') if (k.vi_tri and k.vi_tri|int < h2|length) else ('cuối ' ~ ('bài' if bai else 'mô tả')) %}
+{% set vai = {'dai_dien': '① Ảnh đại diện', 'album': '② Ảnh album', 'mo_ta': '③ Trong mô tả', 'bai': '③ Ảnh trong bài', 'them': '③ Thêm vào bài · ' ~ noi}.get(k.vai, '') if (bai or v.ba_nhom) else ('Đại diện' if loop.first else '') %}
+{% if k.vai == 'mo_ta' and k.nguon == 'moi' %}{% set vai = vai ~ ' · ' ~ noi %}{% endif %}
 <b>Ảnh {{ loop.index }}{{ ' · ' ~ vai if vai }} · {{ che_do_anh.get(k.che_do) if k.che_do else ('Đã chỉnh' if k.sau else 'Giữ nguyên') }}</b>
-{% if k.sau %}<div class="dw-sa-ba{{ ' sa-wide' if bai }}">
+{% set rong = bai or k.vai == 'mo_ta' %}{% if k.sau %}<div class="dw-sa-ba{{ ' sa-wide' if rong }}">
 <figure>{% if k.truoc %}<img src="{{ k.truoc }}" alt="Ảnh {{ loop.index }} đang trên web">{% else %}<img src="/dang-web/anh/{{ v.id }}/{{ k.truoc_file }}" alt="Ảnh {{ loop.index }} gốc">{% endif %}<figcaption>{{ 'Đang trên web' if k.truoc else 'Ảnh gốc' }}</figcaption></figure>
 <figure><img src="/dang-web/anh-web/{{ k.sau }}" alt="Ảnh {{ loop.index }} sau xử lý"><figcaption>Sau xử lý</figcaption></figure>
 </div>
 <div class="dw-two"><label class="chk"><input type="radio" name="dung_{{ loop.index0 }}" value="sau"{{ ' checked' if k.dung != 'goc' }}> Dùng ảnh sau xử lý</label><label class="chk"><input type="radio" name="dung_{{ loop.index0 }}" value="goc"{{ ' checked' if k.dung == 'goc' }}> Dùng ảnh gốc</label></div>
-{% else %}<div class="dw-sa-ba{{ ' sa-wide' if bai }}"><figure>{% if k.truoc %}<img src="{{ k.truoc }}" alt="Ảnh {{ loop.index }} đang trên web">{% else %}<img src="/dang-web/anh-web/{{ k.goc }}" alt="Ảnh {{ loop.index }}">{% endif %}<figcaption>{{ 'Giữ đúng ảnh đang trên web' if k.truoc else 'Đưa lên như ảnh gốc' }}</figcaption></figure></div>{% endif %}
+{% else %}<div class="dw-sa-ba{{ ' sa-wide' if rong }}"><figure>{% if k.truoc %}<img src="{{ k.truoc }}" alt="Ảnh {{ loop.index }} đang trên web">{% else %}<img src="/dang-web/anh-web/{{ k.goc }}" alt="Ảnh {{ loop.index }}">{% endif %}<figcaption>{{ 'Giữ đúng ảnh đang trên web' if k.truoc else 'Đưa lên như ảnh gốc' }}</figcaption></figure></div>{% endif %}
 </section>{% endfor %}
+{% if v.bo_trong_bai %}<section class="card"><b>Bỏ {{ v.bo_trong_bai|length }} ảnh khỏi {{ 'bài' if bai else 'mô tả' }}</b>
+<div class="sa-bo-list">{% for src in v.bo_trong_bai %}<img src="{{ src }}" alt="Ảnh bỏ {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">{% endfor %}</div></section>{% endif %}
 </div><div class="dw-side">
 <section class="card">
-{% if not bai %}<label class="chk"><input type="checkbox" name="chen_mo_ta" value="1"{{ ' checked' if v.chen_mo_ta is not defined or v.chen_mo_ta }}> Chèn ảnh vào mô tả (tối đa 3 ảnh, thay ảnh app chèn lần trước)</label>
+{% if not bai and not v.ba_nhom %}<label class="chk"><input type="checkbox" name="chen_mo_ta" value="1"{{ ' checked' if v.chen_mo_ta is not defined or v.chen_mo_ta }}> Chèn ảnh vào mô tả (tối đa 3 ảnh, thay ảnh app chèn lần trước)</label>{% endif %}
+{% if not bai %}
 <label class="chk"><input type="checkbox" name="xoa_cu" value="1"{{ ' checked' if v.xoa_cu is not defined or v.xoa_cu }}> Xóa ảnh cũ khỏi web sau khi ghi xong</label>
 <p class="hint">Ảnh cũ bị thay được xóa hẳn khỏi thư viện Media (cả các cỡ thu nhỏ). Ảnh còn dùng ở sản phẩm, bài viết hoặc trang khác thì giữ lại.</p>{% else %}<p class="hint">Ảnh đã chỉnh được thay đúng chỗ trong bài, chữ trong bài giữ nguyên. Ảnh cũ vẫn để trong thư viện Media.</p>{% endif %}
 </section>

@@ -593,16 +593,32 @@ def _loai_anh(loai: str) -> str:
 
 
 def _anh_cua_muc(loai: str, it: dict) -> list[dict]:
-    """Ảnh đang trên web của một sản phẩm/bài viết: key (ổn định trên màn), src, media_id, vai (dai_dien/bai)."""
+    """Ảnh đang trên web của một sản phẩm/bài viết: key (ổn định trên màn), src, media_id, vai.
+    Sản phẩm 3 nhóm (TUẤN duyệt mẫu D8/8 ngày 02/11/2026): dai_dien (ảnh đầu), album (ảnh sau), mo_ta (ảnh nằm trong mô tả).
+    Bài viết: dai_dien, bai. Ảnh mô tả/trong bài trùng ảnh đại diện thì đánh dấu trung để anh bỏ."""
+    from dang_web.wordpress import cung_anh
+
     if loai == "san_pham":
-        return [{"key": f"web-{int(m['id'])}", "src": m.get("src", ""), "media_id": int(m["id"]), "vai": ""}
-                for m in it.get("anhs") or [] if isinstance(m, dict) and str(m.get("id", "")).isdigit() and m.get("src")]
+        ra = [{"key": f"web-{int(m['id'])}", "src": m.get("src", ""), "media_id": int(m["id"]), "vai": "album"}
+              for m in it.get("anhs") or [] if isinstance(m, dict) and str(m.get("id", "")).isdigit() and m.get("src")]
+        if ra:
+            ra[0]["vai"] = "dai_dien"
+        dd = ra[0] if ra else None
+        for i, m in enumerate(it.get("anhs_mo_ta") or []):
+            if isinstance(m, dict) and m.get("src"):
+                mid = int(m.get("id") or 0)
+                trung = bool(dd) and ((mid and mid == dd["media_id"]) or cung_anh(m["src"], dd["src"]))
+                ra.append({"key": f"mota-{i}", "src": m["src"], "media_id": mid, "vai": "mo_ta", "trung": trung})
+        return ra
     ra = []
     if it.get("anh_id") and (it.get("anh_goc") or it.get("anh")):
         ra.append({"key": f"web-{int(it['anh_id'])}", "src": it.get("anh_goc") or it.get("anh"), "media_id": int(it["anh_id"]), "vai": "dai_dien"})
+    dd = ra[0] if ra else None
     for i, m in enumerate(it.get("anhs_bai") or []):
         if isinstance(m, dict) and m.get("src"):
-            ra.append({"key": f"bai-{i}", "src": m["src"], "media_id": int(m.get("id") or 0), "vai": "bai"})
+            mid = int(m.get("id") or 0)
+            trung = bool(dd) and ((mid and mid == dd["media_id"]) or cung_anh(m["src"], dd["src"]))
+            ra.append({"key": f"bai-{i}", "src": m["src"], "media_id": mid, "vai": "bai", "trung": trung})
     return ra
 
 
@@ -610,9 +626,12 @@ def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", stat
     bai = loai == "bai_viet"
     co_ds = ("anhs_bai" in it) if bai else ("anhs" in it)
     g = goc()
-    ve = ve_anh.moi_nhat(g, wp_id=int(it["id"])) if bai else None
-    return render(request, "dang_web_sua_anh.jinja", it=it, loai=loai, bai=bai, anhs=_anh_cua_muc(loai, it), co_ds_anh=co_ds, d=d,
-                  ve=_ve_json(ve), codex=hd.codex_song(g),
+    ve = ve_anh.moi_nhat(g, wp_id=int(it["id"]), loai=loai)
+    anhs = _anh_cua_muc(loai, it)
+    return render(request, "dang_web_sua_anh.jinja", it=it, loai=loai, bai=bai, anhs=anhs, co_ds_anh=co_ds, d=d,
+                  ve=_ve_json(ve), codex=hd.codex_song(g), h2=it.get("h2_bai" if bai else "h2_mo_ta") or [],
+                  co_mo_ta=("anhs_bai" if bai else "anhs_mo_ta") in it,
+                  nhom={v: [m for m in anhs if m["vai"] == v] for v in ("dai_dien", "album", "mo_ta", "bai")},
                   ma="" if bai else _ma_cua_web(session, it), nhip=hd.doc_nhip(goc()),
                   toi_da_anh=TOI_DA_ANH_BAI if bai else TOI_DA_ANH, error=error, status=status, cho_lay_lai=cho_lay_lai)
 
@@ -681,33 +700,71 @@ async def edit_photos(request: Request, form=Depends(checked_form), session: Ses
         moi = await _doc_anh(form)
         thu_tu = [str(x) for x in form.getlist("thu_tu")]
         dai_dien = str(form.get("dai_dien", ""))
-        ds = []
+        hop_le = ("dai_dien", "bai") if bai else ("dai_dien", "album", "mo_ta")
+        so_h2 = len(it.get("h2_bai" if bai else "h2_mo_ta") or [])
+
+        def vai_cua(key, mac_dinh):
+            v = str(form.get(f"vai_{key}", "") or mac_dinh)
+            if bai and v == "dai_dien" and not key.startswith("moi-") and mac_dinh != "dai_dien":
+                v = mac_dinh  # ảnh trong bài không chuyển thành ảnh đại diện (chỉ ảnh mới)
+            if not bai and mac_dinh == "mo_ta" and v != "mo_ta":
+                v = "mo_ta"  # ảnh đang nằm trong mô tả giữ nhóm mô tả (bỏ thì tick Bỏ)
+            return v if v in hop_le else mac_dinh
+
+        def vi_tri(key):
+            vt = str(form.get(f"vitri_{key}", ""))
+            return vt if vt.isdigit() and int(vt) < so_h2 else ""
+
+        ds, bo_trong_bai = [], []
         for key in dict.fromkeys(thu_tu):  # thứ tự trên màn (nút ‹ ›)
             if key in tren_web:
                 m = tren_web[key]
-                if form.get(f"xoa_{key}") == "1" and m["vai"] != "bai":
+                trong = m["vai"] in ("bai", "mo_ta")
+                if form.get(f"xoa_{key}") == "1":
+                    if trong:
+                        bo_trong_bai.append(m["src"])
                     continue
-                if bai and m["vai"] == "dai_dien" and dai_dien.startswith("moi-"):
+                vai = vai_cua(key, m["vai"])
+                if not bai and form.get(f"vai_{key}") is None and not trong:
+                    vai = "dai_dien" if (dai_dien == key or (not dai_dien and m["vai"] == "dai_dien")) else "album"
+                if bai and m["vai"] == "dai_dien" and (dai_dien.startswith("moi-") or any(
+                        str(form.get(f"vai_{k}", "")) == "dai_dien" for k in thu_tu if k.startswith("moi-"))):
                     continue  # ảnh đại diện mới thay ảnh cũ
-                ds.append({"nguon": "web", "key": key, "media_id": m["media_id"], "src": m["src"], "vai": m["vai"],
+                ds.append({"nguon": "web", "key": key, "media_id": m["media_id"], "src": m["src"], "vai": vai,
                            "sua": form.get(f"chon_{key}") == "1", "bien": _bien(form, key)})
             elif key.startswith("moi-") and key[4:].isdigit() and 0 < int(key[4:]) <= len(moi):
                 n = int(key[4:])
-                ds.append({"nguon": "moi", "key": key, "so": n, "sua": True, "bien": _bien(form, key),
-                           "vai": ("dai_dien" if dai_dien == key else "them") if bai else ""})
-        if not bai and dai_dien:
-            ds.sort(key=lambda x: 0 if x["key"] == dai_dien else 1)
+                if bai:
+                    vai = "dai_dien" if (dai_dien == key or str(form.get(f"vai_{key}", "")) == "dai_dien") else "them"
+                else:
+                    vai = "dai_dien" if dai_dien == key else vai_cua(key, "album")
+                ds.append({"nguon": "moi", "key": key, "so": n, "sua": True, "bien": _bien(form, key), "vai": vai,
+                           "vi_tri": vi_tri(key) if vai in ("mo_ta", "them") else ""})
+        if not bai:
+            dd = [x for x in ds if x["vai"] == "dai_dien"]
+            for x in dd[1:]:
+                x["vai"] = "album"  # chỉ 1 ảnh đại diện
+            if not dd:
+                x = next((x for x in ds if x["vai"] == "album"), None)
+                if x:
+                    x["vai"] = "dai_dien"  # bỏ ảnh đại diện thì ảnh album đầu lên thay
+            ds.sort(key=lambda x: {"dai_dien": 0, "album": 1}.get(x["vai"], 2))
         if bai and not any(x["vai"] == "dai_dien" for x in ds):
             for x in ds:  # bài chưa có ảnh đại diện: ảnh mới đầu tiên làm ảnh đại diện
                 if x["nguon"] == "moi":
                     x["vai"] = "dai_dien"
                     break
-        if not bai and not ds:
-            raise BusinessError("BAD_FORM", "Sản phẩm cần ít nhất 1 ảnh: giữ lại ảnh trên web hoặc thêm ảnh mới.")
-        toi_da = TOI_DA_ANH + len([x for x in ds if x["vai"] == "bai"]) if bai else TOI_DA_ANH
-        if len(ds) > toi_da:
-            raise BusinessError("PHOTO_LIMIT", f"Tối đa {TOI_DA_ANH} ảnh (đang có {len(ds)}). Bỏ bớt ảnh.")
-        if not any(x["sua"] for x in ds) and [x["key"] for x in ds] == list(tren_web):
+        if not bai and not any(x["vai"] == "dai_dien" for x in ds):
+            raise BusinessError("BAD_FORM", "Sản phẩm cần ít nhất 1 ảnh đại diện hoặc ảnh album: giữ lại ảnh trên web hoặc thêm ảnh mới.")
+        if not bai and len([x for x in ds if x["vai"] != "mo_ta"]) > TOI_DA_ANH:
+            raise BusinessError("PHOTO_LIMIT", f"Ảnh đại diện + album tối đa {TOI_DA_ANH} ảnh. Bỏ bớt ảnh.")
+        if len([x for x in ds if x["nguon"] == "moi"]) > (TOI_DA_ANH_BAI if bai else TOI_DA_ANH):
+            raise BusinessError("PHOTO_LIMIT", f"Tối đa {TOI_DA_ANH_BAI if bai else TOI_DA_ANH} ảnh mới một lần. Bỏ bớt ảnh.")
+        doi_nhom = any(x["nguon"] == "web" and x["vai"] != tren_web[x["key"]]["vai"] for x in ds)
+        ngoai = [k for k, m in tren_web.items() if m["vai"] not in ("bai", "mo_ta")]  # ảnh không nằm trong chữ
+        con = [x["key"] for x in ds if x["nguon"] == "web" and x["key"] in ngoai]
+        if (not any(x["sua"] for x in ds) and not bo_trong_bai and not doi_nhom and con == ngoai
+                and not any(x["nguon"] == "moi" for x in ds)):
             raise BusinessError("BAD_FORM", "Chưa có gì thay đổi: tick ảnh cần sửa, chỉnh ảnh, đổi thứ tự, bỏ hoặc thêm ảnh.")
         g = goc()
         dang_lam = [v for v in hd.ds(g) if v.get("kieu") == "sua_anh" and v.get("loai") == loai and v.get("wp_id") == int(it["id"])
@@ -716,7 +773,8 @@ async def edit_photos(request: Request, form=Depends(checked_form), session: Ses
             if hd.sua(g, v["id"], lambda x: x.update(trang_thai=hd.BO), (hd.XEM_TRUOC, hd.LOI)) is None:
                 return RedirectResponse(f"/dang-web/viec/{v['id']}", status_code=303)
         them = dict(kieu="sua_anh", wp_id=int(it["id"]), ten=it.get("ten", ""), ma="" if bai else _ma_cua_web(session, it), anh=ds,
-                    logo=d["logo"], logo_goc=d["logo_goc"], chen_mo_ta=not bai, xoa_cu=not bai, van_dang=True, viet_lai=True)
+                    bo_trong_bai=bo_trong_bai, ba_nhom=not bai, h2=list(it.get("h2_bai" if bai else "h2_mo_ta") or []),
+                    logo=d["logo"], logo_goc=d["logo_goc"], chen_mo_ta=False, xoa_cu=not bai, van_dang=True, viet_lai=True)
         if bai:
             them["chu_de"] = it.get("ten", "")[:200]
         viec_id = hd.tao_viec(g, loai, them, moi)
@@ -939,10 +997,15 @@ def draw(request: Request, form=Depends(checked_form)):
         tham = dict(chu_de=d.get("tieu_de") or v.get("chu_de", ""), viec_id=viec_id, tom_tat=d.get("tom_tat", ""), dan=dan,
                     dan_y=ve_anh.dan_y_bai(d.get("noi_dung_html", "")))
     else:
-        it, _ = _muc_web("bai_viet", str(form.get("id", "")))
-        ve_lai = f"/dang-web/sua-anh?loai=bai&id={int(it['id'])}#tao-anh"
-        cu = ve_anh.moi_nhat(g, wp_id=int(it["id"]))
-        tham = dict(chu_de=it.get("ten", ""), wp_id=int(it["id"]), dan=dan, dan_y=it.get("dan_y", ""))
+        loai = _loai_anh(str(form.get("loai", "bai")))
+        it, _ = _muc_web(loai, str(form.get("id", "")))
+        ve_lai = f"/dang-web/sua-anh?loai={'bai' if loai == 'bai_viet' else 'sp'}&id={int(it['id'])}#tao-anh"
+        cu = ve_anh.moi_nhat(g, wp_id=int(it["id"]), loai=loai)
+        if loai == "san_pham":  # ảnh cho phần mô tả sản phẩm (TUẤN 02/11)
+            dan_y = "\n".join(f"H2: {h}" for h in it.get("h2_mo_ta") or [])
+        else:
+            dan_y = it.get("dan_y", "")
+        tham = dict(chu_de=it.get("ten", ""), wp_id=int(it["id"]), dan=dan, dan_y=dan_y, loai=loai)
     if not hd.codex_song(g):
         raise BusinessError("CODEX_OFF", "Codex trên Z2 đang tắt nên chưa vẽ được ảnh.", status=409)
     if not (cu and cu["trang_thai"] in ve_anh.DANG_CHAY):  # đang vẽ thì chờ lượt đó, không gửi thêm

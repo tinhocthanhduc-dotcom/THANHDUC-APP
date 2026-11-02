@@ -7,8 +7,14 @@
   if (!form) return;
   var bai = form.dataset.bai === '1';
   var max = parseInt(form.dataset.max || '6', 10);
-  var list = form.querySelector('[data-sa-list]');
-  var addTile = form.querySelector('[data-sa-add-tile]');
+  // TUẤN duyệt mẫu D8/8 ngày 02/11/2026: 3 nhóm ảnh, mỗi nhóm một danh sách (data-vai); nhóm ③ khung ngang.
+  var lists = Array.prototype.slice.call(form.querySelectorAll('[data-sa-list]'));
+  var list = lists[0];
+  var H2 = [];
+  try { H2 = JSON.parse(form.dataset.h2 || '[]'); } catch (e) { H2 = []; }
+  function listOf(vai) { return form.querySelector('[data-sa-list][data-vai="' + vai + '"]'); }
+  function tileOf(ul) { return ul.querySelector('[data-sa-add-tile]'); }
+  function isWide(card) { var ul = card.closest('[data-sa-list]'); return bai || !!(ul && ul.dataset.wide === '1'); }
   var editor = form.querySelector('[data-sa-editor]');
   var frame = form.querySelector('[data-sa-frame]');
   var big = form.querySelector('[data-sa-img]');
@@ -17,11 +23,29 @@
   var zOut = form.querySelector('[data-sa-zv]'), rOut = form.querySelector('[data-sa-rv]');
   var title = form.querySelector('[data-sa-title]'), note = form.querySelector('[data-sa-note]');
   var filesInput = form.querySelector('[data-sa-files]');
-  var RW = bai ? 16 : 1, RH = bai ? 9 : 1;
   var current = null, newCount = 0;
 
   function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false }; }
-  function cards() { return Array.prototype.slice.call(list.querySelectorAll('[data-sa-card]')); }
+  function cards() { return Array.prototype.slice.call(form.querySelectorAll('[data-sa-list] [data-sa-card]')); }
+  function setVai(card, vai) {
+    var v = card.querySelector('[data-sa-vai]');
+    if (v) v.value = vai;
+    var len = card.querySelector('[data-sa-len]'), mv = card.querySelector('.sa-move');
+    if (len) len.hidden = vai !== 'album';
+    if (mv) mv.hidden = vai !== 'album';
+  }
+  function moveTo(card, vai, front) {
+    var ul = listOf(vai);
+    if (!ul) return;
+    var first = ul.querySelector('[data-sa-card]');
+    ul.insertBefore(card, front && first ? first : tileOf(ul));
+    setVai(card, vai);
+  }
+  function lenDaiDien(card) {  // ảnh album lên làm ảnh đại diện, ảnh đại diện cũ xuống đầu album
+    var dd = listOf('dai_dien');
+    Array.prototype.slice.call(dd.querySelectorAll('[data-sa-card]')).forEach(function (c) { if (c !== card && !c.hidden) moveTo(c, 'album', true); });
+    moveTo(card, 'dai_dien', false);
+  }
   function st(card) { return card._st || (card._st = blank()); }
   function save(card) {
     var s = st(card), out = { z: +s.z.toFixed(4), r: +s.r.toFixed(2), x: +s.x.toFixed(4), y: +s.y.toFixed(4), q: s.q, f: s.f ? 1 : 0 };
@@ -117,7 +141,7 @@
     s.tu = false; s.r = 0;
     if (!b) { s.z = 1; s.x = 0; s.y = 0; }
     else {
-      var W = RW * 1000, H = RH * 1000, s0 = Math.min(W / b.iw, H / b.ih);
+      var W = isWide(card) ? 16000 : 1000, H = isWide(card) ? 9000 : 1000, s0 = Math.min(W / b.iw, H / b.ih);
       var k = 0.9 * Math.min(W / (b.x1 - b.x0), H / (b.y1 - b.y0));
       s.z = Math.max(0.2, Math.min(5, k / s0));
       s.x = -((b.x0 + b.x1) / 2 - b.iw / 2) * k / W;
@@ -148,16 +172,20 @@
     card.classList.add('sa-current');
     editor.hidden = false;
     if (note) note.hidden = true;
-    var i = cards().indexOf(card) + 1;
-    title.textContent = 'Ảnh ' + i + ' · đang chỉnh';
+    frame.classList.toggle('sa-wide', isWide(card));
+    var ul = card.closest('[data-sa-list]'), ten = { dai_dien: 'Ảnh đại diện', album: 'Ảnh album', mo_ta: 'Ảnh trong mô tả', bai: 'Ảnh trong bài' };
+    title.textContent = (ten[ul && ul.dataset.vai] || 'Ảnh') + ' · đang chỉnh';
     big.onload = drawBig;
     big.src = card._img ? card._img.src : card.querySelector('[data-sa-pick] img').src;
     drawBig();
   }
 
   // ---- ảnh mới ----
-  function addFiles(files) {
-    var room = max - list.querySelectorAll('[data-sa-card][data-moi]').length;
+  function addFiles(files, ul) {
+    ul = ul || list;
+    var vai = ul.dataset.vai, wide = bai || ul.dataset.wide === '1';
+    if (vai === 'dai_dien') files = files.slice(0, 1);
+    var room = max - form.querySelectorAll('[data-sa-card][data-moi]').length;
     if (files.length > room && window.tdToast) window.tdToast('Tối đa ' + max + ' ảnh mới', 'warn');
     files = files.slice(0, Math.max(0, room));
     var shrink = window.tdShrinkPhoto || function (f) { return Promise.resolve(f); };
@@ -167,14 +195,28 @@
         var key = 'moi-' + newCount;
         var li = document.createElement('li');
         li.className = 'sa-card'; li.dataset.saCard = ''; li.dataset.key = key; li.dataset.moi = '1'; li._file = file;
-        li.innerHTML = '<input type="hidden" name="thu_tu"><input type="hidden" data-sa-bien>' +
-          '<button type="button" class="sa-mini' + (bai ? ' sa-wide' : '') + '" data-sa-pick><img alt=""></button>' +
-          '<div class="sa-row"><label class="chk"><input type="checkbox" checked disabled data-sa-chon> Sửa</label><span class="hint">' + (/^ai-/.test(file.name || '') ? 'Ảnh AI vẽ' : 'Ảnh mới') + '</span></div>' +
-          '<div class="sa-row"><label class="chk"><input type="radio" name="dai_dien"> Đại diện</label>' +
-          (bai ? '' : '<span class="sa-move"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="-1" aria-label="Lên trước">‹</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="1" aria-label="Ra sau">›</button></span>') +
-          '</div><button type="button" class="btn btn-danger dw-sbtn" data-sa-bo>Bỏ ảnh mới</button>';
+        var trong = vai === 'mo_ta' || vai === 'bai', sp = !bai && !trong;
+        var chon = '';
+        if (trong) {
+          chon = '<label class="sa-vitri"><b>Đặt dưới mục</b><select data-sa-vitri>' +
+            H2.map(function (h, i) { return '<option value="' + i + '">H2 · ' + esc(h) + '</option>'; }).join('') +
+            '<option value="">Cuối ' + (bai ? 'bài' : 'mô tả') + '</option></select></label>';
+        }
+        li.innerHTML = '<input type="hidden" name="thu_tu"><input type="hidden" data-sa-bien><input type="hidden" data-sa-vai value="' + vai + '">' +
+          '<button type="button" class="sa-mini' + (wide ? ' sa-wide' : '') + '" data-sa-pick><img alt=""></button>' +
+          '<div class="sa-row"><label class="chk"><input type="checkbox" checked disabled data-sa-chon> Sửa</label><span class="hint">' + (/^ai-/.test(file.name || '') ? 'Ảnh AI vẽ' : 'Ảnh mới') + '</span>' +
+          (sp ? '<span class="sa-move"' + (vai === 'album' ? '' : ' hidden') + '><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="-1" aria-label="Lên trước">‹</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="1" aria-label="Ra sau">›</button></span>' : '') +
+          '</div>' + chon +
+          '<div class="sa-row">' + (sp ? '<button type="button" class="btn btn-ghost dw-sbtn" data-sa-len' + (vai === 'album' ? '' : ' hidden') + '>Lên đại diện</button>' : '') +
+          '<button type="button" class="btn btn-danger dw-sbtn" data-sa-bo>Bỏ ảnh mới</button></div>';
         li.querySelector('[data-sa-pick]').setAttribute('aria-label', 'Chỉnh ảnh mới');
-        list.insertBefore(li, addTile);
+        if (vai === 'dai_dien') {  // chỉ 1 ảnh đại diện: sản phẩm thì ảnh cũ xuống album, bài viết thì ảnh cũ được thay
+          Array.prototype.slice.call(ul.querySelectorAll('[data-sa-card]')).forEach(function (c) {
+            if (c.hidden) return;
+            if (bai) { c.hidden = true; li._thayCu = c; } else { moveTo(c, 'album', true); }
+          });
+        }
+        ul.insertBefore(li, tileOf(ul));
         save(li);
         load(li, URL.createObjectURL(file));
         var done = function () { if (li._img.naturalWidth) autoCenter(li); else li._img.addEventListener('load', function () { autoCenter(li); }, { once: true }); };
@@ -184,6 +226,8 @@
       count();
     });
   }
+
+  function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
 
   function count() {
     var n = cards().filter(function (c) { var x = c.querySelector('[data-sa-chon]'); return x && x.checked; }).length;
@@ -200,15 +244,18 @@
     if (p) { pick(p.closest('[data-sa-card]')); return; }
     var mv = t.closest('[data-sa-move]');
     if (mv) {
-      var li = mv.closest('[data-sa-card]');
-      if (mv.dataset.saMove === '-1' && li.previousElementSibling) list.insertBefore(li, li.previousElementSibling);
-      else if (mv.dataset.saMove === '1' && li.nextElementSibling && li.nextElementSibling !== addTile) list.insertBefore(li.nextElementSibling, li);
+      var li = mv.closest('[data-sa-card]'), ul = li.parentNode;
+      if (mv.dataset.saMove === '-1' && li.previousElementSibling) ul.insertBefore(li, li.previousElementSibling);
+      else if (mv.dataset.saMove === '1' && li.nextElementSibling && li.nextElementSibling !== tileOf(ul)) ul.insertBefore(li.nextElementSibling, li);
       mv.focus(); return;
     }
+    var len = t.closest('[data-sa-len]');
+    if (len) { var lc = len.closest('[data-sa-card]'); lenDaiDien(lc); lc.querySelector('[data-sa-pick]').focus(); return; }
     var bo = t.closest('[data-sa-bo]');
     if (bo) {
       var c = bo.closest('[data-sa-card]');
       if (c === current) { current = null; editor.hidden = true; }
+      if (c._thayCu) c._thayCu.hidden = false;
       c.remove(); count(); return;
     }
     var a = t.closest('[data-sa-act]');
@@ -234,7 +281,7 @@
   rIn.addEventListener('input', function () { if (!current) return; var s = st(current); s.r = parseFloat(rIn.value) || 0; s.tu = false; save(current); mark(current); drawBig(); });
   form.addEventListener('change', function (event) {
     var t = event.target;
-    if (t.matches('[data-sa-add]')) { var f = Array.prototype.slice.call(t.files || []); t.value = ''; addFiles(f); return; }
+    if (t.matches('[data-sa-add]')) { var f = Array.prototype.slice.call(t.files || []); t.value = ''; addFiles(f, t.closest('[data-sa-list]')); return; }
     if (t.matches('[data-sa-all]')) {
       cards().forEach(function (c) { var x = c.querySelector('[data-sa-chon]'); if (x && !x.disabled) { x.checked = t.checked; drawMini(c); } });
       count(); return;
@@ -296,15 +343,16 @@
       var key = 'moi-' + n;
       c.querySelector('input[name=thu_tu]').value = key;
       c.querySelector('[data-sa-bien]').name = 'bien_' + key;
-      var r = c.querySelector('input[name=dai_dien]');
-      if (r) r.value = key;
+      c.querySelector('[data-sa-vai]').name = 'vai_' + key;
+      var vt = c.querySelector('[data-sa-vitri]');
+      if (vt) vt.name = 'vitri_' + key;
       if (dt) dt.items.add(c._file);
     });
     if (dt) filesInput.files = dt.files;
   });
 
   // Ảnh AI vẽ (ve-anh.js) bấm "Dùng ảnh này" thì thêm như ảnh mới
-  form.addEventListener('sa:them-anh', function (event) { addFiles(event.detail || []); });
+  form.addEventListener('sa:them-anh', function (event) { addFiles(event.detail || [], form.querySelector('[data-sa-list][data-ai]')); });
 
   // ---- khởi đầu ----
   cards().forEach(function (c) { save(c); load(c, c.dataset.src, c.dataset.fallback); });

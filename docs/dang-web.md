@@ -204,3 +204,11 @@ Mỗi lần chạy in chi phí AI (Claude: số tiền ước tính; ChatGPT: s�
 
 ## Vẽ ảnh bài viết theo dàn ý (02/11/2026)
 Mỗi lần Codex vẽ 3 ảnh. Bài mới: máy đăng web viết bài xong mới gửi yêu cầu vẽ, kèm dàn ý H1/H2/H3 và đoạn mở bài (`ve_anh.dan_y_bai`), để ảnh 1 minh họa tiêu đề bài, các ảnh còn lại minh họa từng mục H2. Bài đã có trên web lấy dàn ý từ `dan_y` trong danh sách bài (làm mới khi mở Sửa ảnh).
+
+## Sửa ảnh chia 3 nhóm (TUẤN duyệt mẫu D8/8 ngày 02/11/2026)
+- Sản phẩm: ① Ảnh đại diện (ảnh đầu của `images`), ② Ảnh album (các ảnh sau), ③ Ảnh trong mô tả (`anhs_mo_ta` đọc từ `description`, chỉ có khi lấy lại 1 sản phẩm lúc mở Sửa ảnh). Bài viết: ① và ③ Ảnh trong bài.
+- Form gửi `vai_<key>`, `vitri_<key>` (số thứ tự mục H2, rỗng = cuối), `xoa_<key>`. Ảnh mô tả/trong bài bị bỏ nằm trong `bo_trong_bai` (src) và bị gỡ khỏi chữ bằng `xoa_anh_trong_bai`.
+- Việc mới có `ba_nhom: true`: máy ghi `images` = đại diện + album; ảnh nhóm ③ chỉ đặt vào mô tả (`chen_sau_h2`), thay tại chỗ nếu là ảnh cũ. Việc cũ không có vai 3 nhóm vẫn chạy kiểu cũ.
+- Ảnh trong mô tả trùng ảnh đại diện (cùng media id hoặc cùng file gốc bỏ đuôi -WxH) được đánh dấu và tick Bỏ sẵn.
+- Soạn/sửa sản phẩm bằng AI không chèn ảnh đại diện vào mô tả nữa (chỉ ảnh thứ 2 trở đi).
+- Codex vẽ ảnh cho mô tả sản phẩm: `ve_anh.tao(loai="san_pham")`, lệnh `lenh_ve_sp`; yêu cầu tách theo `loai` nên id sản phẩm và id bài viết không lẫn.
