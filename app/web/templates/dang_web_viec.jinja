@@ -3,14 +3,14 @@
 {% import '_dang_web_ve_anh.jinja' as va %}
 {% set bai = v.loai == 'bai_viet' %}
 {% set d = v.noi_dung or {} %}
-{% set sua_web = v.kieu == 'sua_web' %}{% set xep = v.kieu == 'xep_danh_muc' %}{% set sua_anh = v.kieu == 'sua_anh' %}
+{% set sua_web = v.kieu == 'sua_web' %}{% set xep = v.kieu == 'xep_danh_muc' %}{% set sua_anh = v.kieu == 'sua_anh' %}{% set ghi_sku = v.kieu == 'ghi_sku' %}
 {% set sua = v.sua or {} %}
 {% block title %}{{ v.ma or 'Bài viết' }} · {{ v.nhan }}{% endblock %}
 {# TUẤN duyệt mẫu 01/11/2026: màn 3 (dán ChatGPT), 4 (xem trước, sửa, đăng nháp), 6 (có thể trùng), bản máy tính D3 (2 cột). #}
 {% block main %}<div class="{{ 'page-wide' if v.trang_thai == 'xem_truoc' else 'page-mid' }} dw-page">
-{% if xep %}{% set phu = 'Xếp danh mục bằng AI' %}{% elif sua_anh %}{% set phu = (v.ma ~ ' · ' if v.ma else '') ~ 'Sửa ảnh, không dùng AI' %}{% else %}{% set phu = ('Bài viết' if bai else (v.ma or 'Sản phẩm trên web')) ~ ' · ' ~ cach_viet.get(v.cach_viet, '') ~ (' · sửa bằng AI, ghi đè lên web' if sua_web else (' · viết lại đè lên bài trên web' if v.viet_lai else '')) %}{% endif %}
+{% if ghi_sku %}{% set phu = 'Ghép mã · chỉ ghi ô Mã (SKU), không đổi tên, giá, ảnh' %}{% elif xep %}{% set phu = 'Xếp danh mục bằng AI' %}{% elif sua_anh %}{% set phu = (v.ma ~ ' · ' if v.ma else '') ~ 'Sửa ảnh, không dùng AI' %}{% else %}{% set phu = ('Bài viết' if bai else (v.ma or 'Sản phẩm trên web')) ~ ' · ' ~ cach_viet.get(v.cach_viet, '') ~ (' · sửa bằng AI, ghi đè lên web' if sua_web else (' · viết lại đè lên bài trên web' if v.viet_lai else '')) %}{% endif %}
 {% set ve = ('tren-web&loai=' ~ ('bai' if bai else 'sp')) if (sua_web or xep or sua_anh) else ('bai-viet' if bai else 'san-pham') %}
-{{ ui.page_head(v.ten or v.ma or v.chu_de, sub=phu, back='/dang-web?tab=' ~ ve, badge_label=v.nhan, badge_tone=v.tone) }}
+{{ ui.page_head(v.ten or v.ma or v.chu_de, sub=phu, back=('/dang-web/ghep-ma?nhom=cho-ghi' if ghi_sku else '/dang-web?tab=' ~ ve), badge_label=v.nhan, badge_tone=v.tone) }}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
 {% macro nut(hanh_dong, label, cls='btn-ghost', confirm='') %}<button class="btn {{ cls }}" name="hanh_dong" value="{{ hanh_dong }}" formnovalidate{% if confirm %} onclick='return confirm({{ confirm|tojson }})'{% endif %}>{{ label }}</button>{% endmacro %}
 {% macro mo_form() %}<form method="post" action="/dang-web/viec/{{ v.id }}" class="form dw-form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% endmacro %}
@@ -19,7 +19,7 @@
 <section class="card dw-wait" data-dw-reload="5000" role="status">
 <span class="dw-spin" aria-hidden="true"></span>
 <div><b>{{ 'Đang đăng nháp lên thanhduc.vn…' if v.trang_thai in ('cho_dang', 'dang_dang') else ('Đang soạn…' if v.trang_thai == 'dang_soan' else 'Đang chờ máy đăng web nhận việc…') }}</b>
-<p class="hint">{% if sua_anh %}{{ 'Đặt từng ảnh vào khung web, xoay, phóng to, đóng logo; thường dưới 1 phút.' if v.trang_thai in ('cho_soan', 'dang_soan') else ('Tải ảnh lên web rồi thay ảnh trong bài.' if bai else 'Tải ảnh lên web, thay ảnh sản phẩm rồi xóa ảnh cũ không còn dùng.') }}{% elif xep %}AI đang đọc tên từng mục để đề xuất danh mục; thường dưới 1 phút.{% elif v.trang_thai in ('cho_soan', 'dang_soan') %}{{ 'Lấy nội dung đang có trên web, ' if sua_web else 'Kiểm tra trùng, ' }}{{ 'tách nền ảnh, ' if not bai }}AI viết bài. Thường 1 đến 3 phút; anh có thể rời trang, xong sẽ nằm ở “Chờ anh xem trước”.{% else %}Tải ảnh và nội dung lên web.{% endif %}</p></div>
+<p class="hint">{% if sua_anh %}{{ 'Đặt từng ảnh vào khung web, xoay, phóng to, đóng logo; thường dưới 1 phút.' if v.trang_thai in ('cho_soan', 'dang_soan') else ('Tải ảnh lên web rồi thay ảnh trong bài.' if bai else 'Tải ảnh lên web, thay ảnh sản phẩm rồi xóa ảnh cũ không còn dùng.') }}{% elif ghi_sku %}Ghi mã TD vào ô Mã (SKU) của {{ (v.ghi or [])|length }} sản phẩm trên web; thường vài giây.{% elif xep %}AI đang đọc tên từng mục để đề xuất danh mục; thường dưới 1 phút.{% elif v.trang_thai in ('cho_soan', 'dang_soan') %}{{ 'Lấy nội dung đang có trên web, ' if sua_web else 'Kiểm tra trùng, ' }}{{ 'tách nền ảnh, ' if not bai }}AI viết bài. Thường 1 đến 3 phút; anh có thể rời trang, xong sẽ nằm ở “Chờ anh xem trước”.{% else %}Tải ảnh và nội dung lên web.{% endif %}</p></div>
 </section>
 {% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt nên việc chưa chạy. Trên Z2 chạy lại lệnh cập nhật app là máy tự bật.</p>{% endif %}
 {% if v.anh_goc %}<section class="card"><b>Ảnh gốc</b><div class="dw-ph-list">{% for a in v.anh_goc %}<figure class="dw-ph"><img src="/dang-web/anh/{{ v.id }}/{{ a }}" alt="Ảnh gốc {{ loop.index }}"></figure>{% endfor %}</div></section>{% endif %}
@@ -160,13 +160,24 @@
 <p class="alert bad" role="alert"><b>{{ 'Đăng chưa được.' if v.buoc_loi == 'dang' else 'Soạn chưa được.' }}</b> {{ v.loi }}</p>
 {{ mo_form() }}
 <button class="btn btn-ok dw-big" name="hanh_dong" value="thu_lai">Thử lại</button>
-<div class="dw-two">{{ nut('viet_lai', 'Soạn lại từ đầu') }}{{ nut('bo', 'Bỏ', 'btn-danger', 'Bỏ việc này?') }}</div>
+<div class="dw-two">{% if not ghi_sku %}{{ nut('viet_lai', 'Soạn lại từ đầu') }}{% endif %}{{ nut('bo', 'Bỏ', 'btn-danger', 'Bỏ việc này?') }}</div>
 </form>
 
 {% elif v.trang_thai == 'da_dang' and sua_anh %}
 <section class="card dw-ok"><b>Đã thay {{ v.so_anh_moi or 0 }} ảnh trên web.</b>
 <p class="hint">{% if v.so_anh_xoa is defined %}Đã xóa {{ v.so_anh_xoa }} ảnh cũ{% if v.so_anh_giu %}, giữ {{ v.so_anh_giu }} ảnh còn dùng ở chỗ khác{% endif %}.{% else %}Ảnh cũ vẫn nằm trong thư viện Media.{% endif %}</p>
 <div class="dw-two">{% if v.link_xem %}<a class="btn btn-ghost" href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}<a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai={{ 'bai' if bai else 'sp' }}">Danh sách trên web</a></div>
+</section>
+
+{% elif v.trang_thai == 'da_dang' and ghi_sku %}
+{% set loi_ghi = v.loi_ghi or [] %}
+<section class="card"><div class="tiles keep-phone"><span class="tile t-static"><span class="t-label">Đã ghi</span><span class="t-n">{{ v.so_da_ghi or 0 }}</span></span><span class="tile t-static"><span class="t-label">Lỗi</span><span class="t-n">{{ loi_ghi|length }}</span></span></div>
+{% if loi_ghi %}<p class="group-label"><b>Không ghi được</b></p>
+<ul class="dw-list">{% for x in loi_ghi %}<li><div class="dw-row"><span class="dw-main"><b>{{ x.ma }} · {{ x.ten }}</b><small class="dw-err">{{ x.loi }}</small></span>
+<a class="btn btn-ghost dw-sbtn" href="/dang-web/ghep-ma?nhom=cho-ghi&amp;q={{ x.ma|urlquote }}">Ghép lại</a></div></li>{% endfor %}</ul>
+<p class="hint">Sản phẩm lỗi vẫn nằm ở “Đã ghép · chờ ghi lên web”. Sửa xong bấm Ghi lại ở màn Ghép mã.</p>{% endif %}
+<p class="hint">Chỉ đổi ô Mã (SKU) trên web. Tên, giá, ảnh, mô tả, trạng thái giữ nguyên.</p>
+<div class="dw-two"><a class="btn btn-ghost" href="/dang-web/ghep-ma">Về Ghép mã</a><a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai=sp">Danh sách trên web</a></div>
 </section>
 
 {% elif v.trang_thai == 'da_dang' and xep %}

@@ -222,6 +222,8 @@ class MayDangWeb:
             return self._dang_sua_web(v)
         if v.get("kieu") == "xep_danh_muc":
             return self._dang_xep(v)
+        if v.get("kieu") == "ghi_sku":
+            return self._dang_ghi_sku(v)
         wp = self.wp()
         d = v["noi_dung"]
         if v["loai"] == "san_pham":
@@ -728,6 +730,25 @@ class MayDangWeb:
             self._sua_ds_web(loai, i, dm=[dm])
         self._cap_nhat(v, hd.DA_DANG, so_da_ghi=so, dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="")
         in_(f"Xếp danh mục: ghi {so} {'sản phẩm' if loai == 'san_pham' else 'bài viết'}")
+
+    def _dang_ghi_sku(self, v: dict) -> None:
+        """Ghép mã (D7): ghi mã TD vào ô SKU của sản phẩm web. Lỗi từng dòng (mã trùng) ghi lại, không làm hỏng cả việc."""
+        ghi = [x for x in v.get("ghi") or [] if str(x.get("id", "")).isdigit() and x.get("ma")]
+        # Web lỗi giữa chừng thì cả việc báo Lỗi; ghi lại cùng mã vào cùng sản phẩm không sao nên bấm Thử lại là được.
+        kq = self.wp().ghi_sku([(int(x["id"]), str(x["ma"])) for x in ghi])
+        loi = []
+        so = 0
+        for x in ghi:
+            ly_do = kq.get(int(x["id"]), "Web không trả lời")
+            if ly_do:
+                if "sku" in ly_do.lower() or "duplicat" in ly_do.lower():
+                    ly_do = f"Mã {x['ma']} đã gắn cho sản phẩm khác trên web"
+                loi.append({**x, "loi": ly_do})
+            else:
+                so += 1
+                self._sua_ds_web("san_pham", int(x["id"]), sku=str(x["ma"]))
+        self._cap_nhat(v, hd.DA_DANG, so_da_ghi=so, loi_ghi=loi, dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="")
+        in_(f"Ghi mã TD lên web: {so} được, {len(loi)} lỗi")
 
     # ---------- lịch tự soạn ----------
     def kiem_lich(self) -> int:

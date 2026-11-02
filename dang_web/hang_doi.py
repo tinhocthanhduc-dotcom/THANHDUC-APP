@@ -480,6 +480,52 @@ def bo_xac_nhan(goc, ma: str) -> None:
             ghi_json(file_xac_nhan(goc), d)
 
 
+# ---------------- ghép mã TD cho sản phẩm trên web (TUẤN duyệt mẫu D6/6, D7 ngày 02/11/2026) ----------------
+# Ghép = xác nhận "Đúng là nó" trong xac-nhan-web.json (mã → web_id), mỗi mã chỉ một sản phẩm web và ngược lại.
+# "Không có trong app" lưu riêng theo web_id trong bo-ghep.json.
+def file_bo_ghep(goc) -> Path:
+    return Path(goc) / "bo-ghep.json"
+
+
+def doc_bo_ghep(goc) -> set[int]:
+    d = doc_json(file_bo_ghep(goc), {})
+    return {int(k) for k in (d if isinstance(d, dict) else {}) if str(k).isdigit()}
+
+
+def dat_bo_ghep(goc, web_id: int, bo: bool) -> None:
+    with khoa(goc):
+        d = doc_json(file_bo_ghep(goc), {})
+        d = d if isinstance(d, dict) else {}
+        if bo:
+            d[str(int(web_id))] = _luc()
+        else:
+            d.pop(str(int(web_id)), None)
+        ghi_json(file_bo_ghep(goc), d)
+
+
+def ghep_ma(goc, ma: str, web_id: int) -> None:
+    """Ghép mã TD với sản phẩm web: bỏ mã cũ đang ghép vào sản phẩm này (anh chọn lại), rồi ghi mã mới."""
+    with khoa(goc):
+        d = doc_xac_nhan(goc)
+        for code, x in list(d.items()):
+            if code != ma and isinstance(x, dict) and str(x.get("dung", "")) == str(int(web_id)):
+                d.pop(code)
+        d[ma] = {"dung": int(web_id), "luc": _luc()}
+        ghi_json(file_xac_nhan(goc), d)
+
+
+def bo_ghep_web(goc, web_id: int) -> int:
+    """Bỏ mọi mã đang ghép vào sản phẩm web này. Trả số mã đã bỏ."""
+    with khoa(goc):
+        d = doc_xac_nhan(goc)
+        bo = [c for c, x in d.items() if isinstance(x, dict) and str(x.get("dung", "")) == str(int(web_id))]
+        for c in bo:
+            d.pop(c)
+        if bo:
+            ghi_json(file_xac_nhan(goc), d)
+        return len(bo)
+
+
 LICH_MAC_DINH = {"bat": False, "gio": "07:00", "so_sp": 2, "so_bai": 1, "lan_cuoi": ""}
 
 
