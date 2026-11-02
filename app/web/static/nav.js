@@ -12,14 +12,18 @@ if (webMenu) {
   wideMenu.addEventListener('change', resizeMenu);
 
   let searching = false, before = null;
-  // Nhóm đang mở được nhớ trên máy này; nhóm chứa trang hiện tại luôn mở.
+  // Mỗi lúc chỉ mở một nhóm: mở nhóm này thì các nhóm khác tự thu gọn.
+  // Nhóm chứa trang hiện tại mở sẵn; nếu trang không thuộc nhóm nào thì mở lại nhóm dùng lần trước.
   const groups = Array.from(webMenu.querySelectorAll('[data-nav-group]'));
+  const active = groups.find((g) => g.classList.contains('on'));
   let opened = [];
   try { opened = JSON.parse(store.get('td-nav-open') || '[]'); } catch (e) { opened = []; }
+  const keep = active || groups.find((g) => opened.includes(g.dataset.navGroup));
+  groups.forEach((group) => { group.open = group === keep; });
   groups.forEach((group) => {
-    if (opened.includes(group.dataset.navGroup)) group.open = true;
     group.addEventListener('toggle', () => {
       if (searching) return;
+      if (group.open) groups.forEach((g) => { if (g !== group && g.open) g.open = false; });
       const now = groups.filter((g) => g.open).map((g) => g.dataset.navGroup);
       store.set('td-nav-open', JSON.stringify(now));
     });
