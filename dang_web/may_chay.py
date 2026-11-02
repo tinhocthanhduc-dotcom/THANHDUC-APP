@@ -19,7 +19,8 @@ from .cau_hinh import CauHinh
 from .viet_bai import ChoTraLoi
 from .so_ten import _ten
 from .tren_web import CayDanhMuc, gon_danh_muc
-from .wordpress import LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, link_sua, slug, sp_co_the_trung, thay_anh_trong_bai, tim_danh_muc
+from .wordpress import (LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, chen_sau_h2, link_sua, slug, sp_co_the_trung,
+                        thay_anh_trong_bai, tieu_de_h2, tim_danh_muc, xoa_anh_trong_bai)
 
 
 
@@ -248,7 +249,7 @@ class MayDangWeb:
             ids = [m["id"] for m in anh]
             dm = tim_danh_muc(v.get("danh_muc") or sp.group_name, self.danh_muc(), dang.doc_bang_nhom(self.ch))
             payload = dang.payload_san_pham(sp, d, self.ch, ids, dm)
-            payload["description"] = dang.chen_anh(payload["description"], anh[:SO_ANH_TRONG_BAI])
+            payload["description"] = dang.chen_anh(payload["description"], anh[1:1 + SO_ANH_TRONG_BAI])  # TUẤN 02/11: không chèn ảnh đại diện
             gia = re.sub(r"\D", "", str(v.get("gia") or ""))
             if gia and int(gia) > 0:
                 payload["regular_price"] = gia
@@ -339,7 +340,9 @@ class MayDangWeb:
                 "anh": next((m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict)), ""),
                 "so_anh": len(it.get("images") or []),
                 "anhs": [{"id": int(m["id"]), "src": m.get("src", "")} for m in it.get("images") or []
-                         if isinstance(m, dict) and str(m.get("id", "")).isdigit()]}
+                         if isinstance(m, dict) and str(m.get("id", "")).isdigit()],
+                **({"anhs_mo_ta": anh_trong_bai(it.get("description") or ""), "h2_mo_ta": tieu_de_h2(it.get("description") or "")}
+                   if "description" in it else {})}
 
     def _dong_bai(self, it: dict, anh_dd: dict) -> dict:
         c = it.get("content") or ""
@@ -349,7 +352,7 @@ class MayDangWeb:
                 "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
                 "ngay": str(it.get("date") or "")[:10], "co_anh": bool(fm), "anh_id": fm,
                 "anh": (anh_dd.get(fm) or {}).get("nho", ""), "anh_goc": (anh_dd.get(fm) or {}).get("src", ""),
-                "anhs_bai": anh_trong_bai(noi_dung), "dan_y": ve_anh.dan_y_bai(noi_dung)}
+                "anhs_bai": anh_trong_bai(noi_dung), "h2_bai": tieu_de_h2(noi_dung), "dan_y": ve_anh.dan_y_bai(noi_dung)}
 
     def lam_moi_mot(self, loai: str, web_id: int) -> None:
         """Anh mở màn Sửa ảnh / Sửa bằng AI: lấy lại đúng mục đó từ web, ghi đè dòng của nó trong danh sách đã lấy về."""
@@ -488,7 +491,7 @@ class MayDangWeb:
                 payload["meta_data"] = dang.meta_seo(d)
             if anh:
                 payload["images"] = [{"id": m["id"]} for m in anh]
-                payload["description"] = dang.chen_anh(payload.get("description", d.get("mo_ta_html", "")), anh[:SO_ANH_TRONG_BAI])
+                payload["description"] = dang.chen_anh(payload.get("description", d.get("mo_ta_html", "")), anh[1:1 + SO_ANH_TRONG_BAI])
             gia = re.sub(r"\D", "", str(v.get("gia") or ""))
             if gia and int(gia) > 0:
                 payload["regular_price"] = gia
@@ -589,7 +592,7 @@ class MayDangWeb:
             che_do = (a.get("che_do") if a.get("che_do") in ("tach_nen", "nen_trang", "giu") else "tach_nen") if kieu_cu else ""
             giu = che_do == "giu" if kieu_cu else not a.get("sua")
             k = {"che_do": che_do, "nguon": a.get("nguon"), "vai": a.get("vai", ""), "media_id": None, "truoc": "", "truoc_file": "",
-                 "sau": "", "goc": ""}
+                 "sau": "", "goc": "", "vi_tri": a.get("vi_tri", "")}
             if a.get("nguon") == "web":
                 mid = int(a["media_id"])
                 src = tren_web.get(mid) or a.get("src", "")
@@ -616,7 +619,8 @@ class MayDangWeb:
                 data = anh_mod.xu_ly(f, tach_nen=che_do == "tach_nen" and self.ch.tach_nen, kich_thuoc=self.ch.anh_kich_thuoc,
                                      dinh_dang=self.ch.anh_dinh_dang, logo=logo)
             else:
-                data = anh_mod.dat_khung(f, W, H, a.get("bien"), logo=logo, logo_goc=v.get("logo_goc", "phai"), dinh_dang=self.ch.anh_dinh_dang)
+                kw, kh = anh_mod.KHUNG_BAI if a.get("vai") == "mo_ta" else (W, H)  # ảnh trong mô tả sản phẩm: khung ngang
+                data = anh_mod.dat_khung(f, kw, kh, a.get("bien"), logo=logo, logo_goc=v.get("logo_goc", "phai"), dinh_dang=self.ch.anh_dinh_dang)
             ten = f"{goc_ten}-{v['id'][-6:]}-{i}.{duoi}"
             (self.ch.anh_da_xu_ly / ten).write_bytes(data)
             k["sau"] = ten
@@ -647,9 +651,32 @@ class MayDangWeb:
             m = wp.tai_anh(anh_mod.giu_nguyen(data, canh_toi_da=4000, dinh_dang="jpg"), p.stem + ".jpg", "image/jpeg", alt=alt)
         return {"id": int(m["id"]), "url": str(m.get("source_url") or ""), "alt": alt, "moi": True}
 
+    def _sua_trong_bai(self, html: str, v: dict, ket: list[tuple[int, dict]], alt: str) -> tuple[str, int]:
+        """Ảnh trong mô tả / thân bài (TUẤN duyệt mẫu D8/8 ngày 02/11/2026): bỏ ảnh anh bỏ, thay tại chỗ ảnh đã chỉnh,
+        ảnh mới đặt dưới mục H2 anh chọn (không chọn thì cuối). Chữ giữ nguyên."""
+        for src in v.get("bo_trong_bai") or []:
+            html = xoa_anh_trong_bai(html, src)
+        so_moi = 0
+        moi = []
+        for i, k in ket:
+            if k.get("nguon") == "web" and (k.get("dung") == "goc" or not k.get("sau")):
+                continue
+            m = self._tai_anh_len(k, i, f"{alt} {i + 1}".strip())
+            so_moi += m["moi"]
+            if k.get("nguon") == "web":
+                if m["moi"]:
+                    html = thay_anh_trong_bai(html, k.get("truoc", ""), m["url"], int(k.get("media_id") or 0), m["id"])
+            else:
+                moi.append((k.get("vi_tri", ""), m))
+        for vt, m in reversed(moi):  # đặt từ dưới lên để vị trí mục H2 phía trên không lệch
+            html = chen_sau_h2(html, dang._the_anh(m), vt)
+        return html, so_moi
+
     def _dang_sua_anh(self, v: dict) -> None:
         if v.get("loai") == "bai_viet":
             return self._dang_sua_anh_bai(v)
+        if any(k.get("vai") in ("dai_dien", "album", "mo_ta") for k in v.get("ket_anh") or []):
+            return self._dang_sua_anh_3_nhom(v)
         wp, web_id = self.wp(), int(v["wp_id"])
         alt = v.get("ten") or ""
         anh = [self._tai_anh_len(k, i, alt if i == 0 else f"{alt} {i + 1}") for i, k in enumerate(v.get("ket_anh") or [])]
@@ -668,6 +695,37 @@ class MayDangWeb:
         dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm", v.get("ten", str(web_id)), "SỬA ẢNH",
                                                             [f"{len(anh)} ảnh, xóa {xoa.get('so_anh_xoa', 0)} ảnh cũ"]))
 
+    def _dang_sua_anh_3_nhom(self, v: dict) -> None:
+        """Sản phẩm 3 nhóm: ảnh đại diện + album thành images (đại diện đứng đầu); ảnh mô tả chỉ nằm trong mô tả."""
+        wp, web_id = self.wp(), int(v["wp_id"])
+        alt = v.get("ten") or ""
+        ket = list(enumerate(v.get("ket_anh") or []))
+        sp_anh = sorted([(i, k) for i, k in ket if k.get("vai") != "mo_ta"], key=lambda x: 0 if x[1].get("vai") == "dai_dien" else 1)
+        anh = [self._tai_anh_len(k, i, alt if n == 0 else f"{alt} {n + 1}") for n, (i, k) in enumerate(sp_anh)]
+        if not anh:
+            raise RuntimeError("Sản phẩm cần ít nhất 1 ảnh đại diện. Mở lại Sửa ảnh.")
+        payload: dict = {"images": [{"id": m["id"]} for m in anh]}
+        mo_ta = [(i, k) for i, k in ket if k.get("vai") == "mo_ta"]
+        so_mo_ta = 0
+        cu = wp.lay_sp(web_id).get("description") or ""
+        if mo_ta or v.get("bo_trong_bai"):
+            moi_html, so_mo_ta = self._sua_trong_bai(cu, v, mo_ta, alt)
+            if moi_html != cu:
+                payload["description"] = moi_html
+        moi = wp.sua_sp(web_id, payload)
+        them = {}
+        if "description" in payload:
+            them = {"anhs_mo_ta": anh_trong_bai(payload["description"]), "h2_mo_ta": tieu_de_h2(payload["description"])}
+        self._sua_ds_web("san_pham", web_id, anh=anh[0]["url"], so_anh=len(anh), anhs=[{"id": m["id"], "src": m["url"]} for m in anh], **them)
+        xoa = self._xoa_anh_cu(web_id, v.get("anh_cu") or [], {m["id"] for m in anh},
+                               payload.get("description", cu)) if v.get("xoa_cu", True) else {}
+        so = sum(m["moi"] for m in anh) + so_mo_ta
+        self._cap_nhat(v, hd.DA_DANG, so_anh_moi=so, link_xem=moi.get("permalink") or v.get("link_xem", ""),
+                       trang_thai_web=moi.get("status", ""), dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="", **xoa)
+        dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm", v.get("ten", str(web_id)), "SỬA ẢNH",
+                                                            [f"{len(anh)} ảnh sản phẩm, {so_mo_ta} ảnh mới trong mô tả, "
+                                                             f"bỏ {len(v.get('bo_trong_bai') or [])} ảnh trong mô tả, xóa {xoa.get('so_anh_xoa', 0)} ảnh cũ"]))
+
     def _dang_sua_anh_bai(self, v: dict) -> None:
         """Bài viết: thay ảnh đại diện, đổi ảnh trong thân bài tại chỗ, ảnh mới thêm vào cuối bài. Không xóa ảnh cũ
         (ảnh bài viết hay dùng lại ở bài khác), giữ nguyên chữ và trạng thái bài."""
@@ -676,23 +734,20 @@ class MayDangWeb:
         it = wp.lay_bai(web_id)
         c = it.get("content") or ""
         html = (c.get("raw") or c.get("rendered") or "") if isinstance(c, dict) else str(c)
-        dai_dien, them, so_moi = None, [], 0
+        dai_dien, so_moi = None, 0
+        trong_bai = []
         for i, k in enumerate(v.get("ket_anh") or []):
+            if k.get("vai") != "dai_dien":
+                trong_bai.append((i, k))
+                continue
             if k.get("nguon") == "web" and (k.get("dung") == "goc" or not k.get("sau")):  # ảnh trên web giữ nguyên
-                if k.get("vai") == "dai_dien" and k.get("media_id"):
+                if k.get("media_id"):
                     dai_dien = {"id": int(k["media_id"]), "url": k.get("truoc", "")}
                 continue
-            m = self._tai_anh_len(k, i, alt if i == 0 else f"{alt} {i + 1}")
-            so_moi += m["moi"]
-            if k.get("vai") == "dai_dien":
-                dai_dien = m
-            elif k.get("nguon") == "web":
-                if m["moi"]:
-                    html = thay_anh_trong_bai(html, k.get("truoc", ""), m["url"], int(k.get("media_id") or 0), m["id"])
-            else:
-                them.append(m)
-        if them:
-            html += "".join(dang._the_anh(m) for m in them)
+            dai_dien = self._tai_anh_len(k, i, alt)
+            so_moi += dai_dien["moi"]
+        html, so_bai = self._sua_trong_bai(html, v, trong_bai, alt)
+        so_moi += so_bai
         payload: dict = {"content": html, "featured_media": dai_dien["id"] if dai_dien else 0}
         moi = wp.sua_bai(web_id, payload)
         self._sua_ds_web("bai_viet", web_id, co_anh=bool(dai_dien), anh_id=dai_dien["id"] if dai_dien else 0,

@@ -5,15 +5,14 @@
 {% block title %}Sửa ảnh · {{ it.ten }}{% endblock %}
 {# TUẤN duyệt mẫu D2 (máy tính) và 2 (điện thoại) ngày 02/11/2026: bỏ Tách nền / Đã nền trắng / Giữ nguyên.
    Chỉ đặt ảnh vào đúng khung web, căn giữa, xoay, phóng to, lật, đóng logo; tick nhiều ảnh làm một lượt. Không gọi AI. #}
-{% set khung = 'ngang 16:9 (1200×675)' if bai else 'vuông' %}
 {% block main %}<div class="page-wide dw-page">
-{{ ui.page_head('Sửa ảnh · ' ~ it.ten, sub=(ma ~ ' · ' if ma else '') ~ ('bài viết' if bai else 'sản phẩm') ~ ' · khung web ' ~ khung ~ ' · ' ~ (anhs|length) ~ ' ảnh trên web · không dùng AI', back='/dang-web?tab=tren-web&loai=' ~ ('bai' if bai else 'sp')) }}
+{{ ui.page_head('Sửa ảnh · ' ~ it.ten, sub=(ma ~ ' · ' if ma else '') ~ ('bài viết' if bai else 'sản phẩm') ~ ' · ' ~ (nhom.dai_dien|length) ~ ' ảnh đại diện' ~ ('' if bai else ' · ' ~ (nhom.album|length) ~ ' ảnh album') ~ ' · ' ~ ((nhom.bai if bai else nhom.mo_ta)|length) ~ ' ảnh trong ' ~ ('bài' if bai else 'mô tả'), back='/dang-web?tab=tren-web&loai=' ~ ('bai' if bai else 'sp')) }}
 {% if error %}<p class="alert bad" role="alert"><b>Chưa tạo được.</b> {{ error }}</p>{% endif %}
 {% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt; việc sẽ nằm chờ tới khi máy chạy lại. Trên Z2 chạy lại lệnh cập nhật app là máy tự bật.</p>{% endif %}
 {{ ll.bao(cho_lay_lai, loai, it.id) }}
 {% if not co_ds_anh and not cho_lay_lai %}<p class="alert warn" role="status"><b>Danh sách web cũ chưa có ảnh{{ ' trong bài' if bai }}.</b> Về Trên web bấm “Cập nhật từ web” rồi mở lại màn này.</p>{% endif %}
 <form method="post" action="/dang-web/sua-anh" enctype="multipart/form-data" class="form dw-form sa-form" data-busy data-sa
-      data-w="{{ 16 if bai else 1 }}" data-h="{{ 9 if bai else 1 }}" data-max="{{ toi_da_anh }}" data-bai="{{ '1' if bai else '' }}">
+      data-w="{{ 16 if bai else 1 }}" data-h="{{ 9 if bai else 1 }}" data-max="{{ toi_da_anh }}" data-bai="{{ '1' if bai else '' }}" data-h2="{{ h2|tojson|forceescape }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <input type="hidden" name="id" value="{{ it.id }}"><input type="hidden" name="loai" value="{{ 'bai' if bai else 'sp' }}">
 <input type="file" name="anh" multiple hidden accept="image/*" data-sa-files>
@@ -42,31 +41,60 @@
 <p class="hint sa-note" data-sa-note hidden></p>
 </div>
 </section>
-<section class="card">
-<div class="sa-head"><b>Các ảnh{{ '' if bai else ' · ảnh đầu là ảnh đại diện' }}</b><label class="chk"><input type="checkbox" data-sa-all> Chọn hết</label></div>
-<p class="hint">Tick “Sửa” ảnh nào thì ảnh đó được đặt lại vào khung và đóng logo. Ảnh không tick giữ nguyên như trên web.{% if bai %} Ảnh trong bài được thay tại chỗ, chữ trong bài giữ nguyên.{% endif %}</p>
-<ul class="sa-list" data-sa-list>
-{% for m in anhs %}<li class="sa-card" data-sa-card data-key="{{ m.key }}" data-src="/dang-web/anh-tren-web?loai={{ 'bai' if bai else 'sp' }}&amp;id={{ it.id }}&amp;k={{ m.key|urlencode }}" data-fallback="{{ m.src }}">
-<input type="hidden" name="thu_tu" value="{{ m.key }}"><input type="hidden" name="bien_{{ m.key }}" value="{}" data-sa-bien>
-<button type="button" class="sa-mini{{ ' sa-wide' if bai }}" data-sa-pick aria-label="Chỉnh ảnh {{ loop.index }}"><img alt="" loading="lazy" referrerpolicy="no-referrer" src="{{ m.src }}"></button>
-<div class="sa-row"><label class="chk"><input type="checkbox" name="chon_{{ m.key }}" value="1" data-sa-chon> Sửa</label>{% if bai %}<span class="hint">{{ 'Đại diện' if m.vai == 'dai_dien' else 'Trong bài' }}</span>{% endif %}</div>
-{% if not bai %}<div class="sa-row"><label class="chk"><input type="radio" name="dai_dien" value="{{ m.key }}"{{ ' checked' if loop.first }}> Đại diện</label>
-<span class="sa-move"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="-1" aria-label="Đưa ảnh {{ loop.index }} lên trước">‹</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="1" aria-label="Đưa ảnh {{ loop.index }} ra sau">›</button></span></div>{% endif %}
-{% if m.vai != 'bai' %}<label class="chk sa-xoa"><input type="checkbox" name="xoa_{{ m.key }}" value="1"> Bỏ ảnh này</label>{% endif %}
-</li>{% endfor %}
-<li class="sa-add" data-sa-add-tile>
+{# TUẤN duyệt mẫu D8/8 ngày 02/11/2026: chia rõ ① Ảnh đại diện, ② Ảnh album (sản phẩm), ③ Ảnh trong mô tả / trong bài.
+   Ảnh AI chỉ vào nhóm ③; đại diện và album luôn là ảnh thật. #}
+{% macro the_web(m, i, rong) %}<li class="sa-card{{ ' sa-trung' if m.trung }}" data-sa-card data-key="{{ m.key }}" data-src="/dang-web/anh-tren-web?loai={{ 'bai' if bai else 'sp' }}&amp;id={{ it.id }}&amp;k={{ m.key|urlencode }}" data-fallback="{{ m.src }}">
+<input type="hidden" name="thu_tu" value="{{ m.key }}"><input type="hidden" name="bien_{{ m.key }}" value="{}" data-sa-bien><input type="hidden" name="vai_{{ m.key }}" value="{{ m.vai }}" data-sa-vai>
+<button type="button" class="sa-mini{{ ' sa-wide' if rong }}" data-sa-pick aria-label="Chỉnh ảnh {{ i }}"><img alt="" loading="lazy" referrerpolicy="no-referrer" src="{{ m.src }}"></button>
+<div class="sa-row"><label class="chk"><input type="checkbox" name="chon_{{ m.key }}" value="1" data-sa-chon> Sửa</label>{% if not bai and m.vai != 'mo_ta' %}<span class="sa-move"{{ ' hidden' if m.vai != 'album' }}><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="-1" aria-label="Đưa ảnh lên trước">‹</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="1" aria-label="Đưa ảnh ra sau">›</button></span>{% endif %}</div>
+{% if m.trung %}<span class="sa-canh">Trùng ảnh đại diện · nên bỏ</span>{% endif %}
+<div class="sa-row">{% if not bai and m.vai != 'mo_ta' %}<button type="button" class="btn btn-ghost dw-sbtn" data-sa-len{{ ' hidden' if m.vai != 'album' }}>Lên đại diện</button>{% endif %}
+<label class="chk sa-xoa"><input type="checkbox" name="xoa_{{ m.key }}" value="1"{{ ' checked' if m.trung }}> Bỏ ảnh này</label></div>
+</li>{% endmacro %}
+{% macro o_them(chu, han='') %}<li class="sa-add" data-sa-add-tile>
 <label class="btn btn-ghost dw-sbtn photo-capture">📷 Chụp ảnh<input type="file" accept="image/*" capture="environment" data-sa-add data-tech-camera></label>
 <label class="btn btn-ghost dw-sbtn photo-capture">🖼 Ảnh có sẵn<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple data-sa-add data-tech-camera></label>
-<span class="hint">Thêm tối đa {{ toi_da_anh }} ảnh</span>
-</li>
+<span class="hint">{{ chu }}</span>
+</li>{% endmacro %}
+<div class="card sa-tong"><div class="dw-chips" aria-label="Số ảnh mỗi nhóm">
+<span class="dw-chip sa-c1">① Ảnh đại diện&nbsp;<b>{{ nhom.dai_dien|length }}</b></span>
+{% if not bai %}<span class="dw-chip sa-c2">② Ảnh album&nbsp;<b>{{ nhom.album|length }}</b></span>{% endif %}
+<span class="dw-chip sa-c3">③ Ảnh trong {{ 'bài' if bai else 'mô tả' }}&nbsp;<b>{{ (nhom.bai if bai else nhom.mo_ta)|length }}</b></span>
+<label class="chk sa-all"><input type="checkbox" data-sa-all> Tick Sửa tất cả</label></div>
+<p class="hint">Bấm vào ảnh nào thì khung chỉnh mở cho ảnh đó. Tick “Sửa” ảnh nào thì ảnh đó được đặt lại vào khung và đóng logo; không tick thì giữ nguyên như trên web.</p></div>
+
+<section class="card sa-nhom sa-n1" aria-label="Ảnh đại diện">
+<div class="sa-head"><b>① Ảnh đại diện</b><span class="hint">{{ 'ngang 1200×675' if bai else 'vuông · ảnh thật' }}</span></div>
+<p class="hint">{{ 'Ảnh hiện ở danh sách bài, Facebook, Google. Chỉ 1 ảnh: thêm ảnh mới ở đây là thay ảnh cũ.' if bai else 'Ảnh chính trên trang sản phẩm, danh sách và Google. Chỉ 1 ảnh thật, có logo. Thêm ảnh mới ở đây thì ảnh cũ xuống album.' }}</p>
+<ul class="sa-list" data-sa-list data-vai="dai_dien" data-wide="{{ '1' if bai else '' }}">
+{% for m in nhom.dai_dien %}{{ the_web(m, loop.index, bai) }}{% endfor %}
+{{ o_them('Ảnh mới làm ảnh đại diện') }}
 </ul>
-{% if bai %}<p class="hint">Bài chưa có ảnh đại diện thì ảnh mới đầu tiên làm ảnh đại diện. Muốn thay ảnh đại diện, tick “Đại diện” ở ảnh mới; ảnh mới khác được thêm vào cuối bài.</p>{% endif %}
 </section>
-{% if bai %}{{ va.khung(ve, codex, 'them') }}{% endif %}
+
+{% if not bai %}<section class="card sa-nhom sa-n2" aria-label="Ảnh album">
+<div class="sa-head"><b>② Ảnh album</b><span class="hint">tối đa {{ toi_da_anh }} ảnh cùng ảnh đại diện · ‹ › đổi thứ tự</span></div>
+<p class="hint">Thư viện ảnh dưới ảnh đại diện trên trang sản phẩm: ảnh thật các góc máy, khung vuông.</p>
+<ul class="sa-list" data-sa-list data-vai="album" data-wide="">
+{% for m in nhom.album %}{{ the_web(m, loop.index + 1, false) }}{% endfor %}
+{{ o_them('Thêm ảnh album') }}
+</ul>
+</section>{% endif %}
+
+<section class="card sa-nhom sa-n3" aria-label="Ảnh trong {{ 'bài' if bai else 'mô tả' }}">
+<div class="sa-head"><b>③ Ảnh trong {{ 'bài' if bai else 'mô tả' }}</b><span class="hint">ngang 1200×675 · nằm trong phần chữ</span></div>
+<p class="hint">Ảnh chèn giữa các mục {{ 'của bài' if bai else 'mô tả' }}. Ảnh đang có được thay tại chỗ; ảnh mới đặt dưới mục H2 anh chọn. Không lấy lại ảnh đại diện.</p>
+{% if not co_mo_ta %}<p class="alert warn">Chưa đọc được ảnh trong {{ 'bài' if bai else 'mô tả' }} của mục này. Ảnh mới vẫn thêm được (đặt cuối).</p>{% endif %}
+<ul class="sa-list" data-sa-list data-vai="{{ 'bai' if bai else 'mo_ta' }}" data-wide="1" data-ai>
+{% for m in (nhom.bai if bai else nhom.mo_ta) %}{{ the_web(m, loop.index, true) }}{% endfor %}
+{{ o_them('Thêm ảnh vào ' ~ ('bài' if bai else 'mô tả')) }}
+</ul>
+{{ va.khung(ve, codex, 'them', sp=not bai) }}
+</section>
 </div><div class="dw-side">
 <section class="card">
 <b>Áp dụng cho ảnh đã chọn (<span data-sa-count>0</span>)</b>
-<p class="hint">Khung web: <b>{{ khung }}</b>{{ ' cho sản phẩm. Bài viết dùng khung ngang 16:9.' if not bai else ' cho bài viết.' }}</p>
+<p class="hint">Khung web: {{ '<b>ngang 1200×675</b> cho mọi ảnh bài viết.'|safe if bai else '<b>vuông</b> cho ảnh đại diện và album, <b>ngang 1200×675</b> cho ảnh trong mô tả.'|safe }}</p>
 <button type="button" class="btn btn-new" data-sa-act="auto-all">Căn giữa + vừa khung các ảnh đã chọn</button>
 <label class="chk"><input type="checkbox" name="logo" value="1"{{ ' checked' if d.logo }} data-sa-logo-on> <b>Đóng logo Thành Đức</b></label>
 <div class="dw-chips sa-logo-pos" role="radiogroup" aria-label="Chỗ đặt logo">
@@ -77,12 +105,12 @@
 </section>
 <section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · xử lý ảnh, anh xem trước rồi mới ghi lên web</span>
 <button class="btn btn-new dw-big"{{ ' disabled' if not co_ds_anh }} data-sa-submit>Xem trước ảnh</button>
-<p class="hint">Chưa ghi gì lên web. Chỉ thay ảnh, giữ nguyên chữ{{ '' if bai else ', giá' }}, trạng thái.{{ '' if bai else ' Ảnh cũ không dùng nữa được xóa khỏi web.' }}</p>
+<p class="hint">Chưa ghi gì lên web. Chỉ thay ảnh, giữ nguyên chữ{{ '' if bai else ', giá' }}, trạng thái.{{ '' if bai else ' Ảnh cũ không dùng nữa được xóa khỏi web.' }} Ảnh AI chỉ vào nhóm ③.</p>
 <div class="dw-two">{% if it.xem %}<a class="btn btn-ghost" href="{{ it.xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}<a class="btn btn-ghost" href="{{ it.sua }}" target="_blank" rel="noopener">wp-admin ↗</a></div>
 </section>
 </div></div>
 </form>
 </div>
 <script src="{{ asset('sua-anh.js') }}" defer></script>
-{% if bai %}<script src="{{ asset('ve-anh.js') }}" defer></script>{% endif %}
+<script src="{{ asset('ve-anh.js') }}" defer></script>
 {% endblock %}

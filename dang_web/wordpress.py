@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import re
+from html import unescape
 
 import httpx
 
@@ -250,6 +251,48 @@ def thay_anh_trong_bai(html: str, cu: str, moi: str, id_cu: int = 0, id_moi: int
     if id_cu and id_moi:
         html = re.sub(rf'("id":\s*){id_cu}\b', rf"\g<1>{id_moi}", html)  # khối ảnh Gutenberg <!-- wp:image {"id":123} -->
     return html
+
+
+def tieu_de_h2(html: str, toi_da: int = 20) -> list[str]:
+    """Các tiêu đề H2 theo thứ tự, để anh chọn chỗ đặt ảnh mới trong mô tả / thân bài."""
+    ra = []
+    for trong in re.findall(r"<h2\b[^>]*>(.*?)</h2>", html or "", re.I | re.S):
+        chu = " ".join(unescape(re.sub(r"<[^>]+>", " ", trong)).split())
+        if chu:
+            ra.append(chu[:120])
+        if len(ra) >= toi_da:
+            break
+    return ra
+
+
+def chen_sau_h2(html: str, the: str, vi_tri) -> str:
+    """Đặt ảnh ngay dưới tiêu đề H2 thứ vi_tri (đếm từ 0); không có mục đó (hoặc 'cuoi') thì đặt cuối."""
+    html = html or ""
+    if str(vi_tri).isdigit():
+        moc = [m.end() for m in re.finditer(r"</h2\s*>", html, re.I)]
+        n = int(vi_tri)
+        if n < len(moc):
+            return html[:moc[n]] + the + html[moc[n]:]
+    return html + the
+
+
+def xoa_anh_trong_bai(html: str, src: str) -> str:
+    """Bỏ một ảnh khỏi mô tả / thân bài: bỏ cả khung <figure> chứa nó (và khối ảnh Gutenberg rỗng còn lại)."""
+    if not src:
+        return html or ""
+    html = re.sub(r"<figure\b[^>]*>(?:(?!</figure>).)*?" + re.escape(src) + r".*?</figure>", "", html or "", flags=re.I | re.S)
+    html = _IMG_RE.sub(lambda m: "" if src in m.group(0) else m.group(0), html)
+    html = re.sub(r"<!--\s*wp:image\b[^>]*-->\s*<!--\s*/wp:image\s*-->", "", html)
+    return re.sub(r"<p>\s*</p>", "", html)
+
+
+def cung_anh(a: str, b: str) -> bool:
+    """Hai địa chỉ ảnh cùng một file gốc (bỏ đuôi cỡ -300x200 WordPress tự tạo)."""
+    def goc(u):
+        ten = (u or "").split("?")[0].rsplit("/", 1)[-1]
+        ten = ten.rsplit(".", 1)[0]
+        return re.sub(r"-\d+x\d+$", "", ten).lower()
+    return bool(a and b) and goc(a) == goc(b)
 
 
 def link_sua(wp_url: str, post_id: int) -> str:

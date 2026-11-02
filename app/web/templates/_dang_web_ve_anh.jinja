@@ -1,10 +1,10 @@
 {# TUẤN duyệt mẫu D4/4 (Sửa ảnh bài viết) và D5/5 (bài mới) ngày 02/11/2026: Codex trên Z2 vẽ ảnh minh họa, chỉ cho bài viết.
    che_do 'them': "Dùng ảnh này" thêm ảnh vào danh sách Sửa ảnh; 'chon': chọn 1 ảnh làm ảnh đại diện ở màn xem trước. #}
-{% macro khung(ve, codex, che_do, an=none) %}
+{% macro khung(ve, codex, che_do, an=none, sp=false) %}
 <section class="card va" id="tao-anh" data-va data-che-do="{{ che_do }}" data-url="{{ '/dang-web/ve-anh/' ~ ve.id ~ '/trang-thai' if ve.id else '' }}" aria-live="polite">
-<div class="va-head"><b>{{ 'Tạo ảnh minh họa bằng AI' if che_do == 'them' else 'Ảnh đại diện · AI vẽ theo nội dung bài' }}</b>
+<div class="va-head"><b>{{ 'AI vẽ 1 ảnh cho mô tả' if sp else ('Tạo ảnh minh họa bằng AI' if che_do == 'them' else 'Ảnh đại diện · AI vẽ theo nội dung bài') }}</b>
 <span class="va-codex{{ ' va-tat' if not codex }}">● {{ 'Codex trên Z2 sẵn sàng' if codex else 'Codex trên Z2 đang tắt' }}</span></div>
-{% if che_do == 'them' %}<p class="hint">Codex đọc tiêu đề và các mục H1, H2 trong bài rồi vẽ 3 ảnh kiểu ảnh chụp thật, không chữ, không logo. Không tốn phí API. Thường xong trong vài phút, anh có thể rời trang.</p>
+{% if che_do == 'them' %}<p class="hint">{% if sp %}Codex đọc tên sản phẩm và các mục H2 của mô tả rồi vẽ 3 ảnh minh họa để anh chọn 1, chỉ dùng trong mô tả (không thay ảnh thật của máy).{% else %}Codex đọc tiêu đề và các mục H1, H2 trong bài rồi vẽ 3 ảnh kiểu ảnh chụp thật.{% endif %} Không chữ, không logo, không tốn phí API. Thường xong trong vài phút, anh có thể rời trang.</p>
 <label><span><b>Dặn thêm</b> <small class="hint">(không bắt buộc)</small></span><input name="dan" maxlength="300" placeholder="VD: thợ mặc áo xanh, máy in Canon trong văn phòng"></label>{% endif %}
 <div class="va-body" data-va-body>
 {% if ve.trang_thai in ('cho', 'dang_ve') %}<p class="va-wait"><span class="dw-spin" aria-hidden="true"></span><span><b>Codex đang vẽ ảnh…</b><br><small class="hint">Thường vài phút. Anh có thể rời trang, xong ảnh sẽ hiện ở đây.</small></span></p>
@@ -20,7 +20,7 @@
 <div class="va-acts">{% if an %}<input type="hidden" name="viec_id" value="{{ an }}">{% endif %}
 <button class="btn btn-ghost{{ ' dw-xbtn-info' if che_do == 'them' }}" formaction="/dang-web/ve-anh" formmethod="post" formenctype="application/x-www-form-urlencoded" formnovalidate data-va-ve{{ ' disabled' if not codex or ve.trang_thai in ('cho', 'dang_ve') }}>{{ 'Vẽ 3 ảnh mới' if che_do == 'them' or not ve.id else 'Vẽ lại 3 ảnh khác' }}</button>
 </div>
-{% if che_do == 'them' %}<p class="hint" data-va-note hidden>Đã thêm vào danh sách ảnh bên trên. Chỉnh khung, đóng logo như ảnh thường.</p>
+{% if che_do == 'them' %}<p class="hint" data-va-note hidden>Đã thêm vào nhóm ③ bên trên. Chọn mục H2 để đặt ảnh, chỉnh khung như ảnh thường.</p>
 {% else %}<p class="hint">Ảnh chọn được đặt vào khung 1200×675 và đóng logo khi đăng.</p>{% endif %}
 </section>
 {% endmacro %}

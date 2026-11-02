@@ -2,7 +2,7 @@
 
 App ghi yêu cầu vào thư mục ve-anh/<id>/yeu-cau.json; Codex (scripts/codex_dang_web.py) hỏi yêu cầu qua cửa
 /ai/dang-web/ve-anh, vẽ bằng công cụ image_gen của gói ChatGPT (không tốn phí API) rồi gửi ảnh về.
-Chỉ dùng cho bài viết: ảnh sản phẩm phải là ảnh thật. Chỉ thư viện chuẩn + Pillow khi nhận ảnh.
+Bài viết; sản phẩm chỉ dùng cho ảnh trong mô tả (đại diện và album luôn là ảnh thật). Chỉ thư viện chuẩn + Pillow khi nhận ảnh.
 """
 from __future__ import annotations
 
@@ -86,11 +86,32 @@ def lenh_ve(chu_de: str, tom_tat: str = "", dan: str = "", so: int = SO_ANH, dan
     return "\n".join(phan)
 
 
-def tao(goc, *, chu_de: str, wp_id: int | None = None, viec_id: str = "", tom_tat: str = "", dan: str = "", dan_y: str = "") -> str:
+def lenh_ve_sp(ten: str, dan_y: str = "", dan: str = "", so: int = SO_ANH) -> str:
+    """Ảnh cho phần mô tả sản phẩm (TUẤN 02/11): không thay ảnh thật của máy, chỉ minh họa nội dung mô tả."""
+    phan = [f"Dùng công cụ tạo ảnh image_gen vẽ {so} ảnh minh họa KHÁC NHAU, khung ngang 16:9, để chèn vào PHẦN MÔ TẢ của một "
+            "sản phẩm trên website cửa hàng máy in, mực in, sửa máy in Thành Đức ở TP. Hồ Chí Minh.",
+            f"Tên sản phẩm: {ten.strip()[:200]}."]
+    if dan_y.strip():
+        phan.append("Các mục trong mô tả (tiêu đề H2, H3):\n" + dan_y.strip()[:1200])
+    phan.append("Ảnh minh họa cách dùng hoặc lợi ích của sản phẩm theo nội dung mô tả: cảnh văn phòng, cửa hàng ở Việt Nam đang "
+                "dùng đúng loại sản phẩm này, thợ lắp đặt hoặc bảo trì, bản in sắc nét... Không vẽ cận cảnh làm như ảnh chụp "
+                "chính sản phẩm để bán (khách có thể hiểu nhầm mẫu mã).")
+    if dan.strip():
+        phan.append(f"Yêu cầu thêm: {' '.join(dan.split())[:300]}")
+    phan.append("Phong cách ảnh chụp thật, ánh sáng tự nhiên, người trong ảnh là người Việt Nam. Không có chữ, số, logo, tên hãng "
+                "hay watermark trong ảnh.")
+    phan.append("Lưu từng ảnh vào thư mục hiện tại với tên " + ", ".join(f"anh-{i}.png" for i in range(1, so + 1))
+                + ". Không tạo hay sửa file nào khác, không chạy lệnh nào khác.")
+    return "\n".join(phan)
+
+
+def tao(goc, *, chu_de: str, wp_id: int | None = None, viec_id: str = "", tom_tat: str = "", dan: str = "", dan_y: str = "",
+        loai: str = "bai_viet") -> str:
     yc_id = f"{hd.bay_gio():%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
     luc = hd.bay_gio().isoformat(timespec="seconds")
-    d = {"id": yc_id, "loai": "bai_viet", "wp_id": wp_id, "viec_id": viec_id, "chu_de": chu_de[:200], "dan": dan[:300],
-         "lenh": lenh_ve(chu_de, tom_tat, dan, dan_y=dan_y), "so_anh": SO_ANH, "trang_thai": CHO, "anh": [], "loi": "", "tao_luc": luc,
+    sp = loai == "san_pham"
+    d = {"id": yc_id, "loai": "san_pham" if sp else "bai_viet", "wp_id": wp_id, "viec_id": viec_id, "chu_de": chu_de[:200], "dan": dan[:300],
+         "lenh": lenh_ve_sp(chu_de, dan_y, dan) if sp else lenh_ve(chu_de, tom_tat, dan, dan_y=dan_y), "so_anh": SO_ANH, "trang_thai": CHO, "anh": [], "loi": "", "tao_luc": luc,
          "cap_nhat": luc}
     p = _file(goc, yc_id)
     p.parent.mkdir(parents=True)
@@ -124,9 +145,9 @@ def ds(goc) -> list[dict]:
     return sorted(ra, key=lambda x: x.get("tao_luc", ""), reverse=True)
 
 
-def moi_nhat(goc, *, wp_id: int | None = None, viec_id: str = "") -> dict | None:
+def moi_nhat(goc, *, wp_id: int | None = None, viec_id: str = "", loai: str = "bai_viet") -> dict | None:
     for d in ds(goc):
-        if (wp_id and d.get("wp_id") == wp_id) or (viec_id and d.get("viec_id") == viec_id):
+        if (wp_id and d.get("wp_id") == wp_id and d.get("loai", "bai_viet") == loai) or (viec_id and d.get("viec_id") == viec_id):
             return d
     return None
 

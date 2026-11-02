@@ -169,3 +169,20 @@ def test_script_ve_codex_lay_anh_trong_thu_muc_hoac_generated_images(monkeypatch
     lam2 = tmp_path / "ve-2"
     lam2.mkdir()
     assert len(m.ve_codex("vẽ", lam2, 2)) == 2 and not os.listdir(lam2)
+
+
+def test_san_pham_ve_anh_cho_mo_ta_khong_lan_voi_bai_viet(client, db, web_login, make_user, goc):
+    """TUẤN 02/11: sản phẩm cũng có ô AI vẽ 1 ảnh cho phần mô tả (chọn 1 trong 3); không dùng làm ảnh đại diện."""
+    csrf = web_login("giam.doc", "director")
+    hw, _ = _khoa(db, make_user)
+    wp = _wp_co_hang()
+    wp.tat_ca[0]["description"] = "<p>Mở</p><h2>Thông số kỹ thuật</h2><p>x</p>"
+    _may(goc, wp).lam_moi_web()
+    client.get("/ai/dang-web/ve-anh", headers=hw)  # nhịp Codex
+    trang = client.get("/dang-web/sua-anh?loai=sp&id=1").text
+    assert "AI vẽ 1 ảnh cho mô tả" in trang and "ve-anh.js" in trang and "Vẽ 3 ảnh mới" in trang
+    r = client.post("/dang-web/ve-anh", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), id="1", loai="sp", dan=""), follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/dang-web/sua-anh?loai=sp&id=1")
+    yc = ve_anh.moi_nhat(goc, wp_id=1, loai="san_pham")
+    assert yc and yc["so_anh"] == 3 and "PHẦN MÔ TẢ" in yc["lenh"] and "H2: Thông số kỹ thuật" in yc["lenh"]
+    assert ve_anh.moi_nhat(goc, wp_id=1) is None  # bài viết id 1 không thấy yêu cầu của sản phẩm id 1
