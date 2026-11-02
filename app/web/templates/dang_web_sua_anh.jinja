@@ -103,6 +103,12 @@
 </div>
 <p class="hint">Ảnh đã có logo sẵn thì bỏ tick, tránh đóng 2 logo.</p>
 </section>
+<section class="card">
+<b>Tên file và alt</b>
+<p class="hint">Ảnh có chỉnh hoặc ảnh mới lên web với tên file theo tên {{ 'bài' if bai else 'sản phẩm' }}, ví dụ <code>{{ ten_file }}-2.webp</code>. Alt: ① là tên{{ '' if bai else ', ② là tên + “góc 2, 3…”' }}, ③ là tên – mục H2 chứa ảnh.</p>
+<label class="chk"><input type="checkbox" name="alt_tat_ca" value="1"{{ ' checked' if d.alt_tat_ca }}> <b>Cập nhật alt cho tất cả ảnh</b></label>
+<p class="hint">Cả ảnh không chỉnh cũng được ghi lại alt (chỉ đổi chữ, không tải lại ảnh).{{ '' if bai else ' Ảnh dùng chung với sản phẩm khác thì giữ alt cũ.' }}</p>
+</section>
 <section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · xử lý ảnh, anh xem trước rồi mới ghi lên web</span>
 <button class="btn btn-new dw-big"{{ ' disabled' if not co_ds_anh }} data-sa-submit>Xem trước ảnh</button>
 <p class="hint">Chưa ghi gì lên web. Chỉ thay ảnh, giữ nguyên chữ{{ '' if bai else ', giá' }}, trạng thái.{{ '' if bai else ' Ảnh cũ không dùng nữa được xóa khỏi web.' }} Ảnh AI chỉ vào nhóm ③.</p>
