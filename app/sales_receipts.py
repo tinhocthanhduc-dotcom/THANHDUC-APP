@@ -10,7 +10,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from . import audit, sales_orders, cash_docs, cash_posting, finance_mappings
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, SALES_RECEIPT_METHODS
+from .models import Customer, CustomerOpeningDebt, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, SALES_RECEIPT_METHODS
 from .schemas import CashDocIn, SalesReceiptOut, SalesReceiptReport
 from .security import has_role
 
@@ -61,6 +61,10 @@ def totals(model=SalesOrder, *, as_of=None):
     receipt_window = () if as_of is None else (SalesReceipt.decided_at < as_of,
         SalesReceipt.received_at < as_of.astimezone(TZ).date() if as_of.astimezone(TZ).time() == time.min else SalesReceipt.received_at <= as_of.astimezone(TZ).date())
     refund_window = () if as_of is None else (SalesRefund.decided_at < as_of,)
+    if model is CustomerOpeningDebt:
+        paid,pending=_sums()
+        return select(SalesReceipt.opening_id.label('parent_id'),paid.label('paid'),pending.label('pending'),
+            literal(0).label('refunded')).where(SalesReceipt.opening_id.is_not(None), *receipt_window).group_by(SalesReceipt.opening_id).subquery()
     if model is not SalesOrder:
         paid,pending=_sums()
         return select(SalesReceipt.ticket_id.label('parent_id'),paid.label('paid'),pending.label('pending'),
@@ -84,12 +88,11 @@ def _balance(receivable, paid, pending):
     return dict(receivable=receivable, paid=int(paid), pending=int(pending), remaining=max(0,(receivable or 0)-int(paid)))
 
 
-def balance(order: SalesOrder | ServiceTicket):
+def balance(order: SalesOrder | ServiceTicket | CustomerOpeningDebt):
     """Đơn/phiếu đã load trong session; đọc tổng mới, không dùng cache công nợ."""
     session = object_session(order)
     if session is None:
         raise ValueError('Đơn cần được load trong session để đọc số dư hiện tại.')
-    column = SalesReceipt.ticket_id if isinstance(order,ServiceTicket) else SalesReceipt.order_id
     rows=totals(type(order))
     found=session.execute(select(rows.c.paid,rows.c.pending,rows.c.refunded).where(rows.c.parent_id==order.id)).first()
     paid,pending,refunded=found if found else (0,0,0)
@@ -178,17 +181,56 @@ def report_for_ticket_in_tx(session, user, ticket: ServiceTicket, body: SalesRec
     return receipt
 
 
+def check_opening_reporter(user):
+    if not has_role(user, 'finance'):
+        raise BusinessError('FORBIDDEN', 'Chỉ kế toán hoặc giám đốc được báo thu nợ đầu kỳ.', status=403)
+
+
+def _opening(session, opening_id):
+    row = session.scalar(select(CustomerOpeningDebt).where(CustomerOpeningDebt.id==opening_id).with_for_update()
+                         .execution_options(populate_existing=True))
+    if row is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy nợ đầu kỳ của khách.', status=404)
+    return row
+
+
+def report_for_opening(session, user, opening_id, body: SalesReceiptReport):
+    """Báo thu trừ nợ đầu kỳ khách: cùng luật chờ xác nhận, phiếu thu khi xác nhận như đơn bán."""
+    check_opening_reporter(user)
+    with _transaction(session):
+        opening = _opening(session, opening_id)
+        _version(opening, body.version)
+        current = balance(opening)
+        if current['paid'] + current['pending'] + body.amount > opening.amount:
+            raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số nợ đầu kỳ của khách.',
+                                {**current, 'available': current['remaining'] - current['pending']}, status=409)
+        received = body.received_at or _today()
+        receipt = SalesReceipt(number=next_number(session, 'BT', received), opening_id=opening.id,
+                    method=body.method, amount=body.amount, received_at=received, note=body.note,
+                    status='CHO_XAC_NHAN', reason='', reported_by=user.id)
+        session.add(receipt)
+        _record(session, user, receipt, 'report', None)
+        return receipt
+
+
+def for_opening(session, user, opening):
+    rows = list(session.scalars(select(SalesReceipt).where(SalesReceipt.opening_id == opening.id)
+                               .order_by(SalesReceipt.reported_at, SalesReceipt.id)))
+    return dict(balance=balance(opening), receipts=rows)
+
+
 def held_by(session, user):
     """Tiền mặt đang chờ của chính người báo, không phụ thuộc người hiện giữ phiếu."""
     with session.no_autoflush:
         rows = [dict(row) for row in session.execute(select(
             SalesReceipt.id, SalesReceipt.number, SalesReceipt.ticket_id, SalesReceipt.order_id,
-            ServiceTicket.number.label('ticket_number'), SalesOrder.number.label('order_number'),
+            ServiceTicket.number.label('ticket_number'), func.coalesce(SalesOrder.number, CustomerOpeningDebt.number).label('order_number'),
             Customer.name.label('customer'), SalesReceipt.amount, SalesReceipt.received_at,
             func.sum(SalesReceipt.amount).over().label('held_total')
         ).outerjoin(ServiceTicket, ServiceTicket.id == SalesReceipt.ticket_id).outerjoin(
-            SalesOrder, SalesOrder.id == SalesReceipt.order_id).join(
-            Customer, Customer.code == func.coalesce(ServiceTicket.customer_code, SalesOrder.customer_code))
+            SalesOrder, SalesOrder.id == SalesReceipt.order_id).outerjoin(
+            CustomerOpeningDebt, CustomerOpeningDebt.id == SalesReceipt.opening_id).join(
+            Customer, Customer.code == func.coalesce(ServiceTicket.customer_code, SalesOrder.customer_code, CustomerOpeningDebt.customer_code))
         .where(SalesReceipt.reported_by == user.id, SalesReceipt.method == 'TIEN_MAT',
                SalesReceipt.status == 'CHO_XAC_NHAN')
         .order_by(SalesReceipt.received_at, SalesReceipt.reported_at, SalesReceipt.id)).mappings()]
@@ -208,11 +250,16 @@ def for_ticket(session,user,ticket_id):
 
 
 def _locked(session, receipt_id):
-    source = session.execute(select(SalesReceipt.order_id,SalesReceipt.ticket_id).where(SalesReceipt.id==receipt_id)).first()
+    source = session.execute(select(SalesReceipt.order_id,SalesReceipt.ticket_id,SalesReceipt.opening_id).where(SalesReceipt.id==receipt_id)).first()
     if source is None:
         raise BusinessError('NOT_FOUND','Không tìm thấy báo thu.',status=404)
     # Luôn khóa chứng từ nguồn trước BT, cùng thứ tự report/cancel/transition.
-    parent = sales_orders._load(session,source.order_id,lock=True) if source.order_id is not None else _ticket(session,source.ticket_id)
+    if source.order_id is not None:
+        parent = sales_orders._load(session,source.order_id,lock=True)
+    elif source.opening_id is not None:
+        parent = _opening(session,source.opening_id)
+    else:
+        parent = _ticket(session,source.ticket_id)
     receipt = session.scalar(select(SalesReceipt).where(SalesReceipt.id==receipt_id).with_for_update()
                              .execution_options(populate_existing=True))
     return parent,receipt
@@ -220,7 +267,7 @@ def _locked(session, receipt_id):
 
 def _post_cash(session,user,parent,receipt):
     fund_key = 'THU_TIEN_MAT' if receipt.method=='TIEN_MAT' else 'THU_CHUYEN_KHOAN'
-    category_key = 'DANH_MUC_BAN_HANG' if receipt.order_id is not None else 'DANH_MUC_DICH_VU'
+    category_key = 'DANH_MUC_DICH_VU' if receipt.ticket_id is not None else 'DANH_MUC_BAN_HANG'  # nợ đầu kỳ thu như bán hàng
     fund = finance_mappings.require(session,fund_key)
     category = finance_mappings.require(session,category_key)
     doc = cash_docs.insert(session,user,CashDocIn(kind='PT',doc_date=receipt.received_at,fund_code=fund,
@@ -332,6 +379,8 @@ def confirm_cash_group(session,user,items,counted,reporter_id):
             sales_orders._load(session,ident,lock=True)
         for ident in sorted({row.ticket_id for row in rows if row.ticket_id is not None}):
             _ticket(session,ident)
+        for ident in sorted({row.opening_id for row in rows if row.opening_id is not None}):
+            _opening(session,ident)
         locked=[]
         for source in rows:
             try:

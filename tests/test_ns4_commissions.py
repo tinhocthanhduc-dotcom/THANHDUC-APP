@@ -327,3 +327,34 @@ def test_half_up_rounding_collection_cap_and_no_business_posting(db,people):
     assert line['amount']==1 and line['paid_ratio']==1  # 4 * 12.5% = 0.5 -> 1 VND
     svc.lock(db,p['director'],JAN)
     assert before==[db.scalar(select(func.count()).select_from(model)) for model in (StockLedger,StockDoc,FundLedger,CashDoc)]
+
+
+def _g05_ticket(db,p,number,actor,assignee,**kw):
+    t=ServiceTicket(number=number,customer_code='KTD-000001',kind='SUA_TAI_CHO',symptom='Kẹt giấy',status='HOAN_THANH',
+        assignee_id=assignee.id,created_by=p['dispatcher'].id,created_at=stamp('2027-01-02T07:00'),billing='THU_TIEN',
+        subtotal=500000,vat_total=40000,total=540000,priced_at=stamp('2027-01-02T08:00'),receivable=540000,**kw)
+    db.add(t);db.flush()
+    db.add(ServiceStep(ticket_id=t.id,action='transition',to_status='HOAN_THANH',actor_id=actor.id,assignee_id=assignee.id,at=stamp('2027-01-02T08:00')))
+    db.add(ServiceLine(ticket_id=t.id,line_no=1,kind='PHI',description='Tiền công',qty=1,unit_price=500000,vat_rate=8,amount=500000,vat_amount=40000))
+    db.commit();return t
+
+
+def test_g05_commission_and_kpi_go_to_assigned_technician_not_clicker(db,people):
+    """G05: điều phối bấm Hoàn thành thay thợ → thợ được giao hưởng; thợ xưởng (repaired_by) vẫn ưu tiên."""
+    p=people;rule(db,p,'THO');tech=p['technician']
+    by_dispatcher=_g05_ticket(db,p,'DV-D',p['dispatcher'],tech)
+    self_done=_g05_ticket(db,p,'DV-T',tech,tech)
+    workshop=_g05_ticket(db,p,'DV-X',p['dispatcher'],tech,repaired_by=p['other'].id)
+    for t in (by_dispatcher,self_done,workshop):receipt(db,p,t,540000)
+    drafted=svc.draft(db,JAN);owners={r['ticket_id']:r['user_id'] for r in drafted if r['source']=='PHIEU_DV'}
+    assert owners[by_dispatcher.id]==p['technician'].id and owners[self_done.id]==p['technician'].id
+    assert owners[workshop.id]==p['other'].id
+    actual=kpi.compute(db,JAN)
+    assert actual[p['technician'].id]['tho_hoan_thanh']==2
+    assert actual.get(p['dispatcher'].id,{}).get('tho_hoan_thanh',0)==0
+    # Bảo hành lại quy về thợ được giao lúc hoàn thành, không phải người bấm.
+    db.add(ServiceTicket(number='DV-BH',customer_code='KTD-000001',kind='BAO_HANH',symptom='Kẹt lại',status='MOI',
+        warranty_of_id=by_dispatcher.id,created_by=p['dispatcher'].id,created_at=stamp('2027-01-20T08:00')));db.commit()
+    actual=kpi.compute(db,JAN)
+    assert actual[p['technician'].id]['tho_bao_hanh_lai']==1
+    assert actual.get(p['dispatcher'].id,{}).get('tho_bao_hanh_lai',0)==0

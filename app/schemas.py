@@ -993,6 +993,7 @@ class SalesReceiptOut(BaseModel):
     number: str
     order_id: int | None
     ticket_id: int | None
+    opening_id: int | None = None
     cash_doc_id: int | None
     method: str
     amount: int

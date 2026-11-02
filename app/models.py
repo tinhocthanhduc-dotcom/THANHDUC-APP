@@ -802,14 +802,35 @@ SALES_RECEIPT_STATUSES = ('CHO_XAC_NHAN', 'DA_XAC_NHAN', 'TU_CHOI', 'DA_HUY')
 SALES_RECEIPT_METHODS = ('TIEN_MAT', 'CHUYEN_KHOAN')
 
 
+class CustomerOpeningDebt(Base):
+    """Nợ cũ của khách trước khi dùng app (gồm VAT). Một khách một dòng; Báo thu trừ dần như đơn bán."""
+    __tablename__ = 'customer_opening_debts'
+    __table_args__ = (CheckConstraint('amount > 0', name='ck_customer_opening_debts_amount'),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'), unique=True)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    as_of: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(Text, default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {'version_id_col': version}
+
+    @property
+    def receivable(self) -> int:
+        return self.amount
+
+
 class SalesReceipt(Base):
     __tablename__ = 'sales_receipts'
     __table_args__ = (
         CheckConstraint(_in('method', SALES_RECEIPT_METHODS), name='ck_sales_receipts_method'),
         CheckConstraint(_in('status', SALES_RECEIPT_STATUSES), name='ck_sales_receipts_status'),
         CheckConstraint('amount > 0', name='ck_sales_receipts_amount'),
-        CheckConstraint('(order_id is not null) <> (ticket_id is not null)', name='ck_sales_receipts_source'),
+        CheckConstraint('(order_id is not null)::int + (ticket_id is not null)::int + (opening_id is not null)::int = 1', name='ck_sales_receipts_source'),
         Index('ix_sales_receipts_order_status', 'order_id', 'status'),
+        Index('ix_sales_receipts_opening_status', 'opening_id', 'status'),
         Index('ix_sales_receipts_ticket_status', 'ticket_id', 'status'),
         Index('ix_sales_receipts_status_reported', 'status', 'reported_at'),
     )
@@ -818,6 +839,7 @@ class SalesReceipt(Base):
     number: Mapped[str] = mapped_column(String(32), unique=True)
     order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'))
     ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    opening_id: Mapped[int | None] = mapped_column(ForeignKey('customer_opening_debts.id'))
     cash_doc_id: Mapped[int | None] = mapped_column(ForeignKey('cash_docs.id'))
     method: Mapped[str] = mapped_column(String(16))
     amount: Mapped[int] = mapped_column(BigInteger)

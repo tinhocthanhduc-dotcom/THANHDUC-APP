@@ -108,7 +108,8 @@ def _sources(month, keys=None):
     add('tho_san_xuat','x.technician_id','x.number','x.received_at','x.qty_good',
         "from production_orders x where x.status='DA_NHAP' and x.received_at>=:lo and x.received_at<:hi")
     # Distinct ticket/actor pairs avoid counting reopen/completion cycles twice.
-    completed="""select distinct s.ticket_id,s.actor_id from service_steps s join service_tickets t on t.id=s.ticket_id
+    # G05: người hưởng = thợ sửa ở xưởng, rồi thợ đang được giao lúc hoàn thành, cuối cùng mới tới người bấm.
+    completed="""select distinct s.ticket_id,coalesce(t.repaired_by,s.assignee_id,s.actor_id) actor_id from service_steps s join service_tickets t on t.id=s.ticket_id
         where s.to_status='HOAN_THANH' and s.at>=:lo and s.at<:hi and t.status<>'DA_HUY'"""
     completion_from=f'from ({completed}) c join service_tickets t on t.id=c.ticket_id'
     add('tho_hoan_thanh','c.actor_id','t.number','t.created_at','1',completion_from)
@@ -121,7 +122,7 @@ def _sources(month, keys=None):
           and not exists (select 1 from service_steps x where x.ticket_id=s.ticket_id and x.to_status='DA_GIAO'
             and (x.at,x.id)>(s.at,s.id) and (x.at,x.id)<(n.at,n.id)) order by n.at,n.id limit 1) a on true
         where s.to_status='DA_GIAO' and s.at>=:lo and s.at<:hi and t.status<>'DA_HUY'""")
-    last_owner="""join lateral (select s.actor_id from service_steps s where s.ticket_id=t.id and s.to_status='HOAN_THANH'
+    last_owner="""join lateral (select coalesce(t.repaired_by,s.assignee_id,s.actor_id) actor_id from service_steps s where s.ticket_id=t.id and s.to_status='HOAN_THANH'
         and s.at < {before} order by s.at desc,s.id desc limit 1) c on true"""
     add('tho_bao_hanh_lai','c.actor_id','w.number','w.created_at','1',
         "from service_tickets w join service_tickets t on t.id=w.warranty_of_id "+last_owner.format(before='w.created_at')+

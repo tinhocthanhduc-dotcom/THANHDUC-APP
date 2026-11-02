@@ -7,7 +7,7 @@ from sqlalchemy import Select, String, case, func, literal, or_, select, union_a
 from . import equipment_custody, sales_receipts, sales_orders, service_sla, service_tickets, stock_min_levels, supplier_debts, service_workshop
 from .config import get_settings
 from .errors import BusinessError
-from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
+from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, CustomerOpeningDebt, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
 from . import production
 from .models import EquipmentReport, ProductionOrder, StockDoc
@@ -26,6 +26,12 @@ def _available(model):
     rows=sales_receipts.totals(model)
     reported=select(rows.c.paid+rows.c.pending).where(rows.c.parent_id==model.id).correlate(model).scalar_subquery()
     return func.coalesce(model.receivable,0)-func.coalesce(reported,0)
+
+
+def _opening_available():
+    o=CustomerOpeningDebt;rows=sales_receipts.totals(o)
+    reported=select(rows.c.paid+rows.c.pending).where(rows.c.parent_id==o.id).correlate(o).scalar_subquery()
+    return o.amount-func.coalesce(reported,0)
 
 
 def _supplier_debt_dates(deductions):
@@ -176,9 +182,11 @@ def _specs(user, today, now):
         add('orders_deposit','Chưa thu cọc',deposits.order_by(SalesOrder.confirmed_at,SalesOrder.id),'order','/don-ban')
         rejected = select(SalesReceipt.id, SalesReceipt.number, SalesReceipt.status, Customer.name.label('customer'),
             SalesReceipt.amount, literal(False).label('overdue'), SalesReceipt.order_id, SalesReceipt.ticket_id,
-            SalesReceipt.reason).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(t, t.id==SalesReceipt.ticket_id).join(
-                Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code)).where(SalesReceipt.status=='TU_CHOI',
+            SalesReceipt.reason, CustomerOpeningDebt.customer_code.label('opening_customer')).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(t, t.id==SalesReceipt.ticket_id).outerjoin(
+                CustomerOpeningDebt, CustomerOpeningDebt.id==SalesReceipt.opening_id).join(
+                Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code, CustomerOpeningDebt.customer_code)).where(SalesReceipt.status=='TU_CHOI',
                 or_((SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO'))) & (_available(SalesOrder)>0),
+                    CustomerOpeningDebt.id.is_not(None) & (_opening_available()>0),
                     (literal(has_role(user, 'dispatcher', 'reception', 'technician'))) &
                     (t.status.in_(('HOAN_THANH','DA_DONG'))) & (_available(t)>0)))
         if not director:rejected=rejected.where(SalesReceipt.reported_by==user.id)
@@ -243,7 +251,8 @@ def _specs(user, today, now):
         add('refunds_pending','Hoàn tiền chờ duyệt',refunds,'refund','/bao-thu?tab=hoan-tien')
         pending = select(SalesReceipt.id, SalesReceipt.number, SalesReceipt.status, Customer.name.label('customer'),
             SalesReceipt.amount, literal(False).label('overdue')).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(
-                t, t.id==SalesReceipt.ticket_id).join(Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code)).where(
+                t, t.id==SalesReceipt.ticket_id).outerjoin(CustomerOpeningDebt, CustomerOpeningDebt.id==SalesReceipt.opening_id).join(
+                Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code, CustomerOpeningDebt.customer_code)).where(
                     SalesReceipt.status=='CHO_XAC_NHAN').order_by(SalesReceipt.reported_at, SalesReceipt.id)
         add('receipts_pending', 'Báo thu chờ xác nhận', pending, 'receipt', '/bao-thu')
         # TUẤN 30/10/2026: chi phí phát sinh thợ tự trả, kế toán duyệt rồi hoàn bằng phiếu chi.
@@ -314,7 +323,8 @@ def _group(session, spec, page=1):
             if spec['key']=='orders_cancel_requested':row['link']=f"/don-ban/{row['id']}#de-nghi-huy"
             if spec['key']=='service_close':row['link']=f"/linh-kien-thu-hoi?ticket_id={row['id']}"
             if spec['key']=='receipts_rejected':
-                row['link'] = f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else f"/dich-vu/{row['ticket_id']}#thu-tien"
+                row['link'] = (f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else
+                               '/cong-no-khach-hang/dau-ky/'+quote(row['opening_customer'],safe='')+'#thu-tien' if row.get('opening_customer') else f"/dich-vu/{row['ticket_id']}#thu-tien")
             if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"
             if kind == 'expense':row['link'] = ('/chi-phi-tho?tab=cho-hoan#cp-' if row['status']=='DA_DUYET' else '/chi-phi-tho#cp-')+str(row['id'])
             row['amount'] = int(row['amount'] or 0)

@@ -352,3 +352,17 @@ def test_auto_clock_out_closes_previous_day_and_skips_locked_month(db,p,clock):
     # Tháng đã khóa: bỏ qua, không lỗi.
     tap(db,p,clock,'IN','2026-11-04T07:30');svc.lock_month(db,p['director'],DAY)
     clock['at']=stamp('2026-11-04T19:30');assert svc.auto_clock_out(db)==[]
+
+
+def test_g04_unlock_blocked_after_payroll_approved(client,db,p,clock):
+    from app.models import AuditLog, PayrollMonth
+    locked=svc.lock_month(db,p['director'],DAY)
+    db.add(PayrollMonth(month=date(2026,11,1),approved_by=p['director'].id,approved_at=datetime(2026,12,1,tzinfo=svc.TZ),total_net=0));db.commit()
+    before=db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='attendance.unlock'))
+    assert fail('LUONG_DA_DUYET',svc.unlock_month,db,p['director'],DAY,'Sửa giờ').status==409
+    db.refresh(locked)
+    assert svc.is_locked(locked) and locked.unlocked_at is None
+    assert db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='attendance.unlock'))==before
+    web_login(client,p['director'])
+    page=client.get('/cham-cong/bang?thang=2026-11').text
+    assert 'Lương đã duyệt · không mở khóa' in page and 'Mở khóa (việc hiếm)' not in page

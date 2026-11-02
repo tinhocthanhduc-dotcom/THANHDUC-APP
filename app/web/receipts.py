@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .. import sales_orders, sales_receipts as svc, service_tickets
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import CashDoc, Customer, SalesOrder, SalesReceipt, ServiceTicket, User
+from ..models import CashDoc, Customer, CustomerOpeningDebt, SalesOrder, SalesReceipt, ServiceTicket, User
 from ..schemas import SalesReceiptReport
 from ..security import has_role
 from . import checked_form, money, nav, render, web_user
@@ -83,6 +83,15 @@ def ticket_context(session,user,ticket,form=None,decision=None,failed_id=None,fa
         reportable,form,decision,failed_id,failed_action)
 
 
+def opening_context(session,user,opening,form=None,decision=None,failed_id=None,failed_action=''):
+    """Thu tiền trên nợ đầu kỳ khách: cùng khung Báo thu như đơn bán."""
+    from .customer_debts import opening_url
+    collection=svc.for_opening(session,user,opening) if opening else None
+    ctx=_collection_context(session,user,opening,collection,'opening',has_role(user,'finance'),bool(opening),form,decision,failed_id,failed_action)
+    ctx.update(can_view_receipt_receivables=False,receipt_report_url=opening_url(opening.customer_code,'/bao-thu') if opening else '')
+    return ctx
+
+
 @router.post('/don-ban/{order_id}/bao-thu')
 def report(request: Request,order_id: int,form=Depends(checked_form),session: Session=Depends(get_session)):
     user=request.state.user
@@ -146,9 +155,12 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
     sources=rows+([failed] if failed else [])
     orders={o.id:o for o in session.scalars(select(SalesOrder).where(SalesOrder.id.in_({r.order_id for r in sources if r.order_id})))}
     tickets={t.id:t for t in session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_({r.ticket_id for r in sources if r.ticket_id})))}
-    parents={r.id:(orders[r.order_id] if r.order_id else tickets[r.ticket_id]) for r in sources}
+    openings={o.id:o for o in session.scalars(select(CustomerOpeningDebt).where(CustomerOpeningDebt.id.in_({r.opening_id for r in sources if r.opening_id})))}
+    parents={r.id:(orders[r.order_id] if r.order_id else openings[r.opening_id] if r.opening_id else tickets[r.ticket_id]) for r in sources}
+    from .customer_debts import opening_url
     receipt_sources={r.id:dict(number=parents[r.id].number,customer_code=parents[r.id].customer_code,
-                              url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else nav.ticket_url(user,r.ticket_id,"#thu-tien")) for r in sources}
+                              url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else opening_url(parents[r.id].customer_code,'#thu-tien') if r.opening_id
+                              else nav.ticket_url(user,r.ticket_id,"#thu-tien")) for r in sources}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({p.customer_code for p in parents.values()}))).all())
     cash_groups={}
     for row in rows:
@@ -248,6 +260,11 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
             from .orders import _form
             return _form(request,session,order=sales_orders.load(session,user,receipt.order_id),error=message,code=code,status=status,
                          receipt_decision=dict(form),failed_receipt_id=receipt.id,failed_receipt_action=action)
+        if receipt.opening_id and form.get('origin')=='opening':
+            from .customer_debts import opening_page
+            row=session.get(CustomerOpeningDebt,receipt.opening_id)
+            return opening_page(request,session,user,row.customer_code,error=message,error_code=code,status=status,
+                                decision=dict(form),failed_id=receipt.id,failed_action=action)
         return _queue(request,session,user,filters,message,code,status,dict(form),receipt,action)
     if form.get('return_to')=='work':
         return RedirectResponse('/viec-cua-toi?xong='+('confirmed' if action=='confirm' else 'rejected' if action=='reject' else 'done'),status_code=303)
@@ -255,6 +272,10 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
         return RedirectResponse(f'/dich-vu/{receipt.ticket_id}?da_luu=1#thu-tien',status_code=303)
     if receipt.order_id and form.get('origin')=='order':
         return RedirectResponse(f'/don-ban/{receipt.order_id}?da_luu=1#thu-tien',status_code=303)
+    if receipt.opening_id and form.get('origin')=='opening':
+        from .customer_debts import opening_url
+        row=session.get(CustomerOpeningDebt,receipt.opening_id)
+        return RedirectResponse(opening_url(row.customer_code,'?da_luu=1#thu-tien'),status_code=303)
     return _queue_redirect(filters,str(form.get('return_anchor','')))
 
 
