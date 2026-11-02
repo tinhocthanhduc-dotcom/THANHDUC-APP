@@ -3420,3 +3420,12 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .dw-ve-anh { align-items: flex-start; }
 .va .dw-xbtn-info { border-color: var(--info-solid); color: var(--info-solid); }
 .va .dw-xbtn-info.btn-new { color: #fff; }
+
+/* Đăng web · bảng sức khỏe Codex trên máy chủ (đợt 1, 02/11/2026) */
+.dw-codex { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0 0 12px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: .9rem; min-width: 0; }
+.dw-codex > span { min-width: 0; overflow-wrap: anywhere; }
+.dw-codex-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; background: var(--ok); }
+.dw-codex-dot.warn { background: var(--warn); }
+.dw-codex-dot.bad { background: var(--bad); }
+.dw-codex-loi { color: var(--bad); flex-basis: 100%; }

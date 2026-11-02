@@ -281,12 +281,53 @@ def ghi_nhip(goc, thong_tin: dict) -> None:
     ghi_json(thu_muc_viec(goc) / "_nhip.json", {**thong_tin, "luc": _luc()})
 
 
-CODEX_SONG_GIAY = 30 * 60  # Codex trên Z2 hỏi việc mỗi ~5 phút; quá 30 phút không thấy thì coi như tắt
+CODEX_SONG_GIAY = 30 * 60  # Codex trên Z2 hỏi việc mỗi ~30 giây; quá 30 phút không thấy thì coi như tắt
 CODEX_CHO_PHUT = 60  # việc Codex quá lâu không ai làm thì chuyển sang AI tự động (API) nếu có khóa
+CODEX_CHAM_GIAY = 3 * 60  # quá 3 phút chưa hỏi việc: bảng sức khỏe báo "chậm" (thường là đang làm một việc dài)
 
 
-def ghi_nhip_codex(goc) -> None:
-    ghi_json(thu_muc_viec(goc) / "_nhip_codex.json", {"luc": _luc()})
+def ghi_nhip_codex(goc, **them) -> None:
+    """Mỗi lần Codex gọi cửa AI. them: dang_nhap (True/False), ban (phiên bản codex), loi (lỗi gần nhất)."""
+    p = thu_muc_viec(goc) / "_nhip_codex.json"
+    d = doc_json(p, {})
+    d = d if isinstance(d, dict) else {}
+    luc = _luc()
+    d["luc"] = luc
+    if "dang_nhap" in them:
+        d["dang_nhap"] = them["dang_nhap"]
+        d["kiem_luc"] = luc
+    if them.get("ban"):
+        d["ban"] = str(them["ban"])[:60]
+    if them.get("loi"):
+        d["loi"] = {"luc": luc, "ly_do": str(them["loi"])[:300]}
+    ghi_json(p, d)
+
+
+def suc_khoe_codex(goc) -> dict:
+    """Bảng sức khỏe Codex cho màn Đăng web: còn chạy không, còn đăng nhập ChatGPT không, việc chờ, lỗi gần nhất."""
+    d = doc_json(thu_muc_viec(goc) / "_nhip_codex.json", None)
+    d = d if isinstance(d, dict) else {}
+    ra = {"co": bool(d.get("luc")), "dang_nhap": d.get("dang_nhap"), "ban": d.get("ban", ""), "loi": d.get("loi") or None,
+          "song": codex_song(goc), "giay": None, "luc": ""}
+    try:
+        luc = datetime.fromisoformat(d["luc"])
+        ra["giay"] = int((bay_gio() - luc).total_seconds())
+        ra["luc"] = luc.strftime("%H:%M %d/%m")
+    except (KeyError, TypeError, ValueError):
+        pass
+    ra["cham"] = ra["song"] and ra["giay"] is not None and ra["giay"] > CODEX_CHAM_GIAY
+    ra["cho_viec"] = len(viec_cho_codex(goc))
+    try:
+        from . import ve_anh
+        ra["cho_ve"] = sum(1 for x in ve_anh.ds(goc) if x.get("trang_thai") in ve_anh.DANG_CHAY)
+    except Exception:  # noqa: BLE001 — bảng sức khỏe không được làm hỏng màn
+        ra["cho_ve"] = 0
+    if ra["loi"]:
+        try:
+            ra["loi"]["gio"] = datetime.fromisoformat(ra["loi"]["luc"]).strftime("%H:%M %d/%m")
+        except (KeyError, TypeError, ValueError):
+            ra["loi"]["gio"] = ""
+    return ra
 
 
 def codex_song(goc) -> bool:
@@ -359,6 +400,58 @@ def lay_yeu_cau_lam_moi(goc) -> bool:
         p.unlink(missing_ok=True)
         return True
     return False
+
+
+# Lấy lại đúng 1 sản phẩm / bài viết khi anh mở màn Sửa ảnh hoặc Sửa bằng AI (TUẤN duyệt đợt 1 ngày 02/11/2026).
+# Danh sách Trên web vẫn chỉ làm mới cả loạt khi anh bấm "Cập nhật từ web".
+LOAI_MOT = ("san_pham", "bai_viet")
+MOI_GIAY = 120  # vừa lấy trong 2 phút thì không lấy lại (tránh mở lại màn là lấy liên tục)
+
+
+def _file_mot(goc, loai: str, web_id: int) -> Path:
+    if loai not in LOAI_MOT:
+        raise ValueError("loai")
+    return thu_muc_viec(goc) / "_lam-moi-mot" / f"{loai}-{int(web_id)}"
+
+
+def yeu_cau_lam_moi_mot(goc, loai: str, web_id: int) -> None:
+    p = _file_mot(goc, loai, web_id)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(_luc())
+
+
+def dang_cho_lam_moi_mot(goc, loai: str, web_id: int) -> bool:
+    try:
+        return _file_mot(goc, loai, web_id).exists()
+    except (ValueError, TypeError):
+        return False
+
+
+def lay_yeu_cau_lam_moi_mot(goc) -> list[tuple[str, int]]:
+    """Máy đăng web lấy các yêu cầu (cũ trước). File chỉ xóa sau khi làm xong (xong_lam_moi_mot) để màn biết đang chờ."""
+    d = thu_muc_viec(goc) / "_lam-moi-mot"
+    if not d.exists():
+        return []
+    ra = []
+    for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime):
+        loai, _, so = p.name.rpartition("-")
+        if loai in LOAI_MOT and so.isdigit():
+            ra.append((loai, int(so)))
+        else:
+            p.unlink(missing_ok=True)
+    return ra
+
+
+def xong_lam_moi_mot(goc, loai: str, web_id: int) -> None:
+    _file_mot(goc, loai, web_id).unlink(missing_ok=True)
+
+
+def moi_lay(it: dict) -> bool:
+    """Mục này vừa được lấy lại từ web trong MOI_GIAY giây."""
+    try:
+        return (bay_gio() - datetime.fromisoformat(str(it.get("lay_luc") or ""))).total_seconds() < MOI_GIAY
+    except ValueError:
+        return False
 
 
 def doc_xac_nhan(goc) -> dict:
