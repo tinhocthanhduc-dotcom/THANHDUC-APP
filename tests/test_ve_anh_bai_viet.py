@@ -84,13 +84,15 @@ def test_bai_moi_de_ai_ve_anh_dai_dien_chon_o_xem_truoc(client, db, web_login, m
                                                 cach_viet="tu_dong", ve_anh="1"), follow_redirects=False)
     viec_id = r.headers["location"].rsplit("/", 1)[1]
     assert hd.doc(goc, viec_id)["ve_anh"] is True
-    yc = ve_anh.moi_nhat(goc, viec_id=viec_id)
-    assert yc and yc["trang_thai"] == ve_anh.CHO and "kẹt giấy" in yc["lenh"]
+    assert ve_anh.moi_nhat(goc, viec_id=viec_id) is None  # TUẤN 02/11: viết bài xong mới vẽ, theo dàn ý bài
 
     wp = _wp_co_hang()
     may = _may(goc, wp, nguoi_viet=_ChatGPTGia())
     may.lam_mot_viec()
     assert hd.doc(goc, viec_id)["trang_thai"] == hd.XEM_TRUOC
+    yc = ve_anh.moi_nhat(goc, viec_id=viec_id)
+    assert yc and yc["trang_thai"] == ve_anh.CHO and yc["so_anh"] == 3 and "kẹt giấy" in yc["lenh"]
+    assert "Mở bài: Nội dung" in yc["lenh"]
     assert "Codex đang vẽ ảnh" in client.get(f"/dang-web/viec/{viec_id}").text
     client.get("/ai/dang-web/ve-anh", headers=hw)
     client.post(f"/ai/dang-web/ve-anh/{yc['id']}/anh", headers={**hw, "Content-Type": "image/png"}, content=_png())
@@ -112,6 +114,17 @@ def test_bai_moi_de_ai_ve_anh_dai_dien_chon_o_xem_truoc(client, db, web_login, m
     v = hd.doc(goc, viec_id)
     assert v["trang_thai"] == hd.DA_DANG, v.get("loi")
     assert wp.tao[0]["featured_media"] == 901  # ảnh AI anh chọn làm ảnh đại diện
+
+
+def test_dan_y_bai_lay_tieu_de_h1_h2_vao_lenh_ve():
+    html = ("<h1>Máy in Canon 2900 bị kẹt giấy</h1><p>Kẹt giấy là lỗi hay gặp &amp; dễ sửa.</p>"
+            "<h2>Nguyên nhân do <b>quả đào</b> mòn</h2><p>x</p><h3>Cách kiểm tra</h3><h2>Thay quả đào tại chỗ</h2>")
+    dy = ve_anh.dan_y_bai(html)
+    assert dy.splitlines() == ["H1: Máy in Canon 2900 bị kẹt giấy", "H2: Nguyên nhân do quả đào mòn", "  H3: Cách kiểm tra",
+                               "H2: Thay quả đào tại chỗ", "Mở bài: Kẹt giấy là lỗi hay gặp & dễ sửa."]
+    lenh = ve_anh.lenh_ve("Canon 2900 kẹt giấy", dan_y=dy)
+    assert "vẽ 3 ảnh" in lenh and "H2: Thay quả đào tại chỗ" in lenh and "mỗi ảnh minh họa một mục H2" in lenh
+    assert ve_anh.dan_y_bai("") == ""
 
 
 def test_codex_ve_khong_duoc_thi_bao_loi_de_ve_lai(client, db, web_login, make_user, goc):

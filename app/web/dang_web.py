@@ -465,8 +465,7 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
         if ve:
             them["ve_anh"] = True
         viec_id = hd.tao_viec(g, loai, them, anh)
-        if ve:  # Codex vẽ ảnh song song lúc AI viết bài; anh chọn ảnh ở màn xem trước
-            ve_anh.tao(g, chu_de=d["chu_de"], viec_id=viec_id)
+        # TUẤN 02/11: máy đăng web viết bài xong mới gửi Codex vẽ, kèm dàn ý H1/H2 để ảnh sát nội dung.
     except BusinessError as exc:
         return _form_soan(request, session, d, error=exc.message, status=exc.status)
     return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
@@ -937,12 +936,13 @@ def draw(request: Request, form=Depends(checked_form)):
         d = v.get("noi_dung") or {}
         ve_lai = f"/dang-web/viec/{viec_id}#tao-anh"
         cu = ve_anh.moi_nhat(g, viec_id=viec_id)
-        tham = dict(chu_de=d.get("tieu_de") or v.get("chu_de", ""), viec_id=viec_id, tom_tat=d.get("tom_tat", ""), dan=dan)
+        tham = dict(chu_de=d.get("tieu_de") or v.get("chu_de", ""), viec_id=viec_id, tom_tat=d.get("tom_tat", ""), dan=dan,
+                    dan_y=ve_anh.dan_y_bai(d.get("noi_dung_html", "")))
     else:
         it, _ = _muc_web("bai_viet", str(form.get("id", "")))
         ve_lai = f"/dang-web/sua-anh?loai=bai&id={int(it['id'])}#tao-anh"
         cu = ve_anh.moi_nhat(g, wp_id=int(it["id"]))
-        tham = dict(chu_de=it.get("ten", ""), wp_id=int(it["id"]), dan=dan)
+        tham = dict(chu_de=it.get("ten", ""), wp_id=int(it["id"]), dan=dan, dan_y=it.get("dan_y", ""))
     if not hd.codex_song(g):
         raise BusinessError("CODEX_OFF", "Codex trên Z2 đang tắt nên chưa vẽ được ảnh.", status=409)
     if not (cu and cu["trang_thai"] in ve_anh.DANG_CHAY):  # đang vẽ thì chờ lượt đó, không gửi thêm
@@ -1030,7 +1030,8 @@ def schedule(request: Request, form=Depends(checked_form), user: User = Depends(
 
 # ---------------- ghép mã TD cho sản phẩm trên web (TUẤN duyệt mẫu D6/6, D7 ngày 02/11/2026) ----------------
 # Chưa đồng bộ giá, còn hàng (TUẤN 02/11: "chưa"). Ghi lên web chỉ đổi ô Mã (SKU).
-GHEP_NHOM = (("chac", "Gợi ý chắc (≥ 90%)"), ("xem", "Gợi ý cần xem (70–89%)"), ("khong", "Không có gợi ý"), ("cho-ghi", "Đã ghép · chờ ghi lên web"))
+GHEP_NHOM = (("chac", "Gợi ý chắc (≥ 90%)"), ("xem", "Gợi ý cần xem (70–89%)"), ("khong", "Không có gợi ý"), ("cho-ghi", "Đã ghép · chờ ghi lên web"),
+             ("da-co", "Đã có mã TD trên web"))
 GHEP_CHAC = 0.9
 
 
@@ -1072,16 +1073,16 @@ def _ghep_du_lieu(session, g) -> dict:
         wid = int(it["id"])
         sku = str(it.get("sku") or "").strip().upper()
         code = lien_ket.get(wid)
-        if code and sku == code:
-            continue  # đã có mã TD trên web
         if wid in bo and not code:
             continue
         ids = [int(x) for x in it.get("dm") or [] if str(x).isdigit()]
         r = dict(id=wid, ten=it.get("ten", ""), anh=it.get("anh", ""), sku_cu=str(it.get("sku") or ""), xem=it.get("xem", ""),
                  gia_web=int(it["gia"]) if str(it.get("gia", "")).isdigit() else 0,
                  dm_ten=", ".join(cay.duong(i) for i in ids if i in cay.theo_id and not cay.chua_phan_loai([i])))
-        if code:
-            r.update(nhom="cho-ghi", ma=code, diem=None, bo_duoc=isinstance(xac.get(code), dict) and str(xac[code].get("dung", "")) == str(wid))
+        if code and sku == code:  # đã có mã TD trên web; bỏ ghép = xóa ô SKU trên web (TUẤN 02/11/2026)
+            r.update(nhom="da-co", ma=code, diem=None, bo_duoc=wid not in ma_theo_web or _ghep_tay(xac, code, wid))
+        elif code:
+            r.update(nhom="cho-ghi", ma=code, diem=None, bo_duoc=_ghep_tay(xac, code, wid))
         elif wid in tot:
             diem, _, code = tot[wid]
             r.update(nhom="chac" if diem >= GHEP_CHAC else "xem", ma=code, diem=int(round(diem * 100)))
@@ -1092,6 +1093,15 @@ def _ghep_du_lieu(session, g) -> dict:
         dem[r["nhom"]] += 1
         rows.append(r)
     return dict(rows=rows, dem=dem, lien_ket=lien_ket, theo_ma=theo_ma, web=web, so_bo=len(bo), cay=cay)
+
+
+def _ghep_tay(xac: dict, code: str, wid: int) -> bool:
+    """Mã này do anh ghép tay (không phải app tự đăng) nên bỏ ghép được."""
+    return isinstance(xac.get(code), dict) and str(xac[code].get("dung", "")) == str(wid)
+
+
+def _viec_ghi_ma(g):
+    return next((v for v in hd.ds(g) if v.get("kieu") == "ghi_sku" and v.get("trang_thai") not in hd.XONG), None)
 
 
 def _ghep_quay_lai(form) -> str:
@@ -1115,7 +1125,7 @@ def match_codes(request: Request, nhom: str = "", q: str = "", trang: str = "1",
     p = paging.build(trang, so, len(rows), query)
     rows = rows[p["offset"]: p["offset"] + p["size"]]
     tiles = [dict(label=label, n=d["dem"][k], on=k == nhom, href="/dang-web/ghep-ma?" + urlencode(dict(nhom=k))) for k, label in GHEP_NHOM]
-    dang_ghi = next((v for v in hd.ds(g) if v.get("kieu") == "ghi_sku" and v.get("trang_thai") not in hd.XONG), None)
+    dang_ghi = _viec_ghi_ma(g)
     return render(request, "dang_web_ghep.jinja", rows=rows, p=p, query=query, nhom=nhom, q=q, tiles=tiles, dem=d["dem"],
                   so_bo=d["so_bo"], web=d["web"], nhip=hd.doc_nhip(g), da_luu=da_luu, loi=loi[:200], dang_ghi=dang_ghi,
                   loi_thu_muc=hd.kiem_ghi_duoc(g))
@@ -1174,6 +1184,17 @@ def match_codes_save(request: Request, form=Depends(checked_form), session: Sess
         hd.dat_bo_ghep(g, int(web_id), True)
     elif hanh_dong == "bo":
         hd.bo_ghep_web(g, int(web_id))
+    elif hanh_dong == "bo_web":
+        r = next((x for x in d["rows"] if x["id"] == int(web_id) and x["nhom"] == "da-co"), None)
+        if not r or not r["bo_duoc"]:
+            raise BusinessError("BAD_STATE", "Sản phẩm này không bỏ ghép được ở đây.", status=409)
+        if _viec_ghi_ma(g):
+            return RedirectResponse(ve + noi + urlencode(dict(loi="Máy đang ghi mã lên web, chờ xong rồi bỏ ghép.")), status_code=303)
+        hd.bo_ghep_web(g, int(web_id))
+        viec_id = hd.tao_viec(g, "san_pham", dict(kieu="ghi_sku", ghi=[dict(id=r["id"], ma="", ma_cu=r["ma"], ten=r["ten"])],
+                                                  ten=f"Bỏ mã {r['ma']} trên web · {r['ten']}"[:200], van_dang=True))
+        hd.sua(g, viec_id, lambda x: x.update(trang_thai=hd.CHO_DANG))
+        return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
     else:
         raise BusinessError("BAD_FORM", "Thao tác không hợp lệ.")
     return RedirectResponse(ve + noi + "da_luu=1", status_code=303)
@@ -1184,7 +1205,7 @@ def write_codes(request: Request, form=Depends(checked_form), session: Session =
     """Gom mọi sản phẩm đã ghép mà ô SKU trên web chưa đúng mã thành một việc cho máy đăng web."""
     _can_ghi()
     g = goc()
-    dang = next((v for v in hd.ds(g) if v.get("kieu") == "ghi_sku" and v.get("trang_thai") not in hd.XONG), None)
+    dang = _viec_ghi_ma(g)
     if dang:
         return RedirectResponse(f"/dang-web/viec/{dang['id']}", status_code=303)
     d = _ghep_du_lieu(session, g)

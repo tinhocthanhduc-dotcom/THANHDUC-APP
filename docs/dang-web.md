@@ -198,3 +198,9 @@ Mỗi lần chạy in chi phí AI (Claude: số tiền ước tính; ChatGPT: s�
 - Mọi sản phẩm, bài viết tạo ra đều là Bản nháp.
 - Khóa nằm trong `deploy/.env` trên Z2, không lên GitHub.
 - Không bao giờ chạy `docker volume prune`, `docker system prune --volumes`, `docker compose down -v`.
+
+## Ghép mã: ô "Đã có mã TD" (02/11/2026)
+Ô thứ 5 liệt kê sản phẩm web đã có SKU là mã TD. Nút **Bỏ ghép** xóa liên kết trong app và tạo việc `ghi_sku` với `ma: ""` để xóa SKU trên web, sau đó sản phẩm quay lại danh sách gợi ý. Sản phẩm do app đăng không bỏ ghép được.
+
+## Vẽ ảnh bài viết theo dàn ý (02/11/2026)
+Mỗi lần Codex vẽ 3 ảnh. Bài mới: máy đăng web viết bài xong mới gửi yêu cầu vẽ, kèm dàn ý H1/H2/H3 và đoạn mở bài (`ve_anh.dan_y_bai`), để ảnh 1 minh họa tiêu đề bài, các ảnh còn lại minh họa từng mục H2. Bài đã có trên web lấy dàn ý từ `dan_y` trong danh sách bài (làm mới khi mở Sửa ảnh).

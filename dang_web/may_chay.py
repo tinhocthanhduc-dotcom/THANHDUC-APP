@@ -14,6 +14,7 @@ from pathlib import Path
 from . import anh as anh_mod
 from . import dang
 from . import hang_doi as hd
+from . import ve_anh
 from .cau_hinh import CauHinh
 from .viet_bai import ChoTraLoi
 from .so_ten import _ten
@@ -208,6 +209,19 @@ class MayDangWeb:
             chi_phi=kq.mo_ta_chi_phi, model=getattr(nv, "model", ""), ghi_chu_ai=kq.ghi_chu,
             can_kiem_tra=d.get("can_kiem_tra", []), loi="",
         )
+        if v.get("ve_anh") and not files:
+            self._gui_ve_anh(v, d)
+
+    def _gui_ve_anh(self, v: dict, d: dict) -> None:
+        """Bài đã viết xong: gửi Codex vẽ 3 ảnh theo tiêu đề + dàn ý H1/H2 (TUẤN 02/11). Đang vẽ thì thôi."""
+        try:
+            cu = ve_anh.moi_nhat(self.goc, viec_id=v["id"])
+            if cu and cu.get("trang_thai") in ve_anh.DANG_CHAY:
+                return
+            ve_anh.tao(self.goc, chu_de=d.get("tieu_de") or v.get("chu_de", ""), viec_id=v["id"], tom_tat=d.get("tom_tat", ""),
+                       dan_y=ve_anh.dan_y_bai(d.get("noi_dung_html", "")))
+        except Exception as exc:  # noqa: BLE001 — vẽ ảnh lỗi không làm hỏng bài đã viết; anh bấm Vẽ ở màn xem trước
+            in_(f"  Không gửi được yêu cầu vẽ ảnh: {exc}")
 
     # ---------- đăng ----------
     def _anh_len_web(self, v: dict, alt: str, tach_nen: bool) -> list[dict]:
@@ -335,7 +349,7 @@ class MayDangWeb:
                 "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
                 "ngay": str(it.get("date") or "")[:10], "co_anh": bool(fm), "anh_id": fm,
                 "anh": (anh_dd.get(fm) or {}).get("nho", ""), "anh_goc": (anh_dd.get(fm) or {}).get("src", ""),
-                "anhs_bai": anh_trong_bai(noi_dung)}
+                "anhs_bai": anh_trong_bai(noi_dung), "dan_y": ve_anh.dan_y_bai(noi_dung)}
 
     def lam_moi_mot(self, loai: str, web_id: int) -> None:
         """Anh mở màn Sửa ảnh / Sửa bằng AI: lấy lại đúng mục đó từ web, ghi đè dòng của nó trong danh sách đã lấy về."""
@@ -733,7 +747,7 @@ class MayDangWeb:
 
     def _dang_ghi_sku(self, v: dict) -> None:
         """Ghép mã (D7): ghi mã TD vào ô SKU của sản phẩm web. Lỗi từng dòng (mã trùng) ghi lại, không làm hỏng cả việc."""
-        ghi = [x for x in v.get("ghi") or [] if str(x.get("id", "")).isdigit() and x.get("ma")]
+        ghi = [x for x in v.get("ghi") or [] if str(x.get("id", "")).isdigit() and "ma" in x]  # ma "" = xóa ô SKU (bỏ ghép)
         # Web lỗi giữa chừng thì cả việc báo Lỗi; ghi lại cùng mã vào cùng sản phẩm không sao nên bấm Thử lại là được.
         kq = self.wp().ghi_sku([(int(x["id"]), str(x["ma"])) for x in ghi])
         loi = []
