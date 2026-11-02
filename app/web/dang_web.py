@@ -622,6 +622,12 @@ def _anh_cua_muc(loai: str, it: dict) -> list[dict]:
     return ra
 
 
+def _slug(ten: str, toi_da: int) -> str:
+    from dang_web.so_ten import slug
+
+    return slug(ten, toi_da)
+
+
 def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", status=200, cho_lay_lai=False):
     bai = loai == "bai_viet"
     co_ds = ("anhs_bai" in it) if bai else ("anhs" in it)
@@ -630,7 +636,7 @@ def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", stat
     anhs = _anh_cua_muc(loai, it)
     return render(request, "dang_web_sua_anh.jinja", it=it, loai=loai, bai=bai, anhs=anhs, co_ds_anh=co_ds, d=d,
                   ve=_ve_json(ve), codex=hd.codex_song(g), h2=it.get("h2_bai" if bai else "h2_mo_ta") or [],
-                  co_mo_ta=("anhs_bai" if bai else "anhs_mo_ta") in it,
+                  co_mo_ta=("anhs_bai" if bai else "anhs_mo_ta") in it, ten_file=_slug(it.get("ten", ""), 50) or "anh",
                   nhom={v: [m for m in anhs if m["vai"] == v] for v in ("dai_dien", "album", "mo_ta", "bai")},
                   ma="" if bai else _ma_cua_web(session, it), nhip=hd.doc_nhip(goc()),
                   toi_da_anh=TOI_DA_ANH_BAI if bai else TOI_DA_ANH, error=error, status=status, cho_lay_lai=cho_lay_lai)
@@ -640,7 +646,7 @@ def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", stat
 def edit_photos_form(request: Request, id: str = "", loai: str = "sp", user: User = Depends(web_user), session: Session = Depends(get_session)):
     loai = _loai_anh(loai)
     it, _ = _muc_web(loai, id)
-    return _form_sua_anh(request, session, loai, it, dict(logo=True, logo_goc="phai"), cho_lay_lai=_xin_lay_lai(loai, it))
+    return _form_sua_anh(request, session, loai, it, dict(logo=True, logo_goc="phai", alt_tat_ca=True), cho_lay_lai=_xin_lay_lai(loai, it))
 
 
 @router.get("/dang-web/anh-tren-web")
@@ -691,7 +697,7 @@ async def edit_photos(request: Request, form=Depends(checked_form), session: Ses
     loai = _loai_anh(str(form.get("loai", "sp")))
     bai = loai == "bai_viet"
     it, _ = _muc_web(loai, str(form.get("id", "")))
-    d = dict(logo=form.get("logo") == "1", logo_goc="trai" if form.get("logo_goc") == "trai" else "phai")
+    d = dict(logo=form.get("logo") == "1", logo_goc="trai" if form.get("logo_goc") == "trai" else "phai", alt_tat_ca=form.get("alt_tat_ca") == "1")
     try:
         _can_ghi()
         if ("anhs_bai" if bai else "anhs") not in it:
@@ -763,8 +769,9 @@ async def edit_photos(request: Request, form=Depends(checked_form), session: Ses
         doi_nhom = any(x["nguon"] == "web" and x["vai"] != tren_web[x["key"]]["vai"] for x in ds)
         ngoai = [k for k, m in tren_web.items() if m["vai"] not in ("bai", "mo_ta")]  # ảnh không nằm trong chữ
         con = [x["key"] for x in ds if x["nguon"] == "web" and x["key"] in ngoai]
+        cap_nhat_alt = form.get("alt_tat_ca") == "1"
         if (not any(x["sua"] for x in ds) and not bo_trong_bai and not doi_nhom and con == ngoai
-                and not any(x["nguon"] == "moi" for x in ds)):
+                and not any(x["nguon"] == "moi" for x in ds) and not cap_nhat_alt):
             raise BusinessError("BAD_FORM", "Chưa có gì thay đổi: tick ảnh cần sửa, chỉnh ảnh, đổi thứ tự, bỏ hoặc thêm ảnh.")
         g = goc()
         dang_lam = [v for v in hd.ds(g) if v.get("kieu") == "sua_anh" and v.get("loai") == loai and v.get("wp_id") == int(it["id"])
@@ -773,7 +780,7 @@ async def edit_photos(request: Request, form=Depends(checked_form), session: Ses
             if hd.sua(g, v["id"], lambda x: x.update(trang_thai=hd.BO), (hd.XEM_TRUOC, hd.LOI)) is None:
                 return RedirectResponse(f"/dang-web/viec/{v['id']}", status_code=303)
         them = dict(kieu="sua_anh", wp_id=int(it["id"]), ten=it.get("ten", ""), ma="" if bai else _ma_cua_web(session, it), anh=ds,
-                    bo_trong_bai=bo_trong_bai, ba_nhom=not bai, h2=list(it.get("h2_bai" if bai else "h2_mo_ta") or []),
+                    bo_trong_bai=bo_trong_bai, ba_nhom=not bai, cap_nhat_alt=cap_nhat_alt, h2=list(it.get("h2_bai" if bai else "h2_mo_ta") or []),
                     logo=d["logo"], logo_goc=d["logo_goc"], chen_mo_ta=False, xoa_cu=not bai, van_dang=True, viet_lai=True)
         if bai:
             them["chu_de"] = it.get("ten", "")[:200]

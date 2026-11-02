@@ -212,3 +212,8 @@ Mỗi lần Codex vẽ 3 ảnh. Bài mới: máy đăng web viết bài xong m�
 - Ảnh trong mô tả trùng ảnh đại diện (cùng media id hoặc cùng file gốc bỏ đuôi -WxH) được đánh dấu và tick Bỏ sẵn.
 - Soạn/sửa sản phẩm bằng AI không chèn ảnh đại diện vào mô tả nữa (chỉ ảnh thứ 2 trở đi).
 - Codex vẽ ảnh cho mô tả sản phẩm: `ve_anh.tao(loai="san_pham")`, lệnh `lenh_ve_sp`; yêu cầu tách theo `loai` nên id sản phẩm và id bài viết không lẫn.
+
+## Tên file và alt khi Sửa ảnh (TUẤN 02/11/2026)
+- Ảnh có chỉnh hoặc ảnh mới tải lên web với tên `<slug-tên>-N.webp` (`ten_web`); file trên Z2 vẫn kèm mã việc để không đè nhau.
+- Alt theo nhóm (`MayDangWeb._alt_nhom`): ① tên; ② tên + "góc N"; ③ tên – mục H2 chứa ảnh (`h2_truoc` cho ảnh cũ, mục anh chọn cho ảnh mới).
+- Ô "Cập nhật alt cho tất cả ảnh" (`cap_nhat_alt`, tick sẵn): ảnh giữ nguyên chỉ đổi chữ alt qua `wp/v2/media/{id}` (`sua_alt`), ảnh dùng chung với sản phẩm khác thì bỏ qua; ảnh trong mô tả/bài đổi alt ngay trong HTML (`doi_alt_trong_bai`). Chỉ tick ô này mà không đổi gì khác vẫn tạo được việc.

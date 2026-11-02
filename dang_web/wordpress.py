@@ -206,6 +206,10 @@ class WordPress:
                     return True
         return False
 
+    def sua_alt(self, media_id: int, alt: str) -> dict:
+        """Chỉ đổi chữ alt của một ảnh đã có trên web (không tải lại ảnh)."""
+        return self._json("POST", f"wp/v2/media/{int(media_id)}", json={"alt_text": alt})
+
     def tai_anh(self, data: bytes, ten_file: str, mime: str, alt: str = "", tieu_de: str = "") -> dict:
         media = self._json(
             "POST",
@@ -274,6 +278,35 @@ def chen_sau_h2(html: str, the: str, vi_tri) -> str:
         if n < len(moc):
             return html[:moc[n]] + the + html[moc[n]:]
     return html + the
+
+
+def doi_alt_trong_bai(html: str, src: str, alt: str) -> str:
+    """Đặt lại chữ alt cho thẻ ảnh có src này trong mô tả / thân bài."""
+    import html as _h
+
+    if not src or not alt:
+        return html or ""
+    gia_tri = _h.escape(alt, quote=True)
+
+    def doi(m):
+        the = m.group(0)
+        if src not in the:
+            return the
+        if re.search(r"\salt=", the, re.I):
+            return re.sub(r'\salt=("[^"]*"|\'[^\']*\')', f' alt="{gia_tri}"', the, count=1, flags=re.I)
+        return re.sub(r"^<img\b", f'<img alt="{gia_tri}"', the, count=1, flags=re.I)
+    return _IMG_RE.sub(doi, html or "")
+
+
+def h2_truoc(html: str, src: str) -> str:
+    """Tiêu đề H2 đứng trước ảnh này trong mô tả / thân bài (ảnh nằm trước mọi H2 thì trả rỗng)."""
+    pos = (html or "").find(src) if src else -1
+    if pos < 0:
+        return ""
+    truoc = [m for m in re.finditer(r"<h2\b[^>]*>(.*?)</h2>", html[:pos], re.I | re.S)]
+    if not truoc:
+        return ""
+    return " ".join(unescape(re.sub(r"<[^>]+>", " ", truoc[-1].group(1))).split())[:120]
 
 
 def xoa_anh_trong_bai(html: str, src: str) -> str:

@@ -78,6 +78,7 @@
 <div class="sa-bo-list">{% for src in v.bo_trong_bai %}<img src="{{ src }}" alt="Ảnh bỏ {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">{% endfor %}</div></section>{% endif %}
 </div><div class="dw-side">
 <section class="card">
+{% if v.cap_nhat_alt %}<p class="hint"><b>Cập nhật alt cho tất cả ảnh</b> theo nhóm: ① tên, ② tên + góc N, ③ tên – mục H2.</p>{% endif %}
 {% if not bai and not v.ba_nhom %}<label class="chk"><input type="checkbox" name="chen_mo_ta" value="1"{{ ' checked' if v.chen_mo_ta is not defined or v.chen_mo_ta }}> Chèn ảnh vào mô tả (tối đa 3 ảnh, thay ảnh app chèn lần trước)</label>{% endif %}
 {% if not bai %}
 <label class="chk"><input type="checkbox" name="xoa_cu" value="1"{{ ' checked' if v.xoa_cu is not defined or v.xoa_cu }}> Xóa ảnh cũ khỏi web sau khi ghi xong</label>
@@ -169,7 +170,7 @@
 </form>
 
 {% elif v.trang_thai == 'da_dang' and sua_anh %}
-<section class="card dw-ok"><b>Đã thay {{ v.so_anh_moi or 0 }} ảnh trên web.</b>
+<section class="card dw-ok"><b>Đã thay {{ v.so_anh_moi or 0 }} ảnh trên web.{% if v.so_alt %} Đổi alt {{ v.so_alt }} ảnh giữ nguyên.{% endif %}</b>
 <p class="hint">{% if v.so_anh_xoa is defined %}Đã xóa {{ v.so_anh_xoa }} ảnh cũ{% if v.so_anh_giu %}, giữ {{ v.so_anh_giu }} ảnh còn dùng ở chỗ khác{% endif %}.{% else %}Ảnh cũ vẫn nằm trong thư viện Media.{% endif %}</p>
 <div class="dw-two">{% if v.link_xem %}<a class="btn btn-ghost" href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}<a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai={{ 'bai' if bai else 'sp' }}">Danh sách trên web</a></div>
 </section>

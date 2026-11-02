@@ -20,7 +20,8 @@ from .viet_bai import ChoTraLoi
 from .so_ten import _ten
 from .tren_web import CayDanhMuc, gon_danh_muc
 from .wordpress import (LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, chen_sau_h2, link_sua, slug, sp_co_the_trung,
-                        thay_anh_trong_bai, tieu_de_h2, tim_danh_muc, xoa_anh_trong_bai)
+                        thay_anh_trong_bai, tieu_de_h2, tim_danh_muc, xoa_anh_trong_bai,
+                        doi_alt_trong_bai, h2_truoc)
 
 
 
@@ -624,6 +625,7 @@ class MayDangWeb:
             ten = f"{goc_ten}-{v['id'][-6:]}-{i}.{duoi}"
             (self.ch.anh_da_xu_ly / ten).write_bytes(data)
             k["sau"] = ten
+            k["ten_web"] = f"{goc_ten}-{i}.{duoi}"  # TUẤN 02/11: tên file trên web gọn, không kèm mã việc
             ket.append(k)
         if not ket:
             raise RuntimeError("Không còn ảnh nào để ghi. Mở lại Sửa ảnh, giữ hoặc thêm ít nhất 1 ảnh.")
@@ -643,31 +645,51 @@ class MayDangWeb:
             raise RuntimeError(f"Thiếu ảnh {i + 1} đã xử lý trên Z2. Bấm Soạn lại.")
         data, mime = p.read_bytes(), anh_mod.mime("jpg" if p.suffix == ".jpg" else "webp")
         wp = self.wp()
+        ten_web = k.get("ten_web") if not dung_goc and k.get("ten_web") else p.name
         try:
-            m = wp.tai_anh(data, p.name, mime, alt=alt)
+            m = wp.tai_anh(data, ten_web, mime, alt=alt)
         except LoiWeb as e:
             if p.suffix != ".webp" or e.status not in (400, 415, 500):
                 raise
-            m = wp.tai_anh(anh_mod.giu_nguyen(data, canh_toi_da=4000, dinh_dang="jpg"), p.stem + ".jpg", "image/jpeg", alt=alt)
+            m = wp.tai_anh(anh_mod.giu_nguyen(data, canh_toi_da=4000, dinh_dang="jpg"), Path(ten_web).stem + ".jpg", "image/jpeg", alt=alt)
         return {"id": int(m["id"]), "url": str(m.get("source_url") or ""), "alt": alt, "moi": True}
+
+    @staticmethod
+    def _alt_nhom(ten: str, vai: str, so: int = 1, muc: str = "") -> str:
+        """Alt theo nhóm (TUẤN 02/11): đại diện = tên; album = tên + góc N; ảnh trong mô tả/bài = tên – mục H2."""
+        if vai == "dai_dien":
+            return ten
+        if vai == "album":
+            return f"{ten} góc {so}" if so > 1 else ten
+        return f"{ten} – {muc}" if muc else f"{ten} – minh họa"
 
     def _sua_trong_bai(self, html: str, v: dict, ket: list[tuple[int, dict]], alt: str) -> tuple[str, int]:
         """Ảnh trong mô tả / thân bài (TUẤN duyệt mẫu D8/8 ngày 02/11/2026): bỏ ảnh anh bỏ, thay tại chỗ ảnh đã chỉnh,
-        ảnh mới đặt dưới mục H2 anh chọn (không chọn thì cuối). Chữ giữ nguyên."""
+        ảnh mới đặt dưới mục H2 anh chọn (không chọn thì cuối). Chữ giữ nguyên. Alt = tên – mục H2 chứa ảnh."""
         for src in v.get("bo_trong_bai") or []:
             html = xoa_anh_trong_bai(html, src)
+        h2 = v.get("h2") or []
         so_moi = 0
         moi = []
         for i, k in ket:
+            vt = str(k.get("vi_tri", ""))
+            if k.get("nguon") == "web":
+                muc = h2_truoc(html, k.get("truoc", ""))
+            else:
+                muc = h2[int(vt)] if vt.isdigit() and int(vt) < len(h2) else ""
+            a = self._alt_nhom(alt, "mo_ta", muc=muc)
             if k.get("nguon") == "web" and (k.get("dung") == "goc" or not k.get("sau")):
+                if v.get("cap_nhat_alt"):
+                    html = doi_alt_trong_bai(html, k.get("truoc", ""), a)
                 continue
-            m = self._tai_anh_len(k, i, f"{alt} {i + 1}".strip())
+            m = self._tai_anh_len(k, i, a)
             so_moi += m["moi"]
             if k.get("nguon") == "web":
                 if m["moi"]:
                     html = thay_anh_trong_bai(html, k.get("truoc", ""), m["url"], int(k.get("media_id") or 0), m["id"])
+                html = doi_alt_trong_bai(html, m["url"] or k.get("truoc", ""), a)
             else:
-                moi.append((k.get("vi_tri", ""), m))
+                moi.append((vt, m))
         for vt, m in reversed(moi):  # đặt từ dưới lên để vị trí mục H2 phía trên không lệch
             html = chen_sau_h2(html, dang._the_anh(m), vt)
         return html, so_moi
@@ -701,14 +723,26 @@ class MayDangWeb:
         alt = v.get("ten") or ""
         ket = list(enumerate(v.get("ket_anh") or []))
         sp_anh = sorted([(i, k) for i, k in ket if k.get("vai") != "mo_ta"], key=lambda x: 0 if x[1].get("vai") == "dai_dien" else 1)
-        anh = [self._tai_anh_len(k, i, alt if n == 0 else f"{alt} {n + 1}") for n, (i, k) in enumerate(sp_anh)]
+        anh = []
+        so_alt = 0
+        khac = self._anh_dung_o_sp_khac(web_id) if v.get("cap_nhat_alt") else set()
+        for n, (i, k) in enumerate(sp_anh):
+            a = self._alt_nhom(alt, "dai_dien" if n == 0 else "album", n + 1)
+            m = self._tai_anh_len(k, i, a)
+            if not m["moi"] and v.get("cap_nhat_alt") and m["id"] not in khac:
+                try:  # ảnh giữ nguyên: chỉ đổi chữ alt; ảnh dùng chung với sản phẩm khác thì để yên
+                    wp.sua_alt(m["id"], a)
+                    so_alt += 1
+                except LoiWeb as e:
+                    in_(f"  Không đổi được alt ảnh {m['id']}: {e}")
+            anh.append(m)
         if not anh:
             raise RuntimeError("Sản phẩm cần ít nhất 1 ảnh đại diện. Mở lại Sửa ảnh.")
         payload: dict = {"images": [{"id": m["id"]} for m in anh]}
         mo_ta = [(i, k) for i, k in ket if k.get("vai") == "mo_ta"]
         so_mo_ta = 0
         cu = wp.lay_sp(web_id).get("description") or ""
-        if mo_ta or v.get("bo_trong_bai"):
+        if mo_ta or v.get("bo_trong_bai") or v.get("cap_nhat_alt"):
             moi_html, so_mo_ta = self._sua_trong_bai(cu, v, mo_ta, alt)
             if moi_html != cu:
                 payload["description"] = moi_html
@@ -720,7 +754,7 @@ class MayDangWeb:
         xoa = self._xoa_anh_cu(web_id, v.get("anh_cu") or [], {m["id"] for m in anh},
                                payload.get("description", cu)) if v.get("xoa_cu", True) else {}
         so = sum(m["moi"] for m in anh) + so_mo_ta
-        self._cap_nhat(v, hd.DA_DANG, so_anh_moi=so, link_xem=moi.get("permalink") or v.get("link_xem", ""),
+        self._cap_nhat(v, hd.DA_DANG, so_anh_moi=so, so_alt=so_alt, link_xem=moi.get("permalink") or v.get("link_xem", ""),
                        trang_thai_web=moi.get("status", ""), dang_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="", **xoa)
         dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm", v.get("ten", str(web_id)), "SỬA ẢNH",
                                                             [f"{len(anh)} ảnh sản phẩm, {so_mo_ta} ảnh mới trong mô tả, "
@@ -743,6 +777,11 @@ class MayDangWeb:
             if k.get("nguon") == "web" and (k.get("dung") == "goc" or not k.get("sau")):  # ảnh trên web giữ nguyên
                 if k.get("media_id"):
                     dai_dien = {"id": int(k["media_id"]), "url": k.get("truoc", "")}
+                    if v.get("cap_nhat_alt"):
+                        try:
+                            wp.sua_alt(int(k["media_id"]), alt)
+                        except LoiWeb as e:
+                            in_(f"  Không đổi được alt ảnh đại diện: {e}")
                 continue
             dai_dien = self._tai_anh_len(k, i, alt)
             so_moi += dai_dien["moi"]

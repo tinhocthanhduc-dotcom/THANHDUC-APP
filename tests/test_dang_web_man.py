@@ -46,7 +46,12 @@ class _WP:
 
     def tai_anh(self, data, ten, mime, alt=""):
         self.media += 1
+        self.__dict__.setdefault("ten_anh", []).append((ten, alt))
         return {"id": 900 + self.media, "source_url": f"https://thanhduc.vn/wp-content/uploads/{ten}"}
+
+    def sua_alt(self, media_id, alt):
+        self.__dict__.setdefault("alt", []).append((media_id, alt))
+        return {"id": media_id}
 
     def tao_sp(self, payload):
         self.tao.append(payload)
@@ -708,6 +713,7 @@ def test_sua_anh_rieng_dat_khung_tung_anh_roi_xoa_anh_cu(client, web_login, goc,
 
     # Ảnh 6 lên đại diện, ảnh 5 xuống album (có chỉnh), bỏ ảnh trùng trong mô tả, thêm 1 ảnh mới dưới mục B.
     r = client.post("/dang-web/sua-anh", data=dict(base, form_key=str(uuid.uuid4()), thu_tu=["web-6", "web-5", "mota-0", "moi-1"],
+                                                   alt_tat_ca="1",
                                                    **{"vai_web-6": "dai_dien", "vai_web-5": "album", "vai_mota-0": "dai_dien",
                                                       "xoa_mota-0": "1", "vai_moi-1": "mo_ta", "vitri_moi-1": "1",
                                                       "chon_web-5": "1", "bien_web-5": '{"z": 1.2, "r": 5, "x": 0.1, "q": 1, "f": true}',
@@ -750,6 +756,10 @@ def test_sua_anh_rieng_dat_khung_tung_anh_roi_xoa_anh_cu(client, web_login, goc,
     assert wp.xoa == [5] and v["so_anh_xoa"] == 1 and v["so_anh_giu"] == 0  # ảnh 6 vẫn dùng nên không xóa
     luu = next(x for x in hd.doc_json(hd.file_sp_web(goc), {})["ds"] if x["id"] == 1)
     assert [m["id"] for m in luu["anhs"]] == [6, 901] and luu["so_anh"] == 2 and len(luu["anhs_mo_ta"]) == 1
+    # TUẤN 02/11: tên file gọn theo tên sản phẩm; alt theo nhóm; ảnh giữ nguyên chỉ đổi chữ alt.
+    assert wp.ten_anh == [("hop-muc-canon-326-2.webp", "Hộp mực Canon 326 góc 2"), ("hop-muc-canon-326-3.webp", "Hộp mực Canon 326 – B")]
+    assert wp.alt == [(6, "Hộp mực Canon 326")] and v["so_alt"] == 1
+    assert 'alt="Hộp mực Canon 326 – B"' in mo_ta
     assert "Đã thay 2 ảnh" in client.get(f"/dang-web/viec/{v['id']}").text
 
 
@@ -872,7 +882,7 @@ def test_sua_anh_bai_viet_bo_anh_trong_bai_va_dat_anh_moi_duoi_h2(client, web_lo
     r = client.get("/dang-web/sua-anh?loai=bai&id=51")
     assert "③ Ảnh trong bài" in r.text and "② Ảnh album" not in r.text and "Trùng ảnh đại diện" in r.text
     r = client.post("/dang-web/sua-anh", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), loai="bai", id="51", logo="1",
-                                                   thu_tu=["web-77", "bai-0", "moi-1"],
+                                                   thu_tu=["web-77", "bai-0", "moi-1"], alt_tat_ca="1",
                                                    **{"xoa_bai-0": "1", "vai_moi-1": "bai", "vitri_moi-1": "1", "bien_moi-1": "{}"}),
                     files=[("anh", ("moi.jpg", _jpg(), "image/jpeg"))], follow_redirects=False)
     assert r.status_code == 303
@@ -888,3 +898,4 @@ def test_sua_anh_bai_viet_bo_anh_trong_bai_va_dat_anh_moi_duoi_h2(client, web_lo
     html = payload["content"]
     assert payload["featured_media"] == 77 and "dd-1024x576" not in html
     assert html.index("<h2>Liên hệ</h2>") < html.index("wp-image-901") < html.index("<p>h</p>")
+    assert wp.ten_anh[0][1] == "Giá nạp mực 2026 – Liên hệ" and wp.alt == [(77, "Giá nạp mực 2026")]
