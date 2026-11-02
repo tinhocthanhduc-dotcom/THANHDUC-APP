@@ -103,6 +103,25 @@ class WordPress:
             so += sum(1 for x in kq.get("update") or [] if isinstance(x, dict) and x.get("id") and not x.get("error"))
         return so
 
+    def ghi_sku(self, cap: list[tuple[int, str]]) -> dict[int, str]:
+        """Chỉ ghi ô Mã (SKU) cho từng sản phẩm, không đụng tên, giá, ảnh, trạng thái. 100 dòng mỗi lần gọi.
+        Trả {id: ""} khi ghi được, {id: lý do} khi web từ chối (ví dụ mã đã gắn cho sản phẩm khác)."""
+        ra: dict[int, str] = {}
+        for i in range(0, len(cap), 100):
+            phan = [{"id": int(sp_id), "sku": str(ma)} for sp_id, ma in cap[i:i + 100]]
+            kq = self._json("POST", "wc/v3/products/batch", json={"update": phan})
+            tra = kq.get("update") or [] if isinstance(kq, dict) else []
+            for j, gui in enumerate(phan):  # WooCommerce trả theo đúng thứ tự gửi
+                x = tra[j] if j < len(tra) and isinstance(tra[j], dict) else {}
+                loi = x.get("error")
+                if loi:
+                    ra[gui["id"]] = str(loi.get("message") if isinstance(loi, dict) else loi)[:200] or "Web từ chối"
+                elif str(x.get("sku", gui["sku"])) == gui["sku"] and x:
+                    ra[gui["id"]] = ""
+                else:
+                    ra[gui["id"]] = "Web không xác nhận đã ghi"
+        return ra
+
     def lay_sp_theo_ids(self, ids: list[int]) -> list[dict]:
         ra = []
         for i in range(0, len(ids), 100):

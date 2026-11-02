@@ -1,0 +1,75 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Ghép mã TD · Đăng web{% endblock %}
+{# TUẤN duyệt mẫu D6 (máy tính), 6 (điện thoại), D7 ngày 02/11/2026. Chưa đồng bộ giá, còn hàng. #}
+{% macro an(name, value) %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endmacro %}
+{% macro csrf_in() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% endmacro %}
+{% macro ve() %}{{ an('nhom', nhom) }}{% if q %}{{ an('q', q) }}{% endif %}{% if p.page > 1 %}{{ an('trang', p.page) }}{% endif %}{% endmacro %}
+{% block main %}<div class="page-wide list-page dw-page">
+{{ ui.page_head('Ghép mã TD', sub='Sản phẩm trên thanhduc.vn chưa mang mã TD · bấm Đúng hoặc chọn mã khác, rồi ghi mã lên web', back='/dang-web?tab=tren-web&loai=sp') }}
+{% if loi_thu_muc %}<p class="alert bad" role="alert"><b>Chưa dùng được.</b> {{ loi_thu_muc }}</p>{% endif %}
+{% if not web.da_lay %}<p class="alert info" role="status"><b>Chưa có danh sách trên web.</b> Về Trên web bấm “Cập nhật từ web” trước.</p>{% endif %}
+{% if loi %}<p class="alert bad" role="alert">{{ loi }}</p>{% endif %}
+{% if da_luu %}{{ ui.toast('Đã ghép ' ~ da_luu ~ ' sản phẩm.' if da_luu != '1' and da_luu|int > 1 else 'Đã lưu.', 'ok') }}{% endif %}
+{% if dang_ghi %}<p class="alert info" role="status">Máy đăng web đang ghi mã lên web. <a href="/dang-web/viec/{{ dang_ghi.id }}">Xem tiến độ ›</a></p>{% endif %}
+
+<section class="card list-frame">
+<div class="dw-pad">{{ ui.tiles(tiles, keep_phone=true) }}</div>
+<form class="filter-bar lf-bar" method="get" action="/dang-web/ghep-ma" role="search">{{ an('nhom', nhom) }}<input type="search" name="q" value="{{ q }}" placeholder="Tìm tên trên web hoặc mã TD (không dấu)…" aria-label="Tìm" autocomplete="off"><noscript><button>Tìm</button></noscript></form>
+{% if nhom in ('chac', 'xem') and rows %}
+<form method="post" action="/dang-web/ghep-ma" id="gm-nhieu" class="dw-pad gm-bulk" data-gm-bulk>{{ csrf_in() }}{{ ve() }}
+<button type="button" class="btn btn-ghost" data-gm-tick>☑ Tick hết {{ 'gợi ý chắc' if nhom == 'chac' else 'gợi ý' }} trang này</button>
+<button class="btn btn-ok" name="hanh_dong" value="dung_nhieu" data-gm-ok disabled>✓ Đúng hết đã tick (<span data-gm-n>0</span>)</button>
+</form>{% endif %}
+{% if rows %}<ul class="dw-list gm-list">
+<li class="dw-head gm-row" aria-hidden="true"><span></span><span></span><span>Sản phẩm trên web</span><span>{{ 'Mã đã ghép' if nhom == 'cho-ghi' else 'Gợi ý mã TD trong app' }}</span><span class="dw-n">Giá web · app</span><span class="dw-n">Thao tác</span></li>
+{% for r in rows %}
+<li class="gm-row">
+<span class="dw-tick">{% if r.ma and nhom in ('chac', 'xem') %}<input type="checkbox" name="chon" value="{{ r.id }}:{{ r.ma }}" form="gm-nhieu" data-gm-chon aria-label="Chọn {{ r.ten }}">{% endif %}</span>
+<span class="dw-thumb">{% if r.anh %}<img src="{{ r.anh }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% else %}<b aria-hidden="true">SP</b>{% endif %}</span>
+<span class="dw-main gm-web"><b>{{ r.ten }}</b><small>{{ r.dm_ten or 'Chưa phân loại' }}{% if r.sku_cu %} · SKU cũ {{ r.sku_cu }}{% endif %}<span class="dw-m"> · web {{ r.gia_web|money if r.gia_web else '—' }}</span></small></span>
+<span class="gm-app">{% if r.ma %}<b>{{ r.ma }}</b> {{ r.ten_app }}
+<small>{% if r.diem %}<span class="gm-diem gm-{{ 'chac' if r.diem >= 90 else 'xem' }}">{{ r.diem }}% {{ 'chắc' if r.diem >= 90 else 'cần xem' }}</span> · {% endif %}tồn {{ r.ton|int }}<span class="dw-m"> · app {{ r.gia_app|money }}</span></small>
+{% else %}<span class="hint">Chưa thấy mã nào giống</span>{% endif %}</span>
+<span class="dw-d dw-n gm-gia">{{ r.gia_web|money if r.gia_web else '—' }} · {{ r.gia_app|money if r.ma else '—' }}</span>
+<span class="gm-acts">
+{% if nhom == 'cho-ghi' %}
+{% if r.bo_duoc %}<form method="post" action="/dang-web/ghep-ma">{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}<button class="btn btn-danger dw-sbtn" name="hanh_dong" value="bo">Bỏ ghép</button></form>{% else %}<span class="hint">App đã đăng</span>{% endif %}
+{% else %}
+{% if r.ma %}<form method="post" action="/dang-web/ghep-ma">{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}{{ an('ma', r.ma) }}<button class="btn btn-ok dw-sbtn" name="hanh_dong" value="dung">Đúng</button></form>{% endif %}
+<details class="gm-khac"><summary class="btn btn-ghost dw-sbtn">{{ 'Chọn mã khác' if r.ma else 'Chọn mã' }}</summary>
+<form method="post" action="/dang-web/ghep-ma" class="gm-pop" data-dw-picker>{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}<input type="hidden" name="ma" value="">
+<label><b>Mã TD trong app</b><input type="search" data-dw-search placeholder="Gõ tên hoặc mã (không dấu)…" autocomplete="off"></label>
+<div class="dw-picks" data-dw-results aria-live="polite"></div><p class="hint" data-dw-picked>Bấm chọn một dòng trong kết quả.</p>
+<button class="btn btn-ok" name="hanh_dong" value="dung">Ghép mã này</button></form></details>
+<details class="dw-more"><summary class="btn btn-ghost dw-sbtn" aria-label="Thêm">⋯</summary><div class="dw-more-pop">
+<form method="post" action="/dang-web/ghep-ma">{{ csrf_in() }}{{ ve() }}{{ an('web_id', r.id) }}<button class="gm-link" name="hanh_dong" value="khong_co">Không có trong app</button></form>
+{% if r.xem %}<a href="{{ r.xem }}" target="_blank" rel="noopener">Xem trên web ↗</a>{% endif %}</div></details>
+{% endif %}
+</span>
+</li>
+{% endfor %}</ul>
+{% else %}{{ ui.empty('Không có sản phẩm nào khớp.' if q else 'Không có sản phẩm nào ở mục này.') }}{% endif %}
+{% call ui.list_foot(p, 'sản phẩm') %}{{ p.total }} sản phẩm{% if so_bo %} · {{ so_bo }} đã đánh dấu không có trong app{% endif %}{% endcall %}
+<div class="dw-pad gm-ghi">
+<span>Đã ghép <b>{{ dem['cho-ghi'] }}</b> sản phẩm · mã chỉ lưu trong app tới khi anh bấm ghi</span>
+<form method="post" action="/dang-web/ghi-ma">{{ csrf_in() }}<button class="btn btn-ok"{{ ' disabled' if not dem['cho-ghi'] or dang_ghi or loi_thu_muc }}>Ghi {{ dem['cho-ghi'] }} mã lên web ›</button></form>
+</div>
+<p class="dw-pad hint">Ghi lên web chỉ đổi ô Mã (SKU) của sản phẩm, không đổi tên, giá, ảnh, mô tả, trạng thái. “Không có trong app” bỏ sản phẩm khỏi danh sách này (ví dụ hàng cũ đã ngưng).</p>
+</section>
+</div>
+<script src="{{ asset('dang-web.js') }}" defer></script>
+<script>
+(function () {
+  var bulk = document.querySelector('[data-gm-bulk]');
+  if (!bulk) return;
+  var ok = bulk.querySelector('[data-gm-ok]'), n = bulk.querySelector('[data-gm-n]');
+  function dem() { var c = document.querySelectorAll('[data-gm-chon]:checked').length; n.textContent = c; ok.disabled = !c; }
+  document.addEventListener('change', function (e) { if (e.target.matches('[data-gm-chon]')) dem(); });
+  bulk.querySelector('[data-gm-tick]').addEventListener('click', function () {
+    var all = document.querySelectorAll('[data-gm-chon]'), het = Array.prototype.every.call(all, function (x) { return x.checked; });
+    all.forEach(function (x) { x.checked = !het; }); dem();
+  });
+})();
+</script>
+{% endblock %}

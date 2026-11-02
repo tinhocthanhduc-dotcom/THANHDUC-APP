@@ -50,6 +50,19 @@ where p.active and not p.is_test
 group by p.code
 order by p.code
 """)
+# Hàng mới nhập (đơn mua, sản xuất, phiếu nhập tay) vào kho bán trong 30 ngày, để gợi ý đăng lên web (mẫu D7/7, 02/11/2026).
+# Không tính tồn đầu kỳ, hàng khách trả, linh kiện thu hồi.
+CAU_MOI_NHAP = text("""
+select l.product_code as code, max(d.doc_date) as ngay
+from stock_ledger l
+join stock_docs d on d.id = l.doc_id
+join warehouses w on w.code = l.warehouse_code
+where d.kind = 'PN' and d.status = 'DA_GHI' and l.qty_in > 0 and not l.is_reversal and w.kind = 'KHO'
+  and (d.source_kind is null or d.source_kind in ('PURCHASE_RECEIPT', 'SAN_XUAT'))
+  and d.doc_date >= :tu
+group by l.product_code
+""")
+MOI_NHAP_NGAY = 30
 LOC = (
     ("xem-truoc", "Chờ anh xem trước", (hd.XEM_TRUOC,)),
     ("trung", "Có thể trùng", (hd.CO_THE_TRUNG,)),
@@ -135,6 +148,8 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
     if tab == "tren-web":
         return _tab_tren_web(request, session, g, ctx, tt, sp_web, bai_web, loai, loc, q.strip(), dm, nhom, ton, trang, so)
     loai = dict((t[0], t[2]) for t in TABS)[tab]
+    if loai == "san_pham" and not loi_thu_muc:
+        ctx["hang_moi"] = _hang_moi(session, g)
     cua_tab = [v for v in con if v["loai"] == loai]
     tiles = [dict(label=label, n=sum(1 for v in cua_tab if v["trang_thai"] in sts),
                   href=f"/dang-web?{urlencode(dict(tab=tab, loc='' if loc == key else key))}", on=loc == key) for key, label, sts in LOC]
@@ -197,6 +212,31 @@ def _hang_hoa(session, g) -> tuple[list[dict], dict]:
     return rows, {"luc": str(web.get("luc", "")), "so_web": len(ds_web), "da_lay": bool(web)}
 
 
+def _moi_nhap(session) -> dict[str, object]:
+    from datetime import timedelta
+
+    tu = _hom_nay() - timedelta(days=MOI_NHAP_NGAY)
+    return {r.code: r.ngay for r in session.execute(CAU_MOI_NHAP, {"tu": tu})}
+
+
+def _hom_nay():
+    from .lists import _today
+
+    return _today()
+
+
+def _hang_moi(session, g) -> list[dict]:
+    """Mã mới nhập 30 ngày, còn tồn, chưa có trên web (không tính mã đã ghép với sản phẩm web), mới nhất trước."""
+    if not _doc_web(hd.file_sp_web(g))["da_lay"]:
+        return []
+    moi = _moi_nhap(session)
+    if not moi:
+        return []
+    rows, _ = _hang_hoa(session, g)
+    ra = [dict(r, ngay=moi[r["code"]]) for r in rows if r["code"] in moi and r["kieu"] == "chua-co" and r["ton"] > 0 and not r["dang_lam"]]
+    return sorted(ra, key=lambda r: (r["ngay"], r["code"]), reverse=True)
+
+
 def _doc_web(f: Path) -> dict:
     d = hd.doc_json(f, {})
     d = d if isinstance(d, dict) else {}
@@ -234,14 +274,18 @@ def _tab_tren_web(request, session, g, ctx, tt, sp_web, bai_web, loai, loc, q, d
             rows = [r for r in rows if r["nhom"] == nhom]
         if ton == "1":
             rows = [r for r in rows if r["ton"] > 0]
+        if request.query_params.get("moi") == "1":
+            moi = _moi_nhap(session)
+            rows = sorted([r for r in rows if r["code"] in moi and r["ton"] > 0], key=lambda r: (moi[r["code"]], r["code"]), reverse=True)
         if q:
             f = fold(q)
             rows = [r for r in rows if f in fold(f"{r['code']} {r['name']}")]
-        query = dict(tab="tren-web", loai="sp", loc=loc, q=q, nhom=nhom, ton=ton)
+        moi_loc = "1" if request.query_params.get("moi") == "1" else ""
+        query = dict(tab="tren-web", loai="sp", loc=loc, q=q, nhom=nhom, ton=ton, moi=moi_loc)
         p = paging.build(trang, so, len(rows), query)
         rows = rows[p["offset"]: p["offset"] + p["size"]]
         return render(request, "dang_web.jinja", rows=rows, p=p, hang_info=info, nhom=nhom, ton=ton, nhom_dem=sorted(nhom_dem.items()),
-                      query=query, toi_da_soan_nhieu=TOI_DA_SOAN_NHIEU, che_do="app", loc_chip=_loc_chip(loai, loc, {}, dem_app, dm, q),
+                      query=query, toi_da_soan_nhieu=TOI_DA_SOAN_NHIEU, che_do="app", moi=moi_loc, loc_chip=_loc_chip(loai, loc, {}, dem_app, dm, q),
                       cats=[], **ctx)
     ds = web["ds"]
     ma_theo_web, ma_app = _ma_theo_web(session, g, tt) if loai == "sp" else ({}, set())
@@ -820,6 +864,8 @@ def act(request: Request, viec_id: str, form=Depends(checked_form)):
 
     try:
         _can_ghi()
+        if v.get("kieu") == "ghi_sku" and hanh_dong not in ("thu_lai", "bo"):
+            raise BusinessError("BAD_STATE", "Việc ghi mã chỉ thử lại hoặc bỏ được.", status=409)
         if hanh_dong == "dang":
             def ham(x):
                 _nap_sua(x, form)
@@ -980,3 +1026,171 @@ def schedule(request: Request, form=Depends(checked_form), user: User = Depends(
 
     hd.ghi_lich(goc(), {"bat": form.get("bat") == "1", "gio": gio, "so_sp": so("so_sp", 5), "so_bai": so("so_bai", 3)})
     return RedirectResponse(f"/dang-web?tab={'bai-viet' if form.get('tab') == 'bai-viet' else 'san-pham'}&da_luu=lich", status_code=303)
+
+
+# ---------------- ghép mã TD cho sản phẩm trên web (TUẤN duyệt mẫu D6/6, D7 ngày 02/11/2026) ----------------
+# Chưa đồng bộ giá, còn hàng (TUẤN 02/11: "chưa"). Ghi lên web chỉ đổi ô Mã (SKU).
+GHEP_NHOM = (("chac", "Gợi ý chắc (≥ 90%)"), ("xem", "Gợi ý cần xem (70–89%)"), ("khong", "Không có gợi ý"), ("cho-ghi", "Đã ghép · chờ ghi lên web"))
+GHEP_CHAC = 0.9
+
+
+def _ghep_du_lieu(session, g) -> dict:
+    """Mỗi sản phẩm web chưa mang mã TD trong ô SKU: đã ghép (chờ ghi), gợi ý mã giống nhất, hoặc không có gợi ý."""
+    web = _doc_web(hd.file_sp_web(g))
+    cay = CayDanhMuc(web["danh_muc"])
+    hang = session.execute(CAU_HANG).all()
+    theo_ma = {h.code: h for h in hang}
+    tt = hd.doc_trang_thai(g)
+    ma_theo_web, _ = _ma_theo_web(session, g, tt)
+    lien_ket: dict[int, str] = {}  # web_id → mã (SKU đúng mã app, hoặc đã ghép / app đã đăng)
+    for it in web["ds"]:
+        sku = str(it.get("sku") or "").strip().upper()
+        if sku in theo_ma:
+            lien_ket[int(it["id"])] = sku
+    for wid, code in ma_theo_web.items():
+        lien_ket.setdefault(wid, code)
+    ma_da_dung = set(lien_ket.values())
+    bo = hd.doc_bo_ghep(g)
+    xac = hd.doc_xac_nhan(g)
+    khop = _khop([(h.code, h.name) for h in hang], web["ds"], web["luc"])
+    tot: dict[int, tuple[float, int, str]] = {}  # web_id → (điểm, tồn, mã)
+    for code, k in khop.items():
+        if k.get("kieu") != "giong" or code in ma_da_dung:
+            continue
+        x = xac.get(code) if isinstance(xac.get(code), dict) else {}
+        khong = {int(i) for i in x.get("khong") or [] if str(i).isdigit()}
+        ton = float(theo_ma[code].ton or 0) if code in theo_ma else 0.0
+        for w in k.get("web") or []:
+            wid = int(w["id"])
+            if wid in khong or wid in lien_ket:
+                continue
+            ung = (float(w.get("diem") or 0), ton, code)
+            if ung[:2] > tot.get(wid, (0.0, -1.0, ""))[:2]:
+                tot[wid] = ung
+    rows, dem = [], {k: 0 for k, _ in GHEP_NHOM}
+    for it in web["ds"]:
+        wid = int(it["id"])
+        sku = str(it.get("sku") or "").strip().upper()
+        code = lien_ket.get(wid)
+        if code and sku == code:
+            continue  # đã có mã TD trên web
+        if wid in bo and not code:
+            continue
+        ids = [int(x) for x in it.get("dm") or [] if str(x).isdigit()]
+        r = dict(id=wid, ten=it.get("ten", ""), anh=it.get("anh", ""), sku_cu=str(it.get("sku") or ""), xem=it.get("xem", ""),
+                 gia_web=int(it["gia"]) if str(it.get("gia", "")).isdigit() else 0,
+                 dm_ten=", ".join(cay.duong(i) for i in ids if i in cay.theo_id and not cay.chua_phan_loai([i])))
+        if code:
+            r.update(nhom="cho-ghi", ma=code, diem=None, bo_duoc=isinstance(xac.get(code), dict) and str(xac[code].get("dung", "")) == str(wid))
+        elif wid in tot:
+            diem, _, code = tot[wid]
+            r.update(nhom="chac" if diem >= GHEP_CHAC else "xem", ma=code, diem=int(round(diem * 100)))
+        else:
+            r.update(nhom="khong", ma="", diem=None)
+        h = theo_ma.get(r["ma"]) if r["ma"] else None
+        r.update(ten_app=h.name if h else "", gia_app=int(h.sale_price or 0) if h else 0, ton=h.ton if h else 0)
+        dem[r["nhom"]] += 1
+        rows.append(r)
+    return dict(rows=rows, dem=dem, lien_ket=lien_ket, theo_ma=theo_ma, web=web, so_bo=len(bo), cay=cay)
+
+
+def _ghep_quay_lai(form) -> str:
+    q = {k: str(form.get(k, "")) for k in ("nhom", "q", "trang") if form.get(k)}
+    return "/dang-web/ghep-ma" + ("?" + urlencode(q) if q else "")
+
+
+@router.get("/dang-web/ghep-ma")
+def match_codes(request: Request, nhom: str = "", q: str = "", trang: str = "1", so: str = "", da_luu: str = "", loi: str = "",
+                user: User = Depends(web_user), session: Session = Depends(get_session)):
+    g = goc()
+    d = _ghep_du_lieu(session, g)
+    if nhom not in dict(GHEP_NHOM):
+        nhom = next((k for k, _ in GHEP_NHOM if d["dem"][k]), "chac")
+    rows = [r for r in d["rows"] if r["nhom"] == nhom]
+    if q.strip():
+        f = fold(q)
+        rows = [r for r in rows if f in fold(f"{r['ten']} {r['ma']} {r['ten_app']} {r['sku_cu']}")]
+    rows.sort(key=lambda r: (-(r["diem"] or 0), r["ten"]))
+    query = dict(nhom=nhom, q=q)
+    p = paging.build(trang, so, len(rows), query)
+    rows = rows[p["offset"]: p["offset"] + p["size"]]
+    tiles = [dict(label=label, n=d["dem"][k], on=k == nhom, href="/dang-web/ghep-ma?" + urlencode(dict(nhom=k))) for k, label in GHEP_NHOM]
+    dang_ghi = next((v for v in hd.ds(g) if v.get("kieu") == "ghi_sku" and v.get("trang_thai") not in hd.XONG), None)
+    return render(request, "dang_web_ghep.jinja", rows=rows, p=p, query=query, nhom=nhom, q=q, tiles=tiles, dem=d["dem"],
+                  so_bo=d["so_bo"], web=d["web"], nhip=hd.doc_nhip(g), da_luu=da_luu, loi=loi[:200], dang_ghi=dang_ghi,
+                  loi_thu_muc=hd.kiem_ghi_duoc(g))
+
+
+def _ghep_mot(d: dict, web_id: str, ma: str) -> str:
+    """Kiểm rồi ghép; trả lý do nếu không ghép được."""
+    ma = ma.strip().upper()
+    if not web_id.isdigit() or not any(int(it["id"]) == int(web_id) for it in d["web"]["ds"]):
+        return "Không thấy sản phẩm này trên danh sách web. Bấm Cập nhật từ web rồi thử lại."
+    if ma not in d["theo_ma"]:
+        return f"Không thấy mã {ma} trong Hàng hóa (hoặc đã ngừng dùng)."
+    khac = [w for w, c in d["lien_ket"].items() if c == ma and w != int(web_id)]
+    if khac:
+        ten = next((it.get("ten", "") for it in d["web"]["ds"] if int(it["id"]) == khac[0]), "")
+        return f"Mã {ma} đã ghép với sản phẩm web khác ({ten or khac[0]}). Bỏ ghép cái đó trước."
+    hd.ghep_ma(goc(), ma, int(web_id))
+    hd.dat_bo_ghep(goc(), int(web_id), False)
+    d["lien_ket"][int(web_id)] = ma
+    return ""
+
+
+@router.post("/dang-web/ghep-ma")
+def match_codes_save(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    _can_ghi()
+    g = goc()
+    d = _ghep_du_lieu(session, g)
+    hanh_dong = str(form.get("hanh_dong", ""))
+    web_id = str(form.get("web_id", ""))
+    ve = _ghep_quay_lai(form)
+    noi = "&" if "?" in ve else "?"
+    if hanh_dong == "dung":
+        loi = _ghep_mot(d, web_id, str(form.get("ma", "")))
+        if loi:
+            return RedirectResponse(ve + noi + urlencode(dict(loi=loi)), status_code=303)
+        return RedirectResponse(ve + noi + "da_luu=1", status_code=303)
+    if hanh_dong == "dung_nhieu":
+        so, loi = 0, ""
+        for cap in dict.fromkeys(str(x) for x in form.getlist("chon")):
+            wid, _, ma = cap.partition(":")
+            l1 = _ghep_mot(d, wid, ma)
+            if l1:
+                loi = loi or l1
+            else:
+                so += 1
+        if not so and not loi:
+            loi = "Tick ít nhất một dòng."
+        q = dict(da_luu=str(so)) if so else {}
+        if loi:
+            q["loi"] = loi
+        return RedirectResponse(ve + noi + urlencode(q), status_code=303)
+    if not web_id.isdigit():
+        raise BusinessError("BAD_FORM", "Thiếu sản phẩm trên web.")
+    if hanh_dong == "khong_co":
+        hd.bo_ghep_web(g, int(web_id))
+        hd.dat_bo_ghep(g, int(web_id), True)
+    elif hanh_dong == "bo":
+        hd.bo_ghep_web(g, int(web_id))
+    else:
+        raise BusinessError("BAD_FORM", "Thao tác không hợp lệ.")
+    return RedirectResponse(ve + noi + "da_luu=1", status_code=303)
+
+
+@router.post("/dang-web/ghi-ma")
+def write_codes(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """Gom mọi sản phẩm đã ghép mà ô SKU trên web chưa đúng mã thành một việc cho máy đăng web."""
+    _can_ghi()
+    g = goc()
+    dang = next((v for v in hd.ds(g) if v.get("kieu") == "ghi_sku" and v.get("trang_thai") not in hd.XONG), None)
+    if dang:
+        return RedirectResponse(f"/dang-web/viec/{dang['id']}", status_code=303)
+    d = _ghep_du_lieu(session, g)
+    ghi = [dict(id=r["id"], ma=r["ma"], ten=r["ten"]) for r in d["rows"] if r["nhom"] == "cho-ghi"]
+    if not ghi:
+        return RedirectResponse("/dang-web/ghep-ma?" + urlencode(dict(nhom="cho-ghi", loi="Chưa có sản phẩm nào chờ ghi mã.")), status_code=303)
+    viec_id = hd.tao_viec(g, "san_pham", dict(kieu="ghi_sku", ghi=ghi, ten=f"Ghi mã TD lên web · {len(ghi)} sản phẩm", van_dang=True))
+    hd.sua(g, viec_id, lambda x: x.update(trang_thai=hd.CHO_DANG))
+    return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
