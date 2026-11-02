@@ -1,0 +1,27 @@
+{# Đang lấy bản mới nhất của mục này từ web (TUẤN duyệt đợt 1 ngày 02/11/2026). Xong thì tự tải lại nếu anh chưa sửa gì;
+   anh đã sửa thì chỉ hiện nút Tải lại để không mất phần đang làm. #}
+{% macro bao(cho, loai, web_id) %}{% if cho %}<p class="alert info" role="status" data-lay-lai="/dang-web/lay-lai?loai={{ 'bai' if loai == 'bai_viet' else 'sp' }}&amp;id={{ web_id }}"><span data-lay-lai-chu>Đang lấy bản mới nhất từ web, vài giây là xong…</span></p>
+<script>
+(function () {
+  var box = document.querySelector('[data-lay-lai]');
+  if (!box || !window.fetch) return;
+  var doi = false, lan = 0;
+  document.addEventListener('input', function () { doi = true; }, true);
+  document.addEventListener('change', function () { doi = true; }, true);
+  document.addEventListener('sa:them-anh', function () { doi = true; }, true);
+  function xong(chu) { box.querySelector('[data-lay-lai-chu]').textContent = chu; }
+  function hoi() {
+    lan += 1;
+    fetch(box.getAttribute('data-lay-lai'), {credentials: 'same-origin', cache: 'no-store'}).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.cho) {
+        if (lan < 30) { setTimeout(hoi, 2000); } else { xong('Máy đăng web đang bận, màn này dùng bản đã lấy lần trước.'); }
+        return;
+      }
+      if (!doi) { location.reload(); return; }
+      box.className = 'alert ok';
+      box.innerHTML = 'Đã có bản mới từ web. <a class="btn btn-ghost" href="' + location.href.replace(/"/g, '') + '">Tải lại</a> (phần anh đang sửa sẽ mất).';
+    }).catch(function () { if (lan < 30) setTimeout(hoi, 3000); });
+  }
+  setTimeout(hoi, 1500);
+})();
+</script>{% endif %}{% endmacro %}

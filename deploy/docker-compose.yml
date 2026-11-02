@@ -32,11 +32,48 @@ services:
       TD_PERF_LOG: ${TD_PERF_LOG:-true}
     volumes:
       - files:/app/data/files
-      # Thư mục làm việc của màn Đăng web, dùng chung với máy đăng web (deploy/docker-compose.web.yml).
+      # Thư mục làm việc của màn Đăng web, dùng chung với máy đăng web (dang-web-may bên dưới).
       - ${WEB_THU_MUC:-../../THANHDUC-WEB}:/web
     depends_on:
       db:
         condition: service_healthy
+
+  # Máy đăng web chạy nền cho màn Đăng web (TUẤN 02/11/2026: chạy chung lệnh cập nhật, không cần bat-may riêng).
+  # Image nặng vì có bộ tách nền nhưng có bộ nhớ đệm, chỉ dựng lại khi code dang_web đổi.
+  dang-web-may:
+    build:
+      context: ..
+      dockerfile: dang_web/Dockerfile
+    environment:
+      # Chỉ đọc: công cụ tự đặt phiên database ở chế độ read-only.
+      TD_DATABASE_URL: postgresql+psycopg://thanhduc:${DB_PASSWORD}@db:5432/thanhduc
+      WP_URL: ${WP_URL:-https://thanhduc.vn}
+      WP_USER: ${WP_USER:-}
+      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # claude | openai | mau (không AI). Để trống: dùng loại nào có khóa.
+      WEB_AI_NHA_CUNG_CAP: ${WEB_AI_NHA_CUNG_CAP:-}
+      WEB_OPENAI_MODEL: ${WEB_OPENAI_MODEL:-gpt-5.5}
+      WEB_AI_MODEL: ${WEB_AI_MODEL:-claude-opus-5-5}
+      WEB_AI_EFFORT: ${WEB_AI_EFFORT:-medium}
+      WEB_AI_TRA_WEB: ${WEB_AI_TRA_WEB:-true}
+      WEB_TACH_NEN: ${WEB_TACH_NEN:-true}
+      # Mô hình tách nền: isnet-general-use (mặc định, viền sắc) hoặc u2net (bản cũ).
+      WEB_MO_HINH_TACH_NEN: ${WEB_MO_HINH_TACH_NEN:-isnet-general-use}
+      WEB_ANH_DINH_DANG: ${WEB_ANH_DINH_DANG:-webp}
+      WEB_ANH_KICH_THUOC: ${WEB_ANH_KICH_THUOC:-1200}
+      WEB_DANG_GIA: ${WEB_DANG_GIA:-true}
+      WEB_VAT_PHAN_TRAM: ${WEB_VAT_PHAN_TRAM:-0}
+      WEB_HOTLINE: ${WEB_HOTLINE:-}
+      WEB_CHUYEN_MUC_BAI: ${WEB_CHUYEN_MUC_BAI:-}
+    volumes:
+      # ~/THANHDUC-WEB trên Z2: anh-goc, ghi-chu, chu-de.txt, ket-qua...
+      - ${WEB_THU_MUC:-../../THANHDUC-WEB}:/data
+    depends_on:
+      - db
+    command: ["cho-viec"]
+    restart: unless-stopped
 
   caddy:
     image: caddy:2

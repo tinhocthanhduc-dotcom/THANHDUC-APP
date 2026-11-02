@@ -299,14 +299,7 @@ class MayDangWeb:
         hd.ghi_json(hd.file_web(self.goc), ra)
         # Tab Trên web: mọi sản phẩm, bài viết và danh mục trên web (chỉ khi anh bấm Cập nhật từ web).
         dm_sp = gon_danh_muc(wp.danh_muc_sp())
-        sp_web = [{"id": it["id"], "ten": _ten(it), "sku": str(it.get("sku") or ""), "trang_thai": it.get("status", ""),
-                   "xem": it.get("permalink") or "", "sua": link_sua(self.ch.wp_url, it["id"]),
-                   "dm": [c["id"] for c in it.get("categories") or [] if isinstance(c, dict) and c.get("id")],
-                   "gia": str(it.get("regular_price") or it.get("price") or ""),
-                   "anh": next((m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict)), ""),
-                   "so_anh": len(it.get("images") or []),
-                   "anhs": [{"id": int(m["id"]), "src": m.get("src", "")} for m in it.get("images") or []
-                            if isinstance(m, dict) and str(m.get("id", "")).isdigit()]} for it in wp.tat_ca_sp() if it.get("id")]
+        sp_web = [self._dong_sp(it) for it in wp.tat_ca_sp() if it.get("id")]
         hd.ghi_json(hd.file_sp_web(self.goc), {"luc": ra["luc"], "ds": sp_web, "danh_muc": dm_sp})
         bai_goc = [it for it in wp.tat_ca_bai() if it.get("id")]
         try:  # ảnh đại diện để danh sách hiện ảnh nhỏ và màn Sửa ảnh có ảnh gốc
@@ -315,22 +308,51 @@ class MayDangWeb:
             in_(f"  Không lấy được ảnh đại diện bài viết: {e}")
             anh_dd = {}
 
-        def _noi_dung(it):
-            c = it.get("content") or ""
-            return (c.get("raw") or c.get("rendered") or "") if isinstance(c, dict) else str(c)
-
-        bai_web = []
-        for it in bai_goc:
-            fm = int(it.get("featured_media") or 0)
-            bai_web.append({"id": it["id"], "ten": _ten(it), "trang_thai": it.get("status", ""), "xem": it.get("link") or "",
-                            "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
-                            "ngay": str(it.get("date") or "")[:10], "co_anh": bool(fm), "anh_id": fm,
-                            "anh": (anh_dd.get(fm) or {}).get("nho", ""), "anh_goc": (anh_dd.get(fm) or {}).get("src", ""),
-                            "anhs_bai": anh_trong_bai(_noi_dung(it))})
+        bai_web = [self._dong_bai(it, anh_dd) for it in bai_goc]
         hd.ghi_json(hd.file_bai_web(self.goc), {"luc": ra["luc"], "ds": bai_web, "danh_muc": gon_danh_muc(wp.chuyen_muc_bai())})
         in_(f"Cập nhật từ web: {len(sp_web)} sản phẩm, {len(bai_web)} bài viết")
         self._danh_muc = None
         self.danh_muc()
+
+    def _dong_sp(self, it: dict) -> dict:
+        """Một dòng sản phẩm của tab Trên web (dùng chung cho lấy cả loạt và lấy lại 1 sản phẩm)."""
+        return {"id": it["id"], "ten": _ten(it), "sku": str(it.get("sku") or ""), "trang_thai": it.get("status", ""),
+                "xem": it.get("permalink") or "", "sua": link_sua(self.ch.wp_url, it["id"]),
+                "dm": [c["id"] for c in it.get("categories") or [] if isinstance(c, dict) and c.get("id")],
+                "gia": str(it.get("regular_price") or it.get("price") or ""),
+                "anh": next((m.get("src", "") for m in it.get("images") or [] if isinstance(m, dict)), ""),
+                "so_anh": len(it.get("images") or []),
+                "anhs": [{"id": int(m["id"]), "src": m.get("src", "")} for m in it.get("images") or []
+                         if isinstance(m, dict) and str(m.get("id", "")).isdigit()]}
+
+    def _dong_bai(self, it: dict, anh_dd: dict) -> dict:
+        c = it.get("content") or ""
+        noi_dung = (c.get("raw") or c.get("rendered") or "") if isinstance(c, dict) else str(c)
+        fm = int(it.get("featured_media") or 0)
+        return {"id": it["id"], "ten": _ten(it), "trang_thai": it.get("status", ""), "xem": it.get("link") or "",
+                "sua": link_sua(self.ch.wp_url, it["id"]), "dm": [int(c) for c in it.get("categories") or [] if str(c).isdigit()],
+                "ngay": str(it.get("date") or "")[:10], "co_anh": bool(fm), "anh_id": fm,
+                "anh": (anh_dd.get(fm) or {}).get("nho", ""), "anh_goc": (anh_dd.get(fm) or {}).get("src", ""),
+                "anhs_bai": anh_trong_bai(noi_dung)}
+
+    def lam_moi_mot(self, loai: str, web_id: int) -> None:
+        """Anh mở màn Sửa ảnh / Sửa bằng AI: lấy lại đúng mục đó từ web, ghi đè dòng của nó trong danh sách đã lấy về."""
+        wp = self.wp()
+        if loai == "san_pham":
+            it = next((x for x in wp.lay_sp_theo_ids([web_id]) if x.get("id") == web_id), None)
+            dong = self._dong_sp(it) if it else None
+        else:
+            it = next((x for x in wp.lay_bai_theo_ids([web_id]) if x.get("id") == web_id), None)
+            dong = None
+            if it:
+                fm = int(it.get("featured_media") or 0)
+                try:
+                    anh_dd = wp.lay_anh_theo_ids([fm]) if fm else {}
+                except LoiWeb:
+                    anh_dd = {}
+                dong = self._dong_bai(it, anh_dd)
+        if dong:
+            self._sua_ds_web(loai, web_id, **dong, lay_luc=hd.bay_gio().isoformat(timespec="seconds"))
 
     # ---------- sửa bài / sản phẩm đang có trên web ----------
     def _sua_ds_web(self, loai: str, web_id: int, **them) -> None:
@@ -773,6 +795,14 @@ class MayDangWeb:
             try:
                 if hd.lay_yeu_cau_lam_moi(self.goc) and self.co_wp:
                     self.lam_moi_web()
+                for loai, web_id in hd.lay_yeu_cau_lam_moi_mot(self.goc):
+                    try:
+                        if self.co_wp:
+                            self.lam_moi_mot(loai, web_id)
+                    except Exception as e:
+                        in_(f"  Không lấy lại được {loai} {web_id} từ web: {e}")
+                    finally:
+                        hd.xong_lam_moi_mot(self.goc, loai, web_id)
                 self.kiem_lich()
             except Exception as e:
                 in_(f"  LỖI làm mới/lịch: {e}")

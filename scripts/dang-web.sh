@@ -3,7 +3,7 @@
 #   scripts/dang-web.sh kiem-tra
 #   scripts/dang-web.sh san-pham --ma TD-0001,TD-0002 --thu
 #   scripts/dang-web.sh san-pham --tu-dong --so 3
-#   scripts/dang-web.sh bat-may     bật máy đăng web chạy nền cho màn Đăng web trong app (tự chạy lại khi Z2 khởi động)
+#   scripts/dang-web.sh bat-may     tạo thư mục ~/THANHDUC-WEB đúng quyền và bật máy đăng web ngay (từ 02/11/2026 lệnh cập nhật app cũng tự bật)
 #   scripts/dang-web.sh tat-may     tắt máy đăng web chạy nền
 #   scripts/dang-web.sh nhat-ky     xem 80 dòng nhật ký gần nhất của máy đăng web
 set -euo pipefail

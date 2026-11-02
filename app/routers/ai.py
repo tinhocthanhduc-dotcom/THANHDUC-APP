@@ -110,6 +110,18 @@ def web_fail(viec_id: str, body: FailIn, key: AiKey = Depends(web_key), session:
     return web_svc.khong_lam_duoc(session, key, viec_id, body.ly_do)
 
 
+class StatusIn(BaseModel):
+    dang_nhap: bool | None = None
+    ban: str = Field('', max_length=60)
+    loi: str = Field('', max_length=300)
+
+
+@router.post('/dang-web/tinh-trang')
+def web_status(body: StatusIn, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
+    """Codex báo còn đăng nhập ChatGPT không (mỗi lượt cron) cho bảng sức khỏe ở màn Đăng web."""
+    return web_svc.bao_tinh_trang(session, key, body.dang_nhap, body.ban, body.loi)
+
+
 @router.get('/dang-web/ve-anh')
 def web_draw_jobs(key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
     """Yêu cầu vẽ ảnh minh họa bài viết đang chờ Codex (chỉ bài viết)."""

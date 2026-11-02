@@ -131,7 +131,7 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
                  n=dem_tab.get(key, 0) if l is None else sum(1 for v in con if v["loai"] == l)) for key, label, l in TABS]
     ctx = dict(tab=tab, tabs=tabs, nhip=nhip, loi_thu_muc=loi_thu_muc, da_luu=da_luu, q=q, loc=loc,
                cach_viet=hd.CACH_VIET, cach_mac_dinh=_cach_mac_dinh(nhip), cho_lam_moi=not loi_thu_muc and hd.dang_cho_lam_moi(g),
-               la_giam_doc=has_role(user, "director"))
+               la_giam_doc=has_role(user, "director"), codex_sk=None if loi_thu_muc else hd.suc_khoe_codex(g))
     if tab == "tren-web":
         return _tab_tren_web(request, session, g, ctx, tt, sp_web, bai_web, loai, loc, q.strip(), dm, nhom, ton, trang, so)
     loai = dict((t[0], t[2]) for t in TABS)[tab]
@@ -452,13 +452,35 @@ def _muc_web(loai: str, web_id: str) -> tuple[dict, CayDanhMuc]:
     return it, CayDanhMuc(web["danh_muc"])
 
 
-def _form_sua(request, session, loai: str, it: dict, cay: CayDanhMuc, d: dict, error="", status=200):
+def _xin_lay_lai(loai: str, it: dict) -> bool:
+    """Mở màn Sửa ảnh / Sửa bằng AI: nhờ máy đăng web lấy lại đúng mục này từ web (TUẤN duyệt đợt 1 ngày 02/11/2026).
+    Trả True khi đang chờ bản mới. Máy tắt, chưa nối web hoặc vừa lấy trong 2 phút thì thôi."""
+    g = goc()
+    web_id = int(it["id"])
+    if hd.dang_cho_lam_moi_mot(g, loai, web_id):
+        return True
+    nhip = hd.doc_nhip(g)
+    if hd.moi_lay(it) or not nhip or not nhip.get("song") or not nhip.get("co_wp") or hd.kiem_ghi_duoc(g):
+        return False
+    hd.yeu_cau_lam_moi_mot(g, loai, web_id)
+    return True
+
+
+@router.get("/dang-web/lay-lai")
+def refresh_one_status(loai: str = "sp", id: str = "", user: User = Depends(web_user)):
+    from fastapi.responses import JSONResponse
+
+    loai = _loai_anh(loai)
+    return JSONResponse({"cho": id.isdigit() and hd.dang_cho_lam_moi_mot(goc(), loai, int(id))}, headers={"Cache-Control": "no-store"})
+
+
+def _form_sua(request, session, loai: str, it: dict, cay: CayDanhMuc, d: dict, error="", status=200, cho_lay_lai=False):
     ids = [int(x) for x in it.get("dm") or [] if str(x).isdigit()]
     hien = next((i for i in ids if not cay.chua_phan_loai([i])), None)
     ma = _ma_cua_web(session, it) if loai == "san_pham" else ""
     return render(request, "dang_web_sua.jinja", loai=loai, it=it, cay_lua=cay.lua_chon(), dm_hien=cay.duong(hien) if hien else "",
                   d=d, ma=ma, nhip=hd.doc_nhip(goc()), cach_viet=hd.CACH_VIET, codex=hd.codex_song(goc()), error=error, status=status,
-                  toi_da_anh=TOI_DA_ANH if loai == "san_pham" else 4)
+                  cho_lay_lai=cho_lay_lai, toi_da_anh=TOI_DA_ANH if loai == "san_pham" else 4)
 
 
 def _ma_cua_web(session, it: dict) -> str:
@@ -476,7 +498,8 @@ def edit_web_form(request: Request, loai: str = "sp", id: str = "", user: User =
     it, cay = _muc_web(loai, id)
     nhip = hd.doc_nhip(goc())
     return _form_sua(request, session, loai, it, cay, dict(noi_dung=True, seo=True, anh=False,
-                                                           cach_viet="codex" if hd.codex_song(goc()) else ("tu_dong" if nhip and nhip.get("ai") else "chatgpt_web")))
+                                                           cach_viet="codex" if hd.codex_song(goc()) else ("tu_dong" if nhip and nhip.get("ai") else "chatgpt_web")),
+                     cho_lay_lai=_xin_lay_lai(loai, it))
 
 
 @router.post("/dang-web/sua-ai")
@@ -540,7 +563,7 @@ def _anh_cua_muc(loai: str, it: dict) -> list[dict]:
     return ra
 
 
-def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", status=200):
+def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", status=200, cho_lay_lai=False):
     bai = loai == "bai_viet"
     co_ds = ("anhs_bai" in it) if bai else ("anhs" in it)
     g = goc()
@@ -548,14 +571,14 @@ def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", stat
     return render(request, "dang_web_sua_anh.jinja", it=it, loai=loai, bai=bai, anhs=_anh_cua_muc(loai, it), co_ds_anh=co_ds, d=d,
                   ve=_ve_json(ve), codex=hd.codex_song(g),
                   ma="" if bai else _ma_cua_web(session, it), nhip=hd.doc_nhip(goc()),
-                  toi_da_anh=TOI_DA_ANH_BAI if bai else TOI_DA_ANH, error=error, status=status)
+                  toi_da_anh=TOI_DA_ANH_BAI if bai else TOI_DA_ANH, error=error, status=status, cho_lay_lai=cho_lay_lai)
 
 
 @router.get("/dang-web/sua-anh")
 def edit_photos_form(request: Request, id: str = "", loai: str = "sp", user: User = Depends(web_user), session: Session = Depends(get_session)):
     loai = _loai_anh(loai)
     it, _ = _muc_web(loai, id)
-    return _form_sua_anh(request, session, loai, it, dict(logo=True, logo_goc="phai"))
+    return _form_sua_anh(request, session, loai, it, dict(logo=True, logo_goc="phai"), cho_lay_lai=_xin_lay_lai(loai, it))
 
 
 @router.get("/dang-web/anh-tren-web")

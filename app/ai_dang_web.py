@@ -99,6 +99,7 @@ def khong_lam_duoc(session, key, viec_id: str, ly_do: str = '') -> dict:
     kq = hd.sua(g, viec_id, ham, (hd.CHO_DAN,))
     if kq is None:
         raise BusinessError('BAD_STATE', 'Việc vừa đổi trạng thái.', status=409)
+    hd.ghi_nhip_codex(g, loi=ly_do or 'Codex không làm được một việc soạn')
     audit.record(session, None, 'ai.dang_web_fail', 'dang_web', viec_id, dict(cach_viet='codex'),
                  dict(cach_viet=kq['cach_viet'], key=key.prefix), ly_do)
     session.commit()
@@ -140,8 +141,20 @@ def xong_ve_anh(session, key, yc_id: str, ly_do: str = '') -> dict:
 
     g = _goc()
     _can_ghi(g)
-    kq = ve_anh.ket_thuc(g, yc_id, (ly_do or '').strip()[:300])
+    ly_do = (ly_do or '').strip()[:300]
+    kq = ve_anh.ket_thuc(g, yc_id, ly_do)
     if kq is None:
         raise BusinessError('BAD_STATE', 'Yêu cầu này không còn chờ ảnh.', status=409)
-    hd.ghi_nhip_codex(g)
+    hd.ghi_nhip_codex(g, loi=('Vẽ ảnh: ' + ly_do) if ly_do else '')
     return dict(id=yc_id, trang_thai=kq['trang_thai'], so_anh=len(kq.get('anh') or []))
+
+
+def bao_tinh_trang(session, key, dang_nhap: bool | None, ban: str = '', loi: str = '') -> dict:
+    """Codex báo tình trạng mỗi lượt cron: còn đăng nhập ChatGPT không, phiên bản codex (bảng sức khỏe ở màn Đăng web)."""
+    g = _goc()
+    _can_ghi(g)
+    them = dict(ban=ban, loi=loi)
+    if dang_nhap is not None:
+        them['dang_nhap'] = bool(dang_nhap)
+    hd.ghi_nhip_codex(g, **them)
+    return dict(ok=True)

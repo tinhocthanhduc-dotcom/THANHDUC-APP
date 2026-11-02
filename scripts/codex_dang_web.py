@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Codex trên máy chủ Z2 làm việc Đăng web bằng gói ChatGPT, không tốn phí API (TUẤN 01/11/2026, đợt 2).
 
-Chạy mỗi 5 phút bằng cron, chỉ dùng thư viện có sẵn của Python:
+Cron gọi mỗi 5 phút, chỉ dùng thư viện có sẵn của Python:
     python3 ~/THANHDUC-APP/scripts/codex_dang_web.py
-Mỗi lượt: hỏi app các câu lệnh đang chờ (qua cửa /ai/dang-web, khóa riêng của Codex), đưa từng câu lệnh cho
+Mỗi lần chạy (đợt 1 ngày 02/11/2026): báo app còn đăng nhập ChatGPT không, rồi hỏi việc mỗi 30 giây trong ~4,5 phút
+(TD_CODEX_HOI_GIAY, TD_CODEX_CHAY_GIAY) nên anh bấm xong chờ chừng nửa phút, không phải 5 phút. Mỗi lượt hỏi: hỏi app các câu lệnh đang chờ (qua cửa /ai/dang-web, khóa riêng của Codex), đưa từng câu lệnh cho
 `codex exec`, rồi gửi câu trả lời về app. App chỉ lưu bản nháp; anh vẫn xem trước và bấm Đăng như cũ.
 Codex lỗi hoặc hết lượt thì báo app "không làm được": app tự chuyển việc sang AI tự động (nếu có khóa API) hoặc dán tay.
 
@@ -20,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -28,6 +30,8 @@ from pathlib import Path
 HOME = Path.home()
 TOI_DA_MOI_LUOT = int(os.environ.get('TD_CODEX_MOI_LUOT', '5'))
 CHO_GIAY = int(os.environ.get('TD_CODEX_TIMEOUT', '600'))
+HOI_GIAY = int(os.environ.get('TD_CODEX_HOI_GIAY', '30'))  # hỏi việc mỗi 30 giây
+CHAY_GIAY = int(os.environ.get('TD_CODEX_CHAY_GIAY', '270'))  # dừng trước lần cron sau (5 phút)
 DAN_DAU = ('Bạn đang làm việc cho Công ty Tin Học Thành Đức. Chỉ trả lời câu lệnh dưới đây bằng MỘT khối JSON đúng các khóa '
            'được yêu cầu, không giải thích thêm. Không sửa hay tạo file nào, không chạy lệnh nào ngoài tra cứu.\n\n')
 
@@ -206,6 +210,25 @@ def mot_luot() -> int:
     return xong
 
 
+def tinh_trang() -> dict:
+    """Còn đăng nhập ChatGPT không và phiên bản codex, để bảng sức khỏe trong app báo cho anh."""
+    exe = codex_bin()
+    if not exe:
+        return {'dang_nhap': None, 'loi': 'Không thấy lệnh codex trên máy chủ.'}
+    ra = {}
+    try:
+        kq = subprocess.run([exe, 'login', 'status'], text=True, capture_output=True, timeout=30)
+        chu = (kq.stdout + kq.stderr).lower()
+        ra['dang_nhap'] = kq.returncode == 0 and 'not logged' not in chu
+    except (OSError, subprocess.TimeoutExpired):
+        ra['dang_nhap'] = None
+    try:
+        ra['ban'] = subprocess.run([exe, '--version'], text=True, capture_output=True, timeout=30).stdout.strip()[:60]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return ra
+
+
 def main():
     khoa = open(HOME / '.thanhduc-codex.lock', 'w')
     try:
@@ -214,8 +237,19 @@ def main():
         return  # lượt trước còn đang chạy
     try:
         (HOME / '.thanhduc-codex-viec').mkdir(mode=0o700, exist_ok=True)
-        mot_luot()
-        ve_anh_luot()
+        bat_dau = time.monotonic()
+        try:
+            call('POST', '/ai/dang-web/tinh-trang', tinh_trang())
+        except LoiApp as exc:
+            if exc.code in (401, 403, 423):
+                raise
+            log(f'Không báo được tình trạng: {exc}')  # app bản cũ chưa có cửa này: vẫn làm việc bình thường
+        while True:
+            mot_luot()
+            ve_anh_luot()
+            if time.monotonic() - bat_dau + HOI_GIAY > CHAY_GIAY:
+                break
+            time.sleep(HOI_GIAY)
     except LoiApp as exc:
         log(str(exc))
         if exc.code in (401, 403, 423):

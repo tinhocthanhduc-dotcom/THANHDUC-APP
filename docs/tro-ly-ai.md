@@ -44,7 +44,7 @@ không sửa code, không chạy lệnh docker. Viết tiếng Việt có dấu,
 
 # Codex · Đăng web (khóa riêng, phạm vi `dang_web`)
 
-Codex trên Z2 không tự nghĩ việc. Cron chạy `python3 /home/tuan/THANHDUC-APP/scripts/codex_dang_web.py` mỗi 5 phút:
+Codex trên Z2 không tự nghĩ việc. Cron chạy `python3 /home/tuan/THANHDUC-APP/scripts/codex_dang_web.py` mỗi 5 phút; mỗi lần chạy báo tình trạng (`POST /ai/dang-web/tinh-trang`: còn đăng nhập ChatGPT không, phiên bản) rồi hỏi việc mỗi 30 giây trong khoảng 4,5 phút:
 
 1. `GET /ai/dang-web/viec`: lấy các câu lệnh đang chờ (việc có cách viết "Codex trên máy chủ"). Lần hỏi này cũng là
    nhịp: quá 30 phút không hỏi thì app coi Codex tắt, việc mới về AI tự động / mẫu, việc cũ chờ quá 60 phút tự chuyển.

@@ -72,19 +72,19 @@ Giám đốc hoặc Kinh doanh mở menu **Bán hàng → Đăng web** trên đi
 - **Sửa bằng AI:** tick phần cần sửa (Viết lại nội dung, Tiêu đề + mô tả Google, Ảnh) và/hoặc chọn danh mục mới. Không chọn ảnh mới thì máy tải ảnh đang có trên web về xử lý lại (nền trắng, logo). Sản phẩm không có mã TD thì AI dựa vào nội dung đang có và giữ giá web. Xem trước rồi bấm ghi đè: chỉ ghi phần đã tick, giữ nguyên trạng thái và đường dẫn.
 - **Xếp danh mục bằng AI:** ở mục Chưa phân loại bấm nút này, AI đề xuất danh mục cho tối đa 40 mục một lượt; dòng chắc chắn tick sẵn, dòng khác anh chọn tay, bấm ghi thì chỉ đổi danh mục của các dòng đã tick (cần khóa AI).
 - **Mã app chưa lên web / Có thể trùng** (trong Trên web › Sản phẩm, thay tab Hàng hóa cũ): mã trong app chưa có trên web thì bấm **Soạn ›** hoặc tick nhiều mã rồi bấm **Soạn các mã đã chọn** (tối đa 10 mã, có ảnh trong `anh-goc` thì dùng, không có vẫn đăng dạng chữ). Ở "Có thể trùng" mở xem rồi chọn **Đúng là nó** hoặc **Không phải**.
-- **Cập nhật từ web:** danh sách trên web, danh mục và trạng thái Nháp/Đang hiện chỉ lấy lại khi anh bấm nút này ở tab Trên web, không tự chạy. Sau mỗi lần cập nhật code nhớ bấm một lần để tải danh mục.
+- **Cập nhật từ web:** danh sách trên web, danh mục và trạng thái Nháp/Đang hiện chỉ lấy lại cả loạt khi anh bấm nút này ở tab Trên web. Riêng khi mở màn Sửa ảnh hoặc Sửa bằng AI, máy tự lấy lại đúng mục đang mở (vừa lấy trong 2 phút thì thôi) để không bị khóa nút vì dữ liệu cũ (đợt 1, 02/11/2026).
+- **Sức khỏe Codex:** dải nhỏ đầu màn Đăng web báo Codex còn chạy không, lần hỏi việc gần nhất, còn đăng nhập ChatGPT không, số việc chờ và lỗi gần nhất.
 - **Máy tính:** danh sách hiện thành bảng; màn soạn và xem trước chia 2 cột (trái xem, phải sửa và bấm).
 - **Tự soạn mỗi sáng:** bật ở cuối tab Sản phẩm; máy soạn sẵn các mã đã có ảnh trong `anh-goc` và chủ đề chờ viết, anh vẫn phải bấm Đăng.
 
-Màn này cần **máy đăng web** chạy nền trên Z2 (bật một lần, tự chạy lại khi Z2 khởi động):
+Màn này cần **máy đăng web** (container `dang-web-may`) chạy nền trên Z2. Từ 02/11/2026 máy nằm trong `deploy/docker-compose.yml`, nên lệnh cập nhật app thường lệ tự dựng lại và bật nó:
 
 ```bash
 cd ~/THANHDUC-APP && git pull origin main
-scripts/dang-web.sh bat-may
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.tunnel.yml --env-file deploy/.env up -d --build
 ```
 
-Lệnh thứ hai tạo thư mục `~/THANHDUC-WEB` đúng quyền và dựng máy đăng web (lần đầu vài phút). Lệnh thứ ba là lệnh cập nhật app thường lệ, để app nối vào thư mục đó. Sau này code đăng web có thay đổi thì chạy lại `scripts/dang-web.sh bat-may`. Xem nhật ký: `scripts/dang-web.sh nhat-ky`. Tắt: `scripts/dang-web.sh tat-may`.
+Máy mới cài lần đầu thì chạy `scripts/dang-web.sh bat-may` một lần trước lệnh cập nhật để tạo thư mục `~/THANHDUC-WEB` đúng quyền. Xem nhật ký: `scripts/dang-web.sh nhat-ky`. Tắt tạm: `scripts/dang-web.sh tat-may` (lần cập nhật sau sẽ bật lại).
 
 ## Làm hằng ngày bằng lệnh (không qua app)
 

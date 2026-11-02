@@ -1,6 +1,7 @@
 {% extends 'base.jinja' %}
 {% import '_ui.jinja' as ui %}
 {% import '_dang_web_ve_anh.jinja' as va %}
+{% import '_dang_web_lay_lai.jinja' as ll %}
 {% block title %}Sửa ảnh · {{ it.ten }}{% endblock %}
 {# TUẤN duyệt mẫu D2 (máy tính) và 2 (điện thoại) ngày 02/11/2026: bỏ Tách nền / Đã nền trắng / Giữ nguyên.
    Chỉ đặt ảnh vào đúng khung web, căn giữa, xoay, phóng to, lật, đóng logo; tick nhiều ảnh làm một lượt. Không gọi AI. #}
@@ -8,8 +9,9 @@
 {% block main %}<div class="page-wide dw-page">
 {{ ui.page_head('Sửa ảnh · ' ~ it.ten, sub=(ma ~ ' · ' if ma else '') ~ ('bài viết' if bai else 'sản phẩm') ~ ' · khung web ' ~ khung ~ ' · ' ~ (anhs|length) ~ ' ảnh trên web · không dùng AI', back='/dang-web?tab=tren-web&loai=' ~ ('bai' if bai else 'sp')) }}
 {% if error %}<p class="alert bad" role="alert"><b>Chưa tạo được.</b> {{ error }}</p>{% endif %}
-{% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt; việc sẽ nằm chờ tới khi anh bật trên Z2 (<code>scripts/dang-web.sh bat-may</code>).</p>{% endif %}
-{% if not co_ds_anh %}<p class="alert warn" role="status"><b>Danh sách web cũ chưa có ảnh{{ ' trong bài' if bai }}.</b> Về Trên web bấm “Cập nhật từ web” rồi mở lại màn này.</p>{% endif %}
+{% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt; việc sẽ nằm chờ tới khi máy chạy lại. Trên Z2 chạy lại lệnh cập nhật app là máy tự bật.</p>{% endif %}
+{{ ll.bao(cho_lay_lai, loai, it.id) }}
+{% if not co_ds_anh and not cho_lay_lai %}<p class="alert warn" role="status"><b>Danh sách web cũ chưa có ảnh{{ ' trong bài' if bai }}.</b> Về Trên web bấm “Cập nhật từ web” rồi mở lại màn này.</p>{% endif %}
 <form method="post" action="/dang-web/sua-anh" enctype="multipart/form-data" class="form dw-form sa-form" data-busy data-sa
       data-w="{{ 16 if bai else 1 }}" data-h="{{ 9 if bai else 1 }}" data-max="{{ toi_da_anh }}" data-bai="{{ '1' if bai else '' }}">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
