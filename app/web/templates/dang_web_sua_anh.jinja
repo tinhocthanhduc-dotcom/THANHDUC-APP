@@ -1,5 +1,6 @@
 {% extends 'base.jinja' %}
 {% import '_ui.jinja' as ui %}
+{% import '_dang_web_ve_anh.jinja' as va %}
 {% block title %}Sửa ảnh · {{ it.ten }}{% endblock %}
 {# TUẤN duyệt mẫu D2 (máy tính) và 2 (điện thoại) ngày 02/11/2026: bỏ Tách nền / Đã nền trắng / Giữ nguyên.
    Chỉ đặt ảnh vào đúng khung web, căn giữa, xoay, phóng to, lật, đóng logo; tick nhiều ảnh làm một lượt. Không gọi AI. #}
@@ -59,6 +60,7 @@
 </ul>
 {% if bai %}<p class="hint">Bài chưa có ảnh đại diện thì ảnh mới đầu tiên làm ảnh đại diện. Muốn thay ảnh đại diện, tick “Đại diện” ở ảnh mới; ảnh mới khác được thêm vào cuối bài.</p>{% endif %}
 </section>
+{% if bai %}{{ va.khung(ve, codex, 'them') }}{% endif %}
 </div><div class="dw-side">
 <section class="card">
 <b>Áp dụng cho ảnh đã chọn (<span data-sa-count>0</span>)</b>
@@ -80,4 +82,5 @@
 </form>
 </div>
 <script src="{{ asset('sua-anh.js') }}" defer></script>
+{% if bai %}<script src="{{ asset('ve-anh.js') }}" defer></script>{% endif %}
 {% endblock %}

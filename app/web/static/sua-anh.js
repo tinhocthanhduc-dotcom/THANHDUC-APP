@@ -169,7 +169,7 @@
         li.className = 'sa-card'; li.dataset.saCard = ''; li.dataset.key = key; li.dataset.moi = '1'; li._file = file;
         li.innerHTML = '<input type="hidden" name="thu_tu"><input type="hidden" data-sa-bien>' +
           '<button type="button" class="sa-mini' + (bai ? ' sa-wide' : '') + '" data-sa-pick><img alt=""></button>' +
-          '<div class="sa-row"><label class="chk"><input type="checkbox" checked disabled data-sa-chon> Sửa</label><span class="hint">Ảnh mới</span></div>' +
+          '<div class="sa-row"><label class="chk"><input type="checkbox" checked disabled data-sa-chon> Sửa</label><span class="hint">' + (/^ai-/.test(file.name || '') ? 'Ảnh AI vẽ' : 'Ảnh mới') + '</span></div>' +
           '<div class="sa-row"><label class="chk"><input type="radio" name="dai_dien"> Đại diện</label>' +
           (bai ? '' : '<span class="sa-move"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="-1" aria-label="Lên trước">‹</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-move="1" aria-label="Ra sau">›</button></span>') +
           '</div><button type="button" class="btn btn-danger dw-sbtn" data-sa-bo>Bỏ ảnh mới</button>';
@@ -302,6 +302,9 @@
     });
     if (dt) filesInput.files = dt.files;
   });
+
+  // Ảnh AI vẽ (ve-anh.js) bấm "Dùng ảnh này" thì thêm như ảnh mới
+  form.addEventListener('sa:them-anh', function (event) { addFiles(event.detail || []); });
 
   // ---- khởi đầu ----
   cards().forEach(function (c) { save(c); load(c, c.dataset.src, c.dataset.fallback); });

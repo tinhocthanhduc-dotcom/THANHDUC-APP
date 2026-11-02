@@ -38,6 +38,7 @@
 <div class="dw-ph-list" data-dw-list></div><p class="hint" data-dw-note data-empty="Chưa chọn ảnh."></p>
 <p class="hint">Ảnh đầu làm ảnh đại diện; các ảnh sau tự chèn vào thân bài, trước các tiêu đề mục.</p>
 <label class="chk"><input type="checkbox" name="da_co_logo" value="1" {% if d.da_co_logo %}checked{% endif %}> Ảnh đã có logo Thành Đức, không đóng thêm</label>
+{% if not d.wp_id %}<label class="chk dw-ve-anh"><input type="checkbox" name="ve_anh" value="1"{{ ' checked' if codex and d.ve_anh is not sameas false }}{{ ' disabled' if not codex }}> <span><b>Chưa có ảnh: để AI vẽ ảnh đại diện</b><br><small class="hint">{% if codex %}Codex trên Z2 vẽ 2 ảnh theo chủ đề, không tốn phí API; anh chọn 1 ảnh ở màn xem trước. Có ảnh thật thì app dùng ảnh thật, bỏ qua ô này.{% else %}Chưa thấy Codex chạy trên Z2 nên chưa vẽ được.{% endif %}</small></span></label>{% endif %}
 </section>
 {% endif %}
 <section class="card">

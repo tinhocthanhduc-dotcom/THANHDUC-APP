@@ -9,6 +9,8 @@ Codex lỗi hoặc hết lượt thì báo app "không làm được": app tự 
 
 Khóa đọc từ ~/.thanhduc-ai-key-web (chmod 600) hoặc TD_AI_WEB_KEY. App ở http://127.0.0.1:8010 (TD_AI_URL).
 Không đọc database, không đọc deploy/.env, Codex chạy ở chế độ chỉ đọc trong thư mục riêng.
+Vẽ ảnh minh họa bài viết (02/11/2026): Codex được ghi file chỉ trong một thư mục tạm của lượt vẽ, dùng công cụ
+image_gen của gói ChatGPT; ảnh gửi về app qua /ai/dang-web/ve-anh rồi thư mục tạm bị xóa.
 """
 import fcntl
 import json
@@ -104,6 +106,74 @@ def hoi_codex(lenh: str, thu_muc: Path) -> str:
         ra.unlink(missing_ok=True)
 
 
+def gui_anh(yc_id: str, f: Path):
+    url = os.environ.get('TD_AI_URL', 'http://127.0.0.1:8010').rstrip('/') + f'/ai/dang-web/ve-anh/{yc_id}/anh'
+    kieu = {'.png': 'image/png', '.webp': 'image/webp'}.get(f.suffix.lower(), 'image/jpeg')
+    req = urllib.request.Request(url, data=f.read_bytes(), method='POST', headers={
+        'Authorization': 'Bearer ' + _key(), 'Content-Type': kieu, 'Accept': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read() or b'null')
+    except urllib.error.HTTPError as exc:
+        raise LoiApp(exc.code, exc.reason) from exc
+    except urllib.error.URLError as exc:
+        raise LoiApp(0, f'Không kết nối được app: {exc.reason}') from exc
+
+
+DUOI_ANH = ('.png', '.jpg', '.jpeg', '.webp')
+
+
+def ve_codex(lenh: str, thu_muc: Path, so_anh: int) -> list[Path]:
+    """Cho Codex vẽ bằng công cụ image_gen (gói ChatGPT), chỉ được ghi trong thư mục riêng của lượt vẽ.
+    Codex quên chép ảnh ra thì lấy ảnh nó vừa tạo trong ~/.codex/generated_images."""
+    exe = codex_bin()
+    if not exe:
+        raise RuntimeError('Không thấy lệnh codex trên máy chủ.')
+    bat_dau = datetime.now().timestamp()
+    cmd = [exe, 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--color', 'never', '-C', str(thu_muc)]
+    cmd += shlex.split(os.environ.get('TD_CODEX_THEM', ''))
+    cmd.append('-')
+    try:
+        kq = subprocess.run(cmd, input=lenh, text=True, capture_output=True, cwd=thu_muc, timeout=CHO_GIAY)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f'codex vẽ quá {CHO_GIAY} giây') from exc
+    anh = sorted(p for p in thu_muc.iterdir() if p.suffix.lower() in DUOI_ANH and p.stat().st_size > 1000)
+    if not anh:
+        sinh = HOME / '.codex' / 'generated_images'
+        if sinh.exists():
+            anh = sorted((p for p in sinh.rglob('*') if p.is_file() and p.suffix.lower() in DUOI_ANH
+                          and p.stat().st_mtime >= bat_dau - 5), key=lambda p: p.stat().st_mtime)
+    if not anh:
+        duoi = (kq.stderr or kq.stdout or '').strip().splitlines()[-3:]
+        raise RuntimeError(f'codex không tạo ra ảnh (mã {kq.returncode}): ' + ' | '.join(duoi)[:250])
+    return anh[:so_anh]
+
+
+def ve_anh_luot() -> int:
+    """Yêu cầu vẽ ảnh minh họa bài viết: mỗi yêu cầu một thư mục tạm, gửi ảnh về app rồi xóa thư mục."""
+    yeu_cau = call('GET', '/ai/dang-web/ve-anh')
+    xong = 0
+    for yc in yeu_cau or []:
+        ten = f"vẽ ảnh {yc['id']} · {yc.get('ten', '')}"
+        thu_muc = Path(tempfile.mkdtemp(prefix=f"ve-{yc['id']}-", dir=HOME / '.thanhduc-codex-viec'))
+        try:
+            anh = ve_codex(yc['lenh'], thu_muc, int(yc.get('so_anh') or 2))
+            for f in anh:
+                gui_anh(yc['id'], f)
+            call('POST', f"/ai/dang-web/ve-anh/{yc['id']}/xong", {'ly_do': ''})
+            log(f'{ten}: đã gửi {len(anh)} ảnh')
+            xong += 1
+        except Exception as exc:  # Codex lỗi / hết lượt: báo app để anh bấm vẽ lại
+            log(f'{ten}: không vẽ được ({exc})')
+            try:
+                call('POST', f"/ai/dang-web/ve-anh/{yc['id']}/xong", {'ly_do': str(exc)[:300]})
+            except LoiApp as e2:
+                log(f'{ten}: {e2}')
+        finally:
+            shutil.rmtree(thu_muc, ignore_errors=True)
+    return xong
+
+
 def mot_luot() -> int:
     viec = call('GET', '/ai/dang-web/viec')  # lần hỏi này cũng báo app "Codex đang chạy"
     if not viec:
@@ -143,7 +213,9 @@ def main():
     except OSError:
         return  # lượt trước còn đang chạy
     try:
+        (HOME / '.thanhduc-codex-viec').mkdir(mode=0o700, exist_ok=True)
         mot_luot()
+        ve_anh_luot()
     except LoiApp as exc:
         log(str(exc))
         if exc.code in (401, 403, 423):

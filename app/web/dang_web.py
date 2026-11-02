@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
 from dang_web import hang_doi as hd
+from dang_web import ve_anh
 from dang_web.so_ten import so_khop_hang
 from dang_web.tren_web import CayDanhMuc
 
@@ -393,6 +394,7 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
     d = dict(loai=loai, ma=str(form.get("ma", "")).strip().upper(), chu_de=" ".join(str(form.get("chu_de", "")).split()),
              ghi_chu=str(form.get("ghi_chu", "")).strip()[:3000], cach_viet=str(form.get("cach_viet", "")),
              nen_trang=form.get("nen_trang") == "1", da_co_logo=form.get("da_co_logo") == "1", wp_id=str(form.get("wp_id", "")).strip())
+    d["ve_anh"] = form.get("ve_anh") == "1"
     try:
         _can_ghi()
         g = goc()
@@ -415,7 +417,12 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
             if len(d["chu_de"]) < 8:
                 raise BusinessError("BAD_FORM", "Gõ chủ đề bài viết (ít nhất 8 chữ).")
             them.update(chu_de=d["chu_de"][:200], ten=d["chu_de"][:200])
+        ve = loai == "bai_viet" and d["ve_anh"] and not anh and not wp_id and hd.codex_song(g)
+        if ve:
+            them["ve_anh"] = True
         viec_id = hd.tao_viec(g, loai, them, anh)
+        if ve:  # Codex vẽ ảnh song song lúc AI viết bài; anh chọn ảnh ở màn xem trước
+            ve_anh.tao(g, chu_de=d["chu_de"], viec_id=viec_id)
     except BusinessError as exc:
         return _form_soan(request, session, d, error=exc.message, status=exc.status)
     return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
@@ -536,7 +543,10 @@ def _anh_cua_muc(loai: str, it: dict) -> list[dict]:
 def _form_sua_anh(request, session, loai: str, it: dict, d: dict, error="", status=200):
     bai = loai == "bai_viet"
     co_ds = ("anhs_bai" in it) if bai else ("anhs" in it)
+    g = goc()
+    ve = ve_anh.moi_nhat(g, wp_id=int(it["id"])) if bai else None
     return render(request, "dang_web_sua_anh.jinja", it=it, loai=loai, bai=bai, anhs=_anh_cua_muc(loai, it), co_ds_anh=co_ds, d=d,
+                  ve=_ve_json(ve), codex=hd.codex_song(g),
                   ma="" if bai else _ma_cua_web(session, it), nhip=hd.doc_nhip(goc()),
                   toi_da_anh=TOI_DA_ANH_BAI if bai else TOI_DA_ANH, error=error, status=status)
 
@@ -681,7 +691,9 @@ def _cay(loai: str) -> CayDanhMuc:
 def _page_viec(request, v, error="", status=200):
     g = goc()
     cay_lua = _cay(v["loai"]).lua_chon() if v.get("kieu") in ("sua_web", "xep_danh_muc") else []
-    return render(request, "dang_web_viec.jinja", v=_them_nhan(v), nhip=hd.doc_nhip(g), error=error, status=status,
+    ve = ve_anh.moi_nhat(g, viec_id=v["id"]) if v.get("ve_anh") else None
+    return render(request, "dang_web_viec.jinja", v=_them_nhan(v), nhip=hd.doc_nhip(g), error=error, status=status, ve_ai=_ve_json(ve),
+                  codex=hd.codex_song(g),
                   danh_muc=hd.doc_json(hd.file_danh_muc(g), []), cach_viet=hd.CACH_VIET, cay_lua=cay_lua, che_do_anh=CHE_DO_ANH)
 
 
@@ -710,6 +722,30 @@ def _nap_sua_anh(v: dict, form) -> None:
     v["xoa_cu"] = form.get("xoa_cu") == "1"
 
 
+def _nap_anh_ai(v: dict, chon: str) -> None:
+    """Bài viết mới: ảnh AI anh chọn ở màn xem trước được đặt vào khung 1200×675, đóng logo, làm ảnh đại diện."""
+    from dang_web import anh as anh_mod
+    from dang_web.wordpress import slug
+
+    v["anh_web"] = [t for t in v.get("anh_web") or [] if not t.startswith("ai-")]
+    v["anh_nguon"] = [p for p in v.get("anh_nguon") or [] if "/ve-anh/" not in p]
+    if not chon:
+        return
+    yc_id, _, ten = chon.partition("/")
+    g = goc()
+    yc = ve_anh.doc(g, yc_id)
+    f = ve_anh.file_anh(g, yc_id, ten)
+    if not yc or yc.get("viec_id") != v["id"] or ten not in (yc.get("anh") or []) or not f or not f.is_file():
+        raise BusinessError("BAD_FORM", "Ảnh AI đã chọn không còn. Tải lại trang rồi chọn lại.")
+    ra = f"ai-{slug(v.get('chu_de') or 'bai-viet', 50)}-{yc_id[-6:]}-{ten[4]}.jpg"
+    thu = g / "anh-da-xu-ly"
+    thu.mkdir(parents=True, exist_ok=True)
+    W, H = anh_mod.KHUNG_BAI
+    (thu / ra).write_bytes(anh_mod.dat_khung(f, W, H, {}, logo=None if v.get("da_co_logo") else anh_mod.LOGO_MAC_DINH, dinh_dang="jpg"))
+    v["anh_web"] = [ra] + v["anh_web"]
+    v["anh_nguon"] = [str(f)] + v["anh_nguon"]
+
+
 def _nap_sua(v: dict, form) -> None:
     if v.get("kieu") == "xep_danh_muc":
         return _nap_xep(v, form)
@@ -723,6 +759,8 @@ def _nap_sua(v: dict, form) -> None:
     if not tieu_de:
         raise BusinessError("BAD_FORM", "Tên trên web không được để trống.")
     v["noi_dung"] = d
+    if v["loai"] == "bai_viet" and v.get("ve_anh") and not v.get("kieu"):
+        _nap_anh_ai(v, str(form.get("anh_ai", "")))
     if v.get("kieu") == "sua_web":
         dm = str(form.get("danh_muc_id", ""))
         hop_le = dict(_cay(v["loai"]).lua_chon())
@@ -807,6 +845,55 @@ def act(request: Request, viec_id: str, form=Depends(checked_form)):
     if hanh_dong in ("bo", "bo_qua_trung"):
         return RedirectResponse(f"/dang-web?tab={'bai-viet' if v['loai'] == 'bai_viet' else 'san-pham'}&da_luu=bo", status_code=303)
     return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
+
+
+# ---------------- vẽ ảnh minh họa bài viết bằng Codex (TUẤN duyệt mẫu D4/4, D5/5 ngày 02/11/2026) ----------------
+def _ve_json(yc: dict | None) -> dict:
+    if not yc:
+        return {"trang_thai": ""}
+    return {"id": yc["id"], "trang_thai": yc["trang_thai"], "loi": yc.get("loi", ""), "tao_luc": yc.get("tao_luc", ""),
+            "anh": [{"ten": t, "chon": f"{yc['id']}/{t}", "url": f"/dang-web/ve-anh/{yc['id']}/{t}"} for t in yc.get("anh") or []]}
+
+
+@router.post("/dang-web/ve-anh")
+def draw(request: Request, form=Depends(checked_form)):
+    _can_ghi()
+    g = goc()
+    viec_id = str(form.get("viec_id", ""))
+    dan = " ".join(str(form.get("dan", "")).split())[:300]
+    if viec_id:
+        v = _viec(viec_id)
+        if v["loai"] != "bai_viet" or not v.get("ve_anh") or v.get("trang_thai") not in hd.NGUOI_LAM + hd.DANG_CHAY:
+            raise BusinessError("BAD_STATE", "Việc này không vẽ ảnh được.", status=409)
+        d = v.get("noi_dung") or {}
+        ve_lai = f"/dang-web/viec/{viec_id}#tao-anh"
+        cu = ve_anh.moi_nhat(g, viec_id=viec_id)
+        tham = dict(chu_de=d.get("tieu_de") or v.get("chu_de", ""), viec_id=viec_id, tom_tat=d.get("tom_tat", ""), dan=dan)
+    else:
+        it, _ = _muc_web("bai_viet", str(form.get("id", "")))
+        ve_lai = f"/dang-web/sua-anh?loai=bai&id={int(it['id'])}#tao-anh"
+        cu = ve_anh.moi_nhat(g, wp_id=int(it["id"]))
+        tham = dict(chu_de=it.get("ten", ""), wp_id=int(it["id"]), dan=dan)
+    if not hd.codex_song(g):
+        raise BusinessError("CODEX_OFF", "Codex trên Z2 đang tắt nên chưa vẽ được ảnh.", status=409)
+    if not (cu and cu["trang_thai"] in ve_anh.DANG_CHAY):  # đang vẽ thì chờ lượt đó, không gửi thêm
+        ve_anh.tao(g, **tham)
+    return RedirectResponse(ve_lai, status_code=303)
+
+
+@router.get("/dang-web/ve-anh/{yc_id}/trang-thai")
+def draw_status(yc_id: str, user: User = Depends(web_user)):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(_ve_json(ve_anh.doc(goc(), yc_id)), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/dang-web/ve-anh/{yc_id}/{ten}")
+def draw_photo(yc_id: str, ten: str, user: User = Depends(web_user)):
+    f = ve_anh.file_anh(goc(), yc_id, ten)
+    if not f:
+        raise BusinessError("NOT_FOUND", "Không thấy ảnh.", status=404)
+    return _gui_file(f)
 
 
 # ---------------- ảnh ----------------

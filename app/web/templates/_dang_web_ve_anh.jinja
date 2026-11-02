@@ -1,0 +1,26 @@
+{# TUẤN duyệt mẫu D4/4 (Sửa ảnh bài viết) và D5/5 (bài mới) ngày 02/11/2026: Codex trên Z2 vẽ ảnh minh họa, chỉ cho bài viết.
+   che_do 'them': "Dùng ảnh này" thêm ảnh vào danh sách Sửa ảnh; 'chon': chọn 1 ảnh làm ảnh đại diện ở màn xem trước. #}
+{% macro khung(ve, codex, che_do, an=none) %}
+<section class="card va" id="tao-anh" data-va data-che-do="{{ che_do }}" data-url="{{ '/dang-web/ve-anh/' ~ ve.id ~ '/trang-thai' if ve.id else '' }}" aria-live="polite">
+<div class="va-head"><b>{{ 'Tạo ảnh minh họa bằng AI' if che_do == 'them' else 'Ảnh đại diện · AI vẽ theo nội dung bài' }}</b>
+<span class="va-codex{{ ' va-tat' if not codex }}">● {{ 'Codex trên Z2 sẵn sàng' if codex else 'Codex trên Z2 đang tắt' }}</span></div>
+{% if che_do == 'them' %}<p class="hint">Codex đọc tiêu đề bài rồi vẽ 2 ảnh kiểu ảnh chụp thật, không chữ, không logo. Không tốn phí API. Thường xong trong vài phút, anh có thể rời trang.</p>
+<label><span><b>Dặn thêm</b> <small class="hint">(không bắt buộc)</small></span><input name="dan" maxlength="300" placeholder="VD: thợ mặc áo xanh, máy in Canon trong văn phòng"></label>{% endif %}
+<div class="va-body" data-va-body>
+{% if ve.trang_thai in ('cho', 'dang_ve') %}<p class="va-wait"><span class="dw-spin" aria-hidden="true"></span><span><b>Codex đang vẽ ảnh…</b><br><small class="hint">Thường vài phút. Anh có thể rời trang, xong ảnh sẽ hiện ở đây.</small></span></p>
+{% elif ve.trang_thai == 'loi' %}<p class="alert bad">{{ ve.loi }}</p>
+{% elif ve.trang_thai == 'xong' %}<div class="va-list">{% for a in ve.anh %}<div class="va-item">
+<img src="{{ a.url }}" alt="Ảnh AI {{ loop.index }}" loading="lazy">
+{% if che_do == 'chon' %}<label class="chk"><input type="radio" name="anh_ai" value="{{ a.chon }}"{{ ' checked' if loop.first }}> Chọn ảnh này</label>
+{% else %}<button type="button" class="btn btn-ghost dw-xbtn-info" data-va-dung="{{ a.url }}" data-va-ten="ai-{{ ve.id[-6:] }}-{{ loop.index }}.jpg">Dùng ảnh này</button>{% endif %}
+</div>{% endfor %}</div>
+{% if che_do == 'chon' %}<label class="chk"><input type="radio" name="anh_ai" value=""> Không dùng ảnh AI</label>{% endif %}
+{% elif che_do == 'chon' %}<p class="hint">Chưa có ảnh AI.</p>{% endif %}
+</div>
+<div class="va-acts">{% if an %}<input type="hidden" name="viec_id" value="{{ an }}">{% endif %}
+<button class="btn btn-ghost{{ ' dw-xbtn-info' if che_do == 'them' }}" formaction="/dang-web/ve-anh" formmethod="post" formenctype="application/x-www-form-urlencoded" formnovalidate data-va-ve{{ ' disabled' if not codex or ve.trang_thai in ('cho', 'dang_ve') }}>{{ 'Vẽ 2 ảnh mới' if che_do == 'them' or not ve.id else 'Vẽ lại 2 ảnh khác' }}</button>
+</div>
+{% if che_do == 'them' %}<p class="hint" data-va-note hidden>Đã thêm vào danh sách ảnh bên trên. Chỉnh khung, đóng logo như ảnh thường.</p>
+{% else %}<p class="hint">Ảnh chọn được đặt vào khung 1200×675 và đóng logo khi đăng.</p>{% endif %}
+</section>
+{% endmacro %}

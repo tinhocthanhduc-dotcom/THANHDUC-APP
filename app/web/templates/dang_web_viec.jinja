@@ -1,5 +1,6 @@
 {% extends 'base.jinja' %}
 {% import '_ui.jinja' as ui %}
+{% import '_dang_web_ve_anh.jinja' as va %}
 {% set bai = v.loai == 'bai_viet' %}
 {% set d = v.noi_dung or {} %}
 {% set sua_web = v.kieu == 'sua_web' %}{% set xep = v.kieu == 'xep_danh_muc' %}{% set sua_anh = v.kieu == 'sua_anh' %}
@@ -106,7 +107,8 @@
 {% set css_xem = '<meta charset=utf-8><style>body{font:15px/1.6 system-ui,sans-serif;margin:8px;color:#1d2330}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}</style>' %}
 {{ mo_form() }}
 <div class="dw-cols dw-2"><div>
-{% if not v.anh_web and not (sua_web and not sua.anh) %}<p class="alert warn" role="status"><b>Chưa có ảnh.</b> {{ 'Bản nháp' if not sua_web else 'Bài' }} lên web chỉ có chữ; khi có ảnh, vào Trên web bấm “Sửa bằng AI”, tick Ảnh để bổ sung.</p>{% endif %}
+{% if bai and v.ve_anh and not v.kieu %}{{ va.khung(ve_ai, codex, 'chon', v.id) }}{% endif %}
+{% if not v.anh_web and not (sua_web and not sua.anh) and not v.ve_anh %}<p class="alert warn" role="status"><b>Chưa có ảnh.</b> {{ 'Bản nháp' if not sua_web else 'Bài' }} lên web chỉ có chữ; khi có ảnh, vào Trên web bấm “Sửa bằng AI”, tick Ảnh để bổ sung.</p>{% endif %}
 {% if sua_web %}{% set phan = [] %}{% if sua.noi_dung %}{% set _ = phan.append('nội dung') %}{% endif %}{% if sua.seo %}{% set _ = phan.append('tiêu đề, mô tả Google') %}{% endif %}{% if sua.anh %}{% set _ = phan.append('ảnh') %}{% endif %}{% if v.danh_muc_id %}{% set _ = phan.append('danh mục') %}{% endif %}<p class="alert info" role="status"><b>Sửa bài đang có trên web.</b> Chỉ ghi đè: {{ phan|join(', ') or 'danh mục' }}. Giữ nguyên trạng thái và đường dẫn trên web.{% if v.link_xem %} <a href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem bản đang hiện ↗</a>{% endif %}</p>{% endif %}
 {% if v.anh_web or v.anh_goc %}<section class="card">
 <p class="group-label"><b>Ảnh trước / sau</b></p>
@@ -184,4 +186,5 @@
 {% endif %}
 </div>
 <script src="{{ asset('dang-web.js') }}" defer></script>
+{% if bai and v.ve_anh %}<script src="{{ asset('ve-anh.js') }}" defer></script>{% endif %}
 {% endblock %}
