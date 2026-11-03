@@ -253,6 +253,10 @@ def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
     _apply_terms(order,body,partial=True)
     from .pending_liquidation import check_fulfillment
     check_fulfillment(session,order)
+    from .sales_receipts import balance
+    paid=balance(order)['paid']
+    if paid > order.total:
+        raise BusinessError('BELOW_PAID', 'Tổng đơn không được thấp hơn số tiền khách đã trả.', {'paid': paid, 'total': order.total}, status=409)
     _record(session, user, order, 'update_lines', before)
     return order
 
@@ -591,6 +595,42 @@ def cancel(session: Session, user, order_id, reason, version):
         from . import sales_refunds
         sales_refunds.for_cancel_in_tx(session,user,order,reason)
         _record(session, user, order, 'cancel', before, reason)
+    return order
+
+
+def reopen(session: Session, user, order_id, reason, version):
+    """Đưa đơn Đã chốt về Nháp để sửa dòng/giá (TUẤN 03/11/2026).
+
+    Chỉ khi chưa giao lần nào, chưa phân công thợ giao, không còn báo thu chờ xác nhận
+    và không có phiếu hoàn tiền. Hàng đang giữ được thả; chốt lại sẽ giữ hàng và kiểm hạn mức lại.
+    Tiền khách đã ứng (báo thu đã xác nhận) vẫn nằm trên đơn.
+    """
+    check_writer(user)
+    with _transaction(session):
+        order = _load(session, order_id, lock=True)
+        _version(order, version)
+        _status(order, ('DA_CHOT',))
+        reason = (reason or '').strip()
+        if len(reason) < 3:
+            raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do mở lại đơn bán.')
+        # Lần giao đã hủy vẫn trỏ tới dòng đơn, nên đơn từng giao (kể cả đã hủy) không mở lại.
+        if session.scalar(select(SalesDelivery.id).where(SalesDelivery.order_id == order.id).limit(1)) is not None:
+            raise BusinessError('HAS_DELIVERIES', 'Đơn đã có lần giao hàng (kể cả lần đã hủy), không mở lại được.', status=409)
+        if order.delivery_assignee_id is not None:
+            raise BusinessError('HAS_ASSIGNEE', 'Đơn đã phân công thợ giao, không mở lại được.', status=409)
+        if session.scalar(select(SalesReceipt.id).where(SalesReceipt.order_id == order.id,
+                          SalesReceipt.status == 'CHO_XAC_NHAN').limit(1)) is not None:
+            raise BusinessError('HAS_RECEIPTS', 'Tài chính phải xác nhận hoặc từ chối báo thu trước.', status=409)
+        from .models import SalesRefund
+        if session.scalar(select(SalesRefund.id).where(SalesRefund.order_id == order.id,
+                          SalesRefund.status.in_(('CHO_DUYET', 'DA_CHI'))).limit(1)) is not None:
+            raise BusinessError('HAS_REFUNDS', 'Đơn có phiếu hoàn tiền, không mở lại được.', status=409)
+        before = snapshot(order)
+        stock_reservations.close_in_tx(session, user, order, reason='Mở lại để sửa: ' + reason)
+        order.status, order.receivable = 'NHAP', None
+        order.confirmed_at = order.confirmed_by = None
+        order.version += 1
+        _record(session, user, order, 'reopen', before, reason)
     return order
 
 

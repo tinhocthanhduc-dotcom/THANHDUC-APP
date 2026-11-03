@@ -202,3 +202,18 @@ def test_direct_cash_void_source_is_locked_in_core(db,t3_people,configured_finan
     assert cash_posting.balance(db,p['finance'],'QUY-TM')==600000
     svc.void(db,p['director'],r.id,'Hủy từ báo thu',r.version)
     assert cash_posting.balance(db,p['finance'],'QUY-TM')==0
+
+
+def test_reopen_order_blocked_by_pending_receipt_and_keeps_paid_floor(db,t3_people,configured_finance):
+    p=t3_people;o=order(db,p);r=report(db,p,o,300000)
+    fails('HAS_RECEIPTS',sales_orders.reopen,db,p['sales'],o.id,'Khách đổi giá',o.version)
+    svc.confirm(db,p['finance'],r.id,r.version)
+    db.refresh(o)
+    sales_orders.reopen(db,p['sales'],o.id,'Khách đổi giá',o.version)
+    assert o.status=='NHAP' and svc.balance(o)['paid']==300000
+    from app.schemas import SalesOrderUpdate
+    fails('BELOW_PAID',sales_orders.update_lines,db,p['sales'],o.id,SalesOrderUpdate(version=o.version,lines=[dict(kind='KHAC',description='Đơn bán',qty=1,unit_price=200000,vat_rate=0)]))
+    db.rollback();db.refresh(o)
+    o=sales_orders.update_lines(db,p['sales'],o.id,SalesOrderUpdate(version=o.version,lines=[dict(kind='KHAC',description='Đơn bán',qty=1,unit_price=800000,vat_rate=0)]))
+    sales_orders.confirm(db,p['sales'],o.id,o.version)
+    assert o.status=='DA_CHOT' and o.total==800000 and svc.balance(o)['paid']==300000

@@ -1292,7 +1292,7 @@ class FormSubmission(Base):
 class StockReservation(Base):
     __tablename__ = 'stock_reservations'
     __table_args__ = (
-        ForeignKeyConstraint(['order_id','order_line_id'], ['sales_order_lines.order_id','sales_order_lines.line_no']),
+        # 0073: không khóa ngoại tới dòng đơn; đơn mở lại để sửa phải thay được dòng mà lịch sử giữ hàng vẫn còn.
         CheckConstraint('qty > 0', name='ck_stock_reservations_qty'),
         CheckConstraint("status <> 'DA_NHA' or length(trim(reason)) > 0", name='ck_stock_reservations_release_reason'),
         CheckConstraint("status in ('GIU','DA_XUAT','DA_NHA')", name='ck_stock_reservations_status'),

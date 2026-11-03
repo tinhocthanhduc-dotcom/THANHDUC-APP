@@ -201,3 +201,13 @@ def test_stock_posting_amount_override_rejects_invalid_amount_without_posting(db
             with orders._transaction(db):stock_posting.post_in_tx(db,p['warehouse'],doc.id,doc.version,pn_amounts=amounts)
         assert exc.value.code=='BAD_RECEIPT_AMOUNT'
     assert doc.status=='NHAP' and db.query(StockLedger).count()==0
+
+
+def test_reopen_blocked_once_any_receipt_exists_even_voided(db,purchase_people):
+    p=purchase_people;row=placed(db,p,lines=[dict(product_code='TD-0001',warehouse_code='K58',qty=2,unit_cost=100000)])
+    r=receive(db,p,row,Decimal('1'))[0]
+    fail('BAD_STATUS',orders.reopen,db,p['warehouse'],row.id,'NCC đổi giá',row.version)
+    svc.void(db,p['warehouse'],r.id,'Nhận nhầm',r.version)
+    assert row.status=='DA_DAT' and row.lines[0].received_qty==0
+    fail('HAS_RECEIPTS',orders.reopen,db,p['warehouse'],row.id,'NCC đổi giá',row.version)
+    assert row.status=='DA_DAT'

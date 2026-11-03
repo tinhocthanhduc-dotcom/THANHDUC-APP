@@ -193,6 +193,33 @@ def order(session, user, order_id, version):
     return row
 
 
+def reopen(session, user, order_id, reason, version):
+    """Đưa đơn Đã đặt về Nháp để sửa giá/số lượng khi NCC báo khác (TUẤN 03/11/2026).
+
+    Chỉ khi chưa có lần nhận nào (kể cả lần nhận đã hủy, vì dòng đơn còn được tham chiếu)
+    và chưa trả tiền NCC theo đơn này.
+    """
+    from .models import PurchaseReceipt, SupplierPayment
+    check_writer(user)
+    with _transaction(session):
+        row = _load(session, order_id, True); _version(row, version)
+        reason = (reason or '').strip()
+        if len(reason) < 3 or len(reason) > 2000:
+            raise BusinessError('REASON_REQUIRED', 'Mở lại đơn mua phải ghi lý do (tối đa 2000 ký tự).')
+        if row.status != 'DA_DAT':
+            raise BusinessError('BAD_STATUS', 'Chỉ mở lại đơn mua Đã đặt.', status=409)
+        if session.scalar(select(PurchaseReceipt.id).where(PurchaseReceipt.order_id == row.id).limit(1)) is not None:
+            raise BusinessError('HAS_RECEIPTS', 'Đơn đã có lần nhận hàng, không mở lại được.', status=409)
+        if session.scalar(select(SupplierPayment.id).where(SupplierPayment.order_id == row.id,
+                          SupplierPayment.status == 'DA_GHI').limit(1)) is not None:
+            raise BusinessError('HAS_PAYMENTS', 'Đơn đã trả tiền NCC, không mở lại được.', status=409)
+        before = snapshot(row)
+        row.status, row.ordered_by, row.ordered_at = 'NHAP', None, None
+        row.version += 1
+        _record(session, user, row, 'reopen', before, reason)
+    return row
+
+
 def cancel(session, user, order_id, reason, version):
     check_writer(user)
     with _transaction(session):
