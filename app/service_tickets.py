@@ -13,7 +13,7 @@ from . import audit, service_sla, service_visits
 from .config import get_settings
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, CustomerSite, Equipment, EquipmentCustody, SalesReceipt, ServiceStep, ServiceTicket, User
+from .models import SERVICE_PRIORITIES, Customer, CustomerSite, Equipment, EquipmentCustody, SalesReceipt, ServiceStep, ServiceTicket, User
 from .schemas import ServiceKindSet, ServiceMachineSet, ServiceTicketIn, ServiceTicketOut
 from .security import has_role
 from .stock_docs import _transaction
@@ -682,6 +682,34 @@ def reschedule(session, user, ticket_id, version, appointment_at, appointment_sl
         t.due_at=service_sla.due_at(t.status,t.priority,_now(),t.appointment_at,t.appointment_slot)
         t.version += 1
         _record(session,user,t,'reschedule',before,t.status,note)
+    return t
+
+
+def update_info(session, user, ticket_id, version, symptom, priority, site_id):
+    """Điều phối sửa mô tả lỗi, mức ưu tiên, địa điểm khi phiếu còn mở (TUẤN 03/11/2026).
+
+    Không đổi tiền, máy, thợ hay trạng thái; hạn xử lý giữ nguyên. Thợ thấy thay đổi trong lịch sử
+    và nhận thông báo; thợ muốn sửa thì dùng Báo sai thông tin.
+    """
+    _require(user, DISPATCHERS, 'Chỉ điều phối hoặc giám đốc được sửa thông tin phiếu.')
+    symptom = (symptom or '').strip()
+    if not symptom or len(symptom) > 4000:
+        raise BusinessError('BAD_FORM', 'Mô tả lỗi không được trống (tối đa 4000 ký tự).')
+    if priority not in SERVICE_PRIORITIES:
+        raise BusinessError('BAD_FORM', 'Mức ưu tiên không hợp lệ.')
+    with _transaction(session):
+        t = _get(session, user, ticket_id, lock=True); _check_version(t, version)
+        if t.status not in OPEN:
+            raise BusinessError('BAD_STATUS', 'Phiếu đã hoàn thành, đóng hoặc hủy, không sửa thông tin được.', status=409)
+        _check_site_and_serial(session, t.customer_code, site_id, None)
+        if (t.symptom, t.priority, t.site_id) == (symptom, priority, site_id):
+            return t
+        before = snapshot(t)
+        changed = [label for label, old, new in (('mô tả lỗi', t.symptom, symptom), ('ưu tiên', t.priority, priority),
+                   ('địa điểm', t.site_id, site_id)) if old != new]
+        t.symptom, t.priority, t.site_id = symptom, priority, site_id
+        t.version += 1
+        _record(session, user, t, 'update_info', before, t.status, 'Sửa ' + ', '.join(changed))
     return t
 
 

@@ -487,3 +487,31 @@ def test_concurrent_quote_use_and_manual_numbering(db, engine, people):
             return svc.create(s,u,body()).number
     with ThreadPoolExecutor(max_workers=2) as pool:
         assert sorted(pool.map(create,[1,2]))==['DB-26-00002','DB-26-00003']
+
+
+def test_reopen_confirmed_order_releases_hold_and_allows_edit(db, stocked):
+    from app.models import StockReservation
+    s=stocked['sales'];o=svc.create(db,s,body())
+    failure('BAD_STATUS',svc.reopen,db,s,o.id,'Khách đổi giá',o.version)
+    svc.confirm(db,s,o.id,o.version)
+    held=db.scalar(select(StockReservation).where(StockReservation.order_id==o.id))
+    assert held is not None and held.status=='GIU'
+    failure('FORBIDDEN',svc.reopen,db,stocked['warehouse'],o.id,'Khách đổi giá',o.version)
+    failure('REASON_REQUIRED',svc.reopen,db,s,o.id,'  ',o.version)
+    svc.reopen(db,s,o.id,'Khách đổi giá',o.version)
+    db.refresh(held)
+    assert (o.status,o.receivable,o.confirmed_at,o.confirmed_by)==('NHAP',None,None,None) and held.status=='DA_NHA'
+    o=svc.update_lines(db,s,o.id,SalesOrderUpdate(version=o.version,lines=[{**GOOD,'qty':'3','unit_price':300000}]))
+    assert o.subtotal==900000
+    svc.confirm(db,s,o.id,o.version)
+    assert o.status=='DA_CHOT' and db.scalar(select(StockReservation).where(StockReservation.order_id==o.id,StockReservation.status=='GIU')) is not None
+    log=db.scalar(select(AuditLog).where(AuditLog.action=='sales_order.reopen'))
+    assert log is not None and log.reason=='Khách đổi giá'
+
+
+def test_reopen_blocked_after_delivery(db, stocked):
+    s=stocked['sales'];o=svc.create(db,s,body())
+    svc.confirm(db,s,o.id,o.version)
+    svc.deliver(db,stocked['warehouse'],o.id,o.version,[dict(order_line_no=1,qty='1')])
+    failure('BAD_STATUS',svc.reopen,db,s,o.id,'Khách đổi giá',o.version)
+    assert o.status=='GIAO_MOT_PHAN'

@@ -491,6 +491,15 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             svc.set_promised_date(session,user,order_id,body.promised_date,version)
         elif action=='cancel':
             svc.cancel(session,user,order_id,str(form.get('reason','')),version)
+        elif action=='copy':
+            new_order=svc.copy_cancelled(session,user,order_id)
+            return RedirectResponse(f'/don-ban/{new_order.id}?da_luu=1&xong=copy',status_code=303)
+        elif action=='change-customer':
+            svc.change_customer(session,user,order_id,version,str(form.get('customer_code','')))
+        elif action=='delivery-info':
+            svc.change_delivery_info(session,user,order_id,version,str(form.get('contact_name','')),str(form.get('delivery_address','')),str(form.get('note','')))
+        elif action=='reopen':
+            svc.reopen(session,user,order_id,str(form.get('reason','')),version)
         elif action=='options':
             values={k:str(form[k]) for k in svc.TERM_FIELDS if k in form}
             if 'deposit_amount' in values:values['deposit_amount']=_deposit(values['deposit_amount'])

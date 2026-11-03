@@ -325,6 +325,10 @@ def action(request: Request, order_id: int, action: str, form=Depends(checked_fo
         if action=='order':svc.order(session,user,order_id,_version(form))
         elif action=='close':receipts.close(session,user,order_id,str(form.get('reason','')),_version(form))
         elif action=='cancel':svc.cancel(session,user,order_id,str(form.get('reason','')),_version(form))
+        elif action=='reopen':svc.reopen(session,user,order_id,str(form.get('reason','')),_version(form))
+        elif action=='copy':
+            row=svc.copy_cancelled(session,user,order_id)
+            return RedirectResponse(f'/don-mua/{row.id}?da_luu=1&lap_lai=1',status_code=303)
         elif action=='nhan':return _receive(request,session,user,order_id,form)
         else:raise BusinessError('NOT_FOUND','Không có thao tác này.',status=404)
     except BusinessError as exc:

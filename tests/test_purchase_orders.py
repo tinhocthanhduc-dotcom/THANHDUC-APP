@@ -179,3 +179,19 @@ def test_received_quantity_database_constraint(db,purchase_people,received):
         db.commit()
     db.rollback()
     assert svc.load(db,purchase_people['warehouse'],row.id).lines[0].received_qty==0
+
+
+def test_reopen_ordered_purchase_back_to_draft_for_price_change(db,purchase_people):
+    p=purchase_people;u=p['warehouse'];row=svc.create(db,u,body())
+    fail('BAD_STATUS',svc.reopen,db,u,row.id,'NCC đổi giá',row.version)  # nháp thì sửa thẳng
+    svc.order(db,u,row.id,row.version)
+    fail('FORBIDDEN',svc.reopen,db,p['sales'],row.id,'NCC đổi giá',row.version)
+    fail('REASON_REQUIRED',svc.reopen,db,u,row.id,' ',row.version)
+    svc.reopen(db,u,row.id,'NCC đổi giá',row.version)
+    assert (row.status,row.ordered_by,row.ordered_at)==('NHAP',None,None)
+    row=svc.update(db,u,row.id,PurchaseOrderUpdate(version=row.version,**body(lines=[dict(product_code='TD-0001',warehouse_code='K58',qty=2,unit_cost=90000)]).model_dump()))
+    assert row.subtotal==180000
+    svc.order(db,u,row.id,row.version)
+    assert row.status=='DA_DAT'
+    log=db.scalar(select(AuditLog).where(AuditLog.action=='purchase_order.reopen'))
+    assert log is not None and log.reason=='NCC đổi giá'
