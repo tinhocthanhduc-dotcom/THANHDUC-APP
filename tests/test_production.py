@@ -117,7 +117,7 @@ def test_receive_rounding_and_existing_average(db,shop,qty,cost,scrap):
 
 
 def test_serial_count_duplicates_and_enrollment_only_on_sale(db,shop):
-    p,_,_,_=shop;product=db.get(Product,'TD-0100');product.warranty_months=3;db.commit()
+    p,_,_,_=shop;product=db.get(Product,'TD-0100');product.warranty_months=3;product.track_serial=True;db.commit()
     r=finish(db,shop);before=amounts(db)
     for serials,code in [([], 'SERIAL_REQUIRED'),(['S']*9,'SERIAL_DUPLICATE'),(['S1']*8,'SERIAL_REQUIRED')]:
         err(code,receive,db,shop,r,serials=serials)
@@ -294,8 +294,8 @@ def test_multi_output_create_complete_split_by_sale_price_and_receive(db,client,
     assert 71818*6+119697*3 in range(790000-5,790000+5)
     csrf=service_login(client,p['warehouse'])
     assert '85A đổ lại' in client.get('/san-xuat/'+r.number).text and 'Hộp mực tái sinh +1' in client.get('/san-xuat').text
-    # Thủ kho nhận theo từng mã; 85A có bảo hành nên cần serial; nhận thiếu phải ghi chú.
-    db.get(Product,'TD-0104').warranty_months=1;db.commit()
+    # Thủ kho nhận theo từng mã; 85A theo dõi serial nên cần serial; nhận thiếu phải ghi chú.
+    db.get(Product,'TD-0104').warranty_months=1;db.get(Product,'TD-0104').track_serial=True;db.commit()
     err('BAD_OUTPUT',receive,db,shop,r,qty=9)
     err('SERIAL_REQUIRED',svc.receive,db,p['warehouse'],r.id,ProductionReceive(version=r.version,outputs=[dict(line_no=1,qty_received=6),dict(line_no=2,qty_received=3)]))
     err('REASON_REQUIRED',svc.receive,db,p['warehouse'],r.id,ProductionReceive(version=r.version,outputs=[dict(line_no=1,qty_received=5),dict(line_no=2,qty_received=3,serials=['A','B','C'])]))
@@ -409,3 +409,13 @@ def test_migration_0069_backfills_outputs_and_keeps_no_material_orders(db,engine
         rows=conn.execute(text('select order_id,line_no,product_code,qty_plan,qty_good,qty_scrap,unit_cost from production_outputs order by order_id')).all()
         assert rows==[(ids[0],1,'TD-0100',10,9,1,87778),(ids[1],1,'TD-0100',10,2,0,0)]
         assert conn.scalar(text('select no_material_reason from production_orders where id=:i'),dict(i=ids[1]))=='Không rõ, phiếu trước SX2'
+
+
+def test_warranty_without_serial_tracking_receives_without_serials(db,shop):
+    """TUẤN 03/11/2026: hộp mực Renew bảo hành 1 tháng nhưng không có serial; chỉ mã có Theo dõi serial mới bắt serial."""
+    p,_,_,_=shop;product=db.get(Product,'TD-0100');product.warranty_months=1;assert product.track_serial is False;db.commit()
+    r=finish(db,shop)
+    err('SERIAL_REQUIRED',receive,db,shop,r,serials=['S1'])
+    receive(db,shop,r)
+    assert r.status=='DA_NHAP' and len(db.get(StockDoc,r.pn_doc_id).lines)==1 and db.get(StockDoc,r.pn_doc_id).lines[0].qty==9
+    assert db.query(Equipment).count()==0

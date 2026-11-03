@@ -16,7 +16,7 @@
 <tr data-href="/hang-hoa/{{ p.code }}" data-product-row="{{ p.code }}"{% if p.active and st in ('het', 'sap') %} class="lt-alert"{% endif %}>
 <td class="lt-first"><a class="lt-no" href="/hang-hoa/{{ p.code }}">{{ p.code }}</a></td>
 <td><b>{{ p.name }}</b><span class="lt-sub">{{ p.group_name or 'Chưa có nhóm' }}{% if p.is_test %} · Dữ liệu thử{% endif %}</span></td>
-<td class="lt-phone-hide">{{ p.unit }}<span class="lt-sub">{% if p.warranty_months %}Bảo hành {{ p.warranty_months }} tháng{% else %}Không bảo hành{% endif %}</span></td>
+<td class="lt-phone-hide">{{ p.unit }}<span class="lt-sub">{% if p.warranty_months %}Bảo hành {{ p.warranty_months }} tháng{% else %}Không bảo hành{% endif %}{% if p.track_serial %} · serial{% endif %}</span></td>
 {% if can_stock %}<td>{% set by = stock.get(p.code, {}) %}{% if by %}{% for w in warehouses %}{{ by.get(w, 0)|qty }}{{ ' · ' if not loop.last }}{% endfor %}<span class="lt-sub{{ ' lt-bad' if st in ('het', 'sap') }}">{{ stock_states[st] if st else '' }}</span>{% else %}<span class="lt-sub">Chưa nhập kho</span>{% endif %}</td>{% endif %}
 <td class="lt-st">{{ ui.badge('Đang bán' if p.active else 'Ngừng bán', 'xong' if p.active else 'nhap') }}</td>
 <td class="num"><b>{{ p.sale_price|money }}</b></td>

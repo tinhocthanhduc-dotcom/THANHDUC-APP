@@ -22,7 +22,7 @@ from web_forms import Forms
 @pytest.fixture
 def machine(db,people):
     p=people
-    products.update(db,p['director'],'TD-0001',ProductPatch(version=db.get(Product,'TD-0001').version,warranty_months=12))
+    products.update(db,p['director'],'TD-0001',ProductPatch(version=db.get(Product,'TD-0001').version,warranty_months=12,track_serial=True))
     stock(db,p,10)
     return p
 
@@ -127,7 +127,7 @@ def test_counter_sale_enrolls_and_same_money(db,machine):
 
 
 def test_technician_delivery_enrolls_and_uses_technician_stock(db,tech_setup):
-    p=tech_setup;row=db.get(Product,'TD-0001');products.update(db,p['director'],row.code,ProductPatch(version=row.version,warranty_months=12))
+    p=tech_setup;row=db.get(Product,'TD-0001');products.update(db,p['director'],row.code,ProductPatch(version=row.version,warranty_months=12,track_serial=True))
     o=assigned(db,p,2);move(db,p,o,2)
     technician_deliveries.deliver(db,p['technician'],o.id,TechnicianDeliveryIn(version=o.version,lines=[dict(order_line_no=1,qty=2,serials=['TECH-A','TECH-B'])]),[('photo.png',d5_image())])
     gh=sales_orders.deliveries(db,o.id)[0]
@@ -279,7 +279,7 @@ def test_liquidation_machine_condition_used_without_changing_cost(db,liquidation
     from test_cxl2b_liquidation import order as liquidation_order
     from app import pending_liquidation
     p,item,first,second=liquidation
-    product=db.get(Product,'TD-0001');products.update(db,p['director'],product.code,ProductPatch(version=product.version,warranty_months=3))
+    product=db.get(Product,'TD-0001');products.update(db,p['director'],product.code,ProductPatch(version=product.version,warranty_months=3,track_serial=True))
     o=liquidation_order(db,p,qty=2);gh=deliver(db,p,o,['USED-A','USED-B'])
     assert db.get(Equipment,'USED-A').condition=='CU'
     assert sum(r.cost_value for r in pending_liquidation.delivery_rows(db,gh.id))==200
@@ -315,3 +315,16 @@ def test_counter_serial_input_cannot_change_full_delivery_rule(db,machine):
     fail('BAD_COUNTER_SALE',sales_orders.counter_sale,db,p['sales'],o.id,SalesCounterSale(version=o.version,method='TIEN_MAT',amount=o.total,
         delivery_lines=[dict(order_line_no=1,qty=1,serials=['COUNTER-PART'])]))
     assert state(db,o)==before
+
+
+def test_warranty_months_without_serial_tracking_delivers_without_serials(db,people):
+    """TUẤN 03/11/2026: bảo hành in trên phiếu không đồng nghĩa bắt serial; cờ track_serial quyết định."""
+    p=people;row=db.get(Product,'TD-0001')
+    products.update(db,p['director'],row.code,ProductPatch(version=row.version,warranty_months=1));stock(db,p,10)
+    assert row.warranty_months==1 and row.track_serial is False
+    o=order(db,p,2)
+    fail('SERIAL_REQUIRED',deliver,db,p,o,['X1','X2'])
+    gh=deliver(db,p,o,[])
+    assert o.status=='DA_GIAO' and db.query(Equipment).count()==0 and db.query(SalesDeliverySerial).count()==0
+    fail('FORBIDDEN',products.update,db,p['warehouse'],row.code,ProductPatch(version=row.version,track_serial=True))
+    products.update(db,p['director'],row.code,ProductPatch(version=row.version,track_serial=True));assert row.track_serial is True

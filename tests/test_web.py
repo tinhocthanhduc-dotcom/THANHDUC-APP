@@ -3341,3 +3341,24 @@ def test_technician_reports_wrong_device_info_dispatcher_resolves(client, web_lo
     assert '/thiet-bi/AB123#bao-sai' not in client.get('/viec-cua-toi').text
     assert [a.action for a in db.query(AuditLog).filter(AuditLog.action.like('equipment_report.%')).order_by(AuditLog.id)] == [
         'equipment_report.create', 'equipment_report.resolve']
+
+
+def test_hang_hoa_theo_doi_serial_chi_giam_doc(client, web_login, db):
+    """TUẤN 03/11/2026: ô Theo dõi serial tách khỏi số tháng bảo hành; chỉ giám đốc thấy và sửa được."""
+    csrf = web_login("thu.kho", "warehouse")
+    assert 'name="track_serial"' not in client.get("/hang-hoa/moi").text
+    client.post("/hang-hoa/moi", data={"csrf": csrf, "code": "TD-0200", "name": "Hộp mực 070 Renew", "unit": "cái", "sale_price": "0"})
+    csrf = web_login("giam.doc", "director", "warehouse")
+    html = client.get("/hang-hoa/TD-0200").text
+    assert 'name="track_serial"' in html and "Theo dõi serial" in html and "checked" not in html.split('name="track_serial"')[1].split(">")[0]
+    p = db.get(Product, "TD-0200")
+    r = client.post("/hang-hoa/TD-0200", data={"csrf": csrf, "version": p.version, "name": p.name, "unit": "cái", "sale_price": "0", "warranty_months": "1", "active": "1", "track_serial_shown": "1"}, follow_redirects=False)
+    assert r.status_code == 303; db.expire_all(); p = db.get(Product, "TD-0200")
+    assert p.warranty_months == 1 and p.track_serial is False
+    r = client.post("/hang-hoa/TD-0200", data={"csrf": csrf, "version": p.version, "name": p.name, "unit": "cái", "sale_price": "0", "warranty_months": "1", "active": "1", "track_serial_shown": "1", "track_serial": "1"}, follow_redirects=False)
+    assert r.status_code == 303; db.expire_all(); p = db.get(Product, "TD-0200")
+    assert p.track_serial is True and "· serial" in client.get("/hang-hoa?q=TD-0200").text
+    # Thủ kho lưu lại mã (không thấy ô) thì cờ giữ nguyên.
+    csrf = web_login("thu.kho.2", "warehouse")
+    r = client.post("/hang-hoa/TD-0200", data={"csrf": csrf, "version": p.version, "name": p.name, "unit": "cái", "sale_price": "0", "active": "1"}, follow_redirects=False)
+    assert r.status_code == 303; db.expire_all(); assert db.get(Product, "TD-0200").track_serial is True

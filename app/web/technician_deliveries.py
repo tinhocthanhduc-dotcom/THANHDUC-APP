@@ -30,7 +30,8 @@ SLOTS={'SANG':'buổi sáng','CHIEU':'buổi chiều','TOI':'buổi tối'}
 def context(session,user,order):
     state=svc.state(session,user,order)
     d0=attendance.today()
-    state.update(warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines]))).all()),order=order,reason_labels=REASONS,tho_reasons=THO_REASONS,slots=SLOTS,
+    state.update(warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines]))).all()),
+        track_serial=dict(session.execute(select(Product.code,Product.track_serial).where(Product.code.in_([l.product_code for l in order.lines]))).all()),order=order,reason_labels=REASONS,tho_reasons=THO_REASONS,slots=SLOTS,
         quick_dates=[('Hôm nay',d0),('Ngày mai',d0+timedelta(days=1)),('Ngày kia',d0+timedelta(days=2))],customer=session.get(Customer,order.customer_code),
         technicians=list(session.scalars(select(User).where(User.active.is_(True),User.roles.contains(['technician'])).order_by(User.full_name))) if has_role(user,'dispatcher') else [],
         service_ticket=session.get(ServiceTicket,order.service_ticket_id) if order.service_ticket_id else None,

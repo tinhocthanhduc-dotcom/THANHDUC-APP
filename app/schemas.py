@@ -207,6 +207,7 @@ class ProductIn(BaseModel):
     group_name: str = Field(default="", max_length=100)
     unit: str = Field(default="cái", min_length=1, max_length=32)
     warranty_months: int = Field(default=0, ge=0, le=60, strict=True)
+    track_serial: bool = False
     sale_price: int = Field(default=0, ge=0)
     is_test: bool = False
 
@@ -219,6 +220,7 @@ class ProductPatch(BaseModel):
     group_name: str | None = Field(default=None, max_length=100)
     unit: str | None = Field(default=None, min_length=1, max_length=32)
     warranty_months: int | None = Field(default=None, ge=0, le=60, strict=True)
+    track_serial: bool | None = None
     sale_price: int | None = Field(default=None, ge=0)
     active: bool | None = None
 
@@ -238,6 +240,7 @@ class ProductOut(BaseModel):
     group_name: str
     unit: str
     warranty_months: int = 0
+    track_serial: bool = False
     sale_price: int
     active: bool
     is_test: bool

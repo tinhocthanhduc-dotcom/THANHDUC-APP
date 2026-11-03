@@ -310,7 +310,7 @@ def receive(session, user, ident, body: ProductionReceive):
             raise BusinessError("REASON_REQUIRED", "Nhận thiếu phải ghi chú ít nhất 3 ký tự.")
         before = snapshot(row)
         products = {o.line_no: _product(session, o.product_code) for o in row.outputs}
-        values = {o.line_no: sales_warranty.checked_serials(serials[o.line_no], received[o.line_no], products[o.line_no].warranty_months > 0 and received[o.line_no] > 0)
+        values = {o.line_no: sales_warranty.checked_serials(serials[o.line_no], received[o.line_no], products[o.line_no].track_serial and received[o.line_no] > 0)
                   for o in row.outputs}
         owner = {s: products[n] for n, ss in values.items() for s in ss}
         if len(owner) != sum(len(ss) for ss in values.values()): raise BusinessError('SERIAL_DUPLICATE', 'Serial bị trùng.')
