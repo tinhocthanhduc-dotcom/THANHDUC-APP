@@ -129,7 +129,7 @@ def suggest_code(session: Session) -> str:
 
 
 def create(session: Session, user: User, body: ProductIn) -> Product:
-    if (body.warranty_months or body.code=='MAY-CU-CARE') and not has_role(user,'director'):
+    if (body.warranty_months or body.track_serial or body.code=='MAY-CU-CARE') and not has_role(user,'director'):
         raise BusinessError('FORBIDDEN','Chỉ giám đốc được cấu hình bảo hành máy.',status=403)
     p = Product(**body.model_dump())
     p.code = p.code.upper()
@@ -155,7 +155,7 @@ def update(session: Session, user: User, code: str, body: ProductPatch) -> Produ
         raise BusinessError("VERSION_CONFLICT", "Người khác vừa sửa mã hàng này, hãy tải lại.", {"current": p.version}, status=409)
     before = snapshot(p)
     changes = body.model_dump(exclude_unset=True, exclude={"version"})
-    if 'warranty_months' in changes and changes['warranty_months']!=p.warranty_months and not has_role(user,'director'):
+    if any(k in changes and changes[k]!=getattr(p,k) for k in ('warranty_months','track_serial')) and not has_role(user,'director'):
         raise BusinessError('FORBIDDEN','Chỉ giám đốc được cấu hình bảo hành máy.',status=403)
     if changes.get("group_name") is not None and changes["group_name"].strip() != before["group_name"]:
         _check_group(session, changes["group_name"].strip())

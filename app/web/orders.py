@@ -151,6 +151,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                   stock_values=stock_values,
                   can_keep=bool(order and stock_reservations.can_keep(request.state.user,order)),can_release=has_role(request.state.user,'warehouse'),
                   warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_(codes))).all()),
+                  track_serial=dict(session.execute(select(Product.code,Product.track_serial).where(Product.code.in_(codes))).all()),
                   sale_serials=serials_for_order(session,order.id) if order else [],
                   product_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_(codes))).all()),
                   next_step=next_steps.order(request.state.user,order,receipt_ctx['available'],deposit_remaining),stock_numbers=dict(session.execute(select(StockDoc.id,StockDoc.number).where(StockDoc.id.in_(ids))).all()),
@@ -231,7 +232,8 @@ def warehouse_delivery(request,session,user,order_id,form=None,error=None,code='
         phone=' · '.join(p.phone for p in sorted(customer.phones,key=lambda p:(not p.is_contact,p.phone))),
         remaining=remaining,reservations=stock_reservations.for_order(session,order),
         stock_values=stock_reservations.quantities(session,[(l.warehouse_code,l.product_code) for l in order.lines if l.kind=='HANG']),
-        warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines]))).all()),fulfillments=FULFILLMENTS,d=data,error=error,error_code=code,status=status)
+        warranty_months=dict(session.execute(select(Product.code,Product.warranty_months).where(Product.code.in_([l.product_code for l in order.lines]))).all()),
+        track_serial=dict(session.execute(select(Product.code,Product.track_serial).where(Product.code.in_([l.product_code for l in order.lines]))).all()),fulfillments=FULFILLMENTS,d=data,error=error,error_code=code,status=status)
 
 
 @router.get('/kho/giao/{order_id}')

@@ -117,7 +117,7 @@ def import_rows(session: Session, user: User, rows: list[dict], *, apply: bool =
             if p is None:
                 result.update(status="TAO_MOI", name=name, unit=unit, group=group, warranty_months=months, active=active)
                 if apply:
-                    p = products.create(session, user, ProductIn(code=code, name=name, group_name=group, unit=unit, warranty_months=months, sale_price=price))
+                    p = products.create(session, user, ProductIn(code=code, name=name, group_name=group, unit=unit, warranty_months=months, track_serial=bool(months) and group.lower().startswith('máy'), sale_price=price))
                     if not active:
                         products.update(session, user, code, ProductPatch(version=p.version, active=False))
             else:

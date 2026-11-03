@@ -128,6 +128,8 @@ class Product(Base):
     group_name: Mapped[str] = mapped_column(String(100), default="")
     unit: Mapped[str] = mapped_column(String(32), default="cái")
     warranty_months: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    # Theo dõi serial từng cái (máy in): bắt serial khi giao/nhận kho sản xuất, mỗi serial một Thiết bị. Hộp mực có bảo hành nhưng không serial.
+    track_serial: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
     sale_price: Mapped[int] = mapped_column(BigInteger, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_test: Mapped[bool] = mapped_column(Boolean, default=False)

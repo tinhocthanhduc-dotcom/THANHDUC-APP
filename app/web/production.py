@@ -173,7 +173,7 @@ def _detail(request, session, user, number, d=None, error='', code='', status=20
     names = {p.code: p.name for p in session.scalars(select(Product))}
     product = session.get(Product, row.product_code)
     outputs = [dict(line_no=o.line_no, code=o.product_code, name=names.get(o.product_code, o.product_code), plan=o.qty_plan, good=o.qty_good, scrap=o.qty_scrap,
-                    cost=o.unit_cost if viewer else None, warranty=(session.get(Product, o.product_code) or product).warranty_months) for o in row.outputs]
+                    cost=o.unit_cost if viewer else None, warranty=(session.get(Product, o.product_code) or product).warranty_months, serial=(session.get(Product, o.product_code) or product).track_serial) for o in row.outputs]
     line_cost = {}
     if row.px_doc_id and viewer:
         for led in session.scalars(select(StockLedger).where(StockLedger.doc_id == row.px_doc_id, StockLedger.is_reversal.is_(False))):

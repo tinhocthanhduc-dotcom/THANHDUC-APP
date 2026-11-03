@@ -624,6 +624,7 @@ def _product_from_form(form) -> dict:
         "unit": str(form.get("unit", "")).strip() or "cái",
         "sale_price": _digits(form.get("sale_price")),
         **({"warranty_months": int(str(form.get("warranty_months") or "0")) if re.fullmatch(r"[0-9]+", str(form.get("warranty_months") or "0")) else form.get("warranty_months")} if "warranty_months" in form else {}),
+        **({"track_serial": str(form.get("track_serial") or "") == "1"} if "track_serial_shown" in form else {}),
     }
 
 
