@@ -634,6 +634,85 @@ def reopen(session: Session, user, order_id, reason, version):
     return order
 
 
+def copy_cancelled(session, user, order_id):
+    """Lập đơn bán Nháp mới chép khách, giao nhận, thanh toán và dòng hàng từ đơn đã hủy (TUẤN 03/11/2026).
+
+    Giá chép nguyên giá cũ, vẫn sửa được trước khi chốt. Không chép báo giá, thợ giao hay phiếu dịch vụ.
+    """
+    from .schemas import SalesOrderIn
+    check_writer(user)
+    with _transaction(session):
+        old = _load(session, order_id)
+        if old.status != 'DA_HUY':
+            raise BusinessError('BAD_STATUS', 'Chỉ lập lại từ đơn bán đã hủy.', status=409)
+        body = SalesOrderIn(customer_code=old.customer_code, contact_name=old.contact_name, delivery_address=old.delivery_address,
+                            note=old.note, fulfillment=old.fulfillment, payment_term=old.payment_term, due_days=old.due_days,
+                            deposit_amount=old.deposit_amount if old.payment_term == 'DAT_COC' else None,
+                            price_includes_vat=old.price_includes_vat, discount_amount=old.discount_amount,
+                            lines=[SalesOrderLineIn.model_validate(line, from_attributes=True) for line in old.lines])
+        order = _new(session, user, body, action='copy')
+        audit.record(session, user, 'sales_order.copy_from', 'sales_order', str(order.id), None, snapshot(order), 'Lập lại từ ' + old.number)
+    return order
+
+
+def change_customer(session, user, order_id, version, customer_code):
+    """Đổi khách của đơn còn Nháp (TUẤN 03/11/2026): chọn nhầm khách không phải bỏ đơn lập lại.
+
+    Đơn lập từ báo giá giữ khách của báo giá; đơn đã có báo thu không đổi khách.
+    Người nhận và địa chỉ giao điền lại theo khách mới; hạn mức nợ kiểm lại khi chốt.
+    """
+    check_writer(user)
+    code = (customer_code or '').strip()
+    if not code:
+        raise BusinessError('BAD_CUSTOMER', 'Chọn khách mới trong danh sách tìm.')
+    with _transaction(session):
+        order = _load(session, order_id, lock=True)
+        _version(order, version)
+        _status(order, ('NHAP',))
+        if order.quote_id is not None:
+            raise BusinessError('FROM_QUOTE', 'Đơn lập từ báo giá giữ khách của báo giá, không đổi được.', status=409)
+        if session.scalar(select(SalesReceipt.id).where(SalesReceipt.order_id == order.id,
+                          SalesReceipt.status.in_(('CHO_XAC_NHAN', 'DA_XAC_NHAN'))).limit(1)) is not None:
+            raise BusinessError('HAS_RECEIPTS', 'Đơn đã có báo thu, không đổi khách được.', status=409)
+        if code == order.customer_code:
+            return order
+        customer = quotes._customer(session, code)
+        before = snapshot(order)
+        order.customer_code = customer.code
+        order.contact_name, order.delivery_address = '', customer.address or ''
+        order.credit_override_by, order.credit_override_reason = None, ''
+        order.version += 1
+        _record(session, user, order, 'change_customer', before)
+    return order
+
+
+DELIVERY_INFO_FIELDS = ('contact_name', 'delivery_address', 'note')
+
+
+def change_delivery_info(session, user, order_id, version, contact_name, delivery_address, note):
+    """Sửa người nhận, địa chỉ giao, ghi chú sau khi chốt, tới khi giao đủ (TUẤN 03/11/2026).
+
+    Không đụng hàng, giá, tiền hay kho; nhật ký giữ giá trị cũ và mới.
+    """
+    check_writer(user)
+    values = {'contact_name': (contact_name or '').strip(), 'delivery_address': (delivery_address or '').strip(),
+              'note': (note or '').strip()}
+    if len(values['contact_name']) > 200 or len(values['delivery_address']) > 2000 or len(values['note']) > 4000:
+        raise BusinessError('BAD_FORM', 'Người nhận tối đa 200 ký tự, địa chỉ tối đa 2000, ghi chú tối đa 4000 ký tự.')
+    with _transaction(session):
+        order = _load(session, order_id, lock=True)
+        _version(order, version)
+        _status(order, ('DA_CHOT', 'GIAO_MOT_PHAN'))
+        if all(getattr(order, k) == v for k, v in values.items()):
+            return order
+        before = snapshot(order)
+        for k, v in values.items():
+            setattr(order, k, v)
+        order.version += 1
+        _record(session, user, order, 'delivery_info', before)
+    return order
+
+
 def set_promised_date(session, user, order_id, promised_date, version):
     check_writer(user)
     with _transaction(session):

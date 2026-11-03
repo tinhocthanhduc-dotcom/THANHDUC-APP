@@ -24,7 +24,7 @@
 
 <div class="doc-grid">
 <div class="doc-main">
-<section class="card doc-card"><h2 class="doc-h">Khách hàng</h2>
+<section class="card doc-card"><div class="doc-card-head"><h2 class="doc-h">Khách hàng</h2>{% if can_write and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] %}<details class="doc-edit" data-delivery-info{% if failed_action=='delivery-info' %} open{% endif %}><summary class="btn btn-ghost">Sửa thông tin giao</summary><form method="post" action="/don-ban/{{ o.id }}/delivery-info" class="form">{{ token('delivery-info') }}{% set df=action_form if failed_action=='delivery-info' else {} %}<label>Người nhận<input name="contact_name" maxlength="200" value="{{ df.get('contact_name', o.contact_name) }}"></label><label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000" rows="2">{{ df.get('delivery_address', o.delivery_address) }}</textarea></label><label>Ghi chú<textarea name="note" maxlength="4000" rows="2">{{ df.get('note', o.note) }}</textarea></label><p class="hint">Sửa được tới khi giao đủ, kho và thợ thấy ngay. Đổi hàng, giá: dùng Mở lại để sửa (khi chưa giao).</p><div class="ph-actions"><button class="btn-ok">Lưu thông tin giao</button></div></form></details>{% endif %}</div>
 <dl class="doc-kv"><dt>Khách</dt><dd><b>{{ o.customer_code }} · {{ customer_name }}</b></dd>
 <dt>Liên hệ</dt><dd>{{ [o.contact_name or (customer_card.contact if customer_card else ''), customer_card.phone if customer_card else '']|select|join(' · ') or '—' }}</dd>
 <dt>Nhận hàng</dt><dd>{{ fulfillments[o.fulfillment] }} · {{ 'hẹn ' ~ o.promised_date.strftime('%d/%m/%Y') if o.promised_date else 'chưa hẹn ngày' }}</dd>
@@ -34,6 +34,7 @@
 </dl>
 {% if o.credit_override_by %}<p class="alert warn">Đơn chốt khi khách chưa được nợ hoặc vượt hạn mức{% if o.credit_override_reason %} · Ghi chú: {{ o.credit_override_reason }}{% endif %}</p>{% endif %}
 {% if o.cancel_reason %}<p class="alert warn">Lý do hủy: {{ o.cancel_reason }}</p>{% endif %}
+{% if o.status=='DA_HUY' and can_write %}<form method="post" action="/don-ban/{{ o.id }}/copy" class="doc-inline" data-order-copy>{{ token('copy') }}<button class="btn btn-new">Lập lại từ đơn này</button><span class="hint">Tạo đơn nháp mới chép khách, giao nhận và dòng hàng; đơn này giữ nguyên Đã hủy.</span></form>{% endif %}
 </section>
 
 {% if sale_serials %}<section class="card doc-card"><h2 class="doc-h">Máy đã giao</h2>{% for link,eq,line_no in sale_serials %}<p>{{ eq.serial }} · Bảo hành đến {{ link.equipment_after.warranty_until|day_label }} · hỗ trợ tận nơi đến {{ link.equipment_after.support_until|day_label(true) }}</p>{% endfor %}</section>{% endif %}

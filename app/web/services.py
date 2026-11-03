@@ -40,7 +40,7 @@ TRANSITIONS = {
 STEPS = {"create": "Nhận đơn", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
-         "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ",
+         "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ", "update_info": "Sửa thông tin phiếu",
          "goods_ok": "Đã nhận đủ hàng", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
 
 
@@ -296,6 +296,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     from . import technician as technician_web
     ctx = dict(dispatcher=dispatcher,at_workshop=at_workshop,xg_panel=dispatcher and t.status=='TAM_DUNG' and t.hold_reason in ('CHO_SUA_XUONG','SUA_XONG_CHO_TRA'),workshop_free=warranty_free(t),xg_chips=technician_web.REPORT_CHIPS['MANG_VE'],xg_results=technician_web.REPAIR_RESULTS,workshop_return_days=_return_days(svc._now()),xg_form=xg_form or {},warranty_terms=service_warranty.terms(session,t),can_set_kind=t.status in svc.OPEN and (dispatcher or own) and not (at_workshop and not dispatcher),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
+                  can_edit_info=dispatcher and t.status in svc.OPEN,
+                  info_sites=list(session.scalars(select(CustomerSite).where(CustomerSite.customer_code==t.customer_code,CustomerSite.active.is_(True)).order_by(CustomerSite.name))) if dispatcher and t.status in svc.OPEN else [],
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
                   ticket_returns=list(session.scalars(select(TechnicianReturn).where(TechnicianReturn.ticket_id==t.id))),
@@ -647,6 +649,13 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
                 svc.transition(session, user, ticket_id, body.to_status, body.version, body.note, body.appointment_at, body.hold_reason, body.appointment_slot)
                 if body.to_status == 'DANG_LAM' and form.get('gps_lat'):
                     service_visits.record_arrival(session, user, ticket_id, form.get('gps_lat'), form.get('gps_lng'), form.get('gps_accuracy'))
+        elif action == 'update-info':
+            raw_site = str(form.get('site_id', '')).strip()
+            try:
+                site_id = int(raw_site) if raw_site else None
+            except ValueError:
+                raise BusinessError('BAD_SITE', 'Địa điểm không hợp lệ.')
+            svc.update_info(session, user, ticket_id, version, str(form.get('symptom', '')), str(form.get('priority', '')), site_id)
         elif action in ("transfer-request", "transfer-reject"):
             body = ServiceReason(reason=form.get('reason', ''), version=version)
             fn = svc.request_transfer if action == "transfer-request" else svc.reject_transfer

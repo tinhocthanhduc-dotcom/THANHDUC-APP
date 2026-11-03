@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from sqlalchemy import or_, select
 
 from . import my_work
-from .models import AttendanceRequest, NotificationRead, SalaryAdvance, User
+from .models import AttendanceRequest, NotificationRead, SalaryAdvance, ServiceStep, ServiceTicket, User
 from .security import has_role
 
 # Nhóm việc "người khác vừa đẩy tới mình" mới bật thông báo; nhóm do chính mình làm tiếp (đang làm, đã nhận...) chỉ đếm.
@@ -57,6 +57,15 @@ def items(session, user):
     for row in session.scalars(select(AttendanceRequest).where(AttendanceRequest.user_id == user.id, AttendanceRequest.status.in_(tuple(REQUEST)),
                                                                AttendanceRequest.decided_at >= since)):
         out.append(_item('attendance_' + row.status.lower(), row.id, REQUEST[row.status], row.number, '/cham-cong', info=True))
+    # Điều phối sửa thông tin phiếu của thợ (mô tả lỗi, ưu tiên, địa điểm) trong 3 ngày, phiếu còn mở.
+    if 'technician' in user.roles:
+        from .service_tickets import OPEN
+        for step_id, ticket_id, number in session.execute(select(ServiceStep.id, ServiceStep.ticket_id, ServiceTicket.number)
+                .join(ServiceTicket, ServiceTicket.id == ServiceStep.ticket_id)
+                .where(ServiceStep.action == 'update_info', ServiceStep.at >= since, ServiceStep.actor_id != user.id,
+                       ServiceTicket.assignee_id == user.id, ServiceTicket.status.in_(OPEN))
+                .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
+            out.append(_item('ticket_info', step_id, 'Điều phối sửa thông tin phiếu', number, f'/tho/phieu/{ticket_id}', info=True))
     # Trợ lý AI: nhắc việc gửi tới mình (giữ 1 ngày), đề xuất nhập hàng giám đốc đã duyệt (cho thủ kho).
     from . import ai_agent
     for row in ai_agent.reminders_for(session, user, my_work._now() - timedelta(days=1)):

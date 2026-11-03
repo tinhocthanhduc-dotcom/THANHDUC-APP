@@ -356,3 +356,20 @@
     block.addEventListener('change',update); update();
   });
 })();
+
+// Đổi khách của đơn nháp (TUẤN 03/11/2026): form riêng ngoài form đơn, chọn khách từ ô tìm.
+(function () {
+  document.querySelectorAll('[data-change-customer]').forEach(function (box) {
+    box.addEventListener('click', function (event) {
+      var b = event.target.closest('[data-order-pick]');
+      if (!b) return;
+      box.querySelector('input[name=customer_code]').value = b.dataset.orderPick;
+      box.querySelector('[data-change-customer-name]').textContent = b.dataset.orderPick + ' · ' + b.dataset.name;
+      box.querySelector('.change-customer-options').replaceChildren();
+      box.querySelector('[data-change-customer-save]').disabled = false;
+    });
+  });
+  document.querySelectorAll('[data-open-change-customer]').forEach(function (a) {
+    a.addEventListener('click', function () { var d = document.getElementById('doi-khach'); if (d) d.open = true; });
+  });
+})();

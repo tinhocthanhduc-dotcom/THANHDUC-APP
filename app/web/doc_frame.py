@@ -13,7 +13,7 @@ def _qty(value):
     from . import quantity
     return quantity(value)
 
-ORDER_ACTION_SAVED = ('promise', 'options', 'reserve', 'release', 'close-remaining', 'void-delivery')
+ORDER_ACTION_SAVED = ('promise', 'options', 'reserve', 'release', 'close-remaining', 'void-delivery', 'delivery-info')
 
 
 def _kho(order):
@@ -84,6 +84,12 @@ def order_toast(order, collection, available, action=''):
     n = order.number
     if action in ORDER_ACTION_SAVED:
         return f'Đã lưu thay đổi {n}.'
+    if action == 'copy' and order.status == 'NHAP':
+        return f'Đã tạo đơn nháp {n} chép từ đơn đã hủy · kiểm tra giá rồi chốt.'
+    if action == 'change-customer':
+        return f'Đã đổi khách của {n} · người nhận và địa chỉ giao đã điền theo khách mới.'
+    if action == 'reopen' and order.status == 'NHAP':
+        return f'Đã mở lại {n} về Nháp · sửa xong bấm Chốt đơn.'
     pending = (collection or {}).get('balance', {}).get('pending', 0) if collection else 0
     if order.status == 'NHAP':
         return f'Đã lưu đơn nháp {n} · chưa chốt, chưa giữ hàng.'

@@ -193,6 +193,27 @@ def order(session, user, order_id, version):
     return row
 
 
+def copy_cancelled(session, user, order_id):
+    """Lập đơn mua Nháp mới chép NCC, ghi chú và dòng hàng từ đơn đã hủy (TUẤN 03/11/2026)."""
+    from zoneinfo import ZoneInfo
+    from .schemas import PurchaseOrderIn
+    check_writer(user)
+    with _transaction(session):
+        old = _load(session, order_id)
+        if old.status != 'DA_HUY':
+            raise BusinessError('BAD_STATUS', 'Chỉ lập lại từ đơn mua đã hủy.', status=409)
+        body = PurchaseOrderIn(supplier_code=old.supplier_code, order_date=datetime.now(ZoneInfo('Asia/Ho_Chi_Minh')).date(),
+                               note=old.note, price_includes_vat=old.price_includes_vat,
+                               lines=[entered_line(line, old.price_includes_vat) for line in old.lines])
+        _supplier(session, body.supplier_code)
+        lines = _lines(session, body.lines, body.price_includes_vat)
+        row = PurchaseOrder(number=next_number(session, 'DM', body.order_date), created_by=user.id,
+            **body.model_dump(exclude={'lines'}), lines=lines)
+        _totals(row); session.add(row)
+        _record(session, user, row, 'copy', None, 'Lập lại từ ' + old.number)
+    return row
+
+
 def reopen(session, user, order_id, reason, version):
     """Đưa đơn Đã đặt về Nháp để sửa giá/số lượng khi NCC báo khác (TUẤN 03/11/2026).
 
