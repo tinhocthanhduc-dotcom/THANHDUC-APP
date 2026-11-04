@@ -1,4 +1,5 @@
 """Thông báo theo vị trí: chỉ SELECT từ hàng việc có sẵn, không bảng mới, không ghi."""
+import re
 from datetime import timedelta
 from urllib.parse import urlencode
 
@@ -24,7 +25,7 @@ def _item(key, ident, title, text, link, info=False):
     return dict(id=f'{key}:{ident}', title=title, text=text, link=link, info=info)
 
 
-def items(session, user):
+def items(session, user, tho=False):
     out = []
     for group in my_work.collect(session, user, keys=INCOMING):
         for row in group['rows']:
@@ -78,7 +79,28 @@ def items(session, user):
         else:
             out.append(_item('ai_restock', row.id, 'Giám đốc duyệt nhập thêm hàng', row.title,
                              '/ton-kho?' + urlencode({'canh-bao': '1', 'q': row.payload.get('product_code', '')}), info=True))
+    if 'technician' in user.roles and (tho or set(user.roles) == {'technician'}):
+        _tho_links(session, user, out)
     return out
+
+
+_TICKET = re.compile(r'^/(?:dich-vu|giu-may)/(\d+)(?:[/?#]|$)')
+_STAY = re.compile(r'^/(?:giao-don|tho-tra-hang)/[^/?#]+')
+
+
+def _tho_links(session, user, rows):
+    """Đang ở màn thợ: bấm thông báo vẫn ở khung thợ (TUẤN 04/11/2026).
+    Phiếu/máy của chính mình -> /tho/phieu; giao đơn, trả kho -> giữ return_to=tho. Việc văn phòng giữ nguyên."""
+    ids = {int(m.group(1)) for row in rows if (m := _TICKET.match(row['link']))}
+    mine = set(session.scalars(select(ServiceTicket.id).where(ServiceTicket.id.in_(ids), ServiceTicket.assignee_id == user.id))) if ids else set()
+    for row in rows:
+        link = row['link']
+        m = _TICKET.match(link)
+        if m and int(m.group(1)) in mine:
+            row['link'] = f'/tho/phieu/{m.group(1)}'
+        elif _STAY.match(link) and 'return_to=' not in link:
+            path, _, anchor = link.partition('#')
+            row['link'] = path + ('&' if '?' in path else '?') + 'return_to=tho' + ('#' + anchor if anchor else '')
 
 
 def with_reads(session, user, rows):
