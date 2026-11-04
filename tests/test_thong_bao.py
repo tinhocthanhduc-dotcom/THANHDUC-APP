@@ -16,7 +16,7 @@ def test_assigned_ticket_notifies_only_that_technician(client, db, people):
     pp = people
     service_login(client, pp['technician'])
     page = client.get('/tho')
-    assert 'data-notify="/ca-nhan/thong-bao"' in page.text and '/static/notify.js' in page.text
+    assert 'data-notify="/ca-nhan/thong-bao?man=tho"' in page.text and '/static/notify.js' in page.text
     assert not [k for k in notes(client) if k.startswith('service_assigned:')]
     row = ticket(db, pp, 'DA_GIAO')
     got = notes(client)
