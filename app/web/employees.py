@@ -160,10 +160,12 @@ def personal(request:Request,user:User=Depends(web_user)):
 
 
 @router.get('/ca-nhan/thong-bao')
-def notices(user:User=Depends(web_user),session:Session=Depends(get_session)):
+def notices(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
     from fastapi.responses import JSONResponse
     from .. import notifications
-    rows=notifications.with_reads(session,user,notifications.items(session,user))
+    # Chuông ở khung thợ gửi ?man=tho: link mở đúng màn thợ, không nhảy sang giao diện văn phòng.
+    tho=request.query_params.get('man')=='tho'
+    rows=notifications.with_reads(session,user,notifications.items(session,user,tho=tho))
     return JSONResponse(dict(items=rows,count=len(rows),unread=sum(1 for r in rows if not r['read'])),headers={'Cache-Control':'no-store'})
 
 
