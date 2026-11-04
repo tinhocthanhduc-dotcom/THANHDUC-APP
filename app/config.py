@@ -52,6 +52,11 @@ class Settings(BaseSettings):
             raise ValueError('Ngày làm việc từ 0 (thứ 2) đến 6 (Chủ nhật)')
         return self
 
+    # Thợ tự nhận phiếu dịch vụ chưa giao (TUẤN 04/11/2026): số phút phiếu mới hiện ở màn tất cả thợ, 0 là tắt;
+    # thợ đang có từ self_claim_max_open việc mở trở lên thì không tự nhận thêm.
+    self_claim_minutes: int = Field(default=30, ge=0, le=480)
+    self_claim_max_open: int = Field(default=2, ge=1, le=50)
+
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'
     slot_sang: str = '07:30-11:30'

@@ -100,3 +100,23 @@
   if (card) new MutationObserver(update).observe(card, {childList: true, subtree: true, characterData: true});
   update();
 })();
+
+// Thợ tự nhận (TUẤN 04/11/2026): ô tự xám khi phiếu Khẩn, Bảo hành hoặc đã chọn thợ (server cũng bỏ qua các phiếu này).
+(function () {
+  var box = document.querySelector('[data-sv-self-claim]');
+  if (!box || !box.form) return;
+  var form = box.form, label = box.closest('label');
+  function value(name) {
+    var el = form.elements[name];
+    if (!el) return '';
+    if (el.length !== undefined && !el.tagName) { for (var i = 0; i < el.length; i++) if (el[i].checked) return el[i].value; return ''; }
+    return el.value || '';
+  }
+  function sync() {
+    var off = value('priority') === 'KHAN' || value('kind') === 'BAO_HANH' || value('assignee_id') !== '';
+    box.disabled = off;
+    if (label) label.classList.toggle('is-off', off);
+  }
+  form.addEventListener('change', sync);
+  sync();
+})();

@@ -3495,3 +3495,16 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .doc-edit > summary::-webkit-details-marker { display: none; }
 .doc-edit[open] { flex: 1 1 100%; margin-left: 0; }
 .doc-edit[open] > summary { margin-bottom: 10px; }
+
+/* Thợ tự nhận phiếu (TUẤN 04/11/2026): thẻ chờ nhận viền xanh, nút Nhận to, hỏi lại trước khi nhận. */
+.tho-claim { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 2px solid var(--info-solid); }
+.tho-claim-btn { width: 100%; min-height: 48px; margin-top: 6px; font-size: 16px; }
+.tho-claim-btn[disabled] { opacity: .55; cursor: not-allowed; }
+.tho-claim-ask > summary { list-style: none; cursor: pointer; }
+.tho-claim-ask > summary::-webkit-details-marker { display: none; }
+.tho-claim-ask[open] > summary { display: none; }
+.tho-claim-form p { margin: 8px 0 0; }
+.svn-self-claim { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.svn-self-claim input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.svn-self-claim small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.svn-self-claim.is-off { opacity: .55; }

@@ -60,6 +60,7 @@
 {% if can_assign_new %}<div class="svn-fld" role="group" aria-labelledby="svn-tech-label"><p class="group-label" id="svn-tech-label">Giao thợ ngay <small>(không bắt buộc)</small></p>
 <div class="seg stock-seg svn-techs"><label><input type="radio" name="assignee_id" value="" {% if not d.get('assignee_id') %}checked{% endif %}><span>Chưa giao</span></label>{% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if d.get('assignee_id')|string==tech.id|string %}checked{% endif %}><span>{{ tech.full_name }}</span></label>{% endfor %}</div></div>
 <p class="svn-note" data-sv-tech-hint>Chưa giao: phiếu nằm ở hàng chờ Điều phối.</p>{% endif %}
+{% if self_claim_minutes %}<label class="svn-self-claim"><input type="checkbox" name="tu_nhan" value="1" data-sv-self-claim {% if d.get('tu_nhan', '1') == '1' %}checked{% endif %}><span><b>Cho thợ tự nhận trong {{ self_claim_minutes }} phút</b><small>Phiếu chưa giao thợ hiện ở màn tất cả thợ, ai nhận trước người đó làm; hết giờ chưa ai nhận thì chuông báo Điều phối giao. Không áp dụng cho phiếu Khẩn, Bảo hành hoặc đã chọn thợ.</small></span></label>{% endif %}
 </section>
 <section class="card qf-card svn-sum"><h2 class="qf-h">Tóm tắt phiếu</h2>
 <dl class="svn-dl">

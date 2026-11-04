@@ -3,7 +3,7 @@ import hashlib
 
 from sqlalchemy import select
 
-from . import my_work, service_tickets
+from . import my_work, service_self_claim, service_tickets
 from .models import SalesOrder, ServiceTicket
 
 DELIVERING = ('DA_CHOT', 'GIAO_MOT_PHAN')
@@ -21,6 +21,8 @@ def technician(session, user):
     o = SalesOrder
     rows += [('delivery', *r) for r in session.execute(select(o.id, o.status, o.version).where(
         o.delivery_assignee_id == user.id, o.fulfillment == 'THO_GIAO', o.status.in_(DELIVERING))).all()]
+    # Phiếu chờ thợ tự nhận: có phiếu mới, người khác vừa nhận hay hết giờ thì màn tự tải lại.
+    rows += [('claim', r) for r in session.scalars(select(t.id).where(service_self_claim.claimable(service_tickets._now())))]
     return _digest(rows)
 
 
@@ -33,7 +35,8 @@ def my_queue(session, user, groups=None):
 def dispatch(session):
     """Điều phối: phiếu đang mở và đơn thợ giao, theo trạng thái và người nhận."""
     t = ServiceTicket
-    rows = [('service', *r) for r in session.execute(select(t.id, t.status, t.assignee_id).where(
+    claim = service_self_claim.claimable(service_tickets._now())
+    rows = [('service', *r) for r in session.execute(select(t.id, t.status, t.assignee_id, claim).where(
         t.status.in_(service_tickets.OPEN))).all()]
     o = SalesOrder
     rows += [('delivery', *r) for r in session.execute(select(o.id, o.status, o.delivery_assignee_id).where(

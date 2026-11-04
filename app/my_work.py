@@ -99,7 +99,9 @@ def _specs(user, today, now):
             pending = pending.where(t.assignee_id==user.id, t.status=='HOAN_THANH')
         add('service_unreported', 'Đã xong · chưa báo thu đủ', pending, 'service', '/dich-vu')
     if has_role(user, 'dispatcher', 'reception'):
-        add('service_unassigned', 'Phiếu mới chưa giao thợ', service.where(t.status=='MOI', t.assignee_id.is_(None)), 'service', '/dich-vu')
+        # Phiếu đang chờ thợ tự nhận (30 phút) chưa vào hàng này; hết giờ chưa ai nhận thì hiện và chuông báo.
+        from . import service_self_claim
+        add('service_unassigned', 'Phiếu mới chưa giao thợ', service.where(t.status=='MOI', t.assignee_id.is_(None), ~service_self_claim.claimable(now)), 'service', '/dich-vu')
     if has_role(user, 'dispatcher'):
         add('service_workshop','Máy chờ sửa ở xưởng',service_workshop.queue_query(now),'service','/dich-vu')
         add('service_return_ready','Máy sửa xong chờ trả',service.where(t.status=='TAM_DUNG',t.hold_reason=='SUA_XONG_CHO_TRA'), 'service','/dich-vu')

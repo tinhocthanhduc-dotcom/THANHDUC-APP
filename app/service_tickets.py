@@ -143,11 +143,15 @@ def _ink(session, user, t, ink, ink_price=None):
                                                                                         qty=1, unit_price=net, vat_rate=DEFAULT_VAT_RATE)]))
 
 
-def create(session: Session, user: User, body: ServiceTicketIn, ink=None, ink_price=None) -> ServiceTicket:
+def create(session: Session, user: User, body: ServiceTicketIn, ink=None, ink_price=None, self_claim: bool = False) -> ServiceTicket:
     _require(user, CREATORS, "Chỉ điều phối, kinh doanh, lễ tân hoặc giám đốc được nhận đơn.")
     with _transaction(session):
         t = create_in_tx(session,user,body)
         _ink(session, user, t, ink, ink_price)
+        if self_claim:
+            # TUẤN 04/11/2026: phiếu chưa giao thợ hiện ở màn tất cả thợ trong 30 phút cho thợ tự nhận.
+            from . import service_self_claim
+            service_self_claim.open_in_tx(t, _now())
         return t
 
 
@@ -708,6 +712,8 @@ def update_info(session, user, ticket_id, version, symptom, priority, site_id):
         changed = [label for label, old, new in (('mô tả lỗi', t.symptom, symptom), ('ưu tiên', t.priority, priority),
                    ('địa điểm', t.site_id, site_id)) if old != new]
         t.symptom, t.priority, t.site_id = symptom, priority, site_id
+        if priority == 'KHAN' and t.status == 'MOI' and t.self_claim_until is not None and t.self_claim_until > _now():
+            t.self_claim_until = _now()  # đổi sang Khẩn: thôi chờ thợ tự nhận, điều phối giao ngay
         t.version += 1
         _record(session, user, t, 'update_info', before, t.status, 'Sửa ' + ', '.join(changed))
     return t

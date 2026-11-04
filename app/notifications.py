@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 from sqlalchemy import or_, select
 
 from . import my_work
-from .models import AttendanceRequest, NotificationRead, SalaryAdvance, ServiceStep, ServiceTicket, User
+from .models import AttendanceRequest, Customer, NotificationRead, SalaryAdvance, ServiceStep, ServiceTicket, User
 from .security import has_role
 
 # Nhóm việc "người khác vừa đẩy tới mình" mới bật thông báo; nhóm do chính mình làm tiếp (đang làm, đã nhận...) chỉ đếm.
@@ -67,6 +67,21 @@ def items(session, user, tho=False):
                        ServiceTicket.assignee_id == user.id, ServiceTicket.status.in_(OPEN))
                 .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
             out.append(_item('ticket_info', step_id, 'Điều phối sửa thông tin phiếu', number, f'/tho/phieu/{ticket_id}', info=True))
+    # Thợ tự nhận (TUẤN 04/11/2026): thợ thấy phiếu đang chờ nhận; điều phối biết ai vừa tự nhận.
+    from . import service_self_claim
+    now = my_work._now()
+    if 'technician' in user.roles and service_self_claim.minutes() > 0 and service_self_claim.can_claim_more(session, user.id):
+        for ticket_id, number, name in session.execute(select(ServiceTicket.id, ServiceTicket.number, Customer.name)
+                .join(Customer, Customer.code == ServiceTicket.customer_code)
+                .where(service_self_claim.claimable(now)).order_by(ServiceTicket.id).limit(my_work.LIMIT)):
+            out.append(_item('self_claim_open', ticket_id, 'Phiếu mới chờ thợ nhận', f'{number} · {name}', '/tho#cho-nhan'))
+    if has_role(user, 'dispatcher'):
+        for step_id, ticket_id, number, assignee in session.execute(select(ServiceStep.id, ServiceStep.ticket_id, ServiceTicket.number, ServiceStep.assignee_id)
+                .join(ServiceTicket, ServiceTicket.id == ServiceStep.ticket_id)
+                .where(ServiceStep.action == 'assign', ServiceStep.note == service_self_claim.NOTE, ServiceStep.actor_id == ServiceStep.assignee_id,
+                       ServiceStep.at >= now - timedelta(days=1))
+                .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
+            out.append(_item('self_claimed', step_id, f'{who(assignee)} đã tự nhận phiếu', number, f'/dich-vu/{ticket_id}', info=True))
     # Trợ lý AI: nhắc việc gửi tới mình (giữ 1 ngày), đề xuất nhập hàng giám đốc đã duyệt (cho thủ kho).
     from . import ai_agent
     for row in ai_agent.reminders_for(session, user, my_work._now() - timedelta(days=1)):

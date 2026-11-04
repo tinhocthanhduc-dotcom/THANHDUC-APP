@@ -15,11 +15,14 @@
 <td><b>{{ customer_names.get(t.customer_code, t.customer_code) }}</b><span class="lt-sub">{{ t.serial or 'Chưa chọn máy' }} · {{ service_kinds[t.kind] }}{% if t.appointment_at %} · hẹn {{ t.appointment_at|appointment_label(t.appointment_slot) }}{% endif %}</span></td>
 <td class="lt-st">{{ ui.badge(service_status(t), 'cho' if t.status in ['MOI','CHO_LINH_KIEN','TAM_DUNG'] else 'xong' if t.status in ['HOAN_THANH','DA_DONG'] else 'lam') }}{% if visit_counts.get(t.id,0) >= 3 and t.status not in ['HOAN_THANH','DA_DONG'] %} {{ ui.badge('Đi nhiều lần', 'huy') }}{% endif %}{% if t.hold_reason and t.hold_reason not in workshop_holds %}<span class="lt-sub">{{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</span>{% endif %}</td>
 <td class="kx-next"><span{% if late %} class="lt-bad"{% endif %}>{{ nx[1] }}</span><span class="lt-sub">{{ nx[0] }}</span></td>
-<td>{{ users.get(t.assignee_id, 'Chưa giao') }}{% if t.assignee_id %}<span class="lt-sub">{{ open_counts.get(t.assignee_id, 0) }} việc đang mở</span>{% endif %}</td>
+<td>{% if t.assignee_id %}{{ users.get(t.assignee_id, 'Chưa giao') }}<span class="lt-sub">{{ open_counts.get(t.assignee_id, 0) }} việc đang mở</span>{% elif claim_left(t) %}{{ ui.badge('Chờ thợ nhận · còn ' ~ claim_left(t) ~ ' phút', 'cho') }}<span class="lt-sub">Mở phiếu để Giao ngay</span>{% elif claim_expired(t) %}<span class="lt-bad" data-claim-expired>Hết giờ tự nhận · cần giao</span>{% else %}Chưa giao{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}{{ ui.empty('Không có phiếu nào trong nhóm này.') }}{% endif %}
 {% if page.last > 1 %}{{ ui.list_foot(page, 'phiếu') }}{% endif %}
 </section>
+{% if claim_stats %}<section class="card list-frame" aria-label="Tự nhận tháng này"><h2 class="dp-title">Tự nhận tháng này</h2>
+<div class="table-scroll"><table class="list-table lt-cards"><thead><tr><th>Thợ</th><th>Tự nhận</th><th>Điều phối giao</th><th>Tỷ lệ tự nhận</th></tr></thead><tbody>
+{% for r in claim_stats %}<tr><td class="lt-first"><b>{{ r.name }}</b></td><td>{{ r.self }}</td><td>{{ r.given }}</td><td>{{ r.pct }}%</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 <section class="card list-frame dispatch-deliveries" aria-label="Đơn bán thợ giao">
 <h2 class="dp-title">Đơn bán chờ thợ giao <span>{{ delivery_orders|length }}</span></h2>
 {% if delivery_orders %}<div class="table-scroll"><table class="list-table lt-cards">
