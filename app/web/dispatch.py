@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from .. import service_tickets as svc, work_watch, service_workshop
+from .. import service_self_claim, service_tickets as svc, work_watch, service_workshop
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog, ServiceStep, ServiceTicket, ServiceVisit, User
@@ -55,9 +55,14 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
         # Truyền limit theo tổng thực tế: không cắt danh sách ở giới hạn tìm kiếm mặc định.
         rows = svc.search(session, user, overdue=True, limit=count_overdue or 1)
     elif view == 'new':
-        rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'MOI')
+        # Phiếu đang chờ thợ tự nhận nằm ở ô riêng; hết giờ chưa ai nhận thì về đây.
+        rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'MOI', ~service_self_claim.claimable(now))
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id)))
-        title = 'Chưa giao thợ'
+        title = 'Cần giao thợ'
+    elif view == 'claim':
+        rows = list(session.scalars(select(ServiceTicket).where(service_self_claim.claimable(now))
+                                   .order_by(ServiceTicket.self_claim_until, ServiceTicket.id)))
+        title = 'Chờ thợ tự nhận'
     elif view == 'workshop':
         rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'CHO_SUA_XUONG')
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id)))
@@ -91,15 +96,23 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
     users = dict(session.execute(select(User.id, User.full_name)).all())
     customer_names = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in rows}))).all())
     extra = session.execute(select(
-        func.count().filter(ServiceTicket.status == 'MOI'),
+        func.count().filter(ServiceTicket.status == 'MOI', ~service_self_claim.claimable(now)),
         func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'CHO_SUA_XUONG'),
         func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'SUA_XONG_CHO_TRA'),
+        func.count().filter(service_self_claim.claimable(now)),
     )).one()
-    tiles = [dict(label=label, n=n, href=f'/dieu-phoi?view={key}', on=view == key, tone='huy' if key == 'overdue' and n else '')
-             for key, n, label in (('open', count_open, 'Đang mở'), ('overdue', count_overdue, 'Quá hạn'), ('new', extra[0], 'Chưa giao thợ'),
+    tiles = [dict(label=label, n=n, href=f'/dieu-phoi?view={key}', on=view == key, tone='huy' if key in ('overdue', 'new') and n else '')
+             for key, n, label in (('open', count_open, 'Đang mở'), ('overdue', count_overdue, 'Quá hạn'), ('new', extra[0], 'Cần giao thợ'),
+                                   *((('claim', extra[3], 'Chờ thợ tự nhận'),) if service_self_claim.minutes() > 0 or extra[3] else ()),
                                    ('workshop', extra[1], 'Ở xưởng'), ('return_ready', extra[2], 'Sửa xong chờ trả'),
                                    ('parts', count_parts, 'Chờ linh kiện'), ('paused', count_paused, 'Tạm dừng'))]
-    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts,tiles=tiles,customer_names=customer_names,
+    claim_stats = []
+    if view == 'claim':
+        local = now.astimezone(TZ).date()
+        start = datetime.combine(local.replace(day=1), time.min, TZ)
+        claim_stats = service_self_claim.month_stats(session, start, now + timedelta(minutes=1))
+    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts, claim_stats=claim_stats, claim_left=lambda t: service_self_claim.minutes_left(t, now),
+                  claim_expired=lambda t: t.status == 'MOI' and t.assignee_id is None and t.self_claim_until is not None and t.self_claim_until <= now,tiles=tiles,customer_names=customer_names,
                   next_of={t.id: _service_next(t, users, session) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, page=page, view=view, title=title,
                   users=users, open_counts=svc.open_counts(session),
                   now=now, delay=_delay, watch=dict(url='/dieu-phoi/moi', stamp=work_watch.dispatch(session)))

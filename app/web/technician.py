@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import attachments, attendance, equipment as equipment_svc, my_work, service_appointments, service_tickets, technician_stock, work_watch
+from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, CustomerSite, Employee, Equipment, Product, SalesOrder, ServiceTicket, User
@@ -236,6 +237,35 @@ def _schedule(appointment,status,now):
 
 @router.get('/tho')
 def today(request:Request,user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    return _today(request,user,session)
+
+
+def _claim_rows(session,now):
+    """Phiếu chờ thợ tự nhận (TUẤN 04/11/2026): mọi thợ thấy, hết giờ thì ẩn."""
+    from .. import service_self_claim
+    out=[]
+    for ticket,customer,site,machine in session.execute(select(ServiceTicket,Customer,CustomerSite,equipment_svc.name_column()).join(Customer,Customer.code==ServiceTicket.customer_code)
+            .outerjoin(CustomerSite,CustomerSite.id==ServiceTicket.site_id).outerjoin(Equipment,Equipment.serial==ServiceTicket.serial)
+            .outerjoin(Product,Product.code==Equipment.product_code).where(service_self_claim.claimable(now)).order_by(ServiceTicket.self_claim_until,ServiceTicket.id)):
+        out.append(dict(id=ticket.id,number=ticket.number,customer=customer.name,service_kind=ticket.kind,priority=ticket.priority,symptom=ticket.symptom,
+            machine=machine or '',serial=ticket.serial or '',created=ticket.created_at,left=service_self_claim.minutes_left(ticket,now),
+            appointment=ticket.appointment_at,appointment_slot=ticket.appointment_slot,**contact(customer,site)))
+    return out
+
+
+@router.post('/tho/nhan/{ticket_id}')
+def claim(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from .. import service_self_claim
+    try:
+        t=service_self_claim.claim(session,user,ticket_id)
+    except BusinessError as exc:
+        session.rollback()
+        return _today(request,user,session,claim_error=exc.message,status=exc.status)
+    return RedirectResponse(f'/tho?nhan={t.number}#sap-toi',status_code=303)
+
+
+def _today(request,user,session,claim_error=None,status=200):
+    from .. import service_self_claim
     now=service_tickets._now(); jobs=[]
     rows=session.execute(select(ServiceTicket,Customer,CustomerSite,equipment_svc.name_column()).join(Customer,Customer.code==ServiceTicket.customer_code)
         .outerjoin(CustomerSite,CustomerSite.id==ServiceTicket.site_id).outerjoin(Equipment,Equipment.serial==ServiceTicket.serial)
@@ -276,7 +306,11 @@ def today(request:Request,user:User=Depends(technician_user),session:Session=Dep
     from ..models import ProductionOrder
     from .. import production
     production_jobs=list(session.execute(select(ProductionOrder,Product.name+production.title_extra()).join(Product,Product.code==ProductionOrder.product_code).where(ProductionOrder.technician_id==user.id,ProductionOrder.status.in_(('MOI','DANG_LAM'))).order_by(ProductionOrder.id)))
+    claims=_claim_rows(session,now) if service_self_claim.minutes()>0 else []
+    claimed=str(request.query_params.get('nhan',''))[:32]
     return render(request,'tho_hom_nay.jinja',production_jobs=production_jobs,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
+        claims=claims,claim_busy=bool(claims) and not service_self_claim.can_claim_more(session,user.id),claim_limit=get_settings().self_claim_max_open,
+        claim_error=claim_error,claimed=claimed if claimed and any(j['number']==claimed for j in jobs) else '',status=status,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))
 
 

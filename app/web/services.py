@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, equipment, service_appointments, service_charges, service_visits, service_warranty, technician_returns
+from .. import attachments, equipment, service_appointments, service_charges, service_self_claim, service_visits, service_warranty, technician_returns
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -371,7 +371,7 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     can_create=has_role(request.state.user, *svc.CREATORS)
     return render(request, "dich_vu_moi.jinja", appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, sites_main_address=customer.address if customer else '', machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
-                  can_create_machine=service_machines.can_create(request.state.user),can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
+                  can_create_machine=service_machines.can_create(request.state.user),can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),self_claim_minutes=service_self_claim.minutes(),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
 
 @router.get("/dich-vu/tim-khach")
@@ -436,13 +436,13 @@ def ink_pick(request: Request, q: str = "", user: User = Depends(web_user), sess
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q")}
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q", "tu_nhan")}
     data['ink']=_ink_shown(session,form);data['ink_price']=str(form.get('ink_price',''))[:20]
     if data['kind']=='MUC_DINH_KY' and not data['symptom'].strip():data['symptom']=INK_NOTE
     try:
         appointment, slot = service_appointments.parse(form,svc._now())
         new_machine=service_machines.intake(form)
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','ink','ink_price')},
+        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','ink','ink_price','tu_nhan')},
                                  "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
         ink=_ink_lines(form) if body.kind=='MUC_DINH_KY' else []
         price=str(form.get('ink_price','')).strip() if body.kind=='MUC_DINH_KY' else ''
@@ -453,7 +453,7 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
         if assignee:
             if not assignee.isdigit() or len(assignee)>18 or int(assignee)<1: raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
             t=svc.create_and_assign(session,request.state.user,body,int(assignee),ink=ink,ink_price=price or None)
-        else: t=svc.create(session,request.state.user,body,ink=ink,ink_price=price or None)
+        else: t=svc.create(session,request.state.user,body,ink=ink,ink_price=price or None,self_claim=data['tu_nhan']=='1')
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         return _new_form(request, session, data, error, code, status)

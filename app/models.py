@@ -402,6 +402,8 @@ class ServiceTicket(Base):
     declined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Khách mang máy tới quầy (TUẤN 26/10/2026): nhận và trả tại quầy, không bắt buộc thợ được giao.
     counter_intake: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    # Thợ tự nhận (TUẤN 04/11/2026): phiếu mới chưa giao hiện ở màn tất cả thợ tới giờ này; null là không mở.
+    self_claim_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     warranty_months: Mapped[int | None] = mapped_column(SmallInteger)
     warranty_scope: Mapped[str | None] = mapped_column(String(200), default='', server_default='')
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
