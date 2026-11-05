@@ -3,7 +3,7 @@ document.querySelectorAll('[data-cash-form],[data-correction-form]').forEach(fun
   function toggle() {
     if (!opening || !category) return;
     category.hidden=opening.checked;
-    category.querySelectorAll('input').forEach(function(input) { input.disabled=opening.checked; input.required=!opening.checked; });
+    category.querySelectorAll('input,select').forEach(function(input) { input.disabled=opening.checked; input.required=!opening.checked; });
   }
   if (opening) { opening.addEventListener('change',function(){ toggle(); update(); }); toggle(); }
   // Đợt 3: chọn một trong ba đối tượng; ô của đối tượng khác bị khóa nên không gửi lên.
