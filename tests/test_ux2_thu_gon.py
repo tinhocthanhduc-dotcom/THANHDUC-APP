@@ -70,7 +70,9 @@ def test_service_single_machine_and_site_defaults_and_none(client,db,service_peo
     html=client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
     site=db.query(CustomerSite).filter_by(customer_code='KTD-000001').one()
     assert f'<option value="{site.id}" data-address="{site.address}" selected>' in html
-    assert '<option value="AB123" selected>' in html
+    # TUẤN 05/11: khách chỉ có một máy cũng không tự chọn máy đó.
+    assert '<option value="AB123" selected>' not in html and '<option value="" selected>— Không chọn máy —' in html
+    assert '<option value="AB123" selected>' not in client.get('/dich-vu/moi?customer_code=KTD-000001').text
     db.add(Equipment(serial='SECOND',product_code='TD-0001',customer_code='KTD-000001',created_by=service_people['dispatcher'].id))
     db.add(CustomerSite(customer_code='KTD-000001',name='Chi nhánh',created_by=service_people['dispatcher'].id));db.commit()
     html=client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
