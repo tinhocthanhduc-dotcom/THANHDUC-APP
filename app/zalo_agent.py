@@ -270,7 +270,7 @@ def tool_draft(session: Session, actor: User, customer_code: str, lines, promise
             return dict(loi=f'Không có mã hàng {code} đang bán. Hãy tra lại bằng tra_ton.')
         doubt = str(raw.get('can_chon_ma') or '').strip()[:300]
         if doubt:
-            picks.append(f'{product.code}: {doubt}')
+            picks.append(f'{product.code} hoặc {doubt}')
         body_lines.append(SalesOrderLineIn(kind='HANG', product_code=product.code, qty=qty, warehouse_code=wh))
     text = ['Đơn nháp từ Zalo. Giá do trợ lý điền theo danh mục, chưa kiểm.', f'Tin gốc: {question[:500]}']
     if picks:
@@ -738,6 +738,11 @@ def _draft_where(view: str):
 
 def draft_counts(session: Session) -> dict:
     return {v: session.scalar(select(func.count()).select_from(SalesOrder).where(*_draft_where(v))) or 0 for v in DRAFT_VIEWS}
+
+
+def draft_total(session: Session, view: str) -> int:
+    """Tổng tiền mọi đơn của thẻ đang xem (không chỉ trang hiện tại)."""
+    return int(session.scalar(select(func.coalesce(func.sum(SalesOrder.total), 0)).where(*_draft_where(view))) or 0)
 
 
 def drafts(session: Session, user: User, view: str, offset: int, size: int):

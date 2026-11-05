@@ -3,7 +3,8 @@
 {% import 'phan_trang.jinja' as pager %}
 {% block title %}Đơn nháp từ Zalo{% endblock %}
 {% block main %}<div class="page-wide zl-page">
-{# Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn NHAP do trợ lý lập. Kinh doanh mở đơn để kiểm giá, sửa và bấm Chốt như đơn thường. #}
+{# Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn NHAP do trợ lý lập. Danh sách dòng gọn (TUẤN duyệt 05/11/2026 16:17):
+   mỗi đơn một dòng, bấm dòng mở chi tiết; Bỏ đơn nháp chỉ trong chi tiết để không bấm nhầm. #}
 {% call ui.page_head('Đơn nháp từ Zalo', sub='Trợ lý lập đơn nháp từ tin Zalo. Giá điền theo danh mục, chưa kiểm. Đơn nháp không giữ hàng, không tính nợ cho tới khi chốt.') %}{% endcall %}
 {% if bo %}{{ ui.toast('Đã bỏ đơn nháp') }}{% endif %}
 {{ ui.tiles([
@@ -11,19 +12,27 @@
   dict(label=views['chot'][0], n=counts['chot'], href='/don-nhap-zalo?view=chot', on=view=='chot'),
   dict(label=views['bo'][0], n=counts['bo'], href='/don-nhap-zalo?view=bo', on=view=='bo'),
 ], keep_phone=true) }}
-<div class="zl-cards">
-{% for o in orders %}{% set lg = logs.get(o.id) %}{% set k = custs.get(o.customer_code) %}<article class="card zl-card">
-<div class="zl-card-head"><b>{{ o.number }}</b>{% if o.status == 'NHAP' %}{{ ui.badge('Cần chọn mã', 'cho') if lg and lg.need_pick else ui.badge('Đủ thông tin', 'xong') }}{% elif o.status == 'DA_HUY' %}{{ ui.badge('Đã bỏ', 'huy') }}{% else %}{{ ui.badge('Đã chốt', 'xong') }}{% endif %}</div>
-{% if lg %}<p class="zl-quote"><small class="mu">{{ askers[lg.asker] }} nhắn Zalo · {{ lg.created_at|vn_time }} {{ lg.created_at|vn_date }}</small>
-{{ lg.question[:500] }}</p>{% endif %}
-<dl class="zl-kv"><dt>Khách</dt><dd>{{ k.name if k else '' }} ({{ o.customer_code }})</dd>
-<dt>Hàng</dt><dd>{% for line in o.lines %}{{ line.qty|qty }} × {{ line.product_code }} {{ line.description }} · {{ line.unit_price|money }} đ<br>{% endfor %}</dd>
-{% if o.promised_date %}<dt>Hẹn giao</dt><dd>{{ o.promised_date.strftime('%d/%m/%Y') }}</dd>{% endif %}
-<dt>Tổng</dt><dd>{{ o.total|money }} đ</dd></dl>
+{% if orders %}<div class="card zl-list">
+<div class="zl-row zl-headrow" aria-hidden="true"><span>Đơn</span><span>Khách</span><span>Hàng</span><span class="num">Tổng</span><span>Trạng thái</span><span></span></div>
+{% for o in orders %}{% set lg = logs.get(o.id) %}{% set k = custs.get(o.customer_code) %}{% set first = o.lines[0] if o.lines else none %}
+<details class="zl-item">
+<summary class="zl-row">
+<span class="zl-no"><b>{{ o.number }}</b><small class="mu">{% if lg %}{{ lg.created_at|vn_time }} · {{ askers[lg.asker] }}{% endif %}</small></span>
+<span class="zl-cust" title="{{ k.name if k else o.customer_code }}">{{ k.name if k else o.customer_code }}</span>
+<span class="zl-goods">{% if first %}{{ first.qty|qty }} × {{ first.product_code }}{% if o.lines|length > 1 %} (+{{ o.lines|length - 1 }} mã){% endif %} {{ first.description }}{% endif %}</span>
+<span class="zl-money num">{{ o.total|money }} đ</span>
+<span class="zl-state">{% if o.status == 'NHAP' %}{{ ui.badge('Cần chọn mã', 'cho') if lg and lg.need_pick else ui.badge('Đủ thông tin', 'xong') }}{% elif o.status == 'DA_HUY' %}{{ ui.badge('Đã bỏ', 'huy') }}{% else %}{{ ui.badge('Đã chốt', 'xong') }}{% endif %}</span>
+<span class="zl-go"><a class="btn btn-ghost zl-open" href="/don-ban/{{ o.id }}"><span class="zl-long">{{ 'Kiểm và chốt ›' if o.status == 'NHAP' else 'Xem đơn ›' }}</span><span class="zl-short">{{ 'Kiểm ›' if o.status == 'NHAP' else 'Xem ›' }}</span></a></span>
+</summary>
+<div class="zl-detail">
+<div class="zl-detail-col">{% if lg %}<small class="mu">Tin gốc · {{ askers[lg.asker] }} nhắn Zalo · {{ lg.created_at|vn_time }} {{ lg.created_at|vn_date }}</small><p class="zl-quote">{{ lg.question[:500] }}</p>{% endif %}
+<small class="mu">Khách: {{ k.name if k else '' }} ({{ o.customer_code }}){% if o.promised_date %} · Hẹn giao {{ o.promised_date.strftime('%d/%m/%Y') }}{% endif %}</small></div>
+<div class="zl-detail-col"><div>{% for line in o.lines %}{{ line.qty|qty }} × {{ line.product_code }} {{ line.description }} · {{ line.unit_price|money }} đ<br>{% endfor %}</div>
 {% if lg and lg.need_pick and o.status == 'NHAP' %}<p class="zl-warn">Cần chọn mã: {{ lg.need_pick }}</p>{% endif %}
-<div class="zl-actions"><a class="btn btn-new" href="/don-ban/{{ o.id }}">{{ 'Kiểm và chốt ›' if o.status == 'NHAP' else 'Xem đơn ›' }}</a>
-{% if o.status == 'NHAP' %}<form method="post" action="/don-nhap-zalo/{{ o.id }}/bo"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ o.version }}"><button class="btn btn-danger">Bỏ đơn nháp</button></form>{% endif %}</div>
-</article>{% else %}{{ ui.empty('Không có đơn nháp nào chờ kiểm.' if view == 'cho' else 'Chưa có đơn nào.') }}{% endfor %}
+<div class="zl-actions"><a class="btn btn-ghost zl-open" href="/don-ban/{{ o.id }}">{{ 'Kiểm và chốt ›' if o.status == 'NHAP' else 'Xem đơn ›' }}</a>
+{% if o.status == 'NHAP' %}<form method="post" action="/don-nhap-zalo/{{ o.id }}/bo"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ o.version }}"><button class="btn btn-danger">Bỏ đơn nháp</button></form>{% endif %}</div></div>
 </div>
-{{ pager.bar(p, 'đơn') }}
+</details>{% endfor %}
+</div>{% else %}{{ ui.empty('Không có đơn nháp nào chờ kiểm.' if view == 'cho' else 'Chưa có đơn nào.') }}{% endif %}
+{% call ui.list_foot(p, 'đơn') %}Tổng {{ view_total|money }} đ{% endcall %}
 </div>{% endblock %}

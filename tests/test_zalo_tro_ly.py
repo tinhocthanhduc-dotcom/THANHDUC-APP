@@ -278,7 +278,7 @@ def test_nhat_ky_va_man_don_nhap_kinh_doanh(client, db, shop, zalo):
     assert 'giao 2 hộp 12A' in html and 'tao_don_nhap' in html and 'Cần chọn mã' in html
     csrf = service_login(client, shop['sales'])
     html = client.get('/don-nhap-zalo').text
-    assert order.number in html and 'Kiểm và chốt' in html and 'Cần chọn mã: TD-0142: TD-0317' in html
+    assert order.number in html and 'Kiểm và chốt' in html and 'Cần chọn mã: TD-0142 hoặc TD-0317' in html
     r = client.post(f'/don-nhap-zalo/{order.id}/bo', data={'csrf': csrf, 'form_key': FK.format(1), 'version': order.version}, follow_redirects=True)
     assert r.status_code == 200
     db.expire_all()
