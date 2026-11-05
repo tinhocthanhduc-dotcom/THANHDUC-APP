@@ -3463,14 +3463,33 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 }
 
 /* Đăng web · Hàng mới nhập chưa có trên web (D7/7, 02/11/2026) */
-.dw-moi { margin: 12px 0; padding: 12px; border: 1px solid var(--warn); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.dw-moi { margin: 12px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
 .dw-moi p { margin: 0; }
-.dw-moi-n { color: var(--warn); font-size: .85rem; }
-.dw-moi-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.dw-moi-list label { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
-.dw-moi-list input { width: 20px; height: 20px; flex: none; margin-top: 2px; }
-.dw-moi-list span { min-width: 0; overflow-wrap: anywhere; }
-.dw-moi-list small { display: block; color: var(--muted); }
+.dw-moi-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.dw-moi-n { font-size: .8rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+.dw-moi-bang { display: none; overflow-x: auto; }
+.dw-moi-bang table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dw-moi-bang th { font-size: .8rem; font-weight: 600; color: var(--muted); text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.dw-moi-bang td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.dw-moi-bang tr:last-child td { border-bottom: 0; }
+.dw-moi-bang .num { text-align: right; white-space: nowrap; }
+.dw-moi-ma { font-weight: 700; white-space: nowrap; }
+.dw-moi-ten { overflow-wrap: anywhere; }
+.dw-moi-anh { display: inline-block; font-size: .78rem; padding: 1px 8px; border-radius: 999px; background: var(--tag); color: var(--muted); white-space: nowrap; }
+.dw-moi-anh.co { background: var(--ok-bg); color: var(--ok); }
+.dw-moi .dw-moi-soan { min-height: 40px; padding: 0 14px; white-space: nowrap; }
+.dw-moi-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.dw-moi-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.dw-moi-list li:last-child { border-bottom: 0; }
+.dw-moi-l1 { min-width: 0; overflow-wrap: anywhere; }
+.dw-moi-l1 b { display: block; }
+.dw-moi-l2 { grid-column: 1 / -1; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dw-moi-l2 b { color: var(--text); font-weight: 600; }
+.dw-moi-list .dw-moi-soan { min-height: 44px; }
+.dw-moi-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.dw-moi-foot a { font-weight: 600; text-decoration: none; }
+.dw-moi-g { display: none; }
+@media (min-width: 900px) { .dw-moi-bang { display: block; } .dw-moi-list { display: none; } .dw-moi-g { display: inline; } }
 .dw-ok-t { color: var(--ok); }
 
 /* Sửa ảnh 3 nhóm (TUẤN duyệt mẫu D8/8 ngày 02/11/2026) */

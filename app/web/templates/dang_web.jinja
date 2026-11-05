@@ -33,11 +33,13 @@
 {{ ui.tiles(tiles, keep_phone=true) }}
 {% if tab == 'san-pham' and hang_moi %}
 <section class="dw-moi" aria-label="Hàng mới nhập chưa có trên web">
-<p><b>Hàng mới nhập chưa có trên web</b> <span class="dw-moi-n">{{ hang_moi|length }} mã · nhập trong 30 ngày, còn tồn</span></p>
-<form method="post" action="/dang-web/soan-nhieu" id="dw-soan-nhieu" data-dw-multi data-max="{{ 10 }}">{{ csrf_in() }}</form>
-<ul class="dw-moi-list">{% for r in hang_moi[:6] %}<li><label><input type="checkbox" name="ma" value="{{ r.code }}" form="dw-soan-nhieu"><span><b>{{ r.code }}</b> {{ r.name }}<small>nhập {{ r.ngay.strftime('%d/%m') }} · tồn {{ r.ton|int }} · <span class="{{ 'dw-ok-t' if r.co_anh else '' }}">{{ 'có ảnh' if r.co_anh else 'chưa ảnh' }}</span></small></span></label></li>{% endfor %}</ul>
-<div class="dw-two"><button class="btn btn-new" form="dw-soan-nhieu" data-dw-multi-btn disabled>Soạn các mã đã chọn</button>{% if hang_moi|length > 6 %}<a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai=sp&amp;loc=chua-len&amp;moi=1">Xem tất cả {{ hang_moi|length }} mã ›</a>{% endif %}</div>
-<p class="hint">“Có ảnh” là đã có ảnh trong ~/THANHDUC-WEB/anh-goc. Mã đã ghép với sản phẩm web không hiện ở đây.</p>
+<p class="dw-moi-h"><b>Hàng mới nhập chưa có trên web</b> <span class="dw-moi-n">{{ hang_moi|length }} mã · nhập 30 ngày, còn tồn</span></p>
+<div class="dw-moi-bang"><table>
+<thead><tr><th>Mã</th><th>Tên hàng</th><th>Nhập</th><th class="num">Tồn</th><th class="num">Giá bán</th><th>Ảnh</th><th></th></tr></thead>
+<tbody>{% for r in hang_moi[:5] %}<tr><td class="dw-moi-ma">{{ r.code }}</td><td class="dw-moi-ten">{{ r.name }}</td><td class="hint">{{ r.ngay.strftime('%d/%m') }}</td><td class="num">{{ r.ton|int }}</td><td class="num">{{ r.gia|money if r.gia else 'chưa có giá' }}</td><td><span class="dw-moi-anh{{ ' co' if r.co_anh }}">{{ 'có ảnh' if r.co_anh else 'chưa ảnh' }}</span></td><td class="num"><a class="btn btn-ghost dw-moi-soan" href="/dang-web/soan?loai=san-pham&amp;ma={{ r.code|urlquote }}">Soạn ›</a></td></tr>{% endfor %}</tbody>
+</table></div>
+<ul class="dw-moi-list">{% for r in hang_moi[:5] %}<li><span class="dw-moi-l1"><b>{{ r.code }}</b>{{ r.name }}</span><a class="btn btn-ghost dw-moi-soan" href="/dang-web/soan?loai=san-pham&amp;ma={{ r.code|urlquote }}">Soạn ›</a><span class="dw-moi-l2">Tồn <b>{{ r.ton|int }}</b> · Giá <b>{{ r.gia|money if r.gia else 'chưa có' }}</b> · {{ 'có ảnh' if r.co_anh else 'nhập ' ~ r.ngay.strftime('%d/%m') }}</span></li>{% endfor %}</ul>
+<div class="dw-moi-foot"><span class="hint dw-moi-g">Mới nhập nhất ở trên. Soạn được cả khi chưa có ảnh.</span>{% if hang_moi|length > 5 %}<a href="/dang-web?tab=tren-web&amp;loai=sp&amp;loc=chua-len&amp;moi=1">Xem tất cả {{ hang_moi|length }} mã ›</a>{% endif %}</div>
 </section>
 {% endif %}
 {% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-m">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã đã có ảnh trên Z2</button><span class="hint">Lấy ảnh anh đã chép vào ~/THANHDUC-WEB/anh-goc.</span></form>{% endif %}
