@@ -31,6 +31,8 @@ GROUPS = (
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
+        # Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn nháp trợ lý lập từ tin Zalo, kinh doanh kiểm và chốt.
+        {'label': 'Đơn nháp từ Zalo', 'href': '/don-nhap-zalo', 'prefixes': ('/don-nhap-zalo',), 'roles': ('sales',)},
         # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
         {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
     )},
@@ -102,6 +104,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',)},
         {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan',), 'roles': ('director',)},
+        {'label': 'Trợ lý Zalo', 'href': '/zalo/tro-ly', 'prefixes': ('/zalo/tro-ly',), 'roles': ('director',)},
         {'label': 'Tốc độ app', 'href': '/toc-do', 'prefixes': ('/toc-do',), 'roles': ('director','admin')},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
         {'label': 'Phiếu lương', 'href': '/phieu-luong', 'prefixes': ('/phieu-luong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},

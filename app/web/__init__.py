@@ -947,3 +947,5 @@ from .ai import router as ai_router
 router.include_router(ai_router)
 from .zalo import router as zalo_router
 router.include_router(zalo_router)
+from .zalo_tro_ly import router as zalo_tro_ly_router
+router.include_router(zalo_tro_ly_router)

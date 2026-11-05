@@ -2064,7 +2064,8 @@ class AiAction(Base):
 class ZaloChat(Base):
     """Một hội thoại của bot Zalo: người chat riêng hoặc một nhóm."""
     __tablename__ = 'zalo_chats'
-    __table_args__ = (UniqueConstraint('chat_id', name='uq_zalo_chats_chat_id'), Index('ix_zalo_chats_last', 'last_message_at', 'id'))
+    __table_args__ = (UniqueConstraint('chat_id', name='uq_zalo_chats_chat_id'), Index('ix_zalo_chats_last', 'last_message_at', 'id'),
+                      CheckConstraint('user_id is null or customer_code is null', name='ck_zalo_chats_one_link'))
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     chat_id: Mapped[str] = mapped_column(String(64))
     chat_type: Mapped[str] = mapped_column(String(16))
@@ -2074,6 +2075,11 @@ class ZaloChat(Base):
     unread: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     notice_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # 0077 Trợ lý Zalo: một hội thoại riêng gắn với một nhân viên hoặc một khách (không cả hai). Chỉ giám đốc gắn.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey('customers.code'))
+    linked_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ZaloMessage(Base):
@@ -2095,4 +2101,42 @@ class ZaloMessage(Base):
     error: Mapped[str] = mapped_column(Text, default='', server_default='')
     raw: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
     message_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ZaloTroLy(Base):
+    """Cấu hình Trợ lý Zalo, một dòng duy nhất. Mặc định tắt; giám đốc bật trên màn Trợ lý Zalo."""
+    __tablename__ = 'zalo_tro_ly'
+    __table_args__ = (CheckConstraint('id = 1', name='ck_zalo_tro_ly_one_row'),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    # Đơn nháp khách nhắn được lập dưới tên người này (kinh doanh), để họ kiểm và chốt.
+    draft_user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ZaloAgentLog(Base):
+    """Một tin đến đã qua Trợ lý Zalo: ai hỏi, AI đã tra gì, trả lời gì, đơn nháp nào, tốn bao nhiêu."""
+    __tablename__ = 'zalo_agent_logs'
+    __table_args__ = (UniqueConstraint('message_id', name='uq_zalo_agent_logs_message'),
+                      CheckConstraint("asker in ('NHAN_VIEN','KHACH','CHUA_GAN')", name='ck_zalo_agent_logs_asker'),
+                      Index('ix_zalo_agent_logs_created', 'created_at', 'id'), Index('ix_zalo_agent_logs_chat', 'chat_pk', 'created_at'),
+                      Index('ix_zalo_agent_logs_order', 'order_id', postgresql_where=text('order_id is not null')))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat_pk: Mapped[int] = mapped_column(ForeignKey('zalo_chats.id'))
+    message_id: Mapped[int] = mapped_column(ForeignKey('zalo_messages.id'))
+    asker: Mapped[str] = mapped_column(String(12))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey('customers.code'))
+    question: Mapped[str] = mapped_column(Text, default='', server_default='')
+    tools: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')
+    answer: Mapped[str] = mapped_column(Text, default='', server_default='')
+    result: Mapped[str] = mapped_column(String(16))
+    order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'))
+    need_pick: Mapped[str] = mapped_column(Text, default='', server_default='')
+    tokens_in: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    tokens_out: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    cost_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    error: Mapped[str] = mapped_column(Text, default='', server_default='')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

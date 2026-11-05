@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     zalo_bot_token: str = ''
     zalo_webhook_secret: str = ''
     zalo_webhook_url: str = 'https://quanlythanhduc.com/zalo/webhook'
+    # Trợ lý Zalo (TUẤN duyệt 05/11/2026): hỏi tồn kho, đơn nháp. Khóa OpenAI dùng chung với Đăng web.
+    openai_api_key: str = ''
+    zalo_ai_model: str = 'gpt-5-mini'
+    zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
+    zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
 
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'
