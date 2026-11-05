@@ -75,8 +75,7 @@ def _form(request, session, data=None, error='', error_code='', status=200):
     data = data or dict(customer_code='', serial='', symptom='', accessories=[], accessories_note='', condition_note='', expected='', expected_pick='')
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     sites, machines = _choices(session, data['customer_code'])
-    if not error and not data.get('serial') and len(machines) == 1:
-        data['serial'] = machines[0][0].serial
+    # TUẤN 05/11: không tự chọn máy cũ của khách, nhân viên quầy tự chọn đúng máy khách mang tới.
     today = _today()
     days = [('Hôm nay', today), ('Ngày mai', today + timedelta(days=1)), ('2 ngày', today + timedelta(days=2)), ('3 ngày', today + timedelta(days=3))]
     return render(request, 'quay_nhan.jinja', d=data, customer_card=picked.customer_cards(session, request.state.user, [customer]).get(customer.code) if customer else None,
@@ -107,7 +106,7 @@ def pick_machine(request: Request, customer_code: str = '', user: User = Depends
     counter._require(user)
     sites, machines = _choices(session, customer_code)
     return render(request, 'quay_chon_may.jinja', machines=machines, can_create_machine=True,
-                  d=dict(serial=machines[0][0].serial if len(machines) == 1 else ''))
+                  d=dict(serial=''))
 
 
 async def _photo(form, name='photo'):
