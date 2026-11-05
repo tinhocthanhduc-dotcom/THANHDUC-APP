@@ -3277,7 +3277,9 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .dw-xrow > input { width: 22px; height: 22px; }
 .dw-xrow > select { grid-column: 2; min-width: 0; }
 .dw-cols { display: grid; gap: 12px; min-width: 0; }
-.dw-cols > div { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.dw-cols > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; min-width: 0; }
+/* Chữ dài liền (link nguồn AI ghi trong 'Cần anh kiểm tra', slug) không được đẩy cột phải tràn khỏi màn hình (TUẤN 05/11). */
+.dw-page .alert, .dw-page li, .dw-page .hint { overflow-wrap: anywhere; }
 @media (min-width: 1024px) {
   .dw-m { display: none !important; }
   .dw-d { display: block; min-width: 0; overflow-wrap: anywhere; }
