@@ -118,6 +118,9 @@ def test_web_counter_flow_for_sales(client, db, shop):
     assert page.status_code == 200 and 'Nhận máy khách mang tới' in page.text
     form = client.get('/quay-sua/nhan?customer_code=KTD-000001')
     assert form.status_code == 200 and 'QUAY-01' in form.text
+    # TUẤN 05/11: khách chỉ có một máy cũng không chọn sẵn, quầy tự chọn đúng máy mang tới.
+    assert '<option value="QUAY-01" selected>' not in form.text
+    assert '<option value="QUAY-01" selected>' not in client.get('/quay-sua/chon-khach?customer_code=KTD-000001').text
     from test_web import csrf_of
     csrf = csrf_of(form.text)
     r = client.post('/quay-sua/nhan', data=dict(csrf=csrf, form_key=str(uuid.uuid4()), customer_code='KTD-000001', serial='QUAY-01', symptom='Kẹt giấy liên tục',
