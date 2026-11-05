@@ -10,7 +10,7 @@
 {% if late_flash %}<p class="alert ok" role="status" data-late-flash>{{ late_flash }}</p>{% endif %}
 {% for item in soon %}{% set row = item.ticket %}<section class="tho-late" data-soon="{{ row.id }}" aria-label="Sắp tới giờ hẹn">
 <b>{{ soon_label(item) }} tới hẹn {% if row.appointment_slot in ['SANG','CHIEU'] %}{{ row.appointment_at|appointment_label(row.appointment_slot) }}{% else %}{{ item.deadline.astimezone(vn_tz).strftime('%H:%M') }}{% endif %}</b>
-<span>{{ row.number }} · {{ soon_customers.get(row.customer_code, row.customer_code) }}</span>
+<span>{{ soon_customers.get(row.customer_code, row.customer_code) }}{% if row.symptom %} · {{ row.symptom|truncate(60) }}{% endif %}</span>
 {% if item.late %}<span class="hint">Bạn đã báo: {{ item.late.note|lower }}. Điều phối đang gọi khách.</span>{% else %}<span class="hint">Đi bây giờ, hay báo trễ để điều phối gọi khách?</span>{% endif %}
 <div class="tl-acts"><form method="post" action="/tho/phieu/{{ row.id }}/di"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn-new">Đi ngay</button></form>
 <details><summary class="btn btn-ghost">Báo trễ</summary><div>{% for key, label in late_choices.items() %}<form method="post" action="/tho/phieu/{{ row.id }}/bao-tre"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tre" value="{{ key }}"><button class="btn btn-ghost">{{ label }}</button></form>{% endfor %}</div></details></div>
