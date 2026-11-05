@@ -73,7 +73,8 @@ def drafts(request: Request, view: str = 'cho', trang: str = '', so: str = '', b
     orders, log_rows = agent.drafts(session, user, view, p['offset'], p['size'])
     custs = {c.code: c for c in session.scalars(select(Customer).where(Customer.code.in_({o.customer_code for o in orders})))}
     return render(request, 'don_nhap_zalo.jinja', view=view, views=agent.DRAFT_VIEWS, counts=counts, orders=orders, logs=log_rows,
-                  custs=custs, p=p, bo=bo, askers=agent.ASKERS)
+                  custs=custs, p=p, bo=bo, askers=agent.ASKERS,
+                  view_total=agent.draft_total(session, view))
 
 
 @router.post('/don-nhap-zalo/{order_id}/bo')
