@@ -1,0 +1,27 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Báo cáo sáng{% endblock %}
+{% block main %}<div class="page-wide">
+{# Báo cáo sáng qua Zalo (TUẤN duyệt 05/11/2026): chỉ giám đốc. #}
+{% call ui.page_head('Báo cáo sáng qua Zalo', sub='App tự gửi lúc ' ~ at ~ ' các ngày làm việc (không Chủ nhật, không ngày lễ) cho giám đốc đã gắn Zalo.') %}{% endcall %}
+
+{% if gui == 'ok' %}<section class="card zalo-note" aria-live="polite"><b>Đã gửi thử.</b> Anh xem tin trên Zalo.</section>
+{% elif gui == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Tin chưa gửi được.</b> Xem lý do ở <a href="/zalo/tin-nhan">Tin nhắn Zalo</a>.</section>
+{% elif gui == 'chua-gan' %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa gửi được.</b> Zalo của anh chưa được gắn với tài khoản giám đốc.</section>{% endif %}
+
+<section class="card">
+<p>Trạng thái: {{ ui.badge('Đang bật', 'xong') if enabled and has_token else ui.badge('Chưa chạy', 'cho') }}
+ · Zalo của anh: {{ ui.badge('Đã gắn', 'xong') if linked else ui.badge('Chưa gắn', 'cho') }}</p>
+{% if not has_token %}<p class="hint">Thêm TD_ZALO_BOT_TOKEN vào deploy/.env rồi cập nhật app.</p>{% endif %}
+{% if not enabled %}<p class="hint">Đang tắt bằng TD_MORNING_REPORT=false trong deploy/.env.</p>{% endif %}
+{% if not linked %}<p class="hint">Nhắn một tin bất kỳ cho bot Zalo, rồi vào <a href="/zalo/tin-nhan">Tin nhắn Zalo</a>, mở hội thoại của anh, chọn <b>Gắn nhân viên</b> là tài khoản của anh.</p>{% endif %}
+{% if linked and has_token %}<form method="post" action="/zalo/bao-cao-sang/gui-thu"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ok">Gửi thử cho tôi qua Zalo</button></form>{% endif %}
+</section>
+
+<section class="card">
+<h2>Nội dung nếu gửi lúc này</h2>
+<pre class="zalo-preview">{{ body }}</pre>
+</section>
+</div>
+<style>.zalo-preview{white-space:pre-wrap;word-break:break-word;font:inherit;line-height:1.5;margin:0;max-width:520px}</style>
+{% endblock %}

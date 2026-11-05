@@ -15,6 +15,7 @@
 <p class="hint">Địa chỉ nhận tin: <code>{{ webhook_url }}</code>. Sau khi cài, lệnh getUpdates của bot này không dùng được nữa.</p>
 {% if has_token and has_secret %}<form method="post" action="/zalo/tin-nhan/cai-webhook"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ghost">Cài webhook</button></form>
 {% else %}<p class="hint">Thêm TD_ZALO_BOT_TOKEN và TD_ZALO_WEBHOOK_SECRET vào deploy/.env rồi cập nhật app.</p>{% endif %}
+<p><a class="btn btn-ghost" href="/zalo/bao-cao-sang">Báo cáo sáng ›</a></p>
 </details>
 
 <div class="zalo-grid">
