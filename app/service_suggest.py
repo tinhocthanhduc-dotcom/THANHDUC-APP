@@ -24,6 +24,7 @@ from .models import (AttendancePunch, AttendanceRequest, Customer, CustomerSite,
                      ServiceLine, ServiceStep, ServiceTicket, ServiceVisit, StockBalance, User, Warehouse)
 from .service_sla import TZ
 from .text import fold
+from .text import fold
 
 NOTE_FOLLOW = 'Theo gợi ý'
 NOTE_OTHER = 'Chọn khác gợi ý'
@@ -119,8 +120,11 @@ class Tech:
 
 
 def _technicians(session):
-    return list(session.scalars(select(User).where(User.active.is_(True), User.roles.any(service_tickets.TECHNICIAN))
-                                .order_by(User.full_name, User.id)))
+    """Thợ được đưa vào gợi ý. Không gợi ý giám đốc, kể cả tài khoản phụ cùng tên giám đốc (TUẤN 05/11/2026)."""
+    users = list(session.scalars(select(User).where(User.active.is_(True), User.roles.any(service_tickets.TECHNICIAN))
+                                 .order_by(User.full_name, User.id)))
+    bosses = {fold(n) for n in session.scalars(select(User.full_name).where(User.roles.any('director'))) if fold(n)}
+    return [u for u in users if 'director' not in u.roles and fold(u.full_name) not in bosses]
 
 
 def _day_bounds(day: date):
@@ -349,8 +353,8 @@ def rank_many(session, tickets, now=None, techs=None) -> dict:
                 why.append(know)
             else:
                 know = 'Chưa'
-            if 'dispatcher' in x.user.roles or 'director' in x.user.roles:
-                score -= 8  # thợ kiêm điều phối/giám đốc: ưu tiên để thợ khác đi trước khi ngang điểm
+            if 'dispatcher' in x.user.roles:
+                score -= 8  # thợ kiêm điều phối: ưu tiên để thợ khác đi trước khi ngang điểm
                 free += ' · kiêm điều phối'
             if blocked:
                 score -= 1000
