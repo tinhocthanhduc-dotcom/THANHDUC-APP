@@ -6,12 +6,14 @@ Chạy trên máy chủ bằng cron của user tuan (chỉ cần python3 và doc
 
 Script CHỈ ĐỌC: không xóa, không khởi động lại, không vào database. Nó gom tình trạng máy rồi gửi cho n8n
 (workflow deploy/n8n/canh-may.json). n8n quyết định nhắn gì (lỗi mới, nhắc lại mỗi 2 giờ, đã ổn lại, báo cáo 8:00)
-và trả danh sách tin về; script gửi các tin đó qua bot Zalo của app. Token bot chỉ nằm trong deploy/.env.
+và trả danh sách tin về; script gửi các tin đó qua bot Zalo RIÊNG cho canh máy (TUẤN chọn 05/11/2026, để app hỏng
+vẫn báo được). Chưa có bot riêng thì tạm dùng bot của app. Token bot chỉ nằm trong deploy/.env.
 Nếu n8n không trả lời, script tự nhắn thẳng Zalo (tối đa 2 giờ một lần) để vẫn có cảnh báo.
 
 Biến trong deploy/.env:
-  TD_ZALO_BOT_TOKEN       token bot Zalo (đã có cho màn Tin nhắn Zalo)
-  CANH_MAY_ZALO_CHAT_ID   mã cuộc trò chuyện nhận tin, xem ở màn Tin nhắn Zalo; nhiều mã cách nhau dấu phẩy
+  CANH_MAY_ZALO_BOT_TOKEN token bot Zalo riêng cho canh máy (bỏ trống thì dùng TD_ZALO_BOT_TOKEN của app)
+  CANH_MAY_ZALO_CHAT_ID   mã cuộc trò chuyện nhận tin; nhiều mã cách nhau dấu phẩy.
+                          Bot riêng: nhắn bot một câu rồi chạy --lay-ma-chat. Bot của app: xem ở màn Tin nhắn Zalo.
   CANH_MAY_N8N_URL        mặc định http://192.168.10.200:5678/webhook/canh-may
   CANH_MAY_KHOA           mã bí mật gửi kèm header X-Canh-May-Khoa, trùng với credential trong n8n
 Tùy chọn: CANH_MAY_WEB_URL, CANH_MAY_GIO_SAO_LUU (23:00), CANH_MAY_N8N_CONTAINER (n8n-n8n-1), BACKUP_DIR, RCLONE_REMOTE.
@@ -19,6 +21,7 @@ Tùy chọn: CANH_MAY_WEB_URL, CANH_MAY_GIO_SAO_LUU (23:00), CANH_MAY_N8N_CONTAI
 Lệnh thử:
   python3 scripts/canh_may.py --xem       in tình trạng, không gửi gì
   python3 scripts/canh_may.py --thu-zalo  gửi một tin thử qua Zalo để kiểm tra token và mã cuộc trò chuyện
+  python3 scripts/canh_may.py --lay-ma-chat  in mã chat của người vừa nhắn bot riêng (bot không cài webhook)
 """
 from __future__ import annotations
 
@@ -68,7 +71,8 @@ def cau_hinh(env: dict[str, str]) -> dict:
     def get(key: str, default: str = '') -> str:
         return os.environ.get(key) or env.get(key) or default
     return {
-        'token': get('TD_ZALO_BOT_TOKEN').strip(),
+        'token': (get('CANH_MAY_ZALO_BOT_TOKEN') or get('TD_ZALO_BOT_TOKEN')).strip(),
+        'bot_rieng': bool(get('CANH_MAY_ZALO_BOT_TOKEN').strip()),
         'chat_ids': [c.strip() for c in get('CANH_MAY_ZALO_CHAT_ID').split(',') if c.strip()],
         'n8n_url': get('CANH_MAY_N8N_URL', 'http://192.168.10.200:5678/webhook/canh-may'),
         'khoa': get('CANH_MAY_KHOA'),
@@ -315,7 +319,7 @@ def gui_n8n(cfg: dict, payload: dict) -> list[str]:
 
 def gui_zalo(cfg: dict, text: str) -> bool:
     if not cfg['token'] or not cfg['chat_ids']:
-        print('  Chưa có TD_ZALO_BOT_TOKEN hoặc CANH_MAY_ZALO_CHAT_ID, không gửi được Zalo.')
+        print('  Chưa có CANH_MAY_ZALO_BOT_TOKEN (hoặc TD_ZALO_BOT_TOKEN) hoặc CANH_MAY_ZALO_CHAT_ID, không gửi được Zalo.')
         return False
     ok = True
     for chat in cfg['chat_ids']:
@@ -332,6 +336,51 @@ def gui_zalo(cfg: dict, text: str) -> bool:
             ok = False
             print(f'  Lỗi gửi Zalo: {type(exc).__name__}')
     return ok
+
+
+def doc_ma_chat(body) -> list[tuple[str, str, str]]:
+    """Lấy (mã chat, tên, câu nhắn) từ kết quả getUpdates; Zalo có thể trả một tin hoặc danh sách."""
+    res = body.get('result') if isinstance(body, dict) else None
+    items = res if isinstance(res, list) else [res]
+    out: list[tuple[str, str, str]] = []
+    for it in items:
+        msg = it.get('message') if isinstance(it, dict) else None
+        chat = msg.get('chat') if isinstance(msg, dict) else None
+        if not isinstance(chat, dict) or not chat.get('id'):
+            continue
+        nguoi = msg.get('from') if isinstance(msg.get('from'), dict) else {}
+        ten = str(chat.get('display_name') or nguoi.get('display_name') or chat.get('title') or '')
+        dong = (str(chat['id']), ten, str(msg.get('text') or '')[:60])
+        if dong not in out:
+            out.append(dong)
+    return out
+
+
+def lay_ma_chat(cfg: dict) -> int:
+    if not cfg['bot_rieng']:
+        print('Chưa đặt CANH_MAY_ZALO_BOT_TOKEN trong deploy/.env. Bot của app thì xem mã chat ở màn Tin nhắn Zalo.')
+        return 1
+    print('Đang chờ tin nhắn tới bot canh máy (tối đa 30 giây)... Hãy nhắn bot một câu bất kỳ từ Zalo.')
+    req = urllib.request.Request(f"{ZALO_API}{cfg['token']}/getUpdates", method='POST',
+                                 data=json.dumps({'timeout': 30}).encode(), headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            body = json.loads(resp.read() or b'{}')
+    except Exception as exc:  # noqa: BLE001 - không in URL vì có token
+        print(f'Không đọc được tin từ Zalo: {type(exc).__name__}. Chạy lại lệnh, rồi nhắn bot ngay sau đó.')
+        return 1
+    if isinstance(body, dict) and body.get('ok') is False:
+        print(f'Zalo từ chối: {str(body.get("description") or body)[:200]}')
+        print('Nếu bot này đã cài webhook thì không dùng getUpdates được; bot canh máy KHÔNG cài webhook.')
+        return 1
+    rows = doc_ma_chat(body)
+    if not rows:
+        print('Chưa thấy tin nào. Chạy lại lệnh, rồi nhắn bot ngay trong 30 giây.')
+        return 1
+    for ma, ten, cau in rows:
+        print(f'Mã chat: {ma}   Tên: {ten or "?"}   Tin: {cau}')
+    print('Chép mã chat vào dòng CANH_MAY_ZALO_CHAT_ID trong deploy/.env.')
+    return 0
 
 
 def tin_du_phong(payload: dict, loi: str) -> str:
@@ -369,6 +418,8 @@ def ghi_state(p: Path, state: dict) -> None:
 def main(argv: list[str]) -> int:
     cfg = cau_hinh(doc_env(ROOT / 'deploy' / '.env'))
     now = datetime.now(VN)
+    if '--lay-ma-chat' in argv:
+        return lay_ma_chat(cfg)
     if '--thu-zalo' in argv:
         ok = gui_zalo(cfg, f'🟢 Tin thử canh máy chủ từ {os.uname().nodename} lúc {hd(now)}. Nhận được tin này là Zalo đã thông.')
         print('Đã gửi tin thử.' if ok else 'Gửi tin thử KHÔNG được.')
