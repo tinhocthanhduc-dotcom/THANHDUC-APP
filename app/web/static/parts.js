@@ -58,3 +58,44 @@ document.addEventListener('click', event => {
   picker.querySelector('[data-part-name]').textContent = button.dataset.name;
   picker.querySelector('.part-options').replaceChildren();
 });
+// Mẫu MucGiaoTho (TUẤN duyệt 05/11/2026): bảng linh kiện/mực của phiếu như dòng đơn bán.
+// Đếm thay đổi chưa lưu, đánh số lại, gạch dòng bấm ✕; nút Lưu danh sách chỉ sáng khi có thay đổi.
+document.querySelectorAll('[data-part-list]').forEach(form => {
+  const save = form.querySelector('[data-pl-save]');
+  const dirtyText = form.querySelector('[data-pl-dirty]');
+  const reset = form.querySelector('[data-pl-reset]');
+  const countText = form.querySelector('[data-pl-count]');
+  const unit = countText && /hộp/.test(countText.textContent) ? 'hộp' : 'cái';
+  const num = text => Number(String(text || '').replace(',', '.')) || 0;
+  const update = () => {
+    let dirty = 0, codes = 0, total = 0, n = 0;
+    form.querySelectorAll('.pl-row').forEach(row => {
+      n += 1; const no = row.querySelector('.pl-no'); if (no) no.textContent = n;
+      const qty = row.querySelector('[data-part-qty]');
+      const box = row.querySelector('[data-pl-remove]');
+      const removed = !!(box && box.checked);
+      row.classList.toggle('pl-del', removed);
+      const changed = row.classList.contains('pl-new') || removed || (qty && row.dataset.plOrig !== undefined && num(qty.value) !== num(row.dataset.plOrig));
+      row.classList.toggle('pl-chg', !!changed && !removed && !row.classList.contains('pl-new'));
+      if (changed) dirty += 1;
+      if (!removed) { codes += 1; total += qty ? num(qty.value) : num((row.querySelector('.pl-fixed') || {}).textContent?.replace('×', '')); }
+    });
+    if (countText) countText.textContent = codes + ' mã · ' + String(Math.round(total * 1000) / 1000).replace('.', ',') + ' ' + unit;
+    if (save) save.disabled = dirty === 0;
+    if (reset) reset.hidden = dirty === 0;
+    if (dirtyText) { dirtyText.textContent = dirty ? dirty + ' thay đổi chưa lưu' : 'Đã lưu'; dirtyText.classList.toggle('pl-dirty', dirty > 0); }
+  };
+  form.addEventListener('input', update);
+  form.addEventListener('change', update);
+  form.addEventListener('part-added', () => {
+    // Chọn lại mã đang gạch xóa thì bỏ gạch (cộng số lượng vào dòng đó).
+    form.querySelectorAll('[data-pl-remove]:checked').forEach(box => {
+      const row = box.closest('.pl-row'), qty = row.querySelector('[data-part-qty]');
+      if (qty && num(qty.value) !== num(row.dataset.plOrig)) box.checked = false;
+    });
+    const empty = form.querySelector('[data-pl-empty]'); if (empty) empty.hidden = true;
+    update();
+  });
+  form.addEventListener('click', event => { if (event.target.closest('[data-part-remove]')) setTimeout(update, 0); });
+  update();
+});

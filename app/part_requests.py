@@ -105,14 +105,78 @@ def create_many(session, user, ticket_id, version, bodies):
     return rows
 
 
-def add_ink_in_tx(session, user, ticket, lines):
-    """Nhận đơn Mực định kỳ: mỗi mã mực một yêu cầu Chờ cấp, cùng transaction tạo phiếu (caller giữ khóa)."""
-    if len(lines) > 20:
-        raise BusinessError('TOO_MANY_LINES', 'Mỗi phiếu chọn tối đa 20 mã mực.')
-    codes = [code for code, _ in lines]
-    duplicate = next((c for c in codes if codes.count(c) > 1), None)
-    if duplicate:
-        raise BusinessError('DUPLICATE_PRODUCT', f'Mã {duplicate} được chọn hai lần, hãy gộp thành một dòng.')
+LIST_REMOVE_NOTE = {True: 'Bỏ khỏi danh sách mực', False: 'Bỏ khỏi danh sách linh kiện'}
+
+
+def save_list(session, user, ticket_id, version, edits, removes, adds):
+    """Mẫu MucGiaoTho TUẤN duyệt 05/11/2026: sửa danh sách linh kiện/mực của phiếu như dòng đơn bán.
+
+    edits: [(id, version, qty)], removes: [(id, version)], adds: [(code, qty)] (chỉ phiếu Mực định kỳ).
+    Chỉ dòng Chờ cấp được sửa/xóa; kho vẫn cấp từng dòng như cũ. Một dòng lỗi thì không lưu gì.
+    """
+    if len(edits) + len(adds) > 40 or len(removes) > 40:
+        raise BusinessError('TOO_MANY_LINES', 'Danh sách quá dài, hãy lưu từng phần.')
+    with _transaction(session):
+        ticket = _ticket(session, ticket_id)
+        check_requester(user, ticket)
+        svc._check_version(ticket, version)
+        if ticket.status not in svc.OPEN:
+            raise BusinessError('BAD_STATUS', 'Phiếu đã đóng, không sửa danh sách được.', status=409)
+        ids = [i for i, *_ in edits] + [i for i, _ in removes]
+        if len(ids) != len(set(ids)):
+            raise BusinessError('BAD_LINES', 'Danh sách không hợp lệ, hãy tải lại trang.')
+        rows = {r.id: r for r in session.scalars(select(PartRequest).where(PartRequest.id.in_(ids))
+                .order_by(PartRequest.id).with_for_update().execution_options(populate_existing=True))} if ids else {}
+        now = datetime.now(UTC)
+
+        def locked(ident, row_version):
+            row = rows.get(ident)
+            if row is None or row.ticket_id != ticket.id:
+                raise BusinessError('NOT_FOUND', 'Không tìm thấy yêu cầu trên phiếu này.', status=404)
+            if row.version != row_version:
+                raise BusinessError('VERSION_CONFLICT', f'{row.number} vừa được người khác cập nhật, hãy tải lại.', {'current': row.version}, status=409)
+            if row.status != 'CHO_CAP':
+                raise BusinessError('BAD_STATUS', f'{row.number} không còn chờ cấp (kho đã xử lý), không sửa được.', status=409)
+            if row.requester_id != user.id and not has_role(user, 'dispatcher'):
+                raise BusinessError('FORBIDDEN', 'Chỉ người tạo hoặc điều phối được sửa yêu cầu linh kiện.', status=403)
+            return row
+
+        changed = []
+        for ident, row_version in removes:
+            row = locked(ident, row_version)
+            before = snapshot(row)
+            row.status, row.decision_note = 'DA_HUY', LIST_REMOVE_NOTE[ticket.kind == 'MUC_DINH_KY']
+            row.decided_by, row.decided_at = user.id, now
+            changed.append((row, 'cancel', before))
+        for ident, row_version, qty in edits:
+            row = locked(ident, row_version)
+            if qty <= 0:
+                raise BusinessError('BAD_QTY', f'Số lượng {row.product_code} phải lớn hơn 0.')
+            if row.qty != qty:
+                before = snapshot(row)
+                row.qty = qty
+                changed.append((row, 'update_qty', before))
+        if adds:
+            if ticket.kind != 'MUC_DINH_KY':
+                raise BusinessError('BAD_LINES', 'Thêm linh kiện bằng ô Cần linh kiện.')
+            codes = [c for c, _ in adds]
+            duplicate = next((c for c in codes if codes.count(c) > 1), None)
+            if duplicate:
+                raise BusinessError('DUPLICATE_PRODUCT', f'Mã {duplicate} được chọn hai lần, hãy gộp thành một dòng.')
+            pending = {r.product_code for r in session.scalars(select(PartRequest).where(
+                PartRequest.ticket_id == ticket.id, PartRequest.status == 'CHO_CAP'))}
+            for code, qty in adds:
+                if code in pending:
+                    raise BusinessError('DUPLICATE_PRODUCT', f'Mã {code} đã có trong danh sách, hãy sửa số lượng dòng đó.')
+                if qty <= 0:
+                    raise BusinessError('BAD_QTY', f'Số lượng {code} phải lớn hơn 0.')
+            changed += [(row, 'create', None) for row in _ink_rows(session, user, ticket, adds)]
+        for row, action, before in changed:
+            _audit(session, user, row, action, before)
+    return [row for row, _, _ in changed]
+
+
+def _ink_rows(session, user, ticket, lines):
     now = datetime.now(UTC)
     rows = []
     for code, qty in lines:
@@ -123,6 +187,18 @@ def add_ink_in_tx(session, user, ticket, lines):
                           requester_id=user.id, product_code=product.code, qty=qty, reason=INK_REASON, status='CHO_CAP')
         session.add(row)
         rows.append(row)
+    return rows
+
+
+def add_ink_in_tx(session, user, ticket, lines):
+    """Nhận đơn Mực định kỳ: mỗi mã mực một yêu cầu Chờ cấp, cùng transaction tạo phiếu (caller giữ khóa)."""
+    if len(lines) > 20:
+        raise BusinessError('TOO_MANY_LINES', 'Mỗi phiếu chọn tối đa 20 mã mực.')
+    codes = [code for code, _ in lines]
+    duplicate = next((c for c in codes if codes.count(c) > 1), None)
+    if duplicate:
+        raise BusinessError('DUPLICATE_PRODUCT', f'Mã {duplicate} được chọn hai lần, hãy gộp thành một dòng.')
+    rows = _ink_rows(session, user, ticket, lines)
     for row in rows:
         _audit(session, user, row, 'create')
     return rows
