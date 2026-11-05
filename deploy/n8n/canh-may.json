@@ -1,0 +1,81 @@
+{
+  "name": "Canh máy chủ Z2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "canh-may",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6f1d2c1e-0b7a-4c51-9a55-3f0c1f1a0001",
+      "name": "Nhận tình trạng",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "0c4f7a52-5c0e-4b8e-9d0a-1c2a00000001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bộ não canh máy (TUẤN duyệt 05/11/2026). Nhận tình trạng từ scripts/canh_may.py, trả danh sách tin Zalo cần gửi.\n// Nhớ trạng thái giữa các lần chạy trong static data của workflow (chỉ lưu khi workflow đang Active).\nconst NHAC_LAI_MS = 2 * 60 * 60 * 1000;   // còn lỗi thì nhắc lại mỗi 2 giờ\nconst GIO_BAO_CAO = 8;                     // báo cáo sáng sau 8:00 giờ Việt Nam\nconst body = $input.first().json.body || {};\nconst s = $getWorkflowStaticData('global');\ns.dem = s.dem || {};\ns.dang_bao = s.dang_bao || {};\nconst now = Date.now();\nconst vn = new Date(now + 7 * 3600 * 1000);\nconst homNay = vn.toISOString().slice(0, 10);\nconst dau = m => (m === 'do' ? '🔴' : '🟡');\nconst gui = [];\nconst coMat = new Set();\n\nfor (const v of body.van_de || []) {\n  coMat.add(v.ma);\n  s.dem[v.ma] = (s.dem[v.ma] || 0) + 1;\n  if (s.dem[v.ma] < (v.can_lien_tiep || 1)) continue;\n  const cu = s.dang_bao[v.ma];\n  const noiDung = `${dau(v.muc)} ${v.tieu_de}` + (v.chi_tiet ? `\\n${v.chi_tiet}` : '');\n  if (!cu) {\n    gui.push(noiDung);\n  } else if (cu.muc !== 'do' && v.muc === 'do') {\n    gui.push(noiDung);                                  // từ vàng lên đỏ thì báo ngay\n  } else if (now - cu.luc >= NHAC_LAI_MS) {\n    gui.push(`Vẫn chưa ổn: ${noiDung}`);\n  } else {\n    s.dang_bao[v.ma] = { ...cu, tieu_de: v.tieu_de, muc: v.muc };\n    continue;\n  }\n  s.dang_bao[v.ma] = { tieu_de: v.tieu_de, muc: v.muc, luc: now };\n}\n\nfor (const ma of Object.keys(s.dem)) if (!coMat.has(ma)) delete s.dem[ma];\nfor (const ma of Object.keys(s.dang_bao)) {\n  if (coMat.has(ma)) continue;\n  gui.push(`🟢 Đã ổn lại: ${s.dang_bao[ma].tieu_de}`);\n  delete s.dang_bao[ma];\n}\n\nif (vn.getUTCHours() >= GIO_BAO_CAO && s.ngay_bao_cao !== homNay) {\n  s.ngay_bao_cao = homNay;\n  const con = Object.values(s.dang_bao);\n  gui.push(con.length\n    ? `🟡 Báo cáo sáng · còn ${con.length} việc chưa ổn: ${con.map(x => x.tieu_de).join('; ')}\\n${body.tom_tat || ''}`\n    : `🟢 Báo cáo sáng · máy chủ ổn\\n${body.tom_tat || ''}`);\n}\n\nreturn [{ json: { gui } }];\n"
+      },
+      "id": "6f1d2c1e-0b7a-4c51-9a55-3f0c1f1a0002",
+      "name": "Quyết định nhắn gì",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "6f1d2c1e-0b7a-4c51-9a55-3f0c1f1a0003",
+      "name": "Trả tin cho script",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Nhận tình trạng": {
+      "main": [
+        [
+          {
+            "node": "Quyết định nhắn gì",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quyết định nhắn gì": {
+      "main": [
+        [
+          {
+            "node": "Trả tin cho script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "saveDataSuccessExecution": "none"
+  },
+  "pinData": {}
+}
