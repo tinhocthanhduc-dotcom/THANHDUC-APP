@@ -137,8 +137,11 @@ def test_hang_moi_nhap_chua_len_web(client, db, web_login, goc, make_user):
     may = _may(goc, _wp_co_hang())
     may.lam_moi_web()
     trang = client.get("/dang-web?tab=san-pham").text
-    assert "Hàng mới nhập chưa có trên web" in trang and 'value="TD-0001"' in trang and "TD-0002" not in trang
-    assert "tồn 2" in trang and 'action="/dang-web/soan-nhieu"' in trang
+    assert "Hàng mới nhập chưa có trên web" in trang and "TD-0002" not in trang
+    o = trang[trang.index('class="dw-moi"'):]
+    o = o[:o.index("</section>")]
+    # TUẤN 05/11: 5 dòng gọn, có tồn + giá bán + nút Soạn từng dòng, không còn ô tick
+    assert "/dang-web/soan?loai=san-pham&amp;ma=TD-0001" in o and "200.000" in o and "Tồn <b>2</b>" in o and 'type="checkbox"' not in o
     # Ghép mã với sản phẩm web rồi thì không còn gợi ý.
     hd.ghep_ma(goc, "TD-0001", 2)
     assert "Hàng mới nhập chưa có trên web" not in client.get("/dang-web?tab=san-pham").text
