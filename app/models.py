@@ -2117,11 +2117,14 @@ class ZaloMessage(Base):
 class ZaloTroLy(Base):
     """Cấu hình Trợ lý Zalo, một dòng duy nhất. Mặc định tắt; giám đốc bật trên màn Trợ lý Zalo."""
     __tablename__ = 'zalo_tro_ly'
-    __table_args__ = (CheckConstraint('id = 1', name='ck_zalo_tro_ly_one_row'),)
+    __table_args__ = (CheckConstraint('id = 1', name='ck_zalo_tro_ly_one_row'),
+                      CheckConstraint("staff_engine in ('api','codex','claude')", name='ck_zalo_tro_ly_staff_engine'))
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
     # Đơn nháp khách nhắn được lập dưới tên người này (kinh doanh), để họ kiểm và chốt.
     draft_user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    # Ai trả lời nhân viên: api (OpenAI), codex hay claude chạy bằng gói thuê bao trên máy chủ Z2. Khách luôn qua API.
+    staff_engine: Mapped[str] = mapped_column(String(8), default='api', server_default='api')
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -2149,4 +2152,23 @@ class ZaloAgentLog(Base):
     tokens_out: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     cost_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     error: Mapped[str] = mapped_column(Text, default='', server_default='')
+    engine: Mapped[str] = mapped_column(String(8), default='', server_default='')  # api / codex / claude đã thực sự trả lời
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ZaloAiJob(Base):
+    """Một lượt hỏi Codex/Claude trên máy chủ Z2 cho Trợ lý Zalo. App ghi câu lệnh, máy Z2 lấy, trả lời; app đọc tiếp."""
+    __tablename__ = 'zalo_ai_jobs'
+    __table_args__ = (CheckConstraint("engine in ('codex','claude')", name='ck_zalo_ai_jobs_engine'),
+                      CheckConstraint("status in ('CHO','DANG','XONG','LOI')", name='ck_zalo_ai_jobs_status'),
+                      Index('ix_zalo_ai_jobs_status', 'status', 'id'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    log_id: Mapped[int] = mapped_column(ForeignKey('zalo_agent_logs.id'))
+    engine: Mapped[str] = mapped_column(String(8))
+    prompt: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text, default='', server_default='')
+    status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
+    error: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

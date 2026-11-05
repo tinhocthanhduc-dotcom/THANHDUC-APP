@@ -6,17 +6,21 @@
 {# Trợ lý Zalo (TUẤN duyệt 05/11/2026): chỉ giám đốc. Trợ lý chỉ đọc tồn kho và lập đơn nháp, không chốt đơn, không đụng tiền/kho/nợ. #}
 {% call ui.page_head('Trợ lý Zalo', sub='Nhân viên hỏi tồn kho qua bot Zalo; kinh doanh và khách đã gắn nhắn đặt hàng thì trợ lý lập đơn nháp để kinh doanh kiểm và chốt.', badge_label='Đang bật' if cfg.enabled else 'Đang tắt', badge_tone='xong' if cfg.enabled else 'nhap') %}<a class="btn btn-ghost" href="/zalo/tin-nhan">Tin nhắn Zalo</a>{% endcall %}
 {% if luu %}{{ ui.toast('Đã lưu cấu hình') }}{% endif %}
-{% if not has_key %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa có khóa OpenAI.</b> Trợ lý cần OPENAI_API_KEY trong deploy/.env (khóa dùng chung với Đăng web) rồi cập nhật app.</section>{% endif %}
+{% if not has_key %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa có khóa OpenAI.</b> {% if cfg.staff_engine == 'api' %}Trợ lý cần OPENAI_API_KEY trong deploy/.env (khóa dùng chung với Đăng web) rồi cập nhật app, hoặc chọn Codex/Claude trên Z2 cho nhân viên.{% else %}Nhân viên vẫn được {{ engines[cfg.staff_engine] }} trả lời; tin đặt hàng của khách cần OPENAI_API_KEY mới lập được đơn nháp.{% endif %}</section>{% endif %}
 
 <form class="card zl-config" method="post" action="/zalo/tro-ly/cau-hinh"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <div class="row">
 <div class="field" role="group" aria-labelledby="zl-bat-t" style="flex:1 1 220px"><p class="group-label" id="zl-bat-t"><b>Trợ lý</b></p><div class="seg">
 <label><input type="radio" name="bat" value="1"{% if cfg.enabled %} checked{% endif %}><span>Bật</span></label>
 <label><input type="radio" name="bat" value="0"{% if not cfg.enabled %} checked{% endif %}><span>Tắt</span></label></div></div>
+<div class="field" role="group" aria-labelledby="zl-may-t" style="flex:1 1 320px"><p class="group-label" id="zl-may-t"><b>Ai trả lời nhân viên</b></p><div class="seg">
+{% for code, name in engines.items() %}<label><input type="radio" name="may" value="{{ code }}"{% if (cfg.staff_engine or 'api') == code %} checked{% endif %}><span>{{ engine_short[code] }}</span></label>{% endfor %}</div></div>
 <label for="zl-nguoi"><b>Người nhận đơn nháp của khách</b><select id="zl-nguoi" name="nguoi_nhan"><option value="">Chưa chọn</option>{% for u in draft_users %}<option value="{{ u.id }}"{% if cfg.draft_user_id == u.id %} selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
 <button class="btn btn-ok">Lưu</button>
 </div>
-<p class="hint">Model {{ model }}. Mỗi người tối đa {{ per_person }} câu/ngày, cả công ty {{ per_day }} câu/ngày. Tắt thì bot trở lại chỉ lưu tin như trước. Chỉ trả lời trong hội thoại riêng, không trả lời trong nhóm.</p>
+<p class="hint zl-z2">{% if not z2.has_key %}<b>Máy Z2:</b> chưa có khóa "Codex/Claude · Trợ lý Zalo" (tạo ở Trợ lý AI › Khóa truy cập).{% elif z2.paused %}<b>Máy Z2:</b> khóa đang tạm dừng.{% elif z2.alive %}<b>Máy Z2:</b> đang chạy, hỏi việc lúc {{ z2.last|vn_time }}{% if z2.waiting %} · {{ z2.waiting }} lượt đang chờ{% endif %}.{% else %}<b>Máy Z2:</b> chưa chạy{% if z2.last %} (lần cuối {{ z2.last|vn_time }}){% endif %}.{% endif %}
+{% if cfg.staff_engine != 'api' %} Máy Z2 không chạy thì nhân viên được trả lời bằng API nếu có khóa.{% endif %} Khách luôn đi qua API. Codex/Claude dùng chung lượt gói thuê bao với anh, chậm hơn API (20–60 giây mỗi câu), bot nhắn "đang tra" trước.</p>
+<p class="hint">Model API {{ model }}. Mỗi người tối đa {{ per_person }} câu/ngày, cả công ty {{ per_day }} câu/ngày. Tắt thì bot trở lại chỉ lưu tin như trước. Chỉ trả lời trong hội thoại riêng, không trả lời trong nhóm.</p>
 </form>
 
 {{ ui.tiles([
@@ -45,7 +49,7 @@
 <td data-label="Tin nhắn"><p class="zl-quote">{{ r.question[:300] }}</p>{% if r.answer %}<small class="mu">Trả lời: {{ r.answer[:300] }}</small>{% endif %}</td>
 <td data-label="AI đã tra" class="zl-tools">{% for t in r.tools %}{{ t.ten }}({{ (t.vao.values()|list|join(', '))[:60] if t.vao is mapping else '' }}) → {{ t.ra }}<br>{% else %}—{% endfor %}</td>
 <td data-label="Kết quả">{{ ui.badge(results[r.result][0], results[r.result][1]) if r.result in results else r.result }}{% if r.order_id %} <a href="/don-ban/{{ r.order_id }}">Mở đơn</a>{% endif %}{% if r.need_pick %}<br><small class="zl-warn">Cần chọn mã</small>{% endif %}{% if r.error %}<br><small class="zalo-err">{{ r.error }}</small>{% endif %}</td>
-<td data-label="Chi phí" class="num">{{ r.cost_vnd|money }} đ</td>
+<td data-label="Chi phí" class="num">{{ r.cost_vnd|money }} đ{% if r.engine %}<br><small class="mu">{{ engine_short.get(r.engine, r.engine) }}</small>{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {{ pager.bar(p, 'câu') }}
 {% else %}{{ ui.empty('Ngày này chưa có câu hỏi nào.') }}{% endif %}

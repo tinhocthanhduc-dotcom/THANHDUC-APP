@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import ai_agent as svc
 from .. import ai_dang_web as web_svc
+from .. import zalo_agent as zalo_svc
 from ..db import get_session
 from ..models import AiKey
 
@@ -18,6 +19,11 @@ def _bearer(request: Request) -> str:
 
 def ai_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
     return svc.authenticate(session, _bearer(request), request.headers, 'dieu_phoi')
+
+
+def zalo_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
+    """Khóa của máy Codex/Claude trả lời Trợ lý Zalo (phạm vi zalo): chỉ lấy câu lệnh và trả chữ."""
+    return svc.authenticate(session, _bearer(request), request.headers, 'zalo')
 
 
 def web_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
@@ -145,3 +151,25 @@ async def web_draw_upload(yc_id: str, request: Request, key: AiKey = Depends(web
 def web_draw_done(yc_id: str, body: FailIn, key: AiKey = Depends(web_key), session: Session = Depends(get_session)):
     """Codex báo vẽ xong (ly_do trống) hoặc không vẽ được (ly_do = lý do)."""
     return web_svc.xong_ve_anh(session, key, yc_id, body.ly_do)
+
+
+# ---------- Codex / Claude trả lời Trợ lý Zalo (phạm vi zalo) ----------
+
+class ZaloAnswerIn(BaseModel):
+    tra_loi: str = Field(max_length=20000)
+
+
+@router.get('/zalo/viec')
+def zalo_jobs(toi_da: int = 2, _: AiKey = Depends(zalo_key), session: Session = Depends(get_session)):
+    """Máy Z2 hỏi việc vài giây một lần (cũng là nhịp để app biết máy Z2 còn chạy). Lấy rồi thì lượt chuyển Đang làm."""
+    return zalo_svc.take_jobs(session, toi_da)
+
+
+@router.post('/zalo/viec/{job_id}/tra-loi')
+def zalo_answer(job_id: int, body: ZaloAnswerIn, _: AiKey = Depends(zalo_key), session: Session = Depends(get_session)):
+    return zalo_svc.answer_job(session, job_id, body.tra_loi)
+
+
+@router.post('/zalo/viec/{job_id}/khong-lam-duoc')
+def zalo_fail(job_id: int, body: FailIn, _: AiKey = Depends(zalo_key), session: Session = Depends(get_session)):
+    return zalo_svc.fail_job(session, job_id, body.ly_do)

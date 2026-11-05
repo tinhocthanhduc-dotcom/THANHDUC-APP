@@ -44,12 +44,14 @@ def page(request: Request, tab: str = 'gan', ngay: str = '', trang: str = '', so
                   names=agent.sender_names(session, rows), results=agent.RESULTS, askers=agent.ASKERS,
                   draft_users=agent.draft_users(session), luu=luu, has_key=bool(agent.get_settings().openai_api_key.strip()),
                   model=agent.get_settings().zalo_ai_model, per_person=agent.get_settings().zalo_ai_per_person,
-                  per_day=agent.get_settings().zalo_ai_per_day)
+                  per_day=agent.get_settings().zalo_ai_per_day, engines=agent.ENGINES, engine_short=agent.ENGINE_SHORT,
+                  z2=agent.z2_status(session))
 
 
 @router.post('/zalo/tro-ly/cau-hinh')
 def save(form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
-    agent.save_config(session, user, str(form.get('bat') or '') == '1', _int(form.get('nguoi_nhan')))
+    agent.save_config(session, user, str(form.get('bat') or '') == '1', _int(form.get('nguoi_nhan')),
+                      str(form.get('may') or '').strip() or None)
     return RedirectResponse('/zalo/tro-ly?luu=1', status_code=303)
 
 
