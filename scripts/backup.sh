@@ -19,11 +19,28 @@ mv "$FILE.tmp" "$FILE"
 FILES="$DIR/daily/thanhduc-files-$STAMP.tar.gz"
 "${DC[@]}" exec -T api tar -czf - -C /app/data files > "$FILES.tmp"
 mv "$FILES.tmp" "$FILES"
-if [ "$(date +%d)" = "01" ]; then cp "$FILE" "$FILES" "$DIR/monthly/"; fi
+# Dữ liệu n8n (workflow, mật khẩu đã mã hóa và khóa mã hóa) nếu máy có chạy n8n. Lỗi thì bỏ qua, không làm hỏng bản sao lưu chính.
+N8N=${N8N_CONTAINER:-$(env_get CANH_MAY_N8N_CONTAINER)}
+N8N=${N8N:-n8n-n8n-1}
+N8NFILE=""
+if docker inspect "$N8N" >/dev/null 2>&1; then
+  if docker exec "$N8N" tar -czf - -C /home/node .n8n > "$DIR/daily/n8n-$STAMP.tar.gz.tmp"; then
+    N8NFILE="$DIR/daily/n8n-$STAMP.tar.gz"
+    mv "$N8NFILE.tmp" "$N8NFILE"
+  else
+    rm -f "$DIR/daily/n8n-$STAMP.tar.gz.tmp"
+    echo "$(date -Is) Bỏ qua sao lưu n8n: không đọc được /home/node/.n8n trong $N8N"
+  fi
+fi
+if [ "$(date +%d)" = "01" ]; then cp "$FILE" "$FILES" $N8NFILE "$DIR/monthly/"; fi
 # Tên file có ngày nên sắp xếp theo tên là theo thời gian.
-for kind in 'thanhduc-2*.dump' 'thanhduc-files-*.tar.gz'; do
+for kind in 'thanhduc-2*.dump' 'thanhduc-files-*.tar.gz' 'n8n-*.tar.gz'; do
   find "$DIR/daily" -name "$kind" | sort -r | tail -n +31 | xargs -r rm --
   find "$DIR/monthly" -name "$kind" | sort -r | tail -n +13 | xargs -r rm --
 done
-if [ -n "$REMOTE" ]; then rclone sync "$DIR" "$REMOTE" --exclude backup.log; fi
+# rclone-ok: dấu "đẩy Google Drive thành công" cho scripts/canh_may.py.
+if [ -n "$REMOTE" ]; then
+  rclone sync "$DIR" "$REMOTE" --exclude backup.log --exclude canh-may.log --exclude rclone-ok --exclude '*.tmp'
+  touch "$DIR/rclone-ok"
+fi
 echo "$(date -Is) OK $FILE $(du -h "$FILE" | cut -f1) $FILES $(du -h "$FILES" | cut -f1)"
