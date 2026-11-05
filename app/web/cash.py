@@ -103,7 +103,19 @@ def _form(request,session,data,doc=None,error=None,code='',status=200,reason='',
                   category=session.get(CashCategory,data['category_code']) if data.get('category_code') else None,
                   customer=session.scalar(select(Customer).where(Customer.code==data['customer_code'])) if data.get('customer_code') else None,
                   supplier=session.get(Supplier,data['supplier_code']) if data.get('supplier_code') else None,
-                  staff=_staff(session))
+                  staff=_staff(session),categories=_categories(session,data))
+
+
+def _categories(session,data):
+    """Danh mục đúng chiều phiếu để chọn trong danh sách xổ xuống; giữ danh mục cũ đã ngừng dùng nếu phiếu đang dùng."""
+    direction={'PT':'THU','PC':'CHI'}.get(data.get('kind'))
+    if not direction:
+        return []
+    current=data.get('category_code') or ''
+    rows=session.scalars(select(CashCategory).where(CashCategory.direction==direction,
+        or_(CashCategory.active.is_(True),CashCategory.code==current)))
+    # Xếp theo ABC không dấu (Điện nước đứng ở chữ D); mục "... khác" xuống cuối.
+    return sorted(rows,key=lambda c:(fold(c.name).endswith('khac'),fold(c.name)))
 
 
 def _staff(session):

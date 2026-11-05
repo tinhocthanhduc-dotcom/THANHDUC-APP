@@ -86,15 +86,18 @@ def test_cash_form_one_column_party_toggle_and_field_errors(client, cash_people)
     assert 'data-tc-party' in page and 'data-tc-day="-1"' in page and 'data-tc-primary>Ghi sổ</button>' in page
     # Chỉ một ô đối tượng mở: khách hàng mặc định cho phiếu thu, ô NCC bị khóa.
     assert re.search(r'name="supplier_code"[^>]*disabled', page) and not re.search(r'name="customer_code"[^>]*disabled', page)
-    assert re.search(r'value="khac"\s+checked', client.get('/thu-chi/moi?loai=PC').text)
+    pc = client.get('/thu-chi/moi?loai=PC').text
+    assert re.search(r'value="khac"\s+checked', pc)
+    # Danh mục là danh sách xổ xuống đúng chiều: phiếu chi chỉ có danh mục Chi.
+    assert '<select name="category_code"' in pc and 'value="CHI-KHAC"' in pc and 'value="THU-BH"' not in pc
     r = client.post('/thu-chi/moi', data=tc_form(csrf, category_code='KHONG-CO'))
-    assert r.status_code == 400 and 'Chưa lưu được.' in r.text and 'tc-pick field-invalid' in r.text
+    assert r.status_code == 400 and 'Chưa lưu được.' in r.text and 'tc-cat field-invalid' in r.text
     r = client.post('/thu-chi/moi', data=tc_form(csrf, amount='12,5'))
     assert r.status_code == 400 and 'tc-amount field-invalid' in r.text and 'id="loi-amount"' in r.text
     r = client.post('/thu-chi/moi', data=tc_form(csrf), follow_redirects=False)
     assert r.status_code == 303
     saved = client.get(r.headers['location']).text
-    assert 'THU-BH · Thu bán hàng' in saved and 'data-picked="1"' in saved
+    assert re.search(r'<option value="THU-BH" selected>Thu bán hàng</option>', saved)
 
 
 def test_customer_form_cards_and_duplicate_under_phone(client, web_login):
