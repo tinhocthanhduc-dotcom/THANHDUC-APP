@@ -76,3 +76,25 @@ def answer(chat_pk: int, form=Depends(checked_form), user: User = Depends(web_us
     row = svc.reply(session, user, chat_pk, str(form.get('noi_dung') or ''))
     suffix = '&gui=loi' if row.status == 'LOI' else ''
     return RedirectResponse(f'/zalo/tin-nhan?chat={chat_pk}{suffix}', status_code=303)
+
+
+# Báo cáo sáng (TUẤN duyệt 05/11/2026): xem trước nội dung tin 7:30 và gửi thử cho chính mình.
+@router.get('/zalo/bao-cao-sang')
+def morning(request: Request, gui: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import dispatch_alerts, morning_report
+    svc._director(user)
+    now = morning_report.dashboard._now()
+    body = morning_report.render_text(morning_report.build(session, user, now.astimezone(TZ).date(), now), dispatch_alerts.base_url())
+    cfg = get_settings()
+    linked = any(u.id == user.id for u, _ in morning_report.recipients(session))
+    return render(request, 'zalo_bao_cao_sang.jinja', body=body, gui=gui, linked=linked, enabled=cfg.morning_report,
+                  has_token=bool(cfg.zalo_bot_token.strip()), at=cfg.morning_report_time.strftime('%H:%M'))
+
+
+@router.post('/zalo/bao-cao-sang/gui-thu')
+def morning_test(form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import morning_report
+    svc._director(user)
+    row = morning_report.send_test(session, user)
+    result = 'chua-gan' if row is None else ('loi' if row.status == 'LOI' else 'ok')
+    return RedirectResponse(f'/zalo/bao-cao-sang?gui={result}', status_code=303)

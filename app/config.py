@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     zalo_ai_model: str = 'gpt-5-mini'
     # Báo điều phối qua Zalo (TUẤN 05/11/2026): phiếu cần giao, sắp trễ hẹn, thợ báo trễ. TD_DISPATCH_ZALO=false để tắt.
     dispatch_zalo: bool = True
+    # Báo cáo sáng qua Zalo cho giám đốc (TUẤN duyệt 05/11/2026). TD_MORNING_REPORT=false để tắt; giờ gửi TD_MORNING_REPORT_TIME.
+    morning_report: bool = True
+    morning_report_time: time = time(7, 30)
     zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
     zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
     # Codex/Claude trên Z2: chờ tối đa bao nhiêu giây mỗi lượt; máy Z2 im quá bấy nhiêu giây thì coi như chưa chạy.
