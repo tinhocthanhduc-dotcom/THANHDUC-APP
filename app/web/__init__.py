@@ -945,3 +945,5 @@ router.include_router(dang_web_router)
 
 from .ai import router as ai_router
 router.include_router(ai_router)
+from .zalo import router as zalo_router
+router.include_router(zalo_router)

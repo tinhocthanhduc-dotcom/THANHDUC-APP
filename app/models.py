@@ -2059,3 +2059,40 @@ class AiAction(Base):
     decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result: Mapped[str] = mapped_column(Text, default='', server_default='')
+
+
+class ZaloChat(Base):
+    """Một hội thoại của bot Zalo: người chat riêng hoặc một nhóm."""
+    __tablename__ = 'zalo_chats'
+    __table_args__ = (UniqueConstraint('chat_id', name='uq_zalo_chats_chat_id'), Index('ix_zalo_chats_last', 'last_message_at', 'id'))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[str] = mapped_column(String(64))
+    chat_type: Mapped[str] = mapped_column(String(16))
+    display_name: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    unread: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    notice_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ZaloMessage(Base):
+    """Một tin nhận (IN) hoặc gửi (OUT) của bot Zalo. Zalo không có lịch sử nên đây là bản lưu duy nhất."""
+    __tablename__ = 'zalo_messages'
+    __table_args__ = (UniqueConstraint('zalo_message_id', name='uq_zalo_messages_zalo_id'),
+                      CheckConstraint("direction in ('IN','OUT')", name='ck_zalo_messages_direction'),
+                      Index('ix_zalo_messages_chat', 'chat_pk', 'message_at', 'id'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat_pk: Mapped[int] = mapped_column(ForeignKey('zalo_chats.id'))
+    zalo_message_id: Mapped[str | None] = mapped_column(String(64))
+    direction: Mapped[str] = mapped_column(String(3))
+    kind: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    sender_id: Mapped[str] = mapped_column(String(64), default='', server_default='')
+    sender_name: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    sent_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    status: Mapped[str] = mapped_column(String(12))
+    error: Mapped[str] = mapped_column(Text, default='', server_default='')
+    raw: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
+    message_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

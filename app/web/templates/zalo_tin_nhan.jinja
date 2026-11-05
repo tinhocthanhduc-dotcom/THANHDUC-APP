@@ -1,0 +1,47 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% import 'phan_trang.jinja' as pager %}
+{% block title %}Tin nhắn Zalo{% endblock %}
+{% block main %}<div class="page-wide zalo-page">
+{# Tin nhắn Zalo (TUẤN 05/11/2026): chỉ giám đốc. Lưu từ lúc cài webhook, không lấy lại được tin cũ. #}
+{% call ui.page_head('Tin nhắn Zalo', sub='Tin gửi tới bot được lưu từ lúc cài webhook, giữ 12 tháng. Tin n8n gửi trực tiếp chưa hiện ở đây.') %}{% endcall %}
+
+{% if webhook == 'ok' %}<section class="card zalo-note" aria-live="polite"><b>Đã cài webhook.</b> Kết quả kiểm tra của Zalo: <code>{{ note }}</code></section>
+{% elif webhook == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa cài được webhook.</b> {{ note }}</section>{% endif %}
+{% if gui == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Tin chưa gửi được.</b> Xem lý do ở tin cuối trong hội thoại. App không tự gửi lại.</section>{% endif %}
+
+<details class="card zalo-setup"{% if not (has_token and has_secret) %} open{% endif %}><summary>Cài đặt bot</summary>
+<p>Token bot: {{ ui.badge('Đã có', 'xong') if has_token else ui.badge('Chưa có', 'cho') }} · Khóa bí mật: {{ ui.badge('Đã có', 'xong') if has_secret else ui.badge('Chưa có', 'cho') }}</p>
+<p class="hint">Địa chỉ nhận tin: <code>{{ webhook_url }}</code>. Sau khi cài, lệnh getUpdates của bot này không dùng được nữa.</p>
+{% if has_token and has_secret %}<form method="post" action="/zalo/tin-nhan/cai-webhook"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ghost">Cài webhook</button></form>
+{% else %}<p class="hint">Thêm TD_ZALO_BOT_TOKEN và TD_ZALO_WEBHOOK_SECRET vào deploy/.env rồi cập nhật app.</p>{% endif %}
+</details>
+
+<div class="zalo-grid">
+<section class="card zalo-list" aria-label="Hội thoại">
+<form class="filter-bar" method="get" action="/zalo/tin-nhan" role="search"><input type="search" name="q" value="{{ q }}" placeholder="Tìm tên, mã chat, nội dung…" aria-label="Tìm" autocomplete="off"><button class="btn btn-ghost">Tìm</button></form>
+{% for c in chats %}<a class="zalo-chat{{ ' on' if current and current.id == c.id }}" href="/zalo/tin-nhan?chat={{ c.id }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if current and current.id == c.id %} aria-current="true"{% endif %}>
+<span class="zalo-name">{{ c.display_name or 'Chưa rõ tên' }}{% if c.chat_type == 'GROUP' %} {{ ui.badge('Nhóm', 'nhap') }}{% endif %}{% if c.unread %} <span class="badge b-cho">{{ c.unread }} mới</span>{% endif %}</span>
+<small class="mu">{{ when(c.last_message_at) }}</small><small class="zalo-last">{{ c.last_text }}</small></a>
+{% else %}{{ ui.empty('Không có hội thoại nào.' if q else 'Chưa có tin nhắn nào.') }}{% endfor %}
+{{ pager.bar(p, 'hội thoại') }}
+</section>
+
+<section class="card zalo-thread" aria-label="Nội dung hội thoại">
+{% if current %}
+<header class="zalo-head"><b>{{ current.display_name or 'Chưa rõ tên' }}</b><small class="mu">Mã chat: <code>{{ current.chat_id }}</code></small></header>
+<div class="zalo-msgs">
+{% for m in messages %}<article class="zalo-msg {{ 'zalo-out' if m.direction == 'OUT' else 'zalo-in' }}" id="tin-{{ m.id }}">
+<small class="mu">{{ m.sender_name or ('Tin nhắn đến' if m.direction == 'IN' else 'Tự động') }} · {{ when(m.message_at) }}{% if m.direction == 'OUT' and m.status in status %} · {{ ui.badge(status[m.status][0], status[m.status][1]) }}{% endif %}</small>
+{% if m.text %}<p>{{ m.text }}</p>{% elif m.kind in kind_labels %}<p class="mu">[{{ kind_labels[m.kind] }}]</p>{% endif %}
+{% if m.error %}<small class="zalo-err">{{ m.error }}</small>{% endif %}
+</article>{% else %}{{ ui.empty('Hội thoại này chưa có tin nào.') }}{% endfor %}
+</div>
+{% if pm %}{{ pager.bar(pm, 'tin') }}{% endif %}
+<form class="zalo-reply" method="post" action="/zalo/tin-nhan/{{ current.id }}/tra-loi"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<label for="zalo-noi-dung">Trả lời</label><textarea id="zalo-noi-dung" name="noi_dung" rows="3" maxlength="{{ max_text }}" required></textarea>
+<button class="btn btn-new">Gửi</button></form>
+{% else %}{{ ui.empty('Chọn một hội thoại để xem tin.') }}{% endif %}
+</section>
+</div>
+</div>{% endblock %}

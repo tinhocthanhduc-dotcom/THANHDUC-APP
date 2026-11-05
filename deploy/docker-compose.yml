@@ -30,6 +30,8 @@ services:
       TD_SLOT_CHIEU: ${TD_SLOT_CHIEU:-13:30-17:30}
       TD_SALES_DEFAULT_WAREHOUSE: ${TD_SALES_DEFAULT_WAREHOUSE:-58}
       TD_PERF_LOG: ${TD_PERF_LOG:-true}
+      TD_ZALO_BOT_TOKEN: ${TD_ZALO_BOT_TOKEN:-}
+      TD_ZALO_WEBHOOK_SECRET: ${TD_ZALO_WEBHOOK_SECRET:-}
     volumes:
       - files:/app/data/files
       # Thư mục làm việc của màn Đăng web, dùng chung với máy đăng web (dang-web-may bên dưới).
