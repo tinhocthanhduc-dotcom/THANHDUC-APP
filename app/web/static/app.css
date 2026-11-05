@@ -3484,7 +3484,7 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .sa-vitri { display: grid; gap: 4px; font-size: .85rem; }
 .sa-vitri select { width: 100%; min-height: 40px; font-size: 16px; }
 .sa-nhom .va { margin-top: 12px; border-style: dashed; }
-@media (min-width: 640px) { .va-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* TUẤN 05/11: vẽ 2 ảnh nên luôn 2 cột */
 .sa-bo-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .sa-bo-list img { width: 120px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; opacity: .5; border: 1px solid var(--line); }
 

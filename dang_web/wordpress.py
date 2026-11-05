@@ -11,7 +11,7 @@ from html import unescape
 import httpx
 
 from .so_ten import (  # noqa: F401  (giữ tên cũ cho chỗ khác import từ đây)
-    HANG_MAY, TU_BO_QUA, _ten, cung_anh, _tu_noi_dung, _ty_le_tu_chung, bo_dau, cau_tim, chuan_ten, do_giong, do_giong_bai,
+    HANG_MAY, TU_BO_QUA, _ten, cung_anh, _tu_noi_dung, _ty_le_tu_chung, bo_dau, cac_cau_tim_bai, cau_tim, chuan_ten, do_giong, do_giong_bai,
     ma_model, slug, tim_gan_giong, tu_khoa,
 )
 
@@ -350,5 +350,13 @@ def sp_co_the_trung(wp: "WordPress", ten: str) -> list[dict]:
     return tim_gan_giong(_tim(wp, "wc/v3/products", ten, {"status": "any"}), ten)
 
 
-def bai_co_the_trung(wp: "WordPress", ten: str) -> list[dict]:
-    return tim_gan_giong(_tim(wp, "wp/v2/posts", ten, {"status": "publish,draft,pending,future,private", "context": "edit"}), ten, ham=do_giong_bai)
+def bai_co_the_trung(wp: "WordPress", ten: str, them: list[dict] | None = None) -> list[dict]:
+    """Tìm trên web bằng nhiều câu (mã máy, 2 từ nội dung), cộng danh sách đã lấy về / hàng chờ (them), bỏ trùng theo id."""
+    ds, thay = [], set()
+    for q in cac_cau_tim_bai(ten):
+        for it in wp._json("GET", "wp/v2/posts", params={"search": q, "per_page": 30, "status": "publish,draft,pending,future,private", "context": "edit"}):
+            if it.get("id") not in thay:
+                thay.add(it.get("id"))
+                ds.append(it)
+    ds += [it for it in them or [] if not it.get("id") or it["id"] not in thay]
+    return tim_gan_giong(ds, ten, ham=do_giong_bai)

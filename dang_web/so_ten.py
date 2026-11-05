@@ -62,9 +62,26 @@ def _tu_noi_dung(s: str) -> set[str]:
     return {t for t in tu_khoa(s) if t not in HANG_MAY and t not in ma}
 
 
+# Bài viết: cụm cùng nghĩa gộp về một từ, cụm chỉ là lời dẫn thì bỏ (bỏ dấu) — TUẤN 05/11: bài trùng không bị báo.
+CUM_BAI = (
+    ("khac phuc", "sua"), ("xu ly", "sua"), ("sua chua", "sua"), ("sua loi", "sua"), ("bao tri", "ve sinh"),
+    ("huong dan", ""), ("nguyen nhan", ""), ("tai nha", ""), ("dung cach", ""), ("don gian", ""), ("hieu qua", ""),
+    ("chi tiet", ""), ("nhanh chong", ""), ("mien phi", ""), ("tu a den z", ""), ("meo", ""), ("nhanh", ""),
+    ("cach", ""), ("de dang", ""), ("thuong gap", ""), ("tu lam", ""),
+)
+_CUM_BAI_RE = [(re.compile(r"\b" + a + r"\b"), b) for a, b in CUM_BAI]
+
+
+def _tu_bai(s: str) -> set[str]:
+    t = " ".join(re.findall(r"[a-z0-9]+", chuan_ten(s)))
+    for r, b in _CUM_BAI_RE:
+        t = r.sub(b, t)
+    return _tu_noi_dung(t)
+
+
 def do_giong_bai(a: str, b: str) -> float:
     """Bài viết: cùng máy chưa đủ (cùng máy nhưng khác lỗi), phần nội dung cũng phải giống."""
-    ta, tb = _tu_noi_dung(a), _tu_noi_dung(b)
+    ta, tb = _tu_bai(a), _tu_bai(b)
     chung = len(ta & tb) / min(len(ta), len(tb)) if ta and tb else 0.0
     return 0.5 + 0.5 * chung if ma_model(a) & ma_model(b) else chung
 
@@ -74,6 +91,16 @@ def cau_tim(s: str) -> str:
     if ma:
         return ma[0]
     return " ".join(tu_khoa(s)[:3])
+
+
+def cac_cau_tim_bai(s: str) -> list[str]:
+    """Bài viết: tìm trên web bằng mã máy và bằng 2 từ nội dung (giữ dấu), để không sót bài cũ đặt tên khác."""
+    ra = [cau_tim(s)]
+    noi_dung = _tu_bai(s)
+    giu = [w for w in re.findall(r"\w+", s) if chuan_ten(w) in noi_dung]
+    if len(giu) >= 2:
+        ra.append(" ".join(giu[:2]))
+    return [q for i, q in enumerate(ra) if q and q not in ra[:i]]
 
 
 def _ten(item: dict) -> str:

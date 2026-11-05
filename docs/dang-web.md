@@ -203,7 +203,7 @@ Mỗi lần chạy in chi phí AI (Claude: số tiền ước tính; ChatGPT: s�
 Ô thứ 5 liệt kê sản phẩm web đã có SKU là mã TD. Nút **Bỏ ghép** xóa liên kết trong app và tạo việc `ghi_sku` với `ma: ""` để xóa SKU trên web, sau đó sản phẩm quay lại danh sách gợi ý. Sản phẩm do app đăng không bỏ ghép được.
 
 ## Vẽ ảnh bài viết theo dàn ý (02/11/2026)
-Mỗi lần Codex vẽ 3 ảnh. Bài mới: máy đăng web viết bài xong mới gửi yêu cầu vẽ, kèm dàn ý H1/H2/H3 và đoạn mở bài (`ve_anh.dan_y_bai`), để ảnh 1 minh họa tiêu đề bài, các ảnh còn lại minh họa từng mục H2. Bài đã có trên web lấy dàn ý từ `dan_y` trong danh sách bài (làm mới khi mở Sửa ảnh).
+Mỗi lần Codex vẽ 2 ảnh (TUẤN 05/11), mỗi ảnh một hướng ý tưởng khác nhau lấy ngẫu nhiên (`ve_anh.HUONG_BAI`), Vẽ lại thì tránh hướng của lần trước và cấm cảnh rập khuôn thợ cầm hộp mực cạnh máy in. Bài mới: máy đăng web viết bài xong mới gửi yêu cầu vẽ, kèm dàn ý H1/H2/H3 và đoạn mở bài (`ve_anh.dan_y_bai`), để ảnh 1 minh họa tiêu đề bài, các ảnh còn lại minh họa từng mục H2. Bài đã có trên web lấy dàn ý từ `dan_y` trong danh sách bài (làm mới khi mở Sửa ảnh).
 
 ## Sửa ảnh chia 3 nhóm (TUẤN duyệt mẫu D8/8 ngày 02/11/2026)
 - Sản phẩm: ① Ảnh đại diện (ảnh đầu của `images`), ② Ảnh album (các ảnh sau), ③ Ảnh trong mô tả (`anhs_mo_ta` đọc từ `description`, chỉ có khi lấy lại 1 sản phẩm lúc mở Sửa ảnh). Bài viết: ① và ③ Ảnh trong bài.

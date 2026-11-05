@@ -7,6 +7,7 @@ Bài viết; sản phẩm chỉ dùng cho ảnh trong mô tả (đại diện v�
 from __future__ import annotations
 
 import io
+import random
 import re
 import secrets
 from datetime import datetime
@@ -20,7 +21,7 @@ DANG_VE = "dang_ve"
 XONG = "xong"
 LOI = "loi"
 DANG_CHAY = (CHO, DANG_VE)
-SO_ANH = 3  # TUẤN 02/11: mỗi lần vẽ 3 ảnh để chọn
+SO_ANH = 2  # TUẤN 05/11: chỉ cần vẽ 2 ảnh để chọn (trước 3)
 TOI_DA_BYTE = 20 * 1024 * 1024
 CANH_TOI_DA = 1800
 KET_PHUT = 30  # đang vẽ quá lâu (Codex tắt giữa chừng) thì báo lỗi để anh vẽ lại
@@ -50,35 +51,87 @@ def _chu(html: str) -> str:
     return " ".join(unescape(re.sub(r"<[^>]+>", " ", html or "")).split())
 
 
-def dan_y_bai(html: str, toi_da: int = 1200) -> str:
-    """Dàn ý bài để Codex vẽ sát nội dung (TUẤN 02/11): các tiêu đề H1–H3 theo thứ tự + đoạn mở bài."""
+def dan_y_bai(html: str, toi_da: int = 1800) -> str:
+    """Dàn ý bài để Codex vẽ sát nội dung (TUẤN 02/11): các tiêu đề H1–H3 theo thứ tự, dưới mỗi tiêu đề là câu đầu
+    của đoạn ngay sau nó (TUẤN 05/11: chỉ có tiêu đề thì ảnh vẽ chung chung), cuối cùng là đoạn mở bài."""
+    html = html or ""
     dong = []
-    for cap, trong in re.findall(r"<h([1-3])[^>]*>(.*?)</h\1>", html or "", re.I | re.S):
-        chu = _chu(trong)
-        if chu:
-            dong.append(("  " * max(int(cap) - 2, 0)) + f"H{cap}: {chu[:150]}")
-    mo = re.search(r"<p[^>]*>(.*?)</p>", html or "", re.I | re.S)
+    for m in re.finditer(r"<h([1-3])[^>]*>(.*?)</h\1>", html, re.I | re.S):
+        cap, chu = m.group(1), _chu(m.group(2))
+        if not chu:
+            continue
+        thut = "  " * max(int(cap) - 2, 0)
+        dong.append(thut + f"H{cap}: {chu[:150]}")
+        sau = re.match(r"\s*<(p|ul|ol)[^>]*>(.*?)</\1>", html[m.end():], re.I | re.S)
+        y = _chu(sau.group(2)) if sau else ""
+        if y and cap != "1":
+            dong.append(thut + f"  Nội dung: {y[:140]}")
+    mo = re.search(r"<p[^>]*>(.*?)</p>", html, re.I | re.S)
     if mo and _chu(mo.group(1)):
         dong.append(f"Mở bài: {_chu(mo.group(1))[:300]}")
     return "\n".join(dong)[:toi_da]
 
 
-def lenh_ve(chu_de: str, tom_tat: str = "", dan: str = "", so: int = SO_ANH, dan_y: str = "") -> str:
+# TUẤN 05/11: lần nào cũng ra "thợ cầm hộp mực cạnh máy in". Mỗi ảnh nhận một hướng ý tưởng khác nhau (lấy ngẫu nhiên,
+# tránh hướng của lần vẽ trước) để Vẽ lại cho ra ý mới thật, và cấm hẳn cảnh rập khuôn đó.
+HUONG_BAI = (
+    "Cận cảnh chi tiết: đúng bộ phận, linh kiện hoặc dấu hiệu lỗi mà bài nói tới (ví dụ bản in bị sọc mờ, tờ giấy kẹt "
+    "trong khay, trục từ trầy, đèn báo lỗi), chụp macro, chỉ thấy bàn tay hoặc không có người.",
+    "Góc nhìn của khách hàng: nhân viên văn phòng đang gặp đúng tình huống của bài (cầm bản in lỗi, nhìn máy báo lỗi, "
+    "cân nhắc lựa chọn), máy in chỉ là hậu cảnh mờ.",
+    "So sánh trực quan các lựa chọn mà bài bàn tới, đặt cạnh nhau trên bàn, chụp từ trên xuống (flat lay), bố cục cân đối.",
+    "Kết quả sau khi xử lý xong: bản in sắc nét đặt trên bàn, văn phòng làm việc trơn tru, cảm giác yên tâm.",
+    "Một thao tác cụ thể trong một mục H2 (tháo, lắp, vệ sinh, kiểm tra một bộ phận cụ thể), chụp cận tay đang làm "
+    "đúng bước đó, nền xưởng sửa chữa.",
+    "Cảnh tư vấn tại quầy cửa hàng hoặc tại văn phòng khách: nhân viên đang giải thích, chỉ vào sản phẩm hoặc bản in "
+    "mẫu, khách lắng nghe.",
+    "Tĩnh vật: dụng cụ, linh kiện, vật tư liên quan tới bài xếp gọn trên bàn gỗ hoặc bàn làm việc, ánh sáng cửa sổ.",
+    "Toàn cảnh không gian: góc văn phòng nhỏ ở Việt Nam có máy in đang chạy, người đang làm việc, nhìn rộng và có chiều sâu.",
+)
+HUONG_SP = (
+    "Cảnh văn phòng ở Việt Nam đang dùng loại sản phẩm này hằng ngày, nhìn rộng, sản phẩm không chiếm hết khung.",
+    "Kết quả mà sản phẩm mang lại: bản in, tài liệu, công việc trơn tru; sản phẩm chỉ ở hậu cảnh.",
+    "Thợ lắp đặt hoặc bảo trì tại văn phòng khách, chụp cận tay đang thao tác.",
+    "Cảnh tư vấn tại cửa hàng: nhân viên giới thiệu cho khách.",
+    "Tĩnh vật: vật tư, phụ kiện đi kèm xếp gọn trên bàn làm việc, ánh sáng tự nhiên.",
+)
+CAM_RAP_KHUON = ("Tuyệt đối không vẽ cảnh rập khuôn: một người thợ đứng hoặc ngồi cầm hộp mực bên cạnh máy in để bàn. "
+                 "Hai ảnh phải khác nhau rõ ràng về bối cảnh, góc máy, cỡ cảnh (cận / trung / toàn) và nhân vật.")
+
+
+def chon_huong(so: int, bo: list[str] | tuple[str, ...] = (), san_pham: bool = False, rng: random.Random | None = None) -> list[str]:
+    """Chọn ngẫu nhiên `so` hướng ý tưởng khác nhau, ưu tiên hướng chưa dùng ở lần vẽ trước."""
+    kho = list(HUONG_SP if san_pham else HUONG_BAI)
+    moi = [h for h in kho if h not in set(bo)]
+    if len(moi) < so:
+        moi = kho
+    return (rng or random).sample(moi, so)
+
+
+def _phan_huong(huong: list[str]) -> list[str]:
+    return ["Ý tưởng cho từng ảnh (mỗi ảnh một ý, không lặp lại nhau):"] + [f"- Ảnh {i}: {h}" for i, h in enumerate(huong, 1)]
+
+
+def lenh_ve(chu_de: str, tom_tat: str = "", dan: str = "", so: int = SO_ANH, dan_y: str = "", huong: list[str] | None = None) -> str:
+    huong = huong or chon_huong(so)
     phan = [f"Dùng công cụ tạo ảnh image_gen vẽ {so} ảnh minh họa KHÁC NHAU, khung ngang 16:9, cho một bài viết trên website "
             "của cửa hàng máy in, mực in, sửa máy in Thành Đức ở TP. Hồ Chí Minh.",
             f"Tiêu đề bài viết: {chu_de.strip()[:200]}."]
     if tom_tat.strip():
         phan.append(f"Tóm tắt bài: {' '.join(tom_tat.split())[:500]}")
     if dan_y.strip():
-        phan.append("Dàn ý bài (các tiêu đề H1, H2, H3 theo thứ tự):\n" + dan_y.strip()[:1200])
-        phan.append(f"Đọc kỹ dàn ý rồi vẽ đúng nội dung bài, không vẽ chung chung: ảnh 1 thể hiện ý chính của tiêu đề bài; "
-                    f"các ảnh còn lại mỗi ảnh minh họa một mục H2 khác nhau (chọn {max(so - 1, 1)} mục tiêu biểu nhất). "
-                    "Vẽ đúng loại máy, linh kiện, thao tác hoặc tình huống mà mục đó nói tới (ví dụ máy in laser hay "
-                    "phun màu, hộp mực, trục từ, kẹt giấy, nạp mực, thợ sửa tại văn phòng khách).")
+        phan.append("Dàn ý bài (các tiêu đề H1, H2, H3 theo thứ tự, kèm ý chính dưới mỗi tiêu đề):\n" + dan_y.strip()[:1800])
+        phan.append("Đọc kỹ tiêu đề và dàn ý trước khi vẽ. Ảnh 1 thể hiện ý chính của tiêu đề bài; ảnh 2 minh họa một mục H2 "
+                    "cụ thể khác (chọn mục có hình ảnh rõ nhất). Vẽ đúng loại máy, linh kiện, thao tác hoặc tình huống mà bài "
+                    "nói tới (máy in laser hay phun màu, hộp mực, trục từ, kẹt giấy, nạp mực...), không vẽ chung chung.")
     else:
         phan.append("Mỗi ảnh vẽ đúng loại máy, linh kiện, thao tác hoặc tình huống mà tiêu đề nói tới, không vẽ chung chung.")
+    phan += _phan_huong(huong)
+    phan.append("Ghép từng ý tưởng ở trên với nội dung bài để ra cảnh cụ thể; nếu một ý tưởng không hợp bài thì đổi sang "
+                "cảnh khác nhưng vẫn phải khác hẳn ảnh còn lại.")
+    phan.append(CAM_RAP_KHUON)
     if dan.strip():
-        phan.append(f"Yêu cầu thêm: {' '.join(dan.split())[:300]}")
+        phan.append(f"Yêu cầu thêm (ưu tiên hơn các ý trên): {' '.join(dan.split())[:300]}")
     phan.append("Phong cách ảnh chụp thật, ánh sáng tự nhiên, văn phòng hoặc xưởng sửa chữa ở Việt Nam, người trong ảnh là người "
                 "Việt Nam. Không có chữ, số, logo, tên hãng hay watermark trong ảnh.")
     phan.append("Lưu từng ảnh vào thư mục hiện tại với tên " + ", ".join(f"anh-{i}.png" for i in range(1, so + 1))
@@ -86,18 +139,20 @@ def lenh_ve(chu_de: str, tom_tat: str = "", dan: str = "", so: int = SO_ANH, dan
     return "\n".join(phan)
 
 
-def lenh_ve_sp(ten: str, dan_y: str = "", dan: str = "", so: int = SO_ANH) -> str:
+def lenh_ve_sp(ten: str, dan_y: str = "", dan: str = "", so: int = SO_ANH, huong: list[str] | None = None) -> str:
     """Ảnh cho phần mô tả sản phẩm (TUẤN 02/11): không thay ảnh thật của máy, chỉ minh họa nội dung mô tả."""
+    huong = huong or chon_huong(so, san_pham=True)
     phan = [f"Dùng công cụ tạo ảnh image_gen vẽ {so} ảnh minh họa KHÁC NHAU, khung ngang 16:9, để chèn vào PHẦN MÔ TẢ của một "
             "sản phẩm trên website cửa hàng máy in, mực in, sửa máy in Thành Đức ở TP. Hồ Chí Minh.",
             f"Tên sản phẩm: {ten.strip()[:200]}."]
     if dan_y.strip():
         phan.append("Các mục trong mô tả (tiêu đề H2, H3):\n" + dan_y.strip()[:1200])
-    phan.append("Ảnh minh họa cách dùng hoặc lợi ích của sản phẩm theo nội dung mô tả: cảnh văn phòng, cửa hàng ở Việt Nam đang "
-                "dùng đúng loại sản phẩm này, thợ lắp đặt hoặc bảo trì, bản in sắc nét... Không vẽ cận cảnh làm như ảnh chụp "
+    phan.append("Ảnh minh họa cách dùng hoặc lợi ích của sản phẩm theo nội dung mô tả. Không vẽ cận cảnh làm như ảnh chụp "
                 "chính sản phẩm để bán (khách có thể hiểu nhầm mẫu mã).")
+    phan += _phan_huong(huong)
+    phan.append(CAM_RAP_KHUON)
     if dan.strip():
-        phan.append(f"Yêu cầu thêm: {' '.join(dan.split())[:300]}")
+        phan.append(f"Yêu cầu thêm (ưu tiên hơn các ý trên): {' '.join(dan.split())[:300]}")
     phan.append("Phong cách ảnh chụp thật, ánh sáng tự nhiên, người trong ảnh là người Việt Nam. Không có chữ, số, logo, tên hãng "
                 "hay watermark trong ảnh.")
     phan.append("Lưu từng ảnh vào thư mục hiện tại với tên " + ", ".join(f"anh-{i}.png" for i in range(1, so + 1))
@@ -110,9 +165,11 @@ def tao(goc, *, chu_de: str, wp_id: int | None = None, viec_id: str = "", tom_ta
     yc_id = f"{hd.bay_gio():%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
     luc = hd.bay_gio().isoformat(timespec="seconds")
     sp = loai == "san_pham"
+    cu = moi_nhat(goc, wp_id=wp_id, viec_id=viec_id, loai="san_pham" if sp else "bai_viet")
+    huong = chon_huong(SO_ANH, (cu or {}).get("huong") or [], san_pham=sp)  # Vẽ lại: tránh hướng ý tưởng lần trước
     d = {"id": yc_id, "loai": "san_pham" if sp else "bai_viet", "wp_id": wp_id, "viec_id": viec_id, "chu_de": chu_de[:200], "dan": dan[:300],
-         "lenh": lenh_ve_sp(chu_de, dan_y, dan) if sp else lenh_ve(chu_de, tom_tat, dan, dan_y=dan_y), "so_anh": SO_ANH, "trang_thai": CHO, "anh": [], "loi": "", "tao_luc": luc,
-         "cap_nhat": luc}
+         "lenh": lenh_ve_sp(chu_de, dan_y, dan, huong=huong) if sp else lenh_ve(chu_de, tom_tat, dan, dan_y=dan_y, huong=huong),
+         "huong": huong, "so_anh": SO_ANH, "trang_thai": CHO, "anh": [], "loi": "", "tao_luc": luc, "cap_nhat": luc}
     p = _file(goc, yc_id)
     p.parent.mkdir(parents=True)
     with hd.khoa(goc):

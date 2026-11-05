@@ -91,7 +91,7 @@ def test_bai_moi_de_ai_ve_anh_dai_dien_chon_o_xem_truoc(client, db, web_login, m
     may.lam_mot_viec()
     assert hd.doc(goc, viec_id)["trang_thai"] == hd.XEM_TRUOC
     yc = ve_anh.moi_nhat(goc, viec_id=viec_id)
-    assert yc and yc["trang_thai"] == ve_anh.CHO and yc["so_anh"] == 3 and "kẹt giấy" in yc["lenh"]
+    assert yc and yc["trang_thai"] == ve_anh.CHO and yc["so_anh"] == 2 and "kẹt giấy" in yc["lenh"]
     assert "Mở bài: Nội dung" in yc["lenh"]
     assert "Codex đang vẽ ảnh" in client.get(f"/dang-web/viec/{viec_id}").text
     client.get("/ai/dang-web/ve-anh", headers=hw)
@@ -120,10 +120,11 @@ def test_dan_y_bai_lay_tieu_de_h1_h2_vao_lenh_ve():
     html = ("<h1>Máy in Canon 2900 bị kẹt giấy</h1><p>Kẹt giấy là lỗi hay gặp &amp; dễ sửa.</p>"
             "<h2>Nguyên nhân do <b>quả đào</b> mòn</h2><p>x</p><h3>Cách kiểm tra</h3><h2>Thay quả đào tại chỗ</h2>")
     dy = ve_anh.dan_y_bai(html)
-    assert dy.splitlines() == ["H1: Máy in Canon 2900 bị kẹt giấy", "H2: Nguyên nhân do quả đào mòn", "  H3: Cách kiểm tra",
-                               "H2: Thay quả đào tại chỗ", "Mở bài: Kẹt giấy là lỗi hay gặp & dễ sửa."]
+    assert dy.splitlines() == ["H1: Máy in Canon 2900 bị kẹt giấy", "H2: Nguyên nhân do quả đào mòn", "  Nội dung: x",
+                               "  H3: Cách kiểm tra", "H2: Thay quả đào tại chỗ", "Mở bài: Kẹt giấy là lỗi hay gặp & dễ sửa."]
     lenh = ve_anh.lenh_ve("Canon 2900 kẹt giấy", dan_y=dy)
-    assert "vẽ 3 ảnh" in lenh and "H2: Thay quả đào tại chỗ" in lenh and "mỗi ảnh minh họa một mục H2" in lenh
+    assert "vẽ 2 ảnh" in lenh and "H2: Thay quả đào tại chỗ" in lenh and "ảnh 2 minh họa một mục H2" in lenh
+    assert "- Ảnh 1:" in lenh and "- Ảnh 2:" in lenh and "- Ảnh 3:" not in lenh and "cầm hộp mực bên cạnh máy in" in lenh
     assert ve_anh.dan_y_bai("") == ""
 
 
@@ -180,9 +181,26 @@ def test_san_pham_ve_anh_cho_mo_ta_khong_lan_voi_bai_viet(client, db, web_login,
     _may(goc, wp).lam_moi_web()
     client.get("/ai/dang-web/ve-anh", headers=hw)  # nhịp Codex
     trang = client.get("/dang-web/sua-anh?loai=sp&id=1").text
-    assert "AI vẽ 1 ảnh cho mô tả" in trang and "ve-anh.js" in trang and "Vẽ 3 ảnh mới" in trang
+    assert "AI vẽ 1 ảnh cho mô tả" in trang and "ve-anh.js" in trang and "Vẽ 2 ảnh mới" in trang
     r = client.post("/dang-web/ve-anh", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), id="1", loai="sp", dan=""), follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/dang-web/sua-anh?loai=sp&id=1")
     yc = ve_anh.moi_nhat(goc, wp_id=1, loai="san_pham")
-    assert yc and yc["so_anh"] == 3 and "PHẦN MÔ TẢ" in yc["lenh"] and "H2: Thông số kỹ thuật" in yc["lenh"]
+    assert yc and yc["so_anh"] == 2 and "PHẦN MÔ TẢ" in yc["lenh"] and "H2: Thông số kỹ thuật" in yc["lenh"]
     assert ve_anh.moi_nhat(goc, wp_id=1) is None  # bài viết id 1 không thấy yêu cầu của sản phẩm id 1
+
+
+def test_ve_lai_doi_huong_y_tuong_khong_lap_lan_truoc(goc):
+    """TUẤN 05/11: lần nào vẽ cũng trùng ý; mỗi lần 2 ảnh, mỗi ảnh một hướng, Vẽ lại tránh hướng lần trước."""
+    import random
+
+    h = ve_anh.chon_huong(2, rng=random.Random(1))
+    assert len(h) == 2 and h[0] != h[1] and all(x in ve_anh.HUONG_BAI for x in h)
+    yc1 = ve_anh.tao(goc, chu_de="Canon 2900 hết mực: mua mới hay nạp?", viec_id="20261105-100000-aaaaaa")
+    d1 = ve_anh.doc(goc, yc1)
+    assert d1["so_anh"] == 2 and len(d1["huong"]) == 2 and all(x in d1["lenh"] for x in d1["huong"])
+    ve_anh.ket_thuc(goc, yc1, "")
+    yc2 = ve_anh.tao(goc, chu_de="Canon 2900 hết mực: mua mới hay nạp?", viec_id="20261105-100000-aaaaaa")
+    d2 = ve_anh.doc(goc, yc2)
+    assert yc2 != yc1 and not set(d2["huong"]) & set(d1["huong"])
+    sp = ve_anh.doc(goc, ve_anh.tao(goc, chu_de="Hộp mực Canon 303", wp_id=9, loai="san_pham"))
+    assert all(x in ve_anh.HUONG_SP for x in sp["huong"]) and "phần mô tả".upper() in sp["lenh"].upper()

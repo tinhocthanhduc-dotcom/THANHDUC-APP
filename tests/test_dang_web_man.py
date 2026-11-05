@@ -899,3 +899,45 @@ def test_sua_anh_bai_viet_bo_anh_trong_bai_va_dat_anh_moi_duoi_h2(client, web_lo
     assert payload["featured_media"] == 77 and "dd-1024x576" not in html
     assert html.index("<h2>Liên hệ</h2>") < html.index("wp-image-901") < html.index("<p>h</p>")
     assert wp.ten_anh[0][1] == "Giá nạp mực 2026 – Liên hệ" and wp.alt == [(77, "Giá nạp mực 2026")]
+
+
+def test_bai_trung_dong_nghia_va_so_voi_bai_da_lay_ve_va_hang_cho(goc):
+    """TUẤN 05/11: bài sắp đăng trùng bài đã có trên web (đặt tên khác) không bị báo."""
+    from dang_web.so_ten import cac_cau_tim_bai, do_giong_bai
+
+    assert do_giong_bai("Hướng dẫn xử lý lỗi kẹt giấy máy in HP", "Cách khắc phục máy in HP bị kẹt giấy") >= 0.7
+    assert do_giong_bai("Hướng dẫn xử lý lỗi kẹt giấy máy in HP", "Máy in HP không nhận hộp mực") < 0.7
+    assert cac_cau_tim_bai("Hướng dẫn xử lý lỗi kẹt giấy máy in HP")[-1] == "kẹt giấy"
+    # Web tìm không ra, nhưng danh sách đã lấy về khi bấm Cập nhật từ web có bài gần giống
+    hd.ghi_json(hd.file_bai_web(goc), {"luc": "x", "ds": [{"id": 77, "ten": "Cách khắc phục máy in HP bị kẹt giấy", "trang_thai": "publish", "xem": "https://web.test/kg"}]})
+    vid = hd.tao_viec(goc, "bai_viet", {"chu_de": "Hướng dẫn xử lý lỗi kẹt giấy máy in HP", "ten": "Hướng dẫn xử lý lỗi kẹt giấy máy in HP"})
+    _may(goc, _WP(), nguoi_viet=_ChatGPTGia()).lam_mot_viec()
+    v = hd.doc(goc, vid)
+    assert v["trang_thai"] == hd.CO_THE_TRUNG and v["trung"][0]["id"] == 77 and "post=77" in v["trung"][0]["link_sua"]
+    # Bài tạo trước còn nằm trong hàng cũng được so (bài tạo sau thì không, để hai bài không chặn nhau)
+    hd.ghi_json(hd.file_bai_web(goc), {})
+    a = hd.tao_viec(goc, "bai_viet", {"chu_de": "Canon 2900 nạp mực tại nhà", "ten": "Canon 2900 nạp mực tại nhà"})
+    hd.sua(goc, a, lambda x: x.update(trang_thai=hd.XEM_TRUOC))
+    b = hd.tao_viec(goc, "bai_viet", {"chu_de": "Cách nạp mực Canon LBP 2900", "ten": "Cách nạp mực Canon LBP 2900"})
+    _may(goc, _WP(), nguoi_viet=_ChatGPTGia()).lam_mot_viec()
+    vb = hd.doc(goc, b)
+    assert vb["trang_thai"] == hd.CO_THE_TRUNG and vb["trung"][0]["trang_thai"] == "hang_cho" and vb["trung"][0]["ten"] == "Canon 2900 nạp mực tại nhà"
+
+
+def test_tieu_de_ai_dat_trung_thi_canh_bao_o_xem_truoc(client, web_login, goc):
+    class _AIDoiTen(_ChatGPTGia):
+        def viet_bai(self, chu_de, ghi_chu="", hotline=""):
+            kq = super().viet_bai(chu_de, ghi_chu, hotline)
+            kq.du_lieu["tieu_de"] = "Cách khắc phục máy in Brother bị kẹt giấy"
+            return kq
+
+    csrf = web_login("giam.doc", "director")
+    hd.ghi_json(hd.file_bai_web(goc), {"luc": "x", "ds": [{"id": 88, "ten": "Xử lý kẹt giấy máy in Brother tại nhà", "trang_thai": "draft", "xem": ""}]})
+    hd.them_chu_de(goc, "Mẹo xử lý kẹt giấy máy Brother")
+    assert "Web đã có" in client.get("/dang-web?tab=bai-viet").text  # chủ đề chờ viết đã có bài trên web
+    vid = hd.tao_viec(goc, "bai_viet", {"chu_de": "Máy in Brother kéo nhiều tờ một lúc", "ten": "Máy in Brother kéo nhiều tờ một lúc"})
+    _may(goc, _WP(), nguoi_viet=_AIDoiTen()).lam_mot_viec()
+    v = hd.doc(goc, vid)
+    assert v["trang_thai"] == hd.XEM_TRUOC and v["trung_sau"][0]["id"] == 88
+    page = client.get(f"/dang-web/viec/{vid}").text
+    assert "Tiêu đề AI đặt gần giống bài đã có" in page and "Xử lý kẹt giấy máy in Brother tại nhà" in page and csrf

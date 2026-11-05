@@ -38,7 +38,7 @@
 {{ nut('bo_qua_trung', 'Đúng là trùng, bỏ qua', 'btn-danger') }}
 {% if not v.trung_sku %}{{ nut('van_soan', 'Không trùng, vẫn soạn') }}{% endif %}
 </div>
-<p class="hint">{% if v.trung_sku %}Mỗi mã hàng chỉ có một sản phẩm trên web. Muốn làm lại nội dung thì bấm “Viết lại đè lên”.{% else %}Bỏ qua thì lần tự soạn sau không lấy lại {{ 'chủ đề' if bai else 'mã' }} này. Bài viết chỉ báo trùng khi cùng máy và cùng nội dung; cùng máy khác lỗi vẫn soạn bình thường.{% endif %}</p>
+<p class="hint">{% if v.trung_sku %}Mỗi mã hàng chỉ có một sản phẩm trên web. Muốn làm lại nội dung thì bấm “Viết lại đè lên”.{% else %}Bỏ qua thì lần tự soạn sau không lấy lại {{ 'chủ đề' if bai else 'mã' }} này. Bài viết so với mọi bài trên web (cả nháp) và bài đang chờ trong app; chỉ báo trùng khi cùng máy và cùng nội dung, cùng máy khác lỗi vẫn soạn bình thường.{% endif %}</p>
 </form>
 
 {% elif v.trang_thai == 'cho_dan' %}
@@ -113,6 +113,7 @@
 {% set css_xem = '<meta charset=utf-8><style>body{font:15px/1.6 system-ui,sans-serif;margin:8px;color:#1d2330}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px}</style>' %}
 {{ mo_form() }}
 <div class="dw-cols dw-2"><div>
+{% if v.trung_sau %}<p class="alert warn" role="status"><b>Tiêu đề AI đặt gần giống bài đã có:</b> {% for t in v.trung_sau %}{% if t.link_sua or t.link %}<a href="{{ t.link_sua or t.link }}" target="_blank" rel="noopener">{{ t.ten }}</a>{% else %}{{ t.ten }}{% endif %} <small>({{ {'draft': 'bản nháp', 'publish': 'đang hiện', 'pending': 'chờ duyệt', 'private': 'riêng tư', 'hang_cho': 'đang chờ trong app'}.get(t.trang_thai, t.trang_thai) }})</small>{{ '; ' if not loop.last }}{% endfor %}. Đúng là trùng thì bấm Bỏ; không trùng thì xem rồi đăng bình thường.</p>{% endif %}
 {% if bai and v.ve_anh and not v.kieu %}{{ va.khung(ve_ai, codex, 'chon', v.id) }}{% endif %}
 {% if not v.anh_web and not (sua_web and not sua.anh) and not v.ve_anh %}<p class="alert warn" role="status"><b>Chưa có ảnh.</b> {{ 'Bản nháp' if not sua_web else 'Bài' }} lên web chỉ có chữ; khi có ảnh, vào Trên web bấm “Sửa bằng AI”, tick Ảnh để bổ sung.</p>{% endif %}
 {% if sua_web %}{% set phan = [] %}{% if sua.noi_dung %}{% set _ = phan.append('nội dung') %}{% endif %}{% if sua.seo %}{% set _ = phan.append('tiêu đề, mô tả Google') %}{% endif %}{% if sua.anh %}{% set _ = phan.append('ảnh') %}{% endif %}{% if v.danh_muc_id %}{% set _ = phan.append('danh mục') %}{% endif %}<p class="alert info" role="status"><b>Sửa bài đang có trên web.</b> Chỉ ghi đè: {{ phan|join(', ') or 'danh mục' }}. Giữ nguyên trạng thái và đường dẫn trên web.{% if v.link_xem %} <a href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem bản đang hiện ↗</a>{% endif %}</p>{% endif %}
