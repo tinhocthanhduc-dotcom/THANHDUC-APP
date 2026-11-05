@@ -67,4 +67,5 @@ def test_other_kind_ignores_ink_lines_and_dispatcher_can_add_ink_before_assign(c
     assert r.status_code == 303 and db.query(PartRequest).count() == 0
     t = db.scalar(select(ServiceTicket).where(ServiceTicket.kind == 'MUC_DINH_KY'))
     html = client.get(f'/dich-vu/{t.id}').text
-    assert 'id="part-create"' in html and 'Mực định kỳ: giao cho thợ mang đi' in html
+    assert 'id="part-list"' in html and 'Lưu danh sách' in html and f'data-source="/dich-vu/{t.id}/tim-linh-kien"' in html
+    assert 'id="part-create"' not in html

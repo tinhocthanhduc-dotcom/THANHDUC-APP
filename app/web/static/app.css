@@ -3577,3 +3577,48 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .tho-late details > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
 .tho-late details > div button { width: 100%; min-height: 48px; padding: 4px; }
 .dp-rank-x { display: block; font-size: .78rem; color: var(--muted); }
+/* Mẫu MucGiaoTho (TUẤN duyệt 05/11/2026): bảng linh kiện/mực của phiếu dịch vụ như dòng đơn bán. */
+.pl { display: grid; gap: 0; margin-top: 8px; container-type: inline-size; }
+.pl-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.pl-top h3 { margin: 0; }
+.pl-head, .pl-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 124px 96px 64px; gap: 6px; align-items: center; }
+.pl-head { font-size: .8rem; color: var(--muted); font-weight: 700; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.pl-row { padding: 8px 4px; border-bottom: 1px solid var(--line); }
+.pl-no { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.pl-name { min-width: 0; display: grid; gap: 1px; }
+.pl-name b, .pl-name strong { font-size: .95rem; }
+.pl-name small { color: var(--muted); overflow-wrap: anywhere; }
+.pl-name .pl-sub { font-size: .75rem; }
+.pl-low { color: var(--bad); font-weight: 700; }
+.pl-qs { display: contents; }
+.pl .stepper { gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: max-content; }
+.pl .stepper button { width: 34px; height: 40px; min-height: 40px; border: 0; border-radius: 0; background: var(--tag); color: var(--text); }
+.pl .stepper input { width: 46px; min-height: 40px; border: 0; border-radius: 0; font-size: 16px; padding: 4px 2px; }
+.pl-chg .stepper { border-color: var(--accent); }
+.pl-fixed { font-weight: 800; font-variant-numeric: tabular-nums; padding-left: 12px; }
+.pl-st { display: grid; gap: 2px; justify-items: start; }
+.pl-st .tag { margin: 0; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.pl-doc { font-size: .8rem; }
+.pl .pl-x { position: relative; justify-self: end; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--bad); cursor: pointer; font-weight: 700; font-size: .95rem; }
+.pl .pl-x input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pl .pl-x:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pl .pl-x .pl-x-off { display: none; color: var(--accent); font-size: .75rem; white-space: nowrap; }
+.pl .pl-del .pl-x .pl-x-on { display: none; } .pl .pl-del .pl-x .pl-x-off { display: inline; }
+.pl-del .pl-name, .pl-del .pl-no { text-decoration: line-through; opacity: .55; }
+.pl-del .stepper { opacity: .4; pointer-events: none; }
+.pl-find { margin-top: 10px; }
+.pl-find input { border-style: dashed; border-color: var(--accent); }
+.pl-gone { margin-top: 8px; font-size: .85rem; color: var(--muted); }
+.pl-gone p { margin: 4px 0 0 16px; }
+.pl-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pl-dirty { color: var(--warn); font-weight: 700; }
+.pl-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pl-actions .btn-ok { padding: 0 18px; }
+.pl-actions .btn-ok:disabled { opacity: .45; cursor: default; }
+@container (max-width: 460px) {
+  .pl-head { display: none; }
+  .pl-row { grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "no nm x" ". q q"; row-gap: 6px; }
+  .pl-no { grid-area: no; } .pl-name { grid-area: nm; } .pl-row > .pl-x, .pl-row > span:last-child:empty { grid-area: x; }
+  .pl-qs { grid-area: q; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .pl-st { justify-items: end; text-align: right; }
+}

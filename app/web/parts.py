@@ -36,7 +36,23 @@ def detail_context(session, user, ticket, shown=None):
         part_names=dict(session.execute(select(Product.code, Product.name).where(Product.code.in_([r.product_code for r in rows]))).all()),
         part_docs=dict(session.execute(select(StockDoc.id, StockDoc.number).where(StockDoc.id.in_([r.stock_doc_id for r in rows if r.stock_doc_id]))).all()),
         part_can_purchase=has_role(user,'warehouse'), can_request_parts=can_create and ticket.status in (service_tickets.OPEN if ticket.kind == 'MUC_DINH_KY' else ('DANG_LAM', 'CHO_LINH_KIEN')),
-        part_form=shown or {}, part_can_cancel={r.id for r in rows if (r.requester_id == user.id or has_role(user, 'dispatcher')) and r.status == 'CHO_CAP'})
+        part_form=shown or {}, part_can_cancel={r.id for r in rows if (r.requester_id == user.id or has_role(user, 'dispatcher')) and r.status == 'CHO_CAP'},
+        part_stock=_best_stock(session, [r for r in rows if r.status == 'CHO_CAP']))
+
+
+def _best_stock(session, rows):
+    """Mẫu MucGiaoTho: mỗi dòng chờ cấp hiện kho công ty còn nhiều nhất (khả dụng), chỉ để điều phối nhìn."""
+    codes = sorted({r.product_code for r in rows})
+    if not codes:
+        return {}
+    warehouses = list(session.scalars(select(Warehouse.code).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code)))
+    stocks = _stocks(session, codes, warehouses)
+    best = {}
+    for code in codes:
+        found = [(stocks.get((w, code), {}).get('available', 0), w) for w in warehouses]
+        left, warehouse = max(found, key=lambda x: x[0], default=(0, ''))
+        best[code] = (warehouse, left)
+    return best
 
 
 @router.get('/dich-vu/{ticket_id}/tim-linh-kien')
@@ -49,7 +65,7 @@ def pick(request: Request, ticket_id: int, q: str = '', user: User = Depends(web
     own = technician_stock.own_warehouse(session, tech) if tech else None
     warehouses = [own.code] if own else []
     warehouses += [w.code for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True)).order_by(Warehouse.code))]
-    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses, own_code=own.code if own else None,
+    return render(request, 'linh_kien_chon.jinja', rows=rows, warehouses=warehouses, own_code=own.code if own else None, ink_pick=t.kind == 'MUC_DINH_KY',
                   stocks=_stocks(session, [r.code for r in rows], warehouses))
 
 
@@ -95,6 +111,47 @@ def cancel(request: Request, ticket_id: int, ident: int, form=Depends(checked_fo
                        part_form=dict(cancel_id=ident, reason=str(form.get('reason', '')), version=form.get('version', '')))
     from .technician import after_post
     return after_post(request,session,request.state.user,ticket_id,f'/dich-vu/{ticket_id}?da_luu=1#linh-kien')
+
+
+@router.post('/dich-vu/{ticket_id}/linh-kien/luu')
+def save_list(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """Mẫu MucGiaoTho (TUẤN duyệt 05/11/2026): một nút Lưu danh sách cho sửa số lượng, xóa dòng, thêm mã."""
+    from decimal import Decimal, InvalidOperation
+    from .services import _detail, _message, _version
+    user = request.state.user
+
+    def num(text, code=''):
+        label = f'Số lượng {code}' if code else 'Số lượng'
+        try:
+            value = Decimal(str(text).strip().replace(',', '.'))
+        except InvalidOperation:
+            raise BusinessError('BAD_QTY', f'{label} không hợp lệ.')
+        if not value.is_finite() or value <= 0 or value != value.quantize(Decimal('0.001')) or value >= 10 ** 11:
+            raise BusinessError('BAD_QTY', f'{label} phải là số lớn hơn 0.')
+        return value
+
+    ids, versions, qtys = form.getlist('line_id'), form.getlist('line_version'), form.getlist('line_qty')
+    removed = {str(v) for v in form.getlist('remove')}
+    codes, add_qtys = [str(c).strip() for c in form.getlist('add_code')], form.getlist('add_qty')
+    try:
+        if not (len(ids) == len(versions) == len(qtys)) or len(codes) != len(add_qtys):
+            raise BusinessError('BAD_LINES', 'Danh sách không hợp lệ, hãy tải lại trang.')
+        lines = [(int(i), int(v), str(q)) for i, v, q in zip(ids, versions, qtys)]
+        if not removed <= {str(i) for i, _, _ in lines}:
+            raise BusinessError('BAD_LINES', 'Danh sách không hợp lệ, hãy tải lại trang.')
+        edits = [(i, v, num(q)) for i, v, q in lines if str(i) not in removed]
+        removes = [(i, v) for i, v, _ in lines if str(i) in removed]
+        adds = [(c, num(q, c)) for c, q in zip(codes, add_qtys) if c]
+        svc.save_list(session, user, ticket_id, _version(form), edits, removes, adds)
+    except ValueError:
+        return _detail(request, session, user, ticket_id, error='Danh sách không hợp lệ, hãy tải lại trang.', error_code='BAD_LINES', status=400)
+    except BusinessError as exc:
+        message, code, status = _message(exc)
+        if code in ('FORBIDDEN', 'NOT_FOUND'):
+            return render(request, 'loi.jinja', error=exc, status=status)
+        return _detail(request, session, user, ticket_id, error=message, error_code=code, status=status)
+    from .technician import after_post
+    return after_post(request, session, user, ticket_id, f'/dich-vu/{ticket_id}?da_luu=1#linh-kien')
 
 
 TABS = {**svc.STATUSES, 'tat-ca': 'Tất cả'}
