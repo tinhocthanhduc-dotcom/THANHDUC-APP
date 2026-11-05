@@ -116,12 +116,8 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
                                   .where(SalesReceipt.status == 'CHO_XAC_NHAN')).one()
         debt_total = int(finance_reports.debt_totals(session, user)['remaining'])
         overdue = alerts.customer_overdue(user, today)
-        by_customer = (select(Customer.name, func.sum(overdue.c.remaining).label('amount'), func.max(overdue.c.days).label('days'))
-                       .join(overdue, overdue.c.customer_code == Customer.code).where(overdue.c.days > 0)
-                       .group_by(Customer.code, Customer.name).subquery())
-        overdue_total = int(session.scalar(select(func.coalesce(func.sum(by_customer.c.amount), 0))))
-        top_debts = [dict(name=r.name, amount=int(r.amount), days=int(r.days)) for r in session.execute(
-            select(by_customer).order_by(by_customer.c.amount.desc(), by_customer.c.name).limit(TOP))]
+        # Chỉ tổng nợ quá hạn, không liệt kê tên khách (TUẤN 05/11/2026).
+        overdue_total = int(session.scalar(select(func.coalesce(func.sum(overdue.c.remaining), 0)).where(overdue.c.days > 0)))
 
         ncc_days = config.ALERT_DEBT_DAYS   # cùng mốc với cảnh báo 'NCC nợ quá hạn'
 
@@ -149,7 +145,7 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         month_start=month_start, month_revenue=month, prev_revenue=prev, prev_month=prev_start, margin=margin,
         fund_cash=funds.get('TIEN_MAT', 0), fund_bank=funds.get('NGAN_HANG', 0),
         pending_count=int(pending[0]), pending_amount=int(pending[1]),
-        debt_total=debt_total, overdue_total=overdue_total, top_debts=top_debts,
+        debt_total=debt_total, overdue_total=overdue_total,
         ncc_overdue=ncc_now, ncc_week=ncc_week,
         open=int(open_count), late=int(late_count),
         late_rows=[dict(number=r.number, customer=r.name, tech=r.full_name, minutes=int((now - r.due_at).total_seconds() // 60))
@@ -190,7 +186,6 @@ def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
                else 'Báo thu chờ xác nhận: không có'),
               f"Khách nợ: {_money(d['debt_total'])}, quá hạn {_money(d['overdue_total'])}" if d['overdue_total']
               else f"Khách nợ: {_money(d['debt_total'])}, không có nợ quá hạn"]
-    lines += [f"· {_cut(r['name'])} {_short(r['amount'])} (quá {r['days']} ngày)" for r in d['top_debts']]
     ncc = f"Nợ NCC đến hạn 7 ngày tới: {_money(d['ncc_week'])}" if d['ncc_week'] else 'Nợ NCC đến hạn 7 ngày tới: không có'
     if d['ncc_overdue']:
         ncc += f" (đã quá hạn {_short(d['ncc_overdue'])})"
