@@ -3577,3 +3577,7 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .tho-late details > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
 .tho-late details > div button { width: 100%; min-height: 48px; padding: 4px; }
 .dp-rank-x { display: block; font-size: .78rem; color: var(--muted); }
+.tc-staff .fill-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tc-staff .muted { margin: 0 0 8px; font-size: .9rem; }
+.tc-staff .chip-btn { min-height: 40px; padding: 0 12px; border-width: 1px; border-color: var(--line); border-radius: 10px; font-weight: 500; font-size: .95rem; }
+.tc-staff .chip-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }

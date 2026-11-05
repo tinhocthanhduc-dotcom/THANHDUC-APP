@@ -131,3 +131,15 @@ def test_quote_compose_has_keyboard_entry_like_sales(client, web_login, stock_ca
     page = client.get('/bao-gia/moi').text
     assert 'data-browse-keys' in page and 'Enter thêm' in page
     assert re.search(r'<input name="qty"[^>]*enterkeyhint="next"', page) and re.search(r'<input name="unit_price"[^>]*enterkeyhint="next"', page)
+
+
+def test_cash_form_staff_party_fills_partner_name(client, cash_people):
+    csrf = service_login(client, cash_people['finance'])
+    page = client.get('/thu-chi/moi?loai=PC').text
+    # Nút Nhân viên đứng trước Người khác; bấm tên nhân viên điền vào ô người nhận tiền.
+    assert page.index('value="nv"') < page.index('value="khac"')
+    assert 'data-tc-staff="T2.Sales"' in page and 'data-tc-staff="T2.Director"' in page
+    r = client.post('/thu-chi/moi', data=tc_form(csrf, kind='PC', category_code='CHI-KHAC', partner_name='T2.Sales'), follow_redirects=False)
+    assert r.status_code == 303
+    saved = client.get(r.headers['location']).text
+    assert re.search(r'value="nv"\s+checked', saved) and 'chip-btn on" data-tc-staff="T2.Sales"' in saved

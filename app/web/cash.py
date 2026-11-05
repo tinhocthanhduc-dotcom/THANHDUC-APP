@@ -102,7 +102,14 @@ def _form(request,session,data,doc=None,error=None,code='',status=200,reason='',
                   saved=request.query_params.get('da_luu')=='1' and not error,field_errors=fields or {},
                   category=session.get(CashCategory,data['category_code']) if data.get('category_code') else None,
                   customer=session.scalar(select(Customer).where(Customer.code==data['customer_code'])) if data.get('customer_code') else None,
-                  supplier=session.get(Supplier,data['supplier_code']) if data.get('supplier_code') else None)
+                  supplier=session.get(Supplier,data['supplier_code']) if data.get('supplier_code') else None,
+                  staff=_staff(session))
+
+
+def _staff(session):
+    """Tên nhân viên đang làm, để chọn nhanh người nộp/nhận tiền (chỉ điền tên, không đổi nghiệp vụ)."""
+    names=session.scalars(select(User.full_name).where(User.active.is_(True)).order_by(User.full_name))
+    return list(dict.fromkeys(n.strip() for n in names if n and n.strip()))
 
 
 @router.get('/thu-chi')
