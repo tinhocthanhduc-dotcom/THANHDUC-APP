@@ -40,6 +40,8 @@ app.add_middleware(perf.Middleware)
 app.include_router(production.router)
 from .routers import ai as ai_router
 app.include_router(ai_router.router)
+from .routers import zalo as zalo_router
+app.include_router(zalo_router.router)
 from .routers import recovered_parts
 app.include_router(recovered_parts.router)
 app.include_router(auth.router)

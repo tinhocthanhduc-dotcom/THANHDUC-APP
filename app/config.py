@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     self_claim_minutes: int = Field(default=30, ge=0, le=480)
     self_claim_max_open: int = Field(default=2, ge=1, le=50)
 
+    # Tin nhắn Zalo Bot (TUẤN 05/11/2026). Trống thì webhook từ chối mọi yêu cầu.
+    zalo_bot_token: str = ''
+    zalo_webhook_secret: str = ''
+    zalo_webhook_url: str = 'https://quanlythanhduc.com/zalo/webhook'
+
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'
     slot_sang: str = '07:30-11:30'

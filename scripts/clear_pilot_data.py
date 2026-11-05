@@ -2,7 +2,8 @@
 
 Giữ: tài khoản + vai trò, hồ sơ nhân sự + lương + KPI + hoa hồng, ngày lễ, kho (cả kho Chờ Xử lý),
 quỹ, danh mục thu chi, bảng ghép tài chính, nhà cung cấp + nợ đầu kỳ NCC, hàng hóa, mức tồn tối thiểu,
-khách hàng + địa chỉ + máy của khách, đăng ký thông báo trên điện thoại.
+khách hàng + địa chỉ + máy của khách, đăng ký thông báo trên điện thoại,
+tin nhắn Zalo (tin thật của khách, Zalo không có lịch sử nên xóa là mất hẳn).
 Xóa: mọi chứng từ và sổ (tồn kho về 0, quỹ về 0, số chứng từ đếm lại từ 00001), ảnh đính kèm.
 Nhật ký thao tác (audit_log) chỉ ghi thêm, không xóa được, nên vẫn giữ.
 Khách và hàng đánh dấu thử nghiệm (is_test) cũng bị xóa.
@@ -25,6 +26,7 @@ KEEP = {
     "commission_rules", "attendance_holidays", "warehouses", "funds", "cash_categories", "finance_mappings",
     "suppliers", "supplier_opening_debts", "customer_opening_debts", "product_groups", "products", "stock_min_levels", "customers", "customer_phones",
     "customer_contacts", "customer_sites", "equipment", "push_keys", "push_subscriptions", "audit_log", "ai_keys",
+    "zalo_chats", "zalo_messages",
 }
 WIPE = {
     "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",

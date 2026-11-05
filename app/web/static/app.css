@@ -3508,3 +3508,26 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .svn-self-claim input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 .svn-self-claim small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 .svn-self-claim.is-off { opacity: .55; }
+
+/* Tin nhắn Zalo (TUẤN 05/11/2026) */
+.zalo-page { display: grid; gap: 12px; }
+.zalo-note { padding: 12px; overflow-wrap: anywhere; }
+.zalo-bad { border-color: var(--bad); }
+.zalo-setup { padding: 12px; }
+.zalo-setup summary { cursor: pointer; font-weight: 600; }
+.zalo-grid { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 12px; align-items: start; }
+.zalo-list, .zalo-thread { padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.zalo-chat { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; color: inherit; text-decoration: none; border: 1px solid transparent; }
+.zalo-chat:hover, .zalo-chat.on { border-color: var(--line); background: var(--tag); }
+.zalo-name { font-weight: 600; overflow-wrap: anywhere; }
+.zalo-last { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zalo-head { display: grid; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.zalo-msgs { display: grid; gap: 8px; }
+.zalo-msg { display: grid; gap: 4px; max-width: 85%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.zalo-msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.zalo-out { justify-self: end; background: var(--tag); }
+.zalo-err { color: var(--bad); overflow-wrap: anywhere; }
+.zalo-reply { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.zalo-reply textarea { width: 100%; }
+.zalo-reply .btn { justify-self: end; }
+@media (max-width: 760px) { .zalo-grid { grid-template-columns: minmax(0, 1fr); } .zalo-msg { max-width: 100%; } }
