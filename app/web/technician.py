@@ -308,10 +308,39 @@ def _today(request,user,session,claim_error=None,status=200):
     production_jobs=list(session.execute(select(ProductionOrder,Product.name+production.title_extra()).join(Product,Product.code==ProductionOrder.product_code).where(ProductionOrder.technician_id==user.id,ProductionOrder.status.in_(('MOI','DANG_LAM'))).order_by(ProductionOrder.id)))
     claims=_claim_rows(session,now) if service_self_claim.minutes()>0 else []
     claimed=str(request.query_params.get('nhan',''))[:32]
-    return render(request,'tho_hom_nay.jinja',production_jobs=production_jobs,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
+    # Nhắc sắp tới hẹn (TUẤN 05/11/2026): thợ chưa bấm Đi / Đã đến khách.
+    from .. import service_suggest
+    soon=service_suggest.at_risk(session,now,level='tech',assignee_id=user.id)
+    soon_customers=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({i['ticket'].customer_code for i in soon}))).all()) if soon else {}
+    flash={'di':'Đã ghi bạn đang đi tới khách. Điều phối thấy ngay.','tre':'Đã báo trễ. Điều phối sẽ gọi khách.'}.get(str(request.query_params.get('hen','')),'')
+    return render(request,'tho_hom_nay.jinja',soon=soon,soon_customers=soon_customers,soon_label=service_suggest.risk_label,vn_tz=service_suggest.TZ,late_choices=service_suggest.LATE_CHOICES,late_flash=flash,production_jobs=production_jobs,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
         claims=claims,claim_busy=bool(claims) and not service_self_claim.can_claim_more(session,user.id),claim_limit=get_settings().self_claim_max_open,
         claim_error=claim_error,claimed=claimed if claimed and any(j['number']==claimed for j in jobs) else '',status=status,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))
+
+
+@router.post('/tho/phieu/{ticket_id}/di')
+def depart(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from .. import service_suggest
+    owned(session,user,ticket_id)
+    try:
+        service_suggest.depart(session,user,ticket_id)
+    except BusinessError as exc:
+        session.rollback()
+        return _today(request,user,session,claim_error=exc.message,status=exc.status)
+    return RedirectResponse('/tho?hen=di',status_code=303)
+
+
+@router.post('/tho/phieu/{ticket_id}/bao-tre')
+def report_late(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    from .. import service_suggest
+    owned(session,user,ticket_id)
+    try:
+        service_suggest.report_late(session,user,ticket_id,str(form.get('tre','')))
+    except BusinessError as exc:
+        session.rollback()
+        return _today(request,user,session,claim_error=exc.message,status=exc.status)
+    return RedirectResponse('/tho?hen=tre',status_code=303)
 
 
 @router.get('/tho/moi')

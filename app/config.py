@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     # Trợ lý Zalo (TUẤN duyệt 05/11/2026): hỏi tồn kho, đơn nháp. Khóa OpenAI dùng chung với Đăng web.
     openai_api_key: str = ''
     zalo_ai_model: str = 'gpt-5-mini'
+    # Báo điều phối qua Zalo (TUẤN 05/11/2026): phiếu cần giao, sắp trễ hẹn, thợ báo trễ. TD_DISPATCH_ZALO=false để tắt.
+    dispatch_zalo: bool = True
     zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
     zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
 

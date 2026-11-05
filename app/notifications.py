@@ -82,6 +82,24 @@ def items(session, user, tho=False):
                        ServiceStep.at >= now - timedelta(days=1))
                 .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
             out.append(_item('self_claimed', step_id, f'{who(assignee)} đã tự nhận phiếu', number, f'/dich-vu/{ticket_id}', info=True))
+    # Nhắc sắp trễ hẹn (TUẤN 05/11/2026): thợ chưa bấm Đi / Đã đến khách. Đổi hẹn thì mốc mới, nhắc lại.
+    from . import service_suggest
+    if 'technician' in user.roles:
+        for item in service_suggest.at_risk(session, now, level='tech', assignee_id=user.id):
+            row = item['ticket']
+            out.append(_item('appointment_soon', item['mark'], 'Sắp tới giờ hẹn',
+                             f"{row.number} · {service_suggest.risk_label(item)}", f'/tho/phieu/{row.id}'))
+    if has_role(user, 'dispatcher'):
+        for item in service_suggest.at_risk(session, now, level='dispatch'):
+            row = item['ticket']
+            text = f"{row.number} · {who(row.assignee_id)} chưa đi · {service_suggest.risk_label(item).lower()}"
+            out.append(_item('appointment_risk', item['mark'], 'Có thể trễ hẹn', text, '/dieu-phoi?view=late'))
+        for step_id, ticket_id, number, actor, note in session.execute(select(ServiceStep.id, ServiceStep.ticket_id, ServiceTicket.number, ServiceStep.actor_id, ServiceStep.note)
+                .join(ServiceTicket, ServiceTicket.id == ServiceStep.ticket_id)
+                .where(ServiceStep.action == service_suggest.LATE, ServiceStep.at >= now - timedelta(hours=6),
+                       ServiceTicket.status.in_(service_suggest.WAITING))
+                .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
+            out.append(_item('tech_late', step_id, f'{who(actor)} báo trễ', f'{number} · {note.lower()}', f'/dich-vu/{ticket_id}'))
     # Trợ lý AI: nhắc việc gửi tới mình (giữ 1 ngày), đề xuất nhập hàng giám đốc đã duyệt (cho thủ kho).
     from . import ai_agent
     for row in ai_agent.reminders_for(session, user, my_work._now() - timedelta(days=1)):

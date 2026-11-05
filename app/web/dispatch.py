@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from .. import service_self_claim, service_tickets as svc, work_watch, service_workshop
+from .. import service_self_claim, service_suggest, service_tickets as svc, work_watch, service_workshop
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog, ServiceStep, ServiceTicket, ServiceVisit, User
@@ -50,6 +50,7 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
         func.count().filter(ServiceTicket.status == "TAM_DUNG"),
     )).one()
     count_open, count_overdue, count_parts, count_paused = counts
+    risks = service_suggest.at_risk(session, now, level='tech')
     if view == "overdue":
         title = "Đơn quá hạn"
         # Truyền limit theo tổng thực tế: không cắt danh sách ở giới hạn tìm kiếm mặc định.
@@ -59,6 +60,10 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
         rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.status == 'MOI', ~service_self_claim.claimable(now))
                                    .order_by(ServiceTicket.due_at.asc().nulls_last(), ServiceTicket.id)))
         title = 'Cần giao thợ'
+    elif view == 'late':
+        # Sắp trễ hẹn (TUẤN 05/11/2026): thợ chưa bấm Đi / Đã đến khách, tới mốc nhắc thợ.
+        rows = [item['ticket'] for item in risks]
+        title = 'Sắp trễ hẹn'
     elif view == 'claim':
         rows = list(session.scalars(select(ServiceTicket).where(service_self_claim.claimable(now))
                                    .order_by(ServiceTicket.self_claim_until, ServiceTicket.id)))
@@ -101,8 +106,9 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
         func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'SUA_XONG_CHO_TRA'),
         func.count().filter(service_self_claim.claimable(now)),
     )).one()
-    tiles = [dict(label=label, n=n, href=f'/dieu-phoi?view={key}', on=view == key, tone='huy' if key in ('overdue', 'new') and n else '')
+    tiles = [dict(label=label, n=n, href=f'/dieu-phoi?view={key}', on=view == key, tone='huy' if key in ('overdue', 'new', 'late') and n else '')
              for key, n, label in (('open', count_open, 'Đang mở'), ('overdue', count_overdue, 'Quá hạn'), ('new', extra[0], 'Cần giao thợ'),
+                                   ('late', len(risks), 'Sắp trễ hẹn'),
                                    *((('claim', extra[3], 'Chờ thợ tự nhận'),) if service_self_claim.minutes() > 0 or extra[3] else ()),
                                    ('workshop', extra[1], 'Ở xưởng'), ('return_ready', extra[2], 'Sửa xong chờ trả'),
                                    ('parts', count_parts, 'Chờ linh kiện'), ('paused', count_paused, 'Tạm dừng'))]
@@ -111,7 +117,20 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
         local = now.astimezone(TZ).date()
         start = datetime.combine(local.replace(day=1), time.min, TZ)
         claim_stats = service_self_claim.month_stats(session, start, now + timedelta(minutes=1))
-    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts, claim_stats=claim_stats, claim_left=lambda t: service_self_claim.minutes_left(t, now),
+    # Gợi ý thợ: phiếu điều phối cần giao (không phiếu đang chờ thợ tự nhận) và phiếu sắp trễ (đổi sang thợ khác).
+    risk_of = {item['ticket'].id: item for item in risks}
+    pending = [t for t in rows if service_suggest.needs_dispatch(t, now) or t.id in risk_of]
+    ranks = service_suggest.rank_many(session, pending, now) if pending else {}
+    suggest, swap = {}, {}
+    for t in pending:
+        if t.id in risk_of and t.assignee_id:
+            swap[t.id] = next((r for r in ranks.get(t.id, []) if r['id'] != t.assignee_id and not r['blocked']), None)
+        else:
+            suggest[t.id] = service_suggest.best(ranks.get(t.id, []))
+    back = '/dieu-phoi' + ('' if view == 'open' else f'?view={view}')
+    done = str(request.query_params.get('da_giao', ''))[:120]
+    return render(request, "dieu_phoi.jinja", visit_counts=visit_counts, suggest=suggest, swap=swap, risk_of=risk_of, back=back, done=done,
+                  risk_label=service_suggest.risk_label, claim_stats=claim_stats, claim_left=lambda t: service_self_claim.minutes_left(t, now),
                   claim_expired=lambda t: t.status == 'MOI' and t.assignee_id is None and t.self_claim_until is not None and t.self_claim_until <= now,tiles=tiles,customer_names=customer_names,
                   next_of={t.id: _service_next(t, users, session) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, page=page, view=view, title=title,
                   users=users, open_counts=svc.open_counts(session),
@@ -286,6 +305,7 @@ def _report_context(request, session):
         raise BusinessError('BAD_STATUS', 'Bộ lọc trạng thái chưa hợp lệ.')
     workshop=service_workshop.queue_query(_now())
     return dict(start=start.isoformat(), end=end.isoformat(), technicians=technicians, daily=daily, error=None,
+        suggest_stats=service_suggest.month_stats(session, since, until),
         workshop_overdue=list(session.execute(workshop.where(workshop.selected_columns.overdue.is_(True))).mappings()),selected_status=selected, paused=_paused(session,since,until) if selected else [],
         users=dict(session.execute(select(User.id,User.full_name)).all()))
 
