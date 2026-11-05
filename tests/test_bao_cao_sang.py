@@ -75,7 +75,6 @@ def test_render_short_forms_and_empty_lines():
              month_start=date(2026, 11, 1), month_revenue=86900000, prev_revenue=77600000, prev_month=date(2026, 10, 1),
              margin=24100000, fund_cash=18200000, fund_bank=124300000, pending_count=0, pending_amount=0,
              debt_total=96400000, overdue_total=31200000,
-             top_debts=[dict(name='Công ty TNHH Thương mại An Phát Hưng Thịnh', amount=12500000, days=45)],
              ncc_overdue=0, ncc_week=22000000, open=14, late=1,
              late_rows=[dict(number='DV-2611-0412', customer='Cty Sao Mai', tech='Đoàn Cảnh Phong', minutes=2 * 24 * 60 + 5)],
              appointments=6, appointments_free=1)
@@ -85,7 +84,7 @@ def test_render_short_forms_and_empty_lines():
     assert 'Doanh thu: 86.900.000đ (cùng kỳ T10: +12%)' in text
     assert 'Quỹ: 142.500.000đ (TM 18,2tr · NH 124,3tr)' in text
     assert 'Báo thu chờ xác nhận: không có' in text
-    assert '· Công ty TNHH Thương mại An… 12,5tr (quá 45 ngày)' in text
+    assert 'Khách nợ: 96.400.000đ, quá hạn 31.200.000đ\nNợ NCC' in text      # không liệt kê tên khách
     assert 'Nợ NCC đến hạn 7 ngày tới: 22.000.000đ' in text
     assert '· DV-2611-0412 Cty Sao Mai – trễ 2 ngày (Phong)' in text
     assert 'Lịch hẹn hôm nay: 6 lượt (1 chưa giao thợ)' in text
