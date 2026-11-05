@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from .. import zalo_bot as svc
+from .. import zalo_agent, zalo_bot as svc
 
 router = APIRouter()
 MAX_BODY = 256 * 1024
@@ -24,7 +24,9 @@ async def webhook(request: Request, background: BackgroundTasks):
         return JSONResponse({'ok': False}, status_code=400)
     if not isinstance(payload, dict):
         return JSONResponse({'ok': False}, status_code=400)
-    notice = await run_in_threadpool(svc.receive_event, payload)
+    notice, message_id = await run_in_threadpool(svc.receive_event_full, payload)
     if notice:  # Trả lời Zalo trước, gửi lời báo lần đầu sau.
         background.add_task(svc.send_notice, notice)
+    if message_id:  # Trợ lý Zalo (tắt thì không làm gì); chạy sau lời báo lần đầu.
+        background.add_task(zalo_agent.handle_message, message_id)
     return {'ok': True}

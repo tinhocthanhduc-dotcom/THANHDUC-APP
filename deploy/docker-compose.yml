@@ -32,6 +32,9 @@ services:
       TD_PERF_LOG: ${TD_PERF_LOG:-true}
       TD_ZALO_BOT_TOKEN: ${TD_ZALO_BOT_TOKEN:-}
       TD_ZALO_WEBHOOK_SECRET: ${TD_ZALO_WEBHOOK_SECRET:-}
+      # Trợ lý Zalo dùng chung khóa OpenAI với máy đăng web.
+      TD_OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TD_ZALO_AI_MODEL: ${TD_ZALO_AI_MODEL:-gpt-5-mini}
     volumes:
       - files:/app/data/files
       # Thư mục làm việc của màn Đăng web, dùng chung với máy đăng web (dang-web-may bên dưới).

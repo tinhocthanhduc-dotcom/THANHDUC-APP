@@ -98,14 +98,19 @@ def _preview(row_text: str, kind: str) -> str:
 
 def receive(session: Session, payload: dict) -> int | None:
     """Lưu một sự kiện Zalo, gửi trùng thì bỏ qua. Trả mã hội thoại nếu cần gửi lời báo lần đầu."""
+    return receive_full(session, payload)[0]
+
+
+def receive_full(session: Session, payload: dict) -> tuple[int | None, int | None]:
+    """Như receive, trả thêm mã tin vừa lưu (None nếu trùng hoặc không lưu) để Trợ lý Zalo xử lý."""
     payload = _no_nul(payload)
     event = payload.get('result') if isinstance(payload.get('result'), dict) else payload
     msg = event.get('message')
     if not isinstance(msg, dict) or not isinstance(msg.get('chat'), dict):
-        return None
+        return None, None
     chat_id = str(msg['chat'].get('id') or '').strip()
     if not chat_id or len(chat_id) > 64:
-        return None
+        return None, None
     sender = msg.get('from') if isinstance(msg.get('from'), dict) else {}
     chat_type = 'GROUP' if msg['chat'].get('chat_type') == 'GROUP' else 'PRIVATE'
     sender_name = str(sender.get('display_name') or '')[:200]
@@ -128,7 +133,7 @@ def receive(session: Session, payload: dict) -> int | None:
     ).on_conflict_do_nothing(index_elements=['zalo_message_id']).returning(ZaloMessage.id)).scalar_one_or_none()
     if inserted is None:
         session.commit()
-        return None
+        return None, None
     session.execute(update(ZaloChat).where(ZaloChat.id == pk).values(
         last_message_at=at, last_text=_preview(text, kind), unread=ZaloChat.unread + 1))
     notice = None
@@ -136,12 +141,17 @@ def receive(session: Session, payload: dict) -> int | None:
         notice = session.execute(update(ZaloChat).where(ZaloChat.id == pk, ZaloChat.notice_sent_at.is_(None)).values(
             notice_sent_at=func.now()).returning(ZaloChat.id)).scalar_one_or_none()
     session.commit()
-    return notice
+    return notice, inserted
 
 
 def receive_event(payload: dict) -> int | None:
     with Session(engine()) as session:
         return receive(session, payload)
+
+
+def receive_event_full(payload: dict) -> tuple[int | None, int | None]:
+    with Session(engine()) as session:
+        return receive_full(session, payload)
 
 
 def send_text(session: Session, chat: ZaloChat, text: str, user: User | None = None, kind: str = 'text') -> ZaloMessage:

@@ -1,0 +1,53 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% import 'phan_trang.jinja' as pager %}
+{% block title %}Trợ lý Zalo{% endblock %}
+{% block main %}<div class="page-wide zl-page">
+{# Trợ lý Zalo (TUẤN duyệt 05/11/2026): chỉ giám đốc. Trợ lý chỉ đọc tồn kho và lập đơn nháp, không chốt đơn, không đụng tiền/kho/nợ. #}
+{% call ui.page_head('Trợ lý Zalo', sub='Nhân viên hỏi tồn kho qua bot Zalo; kinh doanh và khách đã gắn nhắn đặt hàng thì trợ lý lập đơn nháp để kinh doanh kiểm và chốt.', badge_label='Đang bật' if cfg.enabled else 'Đang tắt', badge_tone='xong' if cfg.enabled else 'nhap') %}<a class="btn btn-ghost" href="/zalo/tin-nhan">Tin nhắn Zalo</a>{% endcall %}
+{% if luu %}{{ ui.toast('Đã lưu cấu hình') }}{% endif %}
+{% if not has_key %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa có khóa OpenAI.</b> Trợ lý cần OPENAI_API_KEY trong deploy/.env (khóa dùng chung với Đăng web) rồi cập nhật app.</section>{% endif %}
+
+<form class="card zl-config" method="post" action="/zalo/tro-ly/cau-hinh"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="row">
+<div class="field" role="group" aria-labelledby="zl-bat-t" style="flex:1 1 220px"><p class="group-label" id="zl-bat-t"><b>Trợ lý</b></p><div class="seg">
+<label><input type="radio" name="bat" value="1"{% if cfg.enabled %} checked{% endif %}><span>Bật</span></label>
+<label><input type="radio" name="bat" value="0"{% if not cfg.enabled %} checked{% endif %}><span>Tắt</span></label></div></div>
+<label for="zl-nguoi"><b>Người nhận đơn nháp của khách</b><select id="zl-nguoi" name="nguoi_nhan"><option value="">Chưa chọn</option>{% for u in draft_users %}<option value="{{ u.id }}"{% if cfg.draft_user_id == u.id %} selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
+<button class="btn btn-ok">Lưu</button>
+</div>
+<p class="hint">Model {{ model }}. Mỗi người tối đa {{ per_person }} câu/ngày, cả công ty {{ per_day }} câu/ngày. Tắt thì bot trở lại chỉ lưu tin như trước. Chỉ trả lời trong hội thoại riêng, không trả lời trong nhóm.</p>
+</form>
+
+{{ ui.tiles([
+  dict(label='Câu hôm nay' if not ngay else 'Câu trong ngày', n=total, href='/zalo/tro-ly?tab=nhat-ky' ~ ('&ngay=' ~ ngay if ngay else ''), on=tab=='nhat-ky'),
+  dict(label='Đơn nháp tạo', n=stats.drafts, href='/don-nhap-zalo'),
+  dict(label='Chi phí AI', n=stats.cost|money ~ ' đ'),
+]) }}
+{{ ui.list_tabs([dict(label='Đã gắn', n=chats|length, href='/zalo/tro-ly?tab=gan', on=tab=='gan'), dict(label='Nhật ký', n=total, href='/zalo/tro-ly?tab=nhat-ky' ~ ('&ngay=' ~ ngay if ngay else ''), on=tab=='nhat-ky')]) }}
+
+{% if tab == 'gan' %}
+{% if chats %}<div class="table-scroll"><table class="list-table lt-cards"><thead><tr><th>Tên trên Zalo</th><th>Gắn với</th><th>Được làm</th><th class="num">Câu hôm nay</th><th></th></tr></thead><tbody>
+{% for c in chats %}{% set u = staff.get(c.user_id) %}{% set k = custs.get(c.customer_code) %}<tr>
+<td data-label="Tên trên Zalo"><a href="/zalo/tin-nhan?chat={{ c.id }}">{{ c.display_name or 'Chưa rõ tên' }}</a></td>
+<td data-label="Gắn với">{% if u %}{{ u.full_name }}{% elif k %}Khách {{ k.code }} · {{ k.name }}{% endif %}</td>
+<td data-label="Được làm">{{ label(c, u) }}</td>
+<td data-label="Câu hôm nay" class="num">{{ used[c.id] }}</td>
+<td><form method="post" action="/zalo/tin-nhan/{{ c.id }}/gan"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loai" value="CHUA_GAN"><input type="hidden" name="ve" value="tro-ly"><button class="btn btn-ghost">Bỏ gắn</button></form></td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Chưa gắn Zalo nào. Mở Tin nhắn Zalo, chọn hội thoại, chọn "Người này là" nhân viên hoặc khách.', '/zalo/tin-nhan', 'Mở Tin nhắn Zalo') }}{% endif %}
+{% else %}
+<form class="filter-bar" method="get" action="/zalo/tro-ly" data-autofilter><input type="hidden" name="tab" value="nhat-ky"><label for="zl-ngay"><b>Ngày</b></label><input id="zl-ngay" type="date" name="ngay" value="{{ day.isoformat() }}"><noscript><button class="btn btn-ghost">Xem</button></noscript></form>
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards"><thead><tr><th>Giờ</th><th>Người</th><th>Tin nhắn</th><th>AI đã tra</th><th>Kết quả</th><th class="num">Chi phí</th></tr></thead><tbody>
+{% for r in rows %}<tr>
+<td data-label="Giờ">{{ r.created_at|vn_time }}</td>
+<td data-label="Người">{% if r.user_id %}{{ names.get(('u', r.user_id), '') }}{% elif r.customer_code %}{{ names.get(('c', r.customer_code), r.customer_code) }}{% endif %} <small class="mu">{{ askers[r.asker] }}</small></td>
+<td data-label="Tin nhắn"><p class="zl-quote">{{ r.question[:300] }}</p>{% if r.answer %}<small class="mu">Trả lời: {{ r.answer[:300] }}</small>{% endif %}</td>
+<td data-label="AI đã tra" class="zl-tools">{% for t in r.tools %}{{ t.ten }}({{ (t.vao.values()|list|join(', '))[:60] if t.vao is mapping else '' }}) → {{ t.ra }}<br>{% else %}—{% endfor %}</td>
+<td data-label="Kết quả">{{ ui.badge(results[r.result][0], results[r.result][1]) if r.result in results else r.result }}{% if r.order_id %} <a href="/don-ban/{{ r.order_id }}">Mở đơn</a>{% endif %}{% if r.need_pick %}<br><small class="zl-warn">Cần chọn mã</small>{% endif %}{% if r.error %}<br><small class="zalo-err">{{ r.error }}</small>{% endif %}</td>
+<td data-label="Chi phí" class="num">{{ r.cost_vnd|money }} đ</td>
+</tr>{% endfor %}</tbody></table></div>
+{{ pager.bar(p, 'câu') }}
+{% else %}{{ ui.empty('Ngày này chưa có câu hỏi nào.') }}{% endif %}
+{% endif %}
+</div>{% endblock %}

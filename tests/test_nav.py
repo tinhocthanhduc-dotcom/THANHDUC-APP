@@ -39,6 +39,8 @@ EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan
 EXPECTED['director'].add('/toc-do')  # TD1: trang Tốc độ app
 EXPECTED['director'].add('/tro-ly-ai')  # Trợ lý AI (TUẤN 01/11/2026)
 EXPECTED['director'].add('/zalo/tin-nhan')  # Tin nhắn Zalo (TUẤN 05/11/2026)
+EXPECTED['director'].update({'/zalo/tro-ly', '/don-nhap-zalo'})  # Trợ lý Zalo (TUẤN duyệt 05/11/2026)
+EXPECTED['sales'].add('/don-nhap-zalo')
 EXPECTED['director'].add('/dang-web')  # TUẤN 01/11/2026: màn Đăng web (nhóm Bán hàng)
 EXPECTED['sales'].add('/dang-web')  # TUẤN 01/11/2026: Kinh doanh dùng được Đăng web
 EXPECTED['director'].difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu'))  # Việc riêng của thợ không lên menu giám đốc.

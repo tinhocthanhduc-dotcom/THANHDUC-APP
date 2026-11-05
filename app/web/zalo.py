@@ -25,7 +25,7 @@ def _when(value) -> str:
 
 @router.get('/zalo/tin-nhan')
 def page(request: Request, q: str = '', chat: str = '', trang: str = '', so: str = '', tin: str = '', gui: str = '', webhook: str = '',
-         user: User = Depends(web_user), session: Session = Depends(get_session)):
+         kq: str = '', gan: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
     svc._director(user)
     q = q.strip()[:200]
     chat_pk = int(chat) if chat.isdecimal() and len(chat) < 10 else None
@@ -40,9 +40,22 @@ def page(request: Request, q: str = '', chat: str = '', trang: str = '', so: str
         pm = build(tin, 50, svc.count_messages(session, current.id), {**query, 'trang': p['page'] if p['page'] > 1 else ''}, key='tin')
         messages = svc.list_messages(session, current.id, pm['offset'], pm['size'])
     cfg = get_settings()
+    # Trợ lý Zalo: gắn hội thoại riêng với nhân viên hoặc khách. kq = ô tìm khách để gắn.
+    staff_list, found, linked_user, linked_customer = [], [], None, None
+    kq = kq.strip()[:100]
+    if current is not None and current.chat_type == 'PRIVATE':
+        from sqlalchemy import select
+        from .. import customers
+        from ..models import Customer
+        staff_list = list(session.scalars(select(User).where(User.active.is_(True)).order_by(User.full_name)))
+        linked_user = session.get(User, current.user_id) if current.user_id else None
+        linked_customer = session.get(Customer, current.customer_code) if current.customer_code else None
+        if kq:
+            found = [c for c in customers.search(session, kq, include_test=False) if c.status == 'DANG_DUNG'][:8]
     note = unquote(request.cookies.get(NOTE_COOKIE, '')) if webhook else ''
     resp = render(request, 'zalo_tin_nhan.jinja', q=q, chats=chats, p=p, current=current, messages=messages, pm=pm, when=_when,
                   send_states=STATUS, kind_labels=svc.KIND_LABELS, max_text=svc.MAX_TEXT, gui=gui, webhook=webhook, note=note,
+                  staff_list=staff_list, found=found, kq=kq, gan=gan, linked_user=linked_user, linked_customer=linked_customer,
                   has_token=bool(cfg.zalo_bot_token.strip()), has_secret=bool(cfg.zalo_webhook_secret), webhook_url=cfg.zalo_webhook_url)
     if webhook:
         resp.delete_cookie(NOTE_COOKIE, path='/zalo/tin-nhan')

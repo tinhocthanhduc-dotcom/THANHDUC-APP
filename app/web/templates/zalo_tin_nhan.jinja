@@ -30,6 +30,20 @@
 <section class="card zalo-thread" aria-label="Nội dung hội thoại">
 {% if current %}
 <header class="zalo-head"><b>{{ current.display_name or 'Chưa rõ tên' }}</b><small class="mu">Mã chat: <code>{{ current.chat_id }}</code></small></header>
+{% if current.chat_type == 'PRIVATE' %}<details class="zalo-link"{% if kq or gan or not (linked_user or linked_customer) %} open{% endif %}><summary><b>Người này là:</b>
+{% if linked_user %}{{ ui.badge('Nhân viên · ' ~ linked_user.full_name, 'xong') }}{% elif linked_customer %}{{ ui.badge('Khách · ' ~ linked_customer.name, 'xong') }}{% else %}{{ ui.badge('Chưa rõ', 'nhap') }}{% endif %}</summary>
+{% if gan %}<p class="hint" aria-live="polite">Đã lưu.</p>{% endif %}
+<p class="hint">Trợ lý Zalo chỉ trả lời số liệu cho người đã gắn. Nhân viên hỏi theo quyền tài khoản app; khách chỉ gửi được yêu cầu đặt hàng.</p>
+<form class="zalo-link-row" method="post" action="/zalo/tin-nhan/{{ current.id }}/gan"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loai" value="NHAN_VIEN">
+<label for="zalo-nv"><b>Nhân viên</b></label><select id="zalo-nv" name="nhan_vien" required><option value="">Chọn nhân viên…</option>{% for u in staff_list %}<option value="{{ u.id }}"{% if linked_user and linked_user.id == u.id %} selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select>
+<button class="btn btn-ok">Gắn nhân viên</button></form>
+<form class="zalo-link-row" method="get" action="/zalo/tin-nhan" role="search"><input type="hidden" name="chat" value="{{ current.id }}">
+<label for="zalo-kq"><b>Khách hàng</b></label><input id="zalo-kq" type="search" name="kq" value="{{ kq }}" placeholder="Tên, mã KTD, số điện thoại…" autocomplete="off"><button class="btn btn-ghost">Tìm khách</button></form>
+{% if kq %}<div class="zalo-found">{% for c in found %}<form method="post" action="/zalo/tin-nhan/{{ current.id }}/gan"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loai" value="KHACH"><input type="hidden" name="khach" value="{{ c.code }}">
+<span><b>{{ c.name }}</b> <small class="mu">{{ c.code }}{% if c.phones %} · {{ c.phones[0].phone }}{% endif %}</small></span><button class="btn btn-ok">Gắn khách này</button></form>
+{% else %}<p class="hint">Không tìm thấy khách đang dùng nào.</p>{% endfor %}</div>{% endif %}
+{% if linked_user or linked_customer %}<form method="post" action="/zalo/tin-nhan/{{ current.id }}/gan"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loai" value="CHUA_GAN"><button class="btn btn-ghost">Bỏ gắn</button></form>{% endif %}
+</details>{% endif %}
 <div class="zalo-msgs">
 {% for m in messages %}<article class="zalo-msg {{ 'zalo-out' if m.direction == 'OUT' else 'zalo-in' }}" id="tin-{{ m.id }}">
 <small class="mu">{{ m.sender_name or ('Tin nhắn đến' if m.direction == 'IN' else 'Tự động') }} · {{ when(m.message_at) }}{% if m.direction == 'OUT' and m.status in send_states %} · {{ ui.badge(send_states[m.status][0], send_states[m.status][1]) }}{% endif %}</small>

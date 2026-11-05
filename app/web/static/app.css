@@ -3531,3 +3531,26 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .zalo-reply textarea { width: 100%; }
 .zalo-reply .btn { justify-self: end; }
 @media (max-width: 760px) { .zalo-grid { grid-template-columns: minmax(0, 1fr); } .zalo-msg { max-width: 100%; } }
+/* Trợ lý Zalo (05/11/2026): gắn hội thoại, nhật ký, đơn nháp từ Zalo. */
+.zalo-link { display: grid; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.zalo-link summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.zalo-link-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.zalo-link-row select, .zalo-link-row input { min-height: 44px; font-size: 16px; min-width: 0; }
+.zalo-found { display: grid; gap: 6px; }
+.zalo-found form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+@media (max-width: 640px) { .zalo-link-row { grid-template-columns: 1fr; } }
+.zl-page { display: grid; gap: 12px; }
+.zl-config { padding: 12px; display: grid; gap: 10px; }
+.zl-config .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.zl-config .row > label { display: grid; gap: 4px; min-width: 0; flex: 1 1 220px; }
+.zl-config select { min-height: 44px; font-size: 16px; }
+.zl-tools { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; overflow-wrap: anywhere; }
+.zl-quote { background: var(--tag); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.zl-cards { display: grid; gap: 10px; }
+.zl-card { padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.zl-card-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.zl-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; margin: 0; }
+.zl-kv dt { font-weight: 700; }
+.zl-kv dd { margin: 0; overflow-wrap: anywhere; }
+.zl-warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 9px; overflow-wrap: anywhere; }
+.zl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
