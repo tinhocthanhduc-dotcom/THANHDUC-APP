@@ -37,6 +37,12 @@ document.querySelectorAll('[data-cash-form],[data-correction-form]').forEach(fun
     update();
   });
   form.addEventListener('click',function(event) {
+    var staff=event.target.closest('[data-tc-staff]');
+    if (staff && !staff.disabled) {
+      var who=form.querySelector('[name=partner_name]'); if (who) who.value=staff.dataset.tcStaff;
+      form.querySelectorAll('[data-tc-staff]').forEach(function(b){ b.classList.toggle('on',b===staff); });
+      update(); return;
+    }
     var day=event.target.closest('[data-tc-day]');
     if (day) {
       var d=new Date(); d.setDate(d.getDate()+Number(day.dataset.tcDay));

@@ -3622,3 +3622,7 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
   .pl-qs { grid-area: q; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .pl-st { justify-items: end; text-align: right; }
 }
+.tc-staff .fill-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tc-staff .muted { margin: 0 0 8px; font-size: .9rem; }
+.tc-staff .chip-btn { min-height: 40px; padding: 0 12px; border-width: 1px; border-color: var(--line); border-radius: 10px; font-weight: 500; font-size: .95rem; }
+.tc-staff .chip-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
