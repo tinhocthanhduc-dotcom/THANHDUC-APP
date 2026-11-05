@@ -32,7 +32,7 @@
 <header class="zalo-head"><b>{{ current.display_name or 'Chưa rõ tên' }}</b><small class="mu">Mã chat: <code>{{ current.chat_id }}</code></small></header>
 <div class="zalo-msgs">
 {% for m in messages %}<article class="zalo-msg {{ 'zalo-out' if m.direction == 'OUT' else 'zalo-in' }}" id="tin-{{ m.id }}">
-<small class="mu">{{ m.sender_name or ('Tin nhắn đến' if m.direction == 'IN' else 'Tự động') }} · {{ when(m.message_at) }}{% if m.direction == 'OUT' and m.status in status %} · {{ ui.badge(status[m.status][0], status[m.status][1]) }}{% endif %}</small>
+<small class="mu">{{ m.sender_name or ('Tin nhắn đến' if m.direction == 'IN' else 'Tự động') }} · {{ when(m.message_at) }}{% if m.direction == 'OUT' and m.status in send_states %} · {{ ui.badge(send_states[m.status][0], send_states[m.status][1]) }}{% endif %}</small>
 {% if m.text %}<p>{{ m.text }}</p>{% elif m.kind in kind_labels %}<p class="mu">[{{ kind_labels[m.kind] }}]</p>{% endif %}
 {% if m.error %}<small class="zalo-err">{{ m.error }}</small>{% endif %}
 </article>{% else %}{{ ui.empty('Hội thoại này chưa có tin nào.') }}{% endfor %}

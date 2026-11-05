@@ -42,7 +42,7 @@ def page(request: Request, q: str = '', chat: str = '', trang: str = '', so: str
     cfg = get_settings()
     note = unquote(request.cookies.get(NOTE_COOKIE, '')) if webhook else ''
     resp = render(request, 'zalo_tin_nhan.jinja', q=q, chats=chats, p=p, current=current, messages=messages, pm=pm, when=_when,
-                  status=STATUS, kind_labels=svc.KIND_LABELS, max_text=svc.MAX_TEXT, gui=gui, webhook=webhook, note=note,
+                  send_states=STATUS, kind_labels=svc.KIND_LABELS, max_text=svc.MAX_TEXT, gui=gui, webhook=webhook, note=note,
                   has_token=bool(cfg.zalo_bot_token.strip()), has_secret=bool(cfg.zalo_webhook_secret), webhook_url=cfg.zalo_webhook_url)
     if webhook:
         resp.delete_cookie(NOTE_COOKIE, path='/zalo/tin-nhan')
