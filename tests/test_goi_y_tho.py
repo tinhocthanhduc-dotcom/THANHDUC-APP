@@ -60,6 +60,21 @@ def test_free_technician_ranks_first_and_leave_blocks(db, people):
     assert blocked['blocked'] == 'Nghỉ cả ngày' and rows[0]['id'] == p['phong'].id
 
 
+def test_director_and_director_side_account_never_suggested(db, people, make_user):
+    p = people
+    boss = make_user('gy.tuan', 'director', 'technician')
+    boss.full_name = 'Bùi Minh Tuấn'
+    side = make_user('gy.tuan2', 'technician')
+    side.full_name = 'BÙI MINH TUAN'
+    db.commit()
+    for tech in (p['phong'], p['a']):
+        busy = new_ticket(db, p)
+        service_tickets.assign(db, p['dispatcher'], busy.id, tech.id, busy.version)
+    rows = service_suggest.rank(db, new_ticket(db, p))
+    ids = {r['id'] for r in rows}
+    assert boss.id not in ids and side.id not in ids and {p['phong'].id, p['a'].id} <= ids
+
+
 def test_previous_repairer_and_distance_count(db, people):
     p = people
     old = new_ticket(db, p)
