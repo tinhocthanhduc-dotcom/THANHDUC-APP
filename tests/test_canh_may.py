@@ -139,3 +139,28 @@ def test_workflow_n8n_hop_le():
 def test_khong_doc_duoc_docker_chi_bao_mot_dong():
     vd, tom = cm.kiem_phan([], ['db', 'api'], 'running')
     assert [v['ma'] for v in vd] == ['docker'] and tom == 'không đọc được Docker'
+
+
+def test_bot_rieng_uu_tien_hon_bot_app(tmp_path, monkeypatch):
+    monkeypatch.delenv('TD_ZALO_BOT_TOKEN', raising=False)
+    monkeypatch.delenv('CANH_MAY_ZALO_BOT_TOKEN', raising=False)
+    p = tmp_path / '.env'
+    p.write_text('TD_ZALO_BOT_TOKEN=app:1\nCANH_MAY_ZALO_BOT_TOKEN=rieng:2\n')
+    cfg = cm.cau_hinh(cm.doc_env(p))
+    assert cfg['token'] == 'rieng:2' and cfg['bot_rieng']
+    p.write_text('TD_ZALO_BOT_TOKEN=app:1\nCANH_MAY_ZALO_BOT_TOKEN=\n')
+    cfg = cm.cau_hinh(cm.doc_env(p))
+    assert cfg['token'] == 'app:1' and not cfg['bot_rieng']
+
+
+def test_doc_ma_chat_mot_tin_hoac_danh_sach():
+    tin = {'message': {'text': 'canh may', 'chat': {'id': 'abc', 'chat_type': 'PRIVATE'},
+                       'from': {'id': 'abc', 'display_name': 'Tuấn'}}}
+    assert cm.doc_ma_chat({'ok': True, 'result': tin}) == [('abc', 'Tuấn', 'canh may')]
+    assert cm.doc_ma_chat({'ok': True, 'result': [tin, tin, {}]}) == [('abc', 'Tuấn', 'canh may')]
+    assert cm.doc_ma_chat({'ok': True, 'result': None}) == []
+
+
+def test_lay_ma_chat_can_bot_rieng(capsys):
+    assert cm.lay_ma_chat({'token': 'app:1', 'bot_rieng': False}) == 1
+    assert 'CANH_MAY_ZALO_BOT_TOKEN' in capsys.readouterr().out
