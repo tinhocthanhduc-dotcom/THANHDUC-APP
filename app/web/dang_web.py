@@ -17,7 +17,7 @@ from starlette.datastructures import UploadFile
 
 from dang_web import hang_doi as hd
 from dang_web import ve_anh
-from dang_web.so_ten import so_khop_hang
+from dang_web.so_ten import do_giong_bai, so_khop_hang
 from dang_web.tren_web import CayDanhMuc
 
 from . import checked_form, paging, render, web_user
@@ -159,7 +159,9 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
     chu_de = []
     if loai == "bai_viet":
         dang_co = {v.get("chu_de") for v in con}
-        chu_de = [dict(ten=c, xong=c in tt["bai_viet"], dang=c in dang_co, trung=c in tt["nghi_trung"]) for c in hd.doc_chu_de(g)]
+        bai_tren_web = _doc_web(hd.file_bai_web(g))["ds"]
+        chu_de = [dict(ten=c, xong=c in tt["bai_viet"], dang=c in dang_co, trung=c in tt["nghi_trung"],
+                       tren_web=_bai_giong(c, bai_tren_web)) for c in hd.doc_chu_de(g)]
     return render(request, "dang_web.jinja", rows=rows, tiles=tiles, gan_day=gan_day, chu_de=chu_de, lich=hd.doc_lich(g),
                   co_chay=any(v["dang_chay"] for v in viec), **ctx)
 
@@ -255,6 +257,12 @@ def _ma_theo_web(session, g, tt) -> dict[int, str]:
         if isinstance(x, dict) and str(x.get("dung", "")).isdigit() and code in ma_app:
             ra[int(x["dung"])] = code
     return ra, ma_app
+
+
+def _bai_giong(chu_de: str, bai_web: list[dict]) -> dict | None:
+    """Chủ đề chờ viết đã có bài gần giống trên web (theo danh sách lấy về lần Cập nhật từ web gần nhất)."""
+    tot = max(((do_giong_bai(chu_de, b.get("ten", "")), b) for b in bai_web), key=lambda x: x[0], default=(0, None))
+    return tot[1] if tot[0] >= 0.7 else None
 
 
 def _tab_tren_web(request, session, g, ctx, tt, sp_web, bai_web, loai, loc, q, dm, nhom, ton, trang, so):

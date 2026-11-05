@@ -193,9 +193,36 @@ class MayDangWeb:
             danh_muc=(dm or {}).get("name") or sp.group_name, loi="",
         )
 
+    def _ung_vien_bai(self, v: dict) -> list[dict]:
+        """Ngoài tìm trên web: mọi bài đã lấy về khi bấm Cập nhật từ web + bài tạo trước đang nằm trong hàng (TUẤN 05/11)."""
+        ra = [{"id": b.get("id"), "title": b.get("ten", ""), "status": b.get("trang_thai", ""), "link": b.get("xem", "")}
+              for b in (hd.doc_json(hd.file_bai_web(self.goc), {}) or {}).get("ds") or [] if b.get("id")]
+        for x in hd.ds(self.goc):
+            if x.get("id") == v.get("id") or x.get("loai") != "bai_viet" or x.get("kieu") or x.get("trang_thai") in (hd.BO, hd.LOI):
+                continue
+            if x.get("trang_thai") in (hd.CHO_SOAN, hd.DANG_SOAN, hd.CO_THE_TRUNG) and x.get("tao_luc", "") >= v.get("tao_luc", ""):
+                continue  # hai bài cùng chưa viết: chỉ bài tạo trước chặn bài tạo sau
+            ra.append({"id": x.get("wp_id"), "title": x.get("ten") or x.get("chu_de") or "",
+                       "status": "hang_cho" if x.get("trang_thai") != hd.DA_DANG else "draft", "link": ""})
+        return ra
+
+    def _trung_sau_khi_viet(self, v: dict, d: dict) -> list[dict]:
+        """AI đã đặt tiêu đề: so lại với web, chỉ cảnh báo ở màn xem trước (không bắt viết lại, đỡ tốn AI)."""
+        if v.get("van_dang") or v.get("wp_id") or not self.co_wp:
+            return []
+        try:
+            giong = bai_co_the_trung(self.wp(), d.get("tieu_de") or "", self._ung_vien_bai(v))
+        except Exception as exc:  # noqa: BLE001 — kiểm tra phụ, lỗi mạng không làm hỏng bài đã viết
+            in_(f"  Không kiểm tra lại trùng được: {exc}")
+            return []
+        for g in giong:
+            if g.get("id") and g.get("trang_thai") != "hang_cho":
+                g["link_sua"] = link_sua(self.ch.wp_url, g["id"])
+        return giong[:5]
+
     def _soan_bai(self, v: dict) -> None:
         cd = v["chu_de"]
-        if self._kiem_trung(v, bai_co_the_trung, cd):
+        if self._kiem_trung(v, lambda wp, ten: bai_co_the_trung(wp, ten, self._ung_vien_bai(v)), cd):
             return
         nv = self.nguoi_viet(v)
         kq = self._goi_ai(v, nv, lambda: nv.viet_bai(cd, v.get("ghi_chu") or dang.doc_ghi_chu(self.ch, slug(cd, 60)), self.ch.hotline))
@@ -209,7 +236,7 @@ class MayDangWeb:
             v, hd.XEM_TRUOC,
             ten=d["tieu_de"], noi_dung=d, anh_web=[a for a, _ in anh_ds], anh_nguon=[str(f) for f in files],
             chi_phi=kq.mo_ta_chi_phi, model=getattr(nv, "model", ""), ghi_chu_ai=kq.ghi_chu,
-            can_kiem_tra=d.get("can_kiem_tra", []), loi="",
+            can_kiem_tra=d.get("can_kiem_tra", []), loi="", trung_sau=self._trung_sau_khi_viet(v, d),
         )
         if v.get("ve_anh") and not files:
             self._gui_ve_anh(v, d)

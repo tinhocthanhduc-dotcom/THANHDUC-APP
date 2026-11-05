@@ -58,6 +58,7 @@
 <label><b>Chủ đề chờ viết</b> <span class="hint">(lịch tự soạn lấy dần từ đây)</span><input name="chu_de" maxlength="200" minlength="8" required placeholder="Ví dụ: Nạp mực tận nơi có hại máy không?"></label>
 <button class="btn btn-ghost">+ Thêm chủ đề</button></form>
 {% if chu_de %}<ul class="dw-topics">{% for c in chu_de %}<li><span>{{ c.ten }}</span>
+{% if c.tren_web and not c.xong %}<a class="btn btn-ghost" href="{{ c.tren_web.sua or c.tren_web.xem }}" target="_blank" rel="noopener" title="Web đã có: {{ c.tren_web.ten }}">Web đã có ↗</a>{% endif %}
 {% if c.xong %}{{ ui.badge('Đã đăng', 'xong') }}{% elif c.dang %}{{ ui.badge('Đang làm', 'lam') }}{% elif c.trung %}{{ ui.badge('Có thể trùng', 'cho') }}{% else %}<a class="btn btn-ghost" href="/dang-web/soan?loai=bai-viet&amp;chu_de={{ c.ten|urlquote }}">Soạn ›</a>{% endif %}
 <form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<button class="btn btn-ghost dw-x" name="hanh_dong" value="xoa" aria-label="Xóa chủ đề {{ c.ten }}" onclick='return confirm({{ ("Xóa chủ đề này khỏi danh sách?")|tojson }})'>×</button></form></li>{% endfor %}</ul>{% endif %}
 </div>
