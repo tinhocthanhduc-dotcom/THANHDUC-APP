@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     dispatch_zalo: bool = True
     zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
     zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
+    # Codex/Claude trên Z2: chờ tối đa bao nhiêu giây mỗi lượt; máy Z2 im quá bấy nhiêu giây thì coi như chưa chạy.
+    zalo_z2_wait: int = Field(default=150, ge=10, le=600)
+    zalo_z2_alive: int = Field(default=180, ge=60, le=3600)
 
     service_fee_group: str = 'Dịch vụ'
     sales_default_warehouse: str = '58'

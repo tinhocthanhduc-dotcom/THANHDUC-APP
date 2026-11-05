@@ -29,7 +29,7 @@ KEEP = {
     "zalo_chats", "zalo_messages", "zalo_tro_ly",
 }
 WIPE = {
-    "dispatch_zalo_sent", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
+    "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
     "notification_reads", "salary_advances", "payroll_lines", "payroll_months", "payroll_inputs",
     "commission_lines", "commission_months", "attendance_punches", "attendance_requests",
     "attendance_month_locks", "pending_item_moves", "pending_dispositions", "pending_items",

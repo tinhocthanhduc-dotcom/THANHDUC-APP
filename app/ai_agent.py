@@ -62,6 +62,8 @@ AGENTS = {
                       hint='Xem việc, nhắc việc, đề xuất giao thợ / dời hẹn / nhập hàng.'),
     'dang-web': dict(name='Codex · Đăng web', scopes=('dang_web',), ready=True,
                      hint='Viết nội dung nháp, sửa bài, xếp danh mục bằng gói ChatGPT trên máy chủ. Không đăng thẳng, không đụng giá.'),
+    'tro-ly-zalo': dict(name='Codex/Claude · Trợ lý Zalo', scopes=('zalo',), ready=True,
+                        hint='Trả lời nhân viên hỏi tồn kho, lên đơn nháp qua Zalo bằng gói thuê bao trên máy chủ. Chỉ nhận câu lệnh, trả chữ; app tự tra và lập nháp.'),
 }
 
 
