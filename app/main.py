@@ -81,9 +81,10 @@ async def business_error(request: Request, exc: BusinessError):
 def start_push():
     from .config import get_settings
     if get_settings().push_loop:
-        from . import web_push, attendance_auto
+        from . import web_push, attendance_auto, dispatch_alerts
         web_push.start()
         attendance_auto.start()
+        dispatch_alerts.start()
 
 
 @app.get("/sw.js", include_in_schema=False)

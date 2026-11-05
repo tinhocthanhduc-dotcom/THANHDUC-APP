@@ -2082,6 +2082,16 @@ class ZaloChat(Base):
     linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class DispatchZaloSent(Base):
+    """0078: tin Zalo đã báo điều phối (phiếu cần giao, sắp trễ hẹn, thợ báo trễ); mỗi mốc một tin cho mỗi người."""
+    __tablename__ = 'dispatch_zalo_sent'
+    __table_args__ = (Index('ix_dispatch_zalo_sent_at', 'sent_at'),)
+    mark: Mapped[str] = mapped_column(String(120), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
+    message_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_messages.id'))
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ZaloMessage(Base):
     """Một tin nhận (IN) hoặc gửi (OUT) của bot Zalo. Zalo không có lịch sử nên đây là bản lưu duy nhất."""
     __tablename__ = 'zalo_messages'
