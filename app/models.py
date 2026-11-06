@@ -2172,3 +2172,21 @@ class ZaloAiJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+CUSTOMER_INK_CALL_RESULTS = ('DAT_MUC', 'HEN_LAI', 'KHONG_NGHE', 'CON_MUC', 'CHUYEN_NOI_KHAC')
+
+
+class CustomerInkCall(Base):
+    """0080: kết quả gọi hỏi thăm khách lâu chưa lấy mực (TUẤN duyệt 06/11/2026). Chỉ ghi chú, không tiền, không kho."""
+    __tablename__ = 'customer_ink_calls'
+    __table_args__ = (
+        CheckConstraint(_in('result', CUSTOMER_INK_CALL_RESULTS), name='ck_customer_ink_calls_result'),
+        Index('ix_customer_ink_calls_customer', 'customer_code', 'called_at'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'))
+    result: Mapped[str] = mapped_column(String(16))
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    called_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    called_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

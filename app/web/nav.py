@@ -32,6 +32,8 @@ GROUPS = (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
         # Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn nháp trợ lý lập từ tin Zalo, kinh doanh kiểm và chốt.
+        # TUẤN duyệt 06/11/2026: khách quá nhịp lấy mực để kinh doanh gọi hỏi thăm.
+        {'label': 'Khách lâu chưa gọi mực', 'href': '/khach-hang/nhac-muc', 'prefixes': ('/khach-hang/nhac-muc',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn nháp từ Zalo', 'href': '/don-nhap-zalo', 'prefixes': ('/don-nhap-zalo',), 'roles': ('sales',)},
         # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
         {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
@@ -53,6 +55,8 @@ GROUPS = (
         {'label': 'Phiếu nhập xuất kho', 'href': '/phieu-kho', 'prefixes': ('/phieu-kho',), 'roles': ('warehouse', 'finance')},
         # SX1: TUẤN 26/10 muốn Sản xuất nằm trong nhóm Kho (hàng làm xong nhập kho), không đứng riêng.
         {'label': 'Sản xuất', 'href': '/san-xuat', 'prefixes': ('/san-xuat',), 'roles': ('technician','dispatcher','warehouse')},
+        # Báo cáo sản xuất tuần (TUẤN duyệt 06/11/2026): có giá vốn nên không cho thợ, điều phối; mở từ nút ở trang Sản xuất.
+        {'label': 'Báo cáo sản xuất', 'href': '/san-xuat/bao-cao', 'prefixes': ('/san-xuat/bao-cao',), 'roles': ('warehouse','finance'), 'hidden': True, 'highlight': '/san-xuat'},
         {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
         {'label':'Hàng chờ xử lý','href':'/cho-xu-ly','prefixes':('/cho-xu-ly',),'roles':('warehouse','finance','dispatcher')},
         {'label': 'Linh kiện thu hồi', 'href': '/linh-kien-thu-hoi', 'prefixes': ('/linh-kien-thu-hoi',), 'roles': ('technician','warehouse','dispatcher','finance')},

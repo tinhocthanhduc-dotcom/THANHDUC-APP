@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     sx_stale_receive_hours: int = Field(default=4, ge=1, le=200)  # Hoàn thành chưa nhập kho
     sx_stale_zalo: bool = True
     sx_stale_zalo_times: tuple[time, ...] = (time(8, 0), time(13, 45))
+    # Sáng đầu tuần (TUẤN duyệt 06/11/2026): khách lâu chưa gọi mực cho kinh doanh, báo cáo sản xuất tuần trước cho giám đốc.
+    ink_call_zalo: bool = True
+    ink_call_time: time = time(8, 0)
+    sx_weekly_zalo: bool = True
+    sx_weekly_time: time = time(7, 40)
     zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
     zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
     # Codex/Claude trên Z2: chờ tối đa bao nhiêu giây mỗi lượt; máy Z2 im quá bấy nhiêu giây thì coi như chưa chạy.
