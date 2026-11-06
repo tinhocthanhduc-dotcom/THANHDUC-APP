@@ -178,14 +178,14 @@
       return;
     }
     var pick=event.target.closest('[data-purchase-pick]'); if (!pick) return;
-    var picker=pick.closest('[data-picker]'), input=picker.querySelector('input');
+    var picker=pick.closest('[data-picker]'), input=picker.querySelector('input'), line=pick.closest('[data-purchase-line]');
     input.value=pick.dataset.purchasePick; input.dispatchEvent(new Event('stock-picked'));
     picker.querySelector('.product-options').replaceChildren();
     if (pick.dataset.kind==='supplier') {
       form.querySelector('[data-purchase-supplier]').textContent=pick.dataset.purchasePick+' · '+pick.dataset.name;
       form.querySelector('[data-po-supplier-info]').textContent=pick.dataset.info||'';
       picker.dataset.picked='1'; picker.closest('.po-supplier').classList.remove('field-invalid');
-    } else fill(pick.closest('[data-purchase-line]'),{code:pick.dataset.purchasePick,name:pick.dataset.name,unit:pick.dataset.unit,cost:pick.dataset.cost,stock:pick.dataset.stock});
+    } else fill(line,{code:pick.dataset.purchasePick,name:pick.dataset.name,unit:pick.dataset.unit,cost:pick.dataset.cost,stock:pick.dataset.stock});
     update();
   });
   form.addEventListener('input',update);

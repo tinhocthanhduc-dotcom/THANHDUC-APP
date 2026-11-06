@@ -3914,3 +3914,40 @@ a.tg-row:hover { background: var(--tag); }
 .tem-box .photo-capture.btn-new { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .tem-box input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
 @media (max-width: 420px) { .tem-body { grid-template-columns: minmax(0, 1fr); } .tem-img { max-height: 140px; } }
+
+/* Tạo mới nhanh (06/11/2026): cửa sổ thêm khách / mã hàng / NCC ngay trên màn đang soạn.
+   Điện thoại: kéo từ dưới lên gần hết màn; máy tính: hộp giữa màn. Ô nhập 16px để iPhone không phóng to. */
+.qn-dialog { border: 0; padding: 0; background: var(--surface); color: var(--text); border-radius: 16px; width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 20px 60px rgba(0,0,0,.3); overflow: hidden; }
+.qn-dialog[open] { display: flex; flex-direction: column; }
+.qn-dialog::backdrop { background: rgba(20,23,28,.5); }
+.qn-form { display: flex; flex-direction: column; min-height: 0; flex: 1; gap: 0; margin: 0; }
+.qn-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.qn-title { display: flex; flex-direction: column; min-width: 0; }
+.qn-title b { font-size: 1.15rem; }
+.qn-kicker { font-size: .82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qn-kicker:empty { display: none; }
+.qn-x { width: 44px; min-width: 44px; padding: 0; font-size: 1.4rem; }
+.qn-body { padding: 16px; overflow-y: auto; display: grid; gap: 12px; flex: 1; min-height: 0; }
+.qn-body label { font-weight: 700; }
+.qn-body input:not([type=checkbox]):not([type=radio]), .qn-body select { font-size: 16px; font-weight: 400; min-height: 44px; }
+.qn-body .check, .qn-body label .hint { font-weight: 400; }
+.qn-body label .hint { display: block; font-size: .82rem; }
+.qn-row2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.qn-money { text-align: right; }
+.qn-seg { flex-wrap: wrap; }
+.qn-full { font-size: .9rem; justify-self: start; }
+.qn-dup-row { display: grid; gap: 6px; }
+.qn-dup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.qn-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.qn-foot .btn-ok { min-width: 180px; }
+.qn-loading { padding: 32px 16px; color: var(--muted); text-align: center; }
+.qn-dialog > .alert { margin: 16px; }
+.product-options .qn-add, .picker-options .qn-add, .qn-add { border: 2px dashed var(--accent); background: var(--info-bg); color: var(--accent); font-weight: 700; border-radius: 10px; min-height: 44px; text-align: center; justify-content: center; cursor: pointer; }
+.qn-ask { margin: 4px 0 0; }
+@media (max-width: 640px) {
+  .qn-dialog { width: 100vw; max-width: 100vw; max-height: calc(100dvh - 40px); height: calc(100dvh - 40px); margin: auto 0 0; border-radius: 18px 18px 0 0; }
+  .qn-row2 { grid-template-columns: minmax(0,1fr); }
+  .qn-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .qn-foot .btn-ghost { flex: 1; min-height: 52px; }
+  .qn-foot .btn-ok { flex: 2; min-width: 0; min-height: 52px; }
+}
