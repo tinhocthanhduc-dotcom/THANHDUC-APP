@@ -139,6 +139,12 @@ def _loop():
                     while True:
                         with Session(bind=eng, expire_on_commit=False) as session:
                             run_once(session)
+                        try:
+                            from . import production_stale
+                            with Session(bind=eng, expire_on_commit=False) as session:
+                                production_stale.run_once(session)
+                        except Exception:  # noqa: BLE001 - lỗi nhắc sản xuất không chặn báo điều phối.
+                            log.exception('production stale zalo')
                         clock.sleep(EVERY)
         except Exception:  # noqa: BLE001 - vòng nền không được làm sập app; thử lại sau.
             log.exception('dispatch zalo loop')

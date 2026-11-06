@@ -120,3 +120,74 @@
   form.addEventListener('change', sync);
   sync();
 })();
+// Mực định kỳ lần trước (TUẤN duyệt 06/11/2026): Dùng lại chỉ điền sẵn form, người nhận đơn vẫn sửa trước khi Nhận đơn.
+(function() {
+  var form = document.querySelector('form.svn[data-service-form]');
+  if (!form) return;
+  var filled = [], used = null;
+  function q(sel) { return form.querySelector(sel); }
+  function mark(el) { if (el) { el.classList.add('svn-filled'); filled.push(el); } }
+  function pick(select, value) {
+    if (!select || select.disabled) return false;
+    var ok = Array.prototype.some.call(select.options, function(o) { return o.value === value; });
+    if (ok) { select.value = value; mark(select); }
+    return ok;
+  }
+  function inkBox() { return q('[data-ink-section]'); }
+  function clearInk() { var box = inkBox(); if (box) box.querySelector('[data-part-lines]').replaceChildren(); }
+  function fire() {
+    var box = inkBox(); if (box) box.dispatchEvent(new Event('part-added'));
+    form.dispatchEvent(new Event('change', {bubbles: true}));
+  }
+  function fill(r) {
+    var kind = q('select[name=kind]');
+    if (kind) { kind.value = 'MUC_DINH_KY'; mark(kind); }
+    if (r.site_id) pick(q('select[name=site_id]'), r.site_id);
+    if (r.serial) pick(q('select[name=serial]'), r.serial);
+    var box = inkBox();
+    if (box) {
+      clearInk();
+      var lines = box.querySelector('[data-part-lines]'), tpl = box.querySelector('[data-part-line-template]');
+      (r.lines || []).forEach(function(x) {
+        var row = tpl.content.firstElementChild.cloneNode(true);
+        row.querySelector('[data-part-code]').value = x.code;
+        row.querySelector('strong').textContent = x.code;
+        row.querySelector('small').textContent = x.name;
+        row.querySelector('[data-part-qty]').value = x.qty;
+        lines.appendChild(row);
+      });
+      if (r.lines && r.lines.length) mark(lines);
+    }
+    var price = q('[name=ink_price]');
+    if (price && r.price) { price.value = r.price; mark(price); }
+    var symptom = q('[name=symptom]');
+    if (symptom && r.note && (!symptom.value.trim() || symptom.value.trim() === 'Giao mực định kỳ')) { symptom.value = r.note; mark(symptom); }
+  }
+  function undo() {
+    var kind = q('select[name=kind]'); if (kind) kind.value = '';
+    var serial = q('select[name=serial]'); if (serial && !serial.disabled) serial.value = '';
+    clearInk();
+    var price = q('[name=ink_price]'); if (price) price.value = '';
+    var symptom = q('[name=symptom]'); if (symptom && used && symptom.value === used.note) symptom.value = '';
+    filled.forEach(function(el) { el.classList.remove('svn-filled'); }); filled = []; used = null;
+  }
+  form.addEventListener('click', function(event) {
+    var useBtn = event.target.closest('[data-sv-repeat-use]'), undoBtn = event.target.closest('[data-sv-repeat-undo]');
+    var section = event.target.closest('[data-sv-repeat]');
+    if (!section || !(useBtn || undoBtn)) return;
+    var done = section.querySelector('[data-sv-repeat-done]');
+    if (useBtn) {
+      var r; try { r = JSON.parse(useBtn.dataset.svRepeatUse); } catch (e) { return; }
+      undo(); used = r; fill(r);
+      section.classList.add('svn-repeat-used');
+      section.querySelector('[data-sv-repeat-label]').textContent = '✓ Đã điền từ ' + r.number;
+      done.hidden = false;
+      if (window.tdToast) window.tdToast('Đã điền theo ' + r.number + ', kiểm tra lại rồi bấm Nhận đơn');
+    } else {
+      undo();
+      section.classList.remove('svn-repeat-used');
+      done.hidden = true;
+    }
+    fire();
+  });
+})();
