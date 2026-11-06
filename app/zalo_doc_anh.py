@@ -26,7 +26,7 @@ from .models import Product, PurchaseOrder, PurchaseOrderLine, Supplier, User, W
 from .security import has_role
 
 KINDS = {'TEM_MAY': 'Tem máy', 'HOP_MUC': 'Hộp mực / linh kiện', 'HOA_DON': 'Hóa đơn NCC', 'KHAC': 'Ảnh khác'}
-MAX_BYTES = 12 * 1024 * 1024
+MAX_BYTES = 30 * 1024 * 1024  # ảnh HD Zalo có thể vài chục MB
 MAX_SIDE = 2000  # đủ nét để đọc chữ nhỏ trên hóa đơn
 KEEP_DAYS = 30
 FOLDER = 'zalo_anh'
@@ -63,12 +63,48 @@ def _now():
     return now()
 
 
+PHOTO_KEYS = ('photo', 'photo_url', 'image', 'image_url', 'url', 'href', 'src', 'thumb', 'thumbnail', 'link', 'file_url')
+
+
+def _find_url(node, depth=0) -> str:
+    """Tìm link ảnh trong tin Zalo: ưu tiên các khóa tên ảnh, đi sâu vào dict/list (mỗi bản Zalo Bot đặt khác nhau)."""
+    if depth > 5:
+        return ''
+    if isinstance(node, str):
+        return node.strip() if node.strip().startswith(('https://', 'http://')) else ''
+    if isinstance(node, dict):
+        for key in PHOTO_KEYS:
+            if key in node:
+                found = _find_url(node[key], depth + 1)
+                if found:
+                    return found
+        for key, value in node.items():
+            if key in ('from', 'chat', 'sender') or key in PHOTO_KEYS:
+                continue
+            if isinstance(value, (dict, list)):
+                found = _find_url(value, depth + 1)
+                if found:
+                    return found
+    if isinstance(node, list):
+        for item in node[:10]:
+            found = _find_url(item, depth + 1)
+            if found:
+                return found
+    return ''
+
+
 def photo_of(msg: ZaloMessage) -> tuple[str, str]:
-    """(link ảnh, chú thích) từ tin Zalo đã lưu. Zalo Bot gửi message.photo + message.caption."""
-    m = (msg.raw or {}).get('message') if isinstance(msg.raw, dict) else None
-    m = m if isinstance(m, dict) else {}
-    url = m.get('photo') or m.get('photo_url') or m.get('url') or ''
-    return (str(url).strip() if isinstance(url, str) else ''), str(m.get('caption') or '').strip()[:500]
+    """(link ảnh, chú thích) từ tin Zalo đã lưu. Zalo Bot gửi message.photo (+ caption); bản khác có thể lồng sâu hơn."""
+    raw = msg.raw if isinstance(msg.raw, dict) else {}
+    m = raw.get('message') if isinstance(raw.get('message'), dict) else {}
+    return _find_url(m) or _find_url(raw), str(m.get('caption') or '').strip()[:500]
+
+
+def raw_keys(msg: ZaloMessage) -> str:
+    """Các khóa của tin (không có giá trị) để nhật ký cho biết Zalo gửi gì khi không thấy link ảnh."""
+    raw = msg.raw if isinstance(msg.raw, dict) else {}
+    m = raw.get('message') if isinstance(raw.get('message'), dict) else {}
+    return ', '.join(sorted(m.keys()))[:200]
 
 
 def _root() -> Path:
@@ -76,16 +112,21 @@ def _root() -> Path:
 
 
 def download(url: str) -> bytes:
-    if not url.startswith('https://'):
+    if not url.startswith(('https://', 'http://')):
         raise BusinessError('BAD_PHOTO', 'Tin không có link ảnh.')
-    req = urllib.request.Request(url, headers={'User-Agent': 'ThanhDuc-App'})
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (ThanhDuc-App)', 'Accept': 'image/*,*/*'})
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 - chỉ https, link do Zalo gửi
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - link do Zalo gửi
             data = resp.read(MAX_BYTES + 1)
+            kind = resp.headers.get('Content-Type', '?')
+    except urllib.error.HTTPError as exc:
+        raise BusinessError('BAD_PHOTO', f'Zalo trả lỗi {exc.code} khi tải ảnh ({url[:80]}).') from None
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise BusinessError('BAD_PHOTO', f'Không tải được ảnh: {exc}') from None
-    if not data or len(data) > MAX_BYTES:
-        raise BusinessError('BAD_PHOTO', 'Ảnh rỗng hoặc quá lớn.')
+        raise BusinessError('BAD_PHOTO', f'Không tải được ảnh ({url[:80]}): {exc}') from None
+    if not data:
+        raise BusinessError('BAD_PHOTO', f'Link ảnh trả về rỗng (loại {kind}, link {url[:80]}).')
+    if len(data) > MAX_BYTES:
+        raise BusinessError('BAD_PHOTO', f'Ảnh lớn hơn {MAX_BYTES // 1024 // 1024} MB.')
     return data
 
 
@@ -94,14 +135,14 @@ def prepare(data: bytes) -> bytes:
     try:
         with Image.open(io.BytesIO(data)) as im:
             if im.format not in ('JPEG', 'PNG', 'WEBP') or im.width * im.height > 60_000_000:
-                raise BusinessError('BAD_PHOTO', 'Không phải ảnh JPEG/PNG/WEBP.')
+                raise BusinessError('BAD_PHOTO', f'Ảnh dạng {im.format} hoặc quá lớn, chưa đọc được.')
             im = ImageOps.exif_transpose(im).convert('RGB')
             im.thumbnail((MAX_SIDE, MAX_SIDE))
             out = io.BytesIO()
             im.save(out, 'JPEG', quality=85, optimize=True)
             return out.getvalue()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-        raise BusinessError('BAD_PHOTO', 'Không phải ảnh JPEG/PNG/WEBP.') from None
+        raise BusinessError('BAD_PHOTO', f'Tệp tải về không phải ảnh (bắt đầu bằng {data[:12]!r}).') from None
 
 
 def save(content: bytes) -> str:
@@ -369,7 +410,7 @@ def handle(session: Session, chat: ZaloChat, staff: User, msg: ZaloMessage, log:
     try:
         content = prepare(download(url))
     except BusinessError as exc:
-        log.result, log.error = 'LOI', exc.message
+        log.result, log.error = 'LOI', exc.message + ('' if url else f' Tin có các mục: {raw_keys(msg)}.')
         _reply(session, chat, log, NO_DOWNLOAD_TEXT)
         return
     log.image_path, log.engine = save(content), engine
