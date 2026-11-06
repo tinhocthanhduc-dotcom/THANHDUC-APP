@@ -47,7 +47,7 @@ def load(session, user, ticket_id):
     return t
 
 
-def intake(session, user, body: ServiceTicketIn, accessories, accessories_note, condition_note, photo, expected_on: date | None = None):
+def intake(session, user, body: ServiceTicketIn, accessories, accessories_note, condition_note, photo, expected_on: date | None = None, extra_photos=()):
     """Một transaction: phiếu + ảnh nhận máy + dòng giữ máy Kho kỹ thuật. Khóa máy và kiểm Tại khách thay cho phiên bản máy."""
     _require(user)
     if body.appointment_at is not None or body.appointment_slot is not None:
@@ -73,6 +73,8 @@ def intake(session, user, body: ServiceTicketIn, accessories, accessories_note, 
         t.version += 1
         tickets._record(session, user, t, 'counter_intake', before, from_status, 'Khách mang máy tới, nhận tại quầy')
         attachments.add(session, user, 'service_ticket', str(t.id), 'NHAN_MAY', photo[0], photo[1], _in_tx=True)
+        for name, data in extra_photos:  # ảnh tem chụp ở ô Chụp tem (06/11/2026), tính 1 trong 2 ảnh nhận máy
+            attachments.add(session, user, 'service_ticket', str(t.id), 'NHAN_MAY', name, data, _in_tx=True)
         row = EquipmentCustody(serial=eq.serial, ticket_id=t.id, location='KHO_KY_THUAT', holder_id=None,
             accessories=values, accessories_note=accessories_note, condition_note=condition_note,
             status='DA_NHAN', created_by=user.id, confirmed_by=user.id, confirmed_at=custody._now())

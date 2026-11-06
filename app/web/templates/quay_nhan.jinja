@@ -12,6 +12,16 @@
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="kind" value="MANG_VE">
 <div class="svn-grid">
 <div class="svn-main">
+{# Chụp tem máy (TUẤN duyệt 06/11/2026): máy Z2 đọc model + serial, app điền sẵn khách/máy; nhân viên vẫn bấm Nhận máy. #}
+<section class="card qf-card tem-box" data-tem-box data-tem-start="/quay-sua/doc-tem">
+<h2 class="qf-h" data-tem-title>Chụp tem máy để điền sẵn</h2>
+<p class="hint" data-tem-intro>Chụp tem có model và serial (thường ở mặt sau hoặc trong nắp). Không bắt buộc, có thể nhập tay bên dưới.</p>
+<input type="hidden" name="tem_job" value="{{ d.get('tem_job','') }}" data-tem-job>
+<span class="photo-btns" data-tem-pick><label class="btn btn-new photo-capture">📷 Chụp tem<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-shrunk="1" data-tem-file></label><label class="btn photo-capture photo-gallery">🖼 Ảnh có sẵn<input type="file" accept="image/jpeg,image/png,image/webp" data-shrunk="1" data-tem-file aria-label="Chọn ảnh tem có sẵn"></label></span>
+<div class="tem-body" data-tem-body hidden><img class="tem-img" alt="Ảnh tem máy" data-tem-img><div class="tem-info" data-tem-info aria-live="polite"></div></div>
+<label class="tem-chk" data-tem-chk hidden><input type="checkbox" name="tem_anh" value="1" {% if d.get('tem_anh','1')=='1' %}checked{% endif %}><span>Thêm ảnh tem vào "Ảnh máy lúc nhận" (tính 1 trong 2 ảnh)</span></label>
+<div class="tem-actions" data-tem-actions hidden><button type="button" class="btn btn-ghost" data-tem-again>📷 Chụp lại</button><button type="button" class="btn btn-danger" data-tem-drop>Bỏ, nhập tay</button></div>
+</section>
 <section class="card qf-card"><h2 class="qf-h">Khách hàng</h2>
 {% call picked.block(text=picked.card(customer_card), invalid=cust_bad) %}<div class="service-picker" data-picker>
   <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" placeholder="Tên, mã hoặc số điện thoại" data-live=".service-options" data-source="/quay-sua/tim-khach"{% if cust_bad %} aria-invalid="true"{% endif %}></label>
@@ -47,4 +57,5 @@
 </form>
 <script src="{{ asset('picked.js') }}" defer></script>
 <script src="{{ asset('services.js') }}" defer></script>
-<script src="{{ asset('service-machines.js') }}" defer></script>{% endblock %}
+<script src="{{ asset('service-machines.js') }}" defer></script>
+<script src="{{ asset('quay-doc-tem.js') }}" defer></script>{% endblock %}
