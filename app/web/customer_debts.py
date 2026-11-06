@@ -22,7 +22,6 @@ TABS = {'no': 'Còn nợ', 'chua-tra': 'Khách chưa trả', 'o-nv': 'Tiền ở
 OLD_TABS = {'cho': 'o-nv'}  # link cũ trước khi tách tiền ở nhân viên
 TRANSFER = 'ck'  # khóa "người giữ" của chuyển khoản: tiền đã vào tài khoản công ty, không ở người
 SORTS = {'no': 'Nợ nhiều nhất', 'lau': 'Nợ lâu nhất', 'ten': 'Tên khách'}
-DOC_LIMIT = 3
 
 
 def opening_url(code, anchor=''):
@@ -154,7 +153,7 @@ def listing(request: Request, q: str = '', tab: str = '', loai: str = '', xep: s
     chips = ([dict(label=KINDS[loai], href=link(loai=''))] if loai else []) + \
             [dict(label=g['label'], href=link(giu='')) for g in people if g['key'] == giu]
     return render(request, 'cong_no_khach_ds.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, q=q, tab=tab, loai=loai, xep=xep,
-                  giu=giu, people=people, kinds=KINDS, is_director=has_role(user, 'director'), sorts=SORTS, doc_limit=DOC_LIMIT, old_days=OLD_DEBT_DAYS,
+                  giu=giu, people=people, kinds=KINDS, is_director=has_role(user, 'director'), sorts=SORTS, old_days=OLD_DEBT_DAYS,
                   debt_sum=sum(r['remaining'] for r in rows), unpaid_sum=sum(r['unpaid'] for r in rows), pending_sum=sum(r['pending'] for r in rows))
 
 

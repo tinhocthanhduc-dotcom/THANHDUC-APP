@@ -2738,6 +2738,39 @@ input::-webkit-date-and-time-value { text-align: left; }
   .list-table.lt-cards td.lt-first .lt-sub { display: block; margin-left: 0; }
 }
 
+/* Công nợ khách hàng gọn (TUẤN duyệt 06/11/2026): một dòng mỗi khách, cột nút rộng cố định, 3 nút nằm ngang.
+   Chỉ áp cho .cnk-table; Công nợ NCC vẫn dùng các luật .cnk-* ở trên. */
+.list-table.cnk-table { table-layout: fixed; min-width: 1000px; font-variant-numeric: tabular-nums; }
+.cnk-table .cnk-c-doc { width: 175px; } .cnk-table .cnk-c-day { width: 140px; } .cnk-table .cnk-c-lim { width: 135px; }
+.cnk-table .cnk-c-amt { width: 175px; } .cnk-table .cnk-c-act { width: 245px; }
+.list-table.cnk-table td { vertical-align: middle; padding: 8px 10px; overflow: hidden; }
+.list-table.cnk-table th { padding: 8px 10px; white-space: normal; vertical-align: bottom; }
+.cnk-table .cnk-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cnk-table .lt-sub.cnk-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .82rem; }
+.cnk-table .cnk-docs { display: flex; flex-wrap: wrap; gap: 4px; }
+.cnk-table .cnk-doc { margin: 0; font-size: .82rem; }
+.cnk-table .cnk-doc.cnk-more { color: var(--text); background: var(--surface); border: 1px solid var(--line); }
+.cnk-table .cnk-day { white-space: nowrap; }
+.cnk-table .cnk-nodebt { display: inline-block; padding: 0 8px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-weight: 600; font-size: .8rem; white-space: nowrap; }
+.list-table.cnk-table td.cnk-left { min-width: 0; }
+.cnk-table .cnk-left .cnk-pend { display: block; font-size: .82rem; }
+.cnk-table .cnk-hold { display: inline-block; margin-top: 3px; font-size: .78rem; line-height: 1.35; padding: 2px 8px; text-decoration: none; }
+.cnk-table .cnk-hold:hover { outline: 1px solid currentColor; }
+.list-table.cnk-table .cnk-acts { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 6px; margin: 0; }
+@media (max-width: 640px) {
+  .list-table.cnk-table { min-width: 0; table-layout: auto; }
+  .list-table.lt-cards.cnk-table tr { gap: 4px 8px; }
+  .list-table.lt-cards.cnk-table td { overflow: visible; }
+  .cnk-table .cnk-name { white-space: normal; }
+  .cnk-table .lt-sub.cnk-line { display: inline; white-space: normal; }
+  .list-table.lt-cards.cnk-table td.lt-first .lt-sub.cnk-line { display: block; }
+  .cnk-table .cnk-day, .cnk-table .cnk-lim { display: inline-block; font-size: .85rem; }
+  .list-table.lt-cards.cnk-table td.cnk-left .cnk-hold { grid-column: 1 / -1; justify-self: start; }
+  .list-table.lt-cards.cnk-table td.cnk-left .lt-sub.cnk-pend { grid-column: 1 / -1; }
+  .list-table.cnk-table .cnk-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); justify-items: stretch; margin-top: 4px; }
+  .list-table.cnk-table .cnk-acts .cnk-sm { min-height: 40px; font-size: .9rem; }
+}
+
 /* ---- SX1 · Sản xuất ---- */
 .sx-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sx-row:last-of-type { border-bottom: 0; }

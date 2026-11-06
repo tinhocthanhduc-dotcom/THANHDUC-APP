@@ -45,10 +45,10 @@ def test_finance_sees_tiles_rows_doc_links_last_receipt_and_totals(client, db, p
     assert '2 khách' in page and '550 đ · phải đi thu' in page and '>20<' in page
     assert 'Còn nợ <b>570</b> đ = khách chưa trả <b>550</b> + đang ở nhân viên <b>20</b> đ' in page
     assert f'href="/don-ban/{o1.id}#thu-tien"' in page and f'href="/don-ban/{o2.id}#thu-tien"' in page
-    # Nút thu tiền: Báo thu mở đúng chứng từ còn nợ; Xác nhận thu chỉ khi có báo thu chờ.
+    # Nút thu tiền: Báo thu mở chứng từ cũ nhất còn nợ; nhãn tiền ở nhân viên (sang Xác nhận thu) chỉ khi có báo thu chờ.
     assert page.count('Báo thu ›') == 2 and f'class="btn btn-new cnk-sm cnk-pay" href="/don-ban/{o1.id}#thu-tien"' in page
-    assert page.count('Xác nhận thu ›') == 1
-    assert 'Thu 30' in page and 'Chưa thu lần nào' in page and 'Không cho nợ' in page and 'Còn 930' in page
+    assert page.count('data-confirm-link') == 1 and 'Xác nhận thu ›' not in page  # nhãn tiền ở nhân viên bấm sang /bao-thu
+    assert f"Thu {_vn_today():%d/%m} · 30" in page and 'Chưa thu lần nào' in page and 'Không cho nợ' in page and 'Còn 930' in page
     assert 'href="/bao-cao/tai-chinh?khach=KTD-000002#chung-tu"' in page and 'href="/khach-hang/KTD-000001"' in page
     # Nợ nhiều nhất lên trước.
     assert page.index('data-debt-row="KTD-000002"') < page.index('data-debt-row="KTD-000001"')
@@ -125,7 +125,7 @@ def test_splits_customer_unpaid_from_money_held_by_staff(client, db, people, con
     assert 'Còn nợ trên sổ 70' in page and 'Còn nợ trên sổ 500' in page and 'Khách đã trả đủ' in page
     assert 'Còn nợ <b>570</b> đ = khách chưa trả <b>50</b> + đang ở nhân viên <b>520</b> đ' in page
     # Báo thu chỉ còn ở khách chưa trả hết; Xác nhận thu ở cả hai.
-    assert page.count('Báo thu ›') == 1 and page.count('Xác nhận thu ›') == 2
+    assert page.count('Báo thu ›') == 1 and page.count('data-confirm-link') == 2
     unpaid = client.get(PAGE + '?tab=chua-tra').text
     assert 'data-debt-row="KTD-000001"' in unpaid and 'data-debt-row="KTD-000002"' not in unpaid
     held = client.get(PAGE + '?tab=o-nv').text
@@ -150,3 +150,23 @@ def test_debt_paid_to_staff_is_not_customer_overdue(client, db, people, configur
     service_login(client, p['finance'])
     old = client.get(PAGE + '?tab=qua-han').text
     assert 'data-debt-row="KTD-000001"' in old and 'data-debt-row="KTD-000002"' not in old
+
+
+def test_compact_row_shows_newest_doc_plus_count_and_horizontal_buttons(client, db, people, configured_finance):
+    """Mẫu gọn 06/11/2026: mỗi khách 1 chứng từ nợ mới nhất + ô "+N" mở sổ nợ; Báo thu › vẫn mở chứng từ cũ nhất còn nợ."""
+    p = people
+    o1, _ = setup(db, p)
+    from app import sales_orders
+    from app.schemas import SalesOrderIn
+    o3 = sales_orders.create(db, p['sales'], SalesOrderIn(customer_code='KTD-000001', payment_term='TRA_NGAY',
+                             lines=[dict(kind='KHAC', description='Công sửa', qty=1, unit_price=40, vat_rate=0)]))
+    o3 = sales_orders.confirm(db, p['sales'], o3.id, o3.version)
+    sales_orders.deliver(db, p['warehouse'], o3.id, o3.version)
+    service_login(client, p['finance'])
+    page = client.get(PAGE).text
+    row = page[page.index('data-debt-row="KTD-000001"'):]
+    row = row[:row.index('</tr>')]
+    assert f'href="/don-ban/{o3.id}#thu-tien"' in row and f'class="cnk-doc" href="/don-ban/{o1.id}#thu-tien"' not in row
+    assert 'cnk-more' in row and '>+1<' in row and 'href="/bao-cao/tai-chinh?khach=KTD-000001#chung-tu"' in row
+    assert f'class="btn btn-new cnk-sm cnk-pay" href="/don-ban/{o1.id}#thu-tien"' in row  # cũ nhất trước
+    assert 'class="list-table lt-cards cnk-table"' in page and 'Chứng từ nợ mới nhất' in page
