@@ -25,6 +25,7 @@
 <label><input type="radio" name="don_mua" value="1"{% if cfg.invoice_po %} checked{% endif %}><span>Bật</span></label>
 <label><input type="radio" name="don_mua" value="0"{% if not cfg.invoice_po %} checked{% endif %}><span>Tắt</span></label></div></div>
 <label for="zl-nguoi"><b>Người nhận đơn nháp của khách</b><select id="zl-nguoi" name="nguoi_nhan"><option value="">Chưa chọn</option>{% for u in draft_users %}<option value="{{ u.id }}"{% if cfg.draft_user_id == u.id %} selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
+<label for="zl-so-tk" class="zl-bank"><b>Số tài khoản ghi trong tin nhắc nợ</b><input id="zl-so-tk" name="so_tk" maxlength="200" value="{{ cfg.bank_line }}" placeholder="VD: 0123456789 – Vietcombank – Cty TNHH TMDV Tin Học Thành Đức"><small class="mu">Trống thì tin nhắc nợ gửi khách không có dòng chuyển khoản.</small></label>
 <button class="btn btn-ok">Lưu</button>
 </div>
 <p class="hint zl-z2">{% if not z2.has_key %}<b>Máy Z2:</b> chưa có khóa "Codex/Claude · Trợ lý Zalo" (tạo ở Trợ lý AI › Khóa truy cập).{% elif z2.paused %}<b>Máy Z2:</b> khóa đang tạm dừng.{% elif z2.alive %}<b>Máy Z2:</b> đang chạy, hỏi việc lúc {{ z2.last|vn_time }}{% if z2.waiting %} · {{ z2.waiting }} lượt đang chờ{% endif %}.{% else %}<b>Máy Z2:</b> chưa chạy{% if z2.last %} (lần cuối {{ z2.last|vn_time }}){% endif %}.{% endif %}

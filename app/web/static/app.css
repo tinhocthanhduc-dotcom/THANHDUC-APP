@@ -3787,3 +3787,45 @@ a.pnz-row:hover { background: var(--tag); }
 .po-zalo-photos img { display: block; width: 180px; max-width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
 .zl-thumb { display: block; width: 64px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
 .zl-read { display: block; font-size: .85rem; }
+/* Trợ lý Zalo đợt 4 (TUẤN duyệt mẫu 06/11/2026): Tin gửi khách. */
+.tg-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.tg-row { display: grid; grid-template-columns: 172px 84px minmax(0, 1fr) minmax(0, 2fr) 120px 14px; gap: 12px; align-items: center;
+  padding: 9px 14px; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.tg-row:last-child { border-bottom: 0; }
+a.tg-row:hover { background: var(--tag); }
+.tg-row .pnz-chev { display: inline; font-size: 1.2rem; }
+.tg-row .mu, .tg-main .mu, .tg-facts .mu { color: var(--muted); }
+.tg-main { padding: 14px; display: grid; gap: 10px; align-content: start; }
+.tg-ok, .tg-warn, .tg-info { margin: 0; border-radius: 10px; padding: 8px 12px; }
+.tg-ok { background: var(--ok-bg); color: var(--ok); }
+.tg-warn { background: var(--warn-bg); color: var(--warn); }
+.tg-info { background: var(--info-bg); border: 1px solid var(--accent); }
+.tg-label { display: block; }
+.tg-box { width: 100%; min-height: 240px; font: inherit; font-size: 16px; line-height: 1.5; padding: 12px; border: 1px solid var(--accent);
+  border-radius: 12px; background: var(--surface); color: var(--text); resize: vertical; }
+.tg-count { display: flex; justify-content: space-between; gap: 8px; font-size: .82rem; flex-wrap: wrap; }
+.tg-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.tg-new { display: grid; gap: 8px; border: 1px dashed var(--accent); border-radius: 12px; padding: 10px 12px; }
+.tg-new .zl-quote, .tg-final { white-space: pre-wrap; }
+.tg-replies { display: grid; gap: 8px; }
+.tg-facts { padding: 12px 14px; display: grid; gap: 6px; }
+.tg-h { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.tg-r { display: flex; justify-content: space-between; gap: 10px; }
+.tg-r span:last-child { font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.tg-tot { border-top: 1px solid var(--line); padding-top: 6px; font-weight: 700; }
+.tg-two .next-box .ph-actions { display: grid; gap: 8px; }
+@media (max-width: 760px) {
+  .tg-row { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 10px 12px; }
+  .tg-row .pnz-no { grid-column: 1; grid-row: 1; display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+  .tg-row .pnz-no small { display: none; }
+  .tg-kind { display: none; }
+  .tg-cust { grid-column: 1; grid-row: 2; }
+  .tg-text { display: none; }
+  .tg-via { grid-column: 1; grid-row: 3; color: var(--muted); font-size: .85rem; }
+  .tg-row .pnz-chev { grid-column: 2; grid-row: 1 / span 3; font-size: 1.5rem; }
+  .tg-row.pnz-head { display: none; }
+  .tg-two .pnz-side { order: 0; }  /* điện thoại: khung tin trước, nút gửi ngay dưới (mẫu T1/T2) */
+}
+.zl-config .row > label.zl-bank { flex: 1 1 100%; }
+.zl-bank input { min-height: 44px; font-size: 16px; }
+.zl-bank small { color: var(--muted); }

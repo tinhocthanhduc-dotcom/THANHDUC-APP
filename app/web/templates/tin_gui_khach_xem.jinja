@@ -1,0 +1,81 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ row.number }} · Tin gửi khách{% endblock %}
+{% block main %}<div class="page-wide zl-page">
+{# Trợ lý Zalo đợt 4 (TUẤN duyệt mẫu T1/T2 06/11/2026): trái là khung tin sửa được, phải là số liệu + "Bước tiếp".
+   Khách đã gắn Zalo công ty: nút xanh lá Gửi qua Zalo công ty. Chưa gắn: Sao chép rồi Đã gửi bằng Zalo cá nhân. Không tự gửi. #}
+{% set st = {'CHO': ('Chờ gửi', 'cho'), 'DA_GUI': ('Đã gửi', 'xong'), 'DA_BO': ('Đã bỏ', 'huy')}[row.status] %}
+{% set who = users.get(row.created_by, '') %}
+{% call ui.page_head(row.number ~ ' · ' ~ kinds[row.kind] ~ ' · ' ~ (customer.name if customer else row.customer_code), sub=row.customer_code ~ ' · ' ~ ('Bot soạn qua Zalo cho ' if row.source == 'ZALO' else 'Soạn bởi ') ~ who ~ ' lúc ' ~ (row.created_at|vn_time) ~ ' ' ~ (row.created_at|vn_date), back='/tin-gui-khach', badge_label=st[0], badge_tone=st[1]) %}{% if link %}<a class="btn btn-ghost" href="{{ link[0] }}">{{ link[1] }} ›</a>{% endif %}{% endcall %}
+{% if request.query_params.get('gui') == 'gui' %}{{ ui.toast('Đã ghi gửi tin ' ~ row.number) }}{% elif request.query_params.get('gui') == 'luu' %}{{ ui.toast('Đã lưu tin ' ~ row.number) }}{% endif %}
+{% if error %}<p class="alert error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/tin-gui-khach/{{ row.id }}/luu" class="pnz-two tg-two" data-tg-form data-tg-ai="{{ '/tin-gui-khach/' ~ row.id ~ '/ai' if ai and ai.status == 'DANG' else '' }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
+<section class="card tg-main">
+{% if row.status == 'CHO' %}
+  {% if chat %}<p class="tg-ok">Khách đã gắn Zalo công ty: <b>{{ chat.display_name or 'chat riêng' }}</b>{% if chat.last_message_at %} (nhắn bot lần cuối {{ chat.last_message_at|vn_date }}){% endif %}</p>
+  {% else %}<p class="tg-warn">Khách <b>chưa gắn</b> Zalo công ty. Sao chép tin rồi gửi bằng Zalo cá nhân{% if phones %} tới số {{ phones|join(', ') }}{% endif %}. Muốn gửi thẳng lần sau: nhờ khách nhắn một tin cho bot Thành Đức, rồi giám đốc gắn ở Tin nhắn Zalo.</p>{% endif %}
+  {% if row.facts.get('last_sent') %}<p class="tg-warn">Đã nhắc nợ khách này ngày {{ row.facts['last_sent'][8:10] }}/{{ row.facts['last_sent'][5:7] }}. Mỗi khách nên tối đa 1 tin nhắc nợ trong 7 ngày.</p>{% endif %}
+  {% if can_edit %}
+  <label class="tg-label" for="tg-noi-dung"><b>Nội dung tin</b> <small class="mu">sửa thẳng trong khung, app lưu bản cuối khi gửi</small></label>
+  <textarea id="tg-noi-dung" name="noi_dung" class="tg-box" rows="11" maxlength="{{ max_text }}" data-tg-text required>{{ text }}</textarea>
+  <div class="tg-count mu"><span>{% if row.edited_by %}{{ users.get(row.edited_by, '') }} đã sửa lúc {{ row.edited_at|vn_time }}{% else %}Bản app soạn từ số liệu{% endif %}</span><span><span data-tg-len>{{ text|length }}</span>/{{ max_text }} ký tự</span></div>
+  {% if ai and ai.status == 'DANG' %}<p class="tg-info" role="status" data-tg-ai-note>Đang nhờ AI viết lại, chờ khoảng 30 giây… Trong lúc chờ vẫn sửa tay được.</p>
+  {% elif ai and ai.status == 'LOI' %}<p class="tg-warn">AI chưa viết lại được: {{ ai.error }}. Bấm lại nút bên dưới hoặc sửa tay.</p>
+  {% elif ai and ai.status == 'XONG' %}<div class="tg-new">
+    <b>Bản AI viết lại</b>
+    <p class="zl-quote">{{ ai.text }}</p>
+    {% if ai.ok %}<p class="tg-ok">App đã kiểm tra: bản mới giữ đủ các số và mã như bản hiện tại.</p>
+    <div class="tg-acts"><button class="btn btn-ok" formaction="/tin-gui-khach/{{ row.id }}/dung-ban-moi">Dùng bản này</button><button class="btn btn-ghost" formaction="/tin-gui-khach/{{ row.id }}/giu-ban-cu">Giữ bản cũ</button></div>
+    {% else %}<p class="tg-warn">Bản mới lệch số so với bản hiện tại{% if ai.missing %}, thiếu: {{ ai.missing|join(', ') }}{% endif %}{% if ai.extra %}, thêm: {{ ai.extra|join(', ') }}{% endif %}. App giữ bản cũ.</p>
+    <div class="tg-acts"><button class="btn btn-ghost" formaction="/tin-gui-khach/{{ row.id }}/giu-ban-cu">Đóng bản AI</button></div>{% endif %}
+  </div>{% endif %}
+  <div class="tg-acts">{% if not (ai and ai.status == 'DANG') %}<button class="btn btn-ghost" formaction="/tin-gui-khach/{{ row.id }}/viet-lai">Viết lại tự nhiên hơn (AI)</button>{% endif %}<button class="btn btn-ghost">Lưu nháp</button></div>
+  {% else %}<p class="zl-quote tg-final">{{ row.text }}</p>{% endif %}
+{% else %}
+  <p class="mu">Nội dung {{ 'đã gửi' if row.status == 'DA_GUI' else 'lúc bỏ' }}:</p>
+  <p class="zl-quote tg-final">{{ row.text }}</p>
+  {% if replies %}<div class="tg-replies"><b>Khách trả lời</b>{% for m in replies %}<p class="zl-quote"><small class="mu">{{ m.message_at|vn_time }} {{ m.message_at|vn_date }}</small><br>{{ m.text or '[' ~ m.kind ~ ']' }}</p>{% endfor %}
+  {% if 'director' in user.roles %}<a class="btn btn-ghost" href="/zalo/tin-nhan?chat={{ row.chat_pk }}">Mở hội thoại Zalo ›</a>{% endif %}</div>{% endif %}
+{% endif %}
+</section>
+<aside class="pnz-side">
+<section class="card tg-facts"><span class="tg-h">Số liệu dùng trong tin</span>
+{% set f = row.facts %}
+{% if row.kind == 'NHAC_NO' %}
+  {% for d in f.get('docs', []) %}<div class="tg-r"><span>{{ 'Nợ đầu kỳ' if d.kind == 'DK' else d.number }} · {{ d.day[8:10] }}/{{ d.day[5:7] }}</span><span>{{ d.unpaid|money }}</span></div>{% endfor %}
+  <div class="tg-r tg-tot"><span>Còn nợ (gồm VAT)</span><span>{{ f.get('total', 0)|money }}</span></div>
+  <div class="tg-r mu"><span>Nợ lâu nhất</span><span>{{ f.get('days', 0) }} ngày</span></div>
+{% elif row.kind == 'BAO_GIA' %}
+  {% for ln in f.get('lines', []) %}<div class="tg-r"><span>{{ ln.name }} × {{ ln.qty }}</span><span>{{ ln.amount|money }}</span></div>{% endfor %}
+  <div class="tg-r"><span>VAT</span><span>{{ f.get('vat', 0)|money }}</span></div>
+  {% if f.get('discount') %}<div class="tg-r"><span>Giảm giá</span><span>−{{ f['discount']|money }}</span></div>{% endif %}
+  <div class="tg-r tg-tot"><span>Tổng cộng</span><span>{{ f.get('total', 0)|money }}</span></div>
+{% else %}
+  <div class="tg-r"><span>Phiếu</span><span>{{ f.get('number') }}</span></div>
+  {% if f.get('machine') %}<div class="tg-r"><span>Máy</span><span>{{ f['machine'] }}</span></div>{% endif %}
+  {% if f.get('serial') %}<div class="tg-r"><span>Serial</span><span>{{ f['serial'] }}</span></div>{% endif %}
+  <div class="tg-r"><span>Xong ngày</span><span>{{ f.get('done') or '—' }}</span></div>
+  {% if f.get('tech') %}<div class="tg-r"><span>Thợ</span><span>{{ f['tech'] }}</span></div>{% endif %}
+  <div class="tg-r"><span>BH sửa chữa đến</span><span>{% if f.get('warranty_end') %}{{ f['warranty_end'][8:10] }}/{{ f['warranty_end'][5:7] }}/{{ f['warranty_end'][:4] }}{% else %}—{% endif %}</span></div>
+{% endif %}
+</section>
+{% if row.status == 'CHO' and can_edit %}
+{% call ui.next_box(users.get(row.created_by, '').split(' ')|last ~ ' gửi', 'Xem lại tin rồi gửi cho khách') %}
+{% if chat %}<button class="btn btn-ok pnz-full" formaction="/tin-gui-khach/{{ row.id }}/gui-zalo" data-tg-confirm="Gửi tin này cho khách qua Zalo công ty?">Gửi qua Zalo công ty</button>
+{% else %}<button type="button" class="btn btn-new pnz-full" data-tg-copy>Sao chép tin</button>
+<button class="btn btn-ok pnz-full" formaction="/tin-gui-khach/{{ row.id }}/da-gui" data-tg-confirm="Anh/chị đã dán và gửi tin này bằng Zalo cá nhân?">Đã gửi bằng Zalo cá nhân</button>{% endif %}
+<button class="btn btn-danger pnz-full" formaction="/tin-gui-khach/{{ row.id }}/bo" formnovalidate data-tg-confirm="Bỏ tin này, không gửi khách?">Bỏ tin</button>
+{% endcall %}
+{% elif row.status == 'DA_GUI' %}
+{% call ui.next_box('Xong', 'Đã gửi bằng ' ~ via[row.sent_via]) %}{% endcall %}
+<p class="mu">{{ users.get(row.decided_by, '') }} gửi lúc {{ row.decided_at|vn_time }} {{ row.decided_at|vn_date }}.{% if row.edited_by %} {{ users.get(row.edited_by, '') }} đã sửa chữ trước khi gửi.{% endif %}</p>
+{% elif row.status == 'DA_BO' %}
+{% call ui.next_box('Xong', 'Đã bỏ, không gửi khách') %}{% endcall %}
+<p class="mu">{{ users.get(row.decided_by, '') }} bỏ lúc {{ row.decided_at|vn_time }} {{ row.decided_at|vn_date }}.</p>
+{% endif %}
+</aside>
+</form>
+</div>
+<script src="{{ asset('tin-gui-khach.js') }}" defer></script>
+{% endblock %}

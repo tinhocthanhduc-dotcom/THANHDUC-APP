@@ -69,7 +69,8 @@ def save(form=Depends(checked_form), user: User = Depends(web_user), session: Se
                       str(form.get('may') or '').strip() or None,
                       (str(form.get('phieu_nhap')) == '1') if form.get('phieu_nhap') is not None else None,
                       (str(form.get('doc_anh')) == '1') if form.get('doc_anh') is not None else None,
-                      (str(form.get('don_mua')) == '1') if form.get('don_mua') is not None else None)
+                      (str(form.get('don_mua')) == '1') if form.get('don_mua') is not None else None,
+                      str(form.get('so_tk')) if form.get('so_tk') is not None else None)
     return RedirectResponse('/zalo/tro-ly?luu=1', status_code=303)
 
 

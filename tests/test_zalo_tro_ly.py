@@ -140,7 +140,7 @@ def test_kinh_doanh_thay_gia_ban_va_len_don_nhap(client, db, shop, zalo):
                            hen_giao='', giao_tan_noi=True, ghi_chu=''),
                       say('Đã tạo đơn nháp cho An Phú.')]
     client.post('/zalo/webhook', json=event(mid='m1', text='lên đơn cty An Phú 2 hộp 12A giao mai'), headers=H)
-    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'tao_don_nhap', 'tao_phieu_nhap', 'bao_hanh', 'trang_thai', 'doanh_thu']
+    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'tao_don_nhap', 'tao_phieu_nhap', 'soan_tin_khach', 'bao_hanh', 'trang_thai', 'doanh_thu']  # đợt 4: kinh doanh soạn tin báo giá, hỏi thăm
     assert '820000' in zalo['ai'][1]['messages'][-1]['content'] and '600000' not in json.dumps(zalo['ai'][-1]['messages'])
     order = db.scalars(select(SalesOrder)).one()
     assert (order.status, order.customer_code, order.created_by, order.fulfillment) == ('NHAP', 'KTD-000001', shop['sales'].id, 'THO_GIAO')

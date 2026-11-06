@@ -10,6 +10,7 @@ import logging
 import threading
 import time as clock
 from datetime import date, datetime, timedelta
+from urllib.parse import quote
 
 from sqlalchemy import select, text
 
@@ -54,7 +55,7 @@ def build(session, user, today: date) -> dict:
         finance_reports.check_reader(user)
         rows = _rows(session, user, today)
     old = sorted((r for r in rows if r['old']), key=lambda r: (-r['unpaid'], r['code']))
-    items = [dict(name=r['name'], amount=r['unpaid'], days=r['days'], phone=(r['phones'] or [''])[0],
+    items = [dict(name=r['name'], code=r['code'], amount=r['unpaid'], days=r['days'], phone=(r['phones'] or [''])[0],
                   docs=[doc['number'] or doc['kind'] for doc in r['docs'] if doc['unpaid']]) for r in old]
     return dict(today=today, days=OLD_DEBT_DAYS, items=items, total=sum(i['amount'] for i in items),
                 oldest=max((i['days'] for i in items), default=0), pending=sum(r['pending'] for r in rows))
@@ -74,17 +75,19 @@ def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
     if d['pending']:
         tail.append(f"Đã thu, đang ở nhân viên: {_money(d['pending'])}")
     tail.append(link)
-    body = []
+    body, shown = [], 0
     for n, i in enumerate(d['items'][:TOP], 1):
         docs = ', '.join(i['docs'][:DOCS]) + (f' +{len(i["docs"]) - DOCS}' if len(i['docs']) > DOCS else '')
         detail = ' · '.join(x for x in (f"{i['days']} ngày", i['phone'], docs) if x)
         lines = [f"{n}. {_cut(i['name'], 32)} – {_money(i['amount'])}", f"   {detail}"]
+        if i.get('code'):  # đợt 4 (Q10): mở thẳng màn soạn tin nhắc nợ cho khách này
+            lines.append(f"   Soạn tin: {base_url}/tin-gui-khach/moi?loai=NHAC_NO&khach={quote(i['code'])}")
         more = len(d['items']) - n
         extra = [f'+{more} khách nữa, xem đủ trong app'] if more else []
         if len('\n'.join(head + body + lines + extra + tail)) > MAX_TEXT:
             break
         body += lines
-    shown = len(body) // 2
+        shown = n
     if len(d['items']) > shown:
         body.append(f"+{len(d['items']) - shown} khách nữa, xem đủ trong app")
     return '\n'.join(head + body + tail)

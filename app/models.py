@@ -2130,6 +2130,8 @@ class ZaloTroLy(Base):
     # 0083 đợt 3: đọc ảnh nhân viên gửi bằng Codex/Claude trên Z2; hóa đơn NCC thành đơn mua nháp.
     read_images: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
     invoice_po: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    # 0084 đợt 4: dòng chuyển khoản ghi trong tin nhắc nợ gửi khách (giám đốc nhập; trống thì tin không có dòng này).
+    bank_line: Mapped[str] = mapped_column(Text, default='', server_default='')
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -2174,7 +2176,7 @@ class ZaloAiJob(Base):
                       CheckConstraint("status in ('CHO','DANG','XONG','LOI')", name='ck_zalo_ai_jobs_status'),
                       Index('ix_zalo_ai_jobs_status', 'status', 'id'))
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    log_id: Mapped[int] = mapped_column(ForeignKey('zalo_agent_logs.id'))
+    log_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_agent_logs.id'))  # 0084: trống = lượt viết lại tin gửi khách
     engine: Mapped[str] = mapped_column(String(8))
     prompt: Mapped[str] = mapped_column(Text)
     image_path: Mapped[str] = mapped_column(String(200), default='', server_default='')  # 0083: ảnh máy Z2 cần đọc
@@ -2228,6 +2230,49 @@ class ZaloTicketDraft(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+CUSTOMER_MESSAGE_KINDS = ('NHAC_NO', 'BAO_GIA', 'HOI_THAM')
+
+
+class CustomerMessage(Base):
+    """0084 đợt 4: tin soạn sẵn gửi khách (TUẤN duyệt mẫu 06/11/2026). App soạn từ số liệu thật, người làm sửa rồi tự gửi:
+    qua bot Zalo công ty (khách đã gắn) hoặc sao chép gửi bằng Zalo cá nhân. Không bao giờ tự gửi."""
+    __tablename__ = 'customer_messages'
+    __table_args__ = (
+        CheckConstraint(_in('kind', CUSTOMER_MESSAGE_KINDS), name='ck_customer_messages_kind'),
+        CheckConstraint("status in ('CHO','DA_GUI','DA_BO')", name='ck_customer_messages_status'),
+        CheckConstraint("source in ('APP','ZALO')", name='ck_customer_messages_source'),
+        CheckConstraint("sent_via in ('','BOT','CA_NHAN')", name='ck_customer_messages_sent_via'),
+        CheckConstraint("(status = 'DA_GUI') = (sent_via <> '')", name='ck_customer_messages_sent'),
+        Index('ix_customer_messages_status', 'status', 'created_at', 'id'),
+        Index('ix_customer_messages_customer', 'customer_code', 'kind', 'decided_at'),
+        Index('ix_customer_messages_creator', 'created_by', 'status'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'))
+    ref_type: Mapped[str] = mapped_column(String(16), default='', server_default='')  # quote / service_ticket
+    ref_id: Mapped[int | None] = mapped_column(BigInteger)
+    facts: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')  # số liệu đã dùng để soạn
+    draft_text: Mapped[str] = mapped_column(Text)  # bản app soạn lúc đầu
+    text: Mapped[str] = mapped_column(Text)  # bản hiện tại / bản cuối đã gửi
+    source: Mapped[str] = mapped_column(String(6), default='APP', server_default='APP')
+    status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
+    sent_via: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    chat_pk: Mapped[int | None] = mapped_column(ForeignKey('zalo_chats.id'))
+    zalo_message_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_messages.id'))
+    ai_job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id'))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    edited_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    drop_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    reply_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
 
 
 CUSTOMER_INK_CALL_RESULTS = ('DAT_MUC', 'HEN_LAI', 'KHONG_NGHE', 'CON_MUC', 'CHUYEN_NOI_KHAC')

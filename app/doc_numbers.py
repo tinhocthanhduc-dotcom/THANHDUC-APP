@@ -31,6 +31,7 @@ PREFIXES = {
     "PC": "Phiếu chi",
     "CQ": "Chuyển quỹ",
     "NZ": "Phiếu nháp từ Zalo",
+    "TG": "Tin gửi khách",
 }
 
 
