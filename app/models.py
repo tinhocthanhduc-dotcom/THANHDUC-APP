@@ -2127,6 +2127,9 @@ class ZaloTroLy(Base):
     staff_engine: Mapped[str] = mapped_column(String(8), default='api', server_default='api')
     # Đợt 2 (TUẤN duyệt 06/11/2026): cho bot lập phiếu dịch vụ / mực nháp; tắt thì bot không tạo nháp.
     ticket_drafts: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    # 0083 đợt 3: đọc ảnh nhân viên gửi bằng Codex/Claude trên Z2; hóa đơn NCC thành đơn mua nháp.
+    read_images: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    invoice_po: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -2137,7 +2140,8 @@ class ZaloAgentLog(Base):
     __table_args__ = (UniqueConstraint('message_id', name='uq_zalo_agent_logs_message'),
                       CheckConstraint("asker in ('NHAN_VIEN','KHACH','CHUA_GAN')", name='ck_zalo_agent_logs_asker'),
                       Index('ix_zalo_agent_logs_created', 'created_at', 'id'), Index('ix_zalo_agent_logs_chat', 'chat_pk', 'created_at'),
-                      Index('ix_zalo_agent_logs_order', 'order_id', postgresql_where=text('order_id is not null')))
+                      Index('ix_zalo_agent_logs_order', 'order_id', postgresql_where=text('order_id is not null')),
+                      Index('ix_zalo_agent_logs_purchase_order', 'purchase_order_id', postgresql_where=text('purchase_order_id is not null')))
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     chat_pk: Mapped[int] = mapped_column(ForeignKey('zalo_chats.id'))
     message_id: Mapped[int] = mapped_column(ForeignKey('zalo_messages.id'))
@@ -2155,6 +2159,11 @@ class ZaloAgentLog(Base):
     cost_vnd: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     error: Mapped[str] = mapped_column(Text, default='', server_default='')
     engine: Mapped[str] = mapped_column(String(8), default='', server_default='')  # api / codex / claude đã thực sự trả lời
+    # 0083 đợt 3: ảnh nhân viên gửi (đường dẫn trong files_dir), loại ảnh và nội dung AI đọc được; đơn mua nháp từ hóa đơn.
+    image_path: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    image_kind: Mapped[str] = mapped_column(String(10), default='', server_default='')
+    image_read: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
+    purchase_order_id: Mapped[int | None] = mapped_column(ForeignKey('purchase_orders.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -2168,6 +2177,7 @@ class ZaloAiJob(Base):
     log_id: Mapped[int] = mapped_column(ForeignKey('zalo_agent_logs.id'))
     engine: Mapped[str] = mapped_column(String(8))
     prompt: Mapped[str] = mapped_column(Text)
+    image_path: Mapped[str] = mapped_column(String(200), default='', server_default='')  # 0083: ảnh máy Z2 cần đọc
     answer: Mapped[str] = mapped_column(Text, default='', server_default='')
     status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
     error: Mapped[str] = mapped_column(Text, default='', server_default='')

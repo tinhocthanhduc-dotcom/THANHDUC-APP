@@ -100,8 +100,17 @@ def _service_expense(session,user,entity_id,write):
         raise BusinessError('FORBIDDEN','Chỉ thợ đã ghi thêm ảnh khi khoản còn chờ duyệt.',status=403)
 
 
+def _purchase_order(session, user, entity_id, write):
+    # Trợ lý Zalo đợt 3: ảnh hóa đơn NCC gắn vào đơn mua lập từ ảnh. Xem: kho, kế toán; ghi: kho.
+    from . import purchase_orders
+    from .models import PurchaseOrder
+    (purchase_orders.check_writer if write else purchase_orders.check_reader)(user)
+    if session.get(PurchaseOrder, int(entity_id)) is None:
+        raise BusinessError('NOT_FOUND', 'Không có đơn mua này.', status=404)
+
+
 # Loại chứng từ được đính kèm và cách kiểm quyền xem/ghi của từng loại.
-TARGETS = {"service_expense": _service_expense, "pending_disposition": _pending_disposition, "pending_item": _pending_item, "technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
+TARGETS = {"purchase_order": _purchase_order, "service_expense": _service_expense, "pending_disposition": _pending_disposition, "pending_item": _pending_item, "technician_return_line": _technician_return_line, "sales_delivery": _sales_delivery, "service_ticket": _service_ticket, "stock_doc": _stock_doc, "equipment_custody": _custody}
 
 
 def _check(session: Session, user: User, entity: str, entity_id: str, write: bool):

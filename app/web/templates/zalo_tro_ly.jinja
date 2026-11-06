@@ -18,11 +18,17 @@
 <div class="field" role="group" aria-labelledby="zl-pn-t" style="flex:1 1 220px"><p class="group-label" id="zl-pn-t"><b>Lên phiếu dịch vụ nháp</b></p><div class="seg">
 <label><input type="radio" name="phieu_nhap" value="1"{% if cfg.ticket_drafts %} checked{% endif %}><span>Bật</span></label>
 <label><input type="radio" name="phieu_nhap" value="0"{% if not cfg.ticket_drafts %} checked{% endif %}><span>Tắt</span></label></div></div>
+<div class="field" role="group" aria-labelledby="zl-anh-t" style="flex:1 1 220px"><p class="group-label" id="zl-anh-t"><b>Đọc ảnh nhân viên gửi</b></p><div class="seg">
+<label><input type="radio" name="doc_anh" value="1"{% if cfg.read_images %} checked{% endif %}><span>Bật</span></label>
+<label><input type="radio" name="doc_anh" value="0"{% if not cfg.read_images %} checked{% endif %}><span>Tắt</span></label></div></div>
+<div class="field" role="group" aria-labelledby="zl-hd-t" style="flex:1 1 220px"><p class="group-label" id="zl-hd-t"><b>Lập đơn mua từ hóa đơn</b></p><div class="seg">
+<label><input type="radio" name="don_mua" value="1"{% if cfg.invoice_po %} checked{% endif %}><span>Bật</span></label>
+<label><input type="radio" name="don_mua" value="0"{% if not cfg.invoice_po %} checked{% endif %}><span>Tắt</span></label></div></div>
 <label for="zl-nguoi"><b>Người nhận đơn nháp của khách</b><select id="zl-nguoi" name="nguoi_nhan"><option value="">Chưa chọn</option>{% for u in draft_users %}<option value="{{ u.id }}"{% if cfg.draft_user_id == u.id %} selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
 <button class="btn btn-ok">Lưu</button>
 </div>
 <p class="hint zl-z2">{% if not z2.has_key %}<b>Máy Z2:</b> chưa có khóa "Codex/Claude · Trợ lý Zalo" (tạo ở Trợ lý AI › Khóa truy cập).{% elif z2.paused %}<b>Máy Z2:</b> khóa đang tạm dừng.{% elif z2.alive %}<b>Máy Z2:</b> đang chạy, hỏi việc lúc {{ z2.last|vn_time }}{% if z2.waiting %} · {{ z2.waiting }} lượt đang chờ{% endif %}.{% else %}<b>Máy Z2:</b> chưa chạy{% if z2.last %} (lần cuối {{ z2.last|vn_time }}){% endif %}.{% endif %}
-{% if cfg.staff_engine != 'api' %} Máy Z2 không chạy thì nhân viên được trả lời bằng API nếu có khóa.{% endif %} Khách luôn đi qua API. Codex/Claude dùng chung lượt gói thuê bao với anh, chậm hơn API (20–60 giây mỗi câu), bot nhắn "đang tra" trước.</p>
+{% if cfg.staff_engine != 'api' %} Máy Z2 không chạy thì nhân viên được trả lời bằng API nếu có khóa.{% endif %} Khách luôn đi qua API. Ảnh nhân viên gửi chỉ đọc bằng Codex/Claude trên Z2 (không dùng API); ảnh khách gửi không đưa cho AI. Codex/Claude dùng chung lượt gói thuê bao với anh, chậm hơn API (20–60 giây mỗi câu), bot nhắn "đang tra" trước.</p>
 <p class="hint">Model API {{ model }}. Mỗi người tối đa {{ per_person }} câu/ngày, cả công ty {{ per_day }} câu/ngày. Tắt thì bot trở lại chỉ lưu tin như trước. Chỉ trả lời trong hội thoại riêng, không trả lời trong nhóm.</p>
 </form>
 
@@ -50,9 +56,9 @@
 {% for r in rows %}<tr>
 <td data-label="Giờ">{{ r.created_at|vn_time }}</td>
 <td data-label="Người">{% if r.user_id %}{{ names.get(('u', r.user_id), '') }}{% elif r.customer_code %}{{ names.get(('c', r.customer_code), r.customer_code) }}{% endif %} <small class="mu">{{ askers[r.asker] }}</small></td>
-<td data-label="Tin nhắn"><p class="zl-quote">{{ r.question[:300] }}</p>{% if r.answer %}<small class="mu">Trả lời: {{ r.answer[:300] }}</small>{% endif %}</td>
+<td data-label="Tin nhắn">{% if r.image_path %}<a href="/zalo/tro-ly/anh/{{ r.id }}" target="_blank" rel="noopener"><img class="zl-thumb" src="/zalo/tro-ly/anh/{{ r.id }}" alt="Ảnh nhân viên gửi" loading="lazy"></a>{% endif %}{% if r.image_kind %}<span class="zl-read"><b>{{ image_kinds.get(r.image_kind, r.image_kind) }}</b> · AI đọc được: {{ read_brief(r.image_read) }}</span>{% endif %}<p class="zl-quote">{{ r.question[:300] }}</p>{% if r.answer %}<small class="mu">Trả lời: {{ r.answer[:300] }}</small>{% endif %}</td>
 <td data-label="AI đã tra" class="zl-tools">{% for t in r.tools %}{{ t.ten }}({{ (t.vao.values()|list|join(', '))[:60] if t.vao is mapping else '' }}) → {{ t.ra }}<br>{% else %}—{% endfor %}</td>
-<td data-label="Kết quả">{{ ui.badge(results[r.result][0], results[r.result][1]) if r.result in results else r.result }}{% if r.order_id %} <a href="/don-ban/{{ r.order_id }}">Mở đơn</a>{% endif %}{% if r.need_pick %}<br><small class="zl-warn">Cần chọn mã</small>{% endif %}{% if r.error %}<br><small class="zalo-err">{{ r.error }}</small>{% endif %}</td>
+<td data-label="Kết quả">{{ ui.badge(results[r.result][0], results[r.result][1]) if r.result in results else r.result }}{% if r.order_id %} <a href="/don-ban/{{ r.order_id }}">Mở đơn</a>{% endif %}{% if r.purchase_order_id %} <a href="/don-mua/{{ r.purchase_order_id }}">Mở đơn mua</a>{% endif %}{% if r.need_pick %}<br><small class="zl-warn">Cần chọn mã</small>{% endif %}{% if r.error %}<br><small class="zalo-err">{{ r.error }}</small>{% endif %}</td>
 <td data-label="Chi phí" class="num">{{ r.cost_vnd|money }} đ{% if r.engine %}<br><small class="mu">{{ engine_short.get(r.engine, r.engine) }}</small>{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {{ pager.bar(p, 'câu') }}

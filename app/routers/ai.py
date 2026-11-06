@@ -1,5 +1,6 @@
 """Cửa /ai cho Trợ lý AI trên máy chủ (TUẤN 01/11/2026). Chỉ các lệnh dưới đây, không lệnh nào đụng tiền hay kho."""
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -163,6 +164,12 @@ class ZaloAnswerIn(BaseModel):
 def zalo_jobs(toi_da: int = 2, _: AiKey = Depends(zalo_key), session: Session = Depends(get_session)):
     """Máy Z2 hỏi việc vài giây một lần (cũng là nhịp để app biết máy Z2 còn chạy). Lấy rồi thì lượt chuyển Đang làm."""
     return zalo_svc.take_jobs(session, toi_da)
+
+
+@router.get('/zalo/viec/{job_id}/anh')
+def zalo_job_image(job_id: int, _: AiKey = Depends(zalo_key), session: Session = Depends(get_session)):
+    """Đợt 3: ảnh nhân viên gửi cho lượt đang làm, để máy Z2 đưa cho Codex/Claude đọc."""
+    return FileResponse(zalo_svc.job_image(session, job_id), media_type='image/jpeg', filename='anh.jpg')
 
 
 @router.post('/zalo/viec/{job_id}/tra-loi')

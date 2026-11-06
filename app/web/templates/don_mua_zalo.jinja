@@ -1,0 +1,6 @@
+{# Trợ lý Zalo đợt 3 (TUẤN duyệt mẫu P5 06/11/2026): đơn mua lập từ ảnh hóa đơn NCC gửi qua Zalo. Ảnh hóa đơn + dòng chưa ghép mã. #}
+{% if zalo_po or po_photos %}<section class="card po-zalo">
+{% if zalo_po %}<p class="po-zalo-banner"><b>Lập từ ảnh hóa đơn Zalo</b> do {{ zalo_po_user }} gửi lúc {{ zalo_po.created_at|vn_time }} {{ zalo_po.created_at|vn_date }}. Kiểm từng dòng với ảnh trước khi Đặt hàng.{% if (zalo_po.image_read.hoa_don or {}).gia_gom_vat %} Giá theo hóa đơn: đã gồm VAT.{% endif %}</p>
+{% set missing = zalo_po.image_read.chua_ghep or [] %}{% if missing %}<div class="po-zalo-miss"><b>Chưa ghép mã ({{ missing|length }}):</b><ul>{% for m in missing %}<li>{{ m.ten }} · SL {{ m.sl }} · đơn giá {{ m.don_gia|money }}</li>{% endfor %}</ul>{% if o.status == 'NHAP' %}<small>Tìm đúng mã ở mục Hàng mua bên dưới, thêm dòng rồi Lưu.</small>{% endif %}</div>{% endif %}{% endif %}
+{% if po_photos %}<div class="po-zalo-photos">{% for a in po_photos %}<a href="/attachments/{{ a.id }}/file" target="_blank" rel="noopener"><img src="/attachments/{{ a.id }}/file" alt="Ảnh hóa đơn {{ loop.index }}" loading="lazy"></a>{% endfor %}<small class="mu">Bấm ảnh để phóng to.</small></div>{% endif %}
+</section>{% endif %}
