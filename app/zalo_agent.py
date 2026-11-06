@@ -47,9 +47,11 @@ RATE_VND = 26_000
 PRICE_USD = {'gpt-5-mini': (0.25, 2.0), 'gpt-5-nano': (0.05, 0.4), 'gpt-5': (1.25, 10.0), 'gpt-4.1-mini': (0.4, 1.6)}
 RECEIVED_TEXT = 'Thành Đức đã nhận tin, nhân viên sẽ trả lời anh/chị trong giờ làm việc (7:30–17:30, T2–T7).'
 FAIL_TEXT = 'Trợ lý chưa trả lời được câu này, anh/chị xem trên app hoặc hỏi lại sau nhé.'
-RESULTS = {'DANG_LAM': ('Đang xử lý', 'cho'), 'TRA_LOI': ('Đã trả lời', 'xong'), 'DON_NHAP': ('Đơn nháp', 'xong'),
+RESULTS = {'DANG_LAM': ('Đang xử lý', 'cho'), 'TRA_LOI': ('Đã trả lời', 'xong'), 'DON_NHAP': ('Đơn nháp', 'xong'), 'PHIEU_NHAP': ('Phiếu nháp', 'xong'),
            'KHONG_TRA_LOI': ('Không trả lời số liệu', 'huy'), 'BO_QUA': ('Không phải đặt hàng', 'nhap'),
            'HET_LUOT': ('Hết lượt hôm nay', 'cho'), 'LOI': ('Không chạy được', 'huy')}
+CUSTOMER_TICKET_TEXT = ('Thành Đức đã nhận yêu cầu {what} của anh/chị. Điều phối sẽ gọi lại để hẹn giờ trong giờ làm việc '
+                        '(7:30–17:30, T2–T7).')
 ASKERS = {'NHAN_VIEN': 'Nhân viên', 'KHACH': 'Khách', 'CHUA_GAN': 'Chưa gắn'}
 TICKET_DRAFT_REASON = 'Bỏ đơn nháp từ Zalo'
 ENGINES = {'api': 'API OpenAI (tốn phí)', 'codex': 'Codex trên máy chủ Z2', 'claude': 'Claude trên máy chủ Z2'}
@@ -89,22 +91,26 @@ def draft_users(session: Session) -> list[User]:
     return [u for u in rows if has_role(u, 'sales')]
 
 
-def save_config(session: Session, user: User, enabled: bool, draft_user_id: int | None, staff_engine: str | None = None) -> ZaloTroLy:
+def save_config(session: Session, user: User, enabled: bool, draft_user_id: int | None, staff_engine: str | None = None,
+                ticket_drafts: bool | None = None) -> ZaloTroLy:
     _director(user)
     if staff_engine is not None and staff_engine not in ENGINES:
         raise BusinessError('VALIDATION', 'Chọn API, Codex hoặc Claude.', status=422)
     if draft_user_id is not None and draft_user_id not in {u.id for u in draft_users(session)}:
         raise BusinessError('VALIDATION', 'Người nhận đơn nháp phải là kinh doanh hoặc giám đốc đang làm việc.', status=422)
     row = session.get(ZaloTroLy, 1)
-    before = None if row is None else dict(enabled=row.enabled, draft_user_id=row.draft_user_id, staff_engine=row.staff_engine)
+    before = None if row is None else dict(enabled=row.enabled, draft_user_id=row.draft_user_id, staff_engine=row.staff_engine,
+                                           ticket_drafts=row.ticket_drafts)
     if row is None:
-        row = ZaloTroLy(id=1, staff_engine='api')
+        row = ZaloTroLy(id=1, staff_engine='api', ticket_drafts=True)
         session.add(row)
     row.enabled, row.draft_user_id, row.updated_by, row.updated_at = enabled, draft_user_id, user.id, _now()
     if staff_engine is not None:
         row.staff_engine = staff_engine
+    if ticket_drafts is not None:
+        row.ticket_drafts = ticket_drafts
     audit.record(session, user, 'zalo_tro_ly.config', 'zalo_tro_ly', '1', before,
-                 dict(enabled=enabled, draft_user_id=draft_user_id, staff_engine=row.staff_engine))
+                 dict(enabled=enabled, draft_user_id=draft_user_id, staff_engine=row.staff_engine, ticket_drafts=row.ticket_drafts))
     session.commit()
     return row
 
@@ -314,6 +320,21 @@ T_DRAFT = _fn('tao_don_nhap', 'Tạo ĐƠN NHÁP bán hàng (chưa chốt, khôn
 T_DRAFT_SELF = _fn('tao_don_nhap', 'Tạo ĐƠN NHÁP cho khách này khi tin nhắn là yêu cầu đặt hàng rõ ràng. Chỉ gọi một lần.',
                    _DRAFT_PROPS, ['dong', 'hen_giao', 'giao_tan_noi', 'ghi_chu'])
 
+_TICKET_PROPS = dict(
+    loai=dict(type='string', enum=['SUA_TAI_CHO', 'MANG_VE', 'MUC_DINH_KY', ''],
+              description='SUA_TAI_CHO: thợ đến sửa; MANG_VE: mang máy về xưởng; MUC_DINH_KY: giao/nạp mực; chuỗi rỗng nếu chưa rõ'),
+    loi=dict(type='string', description='Lỗi hoặc yêu cầu, viết lại ngắn gọn đúng ý tin nhắn'),
+    hen_ngay=dict(type='string', description='YYYY-MM-DD ngày khách muốn, hoặc chuỗi rỗng'),
+    buoi=dict(type='string', enum=['SANG', 'CHIEU', '']), muc=dict(type='string', enum=['THUONG', 'GAP', 'KHAN']))
+T_TICKET = _fn('tao_phieu_nhap', 'Tạo PHIẾU DỊCH VỤ NHÁP (sửa máy hoặc mực định kỳ) chờ điều phối duyệt. Không chọn máy, không giao thợ. Chỉ gọi một lần.',
+               dict(ma_khach=dict(type='string'), **_TICKET_PROPS), ['ma_khach', 'loai', 'loi', 'hen_ngay', 'buoi', 'muc'])
+T_TICKET_SELF = _fn('tao_phieu_nhap', 'Tạo PHIẾU DỊCH VỤ NHÁP cho khách này khi khách báo hỏng máy, nhờ sửa hoặc nhờ giao mực định kỳ. Chỉ gọi một lần.',
+                    _TICKET_PROPS, ['loai', 'loi', 'hen_ngay', 'buoi', 'muc'])
+TICKET_RULE = """- Khi được nhờ lên phiếu sửa máy hoặc giao mực định kỳ (máy hỏng, kẹt giấy, hết mực...): tìm khách bằng tim_khach,
+  nhiều khách giống nhau thì hỏi lại, rồi gọi tao_phieu_nhap một lần. "gấp" là GAP, "khẩn" là KHAN. Không chọn máy, không giao thợ.
+  Sau khi tạo, báo số phiếu nháp, khách, loại, lỗi, hẹn và nói điều phối sẽ duyệt, giao thợ.
+"""
+
 STAFF_PROMPT = """Bạn là trợ lý nội bộ của Công ty Tin Học Thành Đức (máy in, mực in, sửa chữa) trả lời nhân viên qua Zalo.
 Hôm nay là {today}. Người hỏi: {name} ({roles}).
 Quy tắc:
@@ -322,15 +343,18 @@ Quy tắc:
 - Khách nói bằng tên thì tìm mã bằng tim_khach trước; nhiều khách giống nhau thì hỏi lại. "Hay đặt mực gì" thì dùng lich_su_mua.
 - "Phiếu tiếp theo của tôi" là phiếu đầu tiên trong viec_tho. Kết quả có link thì gửi kèm link để mở trên app.
 - Không bao giờ nói giá vốn, lãi, lương, hoa hồng. Không có công cụ thì không nói công nợ, doanh thu. {price_rule}
-{draft_rule}- Trả lời tiếng Việt, ngắn, văn bản thường (không markdown, không bảng), dưới 1500 ký tự. Tiền viết dạng 1.250.000đ. Xưng "em", gọi "anh/chị"."""
+{draft_rule}{ticket_rule}- Trả lời tiếng Việt, ngắn, văn bản thường (không markdown, không bảng), dưới 1500 ký tự. Tiền viết dạng 1.250.000đ. Xưng "em", gọi "anh/chị"."""
 DRAFT_RULE = """- Khi được nhờ lên đơn: tìm khách bằng tim_khach. Có hơn một khách giống nhau thì hỏi lại, không tạo đơn.
   Ưu tiên mã khách đã mua (lich_su_mua), rồi tra_ton. Mã không chắc thì vẫn tạo nhưng ghi can_chon_ma.
   Sau khi tạo, báo số đơn nháp, khách, từng dòng và nhắc kiểm giá rồi bấm Chốt trên app. Trợ lý không chốt đơn.
 """
+CUSTOMER_TICKET_RULE = """Nếu tin báo máy hỏng, nhờ thợ qua sửa, hoặc nhờ nạp/giao mực định kỳ (không nêu mã hàng cần mua),
+hãy gọi tao_phieu_nhap đúng một lần (không gọi tao_don_nhap). "gấp" là GAP, "khẩn" là KHAN.
+"""
 CUSTOMER_PROMPT = """Bạn đọc tin Zalo của khách hàng {name} (mã {code}) gửi Công ty Tin Học Thành Đức. Hôm nay là {today}.
 Nếu tin là yêu cầu đặt mua hàng rõ ràng (có tên hàng), hãy: tra lich_su_mua để ưu tiên mã khách đã mua, tra_ton nếu cần,
 rồi gọi tao_don_nhap đúng một lần. Mã không chắc thì ghi can_chon_ma. "giao", "gửi về" là giao_tan_noi=true.
-Nếu tin không phải đặt hàng (hỏi chuyện, báo hỏng máy, hỏi giá...) thì KHÔNG gọi công cụ nào và trả lời đúng một chữ: KHONG.
+{ticket_rule}Nếu tin không thuộc các trường hợp trên (hỏi chuyện, hỏi giá...) thì KHÔNG gọi công cụ nào và trả lời đúng một chữ: KHONG.
 Bạn không trả lời khách; nhân viên sẽ liên hệ."""
 
 
@@ -645,6 +669,33 @@ def _staff_engine(session) -> str:
     raise AiError(f'{ENGINES[engine]} chưa chạy (máy Z2 không hỏi việc gần đây) và không có khóa API dự phòng.')
 
 
+def _ticket_handler(session, state, msg, log, source, sender, fixed_customer=None):
+    """Công cụ tao_phieu_nhap: ghi phiếu nháp qua zalo_phieu_nhap.create (một tin tối đa một nháp)."""
+    from . import zalo_phieu_nhap
+
+    def make(args):
+        if 'ticket' in state:
+            return dict(loi='Đã tạo phiếu nháp cho tin này rồi.')
+        code = fixed_customer or str(args.get('ma_khach') or '').strip()
+        kind = str(args.get('loai') or '')
+        hint = ''
+        if kind == 'MUC_DINH_KY':
+            bought = tool_history(session, code).get('da_mua') or []
+            hint = '; '.join(f"{r['ma']} {r['ten']} ({r['so_don']} lần)" for r in sorted(bought, key=lambda r: -r['so_don'])[:3])
+        session.commit()  # lưu nhật ký trước: tạo nháp lỗi sẽ rollback phiên
+        try:
+            row = zalo_phieu_nhap.create(session, message_id=msg.id, log_id=log.id, source=source, sender=sender, customer_code=code,
+                                         kind=kind, symptom=args.get('loi'), want_date=args.get('hen_ngay'), slot=str(args.get('buoi') or ''),
+                                         priority=str(args.get('muc') or 'THUONG'), ink_hint=hint, question=msg.text)
+        except BusinessError as exc:
+            session.rollback()
+            return dict(loi=exc.message)
+        state['ticket'] = row
+        return dict(da_tao=row.number, khach=row.customer_code, loai=zalo_phieu_nhap.KINDS.get(row.kind or '', 'Chưa rõ loại'),
+                    hen=zalo_phieu_nhap.want_label(row), muc_khach_hay_lay=hint)
+    return make
+
+
 def _staff(session, chat, staff, msg, log):
     rights = can_do(staff)
     state = {}
@@ -665,16 +716,23 @@ def _staff(session, chat, staff, msg, log):
     if rights['draft']:
         handlers['tao_don_nhap'] = draft
         tools.append(T_DRAFT)
+    from . import zalo_phieu_nhap
+    ticket_ok = config(session).ticket_drafts and zalo_phieu_nhap.can_draft(staff)
+    if ticket_ok:
+        handlers['tao_phieu_nhap'] = _ticket_handler(session, state, msg, log, 'NHAN_VIEN', staff)
+        tools.append(T_TICKET)
     more_tools, more = zalo_tra_cuu.build(session, staff)  # đợt 1 (TUẤN duyệt 06/11/2026): tra cứu, báo cáo theo quyền
     tools += more_tools
     handlers.update(more)
     engine = _staff_engine(session)
     roles = ', '.join(staff.roles)
-    abilities = ['tồn kho' + (', giá bán' if rights['price'] else '')] + (['lên đơn nháp'] if rights['draft'] else []) + zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff))
+    abilities = (['tồn kho' + (', giá bán' if rights['price'] else '')] + (['lên đơn nháp'] if rights['draft'] else [])
+                 + (['lên phiếu dịch vụ nháp'] if ticket_ok else []) + zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff)))
     system = STAFF_PROMPT.format(
         today=_now().strftime('%d/%m/%Y'), name=staff.full_name, roles=roles, abilities=', '.join(abilities),
         price_rule='Được nói giá bán danh mục (chưa VAT).' if rights['price'] else 'Không nói giá, kể cả giá bán.',
-        draft_rule=DRAFT_RULE if rights['draft'] else '- Không lên đơn. Nhờ lên đơn thì bảo nhắn kinh doanh.\n')
+        draft_rule=DRAFT_RULE if rights['draft'] else '- Không lên đơn. Nhờ lên đơn thì bảo nhắn kinh doanh.\n',
+        ticket_rule=TICKET_RULE if ticket_ok else '- Không lên phiếu dịch vụ. Nhờ lên phiếu thì bảo nhắn điều phối.\n')
     if engine != 'api':  # Codex/Claude trên Z2 chậm hơn API (20–60 giây): báo trước để người hỏi khỏi tưởng bot treo
         from . import zalo_bot
         zalo_bot.send_text(session, chat, Z2_WAIT_TEXT, None, 'tro_ly')
@@ -683,6 +741,10 @@ def _staff(session, chat, staff, msg, log):
         log.order_id, log.result, log.need_pick = state['order'].id, 'DON_NHAP', '; '.join(state['picks'])
         if state['order'].number not in answer:
             answer += f"\nĐơn nháp: {state['order'].number}. Mở app kiểm giá rồi bấm Chốt."
+    elif 'ticket' in state:
+        log.result = 'PHIEU_NHAP'
+        if state['ticket'].number not in answer:
+            answer += f"\nPhiếu nháp: {state['ticket'].number}. Điều phối sẽ duyệt và giao thợ."
     else:
         log.result = 'TRA_LOI'
     _reply(session, chat, log, answer)
@@ -706,8 +768,18 @@ def _customer(session, chat, customer, msg, log, cfg_row):
 
     handlers = dict(tra_ton=lambda a: tool_stock(session, a.get('tu_khoa'), False),
                     lich_su_mua=lambda a: tool_history(session, customer.code, a.get('tu_khoa')), tao_don_nhap=draft)
-    system = CUSTOMER_PROMPT.format(name=customer.name, code=customer.code, today=_now().strftime('%d/%m/%Y'))
-    _run(session, system, msg.text, [T_STOCK, T_HISTORY_SELF, T_DRAFT_SELF], handlers, log, 'api')  # khách luôn qua API
+    tools = [T_STOCK, T_HISTORY_SELF, T_DRAFT_SELF]
+    if cfg_row.ticket_drafts:  # đợt 2: khách báo hỏng máy / nhờ giao mực → phiếu nháp chờ điều phối
+        handlers['tao_phieu_nhap'] = _ticket_handler(session, state, msg, log, 'KHACH', None, customer.code)
+        tools.append(T_TICKET_SELF)
+    system = CUSTOMER_PROMPT.format(name=customer.name, code=customer.code, today=_now().strftime('%d/%m/%Y'),
+                                    ticket_rule=CUSTOMER_TICKET_RULE if cfg_row.ticket_drafts else '')
+    _run(session, system, msg.text, tools, handlers, log, 'api')  # khách luôn qua API
+    if 'ticket' in state and 'order' not in state:
+        log.result = 'PHIEU_NHAP'
+        what = 'giao mực' if state['ticket'].kind == 'MUC_DINH_KY' else 'sửa máy'
+        _reply(session, chat, log, CUSTOMER_TICKET_TEXT.format(what=what))
+        return
     if 'order' not in state:
         log.result = 'BO_QUA'
         return

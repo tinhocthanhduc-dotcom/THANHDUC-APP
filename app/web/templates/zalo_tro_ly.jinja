@@ -15,6 +15,9 @@
 <label><input type="radio" name="bat" value="0"{% if not cfg.enabled %} checked{% endif %}><span>Tắt</span></label></div></div>
 <div class="field" role="group" aria-labelledby="zl-may-t" style="flex:1 1 320px"><p class="group-label" id="zl-may-t"><b>Ai trả lời nhân viên</b></p><div class="seg">
 {% for code, name in engines.items() %}<label><input type="radio" name="may" value="{{ code }}"{% if (cfg.staff_engine or 'api') == code %} checked{% endif %}><span>{{ engine_short[code] }}</span></label>{% endfor %}</div></div>
+<div class="field" role="group" aria-labelledby="zl-pn-t" style="flex:1 1 220px"><p class="group-label" id="zl-pn-t"><b>Lên phiếu dịch vụ nháp</b></p><div class="seg">
+<label><input type="radio" name="phieu_nhap" value="1"{% if cfg.ticket_drafts %} checked{% endif %}><span>Bật</span></label>
+<label><input type="radio" name="phieu_nhap" value="0"{% if not cfg.ticket_drafts %} checked{% endif %}><span>Tắt</span></label></div></div>
 <label for="zl-nguoi"><b>Người nhận đơn nháp của khách</b><select id="zl-nguoi" name="nguoi_nhan"><option value="">Chưa chọn</option>{% for u in draft_users %}<option value="{{ u.id }}"{% if cfg.draft_user_id == u.id %} selected{% endif %}>{{ u.full_name }}</option>{% endfor %}</select></label>
 <button class="btn btn-ok">Lưu</button>
 </div>
@@ -26,6 +29,7 @@
 {{ ui.tiles([
   dict(label='Câu hôm nay' if not ngay else 'Câu trong ngày', n=total, href='/zalo/tro-ly?tab=nhat-ky' ~ ('&ngay=' ~ ngay if ngay else ''), on=tab=='nhat-ky'),
   dict(label='Đơn nháp tạo', n=stats.drafts, href='/don-nhap-zalo'),
+  dict(label='Phiếu nháp chờ duyệt', n=ticket_waiting, href='/phieu-nhap-zalo'),
   dict(label='Chi phí AI', n=stats.cost|money ~ ' đ'),
 ]) }}
 {{ ui.list_tabs([dict(label='Đã gắn', n=chats|length, href='/zalo/tro-ly?tab=gan', on=tab=='gan'), dict(label='Nhật ký', n=total, href='/zalo/tro-ly?tab=nhat-ky' ~ ('&ngay=' ~ ngay if ngay else ''), on=tab=='nhat-ky')]) }}

@@ -30,6 +30,7 @@ PREFIXES = {
     "PT": "Phiếu thu",
     "PC": "Phiếu chi",
     "CQ": "Chuyển quỹ",
+    "NZ": "Phiếu nháp từ Zalo",
 }
 
 

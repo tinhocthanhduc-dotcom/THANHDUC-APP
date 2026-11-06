@@ -140,7 +140,7 @@ def test_kinh_doanh_thay_gia_ban_va_len_don_nhap(client, db, shop, zalo):
                            hen_giao='', giao_tan_noi=True, ghi_chu=''),
                       say('Đã tạo đơn nháp cho An Phú.')]
     client.post('/zalo/webhook', json=event(mid='m1', text='lên đơn cty An Phú 2 hộp 12A giao mai'), headers=H)
-    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'tao_don_nhap', 'bao_hanh', 'trang_thai', 'doanh_thu']
+    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'tao_don_nhap', 'tao_phieu_nhap', 'bao_hanh', 'trang_thai', 'doanh_thu']
     assert '820000' in zalo['ai'][1]['messages'][-1]['content'] and '600000' not in json.dumps(zalo['ai'][-1]['messages'])
     order = db.scalars(select(SalesOrder)).one()
     assert (order.status, order.customer_code, order.created_by, order.fulfillment) == ('NHAP', 'KTD-000001', shop['sales'].id, 'THO_GIAO')
@@ -173,7 +173,7 @@ def test_khach_da_gan_dat_hang_thanh_don_nhap_khong_bao_gia(client, db, shop, za
                       call('tao_don_nhap', dong=[dict(ma_hang='TD-0142', so_luong=2, can_chon_ma='')], hen_giao='', giao_tan_noi=True, ghi_chu=''),
                       say('ok')]
     client.post('/zalo/webhook', json=event(mid='m1', text='em ơi mai giao 2 hộp 12A về cty nhé'), headers=H)
-    assert zalo['ai'][0]['tools'] == ['tra_ton', 'lich_su_mua', 'tao_don_nhap']
+    assert zalo['ai'][0]['tools'] == ['tra_ton', 'lich_su_mua', 'tao_don_nhap', 'tao_phieu_nhap']
     assert '820000' not in zalo['ai'][2]['messages'][-1]['content']
     order = db.scalars(select(SalesOrder)).one()
     assert (order.customer_code, order.created_by, order.status) == ('KTD-000001', shop['sales'].id, 'NHAP')

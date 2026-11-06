@@ -112,6 +112,11 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
                                    *((('claim', extra[3], 'Chờ thợ tự nhận'),) if service_self_claim.minutes() > 0 or extra[3] else ()),
                                    ('workshop', extra[1], 'Ở xưởng'), ('return_ready', extra[2], 'Sửa xong chờ trả'),
                                    ('parts', count_parts, 'Chờ linh kiện'), ('paused', count_paused, 'Tạm dừng'))]
+    # Trợ lý Zalo đợt 2: ô "Nháp từ Zalo" chỉ hiện khi có nháp chờ duyệt; bấm mở danh sách nháp.
+    from .. import zalo_phieu_nhap
+    zalo_waiting = zalo_phieu_nhap.waiting(session)
+    if zalo_waiting:
+        tiles.append(dict(label='Nháp từ Zalo', n=zalo_waiting, href='/phieu-nhap-zalo', on=False, tone='huy'))
     claim_stats = []
     if view == 'claim':
         local = now.astimezone(TZ).date()
