@@ -48,9 +48,44 @@
     }
   });
 
+  // Ô "Tìm hàng để thêm" ở Đơn bán, Báo giá, Đơn mua, Phiếu kho: danh sách tự vẽ, không qua bindLive.
+  var FINDS = [["[data-browse]", "[data-browse-q]", "[data-browse-list]", "[data-browse-add]"],
+    ["[data-po-find]", "[data-po-q]", "[data-po-list]", "[data-po-add]"],
+    ["[data-sk-find]", "[data-sk-q]", "[data-sk-list]", "[data-sk-add]"]];
+  FINDS.forEach(function (f) {
+    var box = document.querySelector(f[0]), q = box && box.querySelector(f[1]), list = box && box.querySelector(f[2]);
+    if (!q || !list) return;
+    new MutationObserver(function () {
+      if (!q.value.trim() || list.querySelector("[data-qn-add], .qn-ask")) return;
+      if (allowed.indexOf("hang") >= 0) {
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "qn-add qn-add-find"; b.setAttribute("data-qn-add", "hang");
+        b.textContent = "+ Tạo mới mã hàng";
+        b._qnInput = q; b._qnFind = { list: list, add: f[3] };
+        list.appendChild(b);
+      } else if (!list.querySelector(f[3])) {
+        var p = document.createElement("p");
+        p.className = "hint qn-ask"; p.textContent = "Không thấy mã? Báo kho tạo mã mới.";
+        list.appendChild(p);
+      }
+    }).observe(list, { childList: true });
+  });
+
   document.addEventListener("click", function (e) {
     var add = e.target.closest && e.target.closest("[data-qn-add]");
-    if (add) { e.preventDefault(); open(add.getAttribute("data-qn-add"), { input: add._qnInput }); return; }
+    if (add) { e.preventDefault(); e.stopPropagation(); open(add.getAttribute("data-qn-add"), { input: add._qnInput, find: add._qnFind }); return; }
+    var line = e.target.closest && e.target.closest("[data-qn-new-line]");
+    if (line && allowed.indexOf("hang") >= 0) {
+      // Nút cố định cạnh "+ Dòng hàng tìm theo mã": lưu xong thêm dòng qua ô Tìm hàng của màn.
+      e.preventDefault();
+      var form = document;
+      var f = FINDS.filter(function (x) { return form.querySelector(x[0]) && form.querySelector(x[0]).querySelector(x[1]); })[0];
+      if (f) {
+        var fb = form.querySelector(f[0]);
+        open("hang", { input: fb.querySelector(f[1]), find: { list: fb.querySelector(f[2]), add: f[3] }, q: "" });
+      }
+      return;
+    }
     var link = e.target.closest && e.target.closest("[data-new-customer]");
     if (link && allowed.indexOf("khach") >= 0) {
       e.preventDefault();
@@ -98,7 +133,7 @@
   }
   function open(kind, opts) {
     ensureDialog();
-    ctx = { kind: kind, input: opts.input || null, pickRoot: opts.pickRoot || null, warrantyTouched: false };
+    ctx = { kind: kind, input: opts.input || null, find: opts.find || null, pickRoot: opts.pickRoot || null, warrantyTouched: false };
     var q = opts.q !== undefined ? (opts.q || "") : typed(ctx.input);
     dialog.innerHTML = '<p class="qn-loading">Đang mở…</p>';
     if (!dialog.open) dialog.showModal();
@@ -180,6 +215,7 @@
     if (c.pickRoot) { addPickRow(c.pickRoot, rec); toast(rec, c.kind); return; }
     var input = c.input;
     if (!input || !input.isConnected) { toast(rec, c.kind); return; }
+    if (c.find) { addFromFind(input, c.find, rec); toast(rec, c.kind); return; }
     var target = liveTarget(input);
     input.value = rec.code;
     var once = function () {
@@ -194,6 +230,24 @@
     input.addEventListener("live-loaded", once);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     toast(rec, c.kind);
+  }
+  // Gõ mã mới vào ô tìm, chờ danh sách tải lại rồi bấm "Thêm" đúng mã đó (như người dùng tự bấm).
+  function addFromFind(input, find, rec) {
+    var code = String(rec.code).toUpperCase(), stop = null;
+    var hit = function () {
+      return Array.prototype.filter.call(find.list.querySelectorAll(find.add), function (b) { return String(b.getAttribute("data-code") || "").toUpperCase() === code; })[0];
+    };
+    var obs = new MutationObserver(function () {
+      var b = hit();
+      if (!b) return;
+      obs.disconnect(); clearTimeout(stop);
+      b.click();
+    });
+    obs.observe(find.list, { childList: true, subtree: true });
+    stop = setTimeout(function () { obs.disconnect(); }, 8000);
+    input.value = rec.code;
+    input.focus();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   }
   function toast(rec, kind) {
     var text = (kind === "khach" ? "Đã tạo khách " : kind === "ncc" ? "Đã tạo nhà cung cấp " : "Đã tạo mã ") + (rec.label || rec.code) + ".";

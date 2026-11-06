@@ -57,7 +57,7 @@
 <div class="skl-head" aria-hidden="true"><span>Hàng</span><span title="Số có thể dùng ở kho đang chọn">Tồn</span><span>Số lượng</span><span class="skl-cost-h">Đơn giá</span><span>Serial</span><span>Ghi chú dòng</span><span></span></div>
 <div data-stock-lines>{% for line in d.lines %}{% set loop_index = loop.index0 %}{% include 'phieu_dong.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-sk-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>.</p>
-{% if live %}<div class="qf-adds"><button type="button" class="qf-add btn-ghost" data-add-stock-line>+ Dòng hàng tìm theo mã</button></div>{% endif %}
+{% if live %}<div class="qf-adds"><button type="button" class="qf-add btn-ghost" data-add-stock-line>+ Dòng hàng tìm theo mã</button>{% if 'hang' in quick_create_kinds().split() %}<button type="button" class="qf-add btn-ghost" data-qn-new-line>+ Tạo mới mã hàng</button>{% endif %}</div>{% endif %}
 </section>
 </fieldset></div>
 <aside class="qf-side">
