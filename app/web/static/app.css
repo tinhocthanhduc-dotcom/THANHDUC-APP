@@ -3734,3 +3734,47 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .dm-undo-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
 .dm-undo-row .pick-box { flex: 1 1 260px; min-width: 0; }
 @media (max-width: 640px) { .dm-act { flex-direction: column; align-items: stretch; } .dm-act .btn { justify-content: center; } }
+
+/* Trợ lý Zalo đợt 2 (TUẤN duyệt mẫu 06/11/2026): Phiếu nháp từ Zalo, mỗi nháp một dòng, chữ dài cắt "…". */
+.pnz-list { padding: 0; overflow: hidden; }
+.pnz-row { display: grid; grid-template-columns: 116px minmax(0, 1fr) minmax(0, 2.2fr) 96px 120px; gap: 12px; align-items: center;
+  padding: 9px 14px; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.pnz-row:last-child { border-bottom: 0; }
+a.pnz-row:hover { background: var(--tag); }
+.pnz-head { font-size: .78rem; color: var(--muted); font-weight: 600; padding-block: 7px; }
+.pnz-no { display: grid; line-height: 1.25; min-width: 0; }
+.pnz-no small { color: var(--muted); font-size: .76rem; white-space: nowrap; }
+.pnz-no .badge { font-size: .7rem; padding: 0 6px; }
+.pnz-ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pnz-go { justify-self: end; display: flex; align-items: center; min-width: 0; }
+.pnz-ticket { font-weight: 600; white-space: nowrap; }
+.pnz-chev { display: none; color: var(--accent); font-size: 1.5rem; line-height: 1; }
+.pnz-row .mu, .pnz-side .mu { color: var(--muted); }
+.pnz-two { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.pnz-read { padding: 0; }
+.pnz-msg { padding: 14px; display: grid; gap: 6px; }
+.pnz-kv { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px 12px; padding: 0 14px 14px; margin: 0; }
+.pnz-kv dt { font-weight: 700; }
+.pnz-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; text-align: left; }
+.pnz-side { display: grid; gap: 12px; }
+.pnz-full { width: 100%; }
+.pnz-drop { padding: 14px; display: grid; gap: 10px; }
+.pnz-drop label { display: grid; gap: 4px; }
+.pnz-drop select, .pnz-drop input { min-height: 44px; font-size: 16px; }
+.pnz-banner { background: var(--info-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; }
+@media (max-width: 760px) {
+  .pnz-head { display: none; }
+  .pnz-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; padding: 10px 12px; }
+  .pnz-no { grid-column: 1; grid-row: 1; display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+  .pnz-no small { display: none; }
+  .pnz-cust { grid-column: 2; grid-row: 1; }
+  .pnz-job { grid-column: 1 / span 2; grid-row: 2; color: var(--muted); font-size: .86rem; }
+  .pnz-job b { font-weight: 400; }
+  .pnz-want { display: none; }
+  .pnz-go { grid-column: 3; grid-row: 1 / span 2; }
+  .pnz-go > :not(.pnz-chev) { display: none; }
+  .pnz-chev { display: inline; }
+  .pnz-two { grid-template-columns: minmax(0, 1fr); }
+  .pnz-side { order: -1; }
+  .pnz-kv { grid-template-columns: 100px minmax(0, 1fr); }
+}

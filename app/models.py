@@ -2125,6 +2125,8 @@ class ZaloTroLy(Base):
     draft_user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     # Ai trả lời nhân viên: api (OpenAI), codex hay claude chạy bằng gói thuê bao trên máy chủ Z2. Khách luôn qua API.
     staff_engine: Mapped[str] = mapped_column(String(8), default='api', server_default='api')
+    # Đợt 2 (TUẤN duyệt 06/11/2026): cho bot lập phiếu dịch vụ / mực nháp; tắt thì bot không tạo nháp.
+    ticket_drafts: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -2172,6 +2174,50 @@ class ZaloAiJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+
+ZALO_DRAFT_STATUSES = ('CHO', 'DA_TAO', 'DA_BO')
+ZALO_DRAFT_DROP_REASONS = ('TRUNG', 'KHACH_HUY', 'HIEU_SAI', 'KHAC')
+
+
+class ZaloTicketDraft(Base):
+    """0082: phiếu dịch vụ / mực nháp bot lập từ tin Zalo (TUẤN duyệt 06/11/2026). Không phải phiếu thật:
+    không vào điều phối, KPI, báo cáo. Điều phối bấm Tạo phiếu (màn Nhận đơn điền sẵn, tự chọn máy) hoặc Bỏ nháp."""
+    __tablename__ = 'zalo_ticket_drafts'
+    __table_args__ = (
+        UniqueConstraint('message_id', name='uq_zalo_ticket_drafts_message'),
+        CheckConstraint(_in('status', ZALO_DRAFT_STATUSES), name='ck_zalo_ticket_drafts_status'),
+        CheckConstraint("source in ('NHAN_VIEN','KHACH')", name='ck_zalo_ticket_drafts_source'),
+        CheckConstraint("kind is null or kind in ('SUA_TAI_CHO','MANG_VE','MUC_DINH_KY')", name='ck_zalo_ticket_drafts_kind'),
+        CheckConstraint("priority in ('KHAN','GAP','THUONG')", name='ck_zalo_ticket_drafts_priority'),
+        CheckConstraint("slot is null or slot in ('SANG','CHIEU')", name='ck_zalo_ticket_drafts_slot'),
+        CheckConstraint("drop_reason = '' or " + _in('drop_reason', ZALO_DRAFT_DROP_REASONS), name='ck_zalo_ticket_drafts_drop_reason'),
+        CheckConstraint("(status = 'DA_TAO') = (ticket_id is not null)", name='ck_zalo_ticket_drafts_ticket'),
+        Index('ix_zalo_ticket_drafts_status', 'status', 'created_at', 'id'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey('zalo_messages.id'))
+    log_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_agent_logs.id'))
+    source: Mapped[str] = mapped_column(String(10))
+    sender_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))  # nhân viên nhắn; khách nhắn thì trống
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'), index=True)
+    kind: Mapped[str | None] = mapped_column(String(16))
+    priority: Mapped[str] = mapped_column(String(8), default='THUONG', server_default='THUONG')
+    symptom: Mapped[str] = mapped_column(Text)
+    want_date: Mapped[date | None] = mapped_column(Date)
+    slot: Mapped[str | None] = mapped_column(String(5))
+    ink_hint: Mapped[str] = mapped_column(Text, default='', server_default='')  # mã mực khách hay lấy, chỉ để điều phối tham khảo
+    question: Mapped[str] = mapped_column(Text, default='', server_default='')
+    status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    drop_reason: Mapped[str] = mapped_column(String(10), default='', server_default='')
+    drop_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 CUSTOMER_INK_CALL_RESULTS = ('DAT_MUC', 'HEN_LAI', 'KHONG_NGHE', 'CON_MUC', 'CHUYEN_NOI_KHAC')

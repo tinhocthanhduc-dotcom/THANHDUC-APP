@@ -47,6 +47,8 @@ GROUPS = (
         {'label': 'Xem phiếu dịch vụ', 'href': '/xem-dich-vu', 'prefixes': ('/xem-dich-vu',), 'roles': ('finance', 'warehouse'), 'hidden': True},
         # TUẤN 26/10: khách mang máy tới cửa hàng; kinh doanh (Thanh) nhận, trả máy và thu tiền tại quầy.
         {'label': 'Máy khách tại quầy', 'href': '/quay-sua', 'prefixes': ('/quay-sua',), 'roles': ('dispatcher', 'sales')},
+        # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
+        {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',)},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},

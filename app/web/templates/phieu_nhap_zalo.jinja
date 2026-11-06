@@ -1,0 +1,25 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Phiếu nháp từ Zalo{% endblock %}
+{% block main %}<div class="page-wide zl-page">
+{# Trợ lý Zalo đợt 2 (TUẤN duyệt mẫu 06/11/2026): danh sách gọn, mỗi nháp một dòng; bấm dòng mở nháp để Tạo phiếu / Bỏ nháp. #}
+{% call ui.page_head('Phiếu nháp từ Zalo', sub='Bot lập từ tin Zalo. Nháp không vào hàng điều phối cho tới khi bấm Tạo phiếu.') %}{% endcall %}
+{% if bo %}{{ ui.toast('Đã bỏ phiếu nháp') }}{% endif %}
+{{ ui.tiles([
+  dict(label=views['cho'][0], n=counts['cho'], href='/phieu-nhap-zalo?view=cho', on=view=='cho', tone='warn' if counts['cho'] else ''),
+  dict(label=views['da-tao'][0], n=counts['da-tao'], href='/phieu-nhap-zalo?view=da-tao', on=view=='da-tao'),
+  dict(label=views['da-bo'][0], n=counts['da-bo'], href='/phieu-nhap-zalo?view=da-bo', on=view=='da-bo'),
+], keep_phone=true) }}
+{% if rows %}<div class="card zl-list pnz-list">
+<div class="pnz-row pnz-head" aria-hidden="true"><span>Nháp</span><span>Khách</span><span>Việc</span><span>Hẹn</span><span></span></div>
+{% for r in rows %}{% set who = 'Khách' if r.source == 'KHACH' else (users.get(r.sender_id, '')|string).split(' ')|last %}
+<a class="pnz-row" href="/phieu-nhap-zalo/{{ r.id }}">
+<span class="pnz-no"><b>{{ r.number }}</b><small>{% if r.source == 'KHACH' %}{{ ui.badge('Khách nhắn', 'info') }} {% endif %}{{ r.created_at|vn_time }}{% if r.source != 'KHACH' %} · {{ who }}{% endif %}</small></span>
+<span class="pnz-ell pnz-cust">{{ custs.get(r.customer_code, r.customer_code) }}</span>
+<span class="pnz-ell pnz-job"><b>{{ kinds.get(r.kind or '', 'Chưa rõ loại') }}</b> · {{ r.symptom }}</span>
+<span class="pnz-ell pnz-want{{ ' mu' if not r.want_date }}">{{ want(r) }}</span>
+<span class="pnz-go">{% if r.status == 'CHO' %}<span class="btn btn-ghost zl-open">Duyệt ›</span>{% elif r.status == 'DA_TAO' %}<span class="pnz-ticket">{{ tickets.get(r.ticket_id, '') }}</span>{% else %}<span class="mu pnz-ell">{{ reasons.get(r.drop_reason, '') }}</span>{% endif %}<span class="pnz-chev" aria-hidden="true">›</span></span>
+</a>{% endfor %}
+</div>{% else %}{{ ui.empty('Không có phiếu nháp nào chờ duyệt.' if view == 'cho' else 'Chưa có phiếu nháp nào.') }}{% endif %}
+{% call ui.list_foot(p, 'phiếu nháp') %}{% endcall %}
+</div>{% endblock %}

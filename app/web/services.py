@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, equipment, service_appointments, service_charges, service_repeat, service_self_claim, service_suggest, service_visits, service_warranty, technician_returns
+from .. import attachments, equipment, service_appointments, service_charges, service_repeat, service_self_claim, service_suggest, service_visits, service_warranty, technician_returns, zalo_phieu_nhap
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -368,7 +368,7 @@ def _ink_only(user):
     return has_role(user, *svc.CREATORS) and not nav.allowed(user, '/dich-vu')
 
 
-def _new_form(request, session, data=None, error=None, error_code="", status=200):
+def _new_form(request, session, data=None, error=None, error_code="", status=200, draft=None):
     data = data or {"customer_code": "", "site_id": "", "serial": "", "kind": "", "priority": "THUONG", "symptom": "", "warranty_of_id": ""}
     customer = session.get(Customer, data['customer_code']) if data['customer_code'] else None
     sites, machines = _choices(session, data['customer_code'])
@@ -379,7 +379,7 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     ink_only=_ink_only(request.state.user)
     if ink_only: data['kind']='MUC_DINH_KY'
     repeat = service_repeat.last_ink(session, customer.code) if customer and can_create else []
-    return render(request, "dich_vu_moi.jinja", repeat=repeat, ink_only=ink_only, appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
+    return render(request, "dich_vu_moi.jinja", draft=draft, repeat=repeat, ink_only=ink_only, appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, sites_main_address=customer.address if customer else '', machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
                   can_create_machine=service_machines.can_create(request.state.user),can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),self_claim_minutes=service_self_claim.minutes(),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
@@ -402,11 +402,23 @@ def pick_choices(request: Request, customer_code: str = "", user: User = Depends
 def new(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
     if 'tiep_theo' in request.query_params:
         raise BusinessError('NOT_FOUND', 'Không tìm thấy trang này.', status=404)
+    nhap = request.query_params.get('nhap', '')
+    if nhap:
+        # Phiếu nháp từ Zalo: điền sẵn khách/loại/lỗi/hẹn; máy và thợ để điều phối tự chọn.
+        draft = zalo_phieu_nhap.check_open(session, user, _draft_id(nhap))
+        return _new_form(request, session, zalo_phieu_nhap.prefill(session, draft, svc._now()), draft=draft)
     chosen = session.get(Customer, request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
     if chosen and chosen.status == 'DANG_DUNG':
         # Quay về từ màn tạo/chọn khách: chọn sẵn khách, để _new_form tự chọn địa điểm duy nhất (máy không chọn sẵn).
         return _new_form(request, session, dict(customer_code=chosen.code, kind='', priority='THUONG', symptom='', warranty_of_id=''))
     return _new_form(request, session)
+
+
+def _draft_id(raw) -> int:
+    raw = str(raw or '').strip()
+    if not raw.isdigit() or len(raw) > 18:
+        raise BusinessError('NOT_FOUND', 'Không có phiếu nháp này.', status=404)
+    return int(raw)
 
 
 INK_NOTE='Giao mực định kỳ'
@@ -451,7 +463,9 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
     data['ink']=_ink_shown(session,form);data['ink_price']=str(form.get('ink_price',''))[:20]
     if data['kind']=='MUC_DINH_KY' and not data['symptom'].strip():data['symptom']=INK_NOTE
     ink_only=_ink_only(request.state.user)
+    nhap=str(form.get('nhap','')).strip();draft=None
     try:
+        if nhap: draft=zalo_phieu_nhap.check_open(session,request.state.user,_draft_id(nhap))
         if ink_only and data['kind']!='MUC_DINH_KY': raise BusinessError('INK_ONLY','Kinh doanh chỉ nhận đơn Mực định kỳ.')
         appointment, slot = service_appointments.parse(form,svc._now())
         new_machine=service_machines.intake(form)
@@ -469,7 +483,11 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
         else: t=svc.create(session,request.state.user,body,ink=ink,ink_price=price or None,self_claim=data['tu_nhan']=='1')
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
-        return _new_form(request, session, data, error, code, status)
+        if draft is None and nhap and isinstance(exc, BusinessError):
+            raise
+        return _new_form(request, session, data, error, code, status, draft=draft)
+    if draft is not None:
+        zalo_phieu_nhap.mark_created(session, request.state.user, draft.id, t)
     if ink_only:
         return RedirectResponse(f"/khach-hang/nhac-muc?da_tao={quote(t.number)}", status_code=303)
     return RedirectResponse(f"/dich-vu/{t.id}?da_luu=1", status_code=303)
