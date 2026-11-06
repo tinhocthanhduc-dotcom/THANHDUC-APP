@@ -3680,3 +3680,21 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .tc-staff .muted { margin: 0 0 8px; font-size: .9rem; }
 .tc-staff .chip-btn { min-height: 40px; padding: 0 12px; border-width: 1px; border-color: var(--line); border-radius: 10px; font-weight: 500; font-size: .95rem; }
 .tc-staff .chip-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+/* Lặp lại phiếu Mực định kỳ lần trước (TUẤN duyệt 06/11/2026). */
+.svn-repeat { display: grid; gap: 8px; margin-bottom: 12px; min-width: 0; }
+.svn-repeat-item { display: grid; gap: 6px; padding: 12px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--info-bg); min-width: 0; overflow-wrap: anywhere; }
+.svn-repeat-more { border-width: 1px; border-color: var(--line); background: var(--surface); }
+.svn-repeat-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 8px; }
+.svn-repeat-where, .svn-repeat-price { margin: 0; font-size: .92rem; }
+.svn-repeat-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: .92rem; }
+.svn-repeat-qty { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.svn-repeat-item .btn-new, .svn-repeat-alt { justify-self: start; }
+.svn-repeat-alt { min-height: 44px; border-radius: 12px; font-weight: 700; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); padding: 0 14px; }
+.svn-repeat-done { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.svn-repeat-done[hidden] { display: none; }
+.svn-repeat-chip { background: var(--ok-bg); color: var(--ok); font-weight: 600; }
+.svn-repeat-undo { min-height: 36px; padding: 0 12px; }
+.svn-repeat-used .svn-repeat-item { display: none; }
+.svn-filled { outline: 2px solid var(--ok-solid); outline-offset: 1px; }
+@media (max-width: 640px) { .svn-repeat-item .btn-new, .svn-repeat-alt { justify-self: stretch; } }

@@ -340,6 +340,15 @@ def _group(session, spec, page=1):
             matching=[line for line in damaged if line.return_id==row['id']]
             row['damage_reason']='; '.join(line.damage_reason for line in matching)
             row['damage_photos']=[photo.id for photo in photos if photo.entity_id in [f"{row['id']}:{line.line_no}" for line in matching]]
+    if spec['kind']=='production' and rows:
+        # Nhắc phiếu đọng (TUẤN duyệt 06/11/2026): dòng đỏ + nhãn "Làm lâu · 3 ngày", tính theo giờ làm việc.
+        from . import production_stale
+        orders=list(session.scalars(select(ProductionOrder).where(ProductionOrder.id.in_([r['id'] for r in rows]))))
+        stale=production_stale.stale_map(session,orders,_now())
+        for row in rows:
+            item=stale.get(row['id'])
+            if item:
+                row['overdue']=True;row['stale']=item['label'];row['customer']=f"{row['customer']} · {item['label']}"
     return dict(key=spec['key'], title=spec['title'], count=count, rows=rows, page_size=page_size,
         link='/viec-cua-toi?'+urlencode({'nhom':spec['key']}), list_link=spec['link'])
 

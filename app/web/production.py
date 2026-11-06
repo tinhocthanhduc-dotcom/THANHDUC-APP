@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import production as svc, sales_warranty
+from .. import production as svc, production_stale, sales_warranty
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import AuditLog, Product, StockBalance, StockDoc, StockLedger, User, Warehouse
@@ -71,23 +71,28 @@ def product_label(row, names):
 
 
 @router.get('/san-xuat')
-def listing(request: Request, q: str = '', status: str = '', loai: str = '', tho: str = '', vattu: str = '', trang: str = '', so: str = '',
+def listing(request: Request, q: str = '', status: str = '', loai: str = '', tho: str = '', vattu: str = '', dong: str = '', trang: str = '', so: str = '',
             user: User = Depends(web_user), session: Session = Depends(get_session)):
     people, today, viewer = _people(session), _today(), _cost_viewer(user)
     names = {p.code: p.name for p in session.scalars(select(Product))}
     rows = list(session.scalars(svc.search(session, user)))
+    # Nhắc phiếu đọng (TUẤN duyệt 06/11/2026): đánh dấu theo giờ làm việc, ô Đọng lọc ?dong=1.
+    stale = production_stale.stale_map(session, rows, svc._now())
+    dong = '1' if dong == '1' else ''
     tech_id = int(tho) if tho.isdigit() else None
-    scoped = [r for r in rows if (not loai or r.kind == loai) and (tech_id is None or r.technician_id == tech_id) and (vattu != 'khong' or svc.no_material(r))
+    scoped = [r for r in rows if (not loai or r.kind == loai) and (tech_id is None or r.technician_id == tech_id) and (vattu != 'khong' or svc.no_material(r)) and (not dong or r.id in stale)
               and (not q or all(w in fold(f"{r.number} {' '.join(names.get(o.product_code, '') + ' ' + o.product_code for o in r.outputs)} {people.get(r.technician_id, '')}") for w in fold(q).split()))]
     counts = {k: sum(1 for r in scoped if r.status == k) for k in svc.STATUSES}
     shown_rows = [r for r in scoped if not status or r.status == status]
-    query = dict(q=q, status=status, loai=loai, tho=tho, vattu=vattu)
+    query = dict(q=q, status=status, loai=loai, tho=tho, vattu=vattu, dong=dong)
     page, shown = paging.slice_rows(shown_rows, trang, so, query)
     link = paging.linker('/san-xuat', query)
     done_month = [r for r in scoped if r.status == 'DA_NHAP' and _month_of(r.received_at, today)]
     scrap_month = sum(r.qty_scrap for r in scoped if _month_of(r.finished_at, today))
     tiles = [dict(label='Đang làm', n=counts['DANG_LAM'] + counts['MOI'], sub=f"{counts['MOI']} chưa bắt đầu" if counts['MOI'] else 'đã bắt đầu', href=link(status='DANG_LAM'), on=status == 'DANG_LAM'),
              dict(label='Chờ nhập kho', n=counts['HOAN_THANH'], sub='thủ kho nhận', href=link(status='HOAN_THANH'), on=status == 'HOAN_THANH', tone='cho' if counts['HOAN_THANH'] else ''),
+             dict(label='Đọng', n=sum(1 for r in rows if r.id in stale and (not loai or r.kind == loai) and (tech_id is None or r.technician_id == tech_id)),
+                  sub='nằm lâu ở một bước', href=link(dong='' if dong else '1', status=''), on=bool(dong), tone='huy' if stale else ''),
              dict(label='Xong tháng này', n=sum(r.qty_good for r in done_month), sub=f"thành phẩm · {len(done_month)} phiếu", href=link(status='DA_NHAP'), on=status == 'DA_NHAP', tone='xong'),
              dict(label='Hỏng tháng này', n=scrap_month, sub='chi phí không dùng tiền', href=link(status=''), on=False, tone='huy' if scrap_month else '')]
     no_mat = [r for r in rows if svc.no_material(r) and (not loai or r.kind == loai) and (tech_id is None or r.technician_id == tech_id)]
@@ -97,7 +102,8 @@ def listing(request: Request, q: str = '', status: str = '', loai: str = '', tho
            [dict(label=label, n=counts[k], href=link(status=k), on=status == k) for k, label in svc.STATUSES.items()]
     chips = ([dict(label=svc.KINDS[loai], href=link(loai=''))] if loai in svc.KINDS else []) + \
             ([dict(label='Thợ ' + people.get(tech_id, ''), href=link(tho=''))] if tech_id in people else []) + \
-            ([dict(label='Chưa xuất vật tư', href=link(vattu=''))] if vattu == 'khong' else [])
+            ([dict(label='Chưa xuất vật tư', href=link(vattu=''))] if vattu == 'khong' else []) + \
+            ([dict(label='Đọng', href=link(dong=''))] if dong else [])
 
     def cost_text(r):
         if not viewer or r.status not in ('HOAN_THANH', 'DA_NHAP'): return None
@@ -105,11 +111,11 @@ def listing(request: Request, q: str = '', status: str = '', loai: str = '', tho
         return money(costs[0]) if len(costs) <= 1 else money(costs[0]) + '–' + money(costs[-1])
     items = [dict(number=r.number, kind=svc.KINDS[r.kind], product=product_label(r, names), code=r.product_code if len(r.outputs) == 1 else f'{len(r.outputs)} mã',
                   tech=people.get(r.technician_id, 'Chưa giao'), plan=r.qty_plan, good=r.qty_good, scrap=r.qty_scrap, done=r.status in ('HOAN_THANH', 'DA_NHAP', 'DA_HUY') and r.finished_at is not None,
-                  no_material=svc.no_material(r), wh=r.to_warehouse_code, cost=cost_text(r), status=r.status, tone=TONES[r.status], next=_next(r, people))
+                  no_material=svc.no_material(r), wh=r.to_warehouse_code, cost=cost_text(r), status=r.status, tone=TONES[r.status], next=_next(r, people), stale=stale.get(r.id))
              for r in shown]
     totals = dict(plan=sum(r.qty_plan for r in shown_rows), good=sum(r.qty_good for r in shown_rows), scrap=sum(r.qty_scrap for r in shown_rows),
                   value=sum(r.unit_cost * r.qty_good for r in shown_rows if r.status == 'DA_NHAP') if viewer else None)
-    return render(request, 'san_xuat_ds.jinja', rows=items, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, q=q, selected=status, loai=loai, tho=tho, vattu=vattu,
+    return render(request, 'san_xuat_ds.jinja', rows=items, page=page, tiles=tiles, tabs=tabs, chips=chips, link=link, q=q, selected=status, loai=loai, tho=tho, vattu=vattu, dong=dong,
                   kinds=svc.KINDS, statuses=svc.STATUSES, technicians=[] if svc._tech_only(user) else _technicians(session), totals=totals, viewer=viewer,
                   can_create=True, tech_only=svc._tech_only(user))
 

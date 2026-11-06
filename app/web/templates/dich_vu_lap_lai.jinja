@@ -1,0 +1,12 @@
+{# TUẤN duyệt mẫu 06/11/2026: Mực định kỳ lần trước. Dùng lại chỉ điền sẵn form (services.js), không tạo gì. #}
+{% if repeat %}<section class="svn-repeat" data-sv-repeat aria-label="Mực định kỳ lần trước">
+{% for r in repeat %}<div class="svn-repeat-item{% if not loop.first %} svn-repeat-more{% endif %}">
+<div class="svn-repeat-top"><b>{{ 'Mực định kỳ lần trước' if loop.first else r.site }} · {{ r.date }}</b><span class="svn-note">{{ 'hôm nay' if r.days == 0 else 'cách đây ' ~ r.days ~ ' ngày' }} · <a href="/dich-vu/{{ r.ticket_id }}" target="_blank" rel="noopener">{{ r.number }}</a>{% if r.technician %} · thợ {{ r.technician }}{% endif %}</span></div>
+{% if loop.first %}<p class="svn-repeat-where">{{ r.site }}{% if r.address %}, {{ r.address }}{% endif %}{% if r.machine %}<br><small>{{ r.machine }}</small>{% endif %}</p>{% endif %}
+<ul class="svn-repeat-lines">{% for x in r.lines %}<li><b>{{ x.code }}</b> <span>{{ x.name }}</span> <span class="svn-repeat-qty">× {{ x.qty }}</span></li>{% else %}<li class="svn-note">Lần trước chưa chọn mực.</li>{% endfor %}</ul>
+{% if r.price %}<p class="svn-repeat-price">Giá mỗi lần <b>{{ r.price }}</b> đ (gồm VAT)</p>{% endif %}
+{% if r.dropped %}<p class="svn-note">Bỏ mã đã ngưng bán: {{ r.dropped|join(', ') }}.</p>{% endif %}
+<button type="button" class="btn {{ 'btn-new' if loop.first else 'svn-repeat-alt' }}" data-sv-repeat-use="{{ r|tojson|forceescape }}">{{ 'Dùng lại lần trước' if loop.first else 'Dùng lại ở ' ~ r.site }}</button>
+</div>{% endfor %}
+<p class="svn-repeat-done" data-sv-repeat-done hidden><span class="chip svn-repeat-chip" data-sv-repeat-label></span> <button type="button" class="btn btn-ghost svn-repeat-undo" data-sv-repeat-undo>Bỏ điền</button></p>
+</section>{% endif %}

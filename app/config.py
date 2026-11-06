@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # Nhắc nợ quá hạn qua Zalo cho kế toán, sáng thứ Hai (TUẤN duyệt 06/11/2026). TD_DEBT_REMINDER=false để tắt.
     debt_reminder: bool = True
     debt_reminder_time: time = time(7, 45)
+    # Nhắc phiếu sản xuất đọng (TUẤN duyệt 06/11/2026). Mốc tính theo giờ làm việc (8 giờ = 1 ngày làm việc).
+    # TD_SX_STALE_ZALO=false để tắt Zalo; chuông và ô Đọng vẫn chạy. Giờ gửi TD_SX_STALE_ZALO_TIMES='["08:00","13:45"]'.
+    sx_stale_new_hours: int = Field(default=8, ge=1, le=200)      # phiếu Mới chưa bắt đầu
+    sx_stale_work_hours: int = Field(default=16, ge=1, le=400)    # Đang làm quá lâu
+    sx_stale_receive_hours: int = Field(default=4, ge=1, le=200)  # Hoàn thành chưa nhập kho
+    sx_stale_zalo: bool = True
+    sx_stale_zalo_times: tuple[time, ...] = (time(8, 0), time(13, 45))
     zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
     zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
     # Codex/Claude trên Z2: chờ tối đa bao nhiêu giây mỗi lượt; máy Z2 im quá bấy nhiêu giây thì coi như chưa chạy.
