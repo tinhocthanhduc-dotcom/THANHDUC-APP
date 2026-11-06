@@ -218,6 +218,31 @@ def _detail(request, session, user, number, d=None, error='', code='', status=20
                   d=d or {}, error=error, error_code=code, status=status, tz=svc.TZ)
 
 
+@router.get('/san-xuat/bao-cao')
+def report(request: Request, ky: str = '', tuan: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Báo cáo sản xuất (TUẤN duyệt mẫu 06/11/2026): tuần trước mặc định, tuần này, tháng này, lùi/tới từng tuần."""
+    from datetime import date as _date, timedelta
+    from .. import production_report as rep
+    if not has_role(user, 'warehouse', 'finance'):
+        raise BusinessError('FORBIDDEN', 'Chỉ giám đốc, thủ kho, kế toán xem báo cáo sản xuất.', status=403)
+    today = _today()
+    if ky == 'thang':
+        start, end = rep.month_of(today)
+    else:
+        try:
+            anchor = _date.fromisoformat(tuan) if tuan else today - timedelta(days=7)
+        except ValueError:
+            anchor = today - timedelta(days=7)
+        start, end = rep.week_of(anchor)
+        ky = 'tuan'
+    d = rep.build(session, start, end, svc._now())
+    this_week = rep.week_of(today)[0]
+    last_week = this_week - timedelta(days=7)
+    nav_weeks = dict(prev=(start - timedelta(days=7)).isoformat(), next=(start + timedelta(days=7)).isoformat() if start < this_week else None)
+    return render(request, 'san_xuat_bao_cao.jinja', d=d, ky=ky, start=start, this_week=this_week, last_week=last_week, nav_weeks=nav_weeks,
+                  high=rep.HIGH_SCRAP)
+
+
 @router.get('/san-xuat/{number}')
 def detail(request: Request, number: str, user: User = Depends(web_user), session: Session = Depends(get_session)):
     return _detail(request, session, user, number)

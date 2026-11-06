@@ -139,12 +139,13 @@ def _loop():
                     while True:
                         with Session(bind=eng, expire_on_commit=False) as session:
                             run_once(session)
-                        try:
-                            from . import production_stale
-                            with Session(bind=eng, expire_on_commit=False) as session:
-                                production_stale.run_once(session)
-                        except Exception:  # noqa: BLE001 - lỗi nhắc sản xuất không chặn báo điều phối.
-                            log.exception('production stale zalo')
+                        from . import production_stale, weekly_zalo
+                        for job in (production_stale.run_once, weekly_zalo.run_once):
+                            try:
+                                with Session(bind=eng, expire_on_commit=False) as session:
+                                    job(session)
+                            except Exception:  # noqa: BLE001 - lỗi một việc nhắc không chặn báo điều phối.
+                                log.exception('zalo job %s', job.__module__)
                         clock.sleep(EVERY)
         except Exception:  # noqa: BLE001 - vòng nền không được làm sập app; thử lại sau.
             log.exception('dispatch zalo loop')

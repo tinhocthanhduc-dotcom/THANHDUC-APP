@@ -564,6 +564,12 @@ def customer_create(request: Request, form=Depends(checked_form), session: Sessi
     return RedirectResponse(_back_url(return_to, c.code) if return_to else _saved_url(c.code, warnings), status_code=303)
 
 
+# Khách lâu chưa gọi mực: đăng ký trước /khach-hang/{code} để không bị nuốt làm mã khách.
+from .customer_ink import router as customer_ink_router  # noqa: E402
+
+router.include_router(customer_ink_router)
+
+
 @router.get("/khach-hang/{code}")
 def customer_view(
     request: Request, code: str, da_luu: int = 0, cb: str = "", user: User = Depends(web_user), session: Session = Depends(get_session)

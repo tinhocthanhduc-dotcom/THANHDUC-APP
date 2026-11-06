@@ -1,0 +1,40 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Báo cáo sản xuất{% endblock %}
+{% block main %}<div class="page-wide list-page" data-list-page="san-xuat-bao-cao">
+{# TUẤN duyệt mẫu 06/11/2026: phiếu hoàn thành trong kỳ; vốn 1 cái = giá vốn thành phẩm, giá bán hiện tại chưa VAT. #}
+{% macro pct(x) %}{{ ('%.1f'|format(x * 100)).replace('.', ',') }}%{% endmacro %}
+{% macro hrs(x) %}{% if x is not none %}{{ ('%.1f'|format(x)).replace('.', ',') }} giờ{% else %}–{% endif %}{% endmacro %}
+{{ ui.page_head('Báo cáo sản xuất', sub=('Tháng ' ~ start.strftime('%m/%Y')) if ky == 'thang' else ('Tuần ' ~ d.start.strftime('%d/%m') ~ ' – ' ~ d.end.strftime('%d/%m/%Y')), back='/san-xuat') }}
+<nav class="seg bc-sx-ky" aria-label="Chọn kỳ">
+<a class="{{ 'on' if ky == 'tuan' and start == last_week }}" href="/san-xuat/bao-cao">Tuần trước</a>
+<a class="{{ 'on' if ky == 'tuan' and start == this_week }}" href="/san-xuat/bao-cao?tuan={{ this_week.isoformat() }}">Tuần này</a>
+<a class="{{ 'on' if ky == 'thang' }}" href="/san-xuat/bao-cao?ky=thang">Tháng này</a>
+{% if ky == 'tuan' %}<a class="bc-sx-step" href="/san-xuat/bao-cao?tuan={{ nav_weeks.prev }}" aria-label="Tuần trước nữa">‹</a>{% if nav_weeks.next %}<a class="bc-sx-step" href="/san-xuat/bao-cao?tuan={{ nav_weeks.next }}" aria-label="Tuần sau">›</a>{% endif %}{% endif %}
+</nav>
+{{ ui.tiles([dict(label='Thành phẩm tốt', n=d.good, sub=d.orders ~ ' phiếu hoàn thành'),
+             dict(label='Hỏng', n=d.scrap ~ ' · ' ~ pct(d.rate), sub='trên tổng làm ra', tone='huy' if d.rate > high else ''),
+             dict(label='Thời gian TB mỗi phiếu', n=hrs(d.hours), sub='giờ làm việc, Bắt đầu → Hoàn thành'),
+             dict(label='Đang đọng', n=d.stale, sub='phiếu nằm lâu ở một bước', href='/san-xuat?dong=1' if d.stale else '', tone='huy' if d.stale else '')], keep_phone=true) }}
+<section class="card list-frame"><h2 class="qf-h">Theo sản phẩm</h2>
+{% if d.products %}<div class="table-scroll"><table class="list-table lt-cards bc-sx-table">
+<thead><tr><th>Thành phẩm</th><th class="num">Tốt</th><th class="num">Hỏng</th><th class="num">Vốn 1 cái</th><th class="num">Giá bán</th><th class="num">Lãi gộp 1 cái</th></tr></thead><tbody>
+{% for p in d.products %}<tr><td class="lt-first"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}</span></td>
+<td class="num"><span class="sx-ph">Tốt </span>{{ p.good }}</td>
+<td class="num"><span class="sx-ph">Hỏng </span>{% if p.high %}{{ ui.badge(p.scrap ~ ' · ' ~ pct(p.rate), 'huy') }}{% else %}{{ p.scrap }}{% if p.scrap %} · {{ pct(p.rate) }}{% endif %}{% endif %}</td>
+<td class="num"><span class="sx-ph">Vốn 1 cái </span>{{ p.cost|money if p.cost is not none else '–' }}</td>
+<td class="num"><span class="sx-ph">Giá bán </span>{{ p.price|money if p.price else '–' }}</td>
+<td class="num"><span class="sx-ph">Lãi gộp </span>{% if p.margin is not none %}{{ p.margin|money }} · {{ ('%.0f'|format(p.margin_pct * 100)) }}%{% else %}–{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('Không có phiếu sản xuất hoàn thành trong kỳ này.') }}{% endif %}
+</section>
+<section class="card list-frame"><h2 class="qf-h">Theo thợ</h2>
+{% if d.techs %}<div class="table-scroll"><table class="list-table lt-cards bc-sx-table">
+<thead><tr><th>Thợ</th><th class="num">Phiếu</th><th class="num">Tốt</th><th class="num">Hỏng</th><th class="num">Thời gian TB</th></tr></thead><tbody>
+{% for t in d.techs %}<tr><td class="lt-first"><b>{{ t.name }}</b></td>
+<td class="num"><span class="sx-ph">Phiếu </span>{{ t.orders }}</td>
+<td class="num"><span class="sx-ph">Tốt </span>{{ t.good }}</td>
+<td class="num"><span class="sx-ph">Hỏng </span>{% if t.high %}{{ ui.badge(t.scrap ~ ' · ' ~ pct(t.rate), 'huy') }}{% else %}{{ t.scrap }}{% if t.scrap %} · {{ pct(t.rate) }}{% endif %}{% endif %}</td>
+<td class="num"><span class="sx-ph">Thời gian TB </span>{{ hrs(t.hours) }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('Chưa có thợ nào hoàn thành phiếu trong kỳ này.') }}{% endif %}
+<p class="hint bc-sx-note">Tỉ lệ hỏng trên {{ '%.0f'|format(high * 100) }}% tô đỏ. Vốn 1 cái là giá vốn vật tư, chưa gồm công thợ. Giá bán là giá hiện tại trong danh mục, chưa VAT.</p>
+</section>
+</div>{% endblock %}

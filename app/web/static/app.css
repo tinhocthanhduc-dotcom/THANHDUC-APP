@@ -3698,3 +3698,27 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .svn-repeat-used .svn-repeat-item { display: none; }
 .svn-filled { outline: 2px solid var(--ok-solid); outline-offset: 1px; }
 @media (max-width: 640px) { .svn-repeat-item .btn-new, .svn-repeat-alt { justify-self: stretch; } }
+
+/* Khách lâu chưa gọi mực (TUẤN duyệt 06/11/2026). */
+.nm-ink { font-size: .92rem; min-width: 0; overflow-wrap: anywhere; }
+.nm-act { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.nm-call { min-width: 0; }
+.nm-call > summary { list-style: none; cursor: pointer; }
+.nm-call > summary::-webkit-details-marker { display: none; }
+.nm-call[open] { flex-basis: 100%; }
+.nm-form { display: grid; gap: 8px; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); max-width: 520px; }
+.nm-seg { flex-wrap: wrap; }
+.nm-note { display: grid; gap: 4px; }
+.nm-note input { font-size: 16px; }
+.nm-new { background: var(--surface); border: 1px solid var(--accent); color: var(--accent); min-height: 44px; border-radius: 12px; font-weight: 700; display: inline-flex; align-items: center; padding: 0 14px; text-decoration: none; }
+.nm-rule { margin: 8px 0 0; }
+@media (max-width: 640px) { .nm-act { flex-direction: column; align-items: stretch; } .nm-act .btn, .nm-new { justify-content: center; } }
+
+/* Báo cáo sản xuất (TUẤN duyệt 06/11/2026). */
+.bc-sx-ky { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.bc-sx-ky a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); text-decoration: none; font-weight: 600; }
+.bc-sx-ky a.on { border-color: var(--accent); background: var(--info-bg); color: var(--accent); }
+.bc-sx-ky .bc-sx-step { padding: 0 12px; }
+.bc-sx-table td.num, .bc-sx-table th.num { font-variant-numeric: tabular-nums; }
+.bc-sx-note { margin: 8px 0 0; }
+.list-page > .list-frame + .list-frame { margin-top: 12px; }

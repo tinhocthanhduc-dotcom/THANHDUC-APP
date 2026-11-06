@@ -2,7 +2,7 @@
 {% block title %}Sản xuất{% endblock %}
 {% block main %}<div class="page-wide list-page" data-list-page="san-xuat">
 {# SX1 · khuôn 3: ô đếm, tab trạng thái, tìm + bộ lọc, bảng 25 dòng/trang, tổng trên toàn bộ dòng đã lọc. Giá vốn chỉ kho, kế toán, giám đốc. #}
-{% call ui.page_head('Sản xuất', sub='Đổ mực, tân trang máy cũ, lắp ráp: thợ làm → xuất vật tư → thủ kho nhận thành phẩm theo giá vốn vật tư.') %}<a class="btn btn-new" href="/san-xuat/moi">+ Phiếu sản xuất mới</a>{% endcall %}
+{% call ui.page_head('Sản xuất', sub='Đổ mực, tân trang máy cũ, lắp ráp: thợ làm → xuất vật tư → thủ kho nhận thành phẩm theo giá vốn vật tư.') %}{% if can_open('/san-xuat/bao-cao') %}<a class="btn btn-ghost" href="/san-xuat/bao-cao">Báo cáo</a> {% endif %}<a class="btn btn-new" href="/san-xuat/moi">+ Phiếu sản xuất mới</a>{% endcall %}
 {{ ui.tiles(tiles) }}
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}
