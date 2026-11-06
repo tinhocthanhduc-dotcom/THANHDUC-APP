@@ -11,7 +11,7 @@ from . import audit, sales_orders, cash_docs, cash_posting, finance_mappings
 from .doc_numbers import next_number
 from .errors import BusinessError
 from .models import Customer, CustomerOpeningDebt, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, SALES_RECEIPT_METHODS
-from .schemas import CashDocIn, SalesReceiptOut, SalesReceiptReport
+from .schemas import CashDocIn, CustomerReceiptReport, SalesReceiptOut, SalesReceiptReport
 from .security import has_role
 
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
@@ -200,17 +200,108 @@ def report_for_opening(session, user, opening_id, body: SalesReceiptReport):
     with _transaction(session):
         opening = _opening(session, opening_id)
         _version(opening, body.version)
-        current = balance(opening)
-        if current['paid'] + current['pending'] + body.amount > opening.amount:
-            raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số nợ đầu kỳ của khách.',
-                                {**current, 'available': current['remaining'] - current['pending']}, status=409)
-        received = body.received_at or _today()
-        receipt = SalesReceipt(number=next_number(session, 'BT', received), opening_id=opening.id,
-                    method=body.method, amount=body.amount, received_at=received, note=body.note,
-                    status='CHO_XAC_NHAN', reason='', reported_by=user.id)
-        session.add(receipt)
-        _record(session, user, receipt, 'report', None)
-        return receipt
+        return report_for_opening_in_tx(session, user, opening, body)
+
+
+def report_for_opening_in_tx(session, user, opening: CustomerOpeningDebt, body: SalesReceiptReport):
+    """Caller đã khóa nợ đầu kỳ, kiểm phiên bản và quản lý transaction."""
+    check_opening_reporter(user)
+    current = balance(opening)
+    if current['paid'] + current['pending'] + body.amount > opening.amount:
+        raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số nợ đầu kỳ của khách.',
+                            {**current, 'available': current['remaining'] - current['pending']}, status=409)
+    received = body.received_at or _today()
+    receipt = SalesReceipt(number=next_number(session, 'BT', received), opening_id=opening.id,
+                method=body.method, amount=body.amount, received_at=received, note=body.note,
+                status='CHO_XAC_NHAN', reason='', reported_by=user.id)
+    session.add(receipt)
+    _record(session, user, receipt, 'report', None)
+    return receipt
+
+
+# ---- Báo thu theo khách (TUẤN 06/11/2026) ----
+# Một số tiền tổng chia vào các chứng từ khách còn chưa trả, cũ nhất trước (cùng thứ tự với Công nợ khách hàng).
+# Không có luật tiền mới: mỗi phần là một báo thu chờ xác nhận bình thường, qua đúng hàm báo thu từng chứng từ
+# (quyền, trạng thái, chặn vượt số phải thu giữ nguyên). Tổng vượt số khách còn chưa trả thì chặn, không ghi ứng trước.
+
+def customer_unpaid_docs(session, customer_code, lock=False):
+    """Chứng từ khách còn chưa trả (còn nợ − chờ xác nhận > 0), cũ trước. lock=True khóa từng chứng từ rồi đọc lại số dư."""
+    from .finance_reports import _debts
+    d = _debts()
+    rows = list(session.execute(select(d.c.kind, d.c.id, d.c.number, d.c.day).where(d.c.customer_code == customer_code)
+                                .order_by(d.c.day, d.c.kind, d.c.id)))
+    loaded = {}
+    if lock:  # thứ tự khóa cố định (loại, id) để hai người báo thu cùng lúc không khóa chéo nhau
+        for kind, doc_id in sorted({(r.kind, r.id) for r in rows}):
+            loaded[(kind, doc_id)] = (sales_orders._load(session, doc_id, lock=True) if kind == 'DB'
+                                      else _ticket(session, doc_id) if kind == 'DV' else _opening(session, doc_id))
+    else:
+        for r in rows:
+            model = {'DB': SalesOrder, 'DV': ServiceTicket, 'DK': CustomerOpeningDebt}[r.kind]
+            loaded[(r.kind, r.id)] = session.get(model, r.id)
+    out = []
+    for r in rows:
+        doc = loaded[(r.kind, r.id)]
+        current = balance(doc)
+        unpaid = max(0, current['remaining'] - current['pending'])
+        if unpaid > 0:
+            out.append(dict(kind=r.kind, id=r.id, number=r.number, day=r.day, unpaid=unpaid, doc=doc))
+    return out
+
+
+def allocate(docs, amount):
+    """Chia số tiền vào chứng từ cũ trước; trả [(doc, phần)] chỉ gồm phần > 0."""
+    plan, left = [], amount
+    for doc in docs:
+        if left <= 0:
+            break
+        part = min(left, doc['unpaid'])
+        plan.append((doc, part))
+        left -= part
+    return plan
+
+
+def check_customer_reporter(user, docs):
+    """Quyền báo thu từng loại chứng từ giữ như cũ; báo trước một câu thay vì lỗi giữa chừng."""
+    kinds = {d['kind'] for d in docs}
+    if 'DB' in kinds and not has_role(user, 'sales'):
+        raise BusinessError('FORBIDDEN', 'Khách có đơn bán còn nợ: chỉ kinh doanh hoặc giám đốc được báo thu đơn bán.', status=403)
+    if 'DV' in kinds and not has_role(user, 'dispatcher', 'sales'):
+        raise BusinessError('FORBIDDEN', 'Khách có phiếu dịch vụ còn nợ: chỉ điều phối, kinh doanh hoặc giám đốc được báo thu.', status=403)
+    if 'DK' in kinds:
+        check_opening_reporter(user)
+
+
+def report_for_customer(session, user, customer_code, body: CustomerReceiptReport):
+    with _transaction(session):
+        customer = session.scalar(select(Customer).where(Customer.code == customer_code).with_for_update())
+        if customer is None:
+            raise BusinessError('NOT_FOUND', 'Không tìm thấy khách hàng.', status=404)
+        docs = customer_unpaid_docs(session, customer_code, lock=True)
+        total = sum(d['unpaid'] for d in docs)
+        if total <= 0:
+            raise BusinessError('NOTHING_DUE', 'Khách không còn khoản nào chưa trả.', status=409)
+        if body.expected_total is not None and body.expected_total != total:
+            raise BusinessError('DEBT_CHANGED', 'Công nợ của khách vừa thay đổi, hãy xem lại bảng chia rồi báo thu lại.',
+                                {'total': total}, status=409)
+        if body.amount > total:
+            raise BusinessError('OVER_PAYMENT', f'Khách đưa dư {body.amount - total:,} đ so với tổng nợ {total:,} đ. Sửa lại số tiền.'.replace(',', '.'),
+                                {'total': total, 'amount': body.amount}, status=409)
+        check_customer_reporter(user, docs)
+        plan = allocate(docs, body.amount)
+        tag = f'Báo thu theo khách: tổng {body.amount:,} đ chia {len(plan)} chứng từ'.replace(',', '.')
+        note = (body.note.strip() + ' · ' + tag) if body.note.strip() else tag
+        receipts = []
+        for doc, part in plan:
+            row = doc['doc']
+            sub = SalesReceiptReport(version=row.version, method=body.method, amount=part, received_at=body.received_at, note=note[:4000])
+            if doc['kind'] == 'DB':
+                receipts.append(report_in_tx(session, user, row.id, sub))
+            elif doc['kind'] == 'DV':
+                receipts.append(report_for_ticket_in_tx(session, user, row, sub))
+            else:
+                receipts.append(report_for_opening_in_tx(session, user, row, sub))
+        return receipts
 
 
 def for_opening(session, user, opening):

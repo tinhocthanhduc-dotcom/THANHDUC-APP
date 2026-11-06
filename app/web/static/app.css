@@ -2740,9 +2740,9 @@ input::-webkit-date-and-time-value { text-align: left; }
 
 /* Công nợ khách hàng gọn (TUẤN duyệt 06/11/2026): một dòng mỗi khách, cột nút rộng cố định, 3 nút nằm ngang.
    Chỉ áp cho .cnk-table; Công nợ NCC vẫn dùng các luật .cnk-* ở trên. */
-.list-table.cnk-table { table-layout: fixed; min-width: 1000px; font-variant-numeric: tabular-nums; }
-.cnk-table .cnk-c-doc { width: 175px; } .cnk-table .cnk-c-day { width: 140px; } .cnk-table .cnk-c-lim { width: 135px; }
-.cnk-table .cnk-c-amt { width: 175px; } .cnk-table .cnk-c-act { width: 245px; }
+.list-table.cnk-table { table-layout: fixed; min-width: 1020px; font-variant-numeric: tabular-nums; }
+.cnk-table .cnk-c-doc { width: 170px; } .cnk-table .cnk-c-day { width: 130px; } .cnk-table .cnk-c-lim { width: 125px; }
+.cnk-table .cnk-c-amt { width: 165px; } .cnk-table .cnk-c-act { width: 285px; }
 .list-table.cnk-table td { vertical-align: middle; padding: 8px 10px; overflow: hidden; }
 .list-table.cnk-table th { padding: 8px 10px; white-space: normal; vertical-align: bottom; }
 .cnk-table .cnk-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2767,9 +2767,30 @@ input::-webkit-date-and-time-value { text-align: left; }
   .cnk-table .cnk-day, .cnk-table .cnk-lim { display: inline-block; font-size: .85rem; }
   .list-table.lt-cards.cnk-table td.cnk-left .cnk-hold { grid-column: 1 / -1; justify-self: start; }
   .list-table.lt-cards.cnk-table td.cnk-left .lt-sub.cnk-pend { grid-column: 1 / -1; }
-  .list-table.cnk-table .cnk-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); justify-items: stretch; margin-top: 4px; }
-  .list-table.cnk-table .cnk-acts .cnk-sm { min-height: 40px; font-size: .9rem; }
+  .list-table.cnk-table .cnk-acts { display: flex; justify-content: stretch; margin-top: 4px; }
+  .list-table.cnk-table .cnk-acts .cnk-sm { min-height: 40px; font-size: .9rem; flex: 1 1 0; padding: 0 6px; }
+  .list-table.cnk-table .cnk-acts .cnk-pay { flex-grow: 2; }
 }
+
+/* Báo thu theo khách (06/11/2026): bảng chia tiền trái, ô nhập phải; điện thoại ô nhập lên trước. */
+.cbt-view .cbt-scroll { border: 0; border-radius: 0; }
+.cbt-view .cbt-table { font-variant-numeric: tabular-nums; }
+.cbt-view .cbt-table th { white-space: normal; vertical-align: bottom; }
+.cbt-view .cbt-table td { vertical-align: middle; }
+.cbt-view .cbt-get { font-weight: 700; color: var(--ok); }
+.cbt-view .cbt-none td { color: var(--muted); }
+.cbt-view .cbt-none .cbt-get { color: var(--muted); font-weight: 400; }
+.cbt-view .cbt-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 0; padding: 10px 16px 14px; color: var(--muted); }
+.cbt-view .cbt-foot b { color: var(--text); }
+.cbt-view .cbt-form label b, .cbt-view .cbt-field > b { color: var(--text); }
+.cbt-view .cbt-field { display: grid; gap: 4px; }
+.cbt-view .cbt-quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: -4px; }
+.cbt-view .cbt-quick .cnk-sm { min-height: 32px; padding: 0 10px; font-size: .85rem; border-color: var(--info-solid); color: var(--info-solid); }
+.cbt-view .cbt-form .primary { width: 100%; }
+.cbt-view .cbt-form .primary:disabled { opacity: .5; cursor: not-allowed; }
+.cbt-view .cbt-form input[name=amount] { font-size: 1.15rem; font-weight: 700; }
+@media (max-width: 1023px) { .cbt-view .cbt-form { order: -1; } }
+@media (max-width: 640px) { .cbt-view .cbt-table th:nth-child(2), .cbt-view .cbt-table td:nth-child(2) { display: none; } .cbt-view .cbt-table th, .cbt-view .cbt-table td { padding: 8px; } }
 
 /* ---- SX1 · Sản xuất ---- */
 .sx-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }

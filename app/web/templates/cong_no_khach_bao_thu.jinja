@@ -1,0 +1,52 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Báo thu theo khách · {{ c.name }}{% endblock %}
+{% block main %}<div class="page-wide doc-view cnn-view cbt-view" data-customer-pay="{{ c.code }}">
+{# Báo thu theo khách (TUẤN 06/11/2026): nhập một số tiền tổng, app trừ vào chứng từ khách còn chưa trả, cũ nhất trước.
+   Mỗi chứng từ sinh một báo thu chờ xác nhận như báo thu trên từng đơn. Dư so với tổng nợ thì chặn, không ghi ứng trước. #}
+{% call ui.page_head(c.name, sub=c.code ~ ' · khách còn chưa trả ' ~ (total|money) ~ ' đ', back='/cong-no-khach-hang', kicker='Báo thu theo khách') %}<a class="btn btn-ghost" href="/bao-cao/tai-chinh?khach={{ c.code|urlencode }}#chung-tu">Sổ nợ</a>{% endcall %}
+{% if error %}<p class="alert bad form-alert" data-error-code="{{ error_code }}" role="alert">{{ error }}</p>{% if error_code=='MAPPING_REQUIRED' %}<a href="/ghep-tai-chinh">Giám đốc ghép quỹ và danh mục</a>{% endif %}{% endif %}
+{% if done %}{{ ui.toast('Đã báo thu') }}<p class="alert ok" data-pay-done>Đã báo thu <b>{{ done.amount|int|money }} đ</b> vào {{ done.n }} chứng từ. Chờ kế toán xác nhận ở <a href="/bao-thu">Báo thu</a>.</p>{% endif %}
+<div class="doc-grid"><div class="doc-main">
+<section class="card doc-card"><div class="doc-card-head"><h2 class="doc-h">Trừ vào chứng từ nào</h2></div>
+{% if docs %}<div class="table-scroll cbt-scroll"><table class="list-table cbt-table" data-alloc>
+<thead><tr><th>Chứng từ (cũ trước)</th><th>Nợ từ</th><th class="num">Khách còn nợ</th><th class="num">Trừ lần này</th></tr></thead><tbody>
+{% for d in docs %}<tr data-unpaid="{{ d.unpaid }}"><td>{% if d.href %}<a class="cnk-doc{% if d.kind != 'DB' %} cnk-dv{% endif %}" href="{{ d.href }}">{{ d.number }}</a>{% else %}<span class="cnk-doc">{{ d.number }}</span>{% endif %}</td><td>{{ d.day.strftime('%d/%m/%Y') if d.day else '' }}</td><td class="num">{{ d.unpaid|money }}</td><td class="num cbt-get" data-part>0</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="cbt-foot"><span>Khách còn nợ tổng <b>{{ total|money }}</b> đ</span><span>Sau lần này còn <b data-after>{{ total|money }}</b> đ</span></p>
+{% else %}<p class="hint cnn-pad">Khách không còn khoản nào chưa trả. Tiền đã báo thu đang chờ kế toán xác nhận ở <a href="/bao-thu">Báo thu</a>.</p>{% endif %}
+</section>
+</div><aside class="doc-side">
+{% if docs %}<form method="post" action="{{ url }}" class="card form cbt-form" data-customer-pay-form data-total="{{ total }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="expected_total" value="{{ total }}">
+<label><b>Số tiền khách đưa (đồng)</b><input name="amount" value="{{ shown.amount }}" inputmode="numeric" data-money required autocomplete="off" data-pay-amount></label>
+<div class="cbt-quick"><button type="button" class="btn btn-ghost cnk-sm" data-fill="{{ total|money }}">Đủ {{ total|money }}</button></div>
+<div class="cbt-field"><b>Cách thu</b><div class="seg stock-seg">{% for value, label in methods.items() %}<label><input type="radio" name="method" value="{{ value }}"{% if shown.method == value %} checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label><b>Ngày thu</b><input type="date" name="received_at" value="{{ shown.received_at }}" required></label>
+<label><b>Ghi chú</b><textarea name="note" maxlength="4000" placeholder="Không bắt buộc">{{ shown.note }}</textarea></label>
+<p class="alert bad cbt-over" data-over hidden></p>
+<button class="primary" data-pay-submit>Báo thu</button>
+<p class="hint">Mỗi chứng từ sinh một báo thu riêng, chờ kế toán xác nhận như cũ.</p>
+</form>{% endif %}
+</aside></div>
+</div>
+<script>
+(function () {
+  var form = document.querySelector('[data-customer-pay-form]'); if (!form) return;
+  var input = form.querySelector('[data-pay-amount]'), btn = form.querySelector('[data-pay-submit]'), over = form.querySelector('[data-over]');
+  var total = parseInt(form.dataset.total, 10) || 0, rows = document.querySelectorAll('[data-alloc] tbody tr'), after = document.querySelector('[data-after]');
+  var fmt = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); };
+  function update() {
+    var amount = parseInt((input.value || '').replace(/\D/g, ''), 10) || 0, left = Math.min(amount, total), used = 0;
+    rows.forEach(function (tr) { var part = Math.min(left, parseInt(tr.dataset.unpaid, 10) || 0); left -= part; if (part > 0) used++;
+      var cell = tr.querySelector('[data-part]'); cell.textContent = fmt(part); tr.classList.toggle('cbt-none', part === 0); });
+    if (after) after.textContent = fmt(Math.max(0, total - amount));
+    var bad = amount > total;
+    over.hidden = !bad; if (bad) over.textContent = 'Khách đưa dư ' + fmt(amount - total) + ' đ so với tổng nợ ' + fmt(total) + ' đ. Sửa lại số tiền.';
+    btn.disabled = bad || amount <= 0;
+    btn.textContent = amount > 0 && !bad ? 'Báo thu ' + fmt(amount) + ' đ · ' + used + ' chứng từ' : 'Báo thu';
+  }
+  input.addEventListener('input', update);
+  form.querySelectorAll('[data-fill]').forEach(function (b) { b.addEventListener('click', function () { input.value = b.dataset.fill; update(); input.focus(); }); });
+  update();
+})();
+</script>{% endblock %}

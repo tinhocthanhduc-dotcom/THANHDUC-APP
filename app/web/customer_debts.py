@@ -227,3 +227,51 @@ def opening_report(request: Request, code: str, form=Depends(checked_form), sess
         message, error_code, status = _error(exc)
         return opening_page(request, session, user, code, error=message, error_code=error_code, status=status, receipt_form=raw)
     return RedirectResponse(opening_url(code, '?da_luu=1#thu-tien'), status_code=303)
+
+
+# ---- Báo thu theo khách (TUẤN 06/11/2026): nhập một số tiền tổng, app chia vào chứng từ cũ trước ----
+
+def pay_url(code, suffix=''):
+    from urllib.parse import quote
+    return '/cong-no-khach-hang/bao-thu/' + quote(code, safe='') + suffix
+
+
+def pay_page(request, session, user, code, form=None, error=None, error_code='', status=200):
+    from .receipts import METHODS
+    c = session.get(Customer, code)
+    if c is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy khách hàng.', status=404)
+    docs = sales_receipts.customer_unpaid_docs(session, code)
+    total = sum(d['unpaid'] for d in docs)
+    for d in docs:
+        d['href'] = (f"/don-ban/{d['id']}#thu-tien" if d['kind'] == 'DB' else opening_url(code, '#thu-tien') if d['kind'] == 'DK'
+                     else nav.ticket_url(user, d['id'], '#thu-tien'))
+    shown = form or dict(amount='', method='TIEN_MAT', received_at=_today().isoformat(), note='')
+    done = request.query_params.get('da_bao', '')
+    return render(request, 'cong_no_khach_bao_thu.jinja', c=c, docs=docs, total=total, shown=shown, methods=METHODS,
+                  url=pay_url(code), error=error, error_code=error_code, status=status,
+                  done=dict(n=done, amount=request.query_params.get('tong', '')) if done.isdigit() and not error else None)
+
+
+@router.get('/cong-no-khach-hang/bao-thu/{code}')
+def pay_form(request: Request, code: str, user: User = Depends(debt_user), session: Session = Depends(get_session)):
+    return pay_page(request, session, user, code)
+
+
+@router.post('/cong-no-khach-hang/bao-thu/{code}')
+def pay_submit(request: Request, code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .receipts import _error
+    from ..schemas import CustomerReceiptReport
+    user = request.state.user
+    finance_reports.check_reader(user)
+    raw = {k: str(form.get(k, '')) for k in ('amount', 'method', 'received_at', 'note', 'expected_total')}
+    try:
+        amount = _parse_amount(raw['amount'])
+        expected = int(raw['expected_total']) if raw['expected_total'].isdigit() else None
+        body = CustomerReceiptReport(method=raw['method'], amount=amount, received_at=raw['received_at'] or None,
+                                     note=raw['note'], expected_total=expected)
+        receipts = sales_receipts.report_for_customer(session, user, code, body)
+    except (BusinessError, ValidationError) as exc:
+        message, error_code, status = _error(exc)
+        return pay_page(request, session, user, code, form=raw, error=message, error_code=error_code, status=status)
+    return RedirectResponse(pay_url(code, f'?da_bao={len(receipts)}&tong={amount}'), status_code=303)
