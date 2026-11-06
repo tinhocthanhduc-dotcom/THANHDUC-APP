@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app import tin_gui_khach as tg
 from app import zalo_agent as agent
-from app.models import (AuditLog, Customer, CustomerMessage, CustomerOpeningDebt, Equipment, Quote, QuoteLine, ServiceStep,
+from app.models import (AuditLog, Customer, CustomerMessage, CustomerPhone, CustomerOpeningDebt, Equipment, Quote, QuoteLine, ServiceStep,
                         ServiceTicket, ZaloAiJob, ZaloChat, ZaloMessage, ZaloTroLy)
 from test_web import service_login
 from test_zalo_tin_nhan import H, event
@@ -130,6 +130,8 @@ def make_quote(db, user):
 
 def test_bao_gia_khach_chua_gan_thi_sao_chep_roi_bam_da_gui(client, db, shop, zalo):
     q = make_quote(db, shop['sales'])
+    db.add(CustomerPhone(customer_code='KTD-000002', phone='0909123456'))
+    db.commit()
     csrf = service_login(client, shop['sales'])
     assert f'/tin-gui-khach/moi?loai=BAO_GIA&amp;bao_gia={q.id}' in client.get(f'/bao-gia/{q.id}').text
     client.get(f'/tin-gui-khach/moi?loai=BAO_GIA&bao_gia={q.id}')
@@ -138,6 +140,7 @@ def test_bao_gia_khach_chua_gan_thi_sao_chep_roi_bam_da_gui(client, db, shop, za
     assert 'BG-26-00087' in row.text and '1.771.200 đ' in row.text and 'Hộp mực HP 12A chính hãng × 2 hộp: 1.640.000 đ' in row.text
     html = client.get(f'/tin-gui-khach/{row.id}').text
     assert 'Sao chép tin' in html and 'Đã gửi bằng Zalo cá nhân' in html and 'Gửi qua Zalo công ty' not in html
+    assert 'Gửi tới: <b>Cửa hàng Minh Long</b> · <b>0909123456</b>' in html and 'href="https://zalo.me/0909123456"' in html
     assert client.post(f'/tin-gui-khach/{row.id}/gui-zalo', data=form(csrf, 1, row, noi_dung=row.text)).status_code == 409
     r = client.post(f'/tin-gui-khach/{row.id}/da-gui', data=form(csrf, 2, row, noi_dung=row.text), follow_redirects=False)
     assert r.status_code == 303

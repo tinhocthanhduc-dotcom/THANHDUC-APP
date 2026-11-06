@@ -3799,6 +3799,7 @@ a.tg-row:hover { background: var(--tag); }
 .tg-ok, .tg-warn, .tg-info { margin: 0; border-radius: 10px; padding: 8px 12px; }
 .tg-ok { background: var(--ok-bg); color: var(--ok); }
 .tg-warn { background: var(--warn-bg); color: var(--warn); }
+.tg-to { margin: 0 0 4px; overflow-wrap: anywhere; }
 .tg-info { background: var(--info-bg); border: 1px solid var(--accent); }
 .tg-label { display: block; }
 .tg-box { width: 100%; min-height: 240px; font: inherit; font-size: 16px; line-height: 1.5; padding: 12px; border: 1px solid var(--accent);
