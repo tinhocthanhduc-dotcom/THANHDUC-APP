@@ -103,7 +103,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',)},
-        {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang'), 'roles': ('director',)},
+        {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no'), 'roles': ('director',)},
         {'label': 'Trợ lý Zalo', 'href': '/zalo/tro-ly', 'prefixes': ('/zalo/tro-ly',), 'roles': ('director',)},
         {'label': 'Tốc độ app', 'href': '/toc-do', 'prefixes': ('/toc-do',), 'roles': ('director','admin')},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},

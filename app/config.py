@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # Báo cáo sáng qua Zalo cho giám đốc (TUẤN duyệt 05/11/2026). TD_MORNING_REPORT=false để tắt; giờ gửi TD_MORNING_REPORT_TIME.
     morning_report: bool = True
     morning_report_time: time = time(7, 30)
+    # Nhắc nợ quá hạn qua Zalo cho kế toán, sáng thứ Hai (TUẤN duyệt 06/11/2026). TD_DEBT_REMINDER=false để tắt.
+    debt_reminder: bool = True
+    debt_reminder_time: time = time(7, 45)
     zalo_ai_per_person: int = Field(default=50, ge=1, le=1000)
     zalo_ai_per_day: int = Field(default=500, ge=1, le=10000)
     # Codex/Claude trên Z2: chờ tối đa bao nhiêu giây mỗi lượt; máy Z2 im quá bấy nhiêu giây thì coi như chưa chạy.

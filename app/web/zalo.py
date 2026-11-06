@@ -98,3 +98,28 @@ def morning_test(form=Depends(checked_form), user: User = Depends(web_user), ses
     row = morning_report.send_test(session, user)
     result = 'chua-gan' if row is None else ('loi' if row.status == 'LOI' else 'ok')
     return RedirectResponse(f'/zalo/bao-cao-sang?gui={result}', status_code=303)
+
+
+# Nhắc nợ quá hạn (TUẤN duyệt 06/11/2026): giám đốc xem trước tin thứ Hai gửi kế toán và gửi thử.
+@router.get('/zalo/nhac-no')
+def debt_reminder_page(request: Request, gui: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import debt_reminder
+    svc._director(user)
+    people = debt_reminder.recipients(session)
+    body = debt_reminder.preview(session, people[0][0] if people else user)
+    cfg = get_settings()
+    return render(request, 'zalo_nhac_no.jinja', body=body, gui=gui, people=people, enabled=cfg.debt_reminder,
+                  has_token=bool(cfg.zalo_bot_token.strip()), at=cfg.debt_reminder_time.strftime('%H:%M'))
+
+
+@router.post('/zalo/nhac-no/gui-thu')
+def debt_reminder_test(form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import debt_reminder
+    svc._director(user)
+    try:
+        chat_pk = int(form.get('chat') or 0)
+    except ValueError:
+        chat_pk = 0
+    row = debt_reminder.send_test(session, user, chat_pk)
+    result = 'chua-gan' if row is None else ('loi' if row.status == 'LOI' else 'ok')
+    return RedirectResponse(f'/zalo/nhac-no?gui={result}', status_code=303)
