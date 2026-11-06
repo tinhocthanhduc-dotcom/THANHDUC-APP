@@ -14,6 +14,7 @@
 {{ ui.tiles([dict(label='Thành phẩm tốt', n=d.good, sub=d.orders ~ ' phiếu hoàn thành'),
              dict(label='Hỏng', n=d.scrap ~ ' · ' ~ pct(d.rate), sub='trên tổng làm ra', tone='huy' if d.rate > high else ''),
              dict(label='Thời gian TB mỗi phiếu', n=hrs(d.hours), sub='giờ làm việc, Bắt đầu → Hoàn thành'),
+             dict(label='Lệch định mức', n=d.deviate, sub='phiếu dùng vật tư lệch quá 10%', href='/san-xuat/dinh-muc' if can_open('/san-xuat/dinh-muc') else '', tone='cho' if d.deviate else ''),
              dict(label='Đang đọng', n=d.stale, sub='phiếu nằm lâu ở một bước', href='/san-xuat?dong=1' if d.stale else '', tone='huy' if d.stale else '')], keep_phone=true) }}
 <section class="card list-frame"><h2 class="qf-h">Theo sản phẩm</h2>
 {% if d.products %}<div class="table-scroll"><table class="list-table lt-cards bc-sx-table">

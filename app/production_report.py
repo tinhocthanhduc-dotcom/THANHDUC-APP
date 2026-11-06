@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from . import production_stale
+from . import production_bom, production_stale
 from .models import Product, ProductionOrder, User
 from .service_sla import TZ
 
@@ -34,7 +34,7 @@ def _pct(part, whole):
 def build(session, start: date, end: date, now: datetime | None = None) -> dict:
     lo = datetime.combine(start, datetime.min.time(), TZ)
     hi = datetime.combine(end + timedelta(days=1), datetime.min.time(), TZ)
-    rows = list(session.scalars(select(ProductionOrder).options(selectinload(ProductionOrder.outputs))
+    rows = list(session.scalars(select(ProductionOrder).options(selectinload(ProductionOrder.outputs), selectinload(ProductionOrder.lines))
                                 .where(ProductionOrder.status.in_(('HOAN_THANH', 'DA_NHAP')), ProductionOrder.finished_at >= lo,
                                        ProductionOrder.finished_at < hi).order_by(ProductionOrder.id)))
     holidays = production_stale._holidays(session, start - timedelta(days=production_stale.MAX_DAYS), end)
@@ -78,7 +78,8 @@ def build(session, start: date, end: date, now: datetime | None = None) -> dict:
     stale = 0
     if now is not None:
         stale = len(production_stale.stale_map(session, production_stale.open_rows(session), now))
-    return dict(start=start, end=end, orders=len(rows), good=good, scrap=scrap, rate=_pct(scrap, good + scrap),
+    deviate = sum(1 for r in rows if production_bom.deviations(r))
+    return dict(start=start, end=end, orders=len(rows), good=good, scrap=scrap, rate=_pct(scrap, good + scrap), deviate=deviate,
                 hours=sum(all_minutes) / len(all_minutes) / 60 if all_minutes else None, stale=stale,
                 products=product_rows, techs=tech_rows)
 
@@ -102,6 +103,8 @@ def render_text(d: dict, base_url: str) -> str:
     costs = [f"{p['name']} {_money(p['cost'])}" for p in d['products'] if p['cost']][:2]
     if costs:
         lines.append('Vốn 1 cái: ' + ' · '.join(costs))
+    if d.get('deviate'):
+        lines.append(f"Vật tư lệch định mức quá 10%: {d['deviate']} phiếu")
     if d['stale']:
         lines.append(f"Đang đọng: {d['stale']} phiếu")
     lines.append(f'Xem: {base_url}/san-xuat/bao-cao')

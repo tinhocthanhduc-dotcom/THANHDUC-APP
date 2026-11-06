@@ -1,0 +1,32 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% macro stepper(name, value, label, extra='') %}<span class="stepper sx-stepper"><button type="button" data-step="-1" aria-label="Bớt {{ label }}">−</button><input name="{{ name }}" value="{{ value }}" inputmode="decimal" min="0" aria-label="{{ label }}" {{ extra }}><button type="button" data-step="1" aria-label="Thêm {{ label }}">+</button></span>{% endmacro %}
+{% macro row(p, on) %}<tr data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if p.unit %} · {{ p.unit }}{% endif %}"{% if not on %} data-pick-extra hidden{% endif %} data-cost="{{ costs.get(p.code, 0) }}"><td class="name"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}{% if p.unit %} · {{ p.unit }}{% endif %}</span><input type="hidden" name="material_product" value="{{ p.code }}"></td><td class="num sx-cell"><span class="sx-ph">Cho 1 cái </span>{{ stepper('bom_qty', qty_text(chosen.get(p.code, 1)), 'Số cho 1 cái ' ~ p.name, 'data-bom-qty') }}</td>{% if used %}<td class="num"><span class="sx-ph">Thật dùng TB </span>{{ qty_text(used[p.code]) if p.code in used else '–' }}</td>{% endif %}{% if viewer %}<td class="num"><span class="sx-ph">Giá vốn BQ </span>{{ costs.get(p.code, 0)|money }}</td><td class="num"><span class="sx-ph">Thành tiền </span><span data-bom-amount>–</span></td>{% endif %}<td class="num"><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></td></tr>{% endmacro %}
+{% block title %}Định mức · {{ product.name }}{% endblock %}
+{% block main %}<div class="doc-detail sx-new page-wide">
+{# TUẤN duyệt mẫu 06/11/2026: sửa định mức một thành phẩm; áp dụng cho phiếu lập sau, phiếu cũ không đổi. #}
+{{ ui.page_head(product.name, sub=product.code ~ ' · vật tư cho 1 cái tốt. Lưu là áp dụng cho phiếu lập sau đó; phiếu cũ không đổi.', back='/san-xuat/dinh-muc', kicker='Định mức vật tư') }}
+{% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+{% if learned %}<p class="alert info" data-bom-source>Số điền sẵn lấy từ phiếu <b>{{ source }}</b> (thật dùng chia số tốt). Kiểm lại rồi bấm Lưu định mức.</p>{% endif %}
+<form method="post" action="/san-xuat/dinh-muc/{{ product.code|urlencode }}" class="form" data-busy data-bom-form data-price="{{ product.sale_price or 0 }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="doc-grid"><div class="doc-main">
+<section class="card doc-card{{ ' field-invalid' if error_code in ['BAD_MATERIAL', 'BAD_QTY'] }}" data-item-picker aria-label="Vật tư cho 1 cái"><h2 class="doc-h">Vật tư cho 1 cái{% if made %} <span class="hint">{{ made }} cái làm trong 90 ngày</span>{% endif %}</h2>
+<div class="table-scroll"><table class="list-table sx-edit dm-edit"><thead><tr><th>Vật tư</th><th class="num">Cho 1 cái</th>{% if used %}<th class="num">Thật dùng TB</th>{% endif %}{% if viewer %}<th class="num">Giá vốn BQ</th><th class="num">Thành tiền</th>{% endif %}<th></th></tr></thead><tbody>
+{% for code in order %}{% for p in products if p.code == code %}{{ row(p, True) }}{% endfor %}{% endfor %}
+{% for p in products if p.code not in chosen %}{{ row(p, False) }}{% endfor %}
+</tbody></table></div>
+{{ ui.item_picker('Thêm vật tư') }}
+</section>
+<section class="card doc-card"><label><b>Ghi chú cho thợ</b> <small>(không bắt buộc)</small><input name="note" value="{{ note }}" maxlength="2000" placeholder="Ví dụ: vỏ hộp lấy từ vỏ khách trả, không tính"></label></section>
+</div>
+<aside class="doc-side">
+<section class="card next-box" aria-label="Lưu định mức"><span class="nb-who">Định mức · thủ kho, điều phối</span>
+{% if viewer %}<span class="hint">Vốn ước tính 1 cái</span><b class="dm-big" data-bom-cost>0</b>
+<span class="hint">Giá bán {{ product.sale_price|money if product.sale_price else 'chưa có' }}{% if product.sale_price %} · lãi <b data-bom-margin>–</b>{% endif %}</span>{% endif %}
+<span class="hint"><b data-bom-lines>0</b> dòng vật tư. Bỏ hết dòng rồi lưu là xóa định mức.</span>
+<div class="ph-actions"><button class="btn btn-ok sx-primary">Lưu định mức</button><a class="btn btn-ghost" href="/san-xuat/dinh-muc">Hủy</a></div></section>
+<section class="card doc-card"><h2 class="doc-h">Dùng thế nào</h2><ol class="sx-howto"><li>Lập phiếu sản xuất chọn mã này: vật tư dự kiến tự điền = số định làm × định mức.</li><li>Thợ Hoàn thành vẫn sửa số thật dùng; kho trừ theo số thật.</li><li>Thật dùng lệch quá 10% thì phiếu hiện đỏ để xem lại định mức.</li></ol></section>
+</aside></div>
+</form></div>
+<script src="{{ asset('production.js') }}" defer></script>
+{% endblock %}

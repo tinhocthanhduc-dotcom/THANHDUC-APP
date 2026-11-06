@@ -1,0 +1,41 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Định mức vật tư{% endblock %}
+{% block main %}<div class="page-wide list-page" data-list-page="dinh-muc">
+{# TUẤN duyệt mẫu 06/11/2026 · khuôn 3. Định mức = vật tư cho 1 thành phẩm tốt; chỉ điền sẵn phiếu SX, không ghi kho. #}
+{% call ui.page_head('Định mức vật tư', sub='Vật tư cho 1 thành phẩm tốt. App điền sẵn khi lập phiếu sản xuất; kho chỉ trừ khi thợ Hoàn thành.', back='/san-xuat') %}{% endcall %}
+{% if saved %}{{ ui.toast('Đã lưu định mức ' ~ saved) }}{% endif %}
+{{ ui.tiles(tiles, keep_phone=true) }}
+<section class="card dm-add" data-item-picker aria-label="Thêm định mức"><h2 class="doc-h">+ Thêm định mức <span class="hint">chọn thành phẩm chưa có định mức</span></h2>
+<div class="table-scroll"><table class="list-table dm-add-table"><tbody>
+{% for p in addable %}<tr data-pick-row data-pick-extra hidden data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}"><td class="name"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}</span></td><td class="num"><a class="btn btn-new" href="/san-xuat/dinh-muc/{{ p.code|urlencode }}">Lập định mức ›</a></td></tr>{% endfor %}
+</tbody></table></div>
+{{ ui.item_picker('Chọn thành phẩm') }}
+</section>
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% if rows and tab == 'co' %}<div class="table-scroll"><table class="list-table lt-cards dm-table">
+<thead><tr><th>Thành phẩm</th><th>Vật tư cho 1 cái</th>{% if viewer %}<th class="num">Vốn ước tính</th><th class="num">Giá bán</th><th class="num">Lãi</th>{% endif %}<th></th></tr></thead><tbody>
+{% for r in rows %}<tr id="dm-{{ r.code }}">
+<td class="lt-first"><b>{{ r.name }}</b><span class="lt-sub">{{ r.code }}{% if r.made %} · làm {{ r.made }} cái tháng này{% endif %}</span></td>
+<td class="dm-sum">{% for name, q in r.summary %}{{ name }} <b>{{ q }}</b>{{ ' · ' if not loop.last }}{% endfor %}</td>
+{% if viewer %}<td class="num"><span class="sx-ph">Vốn ước tính </span>{{ r.cost|money }}</td><td class="num"><span class="sx-ph">Giá bán </span>{{ r.price|money if r.price else '–' }}</td>
+<td class="num">{% if r.margin is not none %}{{ ui.badge('lãi ' ~ (r.margin * 100)|round|int ~ '%', 'huy' if r.high else ('cho' if r.margin < 0.35 else 'xong')) }}{% else %}–{% endif %}</td>{% endif %}
+<td class="num"><a class="btn btn-ghost" href="/san-xuat/dinh-muc/{{ r.code|urlencode }}">Sửa</a></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% elif rows %}<div class="table-scroll"><table class="list-table lt-cards dm-table">
+<thead><tr><th>Thành phẩm</th><th class="num">Đã làm {{ 90 }} ngày</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr id="dm-{{ r.code }}">
+<td class="lt-first"><b>{{ r.name }}</b><span class="lt-sub">{{ r.code }}</span></td>
+<td class="num"><span class="sx-ph">Đã làm </span>{{ r.made }} cái</td>
+<td class="num dm-act">{% if r.order %}<a class="btn btn-ghost" href="/san-xuat/dinh-muc/{{ r.code|urlencode }}?tu={{ r.order|urlencode }}">Lưu từ {{ r.order }}</a>{% endif %}<a class="btn btn-new" href="/san-xuat/dinh-muc/{{ r.code|urlencode }}">Lập định mức ›</a></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Chưa có thành phẩm nào có định mức. Chọn ở ô Thêm định mức phía trên, hoặc mở một phiếu đã làm xong và bấm Lưu làm định mức.' if tab == 'co' else 'Mọi thành phẩm đã làm gần đây đều có định mức.') }}{% endif %}
+{% call ui.list_foot(page, 'thành phẩm') %}<b>{{ page.total }}</b> thành phẩm{% endcall %}
+{% if viewer and tab == 'co' %}<p class="hint dm-rule">Vốn ước tính = số lượng × giá vốn bình quân hiện tại của từng vật tư. Chỉ để tham khảo; giá vốn thật vẫn lấy từ phiếu xuất khi hoàn thành.</p>{% endif %}
+</section>
+</div>
+<script src="{{ asset('production.js') }}" defer></script>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

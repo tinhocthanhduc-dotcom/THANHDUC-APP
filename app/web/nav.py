@@ -58,6 +58,8 @@ GROUPS = (
         # SX1: TUẤN 26/10 muốn Sản xuất nằm trong nhóm Kho (hàng làm xong nhập kho), không đứng riêng.
         {'label': 'Sản xuất', 'href': '/san-xuat', 'prefixes': ('/san-xuat',), 'roles': ('technician','dispatcher','warehouse')},
         # Báo cáo sản xuất tuần (TUẤN duyệt 06/11/2026): có giá vốn nên không cho thợ, điều phối; mở từ nút ở trang Sản xuất.
+        # Định mức vật tư (TUẤN duyệt 06/11/2026): sửa định mức là thủ kho, điều phối; thợ không mở; mở từ nút ở trang Sản xuất.
+        {'label': 'Định mức vật tư', 'href': '/san-xuat/dinh-muc', 'prefixes': ('/san-xuat/dinh-muc',), 'roles': ('warehouse','dispatcher'), 'hidden': True, 'highlight': '/san-xuat'},
         {'label': 'Báo cáo sản xuất', 'href': '/san-xuat/bao-cao', 'prefixes': ('/san-xuat/bao-cao',), 'roles': ('warehouse','finance'), 'hidden': True, 'highlight': '/san-xuat'},
         {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
         {'label':'Hàng chờ xử lý','href':'/cho-xu-ly','prefixes':('/cho-xu-ly',),'roles':('warehouse','finance','dispatcher')},

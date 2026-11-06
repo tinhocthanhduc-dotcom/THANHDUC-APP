@@ -1,7 +1,7 @@
 """Xóa dữ liệu chạy thử (đơn, phiếu, tiền, kho, chấm công, lương...) nhưng GIỮ cấu hình.
 
 Giữ: tài khoản + vai trò, hồ sơ nhân sự + lương + KPI + hoa hồng, ngày lễ, kho (cả kho Chờ Xử lý),
-quỹ, danh mục thu chi, bảng ghép tài chính, nhà cung cấp + nợ đầu kỳ NCC, hàng hóa, mức tồn tối thiểu,
+quỹ, danh mục thu chi, bảng ghép tài chính, nhà cung cấp + nợ đầu kỳ NCC, hàng hóa, mức tồn tối thiểu, định mức vật tư SX,
 khách hàng + địa chỉ + máy của khách, đăng ký thông báo trên điện thoại,
 tin nhắn Zalo (tin thật của khách, Zalo không có lịch sử nên xóa là mất hẳn).
 Xóa: mọi chứng từ và sổ (tồn kho về 0, quỹ về 0, số chứng từ đếm lại từ 00001), ảnh đính kèm.
@@ -26,7 +26,7 @@ KEEP = {
     "commission_rules", "attendance_holidays", "warehouses", "funds", "cash_categories", "finance_mappings",
     "suppliers", "supplier_opening_debts", "customer_opening_debts", "product_groups", "products", "stock_min_levels", "customers", "customer_phones",
     "customer_contacts", "customer_sites", "equipment", "push_keys", "push_subscriptions", "audit_log", "ai_keys",
-    "zalo_chats", "zalo_messages", "zalo_tro_ly",
+    "zalo_chats", "zalo_messages", "zalo_tro_ly", "production_boms", "production_bom_lines",
 }
 WIPE = {
     "customer_ink_calls", "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
@@ -45,7 +45,7 @@ WIPE = {
     "stock_doc_lines", "stock_docs", "doc_counters",
 }
 CUSTOMER_TABLES = ["equipment", "customer_sites", "customer_contacts", "customer_phones", "customers"]
-PRODUCT_TABLES = ["equipment", "stock_min_levels", "products"]
+PRODUCT_TABLES = ["equipment", "stock_min_levels", "production_bom_lines", "production_boms", "products"]
 TEST_CUSTOMERS = "(select code from customers where is_test)"
 TEST_PRODUCTS = "(select code from products where is_test)"
 
@@ -151,6 +151,8 @@ def _run(session, args) -> None:
     if not args.xoa_hang:
         session.execute(text(f"delete from equipment where product_code in {TEST_PRODUCTS}"))
         session.execute(text(f"delete from stock_min_levels where product_code in {TEST_PRODUCTS}"))
+        session.execute(text(f"delete from production_bom_lines where product_code in {TEST_PRODUCTS} or material_code in {TEST_PRODUCTS}"))
+        session.execute(text(f"delete from production_boms where product_code in {TEST_PRODUCTS}"))
         session.execute(text("delete from products where is_test"))
     session.commit()
 

@@ -65,6 +65,82 @@
     form.addEventListener('item-picker-refresh', tally);
     tally();
   }
+  // Định mức vật tư (TUẤN duyệt 06/11/2026). Form lập phiếu: vật tư dự kiến = số định làm × định mức, cộng dồn theo mã.
+  function fmt(n) { return String(Math.round(n * 1000) / 1000).replace('.', ','); }
+  function readJson(id) { var el = document.getElementById(id); try { return el ? JSON.parse(el.textContent) : {}; } catch (e) { return {}; } }
+  var mats = form && form.querySelector('[data-sx-materials-box]');
+  if (form && mats) {
+    var boms = readJson('sx-boms'), techHeld = readJson('sx-tech-held');
+    var chip = mats.querySelector('[data-bom-chip]'), undo = mats.querySelector('[data-bom-undo]');
+    var matRows = function () { return Array.prototype.slice.call(mats.querySelectorAll('[data-pick-row]')); };
+    var auto = !matRows().some(function (r) { return !r.hidden; });
+    var heldNow = function () {
+      if (mats.hasAttribute('data-own')) return null;   // thợ tự lập: cột Tồn kho thợ đã có sẵn
+      var from = form.querySelector('input[name=from_warehouse_code]:checked'), tech = form.querySelector('input[name=technician_id]:checked');
+      if (!tech || !tech.value || (from && from.value)) return undefined;
+      return techHeld[tech.value] || {};
+    };
+    var fill = function () {
+      var need = {};
+      form.querySelectorAll('[data-sx-plan]').forEach(function (el) {
+        if (el.disabled) return;
+        var code = el.closest('[data-pick-row]').querySelector('input[name=output_product]').value;
+        (boms[code] || []).forEach(function (m) { need[m[0]] = (need[m[0]] || 0) + Number(m[1]) * num(el); });
+      });
+      var held = heldNow(), any = false;
+      matRows().forEach(function (row) {
+        var code = row.querySelector('input[name=material_product]').value, input = row.querySelector('[data-sx-material]');
+        if (auto && !row.hasAttribute('data-bom-manual')) {
+          if (need[code] > 0) { setRow(row, true); row.setAttribute('data-bom-auto', ''); input.value = fmt(need[code]); }
+          else if (row.hasAttribute('data-bom-auto')) { row.removeAttribute('data-bom-auto'); setRow(row, false); }
+        }
+        if (row.hasAttribute('data-bom-auto')) any = true;
+        var short = row.querySelector('[data-bom-short]'), want = row.hidden ? 0 : num(input);
+        var have = held === null ? Number(row.getAttribute('data-held') || 0) : held === undefined ? null : Number(held[code] || 0);
+        if (short) { short.hidden = !(have !== null && want > have); short.textContent = 'thiếu ' + fmt(want - (have || 0)); }
+      });
+      mats.classList.toggle('dm-filled', any);
+      if (chip) chip.hidden = !any;
+      if (undo) undo.hidden = !any;
+      tally();
+    };
+    mats.addEventListener('click', function (event) { var gone = event.target.closest('[data-pick-remove]'); if (gone) gone.closest('[data-pick-row]').setAttribute('data-bom-manual', ''); });
+    mats.addEventListener('input', function (event) { var row = event.target.closest('[data-bom-auto]'); if (row) row.setAttribute('data-bom-manual', ''); });
+    if (undo) undo.addEventListener('click', function () {
+      auto = false;
+      matRows().forEach(function (row) { if (row.hasAttribute('data-bom-auto')) { row.removeAttribute('data-bom-auto'); if (!row.hasAttribute('data-bom-manual')) setRow(row, false); } });
+      fill();
+    });
+    form.addEventListener('input', fill);
+    form.addEventListener('change', fill);
+    form.addEventListener('click', function () { setTimeout(fill, 0); });
+    form.addEventListener('item-picker-refresh', function () { setTimeout(fill, 0); });
+    fill();
+  }
+  // Sửa định mức: vốn ước tính theo số đang gõ.
+  var bomForm = document.querySelector('[data-bom-form]');
+  if (bomForm) {
+    var price = Number(bomForm.getAttribute('data-price') || 0);
+    var money = function (n) { return Math.round(n).toLocaleString('vi-VN'); };
+    var calc = function () {
+      var total = 0, lines = 0;
+      bomForm.querySelectorAll('[data-pick-row]').forEach(function (row) {
+        var input = row.querySelector('[data-bom-qty]'), amount = row.querySelector('[data-bom-amount]');
+        if (row.hidden || !input || input.disabled) return;
+        var v = num(input) * Number(row.getAttribute('data-cost') || 0);
+        if (num(input) > 0) lines++;
+        total += v;
+        if (amount) amount.textContent = money(v);
+      });
+      bomForm.querySelectorAll('[data-bom-cost]').forEach(function (el) { el.textContent = money(total); });
+      bomForm.querySelectorAll('[data-bom-margin]').forEach(function (el) { el.textContent = price ? money(price - total) + ' (' + Math.round((price - total) / price * 100) + '%)' : '–'; });
+      bomForm.querySelectorAll('[data-bom-lines]').forEach(function (el) { el.textContent = lines; });
+    };
+    bomForm.addEventListener('input', calc);
+    bomForm.addEventListener('click', function () { setTimeout(calc, 0); });
+    bomForm.addEventListener('item-picker-refresh', calc);
+    calc();
+  }
   var confirmBox = document.querySelector('[data-sx-confirm] textarea');
   if (confirmBox) confirmBox.focus();
 })();
