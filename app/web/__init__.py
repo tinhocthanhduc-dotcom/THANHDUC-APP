@@ -210,6 +210,17 @@ def month_nav(month, months=None):
 
 templates.env.globals["month_nav"] = month_nav
 templates.env.globals["ticket_url"] = _ticket_url
+
+
+@jinja2.pass_context
+def _can_message(ctx, kind):
+    """Đợt 4: nút "Soạn tin" chỉ hiện với người được soạn loại tin đó."""
+    from .. import tin_gui_khach
+    user = _viewer(ctx)
+    return bool(user) and tin_gui_khach.can_write(user, kind)
+
+
+templates.env.globals["can_message"] = _can_message
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
@@ -955,3 +966,5 @@ from .zalo import router as zalo_router
 router.include_router(zalo_router)
 from .zalo_tro_ly import router as zalo_tro_ly_router
 router.include_router(zalo_tro_ly_router)
+from .tin_gui_khach import router as tin_gui_khach_router
+router.include_router(tin_gui_khach_router)

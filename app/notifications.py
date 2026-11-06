@@ -10,7 +10,7 @@ from .models import AttendanceRequest, Customer, NotificationRead, SalaryAdvance
 from .security import has_role
 
 # Nhóm việc "người khác vừa đẩy tới mình" mới bật thông báo; nhóm do chính mình làm tiếp (đang làm, đã nhận...) chỉ đếm.
-INCOMING = ('orders_cancel_requested', 'service_assigned', 'service_unassigned', 'service_transferred', 'service_goods_short', 'device_reports', 'zalo_ticket_drafts', 'service_parts_ready', 'service_close',
+INCOMING = ('orders_cancel_requested', 'service_assigned', 'service_unassigned', 'service_transferred', 'service_goods_short', 'device_reports', 'zalo_ticket_drafts', 'customer_message_replies', 'service_parts_ready', 'service_close',
     'machines_pending', 'machines_warehouse', 'technician_deliveries', 'delivery_handover', 'orders_waiting',
     'parts_pending', 'technician_returns', 'purchases_waiting', 'stock_low', 'refunds_pending', 'receipts_pending',
     'receipts_rejected', 'expenses_pending', 'pending_destruction', 'pending_supplier_returns', 'stock_counts_pending')

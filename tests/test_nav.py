@@ -50,6 +50,8 @@ for _role in ('technician','dispatcher','warehouse','director'):
     EXPECTED[_role].add('/san-xuat')
 for _role in ('dispatcher','sales','director'):
     EXPECTED[_role].add('/quay-sua')  # TUẤN 26/10: máy khách mang tới quầy
+for _role in ('sales', 'finance', 'dispatcher', 'director'):
+    EXPECTED[_role].add('/tin-gui-khach')  # Trợ lý Zalo đợt 4: tin soạn sẵn gửi khách
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',

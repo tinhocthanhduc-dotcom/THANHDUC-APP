@@ -13,25 +13,26 @@ from .quotes import STATUSES as QUOTE_STATUSES
 from .purchases import STATUSES as PURCHASE_STATUSES
 from .receipts import STATUSES as RECEIPT_STATUSES
 
-LABELS = dict(zalo_draft={'CHO':'Chờ duyệt'},device_report={'MO':'Chờ sửa'},production={'MOI':'Mới','DANG_LAM':'Đang làm','HOAN_THANH':'Chờ nhập kho','DA_NHAP':'Đã nhập kho','DA_HUY':'Đã hủy'},supplier_debt={'CON_NO':'Còn nợ'},pending_supplier_return={'CHO_DUYET':'Chờ duyệt'},pending_disposition={'CHO_DUYET':'Chờ duyệt'},stock_doc={'NHAP':'Chờ duyệt'},technician_return={'CHO_NHAN':'Chờ nhận','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'},refund={'CHO_DUYET':'Chờ duyệt','DA_CHI':'Đã chi','TU_CHOI':'Từ chối'}, delivery=ORDER_STATUSES, service=SERVICE_STATUSES, order=ORDER_STATUSES, quote=QUOTE_STATUSES,
+LABELS = dict(zalo_draft={'CHO':'Chờ duyệt'},customer_message={'CHO':'Chờ gửi','DA_GUI':'Khách trả lời'},device_report={'MO':'Chờ sửa'},production={'MOI':'Mới','DANG_LAM':'Đang làm','HOAN_THANH':'Chờ nhập kho','DA_NHAP':'Đã nhập kho','DA_HUY':'Đã hủy'},supplier_debt={'CON_NO':'Còn nợ'},pending_supplier_return={'CHO_DUYET':'Chờ duyệt'},pending_disposition={'CHO_DUYET':'Chờ duyệt'},stock_doc={'NHAP':'Chờ duyệt'},technician_return={'CHO_NHAN':'Chờ nhận','DA_NHAN':'Đã nhận','DA_HUY':'Đã hủy'},refund={'CHO_DUYET':'Chờ duyệt','DA_CHI':'Đã chi','TU_CHOI':'Từ chối'}, delivery=ORDER_STATUSES, service=SERVICE_STATUSES, order=ORDER_STATUSES, quote=QUOTE_STATUSES,
               purchase=PURCHASE_STATUSES, receipt=RECEIPT_STATUSES, stock={'SAP_HET':'Sắp hết'}, part={'CHO_CAP':'Chờ cấp'}, custody={'THO_GIU':'Thợ giữ','CHO_NHAN':'Chờ nhận'})
 # Khuôn 1: nhãn nút hành động trên thẻ việc, theo nhóm. Chỉ là chữ; link vẫn do my_work quyết định.
 VERBS = dict(production_work='Làm hàng',production_receive='Nhận vào kho',service_workshop='Xử lý tại xưởng',supplier_debts_due='Trả tiền', parts_pending='Cấp linh kiện', delivery_handover='Bàn giao cho thợ', orders_waiting='Giao hàng', orders_pickup_late='Giao hàng',
     technician_returns='Nhận trả', purchases_waiting='Nhận hàng', machines_warehouse='Nhận máy', machines_pending='Nhận máy', machines_held='Xem máy',
     stock_low='Lập đơn mua', receipts_pending='Xác nhận', refunds_pending='Duyệt hoàn tiền', pending_destruction='Duyệt hủy', stock_counts_pending='Duyệt kiểm kê',
     pending_supplier_returns='Duyệt trả NCC', receipts_rejected='Làm lại báo thu', quotes_open='Mở báo giá', quotes_accepted='Tạo đơn', orders_draft='Mở đơn',
-    orders_unreported='Báo thu', orders_deposit='Thu cọc', service_return_ready='Hẹn trả máy', service_unassigned='Giao thợ', service_close='Xem', service_unreported='Báo thu', device_reports='Sửa máy', zalo_ticket_drafts='Duyệt')
+    orders_unreported='Báo thu', orders_deposit='Thu cọc', service_return_ready='Hẹn trả máy', service_unassigned='Giao thợ', service_close='Xem', service_unreported='Báo thu', device_reports='Sửa máy', zalo_ticket_drafts='Duyệt', customer_messages_waiting='Xem và gửi', customer_message_replies='Xem trả lời')
 # Biểu tượng đầu khung nhóm việc: theo phân hệ của nhóm (chỉ trang trí).
 ICON_BY = (('supplier_debt','Tài chính'),('receipt','Tài chính'),('refund','Tài chính'),('quote','Bán hàng'),('order','Bán hàng'),('delivery','Bán hàng'),
     ('service','Dịch vụ'),('machine','Dịch vụ'),('purchase','Mua hàng'))
 # Dòng nhắc dưới tên nhóm; nhóm không có ở đây thì để trống.
 HINTS = dict(supplier_debts_due='NCC còn nợ, cũ nhất lên đầu', receipts_pending='Kiểm tra tiền đã về rồi xác nhận', parts_pending='Thợ đang chờ linh kiện', quotes_open='Gọi lại khách trước khi hết hạn', quotes_accepted='Khách đã chốt, tạo đơn để giữ hàng',
     orders_unreported='Thu tiền và báo thu', orders_waiting='Soạn hàng và giao', orders_draft='Hoàn tất rồi xác nhận đơn', service_unassigned='Chọn thợ cho phiếu', service_return_ready='Chọn thợ và giờ trả máy',
-    purchases_waiting='Nhận hàng khi NCC giao', receipts_rejected='Sửa và gửi lại báo thu', stock_low='Cân nhắc đặt thêm hàng', stock_counts_pending='Xem số đếm rồi duyệt ghi sổ', device_reports='Sửa thông tin máy rồi bấm Đã xử lý', zalo_ticket_drafts='Bot ghi từ tin Zalo: Tạo phiếu hoặc Bỏ nháp')
+    purchases_waiting='Nhận hàng khi NCC giao', receipts_rejected='Sửa và gửi lại báo thu', stock_low='Cân nhắc đặt thêm hàng', stock_counts_pending='Xem số đếm rồi duyệt ghi sổ', device_reports='Sửa thông tin máy rồi bấm Đã xử lý', zalo_ticket_drafts='Bot ghi từ tin Zalo: Tạo phiếu hoặc Bỏ nháp',
+    customer_messages_waiting='Xem lại tin rồi gửi khách hoặc bỏ', customer_message_replies='Khách đã nhắn lại vào Zalo công ty')
 # Đợt 6: gom nhóm việc theo phân hệ, mỗi phân hệ một khung có vạch màu riêng (chỉ trình bày).
 AREAS = (('sv', 'Dịch vụ', 'Phiếu sửa máy, giao thợ, máy khách'), ('sa', 'Bán hàng', 'Báo giá, đơn bán, tiền khách'),
     ('kh', 'Kho · mua hàng', 'Giao hàng, nhận hàng, linh kiện, tồn thấp'), ('tc', 'Tài chính', 'Xác nhận tiền, hoàn tiền, trả NCC'))
-AREA_OF = dict(device_reports='sv', zalo_ticket_drafts='sv', supplier_debts_due='tc', refunds_pending='tc', receipts_pending='tc',
+AREA_OF = dict(device_reports='sv', zalo_ticket_drafts='sv', customer_messages_waiting='sa', customer_message_replies='sa', supplier_debts_due='tc', refunds_pending='tc', receipts_pending='tc',
     quotes_open='sa', quotes_accepted='sa', orders_cancel_requested='sa', orders_draft='sa', orders_unreported='sa', orders_deposit='sa',
     receipts_rejected='sa', orders_pickup_late='sa', technician_deliveries='sa',
     delivery_handover='kh', parts_pending='kh', technician_returns='kh', purchases_waiting='kh', stock_low='kh', machines_warehouse='kh',

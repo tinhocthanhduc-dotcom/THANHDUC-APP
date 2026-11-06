@@ -10,7 +10,7 @@ from .errors import BusinessError
 from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, CustomerOpeningDebt, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
 from . import production
-from .models import EquipmentReport, ProductionOrder, StockDoc, ZaloTicketDraft
+from .models import CustomerMessage, EquipmentReport, ProductionOrder, StockDoc, ZaloMessage, ZaloTicketDraft
 from .security import has_role
 
 LIMIT = 20
@@ -129,6 +129,17 @@ def _specs(user, today, now):
             ServiceRecoveredPart.ticket_id==t.id,ServiceRecoveredPart.status=='CHO_NOP').correlate(t).scalar_subquery()
         add('service_close', 'Dịch vụ chờ nộp linh kiện thu hồi', service.where(t.status=='HOAN_THANH',recovered_count>0)
             .add_columns(recovered_count.label('recovered_pending'),recovered_holders.label('recovered_holders')), 'service', '/linh-kien-thu-hoi')
+
+    if has_role(user, 'sales', 'finance', 'dispatcher'):
+        # Trợ lý Zalo đợt 4: tin gửi khách mình soạn còn chờ gửi; khách đã nhắn lại tin mình gửi qua bot (chuông).
+        cm=CustomerMessage
+        mine=select(cm.id,cm.number,cm.status,Customer.name.label('customer'),literal(0).label('amount'),literal(False).label('overdue')).join(
+            Customer,Customer.code==cm.customer_code)
+        add('customer_messages_waiting','Tin gửi khách chờ gửi',mine.where(cm.created_by==user.id,cm.status=='CHO').order_by(cm.created_at,cm.id),
+            'customer_message','/tin-gui-khach')
+        answered=select(ZaloMessage.id).where(ZaloMessage.chat_pk==cm.chat_pk,ZaloMessage.direction=='IN',ZaloMessage.message_at>cm.decided_at).exists()
+        add('customer_message_replies','Khách trả lời tin đã gửi',mine.where(cm.decided_by==user.id,cm.sent_via=='BOT',cm.reply_seen_at.is_(None),
+            cm.decided_at>=now-timedelta(days=7),answered).order_by(cm.decided_at.desc(),cm.id.desc()),'customer_message','/tin-gui-khach')
 
     if has_role(user,'technician'):
         eq=Equipment
@@ -316,7 +327,7 @@ def _group(session, spec, page=1):
                 # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
                 link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
-            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-', 'device_report':'/thiet-bi', 'zalo_draft':'/phieu-nhap-zalo'}[kind]
+            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-', 'device_report':'/thiet-bi', 'zalo_draft':'/phieu-nhap-zalo', 'customer_message':'/tin-gui-khach'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if kind=='production': row['link']='/san-xuat/'+row['number']
             if kind=='device_report': row['link']='/thiet-bi/'+quote(row['number'],safe='')+'#bao-sai'

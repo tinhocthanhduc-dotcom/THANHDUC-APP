@@ -35,6 +35,8 @@ GROUPS = (
         # TUẤN duyệt 06/11/2026: khách quá nhịp lấy mực để kinh doanh gọi hỏi thăm.
         {'label': 'Khách lâu chưa gọi mực', 'href': '/khach-hang/nhac-muc', 'prefixes': ('/khach-hang/nhac-muc',), 'roles': ('sales', 'finance')},
         {'label': 'Đơn nháp từ Zalo', 'href': '/don-nhap-zalo', 'prefixes': ('/don-nhap-zalo',), 'roles': ('sales',)},
+        # Trợ lý Zalo đợt 4 (TUẤN duyệt mẫu 06/11/2026): tin soạn sẵn gửi khách (nhắc nợ, báo giá, hỏi thăm sau sửa).
+        {'label': 'Tin gửi khách', 'href': '/tin-gui-khach', 'prefixes': ('/tin-gui-khach',), 'roles': ('sales', 'finance', 'dispatcher')},
         # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
         {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
     )},

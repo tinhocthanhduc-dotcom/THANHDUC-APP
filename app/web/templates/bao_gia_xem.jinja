@@ -6,7 +6,7 @@
 {% block title %}{{ q.number }}{% endblock %}
 {% block main %}<div class="page-wide doc-view" data-doc-view="quote">
 {% set tones={'DA_GUI':'cho','CHAP_NHAN':'xong','TU_CHOI':'huy','DA_HUY':'huy'} %}
-{% call ui.page_head(q.number, sub='Báo giá · ' ~ (customer_name or q.customer_code) ~ ' · lập ' ~ quote_date.strftime('%d/%m/%Y'), back='/bao-gia', badge_label=statuses[q.status], badge_tone=tones.get(q.status,'nhap')) %}{% if linked_order %}<a class="btn btn-ghost" href="/don-ban/{{ linked_order.id }}">Đơn {{ linked_order.number }}</a>{% endif %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">Xem trước A4 / In</a>{% endcall %}
+{% call ui.page_head(q.number, sub='Báo giá · ' ~ (customer_name or q.customer_code) ~ ' · lập ' ~ quote_date.strftime('%d/%m/%Y'), back='/bao-gia', badge_label=statuses[q.status], badge_tone=tones.get(q.status,'nhap')) %}{% if linked_order %}<a class="btn btn-ghost" href="/don-ban/{{ linked_order.id }}">Đơn {{ linked_order.number }}</a>{% endif %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">Xem trước A4 / In</a>{% if q.status not in ('DA_HUY','TU_CHOI') and q.lines and can_message('BAO_GIA') %}<a class="btn btn-ghost" href="/tin-gui-khach/moi?loai=BAO_GIA&amp;bao_gia={{ q.id }}" data-soan-tin>Soạn tin Zalo</a>{% endif %}{% endcall %}
 {% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if toast_message %}<p class="alert ok doc-toast" role="status" data-doc-toast>✓ {{ toast_message }}</p>{% endif %}
