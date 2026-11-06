@@ -231,3 +231,33 @@ def test_tim_link_anh_long_sau_va_bao_loi_ro():
     with pytest.raises(Exception) as err:
         doc.prepare(b'<html>not an image</html>')
     assert 'không phải ảnh' in str(err.value.message)
+
+
+def test_link_rong_thi_tai_lai_roi_moi_bao_loi(monkeypatch):
+    import urllib.request as ur
+    from app.zalo_doc_anh import BusinessError as BE
+    bodies = [b'', b'', b'\xff\xd8anh']
+
+    class Resp:
+        headers = {'Content-Type': 'image/jpeg'}
+
+        def __init__(self, body):
+            self.body = body
+
+        def read(self, n):
+            return self.body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(ur, 'urlopen', lambda req, timeout: Resp(bodies.pop(0)))
+    waits = []
+    assert doc.download('https://photo-stal-36.zdn.vn/jpg/x', sleep=waits.append) == b'\xff\xd8anh' and waits == [2, 4]
+    monkeypatch.setattr(ur, 'urlopen', lambda req, timeout: Resp(b''))
+    waits.clear()
+    with pytest.raises(BE) as err:
+        doc.download('https://photo-stal-36.zdn.vn/jpg/x', sleep=waits.append)
+    assert waits == [2, 4, 6] and 'rỗng' in err.value.message and 'Đã thử 4 lần' in err.value.message

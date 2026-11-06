@@ -9,6 +9,7 @@
 import io
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -111,23 +112,39 @@ def _root() -> Path:
     return Path(get_settings().files_dir)
 
 
-def download(url: str) -> bytes:
-    if not url.startswith(('https://', 'http://')):
-        raise BusinessError('BAD_PHOTO', 'Tin không có link ảnh.')
+RETRY_WAITS = (2, 4, 6)  # Zalo có khi gửi link trước khi ảnh lên CDN: tải lại sau 2s, 4s, 6s
+
+
+def _fetch(url: str) -> bytes:
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (ThanhDuc-App)', 'Accept': 'image/*,*/*'})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - link do Zalo gửi
             data = resp.read(MAX_BYTES + 1)
             kind = resp.headers.get('Content-Type', '?')
     except urllib.error.HTTPError as exc:
-        raise BusinessError('BAD_PHOTO', f'Zalo trả lỗi {exc.code} khi tải ảnh ({url[:80]}).') from None
+        raise BusinessError('BAD_PHOTO', f'Zalo trả lỗi {exc.code} khi tải ảnh ({url[:80]}).', {'retry': exc.code in (404, 408, 429) or exc.code >= 500}) from None
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise BusinessError('BAD_PHOTO', f'Không tải được ảnh ({url[:80]}): {exc}') from None
+        raise BusinessError('BAD_PHOTO', f'Không tải được ảnh ({url[:80]}): {exc}', {'retry': True}) from None
     if not data:
-        raise BusinessError('BAD_PHOTO', f'Link ảnh trả về rỗng (loại {kind}, link {url[:80]}).')
+        raise BusinessError('BAD_PHOTO', f'Link ảnh trả về rỗng (loại {kind}, link {url[:80]}).', {'retry': True})
     if len(data) > MAX_BYTES:
         raise BusinessError('BAD_PHOTO', f'Ảnh lớn hơn {MAX_BYTES // 1024 // 1024} MB.')
     return data
+
+
+def download(url: str, waits=RETRY_WAITS, sleep=time.sleep) -> bytes:
+    if not url.startswith(('https://', 'http://')):
+        raise BusinessError('BAD_PHOTO', 'Tin không có link ảnh.')
+    for n, wait in enumerate((*waits, None)):
+        try:
+            return _fetch(url)
+        except BusinessError as exc:
+            if wait is None or not exc.details.get('retry'):
+                if n:
+                    exc.message = f'{exc.message} Đã thử {n + 1} lần.'
+                raise
+            sleep(wait)
+    raise AssertionError('unreachable')
 
 
 def prepare(data: bytes) -> bytes:
