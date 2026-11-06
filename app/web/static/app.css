@@ -3884,3 +3884,33 @@ a.tg-row:hover { background: var(--tag); }
 .zl-config .row > label.zl-bank { flex: 1 1 100%; }
 .zl-bank input { min-height: 44px; font-size: 16px; }
 .zl-bank small { color: var(--muted); }
+/* Chụp tem máy tại quầy (06/11/2026) */
+.tem-box { border: 2px solid var(--accent); background: var(--info-bg); display: grid; gap: 8px; min-width: 0; }
+.tem-box.tem-ok { border-color: var(--ok-solid); background: var(--ok-bg); }
+.tem-box.tem-warn { border-color: var(--warn-solid); background: var(--warn-bg); }
+.tem-box.tem-bad { border-color: var(--bad-solid); background: var(--bad-bg); }
+.tem-box .hint { margin: 0; }
+.tem-body { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0; }
+.tem-img { width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; background: var(--surface); }
+.tem-info { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.tem-info dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; margin: 0; }
+.tem-info dt { color: var(--muted); }
+.tem-info dd { margin: 0; font-weight: 600; }
+.tem-info p { margin: 0; }
+.tem-spin { display: flex; gap: 8px; align-items: center; font-weight: 700; }
+.tem-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: temPulse 1.2s infinite; flex: none; }
+@keyframes temPulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .tem-dot { animation: none; } }
+.tem-pill { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: .85rem; font-weight: 700; }
+.tem-pill.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-solid); }
+.tem-pill.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-solid); }
+.tem-pill.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad-solid); }
+.tem-note { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--warn-solid); background: var(--surface); }
+.tem-note.bad { border-color: var(--bad-solid); }
+.tem-chk { display: flex; gap: 8px; align-items: flex-start; font-size: .95rem; }
+.tem-chk input { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.tem-actions, .tem-box .photo-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.tem-box .photo-capture { position: relative; cursor: pointer; min-height: 48px; padding: 0 16px; flex: 1 1 140px; }
+.tem-box .photo-capture.btn-new { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.tem-box input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+@media (max-width: 420px) { .tem-body { grid-template-columns: minmax(0, 1fr); } .tem-img { max-height: 140px; } }
