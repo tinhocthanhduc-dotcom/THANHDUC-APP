@@ -5,13 +5,13 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import production as svc, production_stale, sales_warranty
+from .. import production as svc, production_bom as bom, production_stale, sales_warranty
 from ..db import get_session
 from ..errors import BusinessError
-from ..models import AuditLog, Product, StockBalance, StockDoc, StockLedger, User, Warehouse
+from ..models import AuditLog, Product, ProductionBom, StockBalance, StockDoc, StockLedger, User, Warehouse
 from ..schemas import ProductionAssign, ProductionComplete, ProductionIn, ProductionMaterials, ProductionReceive, ProductionVersion, ProductionVoid
 from ..security import has_role
 from ..text import fold
@@ -126,8 +126,15 @@ def _form_context(session, user, d, lines, error='', code='', status=200):
         from .. import technician_stock
         own = technician_stock.own_warehouse(session, user)
         if own: held = {b.product_code: b.qty for b in session.scalars(select(StockBalance).where(StockBalance.warehouse_code == own.code, StockBalance.qty > 0))}
+    # Định mức vật tư: JS điền sẵn vật tư dự kiến = số định làm × định mức; tồn kho từng thợ để báo thiếu.
+    boms = {code: [[m, format(q.normalize(), 'f')] for m, q in rows] for code, rows in bom.bom_map(session).items()}
+    tech_held = {}
+    if not own:
+        for w in session.scalars(select(Warehouse).where(Warehouse.kind == 'THO', Warehouse.active.is_(True), Warehouse.holder_id.is_not(None))):
+            tech_held[str(w.holder_id)] = {b.product_code: format(b.qty.normalize(), 'f') for b in session.scalars(select(StockBalance).where(StockBalance.warehouse_code == w.code, StockBalance.qty > 0))}
     return dict(d=d, lines=lines, error=error, error_code=code, status=status, kinds=svc.KINDS, products=_products(session),
-                technicians=_technicians(session), warehouses=_warehouses(session), tech_only=svc._tech_only(user), own=own, held=held)
+                technicians=_technicians(session), warehouses=_warehouses(session), tech_only=svc._tech_only(user), own=own, held=held,
+                boms=boms, tech_held=tech_held)
 
 
 def _qty(raw):
@@ -210,7 +217,16 @@ def _detail(request, session, user, number, d=None, error='', code='', status=20
     # SX2: thiếu vật tư ở bước Hoàn thành → màn xác nhận, mang theo số tốt / hỏng đã gõ.
     confirm = code == 'MATERIAL_REQUIRED' and d is not None and hasattr(d, 'getlist') and d.getlist('out_line_no') and not d.get('confirm_no_material')
     confirm_rows = list(zip(d.getlist('out_line_no'), d.getlist('out_good'), d.getlist('out_scrap'))) if confirm else []
-    return render(request, 'san_xuat_xem.jinja', r=row, row=svc.public(user, row), product=product, outputs=outputs, label=product_label(row, names),
+    deviations = bom.deviations(row)
+    learn = None
+    if bom.can_edit(user) and session.get(ProductionBom, row.product_code) is None:
+        learned = bom.from_order(row)
+        if learned:
+            learn = dict(name=names.get(row.product_code, row.product_code), good=row.qty_good,
+                         used=', '.join(f'{bom.qty_text(l.qty_used)} {names.get(l.product_code, l.product_code)}' for l in row.lines if l.qty_used > 0),
+                         per=', '.join(f'{bom.qty_text(q)} {names.get(c, c)}' for c, q in learned),
+                         href=f'/san-xuat/dinh-muc/{row.product_code}?tu={row.number}')
+    return render(request, 'san_xuat_xem.jinja', deviations=deviations, learn=learn, r=row, row=svc.public(user, row), product=product, outputs=outputs, label=product_label(row, names),
                   no_material=svc.no_material(row), confirm=confirm, confirm_rows=confirm_rows, confirm_good=sum(int(_qty(g)) for _, g, _ in confirm_rows),
                   confirm_scrap=sum(int(_qty(x)) for _, _, x in confirm_rows), lines=lines, docs=docs, history=history, people=people,
                   kinds=svc.KINDS, statuses=svc.STATUSES, tone=TONES[row.status], steps=steps, next=_next(row, people), can=can, viewer=viewer,
@@ -241,6 +257,116 @@ def report(request: Request, ky: str = '', tuan: str = '', user: User = Depends(
     nav_weeks = dict(prev=(start - timedelta(days=7)).isoformat(), next=(start + timedelta(days=7)).isoformat() if start < this_week else None)
     return render(request, 'san_xuat_bao_cao.jinja', d=d, ky=ky, start=start, this_week=this_week, last_week=last_week, nav_weeks=nav_weeks,
                   high=rep.HIGH_SCRAP)
+
+
+
+# ---------- Định mức vật tư (TUẤN duyệt mẫu 06/11/2026) ----------
+
+def _bom_guard(user):
+    if not bom.can_edit(user):
+        raise BusinessError('FORBIDDEN', 'Chỉ thủ kho, điều phối hoặc giám đốc xem định mức vật tư.', status=403)
+
+
+def _made(session, since):
+    """{thành phẩm: số tốt} của phiếu hoàn thành từ mốc since."""
+    out = {}
+    for code, good in session.execute(select(svc.Output.product_code, func.sum(svc.Output.qty_good)).join(svc.Order, svc.Order.id == svc.Output.order_id)
+                                      .where(svc.Order.status.in_(('HOAN_THANH', 'DA_NHAP')), svc.Order.finished_at >= since).group_by(svc.Output.product_code)):
+        out[code] = int(good or 0)
+    return out
+
+
+@router.get('/san-xuat/dinh-muc')
+def bom_list(request: Request, tab: str = 'co', trang: str = '', so: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    _bom_guard(user)
+    from datetime import timedelta
+    viewer, now, today = _cost_viewer(user), svc._now(), _today()
+    tab = tab if tab in ('co', 'chua') else 'co'
+    boms = bom.bom_map(session)
+    products = {p.code: p for p in session.scalars(select(Product))}
+    costs = bom.unit_costs(session, {m for lines in boms.values() for m, _ in lines}) if viewer else {}
+    month_start = datetime.combine(today.replace(day=1), datetime.min.time(), svc.TZ)
+    month, recent = _made(session, month_start), _made(session, now - timedelta(days=bom.LOOKBACK_DAYS))
+    have = []
+    for code, lines in boms.items():
+        p = products.get(code)
+        cost = bom.estimate(lines, costs) if viewer else None
+        price = p.sale_price if p else 0
+        margin = (price - cost) / price if viewer and price else None
+        have.append(dict(code=code, name=p.name if p else code, made=month.get(code, 0), cost=cost, price=price, margin=margin,
+                         high=viewer and bool(price) and cost > price * bom.HIGH_COST,
+                         summary=[(products[m].name if m in products else m, bom.qty_text(q)) for m, q in lines]))
+    have.sort(key=lambda x: (-x['made'], x['name']))
+    latest = {}
+    for r in session.scalars(select(svc.Order).options(selectinload(svc.Order.outputs), selectinload(svc.Order.lines))
+                             .where(svc.Order.status.in_(('HOAN_THANH', 'DA_NHAP')), svc.Order.finished_at >= now - timedelta(days=bom.LOOKBACK_DAYS))
+                             .order_by(svc.Order.finished_at)):
+        if len(r.outputs) == 1 and bom.from_order(r):
+            latest[r.product_code] = r.number
+    missing = sorted((dict(code=c, name=products[c].name if c in products else c, made=n, order=latest.get(c)) for c, n in recent.items() if c not in boms and n),
+                     key=lambda x: (-x['made'], x['name']))
+    deviate = sum(1 for r in session.scalars(select(svc.Order).options(selectinload(svc.Order.lines))
+                                             .where(svc.Order.status.in_(('HOAN_THANH', 'DA_NHAP')), svc.Order.finished_at >= month_start)) if bom.deviations(r))
+    query = dict(tab=tab)
+    page, shown = paging.slice_rows(have if tab == 'co' else missing, trang, so, query)
+    link = paging.linker('/san-xuat/dinh-muc', query)
+    tiles = [dict(label='Đã có định mức', n=len(have), sub='thành phẩm', href=link(tab='co'), on=tab == 'co'),
+             dict(label='Chưa có định mức', n=len(missing), sub=f'đã làm trong {bom.LOOKBACK_DAYS} ngày', href=link(tab='chua'), on=tab == 'chua', tone='huy' if missing else '')]
+    if viewer:
+        tiles.append(dict(label='Vốn cao', n=sum(1 for h in have if h['high']), sub=f'vốn trên {int(bom.HIGH_COST * 100)}% giá bán', href=None, on=False,
+                          tone='cho' if any(h['high'] for h in have) else ''))
+    tiles.append(dict(label='Lệch định mức', n=deviate, sub=f'phiếu tháng này dùng lệch quá {int(bom.DEVIATE * 100)}%', href=None, on=False, tone='cho' if deviate else ''))
+    tabs = [dict(label='Đã có định mức', n=len(have), href=link(tab='co'), on=tab == 'co'), dict(label='Chưa có định mức', n=len(missing), href=link(tab='chua'), on=tab == 'chua')]
+    addable = [p for p in _products(session) if p.code not in boms]
+    return render(request, 'san_xuat_dinh_muc.jinja', rows=shown, page=page, tiles=tiles, tabs=tabs, tab=tab, viewer=viewer, addable=addable,
+                  saved=request.query_params.get('da_luu', ''))
+
+
+def _bom_page(request, session, user, product, lines, note, error='', code='', status=200, learned=False):
+    viewer = _cost_viewer(user)
+    products = _products(session)
+    costs = bom.unit_costs(session, [p.code for p in products]) if viewer else {}
+    made, used = bom.usage(session, product.code, svc._now())
+    chosen = {c: q for c, q in lines}
+    return render(request, 'san_xuat_dinh_muc_sua.jinja', product=product, products=[p for p in products if p.code != product.code], chosen=chosen,
+                  order=[c for c, _ in lines], note=note, costs=costs, viewer=viewer, made=made, used=used, qty_text=bom.qty_text,
+                  error=error, error_code=code, status=status, source=request.query_params.get('tu', ''), learned=learned)
+
+
+@router.get('/san-xuat/dinh-muc/{code}')
+def bom_edit(request: Request, code: str, tu: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    _bom_guard(user)
+    product = session.get(Product, code[:16])
+    if product is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy thành phẩm.', status=404)
+    row = session.get(ProductionBom, product.code)
+    lines = [(l.material_code, l.qty) for l in row.lines] if row else []
+    if tu:
+        order = session.scalar(select(svc.Order).where(svc.Order.number == tu[:24]))
+        learned = bom.from_order(order) if order is not None and order.product_code == product.code else None
+        if learned:
+            lines = learned
+        return _bom_page(request, session, user, product, lines, row.note if row else '', learned=bool(learned))
+    return _bom_page(request, session, user, product, lines, row.note if row else '')
+
+
+@router.post('/san-xuat/dinh-muc/{code}')
+def bom_save(request: Request, code: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    _bom_guard(user)
+    product = session.get(Product, code[:16])
+    if product is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy thành phẩm.', status=404)
+    codes, qtys = form.getlist('material_product'), form.getlist('bom_qty')
+    note = str(form.get('note', ''))
+    try:
+        if len(codes) != len(qtys): raise BusinessError('BAD_FORM', 'Dòng vật tư chưa đủ dữ liệu, hãy tải lại trang.')
+        bom.save(session, user, product.code, list(zip(codes, qtys)), note)
+    except BusinessError as exc:
+        session.rollback()
+        message, err, status = _message(exc)
+        return _bom_page(request, session, user, product, [(c, _qty(q)) for c, q in zip(codes, qtys) if c and _qty(q) > 0], note, message, err, status)
+    return RedirectResponse(f'/san-xuat/dinh-muc?da_luu={product.code}', status_code=303)
 
 
 @router.get('/san-xuat/{number}')

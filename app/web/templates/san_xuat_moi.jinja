@@ -3,7 +3,7 @@
 {% block title %}Phiếu sản xuất mới{% endblock %}
 {% block main %}<div class="doc-detail sx-new page-wide">
 {# SX2 bản 2 (TUẤN duyệt 31/10/2026): khung rộng; nút chọn gọn một khối; thành phẩm và vật tư dự kiến là bảng có cột tồn kho thợ; nút Lập phiếu ở cột phải. #}
-{{ ui.page_head('Phiếu sản xuất mới', sub='Chọn thành phẩm và số định làm; vật tư dự kiến để trống cũng được, thợ ghi lúc Hoàn thành.', back='/san-xuat') }}
+{{ ui.page_head('Phiếu sản xuất mới', sub='Chọn thành phẩm và số định làm; mã có định mức tự điền vật tư dự kiến. Không có thì để trống cũng được, thợ ghi lúc Hoàn thành.', back='/san-xuat') }}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lập được.</b> {{ error }}</p>{% endif %}
 <form method="post" action="/san-xuat/moi" class="form sx-form" data-busy data-sx-form>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
@@ -24,12 +24,12 @@
 </tbody></table></div>
 {{ ui.item_picker('Thêm thành phẩm') }}<p class="hint">Không thấy mã? <a href="/hang-hoa/moi">+ Tạo mới mã hàng</a> (ví dụ "Hộp mực 12A đổ lại", "Máy in … đã qua sử dụng").</p>
 </section>
-<section class="card doc-card" data-item-picker aria-label="Vật tư dự kiến"><h2 class="doc-h">Vật tư dự kiến{% if own %} · kho {{ own.code }}{% endif %} <span class="hint">để trống cũng được, thợ bổ sung lúc Hoàn thành</span></h2>
+<section class="card doc-card" data-item-picker data-sx-materials-box{% if own %} data-own{% endif %} aria-label="Vật tư dự kiến"><h2 class="doc-h">Vật tư dự kiến{% if own %} · kho {{ own.code }}{% endif %} <span class="badge b-xong" data-bom-chip hidden>Theo định mức</span> <span class="hint">mã có định mức tự điền theo số định làm; sửa, thêm, bỏ được</span></h2>
 {% set chosen = {} %}{% for l in lines %}{% if chosen.update({l.code: l.qty}) %}{% endif %}{% endfor %}
 <div class="table-scroll"><table class="list-table sx-edit"><thead><tr><th>Mã hàng</th>{% if own %}<th class="num">Tồn kho thợ</th>{% endif %}<th class="num">Dự kiến</th><th></th></tr></thead><tbody>
-{% for p in products %}<tr data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if own %} · tồn {{ held.get(p.code, 0)|qty }}{% endif %}"{% if p.code not in chosen %} data-pick-extra hidden{% endif %}><td class="name"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}</span><input type="hidden" name="material_product" value="{{ p.code }}"></td>{% if own %}<td class="num"><span class="sx-ph">Tồn kho thợ </span>{{ held.get(p.code, 0)|qty }}</td>{% endif %}<td class="num sx-cell"><span class="sx-ph">Dự kiến </span>{{ stepper('material_plan', chosen.get(p.code, '1')|string|replace('.', ','), 0, 'Số dự kiến ' ~ p.name, 'data-sx-material') }}</td><td class="num"><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></td></tr>{% endfor %}
+{% for p in products %}<tr data-pick-row data-pick-text="{{ p.code }} {{ p.name }}" data-pick-name="{{ p.name }}" data-pick-meta="{{ p.code }}{% if own %} · tồn {{ held.get(p.code, 0)|qty }}{% endif %}"{% if p.code not in chosen %} data-pick-extra hidden{% endif %}{% if own %} data-held="{{ held.get(p.code, 0) }}"{% endif %}><td class="name"><b>{{ p.name }}</b><span class="lt-sub">{{ p.code }}</span><span class="badge b-huy dm-short" data-bom-short hidden></span><input type="hidden" name="material_product" value="{{ p.code }}"></td>{% if own %}<td class="num"><span class="sx-ph">Tồn kho thợ </span>{{ held.get(p.code, 0)|qty }}</td>{% endif %}<td class="num sx-cell"><span class="sx-ph">Dự kiến </span>{{ stepper('material_plan', chosen.get(p.code, '1')|string|replace('.', ','), 0, 'Số dự kiến ' ~ p.name, 'data-sx-material') }}</td><td class="num"><button type="button" class="btn btn-ghost sx-remove" data-pick-remove aria-label="Bỏ {{ p.name }}">Bỏ</button></td></tr>{% endfor %}
 </tbody></table></div>
-{{ ui.item_picker('Thêm vật tư') }}
+<div class="dm-undo-row">{{ ui.item_picker('Thêm vật tư') }}<button type="button" class="btn btn-ghost" data-bom-undo hidden>Bỏ điền</button></div>
 </section>
 <section class="card doc-card"><label>Ghi chú<input name="note" value="{{ d.get('note', '') }}" maxlength="2000" placeholder="Ví dụ: vỏ hộp thu từ khách Minh Phát"></label></section>
 </div>
@@ -41,5 +41,6 @@
 <section class="card doc-card"><h2 class="doc-h">Sau đó</h2><ol class="sx-howto"><li>Thợ <b>Bắt đầu làm</b>, rồi <b>Hoàn thành</b>: ghi tốt / hỏng từng mã, vật tư thật dùng; kho tự trừ từ kho thợ. Không vật tư thì xác nhận kèm lý do.</li><li>Thủ kho <b>Nhận vào kho</b> theo từng mã; giá vốn chia theo tỷ lệ giá bán × số tốt; có bảo hành thì nhập serial.</li><li>Thợ được cộng KPI và hoa hồng theo số thành phẩm tốt.</li></ol></section>
 </aside></div>
 </form></div>
+<script type="application/json" id="sx-boms">{{ boms|tojson }}</script><script type="application/json" id="sx-tech-held">{{ tech_held|tojson }}</script>
 <script src="{{ asset('production.js') }}" defer></script>
 {% endblock %}

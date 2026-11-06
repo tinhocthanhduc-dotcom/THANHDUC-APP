@@ -2190,3 +2190,23 @@ class CustomerInkCall(Base):
     note: Mapped[str] = mapped_column(Text, default='', server_default='')
     called_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     called_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProductionBom(Base):
+    """0081: định mức vật tư cho 1 thành phẩm tốt (TUẤN duyệt 06/11/2026). Chỉ để điền sẵn phiếu SX, không ghi kho."""
+    __tablename__ = 'production_boms'
+    product_code: Mapped[str] = mapped_column(String(16), ForeignKey('products.code'), primary_key=True)
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    updated_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    lines: Mapped[list['ProductionBomLine']] = relationship(order_by='ProductionBomLine.line_no', cascade='all, delete-orphan')
+
+
+class ProductionBomLine(Base):
+    __tablename__ = 'production_bom_lines'
+    __table_args__ = (CheckConstraint('qty > 0', name='ck_production_bom_lines_qty'),
+                      CheckConstraint('material_code <> product_code', name='ck_production_bom_lines_self'))
+    product_code: Mapped[str] = mapped_column(String(16), ForeignKey('production_boms.product_code', ondelete='CASCADE'), primary_key=True)
+    material_code: Mapped[str] = mapped_column(String(16), ForeignKey('products.code'), primary_key=True)
+    line_no: Mapped[int] = mapped_column(Integer)
+    qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
