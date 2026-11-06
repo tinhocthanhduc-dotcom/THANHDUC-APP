@@ -1,0 +1,27 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Nhắc nợ quá hạn{% endblock %}
+{% block main %}<div class="page-wide">
+{# Nhắc nợ quá hạn qua Zalo (TUẤN duyệt 06/11/2026): chỉ giám đốc xem trang này. #}
+{% call ui.page_head('Nhắc nợ quá hạn qua Zalo', sub='App tự gửi lúc ' ~ at ~ ' sáng thứ Hai (thứ Hai nghỉ lễ thì ngày làm việc đầu tuần) cho kế toán đã gắn Zalo.') %}{% endcall %}
+
+{% if gui == 'ok' %}<section class="card zalo-note" aria-live="polite"><b>Đã gửi thử.</b></section>
+{% elif gui == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Tin chưa gửi được.</b> Xem lý do ở <a href="/zalo/tin-nhan">Tin nhắn Zalo</a>.</section>
+{% elif gui == 'chua-gan' %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa gửi được.</b> Người nhận chưa gắn Zalo.</section>{% endif %}
+
+<section class="card">
+<p>Trạng thái: {{ ui.badge('Đang bật', 'xong') if enabled and has_token else ui.badge('Chưa chạy', 'cho') }}</p>
+{% if not has_token %}<p class="hint">Thêm TD_ZALO_BOT_TOKEN vào deploy/.env rồi cập nhật app.</p>{% endif %}
+{% if not enabled %}<p class="hint">Đang tắt bằng TD_DEBT_REMINDER=false trong deploy/.env.</p>{% endif %}
+<p><b>Người nhận:</b> {% if people %}{% for u, c in people %}{{ u.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}chưa có{% endif %}</p>
+{% if not people %}<p class="hint">Kế toán nhắn một tin bất kỳ cho bot Zalo, rồi vào <a href="/zalo/tin-nhan">Tin nhắn Zalo</a>, mở hội thoại đó, chọn <b>Gắn nhân viên</b> là tài khoản kế toán.</p>{% endif %}
+{% if has_token %}{% for u, c in people %}<form method="post" action="/zalo/nhac-no/gui-thu" class="inline-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="chat" value="{{ c.id }}"><button class="btn btn-ok">Gửi thử cho {{ u.full_name }}</button></form>{% endfor %}{% endif %}
+</section>
+
+<section class="card">
+<h2>Nội dung nếu gửi lúc này</h2>
+<pre class="zalo-preview">{{ body }}</pre>
+</section>
+</div>
+<style>.zalo-preview{white-space:pre-wrap;word-break:break-word;font:inherit;line-height:1.5;margin:0;max-width:520px}.inline-form{display:inline-block;margin:0 8px 8px 0}</style>
+{% endblock %}
