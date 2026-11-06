@@ -79,3 +79,11 @@ def test_giam_doc_dat_bao_hanh_va_serial(client, web_login, db):
     assert r.json()["warranty_months"] == 12 and r.json()["track_serial"] is True
     p = db.get(Product, "TD-0002")
     assert p.warranty_months == 12 and p.track_serial
+
+
+def test_nut_tao_ma_canh_dong_hang_chi_ai_tao_duoc(client, web_login):
+    web_login("giam.doc", "director")
+    for url in ("/don-ban/moi", "/bao-gia/moi", "/don-mua/moi", "/phieu-kho/moi?loai=PN"):
+        assert "data-qn-new-line" in client.get(url).text, url
+    web_login("ban.hang", "sales")
+    assert "data-qn-new-line" not in client.get("/don-ban/moi").text

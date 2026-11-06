@@ -35,7 +35,7 @@
 <div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>ĐVT</span><span>Số lượng</span><span>Đơn giá</span><span>VAT</span><span>Thành tiền</span><span></span></div>
 <div data-quote-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'bao_gia_dong_form.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-lines-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Bấm <b>Thêm</b> ở cột Tra giá, hoặc thêm dòng tự do (dịch vụ, công sửa).</p>
-{% if live %}<button type="button" class="qf-add" data-quote-add>+ Dòng tự do</button>{% endif %}
+{% if live %}<button type="button" class="qf-add" data-quote-add>+ Dòng tự do</button>{% if 'hang' in quick_create_kinds().split() %}<button type="button" class="qf-add btn-ghost" data-qn-new-line>+ Tạo mới mã hàng</button>{% endif %}{% endif %}
 <p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
 <label class="qf-note">Ghi chú báo giá<textarea name="note" maxlength="4000" placeholder="Điều kiện giao hàng, bảo hành, thanh toán…">{{ d.note }}</textarea></label>
 </section>

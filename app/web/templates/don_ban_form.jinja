@@ -63,7 +63,7 @@
 <div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>Kho</span><span>Tồn</span><span>ĐVT</span><span>Số lượng</span><span>Đơn giá</span><span>VAT</span><span>Thành tiền</span><span></span></div>
 <div data-order-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_ban_dong_form.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-lines-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>, hoặc thêm dòng khác (dịch vụ, công).</p>
-{% if live %}<div class="qf-adds"><button type="button" class="qf-add" data-order-add="KHAC">+ Dòng khác (dịch vụ, công)</button><button type="button" class="qf-add btn-ghost" data-order-add>+ Dòng hàng tìm theo mã</button></div>{% endif %}
+{% if live %}<div class="qf-adds"><button type="button" class="qf-add" data-order-add="KHAC">+ Dòng khác (dịch vụ, công)</button><button type="button" class="qf-add btn-ghost" data-order-add>+ Dòng hàng tìm theo mã</button>{% if 'hang' in quick_create_kinds().split() %}<button type="button" class="qf-add btn-ghost" data-qn-new-line>+ Tạo mới mã hàng</button>{% endif %}</div>{% endif %}
 <p data-line-totals aria-live="polite">Tạm tính, số chính thức tính khi lưu</p>
 <label class="qf-note">Ghi chú cho kho, người giao<textarea name="note" maxlength="4000" placeholder="Giao giờ hành chính, gọi trước khi đến…">{{ d.note }}</textarea></label>
 </section>
