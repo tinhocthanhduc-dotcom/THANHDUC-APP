@@ -63,8 +63,10 @@
 {% if row.status == 'CHO' and can_edit %}
 {% call ui.next_box(users.get(row.created_by, '').split(' ')|last ~ ' gửi', 'Xem lại tin rồi gửi cho khách') %}
 {% if chat %}<button class="btn btn-ok pnz-full" formaction="/tin-gui-khach/{{ row.id }}/gui-zalo" data-tg-confirm="Gửi tin này cho khách qua Zalo công ty?">Gửi qua Zalo công ty</button>
-{% else %}<button type="button" class="btn btn-new pnz-full" data-tg-copy>Sao chép tin</button>
-<button class="btn btn-ok pnz-full" formaction="/tin-gui-khach/{{ row.id }}/da-gui" data-tg-confirm="Anh/chị đã dán và gửi tin này bằng Zalo cá nhân?">Đã gửi bằng Zalo cá nhân</button>{% endif %}
+{% else %}<p class="tg-to">Gửi tới: {% if phones %}<b>{{ customer.name if customer else row.customer_code }}</b> · {% for p in phones %}<b>{{ p }}</b>{{ ', ' if not loop.last }}{% endfor %}{% else %}<b>chưa có số điện thoại</b>, thêm số ở hồ sơ khách{% endif %}</p>
+<button type="button" class="btn btn-new pnz-full" data-tg-copy>Sao chép tin</button>
+{% for p in phones %}<a class="btn btn-ghost pnz-full" href="https://zalo.me/{{ p }}" target="_blank" rel="noopener">Mở Zalo khách · {{ p }} ↗</a>
+{% endfor %}<button class="btn btn-ok pnz-full" formaction="/tin-gui-khach/{{ row.id }}/da-gui" data-tg-confirm="Anh/chị đã dán và gửi tin này bằng Zalo cá nhân?">Đã gửi bằng Zalo cá nhân</button>{% endif %}
 <button class="btn btn-danger pnz-full" formaction="/tin-gui-khach/{{ row.id }}/bo" formnovalidate data-tg-confirm="Bỏ tin này, không gửi khách?">Bỏ tin</button>
 {% endcall %}
 {% elif row.status == 'DA_GUI' %}
