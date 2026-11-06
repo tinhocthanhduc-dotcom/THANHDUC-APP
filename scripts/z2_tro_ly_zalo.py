@@ -8,7 +8,8 @@ Mỗi lần chạy hỏi app vài giây một lần trong ~55 giây (TD_ZALO_HOI
 (app chọn theo cấu hình giám đốc ở màn Trợ lý Zalo), rồi gửi chữ trả lời về app.
 
 Codex/Claude KHÔNG được chạy lệnh, đọc tệp hay vào mạng: Codex ở chế độ chỉ đọc trong thư mục tạm trống, Claude
-tắt hết công cụ. Chúng chỉ trả về JSON "gọi công cụ nào" hoặc "câu trả lời"; app tự tra tồn, tìm khách, lập đơn
+tắt hết công cụ. Lượt có ảnh (đợt 3, ảnh nhân viên gửi): script tải ảnh vào thư mục tạm; Codex nhận ảnh qua -i,
+Claude chỉ được mở công cụ Read để xem anh.jpg. Chúng chỉ trả về JSON "gọi công cụ nào" hoặc "câu trả lời"; app tự tra tồn, tìm khách, lập đơn
 nháp theo quyền của người hỏi. Không đọc database, không đọc deploy/.env.
 
 Khóa đọc từ ~/.thanhduc-ai-key-zalo (chmod 600) hoặc TD_AI_ZALO_KEY. App ở http://127.0.0.1:8010 (TD_AI_URL).
@@ -82,6 +83,18 @@ def call(method, path, body=None):
         raise LoiApp(0, f'Không kết nối được app ở {url}: {exc.reason}') from exc
 
 
+def tai_anh(path: str, dich: Path) -> Path:
+    """Đợt 3: tải ảnh của lượt (ảnh nhân viên gửi qua Zalo) về thư mục tạm của lượt."""
+    url = os.environ.get('TD_AI_URL', 'http://127.0.0.1:8010').rstrip('/') + path
+    req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + _key()})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            dich.write_bytes(resp.read(20 * 1024 * 1024))
+    except (urllib.error.URLError, OSError) as exc:
+        raise RuntimeError(f'Không tải được ảnh của lượt: {exc}') from exc
+    return dich
+
+
 def _bin(name):
     found = os.environ.get(f'TD_{name.upper()}_BIN') or shutil.which(name)
     if found:
@@ -98,13 +111,15 @@ def _loi(kq, ten):
     return RuntimeError(f'{ten} thoát mã {kq.returncode}: ' + ' | '.join(duoi)[:250])
 
 
-def hoi_codex(lenh: str, thu_muc: Path) -> str:
+def hoi_codex(lenh: str, thu_muc: Path, anh: Path | None = None) -> str:
     exe = _bin('codex')
     if not exe:
         raise RuntimeError('Không thấy lệnh codex trên máy chủ.')
     ra = thu_muc / 'tra-loi.txt'
     cmd = [exe, 'exec', '--skip-git-repo-check', '--sandbox', 'read-only', '--color', 'never', '-C', str(thu_muc), '-o', str(ra)]
     cmd += shlex.split(os.environ.get('TD_ZALO_CODEX_THEM', '-c model_reasoning_effort="low"'))
+    if anh is not None:
+        cmd += ['-i', str(anh)]  # đợt 3: đính kèm ảnh cho Codex đọc
     cmd.append('-')
     kq = subprocess.run(cmd, input=lenh, text=True, capture_output=True, cwd=thu_muc, timeout=CHO_GIAY)
     tra_loi = ra.read_text(encoding='utf-8').strip() if ra.exists() else ''
@@ -113,12 +128,14 @@ def hoi_codex(lenh: str, thu_muc: Path) -> str:
     return tra_loi
 
 
-def hoi_claude(lenh: str, thu_muc: Path) -> str:
+def hoi_claude(lenh: str, thu_muc: Path, anh: Path | None = None) -> str:
     exe = _bin('claude')
     if not exe:
         raise RuntimeError('Không thấy lệnh claude trên máy chủ.')
     # --tools "" tắt mọi công cụ: Claude chỉ đọc câu lệnh và trả chữ.
-    cmd = [exe, '-p', '--output-format', 'text', '--tools', '', '--model', os.environ.get('TD_ZALO_CLAUDE_MODEL', 'sonnet')]
+    # Lượt có ảnh (đợt 3): chỉ mở công cụ Read để đọc anh.jpg trong thư mục tạm của lượt, không gì khác.
+    tools = ['--tools', 'Read', '--allowedTools', 'Read'] if anh is not None else ['--tools', '']
+    cmd = [exe, '-p', '--output-format', 'text', *tools, '--model', os.environ.get('TD_ZALO_CLAUDE_MODEL', 'sonnet')]
     cmd += shlex.split(os.environ.get('TD_ZALO_CLAUDE_THEM', ''))
     kq = subprocess.run(cmd, input=lenh, text=True, capture_output=True, cwd=thu_muc, timeout=CHO_GIAY)
     tra_loi = (kq.stdout or '').strip()
@@ -127,14 +144,15 @@ def hoi_claude(lenh: str, thu_muc: Path) -> str:
     return tra_loi
 
 
-def hoi(may: str, lenh: str) -> str:
+def hoi(may: str, lenh: str, anh_url: str = '') -> str:
     THU_MUC.mkdir(mode=0o700, exist_ok=True)
     thu_muc = Path(tempfile.mkdtemp(prefix='luot-', dir=THU_MUC))
     try:
+        anh = tai_anh(anh_url, thu_muc / 'anh.jpg') if anh_url else None
         if may == 'claude':
-            return hoi_claude(lenh, thu_muc)
+            return hoi_claude(lenh, thu_muc, anh)
         if may == 'codex':
-            return hoi_codex(lenh, thu_muc)
+            return hoi_codex(lenh, thu_muc, anh)
         raise RuntimeError(f'Không biết máy "{may}".')
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f'{may} chạy quá {CHO_GIAY} giây') from exc
@@ -146,7 +164,7 @@ def lam(v: dict) -> None:
     ten = f"lượt {v['id']} · {v['may']}"
     bat_dau = time.monotonic()
     try:
-        tra_loi = hoi(v['may'], v['lenh'])
+        tra_loi = hoi(v['may'], v['lenh'], v.get('anh') or '')
     except Exception as exc:  # hết lượt gói, chưa đăng nhập, quá giờ: báo app để app trả lời người hỏi
         log(f'{ten}: không làm được ({exc})')
         try:

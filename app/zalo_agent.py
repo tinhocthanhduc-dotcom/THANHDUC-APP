@@ -48,6 +48,7 @@ PRICE_USD = {'gpt-5-mini': (0.25, 2.0), 'gpt-5-nano': (0.05, 0.4), 'gpt-5': (1.2
 RECEIVED_TEXT = 'Thành Đức đã nhận tin, nhân viên sẽ trả lời anh/chị trong giờ làm việc (7:30–17:30, T2–T7).'
 FAIL_TEXT = 'Trợ lý chưa trả lời được câu này, anh/chị xem trên app hoặc hỏi lại sau nhé.'
 RESULTS = {'DANG_LAM': ('Đang xử lý', 'cho'), 'TRA_LOI': ('Đã trả lời', 'xong'), 'DON_NHAP': ('Đơn nháp', 'xong'), 'PHIEU_NHAP': ('Phiếu nháp', 'xong'),
+           'DON_MUA': ('Đơn mua nháp', 'xong'), 'CHUP_LAI': ('Cần chụp lại', 'cho'),
            'KHONG_TRA_LOI': ('Không trả lời số liệu', 'huy'), 'BO_QUA': ('Không phải đặt hàng', 'nhap'),
            'HET_LUOT': ('Hết lượt hôm nay', 'cho'), 'LOI': ('Không chạy được', 'huy')}
 CUSTOMER_TICKET_TEXT = ('Thành Đức đã nhận yêu cầu {what} của anh/chị. Điều phối sẽ gọi lại để hẹn giờ trong giờ làm việc '
@@ -92,7 +93,7 @@ def draft_users(session: Session) -> list[User]:
 
 
 def save_config(session: Session, user: User, enabled: bool, draft_user_id: int | None, staff_engine: str | None = None,
-                ticket_drafts: bool | None = None) -> ZaloTroLy:
+                ticket_drafts: bool | None = None, read_images: bool | None = None, invoice_po: bool | None = None) -> ZaloTroLy:
     _director(user)
     if staff_engine is not None and staff_engine not in ENGINES:
         raise BusinessError('VALIDATION', 'Chọn API, Codex hoặc Claude.', status=422)
@@ -100,17 +101,22 @@ def save_config(session: Session, user: User, enabled: bool, draft_user_id: int 
         raise BusinessError('VALIDATION', 'Người nhận đơn nháp phải là kinh doanh hoặc giám đốc đang làm việc.', status=422)
     row = session.get(ZaloTroLy, 1)
     before = None if row is None else dict(enabled=row.enabled, draft_user_id=row.draft_user_id, staff_engine=row.staff_engine,
-                                           ticket_drafts=row.ticket_drafts)
+                                           ticket_drafts=row.ticket_drafts, read_images=row.read_images, invoice_po=row.invoice_po)
     if row is None:
-        row = ZaloTroLy(id=1, staff_engine='api', ticket_drafts=True)
+        row = ZaloTroLy(id=1, staff_engine='api', ticket_drafts=True, read_images=True, invoice_po=True)
         session.add(row)
     row.enabled, row.draft_user_id, row.updated_by, row.updated_at = enabled, draft_user_id, user.id, _now()
     if staff_engine is not None:
         row.staff_engine = staff_engine
     if ticket_drafts is not None:
         row.ticket_drafts = ticket_drafts
+    if read_images is not None:
+        row.read_images = read_images
+    if invoice_po is not None:
+        row.invoice_po = invoice_po
     audit.record(session, user, 'zalo_tro_ly.config', 'zalo_tro_ly', '1', before,
-                 dict(enabled=enabled, draft_user_id=draft_user_id, staff_engine=row.staff_engine, ticket_drafts=row.ticket_drafts))
+                 dict(enabled=enabled, draft_user_id=draft_user_id, staff_engine=row.staff_engine, ticket_drafts=row.ticket_drafts,
+                      read_images=row.read_images, invoice_po=row.invoice_po))
     session.commit()
     return row
 
@@ -549,7 +555,20 @@ def take_jobs(session: Session, limit: int = 2) -> list[dict]:
     for r in rows:
         r.status, r.taken_at = 'DANG', _now()
     session.commit()
-    return [dict(id=r.id, may=r.engine, lenh=r.prompt) for r in rows]
+    # đợt 3: lượt có ảnh thì máy Z2 tải ảnh ở /ai/zalo/viec/{id}/anh rồi đưa cho Codex/Claude.
+    return [dict(id=r.id, may=r.engine, lenh=r.prompt, **({'anh': f'/ai/zalo/viec/{r.id}/anh'} if r.image_path else {})) for r in rows]
+
+
+def job_image(session: Session, job_id: int):
+    """Đường dẫn ảnh của một lượt đang làm (chỉ máy Z2 có khóa phạm vi zalo gọi)."""
+    from . import zalo_doc_anh
+    job = session.get(ZaloAiJob, job_id)
+    if job is None or job.status != 'DANG' or not job.image_path:
+        raise BusinessError('NOT_FOUND', 'Không có ảnh cho lượt này.', status=404)
+    path = zalo_doc_anh.path_of(job.image_path)
+    if path is None:
+        raise BusinessError('NOT_FOUND', 'Ảnh đã bị xóa.', status=404)
+    return path
 
 
 def _job_taken(session: Session, job_id: int) -> ZaloAiJob:
@@ -611,7 +630,10 @@ def handle(session: Session, message_id: int) -> ZaloAgentLog | None:
     """Xử lý một tin đến. Không ném lỗi ra ngoài: mọi lỗi ghi vào nhật ký."""
     cfg_row = config(session)
     msg = session.get(ZaloMessage, message_id)
-    if not cfg_row.enabled or msg is None or msg.direction != 'IN' or msg.kind != 'text' or not msg.text.strip():
+    if not cfg_row.enabled or msg is None or msg.direction != 'IN':
+        return None
+    image = msg.kind == 'image' and cfg_row.read_images  # đợt 3: ảnh nhân viên gửi
+    if not image and (msg.kind != 'text' or not msg.text.strip()):
         return None
     if isinstance(msg.raw, dict) and ((msg.raw.get('message') or {}).get('from') or {}).get('is_bot'):
         return None
@@ -621,6 +643,8 @@ def handle(session: Session, message_id: int) -> ZaloAgentLog | None:
     staff = session.get(User, chat.user_id) if chat.user_id else None
     customer = session.get(Customer, chat.customer_code) if chat.customer_code else None
     asker = 'NHAN_VIEN' if staff is not None and staff.active else 'KHACH' if customer is not None and customer.status == 'DANG_DUNG' else 'CHUA_GAN'
+    if image and asker != 'NHAN_VIEN':
+        return None  # TUẤN 06/11: ảnh khách gửi không đưa cho AI, tin vẫn ở Tin nhắn Zalo.
     log = _start_log(session, chat, msg, asker)
     if log is None:
         return None  # Tin này đã được xử lý.
@@ -641,7 +665,11 @@ def handle(session: Session, message_id: int) -> ZaloAgentLog | None:
                 _reply(session, chat, log, 'Hôm nay trợ lý đã hết lượt trả lời, anh/chị xem trên app hoặc mai hỏi tiếp nhé.')
             session.commit()
             return log
-        if asker == 'NHAN_VIEN':
+        if image:
+            from . import zalo_doc_anh
+            zalo_doc_anh.cleanup(session)
+            zalo_doc_anh.handle(session, chat, staff, msg, log, cfg_row)
+        elif asker == 'NHAN_VIEN':
             _staff(session, chat, staff, msg, log)
         else:
             _customer(session, chat, customer, msg, log, cfg_row)

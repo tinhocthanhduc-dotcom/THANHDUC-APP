@@ -128,7 +128,18 @@ def _form(request, session, row=None, data=None, error=None, code='', status=200
         error=error, error_code=code, status=status, reason=reason, saved=request.query_params.get('da_luu')=='1' and not error, placed=request.query_params.get('da_dat')=='1',
         supplier=supplier, prefill_note=prefill_note, stock=_stock(session, codes) if composing else {}, kho=kho, default_warehouse=default_warehouse, default_vat=default_vat,
         last_costs={c: svc.suggest_cost(session, request.state.user, c) for c in codes if c} if composing else {},
-        field_errors=where[0], line_errors=where[1])
+        field_errors=where[0], line_errors=where[1], **_zalo(session, request.state.user, row))
+
+
+def _zalo(session, user, row):
+    """Trợ lý Zalo đợt 3: đơn mua lập từ ảnh hóa đơn (nhật ký bot) và ảnh hóa đơn đính kèm."""
+    from .. import attachments
+    from ..models import ZaloAgentLog
+    if row is None:
+        return dict(zalo_po=None, po_photos=[], zalo_po_user='')
+    log = session.scalars(select(ZaloAgentLog).where(ZaloAgentLog.purchase_order_id == row.id).limit(1)).first()
+    who = session.get(User, log.user_id).full_name if log is not None and log.user_id else ''
+    return dict(zalo_po=log, po_photos=attachments.list_for(session, user, 'purchase_order', str(row.id)), zalo_po_user=who)
 
 
 def _version(form):

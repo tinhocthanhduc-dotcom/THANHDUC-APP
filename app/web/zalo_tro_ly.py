@@ -2,15 +2,17 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import zalo_agent as agent
 from .. import zalo_bot
+from .. import zalo_doc_anh as doc_anh
 from .. import zalo_phieu_nhap as pn
 from ..db import get_session
-from ..models import Customer, User, ZaloChat
+from ..errors import BusinessError
+from ..models import Customer, User, ZaloAgentLog, ZaloChat
 from . import checked_form, render, web_user
 from .paging import build
 
@@ -46,14 +48,28 @@ def page(request: Request, tab: str = 'gan', ngay: str = '', trang: str = '', so
                   draft_users=agent.draft_users(session), luu=luu, has_key=bool(agent.get_settings().openai_api_key.strip()),
                   model=agent.get_settings().zalo_ai_model, per_person=agent.get_settings().zalo_ai_per_person,
                   per_day=agent.get_settings().zalo_ai_per_day, engines=agent.ENGINES, engine_short=agent.ENGINE_SHORT,
-                  z2=agent.z2_status(session), ticket_waiting=pn.waiting(session))
+                  z2=agent.z2_status(session), ticket_waiting=pn.waiting(session),
+                  image_kinds=doc_anh.KINDS, read_brief=lambda read: doc_anh.brief(read) if read else '')
+
+
+@router.get('/zalo/tro-ly/anh/{log_id}')
+def log_image(log_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Đợt 3: ảnh nhân viên gửi trong nhật ký Trợ lý Zalo (chỉ giám đốc)."""
+    agent._director(user)
+    row = session.get(ZaloAgentLog, log_id)
+    path = doc_anh.path_of(row.image_path) if row is not None else None
+    if path is None:
+        raise BusinessError('NOT_FOUND', 'Ảnh không còn (ảnh quá 30 ngày đã tự xóa).', status=404)
+    return FileResponse(path, media_type='image/jpeg')
 
 
 @router.post('/zalo/tro-ly/cau-hinh')
 def save(form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
     agent.save_config(session, user, str(form.get('bat') or '') == '1', _int(form.get('nguoi_nhan')),
                       str(form.get('may') or '').strip() or None,
-                      (str(form.get('phieu_nhap')) == '1') if form.get('phieu_nhap') is not None else None)
+                      (str(form.get('phieu_nhap')) == '1') if form.get('phieu_nhap') is not None else None,
+                      (str(form.get('doc_anh')) == '1') if form.get('doc_anh') is not None else None,
+                      (str(form.get('don_mua')) == '1') if form.get('don_mua') is not None else None)
     return RedirectResponse('/zalo/tro-ly?luu=1', status_code=303)
 
 
