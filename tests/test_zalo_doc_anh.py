@@ -218,3 +218,16 @@ def test_parse_va_tom_tat():
     assert doc.parse('rác')['loai'] == 'KHAC'
     got = doc.parse('```json\n{"loai": "tem_may", "tem": {"model": "M404", "serial": "AB1"}}\n```')
     assert got['loai'] == 'TEM_MAY' and got['ro'] is True and doc.brief(got) == 'M404 · S/N AB1'
+
+
+def test_tim_link_anh_long_sau_va_bao_loi_ro():
+    from app.models import ZaloMessage
+    nested = ZaloMessage(raw=dict(message=dict(attachments=[dict(type='image', payload=dict(url='https://cdn.zalo/a.jpg'))], caption='tem')))
+    assert doc.photo_of(nested) == ('https://cdn.zalo/a.jpg', 'tem')
+    plain = ZaloMessage(raw=dict(message=dict(photo='https://cdn.zalo/b.jpg', **{'from': dict(id='u1')})))
+    assert doc.photo_of(plain)[0] == 'https://cdn.zalo/b.jpg'
+    empty = ZaloMessage(raw=dict(message=dict(message_id='m', chat=dict(id='c'))))
+    assert doc.photo_of(empty)[0] == '' and doc.raw_keys(empty) == 'chat, message_id'
+    with pytest.raises(Exception) as err:
+        doc.prepare(b'<html>not an image</html>')
+    assert 'không phải ảnh' in str(err.value.message)
