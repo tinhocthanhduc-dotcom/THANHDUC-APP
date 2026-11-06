@@ -5,6 +5,7 @@
 {{ ui.page_head('Khách lâu chưa gọi mực', sub='Khách đã quá ' ~ ('%g'|format(threshold)).replace('.', ',') ~ ' lần nhịp lấy mực thường lệ. Gọi hỏi thăm, ghi kết quả để khách tạm ẩn.') }}
 {% if request.query_params.get('loi') %}<p class="alert bad" role="alert">{{ request.query_params.get('loi') }}</p>{% endif %}
 {% if saved %}{{ ui.toast('Đã ghi kết quả gọi khách ' ~ saved) }}{% endif %}
+{% if request.query_params.get('da_tao') %}{{ ui.toast('Đã nhận đơn ' ~ request.query_params.get('da_tao') ~ '. Điều phối sẽ giao thợ.') }}{% endif %}
 {{ ui.tiles(tiles, keep_phone=true) }}
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}

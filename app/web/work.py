@@ -135,7 +135,7 @@ def page(request: Request, user, session):
     money_open = view == 'money' or not (counts['now'] or counts['day'])
     shortcuts = [(label, href) for label, href, roles in (
         ('Tạo báo giá','/bao-gia/moi',quotes.WRITERS),
-        ('Nhận đơn dịch vụ','/dich-vu/moi',service_tickets.CREATORS),
+        ('Nhận đơn dịch vụ' if nav.allowed(user,'/dich-vu') else 'Nhận đơn mực','/dich-vu/moi',service_tickets.CREATORS),
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
     return render(request, 'viec_cua_toi.jinja', groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
         chips=chips, money_open=money_open, calm=CALM, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,

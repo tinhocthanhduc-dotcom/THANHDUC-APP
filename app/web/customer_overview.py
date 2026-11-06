@@ -173,7 +173,7 @@ def build(request, session, user, c, tab='mo', trang='', so='', saved=False, war
         tiles.append(dict(label='Còn nợ', n=money(debt['total']) if debt else '0', sub=('Nợ từ ' + debt['since'].strftime('%d/%m/%Y')) if debt else 'Không nợ',
                           href='#cong-no', on=False, tone='huy' if debt and (debt['old'] or debt['over']) else ''))
 
-    quick = [(label, path) for label, path in (('+ Báo giá', '/bao-gia/moi'), ('+ Đơn bán', '/don-ban/moi'), ('+ <span class="kx-long">Nhận đơn dịch vụ</span><span class="kx-short">Dịch vụ</span>', '/dich-vu/moi'))
+    quick = [(label, path) for label, path in (('+ Báo giá', '/bao-gia/moi'), ('+ Đơn bán', '/don-ban/moi'), ('+ <span class="kx-long">Nhận đơn dịch vụ</span><span class="kx-short">Dịch vụ</span>' if nav.allowed(user, '/dich-vu') else '+ <span class="kx-long">Nhận đơn mực</span><span class="kx-short">Mực</span>', '/dich-vu/moi'))
              if nav.allowed(user, path)] if c.status == 'DANG_DUNG' else []
     phones = [p.phone for p in c.phones if not p.is_contact]
     return render(request, 'khach_xem.jinja', c=c, phones=phones, contacts=c.contacts, sites=site_svc.search(session, code),
