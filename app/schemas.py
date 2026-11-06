@@ -986,6 +986,16 @@ class SalesReceiptReport(QuoteVersion):
     note: str = Field(default='', max_length=4000)
 
 
+class CustomerReceiptReport(BaseModel):
+    """Báo thu theo khách: một số tiền tổng, app chia vào chứng từ cũ trước."""
+    model_config = ConfigDict(extra='forbid')
+    method: Literal['TIEN_MAT', 'CHUYEN_KHOAN']
+    amount: int = Field(strict=True, gt=0, le=9_223_372_036_854_775_807)
+    received_at: date | None = None
+    note: str = Field(default='', max_length=4000)
+    expected_total: int | None = None
+
+
 class SalesReceiptDecision(QuoteVersion):
     reason: str = Field(default='', max_length=2000)
 

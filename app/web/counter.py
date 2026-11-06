@@ -5,12 +5,13 @@
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
+from .. import quay_doc_tem
 from .. import customers as customer_svc, equipment, equipment_custody, sales_receipts, service_counter as counter, service_tickets as svc
 from ..config import get_settings
 from ..db import get_session
@@ -109,6 +110,30 @@ def pick_machine(request: Request, customer_code: str = '', user: User = Depends
                   d=dict(serial=''))
 
 
+# Chụp tem máy (TUẤN duyệt 06/11/2026): gửi ảnh cho máy Z2 đọc, màn hỏi lại mỗi 3 giây rồi tự điền sẵn.
+@router.post('/quay-sua/doc-tem')
+async def read_label(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    upload = form.get('photo')
+    try:
+        if not isinstance(upload, UploadFile) or not upload.filename:
+            raise BusinessError('PHOTO_REQUIRED', 'Chưa có ảnh tem.')
+        job = quay_doc_tem.start(session, user, await upload.read(quay_doc_tem.MAX_BYTES + 1))
+    except BusinessError as exc:
+        return JSONResponse({'error': exc.message, 'code': exc.code}, status_code=200 if exc.code in ('NO_Z2', 'BAD_PHOTO', 'PHOTO_REQUIRED', 'FILE_TOO_LARGE') else exc.status)
+    return JSONResponse({'job': job.id})
+
+
+@router.get('/quay-sua/doc-tem/{job_id}')
+def read_label_state(job_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return JSONResponse(quay_doc_tem.state(session, user, job_id))
+
+
+@router.get('/quay-sua/doc-tem/{job_id}/anh')
+def read_label_image(job_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return FileResponse(quay_doc_tem.image(session, user, job_id), media_type='image/jpeg', headers={'Cache-Control': 'private, max-age=3600'})
+
+
 async def _photo(form, name='photo'):
     upload = form.get(name)
     if not isinstance(upload, UploadFile) or not upload.filename:
@@ -133,7 +158,7 @@ def _expected(form):
 async def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     user = request.state.user
     keys = ('customer_code', 'serial', 'symptom', 'accessories_note', 'condition_note', 'expected', 'expected_pick',
-            'create_machine', 'new_serial', 'new_product_code', 'new_product_q')
+            'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'tem_job', 'tem_anh')
     data = {k: str(form.get(k, '')) for k in keys}
     data['accessories'] = [str(v) for v in form.getlist('accessories')]
     try:
@@ -141,7 +166,9 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
         new_machine = service_machines.intake(form)
         body = ServiceTicketIn(customer_code=data['customer_code'], serial=None if new_machine else data['serial'] or None,
                                new_machine=new_machine, kind='MANG_VE', priority='THUONG', symptom=data['symptom'])
-        t = counter.intake(session, user, body, _accessory_values(form), data['accessories_note'], data['condition_note'], photo, _expected(form))
+        tem = quay_doc_tem.photo(session, user, data['tem_job']) if data['tem_job'] and data['tem_anh'] == '1' else None
+        t = counter.intake(session, user, body, _accessory_values(form), data['accessories_note'], data['condition_note'], photo, _expected(form),
+                           extra_photos=[tem] if tem else ())
     except (BusinessError, ValidationError) as exc:
         message, code, status = _message(exc)
         return _form(request, session, data, message, code, status)
