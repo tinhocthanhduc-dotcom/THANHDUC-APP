@@ -27,6 +27,8 @@ GROUPS = (
     )},
     {'label': 'Khách hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Khách hàng', 'href': '/khach-hang', 'prefixes': ('/khach-hang',), 'roles': ('dispatcher', 'reception', 'sales', 'finance')},
+        # Tạo mới nhanh trong cửa sổ: quyền thật theo từng loại kiểm ở quick_create (như form đầy đủ).
+        {'label': 'Tạo mới nhanh', 'href': '/tao-nhanh/khach', 'prefixes': ('/tao-nhanh',), 'roles': ('dispatcher', 'reception', 'sales', 'finance', 'warehouse'), 'hidden': True},
     )},
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},

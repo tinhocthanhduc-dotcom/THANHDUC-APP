@@ -1,0 +1,49 @@
+{# Tạo mới nhanh: phần form đặt trong cửa sổ của tao-nhanh.js (không có khung trang). #}
+{% import '_ui.jinja' as ui %}
+{% set fe = field_errors if field_errors is defined else {} %}
+<form method="post" action="/tao-nhanh/{{ loai }}" class="form qn-form" data-qn-form data-qn-kind="{{ loai }}"{% if loai == 'khach' %} data-dup-except=""{% endif %} novalidate>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="qn-head"><div class="qn-title"><span class="qn-kicker" data-qn-for></span><b>{{ title }}</b></div><button type="button" class="btn btn-ghost qn-x" data-qn-close aria-label="Đóng">×</button></div>
+<div class="qn-body">
+{% if error is defined and error %}<p class="alert bad" role="alert"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+{% if loai == 'khach' %}
+  <div class="seg stock-seg qn-seg" role="group" aria-label="Loại khách">{% for k, label in KIND_LABELS.items() %}<label><input type="radio" name="kind" value="{{ k }}" {% if d.kind == k %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
+  <label class="{{ ui.invalid(fe,'name') }}">Tên khách<input name="name" value="{{ d.name }}" required maxlength="300" placeholder="Họ tên hoặc tên công ty" autocomplete="off"{{ ui.described(fe,'name') }}>{{ ui.field_error(fe,'name') }}</label>
+  <label class="{{ ui.invalid(fe,'phones') }}">Số điện thoại<input name="phones" value="{{ d.phones }}" inputmode="tel" placeholder="Nhiều số cách nhau bằng dấu phẩy" autocomplete="off" data-qn-dup="phone"{{ ui.described(fe,'phones') }}>{{ ui.field_error(fe,'phones') }}</label>
+  <label class="{{ ui.invalid(fe,'tax_code') }}">MST (nếu có)<input name="tax_code" value="{{ d.tax_code }}" inputmode="numeric" placeholder="Công ty cần MST hoặc SĐT" autocomplete="off" data-qn-dup="tax"{{ ui.described(fe,'tax_code') }}>{{ ui.field_error(fe,'tax_code') }}</label>
+  {% if error_detail is defined and error_detail and error_detail.existing %}<div class="alert warn qn-dup-row"><strong>Đã có khách: {{ error_detail.existing }} · {{ error_detail.name }}</strong><span>Cùng một người thì dùng khách cũ, khỏi tạo trùng.</span><div class="qn-dup-actions"><button type="button" class="btn btn-new" data-qn-use="{{ error_detail.existing }}">Dùng khách này</button><a class="btn btn-ghost" href="/khach-hang/{{ error_detail.existing | urlencode }}" target="_blank">Xem khách cũ ↗</a></div></div>{% endif %}
+  <div data-qn-dup-result aria-live="polite"></div>
+  {% if ask_confirm is defined and ask_confirm %}
+  <div class="confirm">
+    <p>Số này đang thuộc <a href="/khach-hang/{{ ask_confirm.existing }}" target="_blank">{{ ask_confirm.existing }} · {{ ask_confirm.name }}</a>. Nếu đúng là hai khách khác nhau dùng chung số, xác nhận và ghi lý do.</p>
+    <label class="check"><input type="checkbox" name="confirm_separate" value="1" required> Vẫn lưu riêng</label>
+    <label class="{{ ui.invalid(fe,'confirm_reason') }}">Lý do<input name="confirm_reason" required minlength="3">{{ ui.field_error(fe,'confirm_reason') }}</label>
+  </div>
+  {% endif %}
+  <label class="{{ ui.invalid(fe,'address') }}">Địa chỉ<input name="address" value="{{ d.address }}" placeholder="Số nhà, đường, phường, quận" autocomplete="off">{{ ui.field_error(fe,'address') }}</label>
+  <a class="qn-full" href="/khach-hang/moi" target="_blank">Cần người liên hệ, hạn mức nợ? Mở form đầy đủ ↗</a>
+{% elif loai == 'hang' %}
+  <div class="qn-row2">
+    <label>Mã hàng<input name="code" value="{{ d.code }}" required autocapitalize="characters" autocomplete="off"><small class="hint">Mã gợi ý, sửa được (dạng TD-0001)</small></label>
+    <label>Nhóm hàng<select name="group_name" data-qn-group><option value="">Chưa xếp nhóm</option>{% for g in groups %}<option value="{{ g }}"{% if g == d.group_name %} selected{% endif %}>{{ g }}</option>{% endfor %}{% if d.group_name and d.group_name not in groups %}<option value="{{ d.group_name }}" selected>{{ d.group_name }}</option>{% endif %}</select></label>
+  </div>
+  <label>Tên hàng<input name="name" value="{{ d.name }}" required maxlength="300" autocomplete="off"></label>
+  <div class="qn-row2">
+    <label>Đơn vị tính<input name="unit" value="{{ d.unit }}" required maxlength="32" autocomplete="off"></label>
+    <label>Giá bán (đồng)<input name="sale_price" value="{{ d.sale_price | money }}" inputmode="numeric" data-money class="qn-money" autocomplete="off"></label>
+  </div>
+  {% if 'director' in user.roles %}
+  <div class="field-group"><p class="group-label">Bảo hành (tháng)</p><div class="seg stock-seg qn-seg" data-qn-warranty>{% for m in warranty_choices %}<label><input type="radio" name="warranty_months" value="{{ m }}"{% if (d.warranty_months or 0) == m %} checked{% endif %}><span>{{ m }}</span></label>{% endfor %}</div></div>
+  <label class="check"><input type="checkbox" name="track_serial" value="1"{% if d.track_serial %} checked{% endif %} data-qn-serial> Theo dõi serial từng cái (máy in, máy chiếu…)</label>
+  {% endif %}
+  <a class="qn-full" href="/hang-hoa/moi" target="_blank">Mở form đầy đủ ↗</a>
+{% else %}
+  <label>Tên nhà cung cấp<input name="name" value="{{ d.name }}" required maxlength="300" autocomplete="off"></label>
+  <label>Mã số thuế<input name="tax_code" value="{{ d.tax_code }}" inputmode="numeric" autocomplete="off"></label>
+  <label>Số điện thoại<input name="phones" value="{{ d.phones }}" inputmode="tel" placeholder="Ngăn cách bằng dấu phẩy" autocomplete="off"></label>
+  <label>Địa chỉ<input name="address" value="{{ d.address }}" maxlength="2000" autocomplete="off"></label>
+  <a class="qn-full" href="/nha-cung-cap/moi" target="_blank">Mở form đầy đủ ↗</a>
+{% endif %}
+</div>
+<div class="qn-foot"><button type="button" class="btn btn-ghost" data-qn-close>Hủy</button><button class="btn-ok" data-qn-save>{{ 'Lưu và chọn' if loai != 'hang' else 'Lưu và thêm vào phiếu' }}</button></div>
+</form>

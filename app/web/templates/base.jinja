@@ -31,7 +31,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 </head>
 {% if user %}{% macro notify_bell(cls, url='/ca-nhan/thong-bao') %}<details class="notify {{ cls }}" data-notify="{{ url }}" data-notify-user="{{ user.id }}" data-csrf="{{ csrf }}"><summary class="notify-btn" aria-label="Thông báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="notify-badge" data-notify-count hidden></span></summary><div class="notify-panel"><div class="notify-head"><strong data-notify-title>Thông báo</strong><button type="button" class="btn btn-ghost" data-notify-readall hidden>Đã xem hết</button></div><div class="notify-list" data-notify-list><p class="mu">Đang tải thông báo…</p></div><button type="button" class="btn btn-info notify-push" data-push-toggle hidden>Bật thông báo khi tắt màn hình</button><p class="hint notify-push-hint" data-push-hint hidden></p></div></details>{% endmacro %}
 {% endif %}{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
-<body{% if navigation and navigation.technician %} class="tho-app"{% elif navigation %} class="web-app"{% endif %}>
+<body{% if navigation and navigation.technician %} class="tho-app"{% elif navigation %} class="web-app"{% endif %}{% if user %} data-qn="{{ quick_create_kinds() }}"{% endif %}>
 {% if user %}
 {% if navigation.technician %}
 {# Khung riêng cho thợ (theo bản mẫu màn thợ): thanh trên gọn, tab dưới cùng. #}
@@ -98,6 +98,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 {% endif %}
 <script src="{{ asset('nav.js') }}" defer></script>
 <script src="{{ asset('notify.js') }}" defer></script>
+<script src="{{ asset('tao-nhanh.js') }}" defer></script>
 {% if user and 'director' in user.roles %}<script src="{{ asset('ai.js') }}" defer></script>{% endif %}
 {% if request.scope.get('route') %}<span hidden data-perf-route="{{ request.scope.get('route').path }}" data-csrf="{{ csrf }}"></span><script src="{{ asset('perf.js') }}" defer></script>{% endif %}
 <noscript><style>.menu-shell > .menu-toggle { display: flex; }</style></noscript>
@@ -160,7 +161,7 @@ window.bindLive = function(input) {
       .then(function(html) {
         if (current !== sequence) return;
         target.innerHTML = html;
-        if (input.dataset.source) { hl = 0; window.tdMarkHits(target, input.value); mark(); }
+        if (input.dataset.source) { hl = 0; window.tdMarkHits(target, input.value); input.dispatchEvent(new CustomEvent('live-loaded', {bubbles: true})); mark(); }
         var summary = scope.querySelector('[data-availability-summary]');
         var selected = target.querySelector('[data-availability-text]');
         if (summary) summary.textContent = selected ? selected.dataset.availabilityText : '';
