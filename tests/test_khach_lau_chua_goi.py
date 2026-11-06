@@ -55,7 +55,7 @@ def test_page_and_call_result_hides_then_returns(client, db, held, monkeypatch):
     csrf = service_login(client, p['sales'])
     html = client.get('/khach-hang/nhac-muc').text
     assert 'Khách lâu chưa gọi mực' in html and 'Minh Phát' in html and 'quá 20 ngày' in html
-    assert 'Tạo phiếu mực' not in html          # kinh doanh không vào Dịch vụ: nút chỉ hiện cho người lập được phiếu
+    assert 'Tạo phiếu mực' in html              # TUẤN 06/11: kinh doanh được nhận đơn Mực định kỳ
     r = client.post('/khach-hang/nhac-muc/KTD-000001/goi', data=dict(csrf=csrf, result='HEN_LAI', note='Hẹn thứ Hai', tab='goi'), follow_redirects=False)
     assert r.status_code == 303 and 'da_luu=' in r.headers['location']
     call = db.query(CustomerInkCall).one()
@@ -65,9 +65,9 @@ def test_page_and_call_result_hides_then_returns(client, db, held, monkeypatch):
     data = ink_rhythm.collect(db, later)
     assert data['goi'] == [] and data['hen'][0]['call']['label'] == 'Hẹn gọi lại'
     assert ink_rhythm.collect(db, later + timedelta(days=7))['goi']                 # 7 ngày sau hiện lại
-    # Khách đặt mực: người không lập được phiếu dịch vụ thì quay về danh sách.
+    # Khách đặt mực: mở sẵn màn nhận đơn với khách này.
     r = client.post('/khach-hang/nhac-muc/KTD-000001/goi', data=dict(csrf=csrf, result='DAT_MUC', tab='goi'), follow_redirects=False)
-    assert r.headers['location'].startswith('/khach-hang/nhac-muc?')
+    assert r.headers['location'] == '/dich-vu/moi?customer_code=KTD-000001'
     # Chuyển nơi khác: sang tab riêng.
     client.post('/khach-hang/nhac-muc/KTD-000001/goi', data=dict(csrf=csrf, result='CHUYEN_NOI_KHAC', tab='goi'))
     lost = db.query(CustomerInkCall).filter_by(result='CHUYEN_NOI_KHAC').one()
@@ -100,3 +100,22 @@ def test_monday_zalo_to_sales_once(client, db, held, monkeypatch):  # noqa: F811
     assert weekly_zalo.run_once(db, now=datetime(2026, 11, 9, 9, 0, tzinfo=TZ), sender=sender) == 0
     assert weekly_zalo.run_once(db, now=datetime(2026, 11, 10, 8, 5, tzinfo=TZ), sender=sender) == 0    # thứ Ba không gửi
     assert db.query(DispatchZaloSent).filter(DispatchZaloSent.mark == 'nhac-muc:2026-11-09').count() == 1
+
+
+def test_sales_creates_ink_ticket_only(client, db, held):  # noqa: F811
+    """TUẤN 06/11/2026: Thanh (kinh doanh) tự nhận đơn Mực định kỳ, không vào Phiếu dịch vụ, không lập loại khác."""
+    p, a, b = held
+    csrf = service_login(client, p['sales'])
+    page = client.get('/dich-vu/moi?customer_code=KTD-000001').text
+    assert 'value="MUC_DINH_KY" selected' in page and 'value="SUA_TAI_CHO"' not in page
+    assert client.get('/dich-vu/chon-khach?customer_code=KTD-000001').status_code == 200
+    assert client.get('/dich-vu', follow_redirects=False).status_code == 403
+    before = db.query(ServiceTicket).count()
+    r = client.post('/dich-vu/moi', data=form(csrf, kind='SUA_TAI_CHO', symptom='Máy kẹt giấy'), follow_redirects=False)
+    assert r.status_code == 400 and 'chỉ nhận đơn Mực định kỳ' in r.text and db.query(ServiceTicket).count() == before
+    r = client.post('/dich-vu/moi', data=form(csrf), follow_redirects=False)
+    t = db.query(ServiceTicket).order_by(ServiceTicket.id.desc()).first()
+    assert r.status_code == 303 and r.headers['location'] == f'/khach-hang/nhac-muc?da_tao={t.number}'
+    assert t.kind == 'MUC_DINH_KY' and t.created_by == p['sales'].id
+    assert f'Đã nhận đơn {t.number}' in client.get(r.headers['location']).text
+    assert client.get(f'/dich-vu/{t.id}', follow_redirects=False).status_code == 403

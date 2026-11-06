@@ -41,6 +41,8 @@ GROUPS = (
     {'label': 'Dịch vụ', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
         {'label': 'Phiếu dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
+        # TUẤN 06/11/2026: kinh doanh (Thanh) được tự nhận đơn Mực định kỳ khi khách gọi; chỉ màn nhận đơn, không vào phiếu dịch vụ.
+        {'label': 'Nhận đơn dịch vụ', 'href': '/dich-vu/moi', 'prefixes': ('/dich-vu/moi', '/dich-vu/chon-khach', '/dich-vu/tim-khach'), 'roles': ('dispatcher', 'reception', 'technician', 'sales'), 'hidden': True, 'highlight': '/dich-vu'},
         # F2: bản xem chỉ đọc phiếu dịch vụ cho kế toán (đối chiếu báo thu) và kho (linh kiện, máy đang giữ); không giá vốn, không thao tác.
         {'label': 'Xem phiếu dịch vụ', 'href': '/xem-dich-vu', 'prefixes': ('/xem-dich-vu',), 'roles': ('finance', 'warehouse'), 'hidden': True},
         # TUẤN 26/10: khách mang máy tới cửa hàng; kinh doanh (Thanh) nhận, trả máy và thu tiền tại quầy.

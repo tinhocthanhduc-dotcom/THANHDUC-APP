@@ -35,8 +35,8 @@
 <div class="svn-kindrow">
 <label class="svn-fld{% if kind_bad %} svn-bad{% endif %}"><span>Loại dịch vụ</span>
 <select name="kind" data-sv-kind {% if kind_bad %}aria-invalid="true"{% endif %}>
-<option value="">— Chưa chọn —</option>
-{% for value, label in service_kind_choices.items() %}<option value="{{ value }}" {% if d.kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+{% if ink_only %}<option value="MUC_DINH_KY" selected>{{ service_kind_choices['MUC_DINH_KY'] }}</option>{% else %}<option value="">— Chưa chọn —</option>
+{% for value, label in service_kind_choices.items() %}<option value="{{ value }}" {% if d.kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}{% endif %}
 </select></label>
 <div class="svn-fld" role="group" aria-labelledby="svn-prio-label"><p class="group-label" id="svn-prio-label">Mức ưu tiên</p>
 <div class="seg stock-seg qf-seg3 svn-prio">

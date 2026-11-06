@@ -25,9 +25,9 @@ def test_customer_overview_for_sales(client, db, web_login, make_user):
     web_login('d4.sales', 'sales')
     customer_with_docs(db, make_user('d4.owner', 'sales'))
     page = client.get('/khach-hang/KTD-000001').text
-    # Nút tạo nhanh theo quyền: bán hàng không vào được Dịch vụ nên không có nút đó.
+    # Nút tạo nhanh theo quyền: bán hàng không vào Phiếu dịch vụ, chỉ nhận đơn Mực định kỳ (TUẤN 06/11/2026).
     assert 'href="/bao-gia/moi?customer_code=KTD-000001"' in page and 'href="/don-ban/moi?customer_code=KTD-000001"' in page
-    assert '/dich-vu/moi?customer_code' not in page and 'DV-26-00001' not in page
+    assert '/dich-vu/moi?customer_code' in page and 'Nhận đơn mực' in page and 'DV-26-00001' not in page
     assert 'BG-26-00001' in page and 'Chờ khách trả lời' in page and 'DB-26-00001' in page
     assert 'href="/khach-hang/KTD-000001/sua"' in page and 'Sửa thông tin' in page
     # Công nợ chỉ kế toán, giám đốc thấy.
