@@ -4,7 +4,8 @@
   Người chưa gắn chỉ nhận lời "đã nhận tin" (tối đa một lần mỗi 12 giờ); tin vẫn nằm ở Tin nhắn Zalo.
 - AI (OpenAI) chỉ gọi được các công cụ dưới đây. Dữ liệu đã lọc theo quyền trước khi AI thấy:
   thợ, kho, điều phối chỉ thấy số lượng; kinh doanh, kế toán, giám đốc thấy thêm giá bán.
-  Giá vốn, lãi, công nợ không bao giờ đưa vào công cụ nào.
+  Giá vốn, lãi, lương, hoa hồng không bao giờ đưa vào công cụ nào. Đợt 1 (06/11/2026, app/zalo_tra_cuu.py): tra cứu
+  đơn/phiếu/bảo hành/mã hay đặt, công nợ khách và doanh thu chỉ cho kế toán, giám đốc (kinh doanh: doanh số của mình).
 - Ghi duy nhất một việc: tạo ĐƠN NHÁP (NHAP) qua sales_orders.create, như bấm tay. Đơn nháp không giữ hàng,
   không tính nợ. Kinh doanh kiểm giá rồi tự bấm Chốt. Trợ lý không chốt, không hủy, không sửa tồn hay tiền.
 - Khách đã gắn nhắn đặt hàng: lập đơn nháp dưới tên người nhận đơn nháp (cấu hình), bot chỉ báo đã nhận,
@@ -26,7 +27,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
-from . import audit, customers, products, sales_orders
+from . import audit, customers, products, sales_orders, zalo_tra_cuu
 from . import search as tim
 from .config import get_settings
 from .db import engine
@@ -157,7 +158,8 @@ def can_do_label(chat: ZaloChat, staff: User | None) -> str:
     if staff is None or not staff.active:
         return 'Không (tài khoản đã khóa)'
     c = can_do(staff)
-    return 'Hỏi tồn' + (', giá bán' if c['price'] else '') + (', lên đơn nháp' if c['draft'] else '')
+    extra = ', '.join(zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff)))
+    return 'Hỏi tồn' + (', giá bán' if c['price'] else '') + (', lên đơn nháp' if c['draft'] else '') + ', ' + extra
 
 
 # ---------- Công cụ cho AI (chỉ đọc, trừ tạo đơn nháp) ----------
@@ -315,10 +317,12 @@ T_DRAFT_SELF = _fn('tao_don_nhap', 'Tạo ĐƠN NHÁP cho khách này khi tin nh
 STAFF_PROMPT = """Bạn là trợ lý nội bộ của Công ty Tin Học Thành Đức (máy in, mực in, sửa chữa) trả lời nhân viên qua Zalo.
 Hôm nay là {today}. Người hỏi: {name} ({roles}).
 Quy tắc:
-- Chỉ trả lời về tồn kho{extra}. Câu hỏi khác thì nói ngắn gọn là trợ lý chỉ tra tồn kho{extra2}.
-- Luôn tra bằng công cụ, không đoán số. Từ khóa khớp nhiều mã thì liệt kê từng mã kèm tồn từng kho.
-- Không bao giờ nói giá vốn, lãi, công nợ. {price_rule}
-{draft_rule}- Trả lời tiếng Việt, ngắn, văn bản thường (không markdown, không bảng), dưới 1500 ký tự. Xưng "em", gọi "anh/chị"."""
+- Chỉ trả lời các việc sau: {abilities}. Câu hỏi khác thì nói ngắn gọn trợ lý làm được những việc đó.
+- Luôn tra bằng công cụ, không đoán số, không tự cộng trừ: đọc lại đúng số công cụ trả về. Từ khóa khớp nhiều mã thì liệt kê từng mã.
+- Khách nói bằng tên thì tìm mã bằng tim_khach trước; nhiều khách giống nhau thì hỏi lại. "Hay đặt mực gì" thì dùng lich_su_mua.
+- "Phiếu tiếp theo của tôi" là phiếu đầu tiên trong viec_tho. Kết quả có link thì gửi kèm link để mở trên app.
+- Không bao giờ nói giá vốn, lãi, lương, hoa hồng. Không có công cụ thì không nói công nợ, doanh thu. {price_rule}
+{draft_rule}- Trả lời tiếng Việt, ngắn, văn bản thường (không markdown, không bảng), dưới 1500 ký tự. Tiền viết dạng 1.250.000đ. Xưng "em", gọi "anh/chị"."""
 DRAFT_RULE = """- Khi được nhờ lên đơn: tìm khách bằng tim_khach. Có hơn một khách giống nhau thì hỏi lại, không tạo đơn.
   Ưu tiên mã khách đã mua (lich_su_mua), rồi tra_ton. Mã không chắc thì vẫn tạo nhưng ghi can_chon_ma.
   Sau khi tạo, báo số đơn nháp, khách, từng dòng và nhắc kiểm giá rồi bấm Chốt trên app. Trợ lý không chốt đơn.
@@ -399,9 +403,12 @@ def _brief(result: dict) -> str:
         return 'Lỗi: ' + str(result['loi'])[:200]
     if 'da_tao' in result:
         return 'Tạo ' + result['da_tao']
-    for key in ('ket_qua', 'da_mua'):
+    for key in ('ket_qua', 'da_mua', 'hang_muc', 'phieu_dang_mo_theo_thu_tu'):
         if key in result:
             return f'{len(result[key])} dòng'
+    for key in ('con_no_gom_vat', 'tong_doanh_thu_chua_vat', 'doanh_so_cua_toi_chua_vat', 'serial'):
+        if key in result:
+            return f'{key}: {result[key]}'
     return ''
 
 
@@ -651,17 +658,21 @@ def _staff(session, chat, staff, msg, log):
             state['order'], state['picks'] = result['_order'], result['_picks']
         return result
 
-    handlers = dict(tra_ton=lambda a: tool_stock(session, a.get('tu_khoa'), rights['price']))
-    tools = [T_STOCK]
+    handlers = dict(tra_ton=lambda a: tool_stock(session, a.get('tu_khoa'), rights['price']),
+                    tim_khach=lambda a: tool_customers(session, a.get('tu_khoa')),
+                    lich_su_mua=lambda a: tool_history(session, a.get('ma_khach'), a.get('tu_khoa')))
+    tools = [T_STOCK, T_CUSTOMER, T_HISTORY]
     if rights['draft']:
-        handlers.update(tim_khach=lambda a: tool_customers(session, a.get('tu_khoa')),
-                        lich_su_mua=lambda a: tool_history(session, a.get('ma_khach'), a.get('tu_khoa')), tao_don_nhap=draft)
-        tools += [T_CUSTOMER, T_HISTORY, T_DRAFT]
+        handlers['tao_don_nhap'] = draft
+        tools.append(T_DRAFT)
+    more_tools, more = zalo_tra_cuu.build(session, staff)  # đợt 1 (TUẤN duyệt 06/11/2026): tra cứu, báo cáo theo quyền
+    tools += more_tools
+    handlers.update(more)
     engine = _staff_engine(session)
     roles = ', '.join(staff.roles)
+    abilities = ['tồn kho' + (', giá bán' if rights['price'] else '')] + (['lên đơn nháp'] if rights['draft'] else []) + zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff))
     system = STAFF_PROMPT.format(
-        today=_now().strftime('%d/%m/%Y'), name=staff.full_name, roles=roles,
-        extra=' và lên đơn nháp' if rights['draft'] else '', extra2=' và lên đơn nháp' if rights['draft'] else '',
+        today=_now().strftime('%d/%m/%Y'), name=staff.full_name, roles=roles, abilities=', '.join(abilities),
         price_rule='Được nói giá bán danh mục (chưa VAT).' if rights['price'] else 'Không nói giá, kể cả giá bán.',
         draft_rule=DRAFT_RULE if rights['draft'] else '- Không lên đơn. Nhờ lên đơn thì bảo nhắn kinh doanh.\n')
     if engine != 'api':  # Codex/Claude trên Z2 chậm hơn API (20–60 giây): báo trước để người hỏi khỏi tưởng bot treo

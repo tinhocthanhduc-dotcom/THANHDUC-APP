@@ -117,7 +117,8 @@ def test_tho_chi_thay_so_luong_khong_thay_gia(client, db, shop, zalo):
     linked(client, db, user=shop['technician'])
     zalo['script'] = [call('tra_ton', tu_khoa='12A'), say('Có 2 mã 12A. TD-0142: Kho chính 8, Kho thợ Phong 2.')]
     client.post('/zalo/webhook', json=event(mid='m1', text='còn hộp mực 12A ko'), headers=H)
-    assert zalo['ai'][0]['tools'] == ['tra_ton']  # không có tìm khách, lên đơn
+    # thợ: không lên đơn, không công nợ, không doanh thu; tra cứu phiếu của mình (đợt 1)
+    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'bao_hanh', 'trang_thai', 'phieu_qua_hen', 'viec_tho']
     tool_msg = zalo['ai'][1]['messages'][-1]
     data = json.loads(tool_msg['content'])
     assert tool_msg['role'] == 'tool' and len(data['ket_qua']) == 2
@@ -139,7 +140,7 @@ def test_kinh_doanh_thay_gia_ban_va_len_don_nhap(client, db, shop, zalo):
                            hen_giao='', giao_tan_noi=True, ghi_chu=''),
                       say('Đã tạo đơn nháp cho An Phú.')]
     client.post('/zalo/webhook', json=event(mid='m1', text='lên đơn cty An Phú 2 hộp 12A giao mai'), headers=H)
-    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'tao_don_nhap']
+    assert zalo['ai'][0]['tools'] == ['tra_ton', 'tim_khach', 'lich_su_mua', 'tao_don_nhap', 'bao_hanh', 'trang_thai', 'doanh_thu']
     assert '820000' in zalo['ai'][1]['messages'][-1]['content'] and '600000' not in json.dumps(zalo['ai'][-1]['messages'])
     order = db.scalars(select(SalesOrder)).one()
     assert (order.status, order.customer_code, order.created_by, order.fulfillment) == ('NHAP', 'KTD-000001', shop['sales'].id, 'THO_GIAO')
