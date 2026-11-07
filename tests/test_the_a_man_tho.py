@@ -233,3 +233,15 @@ def test_return_screen_starts_unticked_and_toggles_select_all(client, db, held):
     from pathlib import Path
     js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'technician-returns.js').read_text()
     assert "'Bỏ hết'" in js and "'Chọn hết'" in js
+
+
+def test_swipe_accepts_finger_after_camera_ghost_touch():
+    """TUẤN 07/11: tải ảnh xong không vuốt được Giao xong/Hoàn thành, phải về Hôm nay vào lại.
+    Mở máy ảnh xong điện thoại có khi còn giữ một chạm cũ, ngón vuốt thật có isPrimary = false.
+    Đã thử bằng Playwright (2 điểm chạm CDP): bản cũ đứng im, bản mới gửi form."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'ui.js').read_text()
+    swipe = js[js.index('function bindSwipe'):js.index("window.bindSwipe = bindSwipe")]
+    assert '.isPrimary' not in swipe  # không bỏ qua ngón không phải "ngón chính"
+    assert 'event.pointerId !== drag.id' in swipe  # chỉ theo đúng ngón đang kéo
+    assert "visibilitychange" in swipe and "pageshow" in swipe  # quay lại từ máy ảnh thì xóa trạng thái kéo dở
