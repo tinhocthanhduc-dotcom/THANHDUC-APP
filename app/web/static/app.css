@@ -1742,6 +1742,13 @@ main:has(> .quote-form-page) { max-width: 1480px; }
 .list-date-row input { height: 36px; }
 .list-date-row button { min-height: 36px; }
 .q-bad { color: var(--bad) !important; font-weight: 700; }
+/* Đơn đã có NV báo thu, chờ kế toán xác nhận: xanh, không đỏ (07/11/2026). */
+.q-wait { color: var(--accent) !important; font-weight: 700; }
+.q-hold { color: var(--muted); white-space: normal; }
+.qv-money .qv-wait { color: var(--accent); }
+.qv-money .qv-ok { color: var(--ok); font-weight: 800; font-size: 1.05rem; }
+.qv-money .qv-subline { display: block; color: var(--muted); font-weight: 400; font-size: .85rem; }
+.qv-money .qv-note { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .85rem; }
 .orow.order-overdue { border-left: 0; background: none; box-shadow: inset 3px 0 0 var(--bad); }
 .qrow .qlink { white-space: nowrap; }
 @container (min-width: 1020px) {
@@ -2141,6 +2148,7 @@ main:has(> .page-mid) { max-width: 752px; }
 .totals dt { color: var(--muted); } .totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .totals .tot-main { font-size: 1.15rem; font-weight: 800; color: var(--text); padding-top: 6px; border-top: 1px solid var(--line); }
 .totals .tot-due { color: var(--bad); }
+.totals .tot-ok { color: var(--ok); }
 /* Chi tiết chứng từ 2 cột: nội dung + cột phải (tổng tiền, nút chính). */
 .doc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 .doc-grid > * { min-width: 0; }

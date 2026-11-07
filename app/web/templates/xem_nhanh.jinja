@@ -19,12 +19,13 @@
   </table>
   {% endif %}
   {% if d.more %}<p class="qv-more">{{ d.more }}</p>{% endif %}
-  {% if d.money %}<dl class="qv-money">{% for k, v, kind in d.money %}<dt>{{ k }}</dt><dd{% if kind %} class="qv-{{ kind }}"{% endif %}>{{ v }}</dd>{% endfor %}</dl>{% endif %}
+  {% if d.money %}<dl class="qv-money">{% for m in d.money %}<dt{% if m[2] == 'wait' %} class="qv-wait"{% endif %}>{{ m[0] }}{% if m|length > 3 and m[3] %}<small class="qv-subline">{{ m[3] }}</small>{% endif %}</dt><dd{% if m[2] %} class="qv-{{ m[2] }}"{% endif %}>{{ m[1] }}</dd>{% endfor %}{% if d.money_note %}<p class="qv-note">{{ d.money_note }}</p>{% endif %}</dl>{% endif %}
   <section class="qv-next" aria-label="Bước tiếp"><span>Bước tiếp · {{ d.who }}</span><b>{{ d.next }}</b></section>
   {% if d.links %}<p class="qv-links"><span>Liên quan:</span>{% for j in d.links %}<a href="{{ j.href }}" data-qv-related>{{ j.no }}</a>{% endfor %}</p>{% endif %}
 </div>
 <footer class="qv-foot">
   {% if d.print_url %}<a class="btn btn-ghost" href="{{ d.print_url }}" target="_blank" rel="noopener" data-no-quick>In</a>{% endif %}
   <button type="button" class="btn btn-ghost" data-qv-close>Đóng</button>
+  {% if d.confirm_url %}<a class="btn btn-ok" href="{{ d.confirm_url }}" data-no-quick>Xác nhận đã nhận tiền</a>{% endif %}
   {% if d.full_url %}<a class="btn btn-new" href="{{ d.full_url }}" data-no-quick data-qv-full>Mở đầy đủ ›</a>{% endif %}
 </footer>

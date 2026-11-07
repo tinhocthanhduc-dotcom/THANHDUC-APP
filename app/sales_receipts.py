@@ -10,7 +10,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from . import audit, sales_orders, cash_docs, cash_posting, finance_mappings
 from .doc_numbers import next_number
 from .errors import BusinessError
-from .models import Customer, CustomerOpeningDebt, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, SALES_RECEIPT_METHODS
+from .models import Customer, CustomerOpeningDebt, SalesOrder, SalesReceipt, SalesRefund, ServiceTicket, User, SALES_RECEIPT_METHODS
 from .schemas import CashDocIn, CustomerReceiptReport, SalesReceiptOut, SalesReceiptReport
 from .security import has_role
 
@@ -308,6 +308,39 @@ def for_opening(session, user, opening):
     rows = list(session.scalars(select(SalesReceipt).where(SalesReceipt.opening_id == opening.id)
                                .order_by(SalesReceipt.reported_at, SalesReceipt.id)))
     return dict(balance=balance(opening), receipts=rows)
+
+
+def pending_holders(session, field, ids):
+    """Báo thu chờ xác nhận của nhiều đơn/phiếu: tiền mặt đang ở ai, khoản CK chờ đối soát.
+
+    Chỉ để hiển thị (07/11/2026); công nợ vẫn chỉ giảm khi kế toán xác nhận.
+    field: 'order_id' hoặc 'ticket_id'. Trả {id: [dict(method, user_id, name, amount, at)]}.
+    """
+    ids = {i for i in ids if i}
+    if not ids:
+        return {}
+    col = getattr(SalesReceipt, field)
+    first = func.min(SalesReceipt.reported_at)
+    rows = session.execute(select(col, SalesReceipt.method, SalesReceipt.reported_by, User.full_name,
+                                  func.sum(SalesReceipt.amount), first)
+                           .join(User, User.id == SalesReceipt.reported_by)
+                           .where(col.in_(ids), SalesReceipt.status == 'CHO_XAC_NHAN')
+                           .group_by(col, SalesReceipt.method, SalesReceipt.reported_by, User.full_name)
+                           .order_by(col, first)).all()
+    out = {}
+    for parent, method, uid, name, amount, at in rows:
+        out.setdefault(parent, []).append(dict(method=method, user_id=uid, name=name, amount=int(amount), at=at))
+    return out
+
+
+def holder_text(items):
+    """'Tiền mặt ở Đoàn Cảnh Phong · Chuyển khoản chờ đối soát' (gộp CK thành một cụm)."""
+    parts = []
+    for h in items or ():
+        text = f"Tiền mặt ở {h['name']}" if h['method'] == 'TIEN_MAT' else 'Chuyển khoản chờ đối soát'
+        if text not in parts:
+            parts.append(text)
+    return ' · '.join(parts)
 
 
 def held_by(session, user):
