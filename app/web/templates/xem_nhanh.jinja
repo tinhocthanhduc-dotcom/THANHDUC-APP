@@ -1,0 +1,30 @@
+{# Hộp xem nhanh phiếu: mẩu HTML chỉ đọc, quick-view.js đặt vào <dialog class="qv">. #}
+{% from '_ui.jinja' import badge %}
+<div class="qv-grab" aria-hidden="true"></div>
+<header class="qv-head">
+  <div class="qv-bar">
+    <button type="button" class="btn btn-ghost qv-icon" data-qv-back hidden aria-label="Về phiếu trước trong hộp">‹</button>
+    <h2 class="qv-no">{{ d.no }}</h2>{{ badge(d.chip, d.tone) }}
+    <span class="qv-gap"></span>
+    <button type="button" class="btn btn-ghost qv-icon" data-qv-close aria-label="Đóng">×</button>
+  </div>
+  <p class="qv-sub">{{ d.sub }}</p>
+</header>
+<div class="qv-body">
+  {% if d.kv %}<dl class="qv-kv">{% for k, v in d.kv %}{% if v %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endif %}{% endfor %}</dl>{% endif %}
+  {% if d.lines %}
+  <table class="qv-lines">
+    <thead><tr><th>{{ d.line_head }}</th><th class="qv-r">SL</th><th class="qv-r">{{ d.amt_head }}</th></tr></thead>
+    <tbody>{% for l in d.lines %}<tr><td>{{ l.name }}</td><td class="qv-r">{{ l.qty }}</td><td class="qv-r">{{ l.amount }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% if d.more %}<p class="qv-more">{{ d.more }}</p>{% endif %}
+  {% if d.money %}<dl class="qv-money">{% for k, v, kind in d.money %}<dt>{{ k }}</dt><dd{% if kind %} class="qv-{{ kind }}"{% endif %}>{{ v }}</dd>{% endfor %}</dl>{% endif %}
+  <section class="qv-next" aria-label="Bước tiếp"><span>Bước tiếp · {{ d.who }}</span><b>{{ d.next }}</b></section>
+  {% if d.links %}<p class="qv-links"><span>Liên quan:</span>{% for j in d.links %}<a href="{{ j.href }}" data-qv-related>{{ j.no }}</a>{% endfor %}</p>{% endif %}
+</div>
+<footer class="qv-foot">
+  {% if d.print_url %}<a class="btn btn-ghost" href="{{ d.print_url }}" target="_blank" rel="noopener" data-no-quick>In</a>{% endif %}
+  <button type="button" class="btn btn-ghost" data-qv-close>Đóng</button>
+  {% if d.full_url %}<a class="btn btn-new" href="{{ d.full_url }}" data-no-quick data-qv-full>Mở đầy đủ ›</a>{% endif %}
+</footer>

@@ -944,7 +944,9 @@ from .users import router as users_router
 router.include_router(users_router)
 
 from .service_view import router as service_view_router
+from .quick_view import router as quick_view_router
 router.include_router(service_view_router)
+router.include_router(quick_view_router)
 
 from .pending_items import router as pending_items_router
 router.include_router(pending_items_router)
