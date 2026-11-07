@@ -1083,10 +1083,30 @@ def topics(request: Request, form=Depends(checked_form)):
     if hanh_dong == "xoa":
         hd.xoa_chu_de(g, chu_de)
         return RedirectResponse("/dang-web?tab=bai-viet&da_luu=xoa-chu-de", status_code=303)
-    if len(chu_de) < 8:
-        raise BusinessError("BAD_FORM", "Gõ chủ đề bài viết (ít nhất 8 chữ).")
-    hd.them_chu_de(g, chu_de)
-    return RedirectResponse("/dang-web?tab=bai-viet&da_luu=them-chu-de", status_code=303)
+    # TUẤN 07/11: dán nhiều chủ đề một lần, mỗi dòng một chủ đề (bỏ số thứ tự, gạch đầu dòng).
+    dong = [re.sub(r"^\s*(?:\d+[.)]|[-*•+])\s*", "", x) for x in str(form.get("chu_de", "")).splitlines()]
+    dong = [" ".join(x.split())[:200] for x in dong if x.strip()][:50]
+    if not dong:
+        raise BusinessError("BAD_FORM", "Gõ chủ đề bài viết, mỗi dòng một chủ đề.")
+    co_san = set(hd.doc_chu_de(g))
+    bai_web = _doc_web(hd.file_bai_web(g))["ds"]
+    them = trung_web = da_co = ngan = 0
+    for c in dong:
+        if len(c) < 8:
+            ngan += 1
+        elif c in co_san:
+            da_co += 1
+        elif _bai_giong(c, bai_web):
+            trung_web += 1
+        else:
+            hd.them_chu_de(g, c)
+            co_san.add(c)
+            them += 1
+    if len(dong) == 1 and not them:
+        ly_do = ("Chủ đề cần ít nhất 8 chữ." if ngan else "Chủ đề này đã có trong danh sách." if da_co
+                 else "Web đã có bài gần giống chủ đề này (xem trong tab Trên web).")
+        raise BusinessError("BAD_FORM", ly_do)
+    return RedirectResponse(f"/dang-web?tab=bai-viet&da_luu=them-cd-{them}-{trung_web}-{da_co}-{ngan}", status_code=303)
 
 
 @router.post("/dang-web/lich")

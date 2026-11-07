@@ -941,3 +941,17 @@ def test_tieu_de_ai_dat_trung_thi_canh_bao_o_xem_truoc(client, web_login, goc):
     assert v["trang_thai"] == hd.XEM_TRUOC and v["trung_sau"][0]["id"] == 88
     page = client.get(f"/dang-web/viec/{vid}").text
     assert "Tiêu đề AI đặt gần giống bài đã có" in page and "Xử lý kẹt giấy máy in Brother tại nhà" in page and csrf
+
+
+def test_them_nhieu_chu_de_mot_lan(client, web_login, goc):
+    """TUẤN 07/11: dán nhiều chủ đề, mỗi dòng một chủ đề; bỏ dòng ngắn, trùng danh sách, giống bài trên web."""
+    csrf = web_login("giam.doc", "director")
+    hd.them_chu_de(goc, "Canon 2900 kẹt giấy: cách xử lý")
+    hd.ghi_json(hd.file_bai_web(goc), {"luc": "x", "ds": [{"id": 5, "ten": "Cách khắc phục máy in HP bị kẹt giấy", "trang_thai": "publish", "xem": ""}]})
+    ds = "1. Nạp mực tận nơi có hại máy không?\n- Canon 2900 kẹt giấy: cách xử lý\n• Hướng dẫn xử lý lỗi kẹt giấy máy in HP\nngắn\n\nMáy in Brother báo Toner Low dù mới thay mực"
+    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=ds), follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("da_luu=them-cd-2-1-1-1")
+    assert hd.doc_chu_de(goc) == ["Canon 2900 kẹt giấy: cách xử lý", "Nạp mực tận nơi có hại máy không?",
+                                  "Máy in Brother báo Toner Low dù mới thay mực"]
+    trang = client.get(r.headers["location"]).text
+    assert "Đã thêm 2 chủ đề, bỏ 1 giống bài đã có trên web, bỏ 1 đã có trong danh sách, bỏ 1 dòng quá ngắn." in trang

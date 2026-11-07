@@ -24,7 +24,7 @@
 <span>Chờ Codex: {{ sk.cho_viec }} việc{% if sk.cho_ve %}, {{ sk.cho_ve }} lượt vẽ ảnh{% endif %}</span>
 {% if sk.loi %}<span class="dw-codex-loi" title="{{ sk.loi.ly_do }}">Lỗi gần nhất {{ sk.loi.gio }}: {{ sk.loi.ly_do|truncate(80) }}</span>{% endif %}
 </div>{% endif %}
-{% if da_luu %}{% set tin = {'bo': 'Đã bỏ việc.', 'lam-moi': 'Đang lấy lại từ web, trang tự tải lại khi xong.', 'them-chu-de': 'Đã thêm chủ đề.', 'xoa-chu-de': 'Đã xóa chủ đề.', 'lich': 'Đã lưu lịch tự soạn.'} %}{{ ui.toast(tin.get(da_luu) or ('Đã tạo ' ~ da_luu[8:] ~ ' việc soạn.' if da_luu.startswith('tu-chon-') else 'Đã lưu.'), 'ok') }}{% endif %}
+{% if da_luu %}{% set tin = {'bo': 'Đã bỏ việc.', 'lam-moi': 'Đang lấy lại từ web, trang tự tải lại khi xong.', 'them-chu-de': 'Đã thêm chủ đề.', 'xoa-chu-de': 'Đã xóa chủ đề.', 'lich': 'Đã lưu lịch tự soạn.'} %}{% if da_luu.startswith('them-cd-') and da_luu[8:].split('-')|length == 4 %}{% set p = da_luu[8:].split('-') %}{% set _ = tin.update({da_luu: 'Đã thêm ' ~ p[0] ~ ' chủ đề' ~ ((', bỏ ' ~ p[1] ~ ' giống bài đã có trên web') if p[1] != '0' else '') ~ ((', bỏ ' ~ p[2] ~ ' đã có trong danh sách') if p[2] != '0' else '') ~ ((', bỏ ' ~ p[3] ~ ' dòng quá ngắn') if p[3] != '0' else '') ~ '.'}) %}{% endif %}{{ ui.toast(tin.get(da_luu) or ('Đã tạo ' ~ da_luu[8:] ~ ' việc soạn.' if da_luu.startswith('tu-chon-') else 'Đã lưu.'), 'ok') }}{% endif %}
 
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}
@@ -57,7 +57,7 @@
 {% if tab == 'bai-viet' %}
 <div class="dw-pad">
 <form method="post" action="/dang-web/chu-de" class="dw-topic-add">{{ csrf_in() }}
-<label><b>Chủ đề chờ viết</b> <span class="hint">(lịch tự soạn lấy dần từ đây)</span><input name="chu_de" maxlength="200" minlength="8" required placeholder="Ví dụ: Nạp mực tận nơi có hại máy không?"></label>
+<label><b>Chủ đề chờ viết</b> <span class="hint">(mỗi dòng một chủ đề, dán được cả danh sách; lịch tự soạn lấy dần từ đây)</span><textarea name="chu_de" rows="3" maxlength="10000" required placeholder="Ví dụ:&#10;Nạp mực tận nơi có hại máy không?&#10;Máy in HP 107w báo hết mực dù còn mực"></textarea></label>
 <button class="btn btn-ghost">+ Thêm chủ đề</button></form>
 {% if chu_de %}<ul class="dw-topics">{% for c in chu_de %}<li><span>{{ c.ten }}</span>
 {% if c.tren_web and not c.xong %}<a class="btn btn-ghost" href="{{ c.tren_web.sua or c.tren_web.xem }}" target="_blank" rel="noopener" title="Web đã có: {{ c.tren_web.ten }}">Web đã có ↗</a>{% endif %}
