@@ -23,6 +23,9 @@ GROUPS = (
         # Đổi hình thức báo thu (07/11/2026): quyền thật theo trạng thái BT kiểm ở sales_receipts.check_switch.
         {'label': 'Đổi hình thức báo thu', 'href': '/doi-hinh-thuc-bao-thu', 'prefixes': ('/doi-hinh-thuc-bao-thu',),
          'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'hidden': True},
+        # Hộp xem nhanh phiếu (07/11/2026): quyền thật theo trang đầy đủ của từng phiếu, kiểm trong quick_view.
+        {'label': 'Xem nhanh phiếu', 'href': '/xem-nhanh', 'prefixes': ('/xem-nhanh',),
+         'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'hidden': True},
         {'label': 'Hàng tôi giữ', 'href': '/hang-toi-giu', 'prefixes': ('/hang-toi-giu',), 'roles': ('technician','warehouse'), 'menu_roles': ('technician',)},
         {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
         {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},

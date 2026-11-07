@@ -98,6 +98,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 </header>
 {% endif %}
 <script src="{{ asset('nav.js') }}" defer></script>
+<script src="{{ asset('quick-view.js') }}" defer></script>
 <script src="{{ asset('notify.js') }}" defer></script>
 <script src="{{ asset('tao-nhanh.js') }}" defer></script>
 {% if user and 'director' in user.roles %}<script src="{{ asset('ai.js') }}" defer></script>{% endif %}
