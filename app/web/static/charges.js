@@ -21,10 +21,20 @@
       subtotal += amount; vatTotal += tax;
       row.querySelector('[data-charge-row-total]').textContent = format(amount + tax);
     });
-    form.querySelector('[data-charge-subtotal]').textContent = valid ? format(subtotal) : '—';
-    form.querySelector('[data-charge-vat-total]').textContent = valid ? format(vatTotal) : '—';
-    form.querySelector('[data-charge-total]').textContent = valid ? format(subtotal + vatTotal) : '—';
-    form.querySelector('[data-charge-receivable]').textContent = billing() === 'MIEN_PHI' ? '0' : valid && billing() ? format(subtotal + vatTotal) : '—';
+    // TUẤN 07/11/2026: một khung tổng. Chưa sửa gì thì giữ số lõi đã lưu (server in sẵn); đang sửa thì hiện tạm tính.
+    var free = billing() === 'MIEN_PHI', box = form.querySelector('[data-charge-total-box]');
+    var freeBox = form.querySelector('[data-free-box]'); if (freeBox) freeBox.hidden = !free;
+    var pick = form.querySelector('[data-charge-pick-billing]'); if (pick) pick.hidden = !!billing();
+    if (!box || !dirty) return;
+    function dong(text) { return text === '—' ? text : text + ' đồng'; }
+    form.querySelector('[data-charge-subtotal]').textContent = dong(valid ? format(subtotal) : '—');
+    form.querySelector('[data-charge-vat-total]').textContent = dong(valid ? format(vatTotal) : '—');
+    form.querySelector('[data-charge-total]').textContent = dong(valid ? format(subtotal + vatTotal) : '—');
+    form.querySelector('[data-charge-receivable]').textContent = dong(free ? '0' : valid && billing() ? format(subtotal + vatTotal) : '—');
+    form.querySelectorAll('[data-charge-total-row]').forEach(function(el) { el.hidden = !free; });
+    form.querySelectorAll('[data-charge-temp]').forEach(function(el) { el.hidden = false; });
+    box.dataset.state = 'dirty'; form.querySelector('[data-charge-pill]').textContent = '● Có thay đổi chưa lưu';
+    var save = form.querySelector('[data-charge-save]'); if (save) save.disabled = false;
   }
   function completionChecks() {
     if (!form.hasAttribute('data-charge-combined')) return;
@@ -59,6 +69,7 @@
     var button = event.target.closest('[data-charge-add]');
     if (button) {
       var row = document.querySelector('#charge-template-' + button.dataset.chargeAdd).content.firstElementChild.cloneNode(true);
+      var empty = form.querySelector('[data-charge-empty]'); if (empty) empty.remove();
       form.querySelector('[data-charge-lines]').appendChild(row); reindex();
       row.querySelectorAll('[data-live]').forEach(window.bindLive);
       row.querySelectorAll('[data-money]').forEach(window.bindMoney);
@@ -97,4 +108,6 @@
     });
   });
   preview(); completionChecks();
+  // Chưa có thay đổi thì nút Lưu tiền trong khung tổng xám (bấm cũng không đổi gì).
+  var saveButton = form.querySelector('[data-charge-save]'); if (saveButton && !dirty) saveButton.disabled = true;
 })();

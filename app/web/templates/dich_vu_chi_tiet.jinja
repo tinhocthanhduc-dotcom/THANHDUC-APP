@@ -98,6 +98,9 @@
   </div></div>{{ other_reason() }}{{ note('assign', 'Ghi chú cho thợ') }}{% if not next_step or next_step.primary.form!='service-assign' %}<button class="btn-ok">Giao thợ</button>{% endif %}
 </form>
 {% else %}<h2 class="nb-title">{% if owed %}Thu {{ owed|money }} đ và báo thu{% else %}{{ svc_next[1] }}{% endif %}</h2>{% endif %}
+{# TUẤN 07/11/2026: lúc đang làm, hiện 3 bước Lưu tiền → Ảnh sau sửa → Hoàn thành để thợ biết đang ở đâu. #}
+{% set svc_step = {'service-charges':1,'photo-SAU-form':2,'service-HOAN_THANH':3}.get(next_step.primary.form if next_step else '', 0) if t.status=='DANG_LAM' else 0 %}
+{% if svc_step %}<ol class="svc-steps" data-svc-step="{{ svc_step }}">{% for label in ['Lưu tiền và vật tư','Ảnh sau sửa','Hoàn thành'] %}<li class="{{ 'done' if loop.index < svc_step else 'now' if loop.index == svc_step else '' }}"><span class="dot">{{ '✓' if loop.index < svc_step else loop.index }}</span>{{ label }}</li>{% endfor %}</ol>{% endif %}
 {% if normal_target in transitions %}{{ action_form(normal_target) }}{% endif %}
 {% with wf_part='action' %}{% include 'thanh_buoc.jinja' %}{% endwith %}
 </section>

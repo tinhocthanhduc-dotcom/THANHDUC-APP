@@ -186,9 +186,65 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .report-photos { grid-template-columns: 1fr; }
 }
 
-.charge-line { display: grid; gap: 8px; min-width: 0; margin: 12px 0; overflow-wrap: anywhere; }
-.charge-line .bar { margin-bottom: 0; }
-.charge-preview, .charge-saved { margin: 12px 0; padding: 12px; background: var(--bg); border-radius: 8px; }
+/* TUẤN 07/11/2026: khung Tiền và vật tư gọn. Điện thoại: thẻ từng dòng; máy tính rộng: mỗi dòng một hàng như bảng. */
+.charge-card .form { gap: 10px; }
+.charge-card h2 { margin: 0 0 8px; }
+.charge-card .lock-note { background: var(--tag); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: .92rem; }
+.charge-pick-billing { color: var(--bad); margin: -4px 0 0; }
+.charge-free { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; font-weight: 700; }
+.charge-free textarea { margin-top: 4px; color: var(--text); font-weight: 400; }
+.charge-lines { display: grid; gap: 8px; min-width: 0; }
+.charge-line { display: grid; gap: 6px 10px; min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow-wrap: anywhere; }
+.charge-line legend, .charge-line label { font-size: .88rem; font-weight: 700; }
+.charge-line input:not([type=radio]) { padding: 7px 9px; }
+.charge-line .seg span { padding: 6px 8px; min-height: 40px; }
+.charge-line .charge-vat .seg label { min-width: 48px; flex: 0 1 auto; }
+.charge-line .charge-extra { display: grid; gap: 6px; }
+.charge-line .charge-extra fieldset { margin: 0; }
+.charge-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.charge-kind { font-size: .75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: var(--tag); color: var(--muted); justify-self: start; align-self: start; }
+.charge-kind.vt { background: var(--warn-bg); color: var(--warn); }
+.charge-remove { min-height: 36px; width: 36px; padding: 0; color: var(--bad); }
+.charge-row-total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.charge-row-total .hint { font-weight: 400; }
+.charge-core { margin: 0; }
+.charge-wh-one { font-weight: 400 !important; }
+.charge-line-issued { grid-template-columns: auto minmax(0, 1fr); }
+.charge-line-issued .charge-ro, .charge-line-issued .charge-row-total { grid-column: 2; }
+.charge-line-issued .hint { margin: 2px 0 0; }
+.charge-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.charge-total { display: grid; gap: 4px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; font-variant-numeric: tabular-nums; }
+.charge-total-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.charge-total dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+.charge-total dt { color: var(--muted); } .charge-total dd { margin: 0; text-align: right; }
+.charge-total dt[hidden], .charge-total dd[hidden] { display: none; }
+.charge-total .charge-need { color: var(--text); font-weight: 700; align-self: center; }
+.charge-total dd.charge-need { font-size: 1.25rem; font-weight: 800; }
+.charge-total .hint { margin: 0; }
+.charge-total [data-charge-save] { margin-top: 6px; }
+.charge-pill { font-size: .78rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--tag); color: var(--muted); white-space: nowrap; }
+.charge-total[data-state=saved] .charge-pill { background: var(--ok-bg); color: var(--ok); }
+.charge-total[data-state=dirty] .charge-pill { background: var(--warn-bg); color: var(--warn); }
+/* Bước tiếp của phiếu đang làm: 3 bước */
+.svc-steps { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 4px; font-size: .92rem; }
+.svc-steps li { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+.svc-steps li.now { color: var(--text); font-weight: 700; } .svc-steps li.done { color: var(--text); }
+.svc-steps .dot { width: 22px; height: 22px; flex: none; border-radius: 50%; display: inline-grid; place-items: center; font-size: .75rem; font-weight: 700; border: 1px solid var(--line); }
+.svc-steps li.now .dot { background: var(--info-solid); border-color: var(--info-solid); color: var(--info-solid-text); }
+.svc-steps li.done .dot { background: var(--ok-solid); border-color: var(--ok-solid); color: var(--ok-solid-text); }
+@media (min-width: 900px) {
+  .charge-line:not(.charge-line-issued) { grid-template-columns: 64px minmax(200px, 1fr) 80px 130px auto 130px; grid-template-areas: "head name qty price vat total" ". extra extra extra extra ." ". core core core core ."; align-items: start; }
+  .charge-line .charge-head { grid-area: head; flex-direction: column; align-items: flex-start; }
+  .charge-line .charge-name { grid-area: name; min-width: 0; }
+  .charge-line .charge-qty { grid-area: qty; } .charge-line .charge-price { grid-area: price; }
+  .charge-line .charge-vat { grid-area: vat; margin: 0; }
+  .charge-line .charge-vat .seg { flex-wrap: nowrap; gap: 6px; }
+  .charge-line .charge-row-total { grid-area: total; flex-direction: column; align-items: flex-end; }
+  .charge-line .charge-extra { grid-area: extra; grid-template-columns: auto minmax(0, 1fr); align-items: end; }
+  .charge-line .charge-core { grid-area: core; }
+  .charge-line-issued { grid-template-columns: 64px minmax(0, 1fr) auto 130px; align-items: start; }
+  .charge-line-issued .charge-ro { grid-column: 3; } .charge-line-issued .charge-row-total { grid-column: 4; justify-content: flex-end; }
+}
 .charge-receivables a { overflow-wrap: anywhere; }
 [data-charge-form] button { min-height: 44px; }
 

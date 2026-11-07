@@ -337,7 +337,7 @@ def test_service_end_to_end_existing_core_holds_appointment_price_photo_rules(cl
     page=next_action(client,page);db.expire_all();assert t.status=='DA_NHAN'
     assert 'Đã đến khách' in page.text
     page=next_action(client,page);db.expire_all();assert t.status=='DANG_LAM'
-    assert 'Lưu tiền trước khi hoàn thành' in page.text
+    assert 'data-svc-step="1"' in page.text and '>Lưu tiền</button>' in page.text
     page=next_action(client,page,billing='THU_TIEN',free_reason='',line_kind='PHI',line_description='Công sửa',line_qty='1',line_price='500.000',line_product='',warehouse_0='',vat_0=0)
     parsed=Page(page.text);assert parsed.primary['form']=='photo-SAU-form'
     photo=parsed.forms[parsed.primary['form']]
