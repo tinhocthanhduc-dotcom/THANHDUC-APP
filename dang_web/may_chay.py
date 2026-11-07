@@ -907,8 +907,9 @@ class MayDangWeb:
             hd.tao_viec(self.goc, "san_pham", {"ma": code, "ten": code, "cach_viet": cach, "nguon": "lich"})
             so += 1
         if cach in ("tu_dong", "codex"):
+            ghi_chu = hd.doc_ghi_chu_chu_de(self.goc)
             for cd in [c for c in hd.doc_chu_de(self.goc) if c not in tt["bai_viet"] and c not in bo_qua][: int(lich.get("so_bai") or 0)]:
-                hd.tao_viec(self.goc, "bai_viet", {"chu_de": cd, "ten": cd, "cach_viet": cach, "nguon": "lich"})
+                hd.tao_viec(self.goc, "bai_viet", {"chu_de": cd, "ten": cd, "cach_viet": cach, "nguon": "lich", "ghi_chu": ghi_chu.get(cd, "")})
                 so += 1
         in_(f"Lịch tự soạn: tạo {so} việc")
         return so

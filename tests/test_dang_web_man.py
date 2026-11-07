@@ -955,3 +955,43 @@ def test_them_nhieu_chu_de_mot_lan(client, web_login, goc):
                                   "Máy in Brother báo Toner Low dù mới thay mực"]
     trang = client.get(r.headers["location"]).text
     assert "Đã thêm 2 chủ đề, bỏ 1 giống bài đã có trên web, bỏ 1 đã có trong danh sách, bỏ 1 dòng quá ngắn." in trang
+
+
+def test_ghi_chu_that_cho_tung_chu_de(client, web_login, goc, monkeypatch):
+    """TUẤN 07/11: mỗi chủ đề có Ghi chú thật; Soạn tay và lịch tự soạn đều đưa ghi chú vào việc viết bài."""
+    from datetime import datetime
+
+    csrf = web_login("giam.doc", "director")
+    cd = "Nạp mực Canon 2900 tại Quận 1"
+    hd.them_chu_de(goc, cd)
+    hd.them_chu_de(goc, "Máy in Brother báo Toner Low dù mới thay mực")
+    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=cd, hanh_dong="ghi_chu",
+                                                  ghi_chu="  Tháng 10 sửa 3 máy ở phường Tân Định  "), follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("da_luu=ghi-chu-chu-de")
+    assert hd.doc_ghi_chu_chu_de(goc) == {cd: "Tháng 10 sửa 3 máy ở phường Tân Định"}
+    # hai chủ đề nằm trên cùng danh sách, chỉ chủ đề kia có ghi chú (không được dán vào nhầm hàng hay thêm thành chủ đề mới)
+    assert hd.doc_chu_de(goc) == [cd, "Máy in Brother báo Toner Low dù mới thay mực"]
+    trang = client.get(r.headers["location"]).text
+    assert "Đã lưu ghi chú thật." in trang and "Tháng 10 sửa 3 máy ở phường Tân Định" in trang and "+ Ghi chú thật" in trang
+    # Soạn tay từ chủ đề: ô Ghi chú cho AI điền sẵn
+    assert "Tháng 10 sửa 3 máy ở phường Tân Định" in client.get("/dang-web/soan", params=dict(loai="bai-viet", chu_de=cd)).text
+    # chủ đề không có trong danh sách thì không ghi
+    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de="Chủ đề không tồn tại ở đây",
+                                                  hanh_dong="ghi_chu", ghi_chu="x"))
+    assert "không còn trong danh sách" in r.text and "Chủ đề không tồn tại ở đây" not in hd.doc_ghi_chu_chu_de(goc)
+    # lịch tự soạn mang ghi chú theo việc, máy đưa vào câu lệnh viết bài
+    hd.ghi_lich(goc, {"bat": True, "gio": "07:00", "so_sp": 0, "so_bai": 2})
+    monkeypatch.setattr(hd, "bay_gio", lambda: datetime(2026, 11, 2, 7, 30, tzinfo=hd.GIO_VN))
+    hd.ghi_nhip_codex(goc)
+    may = _may(goc, _WP())
+    assert may.kiem_lich() == 2
+    ghi = {v["chu_de"]: v["ghi_chu"] for v in hd.ds(goc)}
+    assert ghi == {cd: "Tháng 10 sửa 3 máy ở phường Tân Định", "Máy in Brother báo Toner Low dù mới thay mực": ""}
+    from dang_web.viet_bai import yeu_cau_bai_viet
+    assert "phường Tân Định" in yeu_cau_bai_viet(cd, ghi[cd])
+    # xóa ghi chú (để trống) rồi xóa chủ đề: không còn sót
+    client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=cd, hanh_dong="ghi_chu", ghi_chu=""))
+    assert hd.doc_ghi_chu_chu_de(goc) == {}
+    hd.ghi_ghi_chu_chu_de(goc, cd, "y")
+    client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=cd, hanh_dong="xoa"))
+    assert hd.doc_ghi_chu_chu_de(goc) == {}
