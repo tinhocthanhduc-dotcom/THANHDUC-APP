@@ -1,16 +1,25 @@
-<section id="tien" class="card service-action"><h2>Tiền và vật tư</h2>
-{% if not charge_editable %}<p class="alert warn">Tiền đã khóa hoặc phiếu đã đóng, không sửa được. {% if t.status in ['HOAN_THANH','DA_DONG'] %}Điều phối có thể Mở lại kèm lý do.{% endif %}</p>{% endif %}
+<section id="tien" class="card service-action charge-card"><h2>Tiền và vật tư</h2>
+{% if not charge_editable %}<p class="lock-note">🔒 Tiền đã khóa hoặc phiếu đã đóng, không sửa được. {% if t.status in ['HOAN_THANH','DA_DONG'] %}Điều phối có thể Mở lại kèm lý do.{% endif %}</p>{% endif %}
 {% if charge_unsaved %}<p class="alert warn">Dữ liệu tiền vừa nhập chưa được lưu.</p>{% endif %}
 <form id="service-charges" method="post" action="/dich-vu/{{ t.id }}/tien/luu" class="form" data-charge-form data-charge-unsaved="{{ '1' if charge_unsaved else '0' }}" data-charge-editable="{{ '1' if can_charge and charge_editable else '0' }}">
 {% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ charges.version }}">
 {% include 'dich_vu_tien_fields.jinja' %}
-{% if can_charge and charge_editable %}{% if not workflow_page or not next_step or next_step.primary.form!='service-charges' %}<button>Lưu tiền</button>{% endif %}<p class="hint">Bấm Lưu tiền trước khi Hoàn thành. Số lưu chính thức do lõi tính.</p>{% endif %}
+{# TUẤN 07/11/2026: một khung tổng. Mặc định là số lõi đã lưu; khi đang sửa, charges.js thay bằng tạm tính và đổi nhãn. #}
+{% set saved_sub = t.subtotal if t.subtotal is not none else charge_subtotal %}{% set saved_vat = t.vat_total if t.vat_total is not none else charge_vat %}{% set saved_total = t.total if t.total is not none else saved_sub + saved_vat %}
+{% set saved_billing = t.billing %}
+{% if t.priced_at %}{% set state, state_label = 'locked', '🔒 Đã chốt' %}{% elif not saved_billing and not t.lines %}{% set state, state_label = 'never', 'Chưa lưu lần nào' %}{% else %}{% set state, state_label = 'saved', '✓ Đã lưu' %}{% endif %}
+<div class="charge-total" aria-live="polite" data-charge-total-box data-state="{{ state }}" data-state-label="{{ state_label }}">
+<div class="charge-total-head"><strong>{{ 'Số tiền đã chốt' if t.priced_at else 'Tổng cần thu' }} <span class="hint" data-charge-temp hidden>(tạm tính)</span></strong><span class="charge-pill" data-charge-pill>{{ state_label }}</span></div>
+<dl>
+<dt>Tiền phí + vật tư</dt><dd><output data-charge-subtotal>{{ saved_sub|money }} đồng</output></dd>
+<dt>VAT</dt><dd><output data-charge-vat-total>{{ saved_vat|money }} đồng</output></dd>
+<dt data-charge-total-row {% if saved_billing != 'MIEN_PHI' %}hidden{% endif %}>Tổng giá trị</dt><dd data-charge-total-row {% if saved_billing != 'MIEN_PHI' %}hidden{% endif %}><output data-charge-total>{{ saved_total|money }} đồng</output></dd>
+<dt class="charge-need">Cần thu khách</dt><dd class="charge-need"><output data-charge-receivable>{% if t.receivable is not none %}{{ t.receivable|money }}{% elif saved_billing == 'MIEN_PHI' %}0{% elif saved_billing %}{{ saved_total|money }}{% else %}—{% endif %}{% if t.receivable is not none or saved_billing %} đồng{% endif %}</output></dd>
+</dl>
+<p class="hint" data-charge-temp hidden>Số chính thức do hệ thống tính lại khi bấm Lưu tiền.</p>
+{% if can_charge and charge_editable %}<button class="btn-ok btn-block" data-charge-save>Lưu tiền</button>{% endif %}
+</div>
 </form>
-<div class="charge-saved"><strong>{{ 'Số tiền đã chốt' if t.priced_at else 'Tổng các dòng đã lưu (lõi tính)' }}</strong><dl>
-<dt>Tiền dòng</dt><dd>{{ (t.subtotal if t.subtotal is not none else charge_subtotal)|money }} đồng</dd><dt>VAT</dt><dd>{{ (t.vat_total if t.vat_total is not none else charge_vat)|money }} đồng</dd>
-<dt>Tổng</dt><dd>{{ (t.total if t.total is not none else charge_subtotal + charge_vat)|money }} đồng</dd>
-{% if t.receivable is not none %}<dt>Cần thu</dt><dd>{{ t.receivable|money }} đồng</dd>{% endif %}
-</dl></div>
 {% if charge_docs %}<h3>Phiếu xuất vật tư</h3><ul>{% for doc_id, number in charge_docs %}<li><a href="/phieu-kho/{{ doc_id }}">{{ number }}</a></li>{% endfor %}</ul>{% endif %}
 {% include 'dich_vu_tien_templates.jinja' %}
 </section>

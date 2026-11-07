@@ -80,7 +80,7 @@ def service(session, user, t):
     if t.status=='DANG_LAM' and can_step:
         secondary=[transition('Hẹn quay lại','DA_HEN'),form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]
         if t.billing is None:
-            return block(form('Lưu tiền trước khi hoàn thành','service-charges',base+'/tien/luu',
+            return block(form('Lưu tiền','service-charges',base+'/tien/luu',
                 'Chọn Có thu tiền hoặc Miễn phí; giá sẽ được khóa khi hoàn thành.'),secondary)
         if not attachments.has_visible(session,'service_ticket',t.id,'SAU'):
             return block(form('Tải ảnh sau sửa','photo-SAU-form',base+'/anh/tai','Chọn ảnh sau sửa trong mục Ảnh.'),secondary)

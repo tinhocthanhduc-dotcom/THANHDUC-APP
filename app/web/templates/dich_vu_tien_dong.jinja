@@ -1,28 +1,40 @@
-{% if line.get('stock_doc_id') %}<div class="card charge-line" data-charge-line data-kind="VAT_TU">
+{% if line.get('stock_doc_id') %}<div class="charge-line charge-line-issued" data-charge-line data-kind="VAT_TU">
 <input type="hidden" name="line_stock_doc_id" value="{{ line.stock_doc_id }}"><input type="hidden" name="line_kind" value="{{ line.kind }}"><input type="hidden" name="line_product" value="{{ line.product_code }}"><input type="hidden" name="line_description" value="{{ line.description }}"><input type="hidden" name="line_qty" value="{{ line.qty }}"><input type="hidden" name="line_price" value="{{ line.unit_price }}"><input type="hidden" name="warehouse_{{ index }}" value="{{ line.warehouse_code }}" data-charge-warehouse><input type="hidden" name="vat_{{ index }}" value="{{ line.vat_rate }}" data-charge-vat>
-<strong>{{ charge_names.get(line.product_code,line.product_code) }} · {{ line.qty|qty }}</strong><p class="hint">{{ line.warehouse_code }} · Đã xuất kho, giữ nguyên khi giao thợ khác.</p><output data-charge-row-total hidden></output>
+<span class="charge-kind vt">Vật tư</span>
+<div class="charge-name"><strong>{{ charge_names.get(line.product_code,line.product_code) }}</strong><p class="hint">{{ line.product_code }} · Kho {{ line.warehouse_code }} · <b>Đã xuất kho</b>, giữ nguyên khi giao thợ khác.</p></div>
+<span class="charge-ro">{{ line.qty|qty }} × {{ line.unit_price }} · VAT {{ line.vat_rate }}%</span>
+<span class="charge-row-total"><output data-charge-row-total>—</output> đ</span>
 </div>{% else %}
 {% import 'kha_dung_chon.jinja' as stock %}
 {% set material = line.kind == 'VAT_TU' %}
-<fieldset class="card charge-line" data-charge-line data-kind="{{ line.kind }}">
+{% set wh_options = [] %}{% for warehouse in charge_warehouses if not charge_default_warehouse or warehouse.code == charge_default_warehouse or warehouse.code == line.warehouse_code %}{% set _ = wh_options.append(warehouse) %}{% endfor %}
+<fieldset class="charge-line" data-charge-line data-kind="{{ line.kind }}">
 <input type="hidden" name="line_stock_doc_id" value=""><input type="hidden" name="line_kind" value="{{ line.kind }}">
-<div class="bar"><strong>{{ 'Vật tư' if material else 'Dòng phí' }}</strong>{% if can_charge and charge_editable %}<button type="button" data-charge-remove>Xóa dòng</button>{% endif %}</div>
+<div class="charge-head"><span class="charge-kind{{ ' vt' if material else '' }}">{{ 'Vật tư' if material else 'Phí' }}</span>{% if can_charge and charge_editable %}<button type="button" class="charge-remove" data-charge-remove aria-label="Xóa dòng" title="Xóa dòng">✕</button>{% endif %}</div>
+<div class="charge-name">
 {% if material %}
 <div data-picker><label>Hàng (tìm và chọn)<input name="line_product" value="{{ line.product_code or '' }}" required autocomplete="off" data-live=".charge-options" data-source="/dich-vu/tim-vat-tu"></label>
 <span class="hint" data-charge-name>{{ charge_names.get(line.product_code, '') }}</span><span class="hint" data-availability-summary>{{ stock.text(charge_stock_values.get((line.warehouse_code,line.product_code)),line.warehouse_code) if charge_stock_values is defined else '' }}</span><div class="charge-options product-options" aria-live="polite"></div></div>
-{% if charge_default_warehouse and line.warehouse_code and line.warehouse_code != charge_default_warehouse %}<p class="hint">Dòng đã lưu ở kho {{ line.warehouse_code }}; khi sửa hãy chọn kho của bạn.</p>{% endif %}
-<fieldset><legend>Kho xuất</legend><div class="seg stock-seg">
-{% for warehouse in charge_warehouses if not charge_default_warehouse or warehouse.code == charge_default_warehouse or warehouse.code == line.warehouse_code %}<label><input type="radio" name="warehouse_{{ index }}" value="{{ warehouse.code }}" data-charge-warehouse {% if line.warehouse_code == warehouse.code %}checked{% endif %} required><span>{{ warehouse.code }} · {{ warehouse.name }}{% if not warehouse.active %} (Ngừng dùng){% endif %}</span></label>{% endfor %}
-</div></fieldset>
-{% else %}<input type="hidden" name="line_product" value=""><input type="hidden" name="warehouse_{{ index }}" value="" data-charge-warehouse>{% endif %}
-<label>{{ 'Mô tả / ghi chú' if material else 'Mô tả phí' }}<input name="line_description" value="{{ line.description or '' }}" maxlength="500" {% if not material %}required{% endif %}></label>
-<div class="row2"><label>Số lượng<input name="line_qty" value="{{ line.qty }}" inputmode="decimal" enterkeyhint="next" required></label>
-<label>Đơn giá (đồng)<input name="line_price" value="{{ line.unit_price }}" inputmode="numeric" data-money required></label></div>
-<fieldset><legend>VAT</legend><div class="seg stock-seg">
+{% else %}<input type="hidden" name="line_product" value=""><input type="hidden" name="warehouse_{{ index }}" value="" data-charge-warehouse>
+<label>Mô tả phí<input name="line_description" value="{{ line.description or '' }}" maxlength="500" required></label>{% endif %}
+</div>
+<label class="charge-qty">Số lượng<input name="line_qty" value="{{ line.qty }}" inputmode="decimal" enterkeyhint="next" required></label>
+<label class="charge-price">Đơn giá (đ)<input name="line_price" value="{{ line.unit_price }}" inputmode="numeric" data-money required></label>
+<fieldset class="charge-vat"><legend>VAT</legend><div class="seg stock-seg">
 {% for rate in [0,5,8,10] %}<label><input type="radio" name="vat_{{ index }}" value="{{ rate }}" data-charge-vat {% if line.vat_rate|string == rate|string %}checked{% endif %} required><span>{{ rate }}%</span></label>{% endfor %}
 </div></fieldset>
-<p class="hint">Tạm tính: <output data-charge-row-total>—</output> đồng (gồm VAT).</p>
-{% if line.amount is defined %}<p class="hint">Lõi đã lưu: {{ line.amount|money }} + VAT {{ line.vat_amount|money }} đồng.</p>{% endif %}
+<span class="charge-row-total"><span class="hint">Thành tiền gồm VAT</span><span><output data-charge-row-total>—</output> đ</span></span>
+{% if material %}<div class="charge-extra">
+{% if wh_options|length == 1 %}{# Chỉ một kho (thợ): hiện chữ, radio vẫn gửi đi. #}
+<label class="charge-wh-one"><input type="radio" name="warehouse_{{ index }}" value="{{ wh_options[0].code }}" data-charge-warehouse checked required class="sr-only"><span>Kho xuất: <b>{{ wh_options[0].code }} · {{ wh_options[0].name }}</b></span></label>
+{% else %}
+{% if charge_default_warehouse and line.warehouse_code and line.warehouse_code != charge_default_warehouse %}<p class="hint">Dòng đã lưu ở kho {{ line.warehouse_code }}; khi sửa hãy chọn kho của bạn.</p>{% endif %}
+<fieldset><legend>Kho xuất</legend><div class="seg stock-seg">
+{% for warehouse in wh_options %}<label><input type="radio" name="warehouse_{{ index }}" value="{{ warehouse.code }}" data-charge-warehouse {% if line.warehouse_code == warehouse.code %}checked{% endif %} required><span>{{ warehouse.code }} · {{ warehouse.name }}{% if not warehouse.active %} (Ngừng dùng){% endif %}</span></label>{% endfor %}
+</div></fieldset>
+{% endif %}
+<label>Ghi chú (không bắt buộc)<input name="line_description" value="{{ line.description or '' }}" maxlength="500"></label>
+</div>{% endif %}
+{% if line.amount is defined %}<p class="hint charge-core">Đã lưu: {{ line.amount|money }} + VAT {{ line.vat_amount|money }} đ.</p>{% endif %}
 </fieldset>
-
 {% endif %}
