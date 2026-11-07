@@ -1,9 +1,10 @@
-{% if line.get('stock_doc_id') %}<div class="charge-line charge-line-issued" data-charge-line data-kind="VAT_TU">
+{# TUẤN 07/11/2026: dòng đã xuất kho, hoặc tiền đã khóa: chỉ hiện chữ gọn, không hiện ô nhập. #}
+{% if line.get('stock_doc_id') or not (can_charge and charge_editable) %}{% set material = line.kind == 'VAT_TU' %}<div class="charge-line charge-line-issued" data-charge-line data-kind="{{ line.kind }}">
 <input type="hidden" name="line_stock_doc_id" value="{{ line.stock_doc_id }}"><input type="hidden" name="line_kind" value="{{ line.kind }}"><input type="hidden" name="line_product" value="{{ line.product_code }}"><input type="hidden" name="line_description" value="{{ line.description }}"><input type="hidden" name="line_qty" value="{{ line.qty }}"><input type="hidden" name="line_price" value="{{ line.unit_price }}"><input type="hidden" name="warehouse_{{ index }}" value="{{ line.warehouse_code }}" data-charge-warehouse><input type="hidden" name="vat_{{ index }}" value="{{ line.vat_rate }}" data-charge-vat>
-<span class="charge-kind vt">Vật tư</span>
-<div class="charge-name"><strong>{{ charge_names.get(line.product_code,line.product_code) }}</strong><p class="hint">{{ line.product_code }} · Kho {{ line.warehouse_code }} · <b>Đã xuất kho</b>, giữ nguyên khi giao thợ khác.</p></div>
+<span class="charge-kind{{ ' vt' if material else '' }}">{{ 'Vật tư' if material else 'Phí' }}</span>
+<div class="charge-name">{% if material %}<strong>{{ charge_names.get(line.product_code,line.product_code) }}</strong><p class="hint">{{ line.product_code }} · Kho {{ line.warehouse_code }}{% if line.get('stock_doc_id') %} · <b>Đã xuất kho</b>{% if charge_editable %}, giữ nguyên khi giao thợ khác{% endif %}{% endif %}{% if line.description and line.description != charge_names.get(line.product_code) %} · {{ line.description }}{% endif %}</p>{% else %}<strong>{{ line.description }}</strong>{% endif %}</div>
 <span class="charge-ro">{{ line.qty|qty }} × {{ line.unit_price }} · VAT {{ line.vat_rate }}%</span>
-<span class="charge-row-total"><output data-charge-row-total>—</output> đ</span>
+<span class="charge-row-total"><span><output data-charge-row-total>—</output> đ</span></span>
 </div>{% else %}
 {% import 'kha_dung_chon.jinja' as stock %}
 {% set material = line.kind == 'VAT_TU' %}
