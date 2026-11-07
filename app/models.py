@@ -837,6 +837,7 @@ class SalesReceipt(Base):
         Index('ix_sales_receipts_opening_status', 'opening_id', 'status'),
         Index('ix_sales_receipts_ticket_status', 'ticket_id', 'status'),
         Index('ix_sales_receipts_status_reported', 'status', 'reported_at'),
+        Index('ix_sales_receipts_replaced_by', 'replaced_by_id', unique=True, postgresql_where='replaced_by_id is not null'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -850,6 +851,8 @@ class SalesReceipt(Base):
     received_at: Mapped[date] = mapped_column(Date)
     note: Mapped[str] = mapped_column(Text, default='')
     status: Mapped[str] = mapped_column(String(16), default='CHO_XAC_NHAN')
+    # Đổi hình thức (0087): BT cũ trỏ sang BT thay thế; BT mới tìm BT cũ qua cột này.
+    replaced_by_id: Mapped[int | None] = mapped_column(ForeignKey('sales_receipts.id'))
     reason: Mapped[str] = mapped_column(Text, default='')
     reported_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

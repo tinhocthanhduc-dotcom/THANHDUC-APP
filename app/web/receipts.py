@@ -264,13 +264,38 @@ def detail(request: Request,receipt_id: int,user: User=Depends(finance_user),ses
     return _queue(request,session,user,selected=receipt)
 
 
+@router.get('/doi-hinh-thuc-bao-thu/{receipt_id}')
+def switch_page(request: Request,receipt_id: int,user: User=Depends(web_user),session: Session=Depends(get_session)):
+    """Mở thẻ báo thu có nút Đổi hình thức ở đúng trang người xem dùng được."""
+    receipt=session.get(SalesReceipt,receipt_id)
+    if receipt is None:raise BusinessError('NOT_FOUND','Không tìm thấy báo thu.',status=404)
+    if has_role(user,'finance'):return RedirectResponse(f'/bao-thu/{receipt.id}',status_code=303)
+    if receipt.ticket_id:
+        url=f'/tho/phieu/{receipt.ticket_id}' if has_role(user,'technician') else nav.ticket_url(user,receipt.ticket_id)
+        if url:return RedirectResponse(f'{url}#bt-{receipt.id}',status_code=303)
+    if receipt.order_id and nav.allowed(user,'/don-ban'):return RedirectResponse(f'/don-ban/{receipt.order_id}#bt-{receipt.id}',status_code=303)
+    return RedirectResponse('/tien-toi-giu',status_code=303)
+
+
+@router.post('/doi-hinh-thuc-bao-thu/{receipt_id}')
+def switch(request: Request,receipt_id: int,form=Depends(checked_form),session: Session=Depends(get_session)):
+    """Đổi hình thức báo thu: ngoài /bao-thu (chỉ tài chính) vì người lập được đổi BT chờ của mình."""
+    return _decide(request,receipt_id,'switch',form,session)
+
+
 @router.post('/bao-thu/{receipt_id}/{action}')
 def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_form),session: Session=Depends(get_session)):
+    if action=='switch':
+        raise BusinessError('NOT_FOUND','Không tìm thấy thao tác báo thu.',status=404)
+    return _decide(request,receipt_id,action,form,session)
+
+
+def _decide(request,receipt_id,action,form,session):
     user=request.state.user
     if action=='void':
         if not has_role(user,'director'):
             raise BusinessError('FORBIDDEN','Chỉ giám đốc được hủy báo thu đã xác nhận.',status=403)
-    else:
+    elif action!='switch':  # đổi hình thức: quyền theo trạng thái BT, kiểm trong lõi (người lập được đổi BT chờ của mình)
         svc.check_finance(user)
     filters={k:str(form.get('filter_'+k,'')) for k in FILTER_KEYS}
     try:
@@ -281,6 +306,10 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
             receipt=svc.reject(session,user,receipt_id,str(form.get('reason','')),version)
         elif action=='void':
             receipt=svc.void(session,user,receipt_id,str(form.get('reason','')),version)
+        elif action=='switch':
+            choice=str(form.get('reason_choice','')).strip()
+            reason=str(form.get('reason_other','')).strip() if choice in ('','KHAC') else choice
+            receipt=svc.switch_method(session,user,receipt_id,version,str(form.get('method','')),reason,form.get('confirm_now')=='1')
         else:
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác báo thu.',status=404)
     except BusinessError as exc:
@@ -304,6 +333,8 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
         return _queue(request,session,user,filters,message,code,status,dict(form),receipt,action)
     if form.get('return_to')=='work':
         return RedirectResponse('/viec-cua-toi?xong='+('confirmed' if action=='confirm' else 'rejected' if action=='reject' else 'done'),status_code=303)
+    if action=='switch' and form.get('return_to')=='tho':
+        return RedirectResponse(f'/tho/phieu/{receipt.ticket_id}?da_luu=1#bt-{receipt.id}' if receipt.ticket_id else '/tien-toi-giu',status_code=303)
     if receipt.ticket_id and form.get('origin')=='ticket':
         return RedirectResponse(f'/dich-vu/{receipt.ticket_id}?da_luu=1#thu-tien',status_code=303)
     if receipt.order_id and form.get('origin')=='order':
