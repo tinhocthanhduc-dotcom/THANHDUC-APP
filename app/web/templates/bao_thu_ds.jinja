@@ -1,28 +1,66 @@
 {% extends 'base.jinja' %}
 {% block title %}Báo thu{% endblock %}
-{% import 'bao_thu_hang.jinja' as compact with context %}
+{# Màn Báo thu (TUẤN duyệt mẫu 07/11/2026): "Ai đang giữ tiền" bên trái, chi tiết một người bên phải; điện thoại: danh sách người → màn một người.
+   Tiền mặt: chọn khoản + đếm một lần + Xác nhận (confirm_cash_group). Chuyển khoản: xác nhận từng giao dịch. Luật tiền không đổi. #}
+{% macro keep(extra={}) %}{% for key in ['method','from','to','nguoi'] %}<input type="hidden" name="filter_{{ key }}" value="{{ extra.get(key, receipt_filters.get(key,'')) }}">{% endfor %}{% endmacro %}
+{% macro reject_form(r, key) %}<details class="rq-reject"{% if failed_receipt_id==r.id and failed_receipt_action=='reject' %} open{% endif %}><summary>Từ chối</summary><form id="receipt-reject-{{ r.id }}" method="post" action="/bao-thu/{{ r.id }}/reject" class="rq-reject-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ receipt_decision.get('version',r.version) if failed_receipt_id==r.id else r.version }}"><input type="hidden" name="origin" value="queue"><input type="hidden" name="return_anchor" value="bt-{{ r.id }}">{{ keep({'nguoi': key}) }}<label>Lý do từ chối <small>(người báo thấy và làm lại, không ghi gì vào quỹ)</small><textarea name="reason" required maxlength="2000">{{ receipt_decision.get('reason','') if failed_receipt_id==r.id else '' }}</textarea></label><button class="btn-danger">Từ chối khoản này</button></form></details>{% endmacro %}
+{% macro source(r) %}<a href="{{ receipt_sources[r.id].url }}">{{ receipt_sources[r.id].number }}</a>{% endmacro %}
 {% block main %}
 <div class="rq-page">
-<nav class="stock-tags rq-tabs" aria-label="Loại việc"><a class="btn on" href="/bao-thu" aria-current="page">Báo thu chờ xác nhận</a><a class="btn" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a></nav>
-<div class="bar"><h1>Báo thu</h1><a href="/don-ban/can-thu">Đơn cần thu</a><a href="/dich-vu/can-thu">Dịch vụ cần thu</a></div><p class="hint">Chờ xác nhận · cũ nhất trước.</p>
+<div class="rq-top"><h1>Báo thu</h1>
+<nav class="stock-tags rq-tabs" aria-label="Loại việc"><a class="btn on" href="/bao-thu" aria-current="page">Chờ xác nhận <i>{{ rows|length }}</i></a><a class="btn" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a></nav>
+<span class="rq-grow"></span><a class="btn btn-ghost" href="/don-ban/can-thu">Đơn cần thu</a><a class="btn btn-ghost" href="/dich-vu/can-thu">Dịch vụ cần thu</a></div>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if error_code=="MAPPING_REQUIRED" %}<a class="btn" href="/ghep-tai-chinh">Ghép tài chính</a>{% endif %}
 {% if saved %}<p class="alert ok">Đã xử lý báo thu.</p>{% endif %}
 {% if failed and failed.id not in (rows|map(attribute='id')|list) %}<section class="card"><a href="{{ receipt_sources[failed.id].url }}">{{ failed.number }} · xem lại chứng từ</a>{% if receipt_decision.get('reason') %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ receipt_decision.reason }}</textarea></label>{% endif %}</section>{% endif %}
 {% set q = {'from': receipt_filters.get('from',''), 'to': receipt_filters.get('to','')} %}
-<nav class="stock-tiles rq-tiles" aria-label="Cách thu"><a class="stock-tile{% if not receipt_filters.get('method') %} on{% endif %}" href="/bao-thu?{{ dict(q)|urlencode }}"><b>{{ rows|length }}</b><span>Tất cả</span></a>{% for value,label in receipt_methods.items() %}<a class="stock-tile{% if receipt_filters.get('method')==value %} on{% endif %}" href="/bao-thu?{{ dict(q, method=value)|urlencode }}"><b>{{ pending_totals[value]|money }}</b><span>{{ label }}</span></a>{% endfor %}</nav>
-<p class="hint rq-totals" data-pending-totals>Tiền mặt {{ pending_totals.TIEN_MAT|money }} · Chuyển khoản {{ pending_totals.CHUYEN_KHOAN|money }}</p>
-<details class="card rq-dates"{% if receipt_filters.get('from') or receipt_filters.get('to') %} open{% endif %}><summary>Lọc theo ngày thu</summary><form class="form" action="/bao-thu">{% if receipt_filters.get('method') %}<input type="hidden" name="method" value="{{ receipt_filters.method }}">{% endif %}<div class="row2"><label>Từ ngày thu<input type="date" name="from" value="{{ receipt_filters.get('from','') }}"></label><label>Đến ngày thu<input type="date" name="to" value="{{ receipt_filters.get('to','') }}"></label></div><button>Lọc</button></form></details>
-<section id="pending-receipts" data-receipt-queue>
-{% for group in cash_groups %}<section class="card cash-group" id="cash-group-{{ group.reporter_id }}"><div class="cash-group-head"><h2>Tiền mặt · {{ receipt_people.get(group.reporter_id,group.reporter_id) }} nộp</h2><span class="stock-chip">{{ group.rows|length }} khoản</span></div>
-{% for r in group.rows %}{{ compact.row(r, group.eligible|length > 1) }}{% endfor %}
-{% if group.eligible %}<form method="post" action="/bao-thu/xac-nhan-nhom" class="form cash-group-confirm" id="cash-confirm-{{ group.reporter_id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="reporter_id" value="{{ group.reporter_id }}">{% for key in ['method','from','to'] %}<input type="hidden" name="filter_{{ key }}" value="{{ receipt_filters.get(key,'') }}">{% endfor %}
-{% for r in group.eligible %}<input type="hidden" name="receipt_id" value="{{ r.id }}"><input type="hidden" name="version_{{ r.id }}" value="{{ r.version }}">{% endfor %}
-<div class="recv-kv"><span>Tổng phải nộp · {{ group.eligible|length }} khoản</span><b>{{ group.total|money }} đồng</b></div><p class="hint">Đếm một lần cho cả nhóm, khớp tổng mới xác nhận được. Không gồm báo thu mới phát sinh sau khi mở trang.</p>
-<label>Số tiền đã đếm<input name="counted_amount" inputmode="numeric" data-money required value="{{ group_form.get('counted_amount','') if group_form.get('reporter_id')|string==group.reporter_id|string else '' }}"></label><button class="btn-ok">Xác nhận cả nhóm</button></form>{% endif %}
+<div class="rq-tiles">
+<a class="stock-tile{% if receipt_filters.get('method')!='CHUYEN_KHOAN' %} on{% endif %}" href="/bao-thu?{{ dict(q, method='TIEN_MAT')|urlencode }}"><span>Tiền mặt đang ở nhân viên</span><b>{{ pending_totals.TIEN_MAT|money }} đ</b><small>{{ pending_counts.TIEN_MAT }} khoản · {{ cash_people }} người</small></a>
+<a class="stock-tile{% if receipt_filters.get('method')=='CHUYEN_KHOAN' %} on{% endif %}" href="/bao-thu?{{ dict(q, method='CHUYEN_KHOAN')|urlencode }}"><span>Chuyển khoản chờ đối soát</span><b>{{ pending_totals.CHUYEN_KHOAN|money }} đ</b><small>{{ pending_counts.CHUYEN_KHOAN }} giao dịch</small></a>
+{% if oldest_group %}<a class="stock-tile{% if oldest_group.days > 7 %} rq-warn{% endif %}" href="/bao-thu?{{ dict(q, nguoi=oldest_group.key)|urlencode }}"><span>Giữ lâu nhất</span><b>{{ oldest_group.days }} ngày</b><small>{{ oldest_group.name }} · {{ oldest_group.oldest.number }}</small></a>{% else %}<div class="stock-tile"><span>Giữ lâu nhất</span><b>0 ngày</b><small>Không ai đang giữ tiền mặt</small></div>{% endif %}
+</div>
+<div class="rq-filters">
+<input type="search" class="rq-search" placeholder="Tìm số báo thu, số phiếu, tên khách…" aria-label="Tìm báo thu" data-rq-search>
+<nav class="rq-chips" aria-label="Cách thu"><a class="rq-chip{% if not receipt_filters.get('method') %} on{% endif %}" href="/bao-thu?{{ dict(q)|urlencode }}">Tất cả {{ rows|length }}</a>{% for value,label in receipt_methods.items() %}<a class="rq-chip{% if receipt_filters.get('method')==value %} on{% endif %}" href="/bao-thu?{{ dict(q, method=value)|urlencode }}">{{ label }} {{ pending_totals[value]|money }}</a>{% endfor %}</nav>
+<details class="rq-dates"{% if receipt_filters.get('from') or receipt_filters.get('to') %} open{% endif %}><summary>Ngày thu{% if receipt_filters.get('from') or receipt_filters.get('to') %} · đang lọc{% endif %}</summary><form class="form" action="/bao-thu">{% if receipt_filters.get('method') %}<input type="hidden" name="method" value="{{ receipt_filters.method }}">{% endif %}<div class="row2"><label>Từ ngày thu<input type="date" name="from" value="{{ receipt_filters.get('from','') }}"></label><label>Đến ngày thu<input type="date" name="to" value="{{ receipt_filters.get('to','') }}"></label></div><button>Lọc</button></form></details>
+</div>
+<section id="pending-receipts" class="rq-split{% if picked %} picked{% endif %}" data-receipt-queue>
+{% if groups %}
+<aside class="rq-people card" aria-label="Ai đang giữ tiền"><h2>Ai đang giữ tiền</h2>
+{% for g in groups %}<a class="rq-who{% if g.key==current_group %} on{% endif %}" href="/bao-thu?{{ dict(receipt_filters, nguoi=g.key)|urlencode }}" data-rq-pick="{{ g.key }}"{% if g.key==current_group %} aria-current="true"{% endif %}>
+<span class="rq-av{% if g.kind=='ck' %} ck{% endif %}">{{ g.initials }}</span>
+<span class="rq-who-name"><b>{{ g.name }}</b><small>{% if g.kind=='ck' %}{{ g.rows|length }} giao dịch chờ đối soát{% else %}{{ g.rows|length }} khoản · <span class="{{ 'rq-old' if g.days > 7 else '' }}">cũ nhất {{ g.days }} ngày</span>{% endif %}</small></span>
+<span class="rq-who-amt">{{ g.total|money }}<small>đồng</small></span></a>{% endfor %}
+</aside>
+<div class="rq-panels">
+{% for g in groups %}<section class="rq-panel card" id="{{ 'cash-group-'~g.reporter_id if g.kind=='cash' else 'bank-receipts' }}" data-rq-panel="{{ g.key }}"{% if g.key!=current_group %} hidden{% endif %}>
+<a class="rq-back" href="/bao-thu?{{ dict(receipt_filters, nguoi='')|urlencode }}">‹ Ai đang giữ tiền</a>
+<div class="rq-head"><span class="rq-av{% if g.kind=='ck' %} ck{% endif %}">{{ g.initials }}</span><div class="rq-head-name"><h2>{% if g.kind=='ck' %}Chuyển khoản chờ đối soát{% else %}{{ g.name }}{% endif %}</h2><p class="hint">{% if g.kind=='ck' %}Mở sao kê ngân hàng, thấy tiền vào thì xác nhận từng giao dịch.{% else %}{{ g.rows|length }} khoản tiền mặt · cũ nhất {{ g.days }} ngày{% endif %}</p></div><div class="rq-head-amt"><small>{{ 'Chờ đối soát' if g.kind=='ck' else 'Đang giữ' }}</small><b>{{ g.total|money }} đ</b></div></div>
+{% if g.kind=='cash' and g.own %}<p class="rq-own">Các khoản này do bạn lập nên không tự xác nhận được. Người khác có quyền kế toán đếm và xác nhận.</p>
+{% elif g.kind=='cash' %}<form method="post" action="/bao-thu/xac-nhan-nhom" class="rq-count" id="cash-confirm-{{ g.reporter_id }}" data-rq-count><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="reporter_id" value="{{ g.reporter_id }}">{{ keep({'nguoi': g.key}) }}
+{% for r in g.eligible %}<input type="hidden" name="version_{{ r.id }}" value="{{ r.version }}">{% endfor %}
+<label for="counted-{{ g.reporter_id }}">Số tiền đã đếm</label><input id="counted-{{ g.reporter_id }}" name="counted_amount" inputmode="numeric" data-money required autocomplete="off" value="{{ group_form.get('counted_amount','') if group_form.get('reporter_id')|string==g.reporter_id|string else '' }}">
+<span class="rq-match" data-rq-match data-need="{{ g.checked_total }}">Cần {{ g.checked_total|money }}</span>
+<button class="btn-ok" data-rq-ok>Xác nhận <span data-rq-n>{{ g.checked|length }}</span> khoản</button>
+<p class="hint">Chọn các khoản thợ nộp (mặc định chọn hết), đếm một lần, khớp tổng mới xác nhận được. Không gồm báo thu mới phát sinh sau khi mở trang.</p></form>{% endif %}
+<div class="rq-table-wrap"><table class="rq-table">
+<thead><tr>{% if g.kind=='cash' and not g.own %}<th class="rq-cb"><input type="checkbox" aria-label="Chọn tất cả" data-rq-all{% if g.checked|length==g.eligible|length %} checked{% endif %}></th>{% endif %}<th>Ngày thu</th><th>Báo thu</th><th>Nguồn</th><th>Khách</th>{% if g.kind=='ck' %}<th>Người báo</th>{% endif %}<th class="num">Số tiền</th><th></th></tr></thead>
+<tbody>{% for r in g.rows %}<tr id="bt-{{ r.id }}" data-receipt-row data-rq-row data-amount="{{ r.amount }}" data-search="{{ (r.number ~ ' ' ~ receipt_sources[r.id].number ~ ' ' ~ names.get(receipt_sources[r.id].customer_code,''))|lower }}">
+{% if g.kind=='cash' and not g.own %}<td class="rq-cb">{% if r in g.eligible %}<input type="checkbox" name="receipt_id" value="{{ r.id }}" form="cash-confirm-{{ g.reporter_id }}" aria-label="Chọn {{ r.number }}" data-rq-cb{% if r.id in g.checked %} checked{% endif %}>{% endif %}</td>{% endif %}
+<td class="rq-nowrap rq-date">{{ r.received_at.strftime('%d/%m') }}</td>
+<td class="rq-nowrap rq-bt"><a href="/bao-thu/{{ r.id }}">{{ r.number }}</a></td>
+<td class="rq-nowrap"><span class="rq-src">Nguồn: </span>{{ source(r) }}</td>
+<td class="rq-kh"><span title="{{ names.get(receipt_sources[r.id].customer_code,'') }}">{{ names.get(receipt_sources[r.id].customer_code,'') }}</span></td>
+{% if g.kind=='ck' %}<td class="rq-nowrap">{{ receipt_people.get(r.reported_by,r.reported_by) }}</td>{% endif %}
+<td class="num rq-nowrap">{{ r.amount|money }}</td>
+<td class="rq-act">{% if g.kind=='ck' %}{% if r.reported_by!=user.id %}<form id="receipt-confirm-{{ r.id }}" method="post" action="/bao-thu/{{ r.id }}/confirm"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version }}"><input type="hidden" name="origin" value="queue"><input type="hidden" name="return_anchor" value="bt-{{ r.id }}">{{ keep({'nguoi': g.key}) }}<button class="btn-ok">Đã vào tài khoản</button></form>{% else %}<small class="hint">Bạn lập, người khác xác nhận</small>{% endif %}{% endif %}{{ reject_form(r, g.key) }}</td>
+</tr>{% endfor %}</tbody>
+{% if g.kind=='cash' and not g.own %}<tfoot><tr><td></td><td colspan="4">Đã chọn <span data-rq-n>{{ g.checked|length }}</span>/{{ g.eligible|length }} khoản</td><td class="num" data-rq-sum>{{ g.checked_total|money }}</td><td></td></tr></tfoot>{% endif %}
+</table></div>
+<p class="hint rq-note">Bấm số báo thu để xem chi tiết, bấm số phiếu để mở đơn bán hoặc phiếu dịch vụ.</p>
 </section>{% endfor %}
-{% set bank = rows|selectattr('method','equalto','CHUYEN_KHOAN')|list %}
-{% if bank %}<section class="card cash-group" id="bank-receipts"><div class="cash-group-head"><h2>Chuyển khoản · xác nhận từng giao dịch</h2><span class="stock-chip">{{ bank|length }} khoản</span></div>{% for r in bank %}{{ compact.row(r) }}{% endfor %}</section>{% endif %}
-{% if not rows %}<p class="empty card">Không có báo thu chờ xác nhận phù hợp.</p>{% endif %}
+</div>
+{% else %}<p class="empty card">Không có báo thu chờ xác nhận phù hợp.</p>{% endif %}
 </section></div><script src="{{ asset('receipt-queue.js') }}" defer></script>
 {% endblock %}

@@ -80,13 +80,17 @@ def group_data(csrf,rows,p,amount='600.000'):
 def test_cash_queue_compact_totals_group_and_self_exclusion(client,db,work_people):
     p=work_people;rows=reports(db,p);csrf=service_login(client,p['finance'])
     page=client.get('/bao-thu?method=TIEN_MAT');assert page.text.count('data-receipt-row')==3
-    assert 'Tiền mặt 600.000' in page.text and 'Chuyển khoản 0' in page.text and 'Xác nhận cả nhóm' in page.text
-    for row in rows:assert f'id="receipt-confirm-{row.id}"' in page.text
-    assert 'Xác nhận cả nhóm' not in client.get('/bao-thu?method=CHUYEN_KHOAN').text
+    assert 'Tiền mặt 600.000' in page.text and 'Chuyển khoản 0' in page.text and f'id="cash-confirm-{p["technician"].id}"' in page.text
+    # Màn mới 07/11/2026: tiền mặt chọn khoản bằng ô chọn gắn vào form xác nhận nhóm, không còn nút xác nhận riêng từng dòng.
+    for row in rows:
+        assert f'name="receipt_id" value="{row.id}" form="cash-confirm-{p["technician"].id}"' in page.text
+        assert f'id="receipt-confirm-{row.id}"' not in page.text
+    assert 'Ai đang giữ tiền' in page.text and '600.000' in page.text
+    assert 'id="cash-confirm-' not in client.get('/bao-thu?method=CHUYEN_KHOAN').text
     # Reporter with finance permission still cannot confirm their own receipts in a group.
     p['technician'].roles=['technician','finance'];db.commit();service_login(client,p['technician'])
     page=client.get('/bao-thu?method=TIEN_MAT')
-    assert 'id="cash-confirm-' not in page.text
+    assert 'id="cash-confirm-' not in page.text and 'name="receipt_id"' not in page.text and 'không tự xác nhận được' in page.text
     for row in rows:assert f'id="receipt-confirm-{row.id}"' not in page.text
     p['technician'].roles=['technician','director'];db.commit();service_login(client,p['technician'])
     page=client.get('/bao-thu?method=TIEN_MAT')
