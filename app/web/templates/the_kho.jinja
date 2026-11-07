@@ -1,17 +1,63 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% import 'phan_trang.jinja' as pager %}
 {% block title %}Thẻ kho {{ product.code }}{% endblock %}
-{% block main %}<div class="bar"><h1>Thẻ kho {{ warehouse.code }} · {{ product.code }} · {{ product.name }}</h1><a href="/ton-kho?kho={{ warehouse.code }}">← Tồn kho</a></div>
-<section class="card"><dl><dt>Tồn thực tế</dt><dd>{{ stock.qty|qty }}</dd><dt>Đang giữ</dt><dd><a href="#dang-giu">{{ stock.reserved|qty }}</a></dd><dt>Khả dụng</dt><dd>{{ stock.available|qty }}</dd></dl>{% if stock.available<0 %}<p class="alert bad">Giữ vượt tồn</p>{% endif %}</section>
-<section id="dang-giu" class="card"><h2>Đơn đang giữ hàng</h2>{% for r, number, name, promised in reservations %}<article><a href="/don-ban/{{ r.order_id }}">{{ number }}</a> · {{ name }}<p>Giữ {{ r.qty|qty }} · Hẹn {{ promised.strftime('%d/%m/%Y') if promised else 'Chưa hẹn' }}</p></article>{% else %}<p>Không có đơn đang giữ.</p>{% endfor %}</section>
+{% block main %}
+{# Thẻ kho (TUẤN duyệt mẫu TheKhoMoi 07/11/2026): ô số đầu trang, một bảng sổ nhập xuất mới nhất ở trên, cột phải đơn giữ hàng + mức tối thiểu. #}
+{% set below = level and level.min_qty > 0 and stock.qty <= level.min_qty %}
+<div class="page-wide doc-view tk-page">
+{% call ui.page_head('Thẻ kho', sub=product.code ~ ' · ' ~ product.name, back='/ton-kho?kho=' ~ warehouse.code|urlquote, badge_label=warehouse.code, badge_tone='lam') %}{% endcall %}
 {% if saved %}<p class="alert ok">Đã lưu mức tồn tối thiểu.</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
-{% if warehouse.kind=='KHO' %}<form method="post" action="/the-kho/{{ warehouse.code }}/{{ product.code }}" class="card form">
+{% if stock.available<0 %}<p class="alert bad">Giữ vượt tồn</p>{% endif %}
+<nav class="tiles keep-phone tk-tiles" aria-label="Số tồn">
+<span class="tile t-static"><span class="t-label">Tồn thực tế</span><span class="t-n">{{ stock.qty|qty }}</span><span class="t-sub">{{ product.unit }}</span></span>
+<a class="tile" href="#dang-giu"><span class="t-label">Đang giữ</span><span class="t-n">{{ stock.reserved|qty }}</span><span class="t-sub">cho đơn bán</span></a>
+<span class="tile t-static"><span class="t-label">Khả dụng</span><span class="t-n">{{ stock.available|qty }}</span><span class="t-sub">bán được</span></span>
+{% if can_value %}<span class="tile t-static"><span class="t-label">Giá trị tồn</span><span class="t-n">{{ (balance.value if balance else 0)|money }}</span><span class="t-sub">đồng</span></span>{% endif %}
+</nav>
+<div class="doc-grid">
+<div class="doc-main">
+<section class="card doc-card tk-ledger">
+<div class="doc-card-head"><h2 class="doc-h">Sổ nhập xuất</h2></div>
+<nav class="stock-tags rq-tabs tk-tabs" aria-label="Lọc sổ">
+{% for key, label in [('', 'Tất cả'), ('nhap', 'Nhập'), ('xuat', 'Xuất')] %}<a class="btn{{ ' on' if loai == key }}" href="{{ link(loai=key) }}"{% if loai == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+<span class="tk-sep" aria-hidden="true"></span>
+{% for key, label in periods.items() %}<a class="btn{{ ' on' if ky == key }}" href="{{ link(ky=key) }}"{% if ky == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>
+{% if rows or opening %}<div class="table-scroll"><table class="list-table tk-table">
+<thead><tr><th>Ngày</th><th>Phiếu</th><th>Diễn giải</th><th class="num">Nhập</th><th class="num">Xuất</th><th class="num">Tồn</th>{% if can_value %}<th class="num">Giá trị tồn</th>{% endif %}</tr></thead>
+<tbody>
+{% for x in rows %}{% set r = x.r %}<tr class="stock-ledger-row{{ ' tk-rev' if r.is_reversal }}">
+<td class="tk-day" data-label="Ngày">{{ r.at|vn_date }} <span class="lt-sub">{{ r.at|vn_time }}</span></td>
+<td class="tk-doc" data-label="Phiếu">{% if can_open_docs %}<a href="/phieu-kho/{{ r.doc_id }}"><b>{{ x.number }}</b></a>{% else %}<b>{{ x.number }}</b>{% endif %}<span class="lt-sub">{{ x.kind }}</span></td>
+<td class="tk-desc" data-label="Diễn giải">{{ x.desc }}{% if r.is_reversal %} <span class="tag">Dòng hủy</span>{% endif %}</td>
+<td class="num tk-in" data-label="Nhập">{% if r.qty_in %}+{{ r.qty_in|qty }}{% endif %}</td>
+<td class="num tk-out" data-label="Xuất">{% if r.qty_out %}−{{ r.qty_out|qty }}{% endif %}</td>
+<td class="num tk-bal" data-label="Tồn"><span class="tk-bal-l">tồn </span><b>{{ r.balance_qty|qty }}</b></td>
+{% if can_value %}<td class="num tk-val" data-label="Giá trị tồn">{{ r.balance_value|money }}</td>{% endif %}
+</tr>{% endfor %}
+{% if opening and page.page == page.last %}<tr class="tk-open"><td class="tk-day" data-label="Ngày">Đầu kỳ</td><td></td><td class="tk-desc" data-label="Diễn giải">Tồn trước {{ opening.day|vn_date }}</td><td></td><td></td><td class="num tk-bal" data-label="Tồn"><b>{{ opening.qty|qty }}</b></td>{% if can_value %}<td class="num tk-val" data-label="Giá trị tồn">{{ opening.value|money }}</td>{% endif %}</tr>{% endif %}
+</tbody>
+<tfoot><tr class="tk-sum"><td colspan="3">Cộng {{ all_count }} dòng{{ ' · ' ~ periods[ky]|lower if ky }}</td><td class="num tk-in" data-label="Nhập">+{{ sum_in|qty }}</td><td class="num tk-out" data-label="Xuất">−{{ sum_out|qty }}</td><td class="num tk-bal" data-label="Tồn"><b>{{ ((opening.qty if opening else 0) + sum_in - sum_out)|qty }}</b></td>{% if can_value %}<td></td>{% endif %}</tr></tfoot>
+</table></div>
+{{ pager.bar(page, 'dòng') }}
+{% else %}<p class="empty">Chưa có dòng sổ{{ ' trong kỳ này' if ky else '' }}.</p>{% endif %}
+</section>
+</div>
+<aside class="doc-side">
+<section id="dang-giu" class="card doc-card tk-hold"><div class="doc-card-head"><h2 class="doc-h">Đơn đang giữ hàng</h2><span class="tag">{{ reservations|length }}</span></div>
+{% for r, number, name, promised in reservations %}<div class="tk-hold-row"><a href="/don-ban/{{ r.order_id }}"><b>{{ number }}</b></a><span>{{ name }}</span><span class="lt-sub">Giữ {{ r.qty|qty }} · Hẹn {{ promised.strftime('%d/%m/%Y') if promised else 'Chưa hẹn' }}</span></div>{% else %}<p class="hint">Không có đơn đang giữ.</p>{% endfor %}
+</section>
+{% if warehouse.kind=='KHO' and can_write %}<form method="post" action="/the-kho/{{ warehouse.code }}/{{ product.code }}" class="card doc-card form tk-min">
+<h2 class="doc-h">Mức tồn tối thiểu</h2>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ level_version }}">
-<label>Mức tồn tối thiểu<input name="min_qty" value="{{ min_qty }}" inputmode="decimal" required {% if not can_write %}readonly{% endif %}></label>
-<p class="hint">Đặt 0 để không cảnh báo.</p>
-{% if can_write %}<button class="primary">Lưu</button>{% endif %}
-</form>{% endif %}
-<div class="form">{% for r, number in rows %}<article class="card stock-ledger-row">
-<a href="/phieu-kho/{{ r.doc_id }}">{{ number }}</a>{% if r.is_reversal %}<span class="tag">Dòng hủy</span>{% endif %}<p class="meta">{{ r.at }}</p>
-<dl><dt>Nhập</dt><dd>{{ r.qty_in }}</dd><dt>Xuất</dt><dd>{{ r.qty_out }}</dd><dt>Giá trị (đ)</dt><dd>{{ r.amount | money }}</dd><dt>Tồn sau dòng</dt><dd>{{ r.balance_qty }}</dd><dt>Giá trị tồn (đ)</dt><dd>{{ r.balance_value | money }}</dd></dl>
-</article>{% else %}<p class="empty">Chưa có dòng sổ.</p>{% endfor %}</div>{% endblock %}
+<div class="stepper"><button type="button" class="btn btn-ghost" data-step="-1" aria-label="Bớt 1">−</button><input name="min_qty" value="{{ min_qty|qty_input }}" inputmode="decimal" min="0" required aria-label="Mức tồn tối thiểu"><button type="button" class="btn btn-ghost" data-step="1" aria-label="Thêm 1">+</button></div>
+<p class="hint">Đặt 0 để không cảnh báo.{% if below %} <b class="tk-warn">Tồn đang ở mức tối thiểu.</b>{% endif %}</p>
+<button class="btn-ok">Lưu</button>
+</form>
+{% elif warehouse.kind=='KHO' %}<section class="card doc-card tk-min"><h2 class="doc-h">Mức tồn tối thiểu</h2><p class="tk-min-ro"><b>{{ min_qty|qty_input }}</b> {{ product.unit }}{% if below %} · <span class="tk-warn">đang ở mức tối thiểu</span>{% endif %}</p><p class="hint">Chỉ kho được sửa.</p></section>{% endif %}
+</aside>
+</div>
+</div>
+{% endblock %}
