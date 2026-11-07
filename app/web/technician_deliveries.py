@@ -75,7 +75,18 @@ def page(request,session,user,order,raw=None,error=None,code='',status=200):
     return render(request,'giao_don.jinja',technician_view=technician_view,**ctx,shipments=shipments,photos=photos,
         reservations=stock_reservations.for_order(session,order),effective_total=int(sales_orders.effective_total(order)),
         tech_counts=service_tickets.open_counts(session) if ctx['can_assign'] else {},
+        **_suggest(session,order,ctx),
         raw=raw or {},error=error,error_code=code,status=status)
+
+
+def _suggest(session,order,ctx):
+    """Gợi ý thợ và trạng thái chờ nhận cho khung Giao thợ (TUẤN 07/11/2026). Chỉ đọc."""
+    from .. import delivery_claim, service_suggest
+    if not ctx['can_assign'] or order.delivery_assignee_id is not None or order.status not in delivery_claim.OPEN_ORDER:
+        return dict(order_ranks=[],order_best=None,claim_open=False)
+    ranks=delivery_claim.rank_orders(session,[order]).get(order.id,[])
+    claim_open=delivery_claim.enabled() and session.scalar(select(SalesOrder.id).where(SalesOrder.id==order.id,delivery_claim.claimable())) is not None
+    return dict(order_ranks=ranks,order_best=service_suggest.best(ranks),claim_open=claim_open)
 
 
 @router.get('/giao-don/{order_id}/in')
@@ -130,9 +141,19 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
             if re.fullmatch(r'qty_[0-9]+',k) and str(v).strip() and str(v).strip() not in ('0','0,0','0.0')]
         if action=='assign':
             choice=str(form.get('service_ticket_id') or '').strip()
-            svc.assign(session,user,order_id,SalesDeliveryAssign(version=version,assignee_id=form.get('assignee_id'),
+            body=SalesDeliveryAssign(version=version,assignee_id=form.get('assignee_id'),
                 service_ticket_id=choice if choice not in ('','NEW') else None,
-                new_service_symptom=str(form.get('new_service_symptom','')).strip() if choice=='NEW' else None))
+                new_service_symptom=str(form.get('new_service_symptom','')).strip() if choice=='NEW' else None)
+            # Gợi ý thợ (TUẤN 07/11/2026): form gửi kèm thợ app đã gợi ý để nhật ký ghi theo gợi ý / chọn khác.
+            tip=str(form.get('goi_y','')).strip()
+            from .. import delivery_claim
+            reason=delivery_claim.assign_note(session,int(tip),int(body.assignee_id)) if tip.isdigit() and len(tip)<=18 else ''
+            svc.assign(session,user,order_id,body,reason)
+            back=str(form.get('quay_ve',''))
+            if back.startswith('/dieu-phoi') and '//' not in back and '\\' not in back and len(back)<200:
+                from urllib.parse import urlencode
+                tech_name=session.scalar(select(User.full_name).where(User.id==int(body.assignee_id)))
+                return RedirectResponse(back+('&' if '?' in back else '?')+urlencode(dict(da_giao=f'{order.number} cho {tech_name}')),status_code=303)
         elif action in ('transfer','use','return'):
             svc.move(session,user,order_id,action,SalesDeliveryMove(version=version,lines=lines))
         elif action=='failed':

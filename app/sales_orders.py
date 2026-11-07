@@ -290,6 +290,9 @@ def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
     order.confirmed_at, order.confirmed_by = datetime.now(UTC), user.id
     stock_reservations.keep_in_tx(session, user, order)
     _record(session, user, order, 'confirm', before, credit_note)
+    # Đơn kèm phiếu đã có thợ: tự giao cho thợ của phiếu (TUẤN 07/11/2026).
+    from . import delivery_claim
+    delivery_claim.follow_on_confirm(session, user, order)
     return order
 
 

@@ -372,6 +372,9 @@ def assign_in_tx(session: Session, user: User, ticket_id: int, assignee_id: int,
     t.hold_reason = ""
     t.due_at = service_sla.due_at("DA_GIAO", t.priority, _now(), None)
     _record(session, user, t, action, before, from_status, note)
+    # Đơn Thợ giao kèm phiếu chưa có thợ đi theo thợ của phiếu (TUẤN 07/11/2026).
+    from . import delivery_claim
+    delivery_claim.follow_ticket(session, user, t)
     return t
 
 

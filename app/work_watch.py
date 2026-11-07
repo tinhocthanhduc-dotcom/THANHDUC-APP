@@ -23,6 +23,9 @@ def technician(session, user):
         o.delivery_assignee_id == user.id, o.fulfillment == 'THO_GIAO', o.status.in_(DELIVERING))).all()]
     # Phiếu chờ thợ tự nhận: có phiếu mới, người khác vừa nhận hay hết giờ thì màn tự tải lại.
     rows += [('claim', r) for r in session.scalars(select(t.id).where(service_self_claim.claimable(service_tickets._now())))]
+    # Đơn Thợ giao chờ thợ nhận (TUẤN 07/11/2026): có đơn mới hay người khác vừa nhận thì màn tự tải lại.
+    from . import delivery_claim
+    rows += [('claim-order', r) for r in session.scalars(select(o.id).where(delivery_claim.claimable()))]
     # Tới mốc nhắc sắp trễ hẹn thì màn tự tải lại để hiện khung Đi ngay / Báo trễ.
     from . import service_suggest
     rows += [('soon', i['mark'], bool(i['late'])) for i in service_suggest.at_risk(session, service_tickets._now(), level='tech', assignee_id=user.id)]

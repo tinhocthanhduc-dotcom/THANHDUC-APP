@@ -172,6 +172,11 @@ def _specs(user, today, now):
     if has_role(user,'technician'):
         add('technician_deliveries','Đơn bán cần giao',sales_deliveries.where(SalesOrder.delivery_assignee_id==user.id).add_columns(
             SalesOrder.delivery_address.label('address'),case((last_fail=='DE_NGHI_HUY','Đã đề nghị hủy · chờ bán hàng'),(tech_holds,'Giao hàng / Ghi không giao được'),else_='Chờ kho bàn giao').label('next_label')).order_by(SalesOrder.promised_date,SalesOrder.id),'delivery','/viec-cua-toi?nhom=technician_deliveries')
+    if has_role(user,'dispatcher'):
+        # Đơn Thợ giao chờ thợ tự nhận quá 30 phút (TUẤN 07/11/2026): nhắc điều phối, đơn vẫn hiện cho thợ nhận.
+        from . import delivery_claim
+        if delivery_claim.enabled():
+            add('delivery_unclaimed','Đơn thợ giao chưa ai nhận',sales_deliveries.where(delivery_claim.remind_due(now)).order_by(SalesOrder.id),'delivery','/dieu-phoi')
     if has_role(user,'warehouse'):
         add('delivery_handover','Đơn chờ bàn giao cho thợ',sales_deliveries.where(SalesOrder.delivery_assignee_id.is_not(None),select(StockReservation.id).join(Warehouse).where(StockReservation.order_id==SalesOrder.id,StockReservation.status=='GIU',Warehouse.kind=='KHO',*([StockReservation.warehouse_code.in_(kho)] if kho else [])).exists()).order_by(SalesOrder.id),'delivery','/viec-cua-toi?nhom=delivery_handover')
     if has_role(user, 'sales'):

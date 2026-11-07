@@ -21,8 +21,8 @@
 <b>{{ row.customer }}</b><span class="tho-foot"><span class="tho-due">Còn {{ row.due|money }} đ</span><span class="tho-next">Báo thu ›</span></span></a>{% endfor %}</div>{% endif %}
 {% if claimed %}<p class="alert ok" role="status" data-claimed>Đã nhận {{ claimed }}. Việc đã vào mục Sắp tới.</p>{% endif %}
 {% if claim_error %}<p class="alert bad" role="alert" data-claim-error>{{ claim_error }}</p>{% endif %}
-{% if claims %}<h2 class="tho-grp" id="cho-nhan" data-claim-title>Việc chờ nhận · {{ claims|length }}</h2>
-<p class="tho-date">Ai nhận trước người đó làm. Hết giờ thì điều phối giao.</p>
+{% if claims or order_claims %}<h2 class="tho-grp" id="cho-nhan" data-claim-title>Việc chờ nhận · {{ claims|length + order_claims|length }}</h2>
+<p class="tho-date">Ai nhận trước người đó làm. Phiếu dịch vụ hết giờ thì điều phối giao; đơn giao hàng hiện tới khi có người nhận.</p>
 {% if claim_busy %}<p class="alert warn" role="status" data-claim-busy>Bạn đang có từ {{ claim_limit }} việc mở trở lên. Xong bớt một việc rồi mới nhận thêm được.</p>{% endif %}
 <div class="tho-jobs">{% for c in claims %}<div class="card tho-job tho-claim" data-claim="{{ c.id }}">
 <span class="cardtop"><span>{{ c.number }} · tạo {{ c.created|service_time }}</span><span class="tag tone-info">Còn {{ c.left }} phút</span></span>
@@ -31,11 +31,23 @@
 <span class="tho-one-line tho-symptom" title="{{ c.symptom }}">{{ c.symptom }}</span>
 {% if c.machine or c.serial %}<span class="tho-one-line">{{ c.machine }} {{ '· ' ~ c.serial if c.serial else '' }}</span>{% endif %}
 {% if c.priority and c.priority!='THUONG' %}<span class="tag tone-bad" style="align-self:flex-start">{{ service_priorities[c.priority] }}</span>{% endif %}
+{% if claim_trips.get(c.id) %}<span class="tho-one-line mu" data-claim-trip>Kèm đơn {{ claim_trips[c.id]|join(', ') }} · nhận phiếu là nhận luôn đơn</span>{% endif %}
 {% if claim_busy %}<button type="button" class="btn tho-claim-btn" disabled>Nhận việc này</button>
 {% else %}<details class="tho-claim-ask"><summary class="btn btn-ok tho-claim-btn">Nhận việc này</summary>
 <form method="post" action="/tho/nhan/{{ c.id }}" class="tho-claim-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <p>Nhận <b>{{ c.number }}</b>? Phiếu thành việc của bạn, các thợ khác không thấy nữa. Điều phối nhận thông báo bạn đã tự nhận.</p>
 <button class="btn btn-ok tho-claim-btn" type="submit" data-claim-submit>Nhận việc</button></form></details>{% endif %}
+</div>{% endfor %}
+{% for c in order_claims %}<div class="card tho-job tho-claim" data-claim-order="{{ c.id }}">
+<span class="cardtop"><span>{{ c.number }}{% if c.since %} · chốt {{ c.since|service_time }}{% endif %}</span><span class="tag tone-{{ 'warn' if c.waited >= 30 else 'info' }}">Đơn giao · chờ {{ c.waited }} phút</span></span>
+<b>{{ c.customer }}</b><span class="mu">Giao hàng{% if c.promised %} · hẹn giao {{ c.promised.strftime('%d/%m') }}{% endif %}</span>
+{% if c.address %}<span class="mu tho-one-line" title="{{ c.address }}">{{ c.address }}</span>{% endif %}
+<span class="tho-one-line tho-symptom" title="{{ c.goods }}">{{ c.goods }}</span>
+{% if claim_busy %}<button type="button" class="btn tho-claim-btn" disabled>Nhận giao đơn này</button>
+{% else %}<details class="tho-claim-ask"><summary class="btn btn-ok tho-claim-btn">Nhận giao đơn này</summary>
+<form method="post" action="/tho/nhan-don/{{ c.id }}" class="tho-claim-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<p>Nhận giao <b>{{ c.number }}</b>? Đơn thành việc giao của bạn, các thợ khác không thấy nữa. Kho chuyển hàng sang kho của bạn rồi bạn đi giao và báo thu.</p>
+<button class="btn btn-ok tho-claim-btn" type="submit" data-claim-order-submit>Nhận việc</button></form></details>{% endif %}
 </div>{% endfor %}</div>{% endif %}
 {% for group,label in [('active','Đang làm'),('upcoming','Sắp tới')] %}{% set rows=jobs|selectattr('group','equalto',group)|list %}{% if rows %}
 <h2 class="tho-grp"{% if group=='upcoming' %} id="sap-toi"{% endif %}>{{ label }}</h2>
@@ -53,4 +65,4 @@
 <span class="cardtop"><span>{{ r.number }}</span>{% set st=production_stale.get(r.id) if production_stale else none %}<span class="tag tone-{{ 'bad' if st else ('info' if r.status=='MOI' else 'warn') }}">{{ st.label if st else ('Mới' if r.status=='MOI' else 'Đang làm') }}</span></span>
 <b>Làm hàng: {{ r.qty_plan }} {{ name }}</b><span class="mu">{{ {'DO_MUC':'Đổ mực','TAN_TRANG':'Tân trang máy cũ','LAP_RAP':'Lắp ráp / khác'}[r.kind] }} · về kho {{ r.to_warehouse_code }}</span>
 <span class="tho-foot"><span class="tho-created">Tạo {{ r.created_at|service_time }}</span><span class="tho-next">{{ 'Bắt đầu làm' if r.status=='MOI' else 'Hoàn thành' }} ›</span></span></a>{% endfor %}</div>{% endif %}
-{% if not jobs and not unreported and not production_jobs and not claims %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}
+{% if not jobs and not unreported and not production_jobs and not claims and not order_claims %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}
