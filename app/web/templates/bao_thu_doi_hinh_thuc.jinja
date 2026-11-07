@@ -1,0 +1,28 @@
+{# Đổi hình thức báo thu Tiền mặt ⇄ Chuyển khoản một bước (TUẤN duyệt 07/11/2026). Lõi: sales_receipts.switch_method. #}
+{% set sw=receipt_switch(r) %}
+{% if sw.replaces %}<p class="hint" data-receipt-replaces>Thay cho {{ sw.replaces }} (đổi hình thức)</p>{% endif %}
+{% if sw.replaced_by %}<p class="alert" data-receipt-replaced-by>Đã đổi hình thức → {{ sw.replaced_by }}</p>{% endif %}
+{% if sw.can %}{% set target='CHUYEN_KHOAN' if r.method=='TIEN_MAT' else 'TIEN_MAT' %}{% set failed_switch=failed_receipt_id==r.id and failed_receipt_action=='switch' %}
+<details class="receipt-switch" data-receipt-switch="{{ r.id }}" {% if failed_switch %}open{% endif %}><summary>Đổi hình thức</summary>
+<form method="post" action="/doi-hinh-thuc-bao-thu/{{ r.id }}" class="form">{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ receipt_version }}"><input type="hidden" name="origin" value="{{ origin }}"><input type="hidden" name="method" value="{{ target }}">{% for key in ['method','from','to'] %}<input type="hidden" name="filter_{{ key }}" value="{{ receipt_filters.get(key,'') }}">{% endfor %}
+<p class="receipt-switch-to"><span>{{ receipt_methods[r.method] }}</span> → <strong>{{ receipt_methods[target] }}</strong></p>
+{% set picked=receipt_decision.get('reason_choice','Chọn nhầm hình thức') if failed_switch else 'Chọn nhầm hình thức' %}
+<div class="receipt-switch-field"><strong>Lý do</strong><div class="seg stock-seg">{% for value,label in [('Chọn nhầm hình thức','Chọn nhầm'),('Khách đổi ý','Khách đổi ý'),('KHAC','Khác')] %}<label><input type="radio" name="reason_choice" value="{{ value }}" {% if picked==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Lý do khác (khi chọn Khác)<input name="reason_other" maxlength="500" value="{{ receipt_decision.get('reason_other','') if failed_switch else '' }}"></label>
+<dl class="receipt-switch-effect"><dt>Sau khi đổi</dt><dd></dd>
+{% if r.status=='DA_XAC_NHAN' %}
+<dt>Quỹ {{ 'tiền mặt' if r.method=='TIEN_MAT' else 'ngân hàng' }} · hủy {{ receipt_cash_docs.get(r.cash_doc_id,'phiếu thu cũ') }}</dt><dd class="minus">− {{ r.amount|money }}</dd>
+<dt>Quỹ {{ 'ngân hàng' if target=='CHUYEN_KHOAN' else 'tiền mặt' }} · phiếu thu mới</dt><dd class="plus">+ {{ r.amount|money }}</dd>
+{% else %}
+{% set who=receipt_people.get(r.reported_by,'người báo') %}
+<dt>{{ ('Tiền mặt ' ~ who ~ ' đang giữ') if r.method=='TIEN_MAT' else 'Chuyển khoản chờ đối soát' }}</dt><dd class="minus">− {{ r.amount|money }}</dd>
+<dt>{{ 'Chuyển khoản chờ đối soát' if target=='CHUYEN_KHOAN' else ('Tiền mặt ' ~ who ~ ' đang giữ') }}</dt><dd class="plus">+ {{ r.amount|money }}</dd>
+{% endif %}
+<dt>Công nợ khách</dt><dd>Không đổi</dd><dt>Ngày thu</dt><dd>Giữ {{ r.received_at.strftime('%d/%m/%Y') }}</dd></dl>
+{% if r.status=='DA_XAC_NHAN' %}<p class="alert warn">{% if target=='CHUYEN_KHOAN' %}Kiểm tra sao kê: chỉ đổi khi chắc {{ r.amount|money }} đã về tài khoản. Nếu tiền mặt đã nộp vào ngân hàng thì không đổi, vì sổ quỹ đã đúng.{% else %}Chỉ đổi khi chắc khách trả tiền mặt và tiền đã vào quỹ tiền mặt.{% endif %}</p>
+{% elif sw.confirm_now %}<label class="check receipt-switch-now"><input type="checkbox" name="confirm_now" value="1" {% if not failed_switch or receipt_decision.get('confirm_now')=='1' %}checked{% endif %}><span><strong>{{ 'Đã thấy ' ~ (r.amount|money) ~ ' về tài khoản, xác nhận luôn' if target=='CHUYEN_KHOAN' else 'Đã nhận đủ ' ~ (r.amount|money) ~ ' tiền mặt, xác nhận luôn' }}</strong><br><small class="hint">Bỏ chọn nếu chưa đối soát; phiếu mới sẽ chờ xác nhận.</small></span></label>
+{% else %}<p class="hint">Kế toán sẽ xác nhận phiếu mới {{ 'khi thấy tiền về tài khoản' if target=='CHUYEN_KHOAN' else 'khi nhận tiền mặt' }}.</p>{% endif %}
+<button class="primary">Đổi sang {{ receipt_methods[target]|lower }}</button>
+<p class="hint">Phiếu cũ vẫn giữ lại kèm lý do, phiếu mới cùng số tiền, cùng người báo.</p>
+</form></details>
+{% endif %}

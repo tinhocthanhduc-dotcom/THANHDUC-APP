@@ -207,7 +207,7 @@ def _specs(user, today, now):
             SalesReceipt.amount, literal(False).label('overdue'), SalesReceipt.order_id, SalesReceipt.ticket_id,
             SalesReceipt.reason, CustomerOpeningDebt.customer_code.label('opening_customer')).outerjoin(SalesOrder, SalesOrder.id==SalesReceipt.order_id).outerjoin(t, t.id==SalesReceipt.ticket_id).outerjoin(
                 CustomerOpeningDebt, CustomerOpeningDebt.id==SalesReceipt.opening_id).join(
-                Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code, CustomerOpeningDebt.customer_code)).where(SalesReceipt.status=='TU_CHOI',
+                Customer, Customer.code==func.coalesce(SalesOrder.customer_code, t.customer_code, CustomerOpeningDebt.customer_code)).where(SalesReceipt.status=='TU_CHOI', SalesReceipt.replaced_by_id.is_(None),
                 or_((SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN','DA_GIAO'))) & (_available(SalesOrder)>0),
                     CustomerOpeningDebt.id.is_not(None) & (_opening_available()>0),
                     (literal(has_role(user, 'dispatcher', 'reception', 'technician'))) &

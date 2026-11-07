@@ -4144,3 +4144,16 @@ a.tg-row:hover { background: var(--tag); }
   .dw-ban-ds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dw-ban + .dw-ban { border-top: 0; border-left: 1px solid var(--line); }
 }
+
+/* Đổi hình thức báo thu (07/11/2026) */
+.receipt-switch { border-top: 1px solid var(--line); padding-top: 10px; }
+.receipt-switch > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.receipt-switch-to { margin: 0; font-size: 1.05em; }
+.receipt-switch-to span { color: var(--muted); text-decoration: line-through; }
+.receipt-switch-field { display: grid; gap: 6px; }
+.receipt-switch-effect { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; background: var(--bg); border-radius: 10px; padding: 12px 14px; }
+.receipt-switch-effect dt:first-child { font-weight: 700; }
+.receipt-switch-effect dd { margin: 0; font-weight: 600; text-align: right; }
+.receipt-switch-effect dd.minus { color: var(--bad); }
+.receipt-switch-effect dd.plus { color: var(--ok); }
+.receipt-switch-now { align-items: flex-start; background: var(--ok-bg); border-radius: 10px; padding: 10px 12px; }

@@ -173,7 +173,7 @@ def _sources(month, keys=None):
         where h.state->>'status'='DANG_CHO' and (h.state->>'qty_left')::numeric>0 and (h.state->>'entered_at')::timestamptz<:hi-:overdue""")
     add('kt_xac_nhan_trong_ngay','r.decided_by','r.number','r.decided_at',
         "case when (r.decided_at at time zone 'Asia/Ho_Chi_Minh')::date=(r.reported_at at time zone 'Asia/Ho_Chi_Minh')::date then 1 else 0 end",
-        "from sales_receipts r where r.status in ('DA_XAC_NHAN','TU_CHOI') and r.decided_at>=:lo and r.decided_at<:hi",'1')
+        "from sales_receipts r where r.status in ('DA_XAC_NHAN','TU_CHOI') and r.replaced_by_id is null and r.decided_at>=:lo and r.decided_at<:hi",'1')
     add('kt_chot_so_dung_ngay','null',"'Chốt sổ '||d.day::date", "d.day at time zone 'Asia/Ho_Chi_Minh'",
         "case when c.status='DA_CHOT' and c.closed_at<((d.day::date+1)+time '10:00') at time zone 'Asia/Ho_Chi_Minh' and c.closed_at<:hi then 1 else 0 end",
         """from generate_series(cast(:first as timestamp),cast(:last as timestamp),interval '1 day') d(day)

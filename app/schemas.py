@@ -1018,6 +1018,7 @@ class SalesReceiptOut(BaseModel):
     reported_at: datetime
     decided_by: int | None
     decided_at: datetime | None
+    replaced_by_id: int | None = None
     version: int
 
 

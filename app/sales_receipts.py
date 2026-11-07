@@ -421,6 +421,78 @@ def void(session, user, receipt_id, reason, version):
     return _decide(session, user, receipt_id, version, 'DA_HUY', reason)
 
 
+# ---- Đổi hình thức báo thu (TUẤN duyệt 07/11/2026) ----
+# Chọn nhầm Tiền mặt/Chuyển khoản: một bước thay cho "từ chối/hủy rồi báo lại". Không có luật tiền mới:
+# BT cũ đi đúng đường từ chối (chờ) hoặc hủy (đã xác nhận, đảo PT cũ), BT mới cùng số tiền, ngày thu, người báo,
+# nguồn; đã xác nhận thì BT mới ghi PT vào quỹ của hình thức mới. Công nợ và số đã thu thuần không đổi.
+
+def check_switch(user, receipt):
+    if receipt.status == 'DA_XAC_NHAN':
+        if not has_role(user, 'director'):
+            raise BusinessError('FORBIDDEN', 'Báo thu đã xác nhận: chỉ giám đốc được đổi hình thức.', status=403)
+    elif receipt.status == 'CHO_XAC_NHAN':
+        if receipt.reported_by != user.id and not has_role(user, 'finance'):
+            raise BusinessError('FORBIDDEN', 'Chỉ người lập báo thu, kế toán hoặc giám đốc được đổi hình thức.', status=403)
+    else:
+        raise BusinessError('BAD_STATUS', 'Chỉ đổi hình thức báo thu đang chờ hoặc đã xác nhận.', {'status': receipt.status}, status=409)
+
+
+def can_switch(user, receipt):
+    try:
+        check_switch(user, receipt)
+    except BusinessError:
+        return False
+    return receipt.replaced_by_id is None
+
+
+def can_confirm_now(user, receipt):
+    """Kế toán đổi BT đang chờ có thể xác nhận luôn; giữ luật không tự xác nhận BT do mình lập."""
+    return (receipt.status == 'CHO_XAC_NHAN' and has_role(user, 'finance')
+            and (receipt.reported_by != user.id or has_role(user, 'director')))
+
+
+def switch_method(session, user, receipt_id, version, method, reason, confirm_now=False):
+    with _transaction(session):
+        return switch_method_in_tx(session, user, receipt_id, version, method, reason, confirm_now)
+
+
+def switch_method_in_tx(session, user, receipt_id, version, method, reason, confirm_now=False):
+    if method not in SALES_RECEIPT_METHODS:
+        raise BusinessError('BAD_METHOD', 'Hình thức thu chưa hợp lệ.')
+    reason = (reason or '').strip()
+    if not reason:
+        raise BusinessError('REASON_REQUIRED', 'Phải chọn hoặc nhập lý do đổi hình thức.')
+    parent, old = _locked(session, receipt_id)
+    check_switch(user, old)
+    _version(old, version)
+    if old.method == method:
+        raise BusinessError('SAME_METHOD', 'Báo thu đã là hình thức này.', status=409)
+    if confirm_now and not can_confirm_now(user, old):
+        raise BusinessError('SELF_CONFIRM', 'Không được tự xác nhận báo thu do mình lập.', status=403)
+    labels = {'TIEN_MAT': 'Tiền mặt', 'CHUYEN_KHOAN': 'Chuyển khoản'}
+    was_confirmed = old.status == 'DA_XAC_NHAN'
+    new = SalesReceipt(number=next_number(session, 'BT', old.received_at), order_id=old.order_id, ticket_id=old.ticket_id,
+                       opening_id=old.opening_id, method=method, amount=old.amount, received_at=old.received_at,
+                       note=old.note, status='CHO_XAC_NHAN', reason='', reported_by=old.reported_by)
+    session.add(new)
+    session.flush()
+    text = f'Đổi hình thức {labels[old.method]} → {labels[method]} ({new.number}): {reason}'[:2000]
+    before = snapshot(old)
+    if was_confirmed and old.cash_doc_id is not None:
+        doc = cash_docs._load(session, old.cash_doc_id)
+        cash_posting.void_in_tx(session, user, doc.id, text, doc.version)
+    old.status, old.reason, old.replaced_by_id = ('DA_HUY' if was_confirmed else 'TU_CHOI'), text, new.id
+    old.decided_by, old.decided_at = user.id, datetime.now(UTC)
+    _record(session, user, old, 'switch', before, text)
+    _record(session, user, new, 'report', None, text)
+    if was_confirmed or confirm_now:
+        new_before = snapshot(new)
+        _post_cash(session, user, parent, new)
+        new.status, new.decided_by, new.decided_at = 'DA_XAC_NHAN', user.id, datetime.now(UTC)
+        _record(session, user, new, 'confirm', new_before, text)
+    return new
+
+
 def list_pending(session: Session, user, method=None, from_date: date | None=None, to_date: date | None=None):
     check_finance(user)
     if method and method not in SALES_RECEIPT_METHODS:

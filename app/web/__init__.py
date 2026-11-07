@@ -221,6 +221,24 @@ def _can_message(ctx, kind):
 
 
 templates.env.globals["can_message"] = _can_message
+
+
+@jinja2.pass_context
+def _receipt_switch(ctx, receipt):
+    """Đổi hình thức báo thu (07/11/2026): quyền hiện nút, xác nhận luôn, và số BT liên kết hai chiều."""
+    from sqlalchemy.orm import object_session
+    from .. import sales_receipts
+    from ..models import SalesReceipt
+    user = _viewer(ctx)
+    session = object_session(receipt)
+    replaced_by = session.get(SalesReceipt, receipt.replaced_by_id).number if session and receipt.replaced_by_id else ''
+    replaces = session.scalar(select(SalesReceipt.number).where(SalesReceipt.replaced_by_id == receipt.id)) if session else None
+    return dict(can=bool(user) and sales_receipts.can_switch(user, receipt),
+                confirm_now=bool(user) and sales_receipts.can_confirm_now(user, receipt),
+                replaced_by=replaced_by, replaces=replaces or '')
+
+
+templates.env.globals["receipt_switch"] = _receipt_switch
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
