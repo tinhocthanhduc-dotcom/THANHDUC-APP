@@ -1,0 +1,104 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Nhân viên ảo{% endblock %}
+{% block main %}<div class="page-wide nva-page">
+{# Nhân viên ảo đợt 1 (TUẤN duyệt phương án 07/11/2026, mẫu W5k8GWdrq5tEad2QUSFsKN): chỉ giám đốc. Không đụng tiền, kho, công nợ; không nhắn khách. #}
+{% call ui.page_head('Nhân viên ảo', sub='App tự làm một phần việc theo quy tắc anh đặt. Mọi việc ghi vào nhật ký kèm lý do. Không đụng tiền, kho, công nợ, không hủy phiếu, không nhắn khách.', badge_label='Đang chạy' if master.enabled else 'Đã tắt tất cả', badge_tone='xong' if master.enabled else 'huy') %}{% endcall %}
+{% if luu %}{{ ui.toast('Đã lưu cài đặt') }}{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if not zalo %}<section class="card zalo-note" role="note"><b>Bot Zalo chưa cấu hình.</b> Điều phối ảo vẫn giao phiếu; Nhắc hẹn ảo và Thư ký phiếu cần bot Zalo và nhân viên đã được gắn Zalo riêng (Tin nhắn Zalo › Gắn nhân viên).</section>{% endif %}
+<div class="nva-grid">
+<div class="nva-col">
+<form class="card nva-master" method="post" action="/nhan-vien-ao/TAT_CA"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div><b>Tất cả nhân viên ảo</b><p class="hint">Tắt ở đây là dừng hết ngay, cài đặt từng nhân viên ảo vẫn giữ.</p></div>
+<input type="hidden" name="bat" value="{{ '0' if master.enabled else '1' }}">
+{% if master.enabled %}<button class="btn btn-danger">Dừng tất cả</button>{% else %}<button class="btn btn-ok">Bật lại</button>{% endif %}
+</form>
+{% for code, a in agents.items() %}{% set r = rows[code] %}{% set c = cfgs[code] %}{% set st = stats.get(code, {}) %}
+<section class="card nva-agent{{ ' nva-off' if not (r.enabled and master.enabled) }}" id="nva-{{ code|lower }}">
+<div class="nva-h"><b>{{ a.name }}</b>{% if not r.enabled %}{{ ui.badge('Tắt', 'nhap') }}{% elif code == 'DIEU_PHOI' %}{{ ui.badge(modes[r.mode], 'xong' if r.mode == 'TU_LAM' else 'cho') }}{% elif code == 'THU_KY' %}{{ ui.badge('Chỉ báo', 'lam') }}{% else %}{{ ui.badge('Tự làm', 'xong') }}{% endif %}</div>
+<p class="hint">{{ a.what }}.</p>
+<p class="nva-today">Hôm nay: {% if code == 'DIEU_PHOI' %}<b>{{ st.get('GIAO', 0) }}</b> phiếu đã giao{% if st.get('HOAN_TAC') %} · {{ st.get('HOAN_TAC') }} hoàn tác{% endif %}{% if st.get('CHAY_THU') %} · {{ st.get('CHAY_THU') }} chạy thử{% endif %}{% if st.get('BO_QUA') %} · {{ st.get('BO_QUA') }} bỏ qua{% endif %}
+{% elif code == 'NHAC_HEN' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc thợ{% if st.get('BAO') %} · {{ st.get('BAO') }} tin báo giám đốc{% endif %}
+{% else %}<b>{{ st.get('BAO', 0) }}</b> tin gom việc treo · lúc {{ c.times|join(', ') }}{% endif %}</p>
+{% if code == 'DIEU_PHOI' %}<p class="hint">Loại: {% for k in c.kinds %}{{ kinds[k] }}{{ ', ' if not loop.last }}{% endfor %} · mức {% for k in c.priorities %}{{ priorities[k] }}{{ ', ' if not loop.last }}{% endfor %} · giao sau {{ c.wait_minutes }} phút · hoàn tác {{ c.undo_minutes }} phút · {{ 'không giới hạn số phiếu' if not c.max_per_day and not c.max_per_tech else 'tối đa ' ~ (c.max_per_day or '∞') ~ ' phiếu/ngày, ' ~ (c.max_per_tech or '∞') ~ '/thợ' }}</p>{% endif %}
+<details{% if open_code == code %} open{% endif %}><summary class="btn btn-ghost">Cài đặt ›</summary>
+<form class="form nva-form" method="post" action="/nhan-vien-ao/{{ code }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="cai_dat" value="1">
+<div class="field" role="group" aria-labelledby="nva-bat-{{ code }}"><p class="group-label" id="nva-bat-{{ code }}"><b>{{ a.name }}</b></p><div class="seg">
+<label><input type="radio" name="bat" value="1"{% if r.enabled %} checked{% endif %}><span>Bật</span></label>
+<label><input type="radio" name="bat" value="0"{% if not r.enabled %} checked{% endif %}><span>Tắt</span></label></div></div>
+{% if code == 'DIEU_PHOI' %}
+<div class="field" role="group" aria-labelledby="nva-mode"><p class="group-label" id="nva-mode"><b>Chế độ</b></p><div class="seg">
+{% for m, label in modes.items() %}<label><input type="radio" name="mode" value="{{ m }}"{% if r.mode == m %} checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
+<small class="mu">Chạy thử: chỉ ghi "nếu bật thì đã giao ai", không giao thật.</small></div>
+<div class="field" role="group" aria-labelledby="nva-kinds"><p class="group-label" id="nva-kinds"><b>Loại phiếu được giao</b></p><div class="nva-checks">
+{% for k in dispatch_kinds %}<label class="check"><input type="checkbox" name="kinds" value="{{ k }}"{% if k in c.kinds %} checked{% endif %}> {{ kinds[k] }}{% if k == 'SUA_TAI_CHO' %} <small class="mu">(gồm phiếu chưa chọn loại)</small>{% endif %}</label>{% endfor %}</div>
+<small class="mu">Không bao giờ tự giao: phiếu bảo hành, phiếu Khẩn, phiếu nhận tại quầy.</small></div>
+<div class="field" role="group" aria-labelledby="nva-pri"><p class="group-label" id="nva-pri"><b>Mức ưu tiên</b></p><div class="nva-checks">
+{% for k, label in priorities.items() %}<label class="check"><input type="checkbox" name="priorities" value="{{ k }}"{% if k in c.priorities %} checked{% endif %}> {{ label }}</label>{% endfor %}</div></div>
+<div class="nva-nums">
+<label for="nva-wait"><b>Giao sau khi tạo phiếu (phút)</b><input id="nva-wait" name="wait_minutes" inputmode="numeric" value="{{ c.wait_minutes }}"><small class="mu">Phiếu mở cho thợ tự nhận thì chờ hết giờ tự nhận.</small></label>
+<label for="nva-undo"><b>Điều phối được hoàn tác trong (phút)</b><input id="nva-undo" name="undo_minutes" inputmode="numeric" value="{{ c.undo_minutes }}"></label>
+<label for="nva-day"><b>Tối đa phiếu mỗi ngày</b><input id="nva-day" name="max_per_day" inputmode="numeric" value="{{ c.max_per_day }}"><small class="mu">0 = không giới hạn</small></label>
+<label for="nva-tech"><b>Tối đa mỗi thợ mỗi ngày</b><input id="nva-tech" name="max_per_tech" inputmode="numeric" value="{{ c.max_per_tech }}"><small class="mu">0 = không giới hạn</small></label>
+</div>
+<p class="hint">Luôn bỏ qua thợ chưa vào ca hoặc nghỉ phép; chỉ chạy trong giờ làm việc. Chọn thợ theo điểm gợi ý (rảnh, gần, có sẵn hàng, quen máy).</p>
+{% elif code == 'NHAC_HEN' %}
+<div class="nva-nums">
+<label for="nva-accept"><b>Nhắc thợ chưa bấm Nhận sau (phút)</b><input id="nva-accept" name="accept_minutes" inputmode="numeric" value="{{ c.accept_minutes }}"></label>
+<label for="nva-late"><b>Báo giám đốc khi trễ hẹn quá (phút)</b><input id="nva-late" name="director_late_minutes" inputmode="numeric" value="{{ c.director_late_minutes }}"></label>
+</div>
+<p class="hint">Nhắc sắp trễ hẹn theo đúng mốc chuông của thợ. Điều phối vẫn nhận báo "có thể trễ hẹn" như cũ. Mỗi mốc một tin.</p>
+{% else %}
+<label for="nva-times"><b>Giờ gửi (cách nhau dấu phẩy)</b><input id="nva-times" name="times" value="{{ c.times|join(', ') }}" placeholder="11:15, 17:15"></label>
+<p class="hint">Mỗi người nhận danh sách việc còn treo của mình (đã xong chưa báo thu, báo thu bị từ chối, máy sửa xong chờ trả, đơn cần giao, phiếu nháp Zalo…). Không có việc treo thì không nhắn. Giám đốc không nhận.</p>
+{% endif %}
+<div class="row"><button class="btn btn-ok">Lưu cài đặt</button></div>
+</form></details>
+</section>{% endfor %}
+</div>
+<section class="nva-col nva-log" aria-label="Nhật ký">
+<div class="nva-log-h"><h2>Nhật ký {{ 'hôm nay' if not ngay else day|vn_date }}</h2>
+<form method="get" action="/nhan-vien-ao" data-autofilter class="nva-day"><input type="hidden" name="loai" value="{{ loai }}"><input type="date" name="ngay" value="{{ day.isoformat() }}" aria-label="Ngày"><noscript><button class="btn btn-ghost">Xem</button></noscript></form></div>
+{{ ui.list_tabs(tabs) }}
+{% if entries %}<div class="card nva-list">
+{% for e in entries %}<div class="nva-row">
+<span class="nva-t">{{ e.at|vn_time }}</span>
+<div class="nva-body"><span>{% if e.action == 'CHAY_THU' %}<b>Chạy thử:</b> {% endif %}{{ e.text }}</span>{% if e.reason %}<small class="mu">{{ 'Lý do: ' if e.action in ('GIAO', 'CHAY_THU') }}{{ e.reason }}</small>{% endif %}{% if e.undone_at %}<small class="mu">Đã hoàn tác bởi {{ names.get(e.undone_by, '') }} lúc {{ e.undone_at|vn_time }}</small>{% endif %}{% if e.action == 'CHAY_THU' and trial.get(e.id) is not none %}<small class="mu">Điều phối đã giao: {{ 'cùng thợ' if trial[e.id] else 'thợ khác' }}</small>{% endif %}</div>
+<span class="nva-act">{% if e.action == 'CHAY_THU' and trial.get(e.id) is not none %}{{ ui.badge('Khớp' if trial[e.id] else 'Khác', 'xong' if trial[e.id] else 'cho') }}{% elif e.undone_at %}{{ ui.badge('Đã hoàn tác', 'huy') }}{% else %}{{ ui.badge(actions.get(e.action, e.action), 'xong' if e.action == 'GIAO' else 'lam' if e.action in ('NHAC', 'BAO') else 'nhap') }}{% endif %}{% if e.ticket_id %}<a class="btn btn-ghost nva-open" href="/dich-vu/{{ e.ticket_id }}">Mở phiếu ›</a>{% endif %}</span>
+</div>{% endfor %}
+</div>{% else %}{{ ui.empty('Chưa có việc nào trong ngày này.') }}{% endif %}
+{% call ui.list_foot(p, 'việc') %}{% endcall %}
+</section>
+</div>
+<style>
+.nva-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;align-items:start}
+@media (max-width:900px){.nva-grid{grid-template-columns:minmax(0,1fr)}}
+.nva-col{display:grid;gap:12px;min-width:0}
+.nva-master{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.nva-master p{margin:2px 0 0}
+.nva-agent{display:grid;gap:6px}
+.nva-agent p{margin:0}
+.nva-off{opacity:.7}
+.nva-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.nva-h b{font-size:1.05rem}
+.nva-form{display:grid;gap:12px;margin-top:10px}
+.nva-checks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.nva-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.nva-nums label,.nva-form>label{display:grid;gap:4px}
+.nva-nums input,.nva-form>label input{font-size:16px}
+.nva-log-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.nva-log-h h2{margin:0}
+.nva-day input{font-size:16px;min-height:40px}
+.nva-list{padding:0;overflow:hidden}
+.nva-row{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);align-items:start}
+.nva-row:last-child{border-bottom:0}
+.nva-t{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.85rem;padding-top:2px}
+.nva-body{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
+.nva-act{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.nva-open{min-height:32px;padding:4px 10px;font-size:.85rem}
+@media (max-width:520px){.nva-row{grid-template-columns:40px minmax(0,1fr)}.nva-act{grid-column:2;flex-direction:row;align-items:center;justify-content:flex-start}}
+.nva-note{display:grid;gap:6px}
+.nva-note p{margin:0}
+</style>
+</div>{% endblock %}

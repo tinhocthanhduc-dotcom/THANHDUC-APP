@@ -42,7 +42,7 @@ STEPS = {"create": "Nhận đơn", "depart": "Thợ đi tới khách", "late": "
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ", "update_info": "Sửa thông tin phiếu",
-         "goods_ok": "Đã nhận đủ hàng", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
+         "goods_ok": "Đã nhận đủ hàng", "unassign": "Rút giao thợ", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
 
 
 def local_time(value):
@@ -325,6 +325,10 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   **custody_context(session,user,t,custody_shown),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
     ctx.update(service_machines.context(session,user,t,machine_form))
+    if dispatcher:
+        from .. import nhan_vien_ao
+        ctx['virtual_note']=nhan_vien_ao.ticket_note(session,t)
+        ctx['virtual_undone']=request.query_params.get('hoan_tac')=='1'
     if not technician_view:
         from .customer_overview import _service_next
         ctx['svc_next']=_service_next(t,ctx['users'],session)
