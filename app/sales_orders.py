@@ -852,13 +852,18 @@ def summaries(session, orders, today=None):
         receipts,receipts.c.parent_id==SalesOrder.id).where(SalesOrder.id.in_(ids))).all()
     state={}
     headers={o.id:o for o in orders}
+    holders=sales_receipts.pending_holders(session,'order_id',ids)
     today=today or _today()
     for oid,paid,pending,refunded,has_return,due in rows:
         o=headers[oid]
         remaining=max(0,(o.receivable or 0)-int(paid))
         advance=max(0,int(paid)-(o.receivable or 0))
+        # Khách còn phải trả = còn nợ trên sổ trừ phần NV đã báo thu chờ xác nhận; chỉ để hiển thị.
+        unpaid=max(0,remaining-int(pending))
+        overdue=max(0,(today-due).days) if due and remaining else 0
         state[oid]=dict(has_returns=has_return,paid=int(paid),pending=int(pending),refunded=int(refunded),remaining=remaining,advance=advance,due_date=due,
-            overdue_days=max(0,(today-due).days) if due and remaining else 0,
+            overdue_days=overdue,unpaid=unpaid,late_days=overdue if unpaid else 0,
+            holders=sales_receipts.holder_text(holders.get(oid)),
             delivery_label='Đã giao đủ' if o.status=='DA_GIAO' else 'Giao một phần' if o.status=='GIAO_MOT_PHAN' else 'Chưa giao',
             money_label=_money_label(o.status,o.receivable or 0,int(paid),int(pending),remaining,advance))
     return state
@@ -867,7 +872,8 @@ def summaries(session, orders, today=None):
 def _money_label(status, receivable, paid, pending, remaining, advance):
     """Nhãn tiền trên danh sách; chỉ đổi chữ, không đổi cách tính nợ (nợ = đã giao − đã thu)."""
     if status=='NHAP':return 'Chưa phát sinh'
-    if remaining:return 'Còn nợ'
+    if remaining and pending>=remaining:return 'Đã thu · chờ KT xác nhận'
+    if remaining:return 'Khách còn nợ' if pending else 'Còn nợ'
     if advance:return 'Khách ứng trước'
     if pending:return f'Chờ xác nhận thu {pending:,}'.replace(',','.')
     if not receivable and not paid:

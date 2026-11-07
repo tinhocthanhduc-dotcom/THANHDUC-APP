@@ -14,3 +14,9 @@ def test_money_label_delivered_orders():
     assert _money_label('GIAO_MOT_PHAN', 50_000, 50_000, 0, 0, 0) == 'Đã thu đủ phần đã giao'
     assert _money_label('DA_GIAO', 205_200, 205_200, 0, 0, 0) == 'Đã thu đủ'
     assert _money_label('DA_GIAO', 205_200, 0, 0, 205_200, 0) == 'Còn nợ'
+
+
+def test_money_label_when_staff_already_collected():
+    """07/11/2026: NV đã báo thu đủ, chờ KT xác nhận thì không ghi "Còn nợ"; sổ nợ vẫn giữ nguyên."""
+    assert _money_label('DA_GIAO', 450_000, 0, 450_000, 450_000, 0) == 'Đã thu · chờ KT xác nhận'
+    assert _money_label('DA_GIAO', 1_900_000, 0, 1_000_000, 1_900_000, 0) == 'Khách còn nợ'

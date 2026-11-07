@@ -107,6 +107,38 @@ def _full(user, path):
     return path if nav.allowed(user, path) else None
 
 
+def _pending(session, user, field, ident, b, total_label, total, base_rows=()):
+    """Khung tiền khi đã có Báo thu chờ xác nhận (07/11/2026): tách tiền NV đang giữ khỏi phần khách còn phải trả.
+
+    Chỉ đổi cách hiện; Còn nợ trên sổ vẫn = phải thu − đã xác nhận. Trả (dòng tiền, ghi chú, việc kế toán, nút xác nhận).
+    """
+    holders = sales_receipts.pending_holders(session, field, [ident]).get(ident, [])
+    pending, remaining = int(b['pending']), int(b['remaining'])
+    unpaid = max(0, remaining - pending)
+    details = []
+    for h in holders:
+        when = _dt(h['at'])
+        if h['method'] == 'TIEN_MAT':
+            details.append(f"Tiền mặt · {h['name']} đang giữ" + (f' · báo {when}' if when else ''))
+        else:
+            details.append(f"Chuyển khoản chờ đối soát · {h['name']} báo" + (f' {when}' if when else ''))
+    rows = [(total_label, total, ''), *base_rows, ('Kế toán đã xác nhận', money(int(b.get('paid', 0))), ''),
+            ('Đã thu · chờ KT xác nhận', money(pending), 'wait', ' · '.join(details)),
+            ('Khách còn phải trả', money(unpaid), 'due' if unpaid > 0 else 'ok')]
+    note = f'Sổ công nợ vẫn ghi {money(remaining)} đến khi kế toán xác nhận.' if remaining else ''
+    task = ''
+    cash = [h for h in holders if h['method'] == 'TIEN_MAT']
+    if len(holders) == 1 and cash:
+        task = f"Nhận {money(cash[0]['amount'])} đ tiền mặt từ {cash[0]['name']} rồi xác nhận"
+    elif holders and not cash:
+        task = f'Đối soát chuyển khoản {money(pending)} đ rồi xác nhận'
+    confirm = None
+    if holders and has_role(user, 'finance', 'director') and nav.allowed(user, '/bao-thu'):
+        first = holders[0]
+        confirm = '/bao-thu?nguoi=' + (str(first['user_id']) if first['method'] == 'TIEN_MAT' else 'ck')
+    return rows, note, task, confirm
+
+
 def ticket(session, user, ident, path):
     from .customer_overview import _service_next
     from .services import KINDS, STATUSES
@@ -127,21 +159,26 @@ def ticket(session, user, ident, path):
     if t.fix_done:
         kv.append(('Đã làm', t.fix_done))
     lines, more = _lines(session, [(l.product_code, l.description, l.qty, money((l.amount or 0) + (l.vat_amount or 0))) for l in t.lines])
-    money_rows = []
+    money_rows, note, task, confirm = [], '', '', None
     if t.receivable is not None and (has_role(user, 'finance', 'director', 'sales', 'dispatcher', 'reception')):
         b = sales_receipts.balance(t)
-        money_rows = [('Tổng', money(t.total or 0), ''), ('Đã thu', money(int(b.get('paid', 0))), '')]
-        if b.get('pending'):
-            money_rows.append(('Chờ xác nhận', money(int(b['pending'])), ''))
-        money_rows.append(('Còn thu', money(int(b['remaining'])), 'due' if b['remaining'] > 0 else ''))
+        if b.get('pending') and b['remaining'] > 0:
+            money_rows, note, task, confirm = _pending(session, user, 'ticket_id', t.id, b, 'Tổng', money(t.total or 0))
+        else:
+            money_rows = [('Tổng', money(t.total or 0), ''), ('Đã thu', money(int(b.get('paid', 0))), '')]
+            if b.get('pending'):
+                money_rows.append(('Chờ xác nhận', money(int(b['pending'])), ''))
+            money_rows.append(('Còn thu', money(int(b['remaining'])), 'due' if b['remaining'] > 0 else ''))
     who, title = _service_next(t, users, session)
+    if task and who == 'kế toán':
+        title = task
     links = []
     for o in session.execute(select(SalesOrder.id, SalesOrder.number).where(SalesOrder.service_ticket_id == t.id).order_by(SalesOrder.id)).all():
         links.append(_link(user, f'/don-ban/{o.id}', o.number))
     return dict(no=t.number, chip=STATUSES.get(t.status, t.status), tone=_tone(t.status, {'DA_DONG', 'HOAN_THANH'}),
                 sub=f'Phiếu dịch vụ · {KINDS.get(t.kind, "Chưa chọn loại")} · tạo {_dt(t.created_at)}' + (f' bởi {users[t.created_by]}' if users.get(t.created_by) else ''),
-                kv=kv, lines=lines, more=more, line_head='Vật tư · công', amt_head='Thành tiền', money=money_rows,
-                who=who, next=title, links=[x for x in links if x], full_url=full, print_url=None)
+                kv=kv, lines=lines, more=more, line_head='Vật tư · công', amt_head='Thành tiền', money=money_rows, money_note=note,
+                who=who, next=title, links=[x for x in links if x], full_url=full, print_url=None, confirm_url=confirm)
 
 
 def order(session, user, ident, path):
@@ -160,15 +197,20 @@ def order(session, user, ident, path):
     if o.promised_date:
         kv.append(('Hẹn giao', _d(o.promised_date)))
     lines, more = _lines(session, [(l.product_code, l.description, l.qty, money((l.amount or 0) + (l.vat_amount or 0))) for l in o.lines])
-    money_rows, nxt = [('Tổng (gồm VAT)', money(o.total or 0), '')], None
+    money_rows, nxt, note, confirm = [('Tổng (gồm VAT)', money(o.total or 0), '')], None, '', None
     if o.status != 'NHAP':
         b = sales_receipts.balance(o)
         available = b.get('available', b['remaining'] - b['pending'])
-        money_rows += [('Đã thu', money(int(b.get('paid', 0))), '')]
-        if b.get('pending'):
-            money_rows.append(('Chờ xác nhận', money(int(b['pending'])), ''))
-        money_rows.append(('Còn nợ', money(int(b['remaining'])), 'due' if b['remaining'] > 0 else ''))
         nxt = doc_frame.order_next(o, dict(balance=b), available)
+        if b.get('pending') and b['remaining'] > 0:
+            money_rows, note, task, confirm = _pending(session, user, 'order_id', o.id, b, 'Tổng (gồm VAT)', money(o.total or 0))
+            if task and nxt['who'] == 'kế toán':
+                nxt = dict(nxt, title=task)
+        else:
+            money_rows += [('Đã thu', money(int(b.get('paid', 0))), '')]
+            if b.get('pending'):
+                money_rows.append(('Chờ xác nhận', money(int(b['pending'])), ''))
+            money_rows.append(('Còn nợ', money(int(b['remaining'])), 'due' if b['remaining'] > 0 else ''))
     else:
         nxt = dict(who='kinh doanh', title='Kiểm tra rồi chốt đơn')
     links = []
@@ -183,8 +225,8 @@ def order(session, user, ident, path):
             links.append(_link(user, f'/bao-gia/{q.id}', q.number))
     return dict(no=o.number, chip=STATUSES.get(o.status, o.status), tone=_tone(o.status, {'DA_GIAO'}),
                 sub=f'Đơn bán · {ways.get(o.fulfillment, "")} · tạo {_dt(o.created_at)}' + (f' bởi {users[o.created_by]}' if users.get(o.created_by) else ''),
-                kv=kv, lines=lines, more=more, line_head='Hàng', amt_head='Thành tiền', money=money_rows,
-                who=nxt['who'], next=nxt['title'], links=[x for x in links if x], full_url=_full(user, path), print_url=None)
+                kv=kv, lines=lines, more=more, line_head='Hàng', amt_head='Thành tiền', money=money_rows, money_note=note,
+                who=nxt['who'], next=nxt['title'], links=[x for x in links if x], full_url=_full(user, path), print_url=None, confirm_url=confirm)
 
 
 def quote(session, user, ident, path):
