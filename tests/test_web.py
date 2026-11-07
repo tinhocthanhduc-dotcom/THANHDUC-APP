@@ -321,7 +321,7 @@ def test_k6_post_saves_draft_then_updates_balance_and_card(client, web_login, st
     page = client.get('/ton-kho').text
     assert '<dt>Số lượng</dt><dd>3</dd>' in page and '360.000' in page and '120.000' in page
     page = client.get('/the-kho/K58/TD-0001').text
-    assert page.count('class="card stock-ledger-row"') == 1
+    assert page.count('class="stock-ledger-row') == 1
     assert f'href="/phieu-kho/{doc_id}"' in page
     assert db.query(StockLedger).count() == 1
 

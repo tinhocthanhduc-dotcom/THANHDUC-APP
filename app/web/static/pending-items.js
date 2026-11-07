@@ -22,3 +22,11 @@ document.addEventListener('click',event=>{
 });
 document.querySelectorAll('[name=supplier_query]').forEach(input=>input.addEventListener('input',()=>{input.closest('[data-picker]').querySelector('[name=supplier_code]').value='';}));
 document.querySelectorAll('[data-disposition-panel]').forEach(panel=>panel.addEventListener('toggle',()=>{if(panel.open)document.querySelectorAll('[data-disposition-panel]').forEach(other=>{if(other!==panel)other.open=false;});}));
+// Mẫu ChoXuLyMoi 07/11/2026: bấm nút cách xử lý thì mở đúng ô nhập của cách đó, đóng các ô khác.
+document.addEventListener('click',event=>{
+ const button=event.target.closest('[data-xl-pick]');if(!button)return;
+ const box=button.closest('[data-xl-box]');const code=button.dataset.xlPick;
+ box.querySelectorAll('[data-xl-pick]').forEach(b=>{const on=b===button;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');});
+ box.querySelectorAll('[data-xl-kind]').forEach(panel=>{panel.hidden=panel.dataset.xlKind!==code;});
+ const first=box.querySelector('[data-xl-kind="'+code+'"] [name=qty]');if(first)first.focus({preventScroll:true});
+});

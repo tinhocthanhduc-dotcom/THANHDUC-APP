@@ -4207,3 +4207,86 @@ dialog.qv::backdrop { background: rgba(15,20,30,.42); }
   .qv-foot { display: grid; grid-template-columns: 1fr 2fr; padding: 10px 14px 18px; }
   .qv-foot a[target] { grid-column: 1 / -1; }
 }
+
+/* Thẻ kho (TUẤN duyệt mẫu TheKhoMoi 07/11/2026) */
+.tk-tiles { margin-bottom: 12px; }
+.tk-page .doc-main, .tk-page .doc-side, .cx-view .doc-main, .cx-view .doc-side { grid-template-columns: minmax(0, 1fr); }
+.tk-day, .tk-doc b { white-space: nowrap; }
+.tk-bal-l { display: none; }
+.tk-tabs { margin: 0 0 4px; }
+.tk-sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.tk-table td { vertical-align: top; }
+.tk-table .lt-sub, .cx-table .lt-sub { display: block; font-size: .8rem; color: var(--muted); font-weight: 400; }
+.tk-day .lt-sub { display: inline; }
+.tk-doc a { text-decoration: none; color: var(--accent); }
+.tk-in { color: var(--ok); font-weight: 700; }
+.tk-out { color: var(--bad); font-weight: 700; }
+.tk-rev td { opacity: .75; }
+.tk-open td { color: var(--muted); }
+.tk-sum td { font-weight: 700; border-top: 2px solid var(--line); }
+.tk-hold-row { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line); }
+.tk-hold-row:first-of-type { border-top: 0; }
+.tk-hold-row a { text-decoration: none; color: var(--accent); }
+.tk-min .stepper input { width: 0; flex: 1; min-width: 0; font-size: 16px; }
+.tk-min .btn-ok { width: 100%; }
+.tk-min-ro { margin: 0; font-size: 1.1rem; }
+.tk-warn { color: var(--warn); }
+@media (max-width: 700px) {
+  .tk-table thead { display: none; }
+  .tk-table, .tk-table tbody, .tk-table tfoot { display: block; width: 100%; }
+  .tk-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .tk-table td { padding: 0; border: 0; text-align: left; }
+  .tk-table td:empty { display: none; }
+  .tk-table .tk-doc { grid-column: 1; grid-row: 1; }
+  .tk-table .tk-doc .lt-sub { display: inline; margin-left: 4px; }
+  .tk-table .tk-day { grid-column: 1; grid-row: 2; font-size: .85rem; color: var(--muted); }
+  .tk-table .tk-desc { grid-column: 1; grid-row: 3; font-size: .85rem; color: var(--muted); }
+  .tk-table .tk-in, .tk-table .tk-out { grid-column: 2; grid-row: 1; text-align: right; font-size: 1.05rem; }
+  .tk-table .tk-bal { grid-column: 2; grid-row: 2; text-align: right; font-size: .85rem; }
+  .tk-bal-l { display: inline; color: var(--muted); font-weight: 400; }
+  .tk-day, .tk-doc b { white-space: normal; }
+  .tk-table .tk-val { grid-column: 2; grid-row: 3; text-align: right; font-size: .8rem; color: var(--muted); }
+  .tk-table .tk-sum td:first-child, .tk-table .tk-open .tk-day { grid-column: 1; grid-row: 1; }
+  .tk-table .tk-sum .tk-in { grid-row: 1; } .tk-table .tk-sum .tk-out { grid-row: 2; } .tk-table .tk-sum .tk-bal { grid-row: 3; }
+  .tk-sep { display: none; }
+}
+
+/* Chi tiết hàng chờ xử lý (TUẤN duyệt mẫu ChoXuLyMoi 07/11/2026) */
+.cx-tiles { margin-bottom: 12px; }
+.cx-tiles .t-warn .t-n { color: var(--warn); }
+.cx-view .ph-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-start; }
+.cx-view .ph-actions .badge { flex: none; width: auto; }
+.cx-view .sk-kv3 a, .cx-table a { text-decoration: none; font-weight: 700; color: var(--accent); }
+.cx-wide { grid-column: 1 / -1; }
+.cx-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.cx-kinds .btn { min-height: 44px; white-space: normal; }
+.cx-kinds .btn.on { background: var(--info-bg, var(--tag)); border-color: var(--info-solid); color: var(--info-solid); font-weight: 700; }
+.cx-panel { margin-top: 6px; }
+.cx-panel .form { gap: 10px; }
+.cx-panel .stepper { margin-top: 4px; }
+.cx-panel .stepper input { flex: 1; width: 0; min-width: 0; font-size: 16px; }
+.cx-field { display: grid; gap: 4px; }
+.cx-lbl { font-weight: 600; }
+.seg.cx-wh { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+.cx-panel .btn-ok, .cx-panel .btn-danger { width: 100%; min-height: 44px; }
+.cx-more { display: grid; gap: 8px; }
+.cx-sub { padding: 0; border: 0; background: none; box-shadow: none; }
+.cx-sub > summary.btn { display: flex; align-items: center; justify-content: center; min-height: 44px; list-style: none; cursor: pointer; }
+.cx-sub > summary.btn::-webkit-details-marker { display: none; }
+.cx-sub[open] { padding: 12px; border: 1px solid var(--line); background: var(--surface, var(--bg)); border-radius: 12px; }
+.cx-sub[open] > summary.btn { margin-bottom: 10px; }
+.cx-table td { vertical-align: top; }
+.cx-void { margin-top: 6px; }
+.cx-void > summary.btn { display: inline-flex; align-items: center; min-height: 36px; list-style: none; cursor: pointer; }
+.cx-void > summary::-webkit-details-marker { display: none; }
+.cx-hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cx-hist li { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px; }
+@media (max-width: 700px) {
+  .cx-view .sk-kv3 { grid-template-columns: minmax(0, 1fr); }
+  .cx-hist li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .cx-table thead { display: none; }
+  .cx-table, .cx-table tbody, .cx-table tr, .cx-table td { display: block; }
+  .cx-table tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .cx-table td { padding: 2px 0; border: 0; text-align: left; }
+  .cx-table td[data-label]:not(:first-child)::before { content: attr(data-label) ': '; color: var(--muted); }
+}

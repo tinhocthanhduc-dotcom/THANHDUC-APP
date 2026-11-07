@@ -571,27 +571,95 @@ def _ton_sections(request, rows, current, so, canh_bao):
     return sections
 
 
-def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False):
+CARD_KINDS = {'PN': 'Nhập', 'PX': 'Xuất', 'CK': 'Chuyển kho', 'KK': 'Kiểm kê'}
+CARD_PERIODS = {'': 'Mọi kỳ', 'thang': 'Tháng này', 'thang-truoc': 'Tháng trước'}
+
+
+def _card_period(ky):
+    """Kỳ của thẻ kho theo giờ Việt Nam: (từ, đến) hoặc (None, None) khi xem tất cả."""
+    today = datetime.now(VN).date()
+    start = today.replace(day=1)
+    if ky == 'thang-truoc':
+        end, start = start, (start - timedelta(days=1)).replace(day=1)
+    elif ky == 'thang':
+        end = (start + timedelta(days=32)).replace(day=1)
+    else:
+        return None, None
+    return datetime(start.year, start.month, start.day, tzinfo=VN), datetime(end.year, end.month, end.day, tzinfo=VN)
+
+
+def _card_desc(session, doc, kho, names):
+    # Diễn giải một dòng thẻ kho: nghiệp vụ nguồn, khách/NCC, kho đi/đến, lý do.
+    parts = []
+    source = stock_sources.describe(session, doc)
+    if source:
+        parts.append(source['label'][:1].upper() + source['label'][1:])
+    if doc.customer_code:
+        parts.append(names['c'].get(doc.customer_code) or doc.customer_code)
+    if doc.supplier_code:
+        parts.append(names['s'].get(doc.supplier_code) or doc.supplier_code)
+    if doc.kind == 'CK':
+        parts.append(f'{doc.warehouse_code} → {doc.to_warehouse_code}' if doc.warehouse_code == kho else f'Từ {doc.warehouse_code}')
+    if not source and (doc.reason or doc.note):
+        parts.append(doc.reason or doc.note)
+    return ' · '.join(p for p in parts if p)
+
+
+def _card(request, session, kho, ma, min_qty=None, version=None, error=None, status=200, saved=False,
+          loai='', ky='', trang=None, so=None):
+    # Thẻ kho (TUẤN duyệt mẫu TheKhoMoi 07/11/2026): một bảng sổ, mới nhất ở trên, lọc Nhập/Xuất và kỳ, 25 dòng/trang.
     product = products.load(session, ma)
     warehouse = session.get(Warehouse, kho)
     if warehouse is None:
         raise BusinessError('NOT_FOUND', 'Không tìm thấy kho.', status=404)
-    rows = list(session.execute(select(StockLedger, StockDoc.number).join(StockDoc, StockDoc.id == StockLedger.doc_id)
-                                .where(StockLedger.warehouse_code == kho, StockLedger.product_code == product.code)
-                                .order_by(StockLedger.id)))
+    loai = loai if loai in ('nhap', 'xuat') else ''
+    ky = ky if ky in CARD_PERIODS else ''
+    base = [StockLedger.warehouse_code == kho, StockLedger.product_code == product.code]
+    start, end = _card_period(ky)
+    where = list(base)
+    if start:
+        where += [StockLedger.at >= start, StockLedger.at < end]
+    opening = None
+    if start:
+        before = session.execute(select(StockLedger.balance_qty, StockLedger.balance_value)
+                                 .where(*base, StockLedger.at < start).order_by(StockLedger.id.desc()).limit(1)).first()
+        opening = dict(qty=before[0] if before else Decimal(0), value=before[1] if before else 0, day=start.date())
+    sums = session.execute(select(func.coalesce(func.sum(StockLedger.qty_in), 0), func.coalesce(func.sum(StockLedger.qty_out), 0),
+                                  func.count(StockLedger.id)).where(*where)).one()
+    if loai == 'nhap':
+        where.append(StockLedger.qty_in > 0)
+    elif loai == 'xuat':
+        where.append(StockLedger.qty_out > 0)
+    total = session.scalar(select(func.count(StockLedger.id)).where(*where)) or 0
+    query = dict(loai=loai, ky=ky)
+    page = paging.build(trang, so, total, query)
+    found = list(session.execute(select(StockLedger, StockDoc).join(StockDoc, StockDoc.id == StockLedger.doc_id)
+                                 .where(*where).order_by(StockLedger.id.desc()).offset(page['offset']).limit(page['size'])))
+    docs = {d.id: d for _, d in found}
+    names = dict(c=dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({d.customer_code for d in docs.values() if d.customer_code}))).all()),
+                 s=dict(session.execute(select(Supplier.code, Supplier.name).where(Supplier.code.in_({d.supplier_code for d in docs.values() if d.supplier_code}))).all()))
+    descs = {i: _card_desc(session, d, kho, names) for i, d in docs.items()}
+    rows = [dict(r=r, number=d.number, kind=CARD_KINDS.get(d.kind, d.kind), desc=descs[d.id]) for r, d in found]
     level = session.get(StockMinLevel, (kho, product.code))
-    return render(request, 'the_kho.jinja', rows=rows, product=product, warehouse=warehouse,
+    user = request.state.user
+    link = paging.linker(f'/the-kho/{quote(kho, safe="")}/{quote(product.code, safe="")}', query)
+    return render(request, 'the_kho.jinja', rows=rows, page=page, product=product, warehouse=warehouse,
+                  loai=loai, ky=ky, periods=CARD_PERIODS, link=link, opening=opening,
+                  sum_in=sums[0], sum_out=sums[1], all_count=sums[2],
                   stock=stock_reservations.quantities(session,[(kho,ma)]).get((kho,ma),dict(qty=0,reserved=0,available=0)),
+                  balance=session.get(StockBalance, (kho, product.code)),
                   reservations=stock_reservations.held_orders(session,kho,ma),
+                  level=level,
                   min_qty=min_qty if min_qty is not None else str(level.min_qty if level else 0),
                   level_version=version if version is not None else (level.version if level else 0),
-                  can_write=has_role(request.state.user, 'warehouse') and warehouse.kind=='KHO', error=error, status=status, saved=saved)
+                  can_value=has_role(user, 'warehouse', 'finance'), can_open_docs=has_role(user, 'warehouse'),
+                  can_write=has_role(user, 'warehouse') and warehouse.kind=='KHO', error=error, status=status, saved=saved)
 
 
 @router.get('/the-kho/{kho}/{ma}')
-def ledger(request: Request, kho: str, ma: str, da_luu: int = 0,
+def ledger(request: Request, kho: str, ma: str, da_luu: int = 0, loai: str = '', ky: str = '', trang: str = '', so: str = '',
            user: User = Depends(web_user), session: Session = Depends(get_session)):
-    return _card(request, session, kho, ma, saved=bool(da_luu))
+    return _card(request, session, kho, ma, saved=bool(da_luu), loai=loai, ky=ky, trang=trang, so=so)
 
 
 @router.post('/the-kho/{kho}/{ma}')
