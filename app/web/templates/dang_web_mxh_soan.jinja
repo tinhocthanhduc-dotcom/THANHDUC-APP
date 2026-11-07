@@ -1,0 +1,58 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Soạn bài mạng xã hội{% endblock %}
+{# TUẤN duyệt mẫu M2 ngày 07/11/2026: chọn bài/sản phẩm trên web, chọn mẫu ảnh, máy viết 3 bản và ghép ảnh. #}
+{% block main %}<div class="page-wide dw-page">
+{{ ui.page_head('Soạn bài mạng xã hội', sub='Đăng web · máy viết 3 bản Facebook, Zalo OA, Google Business và ghép 1 ảnh có chữ; anh xem trước rồi tự đăng', back='/dang-web?tab=mang-xa-hoi') }}
+{% if error %}<p class="alert bad" role="alert"><b>Chưa tạo được.</b> {{ error }}</p>{% endif %}
+{% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt; việc sẽ nằm chờ tới khi máy chạy lại. Trên Z2 chạy <code>scripts/dang-web.sh bat-may</code>.</p>{% endif %}
+{% if not co_web %}<p class="alert warn">App chưa có danh sách bài và sản phẩm trên web. Vào tab <a href="/dang-web?tab=tren-web">Trên web</a>, bấm “Cập nhật từ web” rồi quay lại.</p>{% endif %}
+<form method="post" action="/dang-web/mxh/soan" enctype="multipart/form-data" class="form dw-form" data-busy>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="dw-cols dw-2"><div>
+<section class="card" data-dw-picker data-dw-url="/dang-web/tim-web">
+<label><b>Bài hoặc sản phẩm trên web</b><input type="search" data-dw-search value="{{ muc.ten if muc else '' }}" autocomplete="off" placeholder="Gõ không dấu, ví dụ canon 2900 ket giay"></label>
+<input type="hidden" name="nguon" value="{{ d.nguon }}" data-dw-value>
+<div class="dw-picks" data-dw-results aria-live="polite"></div>
+<p class="hint" data-dw-picked>{% if muc %}Đã chọn: {{ muc.ten }} · {{ 'Sản phẩm' if muc.loai == 'san_pham' else 'Bài viết' }} · {{ muc.tt }}{% else %}Bấm chọn một dòng trong kết quả.{% endif %}</p>
+</section>
+<section class="card">
+<p class="group-label"><b>Mẫu ảnh</b></p>
+<div class="dw-mau" role="radiogroup" aria-label="Mẫu ảnh">
+{% for k, ten in mau.items() %}<label class="dw-mau-o"><input type="radio" name="mau" value="{{ k }}" data-dw-mau {% if d.mau == k %}checked{% endif %} required><span class="dw-mau-the dw-mau-{{ k }}" aria-hidden="true"><i></i><i></i><b></b></span><span>{{ ten }}</span></label>{% endfor %}
+</div>
+<p class="hint">Sản phẩm: ảnh sản phẩm trên web, nền trắng. Mẹo sửa lỗi: ảnh đại diện của bài. Trước và sau: 2 ảnh thợ chụp. Ưu đãi: chỉ có chữ, không ghi giá.</p>
+</section>
+<section class="card dw-photos" data-dw-photos data-max="2" data-dw-tieu-de="Trước khi sửa,Sau khi sửa">
+<div class="bar"><b>Ảnh</b> <span class="hint" data-dw-anh-goi-y>(Trước và sau: đúng 2 ảnh. Mẫu khác: không bắt buộc)</span><span class="photo-btns"><label class="btn photo-capture">📷 Chụp ảnh<input type="file" accept="image/*" capture="environment" data-dw-add data-tech-camera></label><label class="btn photo-capture">🖼 Chọn ảnh<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple data-dw-add data-tech-camera></label></span></div>
+<input type="file" name="anh" multiple hidden accept="image/*">
+<div class="dw-ph-list" data-dw-list></div>
+<p class="hint" data-dw-note data-empty="Chưa chọn ảnh. Mẫu Sản phẩm và Mẹo để trống thì lấy ảnh đang có trên web."></p>
+<p class="hint">Trước và sau: chọn ảnh trước khi sửa trước, ảnh sau khi sửa sau. Thợ chụp bằng điện thoại, đủ sáng, cùng một góc.</p>
+</section>
+</div><div class="dw-side">
+<section class="card">
+<label><b>Chữ trên ảnh</b> <span class="hint">(không bắt buộc, để trống thì AI đặt)</span><input name="chu_anh" maxlength="90" value="{{ d.chu_anh }}" placeholder="Ví dụ: Canon 2900 kẹt giấy liên tục"></label>
+<p class="group-label"><b>Cỡ ảnh</b></p>
+<div class="dw-seg-o" role="radiogroup" aria-label="Cỡ ảnh">
+{% for k, ten in co_anh.items() %}<label><input type="radio" name="co" value="{{ k }}" {% if d.co == k %}checked{% endif %}><span>{{ ten }}</span></label>{% endfor %}
+<label><input type="radio" name="co" value="ca_hai" {% if d.co == 'ca_hai' %}checked{% endif %}><span>Cả hai</span></label>
+</div>
+<p class="hint">Vuông dùng cho Facebook, Zalo. Dọc hợp với bài Facebook đọc trên điện thoại.</p>
+</section>
+<section class="card">
+<p class="group-label"><b>Cách viết</b></p>
+<div class="dw-opts">
+<label class="dw-opt"><input type="radio" name="cach_viet" value="codex" {% if d.cach_viet == 'codex' %}checked{% endif %} {% if not codex %}disabled{% endif %}><span><b>Codex trên máy chủ</b><small>{% if codex %}Không tốn phí API · tự viết trong vài phút{% else %}Chưa thấy Codex chạy trên Z2{% endif %}</small></span></label>
+<label class="dw-opt"><input type="radio" name="cach_viet" value="tu_dong" {% if d.cach_viet == 'tu_dong' %}checked{% endif %} {% if not (nhip and nhip.ai) %}disabled{% endif %}><span><b>{{ nhip.ai if nhip and nhip.ai else 'AI tự động' }}</b><small>{% if nhip and nhip.ai %}Nhanh nhất · vài trăm đồng mỗi lần{% else %}Chưa có khóa AI trên Z2{% endif %}</small></span></label>
+<label class="dw-opt"><input type="radio" name="cach_viet" value="chatgpt_web" {% if d.cach_viet == 'chatgpt_web' %}checked{% endif %}><span><b>ChatGPT web (dán tay)</b><small>Không tốn phí API · anh chép câu lệnh và dán câu trả lời</small></span></label>
+</div>
+<label><b>Ghi chú cho AI</b> <span class="hint">(không bắt buộc)</span><textarea name="ghi_chu" rows="2" maxlength="2000" placeholder="Ví dụ: nhấn mạnh thợ tới trong ngày ở Quận 1, 3">{{ d.ghi_chu }}</textarea></label>
+</section>
+{{ ui.next_box('máy đăng web', 'Viết 3 bản và ghép ảnh, khoảng 1–2 phút. Xong nằm ở “Chờ anh xem”.') }}
+<div class="dw-two"><a class="btn btn-ghost" href="/dang-web?tab=mang-xa-hoi">Hủy</a><button class="btn btn-ok dw-big">Soạn</button></div>
+</div></div>
+</form>
+</div>
+<script src="{{ asset('dang-web.js') }}" defer></script>
+{% endblock %}

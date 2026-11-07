@@ -46,7 +46,8 @@ NHAN = {
     BO: "Đã bỏ",
 }
 
-LOAI = ("san_pham", "bai_viet")
+LOAI = ("san_pham", "bai_viet", "mang_xa_hoi")
+KENH_MXH = ("facebook", "zalo", "google")  # bài mạng xã hội: anh đăng tay, bấm Đã đăng từng kênh
 CACH_VIET = {
     "tu_dong": "AI tự động",
     "chatgpt_web": "ChatGPT web (dán tay)",

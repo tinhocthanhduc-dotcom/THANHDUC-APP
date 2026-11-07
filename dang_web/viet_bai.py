@@ -172,6 +172,75 @@ def yeu_cau_bai_viet(chu_de: str, ghi_chu: str = "", hotline: str = "") -> str:
     return "\n\n".join(phan)
 
 
+# ---------- bài mạng xã hội từ bài / sản phẩm trên web (TUẤN duyệt mẫu M1–M3 ngày 07/11/2026) ----------
+KENH_MXH = {  # tên, yêu cầu cho AI, ít nhất, nhiều nhất, đơn vị đếm, số ký tự tối đa giữ lại
+    "facebook": ("Facebook", "100–200 chữ: câu mở nêu vấn đề của khách, 3–4 ý chính (gạch đầu dòng •), link bài, hotline",
+                 100, 200, "chữ", 2000),
+    "zalo": ("Zalo OA", "50–100 chữ: ngắn, một ý chính, mời gọi hotline", 50, 100, "chữ", 1000),
+    "google": ("Google Business", "dưới 1.500 ký tự: ý chính của bài, giọng tư vấn, có hotline", 200, 1500, "ký tự", 1500),
+}
+
+KHUON_MXH = {
+    "type": "object",
+    "properties": {
+        "facebook": {"type": "string", "description": "Bài Facebook " + KENH_MXH["facebook"][1]},
+        "zalo": {"type": "string", "description": "Bài Zalo OA " + KENH_MXH["zalo"][1]},
+        "google": {"type": "string", "description": "Bài Google Business " + KENH_MXH["google"][1]},
+        "chu_anh": {"type": "string", "description": "Dòng chữ in trên ảnh, 4–9 chữ, nêu đúng máy và lỗi/sản phẩm, không ghi giá"},
+        "can_kiem_tra": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["facebook", "zalo", "google", "chu_anh", "can_kiem_tra"],
+    "additionalProperties": False,
+}
+
+_TOI_DA_NGUON = 6000
+
+
+def chu_tu_html(html: str) -> str:
+    """HTML trên web thành chữ thường (giữ xuống dòng giữa các đoạn) để gửi AI viết bài mạng xã hội."""
+    from html import unescape
+
+    s = re.sub(r"<\s*(script|style)\b.*?</\s*\1\s*>", " ", html or "", flags=re.I | re.S)
+    s = re.sub(r"<\s*(br|/p|/li|/h[1-6]|/tr)\s*/?>", "\n", s, flags=re.I)
+    s = re.sub(r"<li[^>]*>", "• ", s, flags=re.I)
+    s = unescape(re.sub(r"<[^>]+>", " ", s))
+    dong = [" ".join(x.split()) for x in s.splitlines()]
+    return "\n".join(x for x in dong if x)
+
+
+def yeu_cau_mxh(nguon: dict, ghi_chu: str = "", hotline: str = "") -> str:
+    """nguon: loai (san_pham/bai_viet), ten, link, noi_dung (chữ thường lấy từ web)."""
+    la_sp = nguon.get("loai") == "san_pham"
+    phan = [
+        "Lần này KHÔNG viết HTML. Viết 3 bài đăng mạng xã hội bằng chữ thường (xuống dòng bằng ký tự xuống dòng), "
+        f"dựa trên {'sản phẩm' if la_sp else 'bài viết'} đang có trên website thanhduc.vn dưới đây.",
+        f"Tên: {nguon.get('ten', '')}",
+        f"Link: {nguon.get('link', '')}",
+        "Nội dung trên web:",
+        (nguon.get("noi_dung") or "")[:_TOI_DA_NGUON],
+        "Yêu cầu từng kênh:",
+        "\n".join(f"- {x[0]}: {x[1]}" for x in KENH_MXH.values()),
+        "Facebook và Google Business có link bài ở trên. Zalo OA không cần link. "
+        "Không ghi giá tiền, không hứa khuyến mãi, không bịa thông số; tối đa 2–3 biểu tượng cảm xúc mỗi bài, Google Business không dùng.",
+    ]
+    if ghi_chu.strip():
+        phan += ["Ghi chú thêm của Thành Đức:", ghi_chu.strip()]
+    if hotline:
+        phan.append(f"Cả 3 bài đều có hotline {hotline}.")
+    return "\n\n".join(phan)
+
+
+def don_mxh(d: dict) -> None:
+    """Bỏ thẻ HTML lỡ có, cắt đúng giới hạn ký tự của từng kênh."""
+    for k, x in KENH_MXH.items():
+        toi_da = x[5]
+        s = chu_tu_html(str(d.get(k) or "")) if "<" in str(d.get(k) or "") else str(d.get(k) or "").strip()
+        d[k] = s[:toi_da].rstrip()
+    d["chu_anh"] = " ".join(str(d.get("chu_anh") or "").split())[:90]
+    if not isinstance(d.get("can_kiem_tra"), list):
+        d["can_kiem_tra"] = [str(d.get("can_kiem_tra"))] if d.get("can_kiem_tra") else []
+
+
 # ---------- sửa bài / sản phẩm đang có trên web ----------
 _TOI_DA_HTML = 12000
 
@@ -346,6 +415,11 @@ class NguoiViet:
     def xep_danh_muc(self, loai: str, muc: list[dict], danh_muc: list[str]) -> KetQuaAI:
         return self._goi(yeu_cau_xep_danh_muc(loai, muc, danh_muc), KHUON_XEP)
 
+    def viet_mxh(self, nguon: dict, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        kq = self._goi(yeu_cau_mxh(nguon, ghi_chu, hotline), KHUON_MXH)
+        don_mxh(kq.du_lieu)
+        return kq
+
 
 def _la_loi_400(e: Exception) -> bool:
     return getattr(e, "status_code", None) == 400
@@ -469,6 +543,9 @@ class NguoiVietMau:
     def xep_danh_muc(self, *a, **kw) -> KetQuaAI:
         raise RuntimeError("Xếp danh mục cần khóa AI (OPENAI_API_KEY hoặc ANTHROPIC_API_KEY).")
 
+    def viet_mxh(self, *a, **kw) -> KetQuaAI:
+        raise RuntimeError("Bài mạng xã hội cần AI tự động, Codex hoặc ChatGPT web.")
+
 
 class ChoTraLoi(Exception):
     """Đã soạn câu lệnh cho ChatGPT web; chờ anh dán câu trả lời vào file."""
@@ -557,6 +634,11 @@ class NguoiVietChatGPTWeb:
         return self._lay("xep", yeu_cau_xep_danh_muc(loai, muc, danh_muc)
                          + '\n\nMỗi phần tử của "ket_qua" là {"id": số, "danh_muc": "nguyên văn dòng danh mục hoặc rỗng", "chac": true/false}.',
                          KHUON_XEP)
+
+    def viet_mxh(self, nguon: dict, ghi_chu: str = "", hotline: str = "") -> KetQuaAI:
+        kq = self._lay("mxh", yeu_cau_mxh(nguon, ghi_chu, hotline), KHUON_MXH)
+        don_mxh(kq.du_lieu)
+        return kq
 
 
 def chon_nguoi_viet(ch):

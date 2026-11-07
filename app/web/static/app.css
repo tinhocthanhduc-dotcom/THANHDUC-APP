@@ -4020,3 +4020,49 @@ a.tg-row:hover { background: var(--tag); }
   .qn-foot .btn-ghost { flex: 1; min-height: 52px; }
   .qn-foot .btn-ok { flex: 2; min-width: 0; min-height: 52px; }
 }
+
+/* Đăng web · Mạng xã hội (TUẤN duyệt mẫu M1–M3, D1–D2 ngày 07/11/2026) */
+.dw-mxh-new { width: 100%; margin-top: 8px; }
+.dw-k { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; color: #fff; font-style: normal; font-weight: 800; font-size: .72rem; flex: none; }
+.dw-k-facebook { background: #1877f2; } .dw-k-zalo { background: #0068ff; } .dw-k-google { background: #34a853; }
+.dw-k.no { opacity: .28; }
+.dw-kenh { display: flex; gap: 4px; }
+.dw-mau { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.dw-mau-o { display: grid; gap: 4px; justify-items: center; text-align: center; font-size: .82rem; cursor: pointer; }
+.dw-mau-o input { position: absolute; opacity: 0; pointer-events: none; }
+.dw-mau-the { width: 100%; aspect-ratio: 1; border: 2px solid var(--line); border-radius: 10px; background: #fff; display: grid; grid-template-rows: 1fr auto; gap: 4px; padding: 6px; overflow: hidden; }
+.dw-mau-the i { display: block; border-radius: 4px; background: #dfe7f3; }
+.dw-mau-the i + i { display: none; }
+.dw-mau-the b { display: block; height: 12px; border-radius: 3px; background: #0b4ea2; }
+.dw-mau-truoc_sau { grid-template-columns: 1fr 1fr; } .dw-mau-truoc_sau i + i { display: block; background: #c9d4e2; } .dw-mau-truoc_sau i:first-child { background: #6b5a4a; } .dw-mau-truoc_sau b { grid-column: 1 / -1; }
+.dw-mau-uu_dai { background: #0b4ea2; } .dw-mau-uu_dai i { background: rgba(255,255,255,.25); } .dw-mau-uu_dai b { background: rgba(255,255,255,.6); }
+.dw-mau-o input:checked + .dw-mau-the { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.dw-mau-o input:checked ~ span:last-child { color: var(--accent); font-weight: 700; }
+.dw-mau-o input:focus-visible + .dw-mau-the { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dw-seg-o { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.dw-seg-o label { position: relative; }
+.dw-seg-o input { position: absolute; opacity: 0; }
+.dw-seg-o span { display: grid; place-items: center; min-height: 44px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-size: .85rem; cursor: pointer; }
+.dw-seg-o input:checked + span { border: 2px solid var(--accent); color: var(--accent); font-weight: 700; background: var(--info-bg); }
+.dw-seg-o input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dw-mxh-anh { display: grid; gap: 10px; }
+.dw-mxh-anh figure { margin: 0; }
+.dw-mxh-anh img { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+.dw-ghep summary { list-style: none; } .dw-ghep summary::-webkit-details-marker { display: none; }
+.dw-ghep-form { display: grid; gap: 8px; margin-top: 10px; }
+.dw-ban-ds { display: grid; padding: 0; }
+.dw-ban { display: grid; gap: 8px; padding: 12px; min-width: 0; }
+.dw-ban + .dw-ban { border-top: 1px solid var(--line); }
+.dw-ban-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dw-dem { margin-left: auto; white-space: nowrap; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dw-dem.ok { color: var(--ok); } .dw-dem.vuot { color: var(--bad); font-weight: 700; }
+.dw-ban textarea { font-size: 16px; line-height: 1.5; min-width: 0; }
+.dw-da { color: var(--ok); font-weight: 700; font-size: .88rem; align-self: center; }
+@media (min-width: 1024px) {
+  .dw-mxh-cols.dw-2 { grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); }
+  .dw-mxh-jobs .dw-row, .dw-mxh-jobs .dw-head { grid-template-columns: 48px minmax(0, 2.2fr) 110px 110px 110px 130px 90px; }
+}
+@media (min-width: 1280px) {
+  .dw-ban-ds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dw-ban + .dw-ban { border-top: 0; border-left: 1px solid var(--line); }
+}

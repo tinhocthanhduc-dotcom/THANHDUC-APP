@@ -217,3 +217,18 @@ Mỗi lần Codex vẽ 2 ảnh (TUẤN 05/11), mỗi ảnh một hướng ý tư
 - Ảnh có chỉnh hoặc ảnh mới tải lên web với tên `<slug-tên>-N.webp` (`ten_web`); file trên Z2 vẫn kèm mã việc để không đè nhau.
 - Alt theo nhóm (`MayDangWeb._alt_nhom`): ① tên; ② tên + "góc N"; ③ tên – mục H2 chứa ảnh (`h2_truoc` cho ảnh cũ, mục anh chọn cho ảnh mới).
 - Ô "Cập nhật alt cho tất cả ảnh" (`cap_nhat_alt`, tick sẵn): ảnh giữ nguyên chỉ đổi chữ alt qua `wp/v2/media/{id}` (`sua_alt`), ảnh dùng chung với sản phẩm khác thì bỏ qua; ảnh trong mô tả/bài đổi alt ngay trong HTML (`doi_alt_trong_bai`). Chỉ tick ô này mà không đổi gì khác vẫn tạo được việc.
+
+## Bài mạng xã hội (TUẤN duyệt mẫu M1–M3, D1–D2 ngày 07/11/2026)
+Tab **Mạng xã hội** trong màn Đăng web. Chọn một bài hoặc sản phẩm đã có trên web (danh sách lấy theo lần bấm
+"Cập nhật từ web" gần nhất), chọn mẫu ảnh và cỡ. Máy đăng web lấy nội dung trên web, AI viết 3 bản
+(Facebook 100–200 chữ, Zalo OA 50–100 chữ, Google Business dưới 1.500 ký tự, không ghi giá, có hotline), rồi ghép ảnh.
+Anh sửa từng bản, bấm **Chép chữ**, **Tải ảnh**, dán tay lên từng kênh rồi bấm **Đã đăng** cho kênh đó; đủ 3 kênh thì việc
+thành Đã đăng. App không tự đăng lên mạng.
+
+- Ảnh: `dang_web/anh_mxh.py` (Pillow, font Be Vietnam Pro trong `dang_web/font/`, giấy phép OFL). 4 mẫu: Sản phẩm (ảnh
+  sản phẩm trên web), Trước và sau (đúng 2 ảnh thợ chụp, tải lên lúc soạn), Mẹo sửa lỗi (ảnh đại diện của bài), Ưu đãi
+  (chỉ chữ). Cỡ vuông 1080×1080, dọc 1080×1350 hoặc cả hai. AI không vẽ chữ.
+- Khung Canva: chép PNG vào `~/THANHDUC-WEB/mau-anh/<mẫu>-<cỡ>.png` (ví dụ `truoc_sau-vuong.png`, `meo-doc.png`), cùng
+  cỡ ảnh, chừa trong suốt vùng ảnh và vùng chữ theo `anh_mxh.vung()`: vùng ảnh từ trên 150px tới trên dải chữ 40px,
+  lề 64px; dải chữ cao 250px (vuông) hoặc 300px (dọc) ở dưới cùng. Có khung thì máy dùng khung, không có thì dùng khung dựng sẵn.
+- "Đổi chữ hoặc mẫu, ghép lại ảnh" chỉ ghép lại ảnh, không gọi AI. "Viết lại cả 3 bản" gọi AI lại và bỏ đánh dấu kênh.

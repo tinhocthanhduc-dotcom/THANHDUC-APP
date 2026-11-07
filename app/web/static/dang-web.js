@@ -8,12 +8,13 @@
     var input = event.target.closest && event.target.closest('[data-dw-search]');
     if (!input) return;
     var box = input.closest('[data-dw-picker]'), out = box.querySelector('[data-dw-results]');
-    box.querySelector('input[name=ma]').value = '';
+    var val = box.querySelector('[data-dw-value]') || box.querySelector('input[name=ma]');
+    val.value = '';
     clearTimeout(timer);
     timer = setTimeout(function () {
       var q = input.value.trim();
       if (!q) { out.innerHTML = ''; return; }
-      fetch('/dang-web/tim-hang?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+      fetch((box.dataset.dwUrl || '/dang-web/tim-hang') + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
         .then(function (r) { return r.ok ? r.text() : ''; })
         .then(function (html) { if (input.value.trim() === q) out.innerHTML = html; });
     }, 250);
@@ -22,7 +23,7 @@
     var b = event.target.closest && event.target.closest('[data-dw-pick]');
     if (!b) return;
     var box = b.closest('[data-dw-picker]');
-    box.querySelector('input[name=ma]').value = b.dataset.dwPick;
+    (box.querySelector('[data-dw-value]') || box.querySelector('input[name=ma]')).value = b.dataset.dwPick;
     box.querySelector('[data-dw-search]').value = b.dataset.label;
     box.querySelector('[data-dw-results]').innerHTML = '';
     var picked = box.querySelector('[data-dw-picked]');
@@ -41,7 +42,8 @@
         var img = document.createElement('img'); img.alt = 'Ảnh ' + (i + 1); img.src = URL.createObjectURL(file);
         var x = document.createElement('button'); x.type = 'button'; x.className = 'dw-ph-x'; x.textContent = '×'; x.setAttribute('aria-label', 'Bỏ ảnh ' + (i + 1));
         x.addEventListener('click', function () { keep.splice(i, 1); sync(); });
-        var cap = document.createElement('figcaption'); cap.textContent = i === 0 ? 'Ảnh chính' : 'Ảnh ' + (i + 1);
+        var ten = (box.dataset.dwTieuDe || '').split(',');
+        var cap = document.createElement('figcaption'); cap.textContent = ten[i] || (i === 0 ? 'Ảnh chính' : 'Ảnh ' + (i + 1));
         tile.appendChild(img); tile.appendChild(x); tile.appendChild(cap); list.appendChild(tile);
       });
       if (note) note.textContent = keep.length ? keep.length + '/' + max + ' ảnh. Ảnh đầu tiên làm ảnh chính.' : note.dataset.empty;
@@ -79,9 +81,23 @@
     if (!b) return;
     var src = document.querySelector(b.dataset.dwCopy);
     if (!src) return;
-    var done = function () { if (window.tdToast) window.tdToast('Đã chép câu lệnh, dán vào ChatGPT', 'ok'); };
+    var done = function () { if (window.tdToast) window.tdToast(b.dataset.dwCopyMsg || 'Đã chép câu lệnh, dán vào ChatGPT', 'ok'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(src.value).then(done, function () { src.select(); document.execCommand('copy'); done(); });
     else { src.select(); document.execCommand('copy'); done(); }
+  });
+
+  // ---- Bài mạng xã hội: đếm chữ theo giới hạn từng kênh ----
+  document.querySelectorAll('[data-dw-dem]').forEach(function (dem) {
+    var ta = document.querySelector(dem.dataset.dwDem);
+    if (!ta) return;
+    var it = +dem.dataset.it || 0, nhieu = +dem.dataset.nhieu || 0, kyTu = dem.dataset.donVi === 'ký tự';
+    function cap() {
+      var v = ta.value.trim(), n = kyTu ? v.length : (v ? v.split(/\s+/).length : 0);
+      dem.textContent = n.toLocaleString('vi-VN') + ' ' + dem.dataset.donVi + (kyTu ? ' / ' + nhieu.toLocaleString('vi-VN') : ' / ' + it + '–' + nhieu);
+      dem.classList.toggle('vuot', n > nhieu);
+      dem.classList.toggle('ok', n >= it && n <= nhieu);
+    }
+    ta.addEventListener('input', cap); cap();
   });
 
   // ---- Máy đang soạn/đăng: tự tải lại tới khi xong ----
