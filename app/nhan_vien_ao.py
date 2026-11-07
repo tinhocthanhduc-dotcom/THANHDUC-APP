@@ -1,16 +1,16 @@
-"""Nhân viên ảo đợt 1 (TUẤN duyệt phương án 07/11/2026): app tự làm một phần việc theo quy tắc giám đốc đặt.
+"""Nhân viên AI đợt 1 (TUẤN duyệt phương án 07/11/2026): app tự làm một phần việc theo quy tắc giám đốc đặt.
 
-Chạy bằng code trên máy chủ, không gọi API. Mỗi nhân viên ảo có công tắc riêng, TAT_CA là công tắc tổng.
+Chạy bằng code trên máy chủ, không gọi API. Mỗi nhân viên AI có công tắc riêng, TAT_CA là công tắc tổng.
 Mọi việc đều ghi vào virtual_agent_log kèm lý do; trang /nhan-vien-ao (chỉ giám đốc) xem nhật ký và sửa cài đặt.
 
 Ranh giới cứng: không đụng tiền, kho, công nợ; không hủy, không đóng phiếu; không nhắn khách. Chỉ nhắn nội bộ.
 
-- Điều phối ảo (DIEU_PHOI): phiếu dễ hết giờ thợ tự nhận mà chưa ai nhận thì giao luôn cho thợ đứng đầu gợi ý,
+- Điều phối AI (DIEU_PHOI): phiếu dễ hết giờ thợ tự nhận mà chưa ai nhận thì giao luôn cho thợ đứng đầu gợi ý,
   thợ phải đã vào ca và không nghỉ phép. Giao qua đúng hàm service_tickets.assign_in_tx bằng tài khoản hệ thống
-  "Nhân viên ảo" (không đăng nhập được), nên nhật ký phiếu, KPI, hoa hồng thợ như điều phối giao tay.
+  "Nhân viên AI" (không đăng nhập được), nên nhật ký phiếu, KPI, hoa hồng thợ như điều phối giao tay.
   Điều phối có undo_minutes phút để Hoàn tác (phiếu về Cần giao thợ) khi thợ chưa bấm Nhận; Đổi thợ lúc nào cũng được.
   TUẤN 07/11/2026: loại phiếu Mực định kỳ + Sửa tại chỗ mức Thường, hoàn tác 10 phút, không giới hạn số phiếu, chạy thật ngay.
-- Nhắc hẹn ảo (NHAC_HEN): nhắn Zalo cho thợ khi được giao quá accept_minutes phút chưa bấm Nhận, khi tới mốc nhắc
+- Nhắc hẹn AI (NHAC_HEN): nhắn Zalo cho thợ khi được giao quá accept_minutes phút chưa bấm Nhận, khi tới mốc nhắc
   sắp trễ hẹn; trễ hẹn quá director_late_minutes phút mà thợ chưa đi thì nhắn giám đốc. Điều phối đã có báo riêng.
 - Thư ký phiếu (THU_KY): lúc times (mặc định 11:15, 17:15) gom việc còn treo của từng nhân viên (đúng nhóm ở
   Việc của tôi) nhắn Zalo riêng. Giám đốc không nhận (đã có báo cáo sáng).
@@ -31,17 +31,17 @@ from .service_sla import TZ
 log = logging.getLogger(__name__)
 
 SYSTEM_USERNAME = 'nhan-vien-ao'
-SYSTEM_NAME = 'Nhân viên ảo'
-NOTE = 'Điều phối ảo'
+SYSTEM_NAME = 'Nhân viên AI'
+NOTE = 'Điều phối AI'
 MASTER = 'TAT_CA'
 KIND_LABELS = {'MUC_DINH_KY': 'Mực định kỳ', 'SUA_TAI_CHO': 'Sửa tại chỗ', 'MANG_VE': 'Mang về xưởng', 'GIAO_HANG': 'Giao hàng'}
 DISPATCH_KINDS = ('MUC_DINH_KY', 'SUA_TAI_CHO', 'MANG_VE')   # bảo hành không bao giờ tự giao
 PRIORITY_LABELS = {'THUONG': 'Thường', 'GAP': 'Gấp'}       # Khẩn không bao giờ tự giao
 AGENTS = {
-    'DIEU_PHOI': dict(name='Điều phối ảo', what='Giao phiếu dễ khi hết giờ thợ tự nhận mà chưa thợ nào nhận',
+    'DIEU_PHOI': dict(name='Điều phối AI', what='Giao phiếu dễ khi hết giờ thợ tự nhận mà chưa thợ nào nhận',
                       defaults=dict(kinds=['MUC_DINH_KY', 'SUA_TAI_CHO'], priorities=['THUONG'], wait_minutes=30,
                                     undo_minutes=10, max_per_day=0, max_per_tech=0)),
-    'NHAC_HEN': dict(name='Nhắc hẹn ảo', what='Nhắn Zalo cho thợ khi chưa nhận việc hoặc sắp trễ hẹn; trễ lâu thì nhắn giám đốc',
+    'NHAC_HEN': dict(name='Nhắc hẹn AI', what='Nhắn Zalo cho thợ khi chưa nhận việc hoặc sắp trễ hẹn; trễ lâu thì nhắn giám đốc',
                      defaults=dict(accept_minutes=15, director_late_minutes=30)),
     'THU_KY': dict(name='Thư ký phiếu', what='Gom việc còn treo của từng người, nhắn Zalo vào cuối buổi',
                    defaults=dict(times=['11:15', '17:15'])),
@@ -87,7 +87,7 @@ def active(session, code: str):
 
 def _director(user):
     if not user.active or 'director' not in user.roles:
-        raise BusinessError('FORBIDDEN', 'Chỉ giám đốc được cài đặt nhân viên ảo.', status=403)
+        raise BusinessError('FORBIDDEN', 'Chỉ giám đốc được cài đặt nhân viên AI.', status=403)
 
 
 def _int(raw, lo, hi, label):
@@ -117,14 +117,14 @@ def save(session, user, code: str, form) -> VirtualAgent:
     _director(user)
     all_rows = rows(session)
     if code not in all_rows:
-        raise BusinessError('NOT_FOUND', 'Không có nhân viên ảo này.', status=404)
+        raise BusinessError('NOT_FOUND', 'Không có nhân viên AI này.', status=404)
     row = all_rows[code]
     get = form.get
     enabled = str(get('bat') or '') == '1'
     old = (row.enabled, row.mode, dict(row.config or {}))
     if code == MASTER:
         row.enabled = enabled
-        text = 'Bật tất cả nhân viên ảo' if enabled else 'Tắt tất cả nhân viên ảo'
+        text = 'Bật tất cả nhân viên AI' if enabled else 'Tắt tất cả nhân viên AI'
     else:
         row.enabled = enabled
         config = dict(cfg(row))
@@ -159,7 +159,7 @@ def save(session, user, code: str, form) -> VirtualAgent:
 # ---------- tài khoản hệ thống ----------
 
 def system_user(session) -> User:
-    """Tài khoản đứng tên việc của nhân viên ảo. Không đăng nhập được (active=False, mật khẩu ngẫu nhiên không ai biết)."""
+    """Tài khoản đứng tên việc của nhân viên AI. Không đăng nhập được (active=False, mật khẩu ngẫu nhiên không ai biết)."""
     user = session.scalar(select(User).where(User.username == SYSTEM_USERNAME))
     if user is None:
         from .security import hash_password
@@ -219,7 +219,7 @@ def _day_start(now):
     return datetime.combine(local.date(), time(0), TZ)
 
 
-# ---------- Điều phối ảo ----------
+# ---------- Điều phối AI ----------
 
 def _candidates(session, c: dict, now):
     t = ServiceTicket
@@ -315,7 +315,7 @@ def _tell_dispatchers(session, entry, t, kind, customer, pick, why, undo, sender
     if not _zalo_ready() or not get_settings().dispatch_zalo:
         return
     tail = f'Muốn đổi thợ hoặc hoàn tác, mở phiếu trong {undo} phút' if undo else 'Muốn đổi thợ, mở phiếu'
-    body = f"Điều phối ảo vừa giao {t.number} ({kind}, {customer}) cho {pick['name']}. Lý do: {why}.\n{tail}: {_base()}/dich-vu/{t.id}"
+    body = f"Điều phối AI vừa giao {t.number} ({kind}, {customer}) cho {pick['name']}. Lý do: {why}.\n{tail}: {_base()}/dich-vu/{t.id}"
     send = _sender(sender)
     for user, chat in recipients(session):
         if user.id != pick['id']:
@@ -323,7 +323,7 @@ def _tell_dispatchers(session, entry, t, kind, customer, pick, why, undo, sender
 
 
 def ticket_note(session, t: ServiceTicket, now=None) -> dict | None:
-    """Khung "Điều phối ảo đã giao" trên phiếu: lần giao gần nhất của nhân viên ảo, còn hoàn tác được không."""
+    """Khung "Điều phối AI đã giao" trên phiếu: lần giao gần nhất của nhân viên AI, còn hoàn tác được không."""
     entry = session.scalar(select(VirtualAgentLog).where(VirtualAgentLog.ticket_id == t.id, VirtualAgentLog.agent == 'DIEU_PHOI',
                                                          VirtualAgentLog.action == 'GIAO').order_by(VirtualAgentLog.id.desc()).limit(1))
     if entry is None:
@@ -338,13 +338,13 @@ def ticket_note(session, t: ServiceTicket, now=None) -> dict | None:
 
 
 def undo(session, user, log_id: int) -> ServiceTicket:
-    """Điều phối/giám đốc rút việc Điều phối ảo vừa giao: phiếu về Cần giao thợ, nhân viên ảo không giao lại phiếu này."""
+    """Điều phối/giám đốc rút việc Điều phối AI vừa giao: phiếu về Cần giao thợ, nhân viên AI không giao lại phiếu này."""
     from .security import has_role
     if not has_role(user, *service_tickets.DISPATCHERS):
         raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc được hoàn tác.', status=403)
     entry = session.get(VirtualAgentLog, log_id)
     if entry is None or entry.action != 'GIAO' or entry.ticket_id is None:
-        raise BusinessError('NOT_FOUND', 'Không tìm thấy lần giao của Điều phối ảo.', status=404)
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy lần giao của Điều phối AI.', status=404)
     with service_tickets._transaction(session):
         t = service_tickets._get(session, user, entry.ticket_id, lock=True)
         note = ticket_note(session, t)
@@ -355,14 +355,14 @@ def undo(session, user, log_id: int) -> ServiceTicket:
         t.assignee_id, t.status, t.transfer_request, t.hold_reason = None, 'MOI', '', ''
         t.self_claim_until = None
         t.due_at = service_sla.due_at('MOI', t.priority, _now(), None)
-        service_tickets._record(session, user, t, 'unassign', before, from_status, f'Hoàn tác Điều phối ảo (đã giao {tech})')
+        service_tickets._record(session, user, t, 'unassign', before, from_status, f'Hoàn tác Điều phối AI (đã giao {tech})')
         entry.undone_by, entry.undone_at = user.id, _now()
         session.add(VirtualAgentLog(agent='DIEU_PHOI', action='HOAN_TAC', ticket_id=t.id, target_id=user.id,
                                     text=f'{user.full_name} hoàn tác {t.number} (đã giao {tech})'))
     return t
 
 
-# ---------- Nhắc hẹn ảo ----------
+# ---------- Nhắc hẹn AI ----------
 
 def remind_once(session, now=None, sender=None) -> int:
     row = active(session, 'NHAC_HEN')
@@ -501,7 +501,7 @@ def run_once(session, now=None, sender=None) -> int:
     for job in (dispatch_once, remind_once, clerk_once):
         try:
             total += job(session, now, sender)
-        except Exception:  # noqa: BLE001 - lỗi một nhân viên ảo không chặn các việc khác
+        except Exception:  # noqa: BLE001 - lỗi một nhân viên AI không chặn các việc khác
             session.rollback()
             log.exception('nhan vien ao %s', job.__name__)
     return total
@@ -546,7 +546,7 @@ def trial_results(session, entries) -> dict:
 
 
 def recent_assigned(session, since):
-    """Cho chuông điều phối: các phiếu Điều phối ảo đã giao từ `since`, chưa hoàn tác."""
+    """Cho chuông điều phối: các phiếu Điều phối AI đã giao từ `since`, chưa hoàn tác."""
     return list(session.execute(select(VirtualAgentLog.id, VirtualAgentLog.ticket_id, VirtualAgentLog.text).where(
         VirtualAgentLog.agent == 'DIEU_PHOI', VirtualAgentLog.action == 'GIAO', VirtualAgentLog.undone_at.is_(None),
         VirtualAgentLog.at >= since).order_by(VirtualAgentLog.id.desc()).limit(20)))

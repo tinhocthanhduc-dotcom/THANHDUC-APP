@@ -1,4 +1,4 @@
-"""Nhân viên ảo đợt 1 (TUẤN duyệt 07/11/2026): Điều phối ảo, Nhắc hẹn ảo, Thư ký phiếu, trang /nhan-vien-ao."""
+"""Nhân viên AI đợt 1 (TUẤN duyệt 07/11/2026): Điều phối AI, Nhắc hẹn AI, Thư ký phiếu, trang /nhan-vien-ao."""
 import re
 from datetime import timedelta
 
@@ -133,7 +133,7 @@ def test_undo_within_window_returns_ticket_and_not_reassigned(db, people, monkey
     entry = db.scalar(select(VirtualAgentLog).where(VirtualAgentLog.action == 'GIAO'))
     service_login(client, p['dispatcher'])
     page = client.get(f'/dich-vu/{t.id}').text
-    assert 'Điều phối ảo đã giao' in page and 'Hoàn tác' in page
+    assert 'Điều phối AI đã giao' in page and 'Hoàn tác' in page
     form = page[page.index('/dieu-phoi-ao/hoan-tac'):]
     key = re.search(r'name="form_key" value="([^"]+)"', form).group(1)
     res = client.post(f'/dich-vu/{t.id}/dieu-phoi-ao/hoan-tac', data=dict(csrf=csrf_of(page), form_key=key, log_id=entry.id), follow_redirects=False)
@@ -173,7 +173,7 @@ def test_dispatchers_told_on_zalo(db, people, zalo_on):
     t = old_ticket(db, p)
     sent = []
     assert nva.dispatch_once(db, sender=lambda *a: sent.append(a)) == 1
-    assert len(sent) == 1 and 'Điều phối ảo vừa giao' in sent[0][2] and f'/dich-vu/{t.id}' in sent[0][2] and 'hoàn tác' in sent[0][2]
+    assert len(sent) == 1 and 'Điều phối AI vừa giao' in sent[0][2] and f'/dich-vu/{t.id}' in sent[0][2] and 'hoàn tác' in sent[0][2]
 
 
 def test_remind_tech_not_accepted_and_director_late(db, people, zalo_on):
@@ -230,7 +230,7 @@ def test_page_director_only_and_save(db, people, client):
     assert client.get('/nhan-vien-ao').status_code == 403
     service_login(client, p['director'])
     page = client.get('/nhan-vien-ao').text
-    assert 'Điều phối ảo' in page and 'Nhắc hẹn ảo' in page and 'Thư ký phiếu' in page and 'Dừng tất cả' in page
+    assert 'Điều phối AI' in page and 'Nhắc hẹn AI' in page and 'Thư ký phiếu' in page and 'Dừng tất cả' in page
     form = page[page.index('action="/nhan-vien-ao/DIEU_PHOI"'):]
     key = re.search(r'name="form_key" value="([^"]+)"', form).group(1)
     res = client.post('/nhan-vien-ao/DIEU_PHOI', data=dict(csrf=csrf_of(page), form_key=key, cai_dat='1', bat='1', mode='CHAY_THU',
@@ -254,3 +254,11 @@ def test_page_director_only_and_save(db, people, client):
     db.expire_all()
     assert db.get(VirtualAgent, 'TAT_CA').enabled is False
     assert 'Đã tắt tất cả' in client.get('/nhan-vien-ao').text
+
+
+def test_system_account_hidden_from_account_list(db, people, client, make_user):
+    nva.system_user(db)
+    admin = make_user('nva.admin', 'admin')
+    service_login(client, admin)
+    page = client.get('/tai-khoan').text
+    assert 'Nva.Admin' in page and nva.SYSTEM_USERNAME not in page and 'Nhân viên AI' not in page
