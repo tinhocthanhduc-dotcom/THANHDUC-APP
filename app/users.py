@@ -229,7 +229,8 @@ def handover_summary(session,user):
 
 def search(session,admin,q='',status=''):
     check_admin(admin)
-    stmt=select(User).order_by(User.full_name,User.username)
+    # Tài khoản hệ thống của Nhân viên AI không phải người dùng: ẩn khỏi danh sách (TUẤN 07/11/2026).
+    stmt=select(User).where(User.username!='nhan-vien-ao').order_by(User.full_name,User.username)
     if status=='active':stmt=stmt.where(User.active.is_(True))
     elif status=='locked':stmt=stmt.where(User.active.is_(False))
     elif status:raise BusinessError('BAD_STATUS','Trạng thái tài khoản chưa hợp lệ.')

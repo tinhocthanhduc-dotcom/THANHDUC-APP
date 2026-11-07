@@ -1,5 +1,5 @@
-"""Trang Nhân viên ảo (TUẤN duyệt phương án 07/11/2026): công tắc, cài đặt, nhật ký. Chỉ giám đốc.
-Hoàn tác lần giao của Điều phối ảo nằm trên phiếu dịch vụ (điều phối/giám đốc)."""
+"""Trang Nhân viên AI (TUẤN duyệt phương án 07/11/2026): công tắc, cài đặt, nhật ký. Chỉ giám đốc.
+Hoàn tác lần giao của Điều phối AI nằm trên phiếu dịch vụ (điều phối/giám đốc)."""
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request
@@ -74,7 +74,7 @@ def undo(request: Request, ticket_id: int, form=Depends(checked_form), session: 
             raise BusinessError('VALIDATION', 'Thiếu lần giao cần hoàn tác.')
         entry = session.get(VirtualAgentLog, int(raw))
         if entry is None or entry.ticket_id != ticket_id:
-            raise BusinessError('NOT_FOUND', 'Không tìm thấy lần giao của Điều phối ảo trên phiếu này.', status=404)
+            raise BusinessError('NOT_FOUND', 'Không tìm thấy lần giao của Điều phối AI trên phiếu này.', status=404)
         nva.undo(session, user, entry.id)
     except BusinessError as exc:
         session.rollback()

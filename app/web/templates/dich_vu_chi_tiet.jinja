@@ -102,7 +102,7 @@
 {% with wf_part='action' %}{% include 'thanh_buoc.jinja' %}{% endwith %}
 </section>
 {% if virtual_undone %}{{ ui.toast('Đã hoàn tác, phiếu về Cần giao thợ') }}{% endif %}
-{% if virtual_note and not virtual_note.undone %}<section class="card done-state service-action nva-note" data-virtual-note><div class="done-k">Điều phối ảo đã giao</div><b>{{ virtual_note.name }}</b><p class="hint">Lúc {{ virtual_note.at|vn_time }} {{ virtual_note.at|vn_date }}{% if virtual_note.reason %} · Lý do: {{ virtual_note.reason }}{% endif %}</p>
+{% if virtual_note and not virtual_note.undone %}<section class="card done-state service-action nva-note" data-virtual-note><div class="done-k">Điều phối AI đã giao</div><b>{{ virtual_note.name }}</b><p class="hint">Lúc {{ virtual_note.at|vn_time }} {{ virtual_note.at|vn_date }}{% if virtual_note.reason %} · Lý do: {{ virtual_note.reason }}{% endif %}</p>
 {% if virtual_note.can_undo %}<form method="post" action="/dich-vu/{{ t.id }}/dieu-phoi-ao/hoan-tac" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="log_id" value="{{ virtual_note.id }}"><button class="btn btn-danger">Hoàn tác</button><span class="hint">còn {{ virtual_note.minutes_left }} phút · phiếu về Cần giao thợ. Muốn đổi thợ, bấm Giao thợ khác bên dưới.</span></form>{% endif %}
 </section>{% endif %}
 {% if t.status!='MOI' and can_assign and not xg_panel %}

@@ -261,5 +261,5 @@ def search(session,actor,q='',position='',status=''):
 
 def available_users(session,actor,q=''):
     manager(actor);needle=fold(q)
-    rows=session.execute(select(User.id,User.username,User.full_name,User.phone).where(~select(Employee.id).where(Employee.user_id==User.id).exists()).order_by(User.full_name,User.id)).mappings()
+    rows=session.execute(select(User.id,User.username,User.full_name,User.phone).where(User.username!='nhan-vien-ao',~select(Employee.id).where(Employee.user_id==User.id).exists()).order_by(User.full_name,User.id)).mappings()
     return [dict(r) for r in rows if not needle or tim.text_matches(q,' '.join((r['full_name'],r['username'],r['phone'])))][:20]

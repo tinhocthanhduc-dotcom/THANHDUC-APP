@@ -116,7 +116,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
-        {'label': 'Nhân viên ảo', 'href': '/nhan-vien-ao', 'prefixes': ('/nhan-vien-ao',), 'roles': ('director',)},
+        {'label': 'Nhân viên AI', 'href': '/nhan-vien-ao', 'prefixes': ('/nhan-vien-ao',), 'roles': ('director',)},
         {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',)},
         {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no'), 'roles': ('director',)},
         {'label': 'Trợ lý Zalo', 'href': '/zalo/tro-ly', 'prefixes': ('/zalo/tro-ly',), 'roles': ('director',)},

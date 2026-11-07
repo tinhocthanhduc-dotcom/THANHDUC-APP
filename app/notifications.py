@@ -82,11 +82,11 @@ def items(session, user, tho=False):
                        ServiceStep.at >= now - timedelta(days=1))
                 .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
             out.append(_item('self_claimed', step_id, f'{who(assignee)} đã tự nhận phiếu', number, f'/dich-vu/{ticket_id}', info=True))
-    # Điều phối ảo (TUẤN 07/11/2026): điều phối biết phiếu nào nhân viên ảo vừa giao, mở phiếu để đổi thợ / hoàn tác.
+    # Điều phối AI (TUẤN 07/11/2026): điều phối biết phiếu nào nhân viên AI vừa giao, mở phiếu để đổi thợ / hoàn tác.
     if has_role(user, 'dispatcher'):
         from . import nhan_vien_ao
         for log_id, ticket_id, text in nhan_vien_ao.recent_assigned(session, now - timedelta(days=1)):
-            out.append(_item('virtual_assigned', log_id, 'Điều phối ảo đã giao', text, f'/dich-vu/{ticket_id}', info=True))
+            out.append(_item('virtual_assigned', log_id, 'Điều phối AI đã giao', text, f'/dich-vu/{ticket_id}', info=True))
     # Nhắc sắp trễ hẹn (TUẤN 05/11/2026): thợ chưa bấm Đi / Đã đến khách. Đổi hẹn thì mốc mới, nhắc lại.
     from . import service_suggest
     if 'technician' in user.roles:

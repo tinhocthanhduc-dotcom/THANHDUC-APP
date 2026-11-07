@@ -1,16 +1,16 @@
 {% extends "base.jinja" %}
 {% import '_ui.jinja' as ui %}
-{% block title %}Nhân viên ảo{% endblock %}
+{% block title %}Nhân viên AI{% endblock %}
 {% block main %}<div class="page-wide nva-page">
-{# Nhân viên ảo đợt 1 (TUẤN duyệt phương án 07/11/2026, mẫu W5k8GWdrq5tEad2QUSFsKN): chỉ giám đốc. Không đụng tiền, kho, công nợ; không nhắn khách. #}
-{% call ui.page_head('Nhân viên ảo', sub='App tự làm một phần việc theo quy tắc anh đặt. Mọi việc ghi vào nhật ký kèm lý do. Không đụng tiền, kho, công nợ, không hủy phiếu, không nhắn khách.', badge_label='Đang chạy' if master.enabled else 'Đã tắt tất cả', badge_tone='xong' if master.enabled else 'huy') %}{% endcall %}
+{# Nhân viên AI đợt 1 (TUẤN duyệt phương án 07/11/2026, mẫu W5k8GWdrq5tEad2QUSFsKN): chỉ giám đốc. Không đụng tiền, kho, công nợ; không nhắn khách. #}
+{% call ui.page_head('Nhân viên AI', sub='App tự làm một phần việc theo quy tắc anh đặt. Mọi việc ghi vào nhật ký kèm lý do. Không đụng tiền, kho, công nợ, không hủy phiếu, không nhắn khách.', badge_label='Đang chạy' if master.enabled else 'Đã tắt tất cả', badge_tone='xong' if master.enabled else 'huy') %}{% endcall %}
 {% if luu %}{{ ui.toast('Đã lưu cài đặt') }}{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-{% if not zalo %}<section class="card zalo-note" role="note"><b>Bot Zalo chưa cấu hình.</b> Điều phối ảo vẫn giao phiếu; Nhắc hẹn ảo và Thư ký phiếu cần bot Zalo và nhân viên đã được gắn Zalo riêng (Tin nhắn Zalo › Gắn nhân viên).</section>{% endif %}
+{% if not zalo %}<section class="card zalo-note" role="note"><b>Bot Zalo chưa cấu hình.</b> Điều phối AI vẫn giao phiếu; Nhắc hẹn AI và Thư ký phiếu cần bot Zalo và nhân viên đã được gắn Zalo riêng (Tin nhắn Zalo › Gắn nhân viên).</section>{% endif %}
 <div class="nva-grid">
 <div class="nva-col">
 <form class="card nva-master" method="post" action="/nhan-vien-ao/TAT_CA"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
-<div><b>Tất cả nhân viên ảo</b><p class="hint">Tắt ở đây là dừng hết ngay, cài đặt từng nhân viên ảo vẫn giữ.</p></div>
+<div><b>Tất cả nhân viên AI</b><p class="hint">Tắt ở đây là dừng hết ngay, cài đặt từng nhân viên AI vẫn giữ.</p></div>
 <input type="hidden" name="bat" value="{{ '0' if master.enabled else '1' }}">
 {% if master.enabled %}<button class="btn btn-danger">Dừng tất cả</button>{% else %}<button class="btn btn-ok">Bật lại</button>{% endif %}
 </form>
