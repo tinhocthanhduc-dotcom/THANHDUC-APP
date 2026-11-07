@@ -16,6 +16,7 @@ from ..models import CashDoc, Customer, CustomerOpeningDebt, SalesOrder, SalesRe
 from ..schemas import SalesReceiptReport
 from ..security import has_role
 from . import checked_form, money, nav, render, web_user
+from .lists import _today
 
 from . import next_steps
 
@@ -141,8 +142,39 @@ def held(request: Request,user: User=Depends(web_user),session: Session=Depends(
     return render(request,'tien_toi_giu.jinja',held=svc.held_by(session,user))
 
 
+FILTER_KEYS=('method','from','to','nguoi')
+
+
+def _key(row):
+    return str(row.reported_by) if row.method=='TIEN_MAT' else 'ck'
+
+
+def _groups(rows,user,people,group_form):
+    """Màn Báo thu (07/11/2026): gom tiền mặt theo người báo (cũ nhất trước), chuyển khoản một nhóm riêng ở cuối.
+    Chỉ để hiển thị; xác nhận vẫn qua confirm_cash_group/confirm như cũ."""
+    today=_today();found={}
+    for row in rows:
+        key=_key(row)
+        g=found.setdefault(key,dict(key=key,kind='cash' if key!='ck' else 'ck',reporter_id=row.reported_by if key!='ck' else None,
+                                    name=people.get(row.reported_by,str(row.reported_by)) if key!='ck' else 'Chuyển khoản',
+                                    rows=[],eligible=[],total=0,days=0,oldest=None))
+        g['rows'].append(row);g['total']+=row.amount
+        age=max(0,(today-row.received_at).days)
+        if g['oldest'] is None or age>g['days']:g['days'],g['oldest']=age,row
+        if row.reported_by!=user.id:g['eligible'].append(row)
+    chosen={str(v) for v in group_form.get('receipt_ids',[])}
+    for g in found.values():
+        g['own']=g['kind']=='cash' and not g['eligible']
+        g['initials']='CK' if g['kind']=='ck' else ''.join(w[0] for w in g['name'].split()[-1:]).upper()
+        mine=chosen and str(group_form.get('reporter_id',''))==g['key']
+        g['checked']={r.id for r in g['eligible'] if not mine or str(r.id) in chosen}
+        g['checked_total']=sum(r.amount for r in g['eligible'] if r.id in g['checked'])
+    cash=[g for k,g in found.items() if k!='ck']
+    return cash,cash+([found['ck']] if 'ck' in found else [])
+
+
 def _queue(request,session,user,filters=None,error=None,code='',status=200,decision=None,failed=None,action='',selected=None,group_form=None):
-    filters=filters if filters is not None else {k:request.query_params.get(k,'') for k in ('method','from','to')}
+    filters=filters if filters is not None else {k:request.query_params.get(k,'') for k in FILTER_KEYS}
     try:
         try:
             start,end=(date.fromisoformat(filters.get(k,'')) if filters.get(k) else None for k in ('from','to'))
@@ -162,16 +194,20 @@ def _queue(request,session,user,filters=None,error=None,code='',status=200,decis
                               url=f"/don-ban/{r.order_id}#thu-tien" if r.order_id else opening_url(parents[r.id].customer_code,'#thu-tien') if r.opening_id
                               else nav.ticket_url(user,r.ticket_id,"#thu-tien")) for r in sources}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({p.customer_code for p in parents.values()}))).all())
-    cash_groups={}
-    for row in rows:
-        if row.method=='TIEN_MAT':
-            group=cash_groups.setdefault(row.reported_by,dict(reporter_id=row.reported_by,rows=[],eligible=[],total=0))
-            group['rows'].append(row);group['total']+=row.amount
-            if row.reported_by!=user.id:group['eligible'].append(row)
+    people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({v for r in rows for v in (r.reported_by,r.decided_by) if v}))).all())
+    cash_groups,groups=_groups(rows,user,people,group_form or {})
     totals={method:sum(row.amount for row in rows if row.method==method) for method in METHODS}
-    return render(request,'bao_thu_chi_tiet.jinja' if selected else 'bao_thu_ds.jinja',cash_groups=list(cash_groups.values()),pending_totals=totals,group_form=group_form or {},rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
+    keys=[g['key'] for g in groups]
+    pick=str(filters.get('nguoi') or '')
+    if pick not in keys and group_form and str(group_form.get('reporter_id','')) in keys:pick=str(group_form['reporter_id'])
+    if pick not in keys and failed is not None:pick=_key(failed) if _key(failed) in keys else ''
+    current=pick if pick in keys else (keys[0] if keys else '')
+    cash=[g for g in groups if g['kind']=='cash']
+    oldest=max(cash,key=lambda g:g['days'],default=None)
+    return render(request,'bao_thu_chi_tiet.jinja' if selected else 'bao_thu_ds.jinja',cash_groups=cash_groups,groups=groups,current_group=current,picked=pick in keys,oldest_group=oldest,
+                  cash_people=len(cash),pending_counts={m:sum(1 for r in rows if r.method==m) for m in METHODS},pending_totals=totals,group_form=group_form or {},rows=rows,receipt_sources=receipt_sources,names=names,receipt_filters=filters,
                   receipt_methods=METHODS,receipt_statuses=STATUSES,can_decide=True,can_void=has_role(user,'director'),
-                  receipt_people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_({v for r in rows for v in (r.reported_by,r.decided_by) if v}))).all()),
+                  receipt_people=people,
                   receipt_cash_docs=dict(session.execute(select(CashDoc.id,CashDoc.number).where(CashDoc.id.in_({r.cash_doc_id for r in sources if r.cash_doc_id}))).all()),
                   receipt_next=next_steps.receipt,origin='queue',error=error,error_code=code,status=status,receipt_decision=decision or {},failed=failed,
                   failed_receipt_id=failed.id if failed else None,failed_receipt_action=action,
@@ -195,11 +231,11 @@ def _queue_redirect(filters,anchor=''):
 def confirm_group(request:Request,form=Depends(checked_form),session:Session=Depends(get_session)):
     user=request.state.user
     svc.check_finance(user)
-    filters={k:str(form.get('filter_'+k,'')) for k in ('method','from','to')}
-    raw=dict(form)
+    filters={k:str(form.get('filter_'+k,'')) for k in FILTER_KEYS}
+    raw=dict(form)|{'receipt_ids':[str(v) for v in form.getlist('receipt_id')]}
     try:
         identifiers=form.getlist('receipt_id')
-        if not identifiers:raise BusinessError('BAD_GROUP','Nhóm chưa có báo thu.')
+        if not identifiers:raise BusinessError('BAD_GROUP','Chưa chọn khoản nào để xác nhận.')
         items=[]
         for value in identifiers:
             value=str(value)
@@ -236,7 +272,7 @@ def decide(request: Request,receipt_id: int,action: str,form=Depends(checked_for
             raise BusinessError('FORBIDDEN','Chỉ giám đốc được hủy báo thu đã xác nhận.',status=403)
     else:
         svc.check_finance(user)
-    filters={k:str(form.get('filter_'+k,'')) for k in ('method','from','to')}
+    filters={k:str(form.get('filter_'+k,'')) for k in FILTER_KEYS}
     try:
         version=_version(form)
         if action=='confirm':
