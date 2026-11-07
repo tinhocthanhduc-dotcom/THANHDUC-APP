@@ -107,6 +107,10 @@ def file_chu_de(goc) -> Path:
     return Path(goc) / "chu-de.txt"
 
 
+def file_ghi_chu_chu_de(goc) -> Path:
+    return Path(goc) / "chu-de-ghi-chu.json"
+
+
 def doc_json(path: Path, mac_dinh):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -569,6 +573,28 @@ def xoa_chu_de(goc, chu_de: str) -> None:
             return
         dong = p.read_text(encoding="utf-8").splitlines()
         p.write_text("".join(x + "\n" for x in dong if x.strip() != chu_de.strip()), encoding="utf-8")
+        gc = doc_ghi_chu_chu_de(goc)
+        if gc.pop(chu_de.strip(), None) is not None:
+            ghi_json(file_ghi_chu_chu_de(goc), gc)
+
+
+# TUẤN 07/11: mỗi chủ đề có "Ghi chú thật" (việc đã làm ở phường nào, máy gì...) để bài không giống nhau.
+def doc_ghi_chu_chu_de(goc) -> dict[str, str]:
+    d = doc_json(file_ghi_chu_chu_de(goc), {})
+    return {str(k): str(v) for k, v in d.items() if str(v).strip()} if isinstance(d, dict) else {}
+
+
+def ghi_ghi_chu_chu_de(goc, chu_de: str, ghi_chu: str) -> None:
+    chu_de, ghi_chu = " ".join(chu_de.split()), ghi_chu.strip()[:1000]
+    if not chu_de:
+        return
+    with khoa(goc):
+        d = doc_ghi_chu_chu_de(goc)
+        if ghi_chu:
+            d[chu_de] = ghi_chu
+        else:
+            d.pop(chu_de, None)
+        ghi_json(file_ghi_chu_chu_de(goc), d)
 
 
 # ---------------- ảnh bỏ sẵn trong anh-goc ----------------

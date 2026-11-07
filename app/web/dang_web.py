@@ -160,8 +160,9 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
     if loai == "bai_viet":
         dang_co = {v.get("chu_de") for v in con}
         bai_tren_web = _doc_web(hd.file_bai_web(g))["ds"]
+        ghi_chu = hd.doc_ghi_chu_chu_de(g)
         chu_de = [dict(ten=c, xong=c in tt["bai_viet"], dang=c in dang_co, trung=c in tt["nghi_trung"],
-                       tren_web=_bai_giong(c, bai_tren_web)) for c in hd.doc_chu_de(g)]
+                       tren_web=_bai_giong(c, bai_tren_web), ghi_chu=ghi_chu.get(c, "")) for c in hd.doc_chu_de(g)]
     return render(request, "dang_web.jinja", rows=rows, tiles=tiles, gan_day=gan_day, chu_de=chu_de, lich=hd.doc_lich(g),
                   co_chay=any(v["dang_chay"] for v in viec), **ctx)
 
@@ -415,6 +416,8 @@ def new_form(request: Request, loai: str = "san-pham", ma: str = "", chu_de: str
              user: User = Depends(web_user), session: Session = Depends(get_session)):
     d = dict(loai="bai_viet" if loai == "bai-viet" else "san_pham", ma=ma.strip().upper(), chu_de=chu_de.strip(),
              wp_id=wp_id if wp_id.isdigit() else "")
+    if d["loai"] == "bai_viet" and d["chu_de"]:
+        d["ghi_chu"] = hd.doc_ghi_chu_chu_de(goc()).get(" ".join(d["chu_de"].split()), "")
     return _form_soan(request, session, d)
 
 
@@ -1083,6 +1086,11 @@ def topics(request: Request, form=Depends(checked_form)):
     if hanh_dong == "xoa":
         hd.xoa_chu_de(g, chu_de)
         return RedirectResponse("/dang-web?tab=bai-viet&da_luu=xoa-chu-de", status_code=303)
+    if hanh_dong == "ghi_chu":
+        if chu_de not in hd.doc_chu_de(g):
+            raise BusinessError("BAD_FORM", "Chủ đề này không còn trong danh sách.")
+        hd.ghi_ghi_chu_chu_de(g, chu_de, str(form.get("ghi_chu", "")))
+        return RedirectResponse("/dang-web?tab=bai-viet&da_luu=ghi-chu-chu-de", status_code=303)
     # TUẤN 07/11: dán nhiều chủ đề một lần, mỗi dòng một chủ đề (bỏ số thứ tự, gạch đầu dòng).
     dong = [re.sub(r"^\s*(?:\d+[.)]|[-*•+])\s*", "", x) for x in str(form.get("chu_de", "")).splitlines()]
     dong = [" ".join(x.split())[:200] for x in dong if x.strip()][:50]

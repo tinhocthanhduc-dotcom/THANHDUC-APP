@@ -24,7 +24,7 @@
 <span>Chờ Codex: {{ sk.cho_viec }} việc{% if sk.cho_ve %}, {{ sk.cho_ve }} lượt vẽ ảnh{% endif %}</span>
 {% if sk.loi %}<span class="dw-codex-loi" title="{{ sk.loi.ly_do }}">Lỗi gần nhất {{ sk.loi.gio }}: {{ sk.loi.ly_do|truncate(80) }}</span>{% endif %}
 </div>{% endif %}
-{% if da_luu %}{% set tin = {'bo': 'Đã bỏ việc.', 'lam-moi': 'Đang lấy lại từ web, trang tự tải lại khi xong.', 'them-chu-de': 'Đã thêm chủ đề.', 'xoa-chu-de': 'Đã xóa chủ đề.', 'lich': 'Đã lưu lịch tự soạn.'} %}{% if da_luu.startswith('them-cd-') and da_luu[8:].split('-')|length == 4 %}{% set p = da_luu[8:].split('-') %}{% set _ = tin.update({da_luu: 'Đã thêm ' ~ p[0] ~ ' chủ đề' ~ ((', bỏ ' ~ p[1] ~ ' giống bài đã có trên web') if p[1] != '0' else '') ~ ((', bỏ ' ~ p[2] ~ ' đã có trong danh sách') if p[2] != '0' else '') ~ ((', bỏ ' ~ p[3] ~ ' dòng quá ngắn') if p[3] != '0' else '') ~ '.'}) %}{% endif %}{{ ui.toast(tin.get(da_luu) or ('Đã tạo ' ~ da_luu[8:] ~ ' việc soạn.' if da_luu.startswith('tu-chon-') else 'Đã lưu.'), 'ok') }}{% endif %}
+{% if da_luu %}{% set tin = {'bo': 'Đã bỏ việc.', 'lam-moi': 'Đang lấy lại từ web, trang tự tải lại khi xong.', 'them-chu-de': 'Đã thêm chủ đề.', 'xoa-chu-de': 'Đã xóa chủ đề.', 'ghi-chu-chu-de': 'Đã lưu ghi chú thật.', 'lich': 'Đã lưu lịch tự soạn.'} %}{% if da_luu.startswith('them-cd-') and da_luu[8:].split('-')|length == 4 %}{% set p = da_luu[8:].split('-') %}{% set _ = tin.update({da_luu: 'Đã thêm ' ~ p[0] ~ ' chủ đề' ~ ((', bỏ ' ~ p[1] ~ ' giống bài đã có trên web') if p[1] != '0' else '') ~ ((', bỏ ' ~ p[2] ~ ' đã có trong danh sách') if p[2] != '0' else '') ~ ((', bỏ ' ~ p[3] ~ ' dòng quá ngắn') if p[3] != '0' else '') ~ '.'}) %}{% endif %}{{ ui.toast(tin.get(da_luu) or ('Đã tạo ' ~ da_luu[8:] ~ ' việc soạn.' if da_luu.startswith('tu-chon-') else 'Đã lưu.'), 'ok') }}{% endif %}
 
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}
@@ -62,7 +62,10 @@
 {% if chu_de %}<ul class="dw-topics">{% for c in chu_de %}<li><span>{{ c.ten }}</span>
 {% if c.tren_web and not c.xong %}<a class="btn btn-ghost" href="{{ c.tren_web.sua or c.tren_web.xem }}" target="_blank" rel="noopener" title="Web đã có: {{ c.tren_web.ten }}">Web đã có ↗</a>{% endif %}
 {% if c.xong %}{{ ui.badge('Đã đăng', 'xong') }}{% elif c.dang %}{{ ui.badge('Đang làm', 'lam') }}{% elif c.trung %}{{ ui.badge('Có thể trùng', 'cho') }}{% else %}<a class="btn btn-ghost" href="/dang-web/soan?loai=bai-viet&amp;chu_de={{ c.ten|urlquote }}">Soạn ›</a>{% endif %}
-<form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<button class="btn btn-ghost dw-x" name="hanh_dong" value="xoa" aria-label="Xóa chủ đề {{ c.ten }}" onclick='return confirm({{ ("Xóa chủ đề này khỏi danh sách?")|tojson }})'>×</button></form></li>{% endfor %}</ul>{% endif %}
+<form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<button class="btn btn-ghost dw-x" name="hanh_dong" value="xoa" aria-label="Xóa chủ đề {{ c.ten }}" onclick='return confirm({{ ("Xóa chủ đề này khỏi danh sách?")|tojson }})'>×</button></form>
+{% if not c.xong %}<details class="dw-gc"><summary>{% if c.ghi_chu %}<b>Ghi chú thật:</b> {{ c.ghi_chu|truncate(90) }}{% else %}+ Ghi chú thật{% endif %}</summary>
+<form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<textarea name="ghi_chu" rows="3" maxlength="1000" aria-label="Ghi chú thật cho {{ c.ten }}" placeholder="Việc thật đã làm, AI đưa vào bài. Ví dụ: tháng 10 thợ sửa 3 máy Canon 2900 kẹt giấy ở phường Tân Định, Quận 1; nguyên nhân bánh xe kéo giấy mòn.">{{ c.ghi_chu }}</textarea>
+<button class="btn btn-ok" name="hanh_dong" value="ghi_chu">Lưu ghi chú</button></form></details>{% endif %}</li>{% endfor %}</ul>{% endif %}
 </div>
 {% endif %}
 
