@@ -8,7 +8,7 @@ Tự nhận ghi bước giao như điều phối giao (người giao = chính th
 """
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 
 from . import service_sla
 from .config import get_settings
@@ -53,14 +53,27 @@ def minutes_left(t: ServiceTicket, now) -> int:
     return max(0, -(-int((t.self_claim_until - now).total_seconds()) // 60))
 
 
+def max_open() -> int:
+    return get_settings().self_claim_max_open
+
+
 def open_jobs(session, user_id: int) -> int:
+    """Việc đang mở của thợ: phiếu dịch vụ + đơn Thợ giao (TUẤN 07/11/2026).
+    Đơn đi cùng một phiếu đang mở của chính thợ là cùng chuyến, không tính thêm."""
+    from .models import SalesOrder
     from .service_tickets import OPEN
-    return session.scalar(select(func.count()).select_from(ServiceTicket).where(
+    tickets = session.scalar(select(func.count()).select_from(ServiceTicket).where(
         ServiceTicket.assignee_id == user_id, ServiceTicket.status.in_(OPEN))) or 0
+    same_trip = exists().where(ServiceTicket.id == SalesOrder.service_ticket_id, ServiceTicket.assignee_id == user_id,
+                               ServiceTicket.status.in_(OPEN))
+    orders = session.scalar(select(func.count()).select_from(SalesOrder).where(
+        SalesOrder.delivery_assignee_id == user_id, SalesOrder.fulfillment == 'THO_GIAO',
+        SalesOrder.status.in_(('DA_CHOT', 'GIAO_MOT_PHAN')), ~same_trip)) or 0
+    return tickets + orders
 
 
 def can_claim_more(session, user_id: int) -> bool:
-    return open_jobs(session, user_id) < get_settings().self_claim_max_open
+    return open_jobs(session, user_id) < max_open()
 
 
 def claim(session, user: User, ticket_id: int) -> ServiceTicket:
@@ -81,7 +94,7 @@ def claim(session, user: User, ticket_id: int) -> ServiceTicket:
             raise BusinessError('BAD_STATUS', f'Phiếu {t.number} không còn chờ nhận.', status=409)
         if t.self_claim_until <= now:
             raise BusinessError('CLAIM_EXPIRED', f'Phiếu {t.number} đã hết giờ tự nhận, điều phối sẽ giao thợ.', status=409)
-        limit = get_settings().self_claim_max_open
+        limit = max_open()
         if open_jobs(session, user.id) >= limit:
             raise BusinessError('TOO_MANY_JOBS', f'Bạn đang có {limit} việc mở trở lên. Xong bớt một việc rồi mới nhận thêm được.', status=409)
         before, from_status = svc.snapshot(t), t.status
@@ -90,6 +103,9 @@ def claim(session, user: User, ticket_id: int) -> ServiceTicket:
         svc._record(session, user, t, 'assign', before, from_status, NOTE)
         # Bấm Nhận là đã nhận việc: đi tiếp sang Đã nhận như thợ bấm Nhận đơn.
         svc.transition_in_tx(session, user, t, 'DA_NHAN', NOTE)
+        # Đơn Thợ giao kèm phiếu đi theo người nhận phiếu (TUẤN 07/11/2026).
+        from . import delivery_claim
+        delivery_claim.follow_ticket(session, user, t)
     return t
 
 

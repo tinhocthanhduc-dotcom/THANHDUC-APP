@@ -11,7 +11,7 @@ import time as clock
 from datetime import timedelta
 from urllib.parse import urlsplit
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from . import service_appointments, service_suggest, service_tickets
 from .config import get_settings
@@ -76,6 +76,22 @@ def events(session, now) -> list[tuple[str, str]]:
         tip = f"\nGợi ý: {top['name']}" + (' · ' + ' · '.join(top['why']) if top['why'] else '') if top else ''
         place = f' ({where})' if where else ''
         out.append((f'can-giao:{row.id}', f"{row.number} {name}{place}: {why}.{tip}\nMở app để giao: {base_url()}/dich-vu/{row.id}"))
+    # Đơn Thợ giao chờ thợ tự nhận quá 30 phút (TUẤN 07/11/2026): nhắc một lần, đơn vẫn hiện cho thợ nhận.
+    from . import delivery_claim
+    from .models import SalesOrder
+    if delivery_claim.enabled():
+        o = SalesOrder
+        since = func.coalesce(o.confirmed_at, o.created_at)
+        orders = list(session.scalars(select(o).where(delivery_claim.remind_due(now), since > now - delivery_claim.REMIND_AFTER - FRESH).order_by(o.id)))
+        ranks = delivery_claim.rank_orders(session, orders, now) if orders else {}
+        for order in orders:
+            name = session.scalar(select(Customer.name).where(Customer.code == order.customer_code)) or order.customer_code
+            where = service_suggest.area(order.delivery_address)
+            place = f" ({('Quận ' + where) if where.isdigit() else where.title()})" if where else ''
+            top = service_suggest.best(ranks.get(order.id, []))
+            tip = f"\nGợi ý: {top['name']}" + (' · ' + ' · '.join(top['why']) if top['why'] else '') if top else ''
+            out.append((f'don-giao:{order.id}', f"{order.number} {name}{place}: đơn thợ giao chờ 30 phút chưa thợ nào nhận.{tip}"
+                        f"\nMở app để giao: {base_url()}/giao-don/{order.id}"))
     for item in service_suggest.at_risk(session, now, level='dispatch'):
         row = item['ticket']
         name, where = _place(session, row)

@@ -253,6 +253,18 @@ def _claim_rows(session,now):
     return out
 
 
+@router.post('/tho/nhan-don/{order_id}')
+def claim_order(request:Request,order_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """Thợ tự nhận đơn Thợ giao (TUẤN 07/11/2026): ai bấm trước người đó giao."""
+    from .. import delivery_claim
+    try:
+        order=delivery_claim.claim(session,user,order_id)
+    except BusinessError as exc:
+        session.rollback()
+        return _today(request,user,session,claim_error=exc.message,status=exc.status)
+    return RedirectResponse(f'/tho?nhan={order.number}#sap-toi',status_code=303)
+
+
 @router.post('/tho/nhan/{ticket_id}')
 def claim(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
     from .. import service_self_claim
@@ -309,6 +321,9 @@ def _today(request,user,session,claim_error=None,status=200):
     from .. import production_stale
     production_stale_items=production_stale.stale_map(session,[r for r,_ in production_jobs],production._now())
     claims=_claim_rows(session,now) if service_self_claim.minutes()>0 else []
+    from .. import delivery_claim
+    order_claims=delivery_claim.claim_rows(session,now) if delivery_claim.enabled() else []
+    claim_trips=delivery_claim.linked_orders(session,[c['id'] for c in claims])
     claimed=str(request.query_params.get('nhan',''))[:32]
     # Nhắc sắp tới hẹn (TUẤN 05/11/2026): thợ chưa bấm Đi / Đã đến khách.
     from .. import service_suggest
@@ -316,8 +331,8 @@ def _today(request,user,session,claim_error=None,status=200):
     soon_customers=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({i['ticket'].customer_code for i in soon}))).all()) if soon else {}
     flash={'di':'Đã ghi bạn đang đi tới khách. Điều phối thấy ngay.','tre':'Đã báo trễ. Điều phối sẽ gọi khách.'}.get(str(request.query_params.get('hen','')),'')
     return render(request,'tho_hom_nay.jinja',soon=soon,soon_customers=soon_customers,soon_label=service_suggest.risk_label,vn_tz=service_suggest.TZ,late_choices=service_suggest.LATE_CHOICES,late_flash=flash,production_jobs=production_jobs,production_stale=production_stale_items,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
-        claims=claims,claim_busy=bool(claims) and not service_self_claim.can_claim_more(session,user.id),claim_limit=get_settings().self_claim_max_open,
-        claim_error=claim_error,claimed=claimed if claimed and any(j['number']==claimed for j in jobs) else '',status=status,
+        claims=claims,order_claims=order_claims,claim_trips=claim_trips,claim_busy=bool(claims or order_claims) and not service_self_claim.can_claim_more(session,user.id),claim_limit=get_settings().self_claim_max_open,
+        claim_error=claim_error,claimed=claimed if claimed and any(j['number']==claimed or any(x['number']==claimed for x in j.get('trips',[])) for j in jobs) else '',status=status,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))
 
 

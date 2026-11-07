@@ -92,6 +92,14 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
     from ..models import SalesOrder
     delivery_orders=list(session.scalars(select(SalesOrder).where(SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))).order_by(SalesOrder.id)))
     delivery_labels={o.id:technician_deliveries.state(session,user,o)['label'] for o in delivery_orders}
+    # Đơn Thợ giao chưa có thợ (TUẤN 07/11/2026): thợ đang thấy ở Việc chờ nhận; điều phối có gợi ý thợ để giao ngay.
+    from .. import delivery_claim
+    waiting_orders=[o for o in delivery_orders if o.delivery_assignee_id is None]
+    order_ranks=delivery_claim.rank_orders(session,waiting_orders,now) if waiting_orders else {}
+    delivery_suggest={o.id:service_suggest.best(order_ranks.get(o.id,[])) for o in waiting_orders}
+    follow_ids={o.id for o in session.scalars(select(SalesOrder).where(delivery_claim.unassigned(),~delivery_claim.claimable()))}
+    delivery_tickets=dict(session.execute(select(ServiceTicket.id,ServiceTicket.number).where(ServiceTicket.id.in_({o.service_ticket_id for o in waiting_orders if o.id in follow_ids}))).all()) if follow_ids else {}
+    delivery_wait={o.id:max(0,int((now-delivery_claim.waited_since(o)).total_seconds())//60) for o in waiting_orders if delivery_claim.waited_since(o)}
     visit_counts = dict(session.execute(select(ServiceVisit.ticket_id, func.count()).where(
         ServiceVisit.ticket_id.in_([t.id for t in rows])).group_by(ServiceVisit.ticket_id)).all())
     # Đợt 5: tên khách và "Bước tiếp · ai làm" trên từng dòng; chỉ để đọc.
@@ -99,7 +107,7 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
     from . import nav
     from .customer_overview import _service_next
     users = dict(session.execute(select(User.id, User.full_name)).all())
-    customer_names = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in rows}))).all())
+    customer_names = dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_({t.customer_code for t in rows} | {o.customer_code for o in delivery_orders}))).all())
     extra = session.execute(select(
         func.count().filter(ServiceTicket.status == 'MOI', ~service_self_claim.claimable(now)),
         func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'CHO_SUA_XUONG'),
@@ -137,7 +145,7 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
     return render(request, "dieu_phoi.jinja", visit_counts=visit_counts, suggest=suggest, swap=swap, risk_of=risk_of, back=back, done=done,
                   risk_label=service_suggest.risk_label, claim_stats=claim_stats, claim_left=lambda t: service_self_claim.minutes_left(t, now),
                   claim_expired=lambda t: t.status == 'MOI' and t.assignee_id is None and t.self_claim_until is not None and t.self_claim_until <= now,tiles=tiles,customer_names=customer_names,
-                  next_of={t.id: _service_next(t, users, session) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels, rows=rows, page=page, view=view, title=title,
+                  next_of={t.id: _service_next(t, users, session) for t in rows}, can_create=nav.allowed(user, '/dich-vu/moi'),delivery_orders=delivery_orders,delivery_labels=delivery_labels,delivery_suggest=delivery_suggest,delivery_wait=delivery_wait,delivery_follow=follow_ids,delivery_tickets=delivery_tickets,claim_orders_on=delivery_claim.enabled(), rows=rows, page=page, view=view, title=title,
                   users=users, open_counts=svc.open_counts(session),
                   now=now, delay=_delay, watch=dict(url='/dieu-phoi/moi', stamp=work_watch.dispatch(session)))
 

@@ -40,7 +40,7 @@ def held_by_tech(session, order):
         StockReservation.order_id==order.id,StockReservation.status=='GIU',Warehouse.kind=='THO')))
 
 
-def assign(session,user,order_id,body):
+def assign(session,user,order_id,body,reason=''):
     if not has_role(user,'dispatcher'):
         raise BusinessError('FORBIDDEN','Chỉ điều phối hoặc giám đốc được giao thợ.',status=403)
     with sales_orders._transaction(session):
@@ -71,7 +71,7 @@ def assign(session,user,order_id,body):
         order.delivery_assignee_id,order.delivery_assigned_at=body.assignee_id,datetime.now(UTC)
         order.service_ticket_id=ticket_id
         order.version+=1
-        sales_orders._record(session,user,order,'assign_delivery',before)
+        sales_orders._record(session,user,order,'assign_delivery',before,reason)
     return order
 
 
