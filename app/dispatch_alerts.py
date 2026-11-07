@@ -137,6 +137,12 @@ def _loop():
                 conn.commit()
                 if locked:
                     while True:
+                        from . import nhan_vien_ao
+                        try:  # Nhân viên ảo chạy trước: phiếu đã tự giao thì không báo "cần giao" nữa.
+                            with Session(bind=eng, expire_on_commit=False) as session:
+                                nhan_vien_ao.run_once(session)
+                        except Exception:  # noqa: BLE001
+                            log.exception('nhan vien ao')
                         with Session(bind=eng, expire_on_commit=False) as session:
                             run_once(session)
                         from . import production_stale, weekly_zalo

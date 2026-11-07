@@ -2311,3 +2311,31 @@ class ProductionBomLine(Base):
     material_code: Mapped[str] = mapped_column(String(16), ForeignKey('products.code'), primary_key=True)
     line_no: Mapped[int] = mapped_column(Integer)
     qty: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+
+
+class VirtualAgent(Base):
+    """0085 Nhân viên ảo: mỗi dòng một nhân viên ảo (TAT_CA là công tắc tổng). Chỉ giám đốc sửa."""
+    __tablename__ = 'virtual_agents'
+    __table_args__ = (CheckConstraint("mode in ('TU_LAM','CHAY_THU')", name='ck_virtual_agents_mode'),)
+    code: Mapped[str] = mapped_column(String(12), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    mode: Mapped[str] = mapped_column(String(10), default='TU_LAM', server_default='TU_LAM')
+    config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default='{}')
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class VirtualAgentLog(Base):
+    """0085 Nhật ký nhân viên ảo: việc đã làm (giao, nhắc, báo, bỏ qua, chạy thử, hoàn tác, đổi cài đặt) kèm lý do."""
+    __tablename__ = 'virtual_agent_log'
+    __table_args__ = (Index('ix_virtual_agent_log_at', 'at', 'id'), Index('ix_virtual_agent_log_ticket', 'ticket_id', 'agent', 'action'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    agent: Mapped[str] = mapped_column(String(12))
+    action: Mapped[str] = mapped_column(String(12))
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    target_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    undone_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
