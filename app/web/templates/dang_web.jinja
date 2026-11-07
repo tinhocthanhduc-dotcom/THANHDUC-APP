@@ -8,7 +8,7 @@
 {% macro csrf_in() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% endmacro %}
 {% macro nut_lam_moi(t) %}<form method="post" action="/dang-web/lam-moi" class="dw-refresh">{{ csrf_in() }}{{ an('loai', t) }}<button class="btn btn-ghost"{% if cho_lam_moi %} disabled{% endif %}>{{ '↻ Đang cập nhật…' if cho_lam_moi else '↻ Cập nhật từ web' }}</button></form>{% endmacro %}
 {% block main %}<div class="page-wide list-page dw-page">
-{% call ui.page_head('Đăng web', sub='Soạn sản phẩm, bài viết rồi đăng Bản nháp lên thanhduc.vn') %}{% if tab in ('san-pham', 'bai-viet') %}{% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-d">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã có ảnh</button></form>{% endif %}<a class="btn btn-new" href="/dang-web/soan?loai={{ tab }}">+ Soạn {{ 'bài viết' if tab == 'bai-viet' else 'sản phẩm' }}</a>{% endif %}{% endcall %}
+{% call ui.page_head('Đăng web', sub='Soạn sản phẩm, bài viết rồi đăng Bản nháp lên thanhduc.vn') %}{% if tab == 'mang-xa-hoi' %}<a class="btn btn-new dw-d" href="/dang-web/mxh/soan">+ Soạn bài mạng xã hội</a>{% endif %}{% if tab in ('san-pham', 'bai-viet') %}{% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-d">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã có ảnh</button></form>{% endif %}<a class="btn btn-new" href="/dang-web/soan?loai={{ tab }}">+ Soạn {{ 'bài viết' if tab == 'bai-viet' else 'sản phẩm' }}</a>{% endif %}{% endcall %}
 
 {% if loi_thu_muc %}<p class="alert bad" role="alert"><b>Chưa dùng được.</b> {{ loi_thu_muc }} Trên Z2 chạy <code>scripts/dang-web.sh bat-may</code> một lần (tạo thư mục đúng quyền) rồi chạy lại lệnh cập nhật app.</p>
 {% elif not nhip or not nhip.song %}<p class="alert warn" role="status"><b>Máy đăng web đang tắt.</b> Việc anh tạo sẽ nằm chờ tới khi bật. Trên Z2 chạy lại lệnh cập nhật app là máy tự bật (xem nhật ký: <code>scripts/dang-web.sh nhat-ky</code>).</p>
@@ -67,6 +67,25 @@
 <form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<textarea name="ghi_chu" rows="3" maxlength="1000" aria-label="Ghi chú thật cho {{ c.ten }}" placeholder="Việc thật đã làm, AI đưa vào bài. Ví dụ: tháng 10 thợ sửa 3 máy Canon 2900 kẹt giấy ở phường Tân Định, Quận 1; nguyên nhân bánh xe kéo giấy mòn.">{{ c.ghi_chu }}</textarea>
 <button class="btn btn-ok" name="hanh_dong" value="ghi_chu">Lưu ghi chú</button></form></details>{% endif %}</li>{% endfor %}</ul>{% endif %}
 </div>
+{% endif %}
+
+{% if tab == 'mang-xa-hoi' %}
+{# TUẤN duyệt mẫu M1 / D1 ngày 07/11/2026: bài mạng xã hội từ bài hoặc sản phẩm đã có trên web. #}
+<div class="dw-pad">
+{{ ui.tiles(tiles, keep_phone=true) }}
+<a class="btn btn-new dw-m dw-mxh-new" href="/dang-web/mxh/soan">+ Soạn bài mạng xã hội</a>
+</div>
+{% if rows %}<ul class="dw-list dw-jobs dw-mxh-jobs">
+<li class="dw-head" aria-hidden="true"><span></span><span>Bài hoặc sản phẩm</span><span>Mẫu ảnh</span><span>Kênh đã đăng</span><span>Cập nhật</span><span>Trạng thái</span><span></span></li>
+{% for v in rows %}{% set da = v.kenh_da_dang or {} %}
+<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}"><span class="dw-thumb">{% if v.anh_mxh %}<img src="/dang-web/anh/{{ v.id }}/{{ v.anh_mxh[0] }}" alt="" loading="lazy">{% else %}<b aria-hidden="true">MXH</b>{% endif %}</span>
+<span class="dw-main"><b>{{ v.ten }}</b><small class="dw-m">{{ 'Sản phẩm' if v.nguon_loai == 'san_pham' else 'Bài viết' }} · {{ mau_mxh.get(v.mau, '') }} · {{ luc(v.dang_luc or v.cap_nhat) }}{% if v.so_kenh %} · đã đăng {% for k in kenh %}{% if da.get(k) %}{{ kenh[k][0] }}{{ ', ' if not loop.last }}{% endif %}{% endfor %}{% endif %}</small>{% if v.trang_thai == 'loi' and v.loi %}<small class="dw-err">{{ v.loi|truncate(110) }}</small>{% endif %}</span>
+<span class="dw-d">{{ mau_mxh.get(v.mau, '') }}</span>
+<span class="dw-d dw-kenh">{% for k in kenh %}<i class="dw-k dw-k-{{ k }}{{ '' if da.get(k) else ' no' }}" title="{{ kenh[k][0] }}{{ ' đã đăng' if da.get(k) else ' chưa đăng' }}">{{ {'facebook': 'f', 'zalo': 'Z', 'google': 'G'}[k] }}</i>{% endfor %}</span>
+<span class="dw-d">{{ luc(v.cap_nhat) }}</span>{{ ui.badge(v.nhan ~ (' …' if v.dang_chay else ''), v.tone) }}<span class="dw-d"><span class="btn btn-new dw-sbtn">{{ 'Dán ›' if v.trang_thai == 'cho_dan' and v.cach_viet != 'codex' else 'Xem ›' }}</span></span></a></li>
+{% endfor %}</ul>
+{% else %}{{ ui.empty('Không có việc nào ở mục này.' if loc else 'Chưa có bài mạng xã hội nào. Bấm “+ Soạn bài mạng xã hội”, chọn một bài hoặc sản phẩm đã có trên web.', '/dang-web/mxh/soan' if not loc else '', '+ Soạn bài mạng xã hội') }}{% endif %}
+{% call ui.list_foot(p, 'việc') %}Tổng {{ p.total }} việc{% endcall %}
 {% endif %}
 
 {% if tab in ('san-pham', 'bai-viet') and la_giam_doc %}

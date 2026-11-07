@@ -12,11 +12,12 @@ import traceback
 from pathlib import Path
 
 from . import anh as anh_mod
+from . import anh_mxh
 from . import dang
 from . import hang_doi as hd
 from . import ve_anh
 from .cau_hinh import CauHinh
-from .viet_bai import ChoTraLoi
+from .viet_bai import ChoTraLoi, chu_tu_html
 from .so_ten import _ten
 from .tren_web import CayDanhMuc, gon_danh_muc
 from .wordpress import (LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, chen_sau_h2, link_sua, slug, sp_co_the_trung,
@@ -113,7 +114,9 @@ class MayDangWeb:
 
     # ---------- soạn ----------
     def soan(self, v: dict) -> None:
-        if v.get("kieu") == "sua_anh":
+        if v["loai"] == "mang_xa_hoi":
+            self._soan_mxh(v)
+        elif v.get("kieu") == "sua_anh":
             self._soan_sua_anh(v)
         elif v.get("kieu") == "sua_web":
             self._soan_sua_web(v)
@@ -259,6 +262,8 @@ class MayDangWeb:
         return dang.tai_anh_len_day_du(self.wp(), self.ch, ds, alt, nguon, tach_nen, logo=not v.get("da_co_logo")) if ds else []
 
     def dang(self, v: dict) -> None:
+        if v["loai"] == "mang_xa_hoi":
+            raise RuntimeError("Bài mạng xã hội anh đăng tay, máy không đăng.")
         if v.get("kieu") == "sua_anh":
             return self._dang_sua_anh(v)
         if v.get("kieu") == "sua_web":
@@ -553,6 +558,55 @@ class MayDangWeb:
                        trang_thai_web=moi.get("status", ""), dang_luc=luc, loi="", **xoa)
         dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm" if loai == "san_pham" else "Bài viết", v.get("ten", str(web_id)),
                                                             "SỬA BẰNG AI", [f"Duyệt: {link_sua(self.ch.wp_url, web_id)}"]))
+
+    # ---------- bài mạng xã hội (TUẤN duyệt mẫu M1–M3, D1–D2 ngày 07/11/2026) ----------
+    def _soan_mxh(self, v: dict) -> None:
+        """Lấy bài/sản phẩm trên web, AI viết 3 bản (Facebook, Zalo OA, Google Business), rồi ghép ảnh có chữ.
+        chi_ghep_anh: anh đổi chữ trên ảnh hoặc mẫu ở màn xem trước, chỉ ghép lại ảnh, không gọi AI."""
+        nguon_loai, web_id = v["nguon_loai"], int(v["wp_id"])
+        d, kq, nv, it = dict(v.get("noi_dung") or {}), None, None, None
+        ten, link = v.get("ten", ""), v.get("link_xem", "")
+        if not (v.get("chi_ghep_anh") and d):
+            wp = self.wp()
+            it = wp.lay_sp(web_id) if nguon_loai == "san_pham" else wp.lay_bai(web_id)
+            ht = self._hien_tai(nguon_loai, it)
+            ten = ht.get("ten_web") or ht.get("tieu_de") or ten
+            link = it.get("permalink") or it.get("link") or link
+            html = (ht.get("mo_ta_ngan_html", "") + "\n" + ht.get("mo_ta_html", "")) if nguon_loai == "san_pham" \
+                else (ht.get("tom_tat", "") + "\n" + ht.get("noi_dung_html", ""))
+            nguon = {"loai": nguon_loai, "ten": ten, "link": link, "noi_dung": chu_tu_html(html)}
+            nv = self.nguoi_viet(v)
+            kq = self._goi_ai(v, nv, lambda: nv.viet_mxh(nguon, v.get("ghi_chu") or "", self.ch.hotline))
+            if kq is None:
+                return
+            d = kq.du_lieu
+        chu = v.get("chu_anh") or d.get("chu_anh") or ten
+        files = self._anh_goc(v)
+        if not files and v.get("mau") in ("san_pham", "meo"):
+            files = [Path(p) for p in v.get("anh_tu_web") or [] if Path(p).exists()]
+            if not files and self.co_wp:
+                try:
+                    files = self._anh_tu_web(v, nguon_loai, it or (self.wp().lay_sp(web_id) if nguon_loai == "san_pham"
+                                                                  else self.wp().lay_bai(web_id)))[:1]
+                except Exception as exc:  # noqa: BLE001 — không tải được ảnh web thì vẫn ra ảnh nền xanh có chữ
+                    in_(f"  Không tải được ảnh trên web: {exc}")
+        thu_muc = hd.thu_muc_mot_viec(self.goc, v["id"])
+        lan = int(v.get("lan_ghep") or 0) + 1
+        ra = []
+        for co in (("vuong", "doc") if v.get("co") == "ca_hai" else (v.get("co") if v.get("co") in anh_mxh.CO else "vuong",)):
+            ten_file = f"mxh-{co}-{lan}.jpg"
+            (thu_muc / ten_file).write_bytes(anh_mxh.ghep(v.get("mau") or "san_pham", co, chu, files, self.ch.hotline,
+                                                          self.ch.thu_muc / "mau-anh"))
+            ra.append(ten_file)
+        for cu in v.get("anh_mxh") or []:
+            if cu not in ra and hd.TEN_FILE_RE.match(cu):
+                (thu_muc / cu).unlink(missing_ok=True)
+        them = dict(noi_dung=d, anh_mxh=ra, chu_anh=chu, lan_ghep=lan, chi_ghep_anh=False, ten=ten, link_xem=link,
+                    anh_tu_web=[str(f) for f in files if not v.get("anh_goc")], loi="")
+        if kq is not None:
+            them.update(chi_phi=kq.mo_ta_chi_phi, model=getattr(nv, "model", ""), ghi_chu_ai=kq.ghi_chu,
+                        can_kiem_tra=d.get("can_kiem_tra", []), kenh_da_dang={})
+        self._cap_nhat(v, hd.XEM_TRUOC, **them)
 
     # ---------- sửa ảnh riêng (không AI) ----------
     def _anh_dung_o_sp_khac(self, web_id: int) -> set[int]:
@@ -928,7 +982,7 @@ class MayDangWeb:
                 if not v:
                     return False
                 buoc = "soan" if v["trang_thai"] == hd.DANG_SOAN else "dang"
-                in_(f"{'Soạn' if buoc == 'soan' else 'Đăng'} {v['loai']} {v.get('ma') or v.get('chu_de')}")
+                in_(f"{'Soạn' if buoc == 'soan' else 'Đăng'} {v['loai']} {v.get('ma') or v.get('chu_de') or v.get('ten', '')}")
                 self.nhip(v["id"])
                 try:
                     self.soan(v) if buoc == "soan" else self.dang(v)
