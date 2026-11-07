@@ -102,22 +102,34 @@
       if (box.dataset.swipeDemo !== undefined) { window.tdToast(box.dataset.swipeDemo || 'Đã ghi nhận'); return; }
       submit();
     }
+    // Lỗi TUẤN 07/11 "sau khi tải ảnh thì không vuốt được, phải về Hôm nay vào lại": mở máy ảnh/chọn ảnh xong,
+    // điện thoại có khi không gửi lại lúc nhấc ngón đã bấm nút Chụp ảnh, nên coi như vẫn còn một ngón đang chạm.
+    // Ngón vuốt thật lúc đó không còn là "ngón chính" (isPrimary = false) và trước đây bị bỏ qua, thanh vuốt đứng im.
+    // Nay nhận mọi ngón bấm vào thanh, chỉ theo đúng ngón đang kéo; quay lại trang (sau máy ảnh) thì xóa trạng thái kéo dở.
+    function reset() {
+      if (drag) { try { box.releasePointerCapture(drag.id); } catch (e) { /* đã nhả */ } }
+      drag = null; box.classList.remove('swipe-drag'); setX(0); syncLock();
+    }
     box.addEventListener('pointerdown', function (event) {
-      if (event.button > 0 || !event.isPrimary) return;
+      if (event.button > 0) return;
+      if (drag && drag.id !== event.pointerId && drag.moved && Date.now() - drag.at < 1000) return;  // ngón thứ hai trong lúc đang kéo thật
       if (locked()) { quietClickUntil = Date.now() + 800; explainLock(); return; }
       try { box.setPointerCapture(event.pointerId); } catch (e) { /* trình duyệt cũ */ }
-      drag = { start: event.clientX - x, moved: false };
+      drag = { id: event.pointerId, start: event.clientX - x, moved: false, at: Date.now() };
       box.classList.add('swipe-drag');
     });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reset(); });
+    window.addEventListener('pageshow', reset);
     box.addEventListener('pointermove', function (event) {
-      if (!drag) return;
+      if (!drag || event.pointerId !== drag.id) return;
       var v = Math.max(0, Math.min(maxX(), event.clientX - drag.start));
       if (v > 4) drag.moved = true;
+      drag.at = Date.now();
       if (drag.moved && event.cancelable) event.preventDefault();
       setX(v);
     });
     function release(event) {
-      if (!drag) return;
+      if (!drag || (event.pointerId !== undefined && event.pointerId !== drag.id)) return;
       var moved = drag.moved; drag = null;
       box.classList.remove('swipe-drag');
       quietClickUntil = Date.now() + 800;
@@ -126,7 +138,7 @@
     }
     box.addEventListener('pointerup', release);
     box.addEventListener('pointercancel', release);
-    box.addEventListener('lostpointercapture', function (event) { if (drag) release({ type: 'pointercancel' }); });
+    box.addEventListener('lostpointercapture', function (event) { if (drag && event.pointerId === drag.id) release({ type: 'pointercancel' }); });
     button.addEventListener('click', function (event) {
       // detail === 0: bấm bằng bàn phím hoặc trình đọc màn hình.
       if (event.detail === 0 && Date.now() > quietClickUntil && window.confirm(button.textContent.trim() + '?')) {
