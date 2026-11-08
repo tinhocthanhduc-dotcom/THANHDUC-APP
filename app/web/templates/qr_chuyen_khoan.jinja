@@ -1,8 +1,9 @@
 {% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
 {# QR chuyển khoản VietQR (đợt 1, TUẤN duyệt 08/11/2026): đưa khách quét tại chỗ; chỉ hạ được số tiền. Lõi: app/vietqr.py. #}
 {% block title %}{{ title }}{% endblock %}
 {% block main %}
-<div class="bar"><h1>QR chuyển khoản</h1><a href="{{ back }}">← {{ 'Về phiếu' if doc else 'Quay lại' }}</a></div>
+{{ ui.page_head('QR chuyển khoản', back=back) }}
 {% if doc %}<p class="hint qr-doc">{{ doc.kind }} <b>{{ doc.number }}</b>{% if customer_name %} · {{ customer_name }}{% endif %}{% if doc.cap is not none %} · còn phải thu <b>{{ doc.cap|money }} đồng</b>{% endif %}</p>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="QR_AMOUNT">{{ error }}</p>{% endif %}
 {% if qr %}

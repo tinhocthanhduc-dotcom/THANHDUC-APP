@@ -69,6 +69,11 @@ def _register(path,model,in_schema,patch_schema):
         if fund:
             data.update(kind=str(form.get('kind','')),bank_name=str(form.get('bank_name','')),account_no=str(form.get('account_no','')),
                         bank_bin=str(form.get('bank_bin','')).strip(),account_name=vietqr.ascii_upper(form.get('account_name',''),100))
+            # Ô ngân hàng gõ tự do: nhận mã BIN 6 số hoặc tên ngân hàng trong danh sách (không phân biệt hoa thường, dấu).
+            if data['bank_bin'] and not data['bank_bin'].isdigit():
+                from ..text import fold
+                typed=fold(data['bank_bin'].split('·')[0])
+                data['bank_bin']=next((bin for bin,name in vietqr.BANKS if fold(name)==typed),data['bank_bin'])
             # Chọn ngân hàng trong danh sách thì tên ngân hàng điền theo BIN nếu đang trống.
             if data['bank_bin'] and not data['bank_name'].strip():
                 data['bank_name']=vietqr.BANK_NAMES.get(data['bank_bin'],'')
