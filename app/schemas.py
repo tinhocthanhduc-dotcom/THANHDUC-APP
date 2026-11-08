@@ -1078,6 +1078,8 @@ class CashCategoryIn(BaseModel):
     direction: Literal['THU', 'CHI']
     note: str = Field(default='', max_length=2000)
     active: bool = True
+    pl_kind: Literal['CHI_PHI', 'KHONG_TINH', 'CHU_SO_HUU'] = 'CHI_PHI'
+    pl_group: str = Field(default='', max_length=100)
 
 
 class CashCategoryPatch(BaseModel):
@@ -1087,6 +1089,8 @@ class CashCategoryPatch(BaseModel):
     direction: Literal['THU', 'CHI'] | None = None
     note: str | None = Field(default=None, max_length=2000)
     active: bool | None = None
+    pl_kind: Literal['CHI_PHI', 'KHONG_TINH', 'CHU_SO_HUU'] | None = None
+    pl_group: str | None = Field(default=None, max_length=100)
 
 
 class CashDocIn(BaseModel):

@@ -21,6 +21,11 @@
 <label>Chủ tài khoản (in trên QR, không dấu)<input name="account_name" value="{{ c.account_name }}" maxlength="100" autocapitalize="characters" placeholder="CTY TNHH TMDV TIN HOC THANH DUC"></label>
 <p class="hint">Đủ ngân hàng, số tài khoản và chủ tài khoản thì đơn bán, phiếu dịch vụ, báo giá in được QR chuyển khoản; quỹ phải đang ghép "Thu chuyển khoản".</p>
 {% if static_qr %}<div class="qr-static card" data-static-qr><h3>QR tĩnh của công ty</h3><div class="qr-img">{{ static_qr|safe }}</div><p class="hint">Không có số tiền, khách tự nhập. Dùng in dán quầy. <a href="/qr/quy">Mở trang QR để in</a></p></div>{% endif %}{% endif %}
+{% if not fund %}<fieldset data-pl-kind {% if c.direction!='CHI' %}hidden{% endif %}><legend>Tính vào lãi ròng tháng (chỉ danh mục chi)</legend><div class="seg">
+{% for value,text in pl_kinds.items() %}<label><input type="radio" name="pl_kind" value="{{ value }}" {% if (c.pl_kind or 'CHI_PHI')==value %}checked{% endif %}><span>{{ text }}</span></label>{% endfor %}
+</div><p class="hint">Chi phí: phiếu chi tính vào chi phí hoạt động. Không tính: đã nằm trong giá vốn, lương hoặc doanh thu (trả NCC, lương, tạm ứng, hoàn tiền khách). Chủ sở hữu: tiền giám đốc rút, hiện riêng.</p>
+<label>Nhóm trên báo cáo lãi ròng<input name="pl_group" value="{{ c.pl_group }}" maxlength="100" list="pl-groups" placeholder="Mặt bằng, điện nước / Vận chuyển / Marketing…"><datalist id="pl-groups"><option value="Mặt bằng, điện nước"><option value="Vận chuyển"><option value="Marketing"><option value="Phí ngân hàng"><option value="Văn phòng"><option value="Khác"></datalist></label></fieldset>
+<script>(function(){var f=document.querySelector('[data-pl-kind]');if(!f)return;document.querySelectorAll('input[name=direction]').forEach(function(r){r.addEventListener('change',function(){f.hidden=document.querySelector('input[name=direction]:checked').value!=='CHI';});});})();</script>{% endif %}
 <label>Ghi chú<textarea name="note" maxlength="2000">{{ c.note }}</textarea></label>
 {% else %}
 {% if is_new and not supplier %}<label>Mã kho<input name="code" value="{{ c.code }}" required pattern="[Kk][0-9]+" maxlength="16" placeholder="K58"></label>{% endif %}

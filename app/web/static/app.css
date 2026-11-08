@@ -4304,3 +4304,34 @@ dialog.qv::backdrop { background: rgba(15,20,30,.42); }
 .qr-next .btn-ok { display: flex; width: 100%; margin-top: 8px; }
 .qr-static { margin-top: 12px; text-align: center; } .qr-static .qr-img { max-width: 220px; }
 .tho-app .qr-amount { font-size: 2.3rem; }
+
+/* Lãi ròng tháng (đợt 4, 08/11/2026) */
+.pl-head { flex-wrap: wrap; gap: 10px; align-items: center; }
+.pl-month { display: inline-flex; align-items: center; gap: 8px; } .pl-month strong { min-width: 130px; text-align: center; }
+.pl-month .btn { min-width: 40px; padding: 6px 10px; }
+.pl-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: var(--ok-bg); color: var(--ok); }
+.pl-pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pl-tabs { flex-wrap: wrap; margin: 12px 0; } .pl-tabs .count { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--line); font-size: .8rem; }
+.pl-tabs .primary .count { background: rgba(255,255,255,.3); }
+.pl-tiles { margin: 10px 0 16px; } .pl-tiles .t-n { font-size: 1.3rem; }
+.pl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .pl-grid { grid-template-columns: 1fr; } }
+.pl-table td:nth-child(3), .pl-table td:nth-child(4), .pl-table td[data-label^="Tháng"], .pl-table td[data-label="Số tiền"] { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.pl-table tr.pl-sub th, .pl-table tr.pl-sub td { background: var(--surface-2, #f6f7f9); font-weight: 600; }
+.pl-table tr.pl-total th, .pl-table tr.pl-total td { border-top: 2px solid var(--text); font-weight: 700; }
+.pl-table tr.pl-final th, .pl-table tr.pl-final td { font-size: 1.05rem; }
+.pl-table tr.pl-estimate td, .pl-table tr.pl-estimate th { background: var(--warn-bg); }
+.pl-table .plus { color: var(--ok); } .pl-table .minus { color: var(--bad); }
+.pl-table td small { color: var(--muted); display: block; font-weight: 400; }
+.pl-side { display: grid; gap: 12px; }
+.pl-box h2 { margin: 0 0 8px; font-size: 1rem; } .pl-box.ok { border-color: var(--ok); } .pl-box.bad { border-color: var(--bad); }
+.pl-verdict { display: block; font-size: 1.2rem; margin-bottom: 6px; } .pl-verdict.plus { color: var(--ok); } .pl-verdict.minus { color: var(--bad); }
+.pl-kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 8px 0; } .pl-kv dt { color: var(--muted); } .pl-kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.pl-kv dd.plus { color: var(--ok); } .pl-kv dd.minus { color: var(--bad); } .pl-kv dd small { display: block; font-weight: 400; color: var(--muted); }
+.pl-actions { display: flex; gap: 6px; justify-content: flex-end; } .pl-actions form.inline { display: inline; }
+.pl-form { margin-top: 14px; } .pl-form h3 { margin-top: 0; }
+.pl-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; height: 160px; align-items: end; margin: 12px 0 4px; }
+.pl-bar-col { display: grid; grid-template-rows: 1fr auto; height: 100%; text-align: center; } .pl-bar-col small { color: var(--muted); font-size: .75rem; }
+.pl-bar-stack { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
+.pl-bar { display: block; width: 40%; min-height: 2px; border-radius: 3px 3px 0 0; } .pl-bar.gross { background: var(--accent); } .pl-bar.net { background: var(--ok); } .pl-bar.net.minus { background: var(--bad); }
+.pl-legend { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; } .pl-legend.gross { background: var(--accent); } .pl-legend.net { background: var(--ok); }

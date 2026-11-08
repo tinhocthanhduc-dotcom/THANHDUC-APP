@@ -45,6 +45,7 @@ EXPECTED['sales'].add('/don-nhap-zalo')
 for _role in ('sales', 'finance', 'director'):
     EXPECTED[_role].add('/khach-hang/nhac-muc')  # Khách lâu chưa gọi mực (TUẤN duyệt 06/11/2026)
 EXPECTED['director'].add('/dang-web')  # TUẤN 01/11/2026: màn Đăng web (nhóm Bán hàng)
+EXPECTED['director'].add('/bao-cao/lai-rong')  # Lãi ròng tháng (đợt 4, TUẤN duyệt 08/11/2026)
 EXPECTED['sales'].add('/dang-web')  # TUẤN 01/11/2026: Kinh doanh dùng được Đăng web
 EXPECTED['director'].difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu'))  # Việc riêng của thợ không lên menu giám đốc.
 for _role in ('technician','dispatcher','warehouse','director'):

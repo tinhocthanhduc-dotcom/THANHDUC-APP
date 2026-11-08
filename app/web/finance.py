@@ -18,6 +18,7 @@ from . import checked_form, render, web_user
 router = APIRouter()
 KINDS = {'TIEN_MAT':'Tiền mặt','NGAN_HANG':'Ngân hàng'}
 DIRECTIONS = {'THU':'Thu','CHI':'Chi'}
+PL_KINDS = {'CHI_PHI':'Chi phí','KHONG_TINH':'Không tính','CHU_SO_HUU':'Chủ sở hữu'}
 
 
 def finance_user(user: User=Depends(web_user)):
@@ -47,7 +48,7 @@ def _register(path,model,in_schema,patch_schema):
             except ValueError:static_qr=''
         return render(request,'danh_muc_form.jinja',c=data,is_new=is_new,finance_catalog=True,
                       fund=fund,label=label,path=path,can_write=True,kinds=KINDS,directions=DIRECTIONS,
-                      banks=vietqr.BANKS,static_qr=static_qr,**ctx)
+                      banks=vietqr.BANKS,static_qr=static_qr,pl_kinds=PL_KINDS,**ctx)
 
     def listing(request: Request,q: str='',phan: int=0,user: User=Depends(finance_user),session: Session=Depends(get_session)):
         rows = catalogs.search(session,user,model,q[:200])
@@ -58,7 +59,7 @@ def _register(path,model,in_schema,patch_schema):
 
     def new(request: Request,user: User=Depends(finance_user)):
         return form_page(request,dict(code='',name='',kind='TIEN_MAT',direction='THU',bank_name='',account_no='',
-                                     bank_bin='',account_name='',note='',active=True,version=0),is_new=True,error=None)
+                                     bank_bin='',account_name='',pl_kind='CHI_PHI',pl_group='',note='',active=True,version=0),is_new=True,error=None)
 
     def view(request: Request,code: str,user: User=Depends(finance_user),session: Session=Depends(get_session)):
         return form_page(request,catalogs.snapshot(catalogs.load(session,user,model,code)),error=None,
@@ -79,6 +80,9 @@ def _register(path,model,in_schema,patch_schema):
                 data['bank_name']=vietqr.BANK_NAMES.get(data['bank_bin'],'')
         else:
             data['direction'] = str(form.get('direction',''))
+            # 0089 Lãi ròng: danh mục chi có cờ tính lãi ròng; danh mục thu luôn Không tính.
+            data['pl_kind'] = str(form.get('pl_kind','CHI_PHI') or 'CHI_PHI') if data['direction']=='CHI' else 'KHONG_TINH'
+            data['pl_group'] = str(form.get('pl_group','')).strip()
         if is_new:
             data['code'] = str(form.get('code',''))
         return data

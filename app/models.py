@@ -887,14 +887,50 @@ class Fund(Base):
 
 class CashCategory(Base):
     __tablename__ = 'cash_categories'
-    __table_args__ = (CheckConstraint("direction in ('THU','CHI')", name='ck_cash_categories_direction'),)
+    __table_args__ = (CheckConstraint("direction in ('THU','CHI')", name='ck_cash_categories_direction'),
+                      CheckConstraint("pl_kind in ('CHI_PHI','KHONG_TINH','CHU_SO_HUU')", name='ck_cash_categories_pl_kind'))
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(300))
     direction: Mapped[str] = mapped_column(String(3))
     note: Mapped[str] = mapped_column(Text, default='')
+    # 0089 Lãi ròng tháng: phiếu chi của danh mục CHI_PHI tính vào chi phí hoạt động; KHONG_TINH đã nằm ở giá vốn/lương/doanh thu;
+    # CHU_SO_HUU là tiền giám đốc rút, hiện riêng. pl_group gom nhóm trên báo cáo (Mặt bằng, Vận chuyển…).
+    pl_kind: Mapped[str] = mapped_column(String(16), default='CHI_PHI', server_default='CHI_PHI')
+    pl_group: Mapped[str] = mapped_column(String(100), default='', server_default='')
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
     search_text: Mapped[str] = mapped_column(Text, default='')
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    __mapper_args__ = {'version_id_col': version}
+
+
+class PlAdjustment(Base):
+    """Chi phí ngoài sổ theo tháng (0089): khoản không có phiếu chi trong tháng nhưng là chi phí thật (mặt bằng trả trước, khấu hao, thuế ước)."""
+    __tablename__ = 'pl_adjustments'
+    __table_args__ = (CheckConstraint('extract(day from month)=1', name='ck_pl_adjustments_month'),
+                      CheckConstraint('amount > 0', name='ck_pl_adjustments_amount'),
+                      CheckConstraint("btrim(name) <> ''", name='ck_pl_adjustments_name'),
+                      Index('ix_pl_adjustments_month', 'month'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    month: Mapped[date] = mapped_column(Date)
+    name: Mapped[str] = mapped_column(String(200))
+    pl_group: Mapped[str] = mapped_column(String(100), default='', server_default='')
+    amount: Mapped[int] = mapped_column(BigInteger)
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+
+
+class PlSetting(Base):
+    """Tham số báo cáo lãi ròng (0089): LUONG_GIAM_DOC = lương giám đốc mục tiêu mỗi tháng, chỉ để tính dòng Còn lại."""
+    __tablename__ = 'pl_settings'
+    __table_args__ = (CheckConstraint('amount >= 0', name='ck_pl_settings_amount'),)
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    amount: Mapped[int] = mapped_column(BigInteger)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     __mapper_args__ = {'version_id_col': version}
 
 

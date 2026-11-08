@@ -35,7 +35,7 @@ def normalize_code(value):
 
 def snapshot(row):
     fields = ('code','name','kind','bank_name','account_no','bank_bin','account_name','note','active','search_text','version') if isinstance(row,Fund) else (
-        'code','name','direction','note','active','search_text','version')
+        'code','name','direction','note','active','pl_kind','pl_group','search_text','version')
     return {key:getattr(row,key) for key in fields}
 
 
@@ -105,6 +105,8 @@ def _validate(model,data):
             raise BusinessError('BAD_BANK_BIN','Mã ngân hàng (BIN) phải là 6 chữ số và chỉ dùng cho quỹ ngân hàng.')
     elif data['direction'] not in ('THU','CHI'):
         raise BusinessError('BAD_DIRECTION','Chiều thu chi chưa hợp lệ.')
+    elif data.get('pl_kind','CHI_PHI') not in ('CHI_PHI','KHONG_TINH','CHU_SO_HUU'):
+        raise BusinessError('BAD_PL_KIND','Cờ tính lãi ròng chưa hợp lệ.')
 
 
 def _record(session,user,row,before):
