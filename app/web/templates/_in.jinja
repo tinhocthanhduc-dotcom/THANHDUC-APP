@@ -5,4 +5,6 @@
 {% macro meta(label, value) %}{% if value %}<span>{{ label }}: <b>{{ value }}</b></span>{% endif %}{% endmacro %}
 {# Ô tổng: rows = [(nhãn, giá trị)], grand = (nhãn, giá trị), extra = [(nhãn, giá trị, lớp ok/due/'')]. #}
 {% macro totals(rows, grand, extra=[]) %}<table class="in-tt">{% for label, value in rows %}<tr><td class="l">{{ label }}</td><td class="v">{{ value }}</td></tr>{% endfor %}<tr class="g"><td class="l">{{ grand[0] }}</td><td class="v">{{ grand[1] }}</td></tr>{% for label, value, tone in extra %}<tr class="p"><td class="l">{{ label }}</td><td class="v {{ tone }}">{{ value }}</td></tr>{% endfor %}</table>{% endmacro %}
+{# Ô QR chuyển khoản VietQR (đợt 1, 08/11/2026): q = vietqr.for_document(...) hoặc None (chưa cấu hình thì không in). #}
+{% macro qr(q) %}{% if q %}<div class="in-qr"><b>Quét để chuyển khoản</b>{{ q.svg|safe }}<small>{{ q.bank_name }} · {{ q.account_no }}<br>{{ q.account_name }}<br>{% if q.amount %}Số tiền <b>{{ q.amount|money }} đ</b> · {% endif %}Nội dung <b>{{ q.content }}</b></small></div>{% endif %}{% endmacro %}
 {% macro signatures(cols) %}<table class="in-sg"><tr>{% for title, hint in cols %}<td><b>{{ title }}</b><i>{{ hint }}</i><span class="ln"></span></td>{% endfor %}</tr></table>{% endmacro %}

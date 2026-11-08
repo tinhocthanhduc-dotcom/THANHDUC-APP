@@ -34,7 +34,7 @@ def normalize_code(value):
 
 
 def snapshot(row):
-    fields = ('code','name','kind','bank_name','account_no','note','active','search_text','version') if isinstance(row,Fund) else (
+    fields = ('code','name','kind','bank_name','account_no','bank_bin','account_name','note','active','search_text','version') if isinstance(row,Fund) else (
         'code','name','direction','note','active','search_text','version')
     return {key:getattr(row,key) for key in fields}
 
@@ -100,12 +100,15 @@ def _validate(model,data):
             raise BusinessError('BAD_KIND','Loại quỹ chưa hợp lệ.')
         if data['kind']=='NGAN_HANG' and not data['account_no'].strip():
             raise BusinessError('ACCOUNT_REQUIRED','Quỹ ngân hàng phải có số tài khoản.')
+        # 0088 VietQR: BIN để trống hoặc đúng 6 số; quỹ tiền mặt không có BIN.
+        if data.get('bank_bin') and (data['kind']!='NGAN_HANG' or not data['bank_bin'].isdigit() or len(data['bank_bin'])!=6):
+            raise BusinessError('BAD_BANK_BIN','Mã ngân hàng (BIN) phải là 6 chữ số và chỉ dùng cho quỹ ngân hàng.')
     elif data['direction'] not in ('THU','CHI'):
         raise BusinessError('BAD_DIRECTION','Chiều thu chi chưa hợp lệ.')
 
 
 def _record(session,user,row,before):
-    row.search_text = fold(' '.join(str(getattr(row,k,'')) for k in ('code','name','bank_name','account_no','note')))
+    row.search_text = fold(' '.join(str(getattr(row,k,'')) for k in ('code','name','bank_name','account_no','account_name','note')))
     session.flush()
     entity = 'fund' if isinstance(row,Fund) else 'cash_category'
     audit.record(session,user,entity+('.create' if before is None else '.update'),entity,row.code,before,snapshot(row))

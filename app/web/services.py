@@ -350,6 +350,10 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     if technician_view:
         from .technician import detail_context as technician_context
         ctx.update(technician_context(session,user,t,ctx))
+    if not ctx.get('qr_url'):
+        # QR chuyển khoản (08/11/2026): thợ đưa khách quét ngay khi đang làm, trước cả bước hoàn thành.
+        from .. import vietqr
+        ctx['qr_url']=f'/qr/dich-vu/{t.id}' if t.status not in ('DA_HUY',) and vietqr.company_account(session) else ''
     return render(request, 'tho_phieu.jinja' if technician_view else 'dich_vu_chi_tiet.jinja', **ctx)
 
 
@@ -808,8 +812,9 @@ def intake_print_page(request, session, t, back):
     machine = session.get(Equipment, t.serial) if t.serial else None
     product = session.get(Product, machine.product_code) if machine and machine.product_code else None
     receiver = session.get(User, intake.holder_id or intake.confirmed_by or intake.created_by)
+    from .. import vietqr
     return render(request, "dich_vu_nhan_may_in.jinja", t=t, intake=intake, customer=session.get(Customer, t.customer_code), company=get_settings(),
-                  back=back, site=session.get(CustomerSite, t.site_id) if t.site_id else None, machine=machine,
+                  back=back, qr=vietqr.for_document(session, t.number, t.total) if t.total and t.billing != 'MIEN_PHI' else None, site=session.get(CustomerSite, t.site_id) if t.site_id else None, machine=machine,
                   machine_name=equipment.display_name(machine, product) if machine else '', receiver=receiver.full_name if receiver else '',
                   accessories=', '.join(equipment_custody.ACCESSORIES.get(code, code) for code in intake.accessories),
                   locations=equipment_custody.LOCATIONS, watermark='ĐÃ HỦY' if t.status == 'DA_HUY' else '')

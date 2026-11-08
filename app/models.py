@@ -868,12 +868,16 @@ class Fund(Base):
     __table_args__ = (
         CheckConstraint("kind in ('TIEN_MAT','NGAN_HANG')", name='ck_funds_kind'),
         CheckConstraint("kind <> 'NGAN_HANG' or length(trim(account_no)) > 0", name='ck_funds_account'),
+        CheckConstraint("bank_bin = '' or bank_bin ~ '^[0-9]{6}$'", name='ck_funds_bank_bin'),
     )
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(300))
     kind: Mapped[str] = mapped_column(String(16))
     bank_name: Mapped[str] = mapped_column(String(300), default='')
     account_no: Mapped[str] = mapped_column(String(100), default='')
+    # 0088 VietQR: mã BIN NAPAS 6 số và tên chủ tài khoản (không dấu) để in QR chuyển khoản.
+    bank_bin: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    account_name: Mapped[str] = mapped_column(String(100), default='', server_default='')
     note: Mapped[str] = mapped_column(Text, default='')
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
     search_text: Mapped[str] = mapped_column(Text, default='')

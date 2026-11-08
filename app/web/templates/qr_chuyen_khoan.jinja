@@ -1,0 +1,34 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{# QR chuyển khoản VietQR (đợt 1, TUẤN duyệt 08/11/2026): đưa khách quét tại chỗ; chỉ hạ được số tiền. Lõi: app/vietqr.py. #}
+{% block title %}{{ title }}{% endblock %}
+{% block main %}
+{{ ui.page_head('QR chuyển khoản', back=back) }}
+{% if doc %}<p class="hint qr-doc">{{ doc.kind }} <b>{{ doc.number }}</b>{% if customer_name %} · {{ customer_name }}{% endif %}{% if doc.cap is not none %} · còn phải thu <b>{{ doc.cap|money }} đồng</b>{% endif %}</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="QR_AMOUNT">{{ error }}</p>{% endif %}
+{% if qr %}
+<section class="card qr-page" data-vietqr>
+<div class="qr-img" aria-label="Mã QR chuyển khoản">{{ qr.svg|safe }}</div>
+{% if qr.amount %}<p class="qr-amount" data-qr-amount>{{ qr.amount|money }} đ</p>{% else %}<p class="qr-amount qr-amount-free">Khách tự nhập số tiền</p>{% endif %}
+<dl class="qr-kv"><dt>Ngân hàng</dt><dd>{{ qr.bank_name }}</dd><dt>Số tài khoản</dt><dd class="qr-mono" data-qr-account>{{ qr.account_no }}</dd><dt>Chủ tài khoản</dt><dd>{{ qr.account_name }}</dd>{% if qr.content %}<dt>Nội dung</dt><dd class="qr-mono" data-qr-content>{{ qr.content }}</dd>{% endif %}</dl>
+<p class="hint">Khách mở app ngân hàng bất kỳ, quét là có sẵn số tiền và nội dung. QR không ghi sổ; tiền chỉ vào công nợ khi có Báo thu được kế toán xác nhận.</p>
+<button type="button" class="btn btn-ghost qr-copy" data-copy="{{ qr.line }}">Sao chép dòng chuyển khoản</button>
+</section>
+{% elif doc %}
+<section class="card qr-page"><p class="alert">Chưa in được QR: {% if can_setup %}quỹ ngân hàng đang ghép "Thu chuyển khoản" cần đủ <a href="/quy">ngân hàng (BIN), số tài khoản và chủ tài khoản</a>.{% else %}kế toán chưa khai tài khoản ngân hàng cho QR. Thu tiền mặt hoặc báo khách số tài khoản như thường.{% endif %}</p></section>
+{% else %}
+<section class="card qr-page"><p class="alert">Chưa có tài khoản ngân hàng để in QR tĩnh. {% if can_setup %}Vào <a href="/quy">Quỹ</a>, chọn quỹ ngân hàng đang ghép Thu chuyển khoản và điền ngân hàng, chủ tài khoản.{% endif %}</p></section>
+{% endif %}
+{% if doc %}
+<form method="get" action="/qr/{{ kind }}/{{ ident }}" class="card form qr-form">
+<label>{{ 'Thu một phần: số tiền khách chuyển (đồng)' if doc.cap is not none else 'Số tiền khách chuyển (đồng)' }}<input name="so" inputmode="numeric" data-money value="{{ amount|money if amount else '' }}" placeholder="{{ doc.cap|money if doc.cap else '500.000' }}"></label>
+{% if doc.cap is not none %}<p class="hint">Chỉ được hạ xuống (thu một phần), không được quá {{ doc.cap|money }} đồng. Đổi số thì QR vẽ lại.</p>{% else %}<p class="hint">Phiếu chưa chốt tiền nên chưa có trần; gõ đúng số khách đồng ý trả.</p>{% endif %}
+<div class="row2"><button class="btn btn-info" type="submit">Vẽ lại QR</button><a class="btn btn-ghost" href="/qr/{{ kind }}/{{ ident }}">Về số mặc định</a></div>
+</form>
+<section class="card qr-next"><h2>Sau khi khách chuyển</h2><p>{{ doc.receipt_hint }}</p><a class="btn btn-ok" href="{{ back }}#thu-tien">Khách đã chuyển → Báo thu chuyển khoản</a></section>
+{% endif %}
+<script>
+(function(){var b=document.querySelector('[data-copy]');if(!b)return;b.addEventListener('click',function(){var t=b.getAttribute('data-copy');function done(){b.textContent='Đã sao chép';setTimeout(function(){b.textContent='Sao chép dòng chuyển khoản'},1800)}
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){window.prompt('Sao chép dòng này',t)})}else{window.prompt('Sao chép dòng này',t)}})})();
+</script>
+{% endblock %}

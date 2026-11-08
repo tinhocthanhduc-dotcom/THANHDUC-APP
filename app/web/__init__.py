@@ -849,6 +849,11 @@ from .receipts import router as receipts_router
 
 router.include_router(receipts_router)
 
+# QR chuyển khoản VietQR (đợt 1, 08/11/2026): chỉ đọc, quyền theo chứng từ gốc kiểm trong app/web/qr.py.
+from .qr import router as qr_router
+
+router.include_router(qr_router)
+
 from .parts import router as parts_router
 
 router.include_router(parts_router)

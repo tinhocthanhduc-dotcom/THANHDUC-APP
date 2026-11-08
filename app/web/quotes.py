@@ -286,7 +286,9 @@ def print_quote(request: Request,quote_id: int,user: User=Depends(quote_user),se
     from zoneinfo import ZoneInfo
     quote=svc.load(session,user,quote_id)
     maker=session.get(User,quote.created_by)
+    from .. import vietqr
     return render(request,'bao_gia_in.jinja',q=quote,customer=session.get(Customer,quote.customer_code),company=get_settings(),back=f'/bao-gia/{quote.id}',
+                  qr=vietqr.for_document(session,quote.number,quote.total) if quote.status not in ('DA_HUY','TU_CHOI') else None,
                   entered_total=svc.entered_total(quote),maker=maker.full_name if maker else '',
                   words=money_words(quote.total),quantity=_quantity,statuses=STATUSES,expired=_expired(quote),
                   watermark={'NHAP':'BẢN NHÁP','DA_HUY':'ĐÃ HỦY','TU_CHOI':'TỪ CHỐI'}.get(quote.status,''),

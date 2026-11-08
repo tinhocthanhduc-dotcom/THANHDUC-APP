@@ -85,7 +85,12 @@ def linked_chat(session: Session, customer_code: str) -> ZaloChat | None:
 
 def bank_line(session: Session) -> str:
     row = session.get(ZaloTroLy, 1)
-    return (row.bank_line or '').strip() if row else ''
+    line = (row.bank_line or '').strip() if row else ''
+    if line:
+        return line
+    # 0088 VietQR: để trống thì lấy từ quỹ ngân hàng đang ghép Thu chuyển khoản (đủ BIN, số TK, chủ TK).
+    from . import vietqr
+    return vietqr.bank_line(vietqr.company_account(session))
 
 
 # ---------- Soạn từ số liệu ----------
