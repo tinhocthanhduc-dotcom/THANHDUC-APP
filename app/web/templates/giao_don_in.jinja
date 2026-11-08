@@ -20,7 +20,7 @@
 </tbody></table>
 {% set rows = [('Tiền hàng chưa VAT', subtotal|money ~ ' đồng'), ('Thuế GTGT', vat_total|money ~ ' đồng')] %}
 {% set extra = [('Cả đơn ' ~ o.number ~ ' phải trả', effective_total|money ~ ' đồng', ''), ('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok'), (('Còn phải trả' if o.payment_term == 'CONG_NO' else 'Thu khi giao'), balance.available|money ~ ' đồng', 'due' if balance.available else 'ok')] %}
-<div class="in-sum gon">{{ f.totals(rows, ('TỔNG LẦN GIAO', total|money ~ ' đồng'), extra) }}{{ f.qr(qr) }}</div>
+<div class="in-sum gon{% if qr %} co-qr{% endif %}">{{ f.totals(rows, ('TỔNG LẦN GIAO', total|money ~ ' đồng'), extra) }}{{ f.qr(qr) }}</div>
 <div class="in-words"><b>Tổng lần giao bằng chữ{% if o.payment_term != 'CONG_NO' %} (thu khi giao){% endif %}:</b> {{ words }}.</div>
 {% set order_note = o.note|print_note %}<div class="in-ghichu"><b>Ghi chú:</b> {% if order_note %}{{ order_note }}{% else %}<span class="in-fill"></span>{% endif %}</div>
 <div class="in-fine">Phiếu in trước khi giao. Số lượng và tiền thu được ghi nhận chính thức khi thợ bấm Đã giao trên app.</div>

@@ -59,10 +59,12 @@ table.in-tt{border-collapse:collapse;width:82mm;flex:none}
 /* Bằng chữ: một dòng ngang dưới ô tổng, ghi rõ khoản nào (TUẤN 08/11/2026). */
 .in-words{margin:10px 0 0;padding:7px 10px;break-inside:avoid;background:var(--in-soft);border-left:3px solid var(--in-red);font-size:12px;font-style:italic}
 .in-words b{font-style:normal;color:var(--in-navy)}
-/* Phiếu giao (TUẤN 08/11/2026): ô tiền sát trái, QR phải; ghi chú một dòng dưới bằng chữ. */
-.in-sum.gon{justify-content:space-between}
-.in-ghichu{margin-top:6px;padding:0 10px;font-size:12px;color:#374151;display:flex;gap:4px;align-items:baseline}
-.in-ghichu b{color:var(--in-navy);text-transform:uppercase;font-size:11px;letter-spacing:.5px;white-space:nowrap}
+/* Phiếu giao (TUẤN 08/11/2026): không QR thì ô tiền sát phải; có QR thì ô tiền giãn rộng nằm sát QR.
+   Ghi chú một dòng dưới bằng chữ, nền nhạt + vạch xanh. */
+.in-sum.gon{justify-content:flex-end}
+.in-sum.gon.co-qr table.in-tt{flex:1;width:auto}
+.in-ghichu{margin-top:6px;padding:7px 10px;background:var(--in-soft);border-left:3px solid var(--in-navy);font-size:12px;color:#374151;display:flex;gap:4px;align-items:baseline;break-inside:avoid}
+.in-ghichu b{color:var(--in-navy);text-transform:uppercase;white-space:nowrap}
 .in-ghichu .in-fill{flex:1;border-bottom:1px dotted #9aa3b2;height:12px}
 .in-blank{display:inline-block;min-width:34mm;height:12px;border-bottom:1px dotted #9aa3b2;vertical-align:baseline}
 /* Dải dưới 2 khung: cách giao, thanh toán, lần giao (phiếu giao, TUẤN duyệt 28/10). */
