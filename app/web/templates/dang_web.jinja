@@ -8,7 +8,7 @@
 {% macro csrf_in() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% endmacro %}
 {% macro nut_lam_moi(t) %}<form method="post" action="/dang-web/lam-moi" class="dw-refresh">{{ csrf_in() }}{{ an('loai', t) }}<button class="btn btn-ghost"{% if cho_lam_moi %} disabled{% endif %}>{{ '↻ Đang cập nhật…' if cho_lam_moi else '↻ Cập nhật từ web' }}</button></form>{% endmacro %}
 {% block main %}<div class="page-wide list-page dw-page">
-{% call ui.page_head('Đăng web', sub='Soạn sản phẩm, bài viết rồi đăng Bản nháp lên thanhduc.vn') %}{% if tab == 'mang-xa-hoi' %}<a class="btn btn-new dw-d" href="/dang-web/mxh/soan">+ Soạn bài mạng xã hội</a>{% endif %}{% if tab in ('san-pham', 'bai-viet') %}{% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-d">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã có ảnh</button></form>{% endif %}<a class="btn btn-new" href="/dang-web/soan?loai={{ tab }}">+ Soạn {{ 'bài viết' if tab == 'bai-viet' else 'sản phẩm' }}</a>{% endif %}{% endcall %}
+{% call ui.page_head('Đăng web', sub='Soạn sản phẩm, anh duyệt rồi đăng lên thanhduc.vn') %}{% if tab == 'mang-xa-hoi' %}<a class="btn btn-new dw-d" href="/dang-web/mxh/soan">+ Soạn bài mạng xã hội</a>{% endif %}{% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-d">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã có ảnh</button></form><a class="btn btn-new" href="/dang-web/soan?loai=san-pham">+ Soạn sản phẩm</a>{% endif %}{% endcall %}
 
 {% if loi_thu_muc %}<p class="alert bad" role="alert"><b>Chưa dùng được.</b> {{ loi_thu_muc }} Trên Z2 chạy <code>scripts/dang-web.sh bat-may</code> một lần (tạo thư mục đúng quyền) rồi chạy lại lệnh cập nhật app.</p>
 {% elif not nhip or not nhip.song %}<p class="alert warn" role="status"><b>Máy đăng web đang tắt.</b> Việc anh tạo sẽ nằm chờ tới khi bật. Trên Z2 chạy lại lệnh cập nhật app là máy tự bật (xem nhật ký: <code>scripts/dang-web.sh nhat-ky</code>).</p>
@@ -28,8 +28,10 @@
 
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}
-{% if tab in ('san-pham', 'bai-viet') %}
+{% if tab == 'san-pham' %}
 <div class="dw-pad">
+{# TUẤN duyệt mẫu D2 ngày 08/11/2026 (Đợt 4): bài viết chuyển sang app Dịch vụ SEO. #}
+<p class="alert info dw-seo-note" role="status">Tab <b>Bài viết</b> (Chủ đề chờ viết, tự soạn bài) đã tắt: bài viết làm ở app <b>Dịch vụ SEO</b>. Bài cũ vẫn xem ở Trên web › Bài viết.</p>
 {{ ui.tiles(tiles, keep_phone=true) }}
 {% if tab == 'san-pham' and hang_moi %}
 <section class="dw-moi" aria-label="Hàng mới nhập chưa có trên web">
@@ -45,28 +47,13 @@
 {% if tab == 'san-pham' %}<form method="post" action="/dang-web/tu-chon" class="dw-auto dw-m">{{ csrf_in() }}<button class="btn btn-ghost">Tự chọn 3 mã đã có ảnh trên Z2</button><span class="hint">Lấy ảnh anh đã chép vào ~/THANHDUC-WEB/anh-goc.</span></form>{% endif %}
 </div>
 {% if rows %}<ul class="dw-list dw-jobs">
-<li class="dw-head" aria-hidden="true"><span></span><span>{{ 'Sản phẩm' if tab == 'san-pham' else 'Bài viết' }}</span><span>{{ 'Mã' if tab == 'san-pham' else '' }}</span><span>Cách viết</span><span>Cập nhật</span><span>Trạng thái</span><span></span></li>
+<li class="dw-head" aria-hidden="true"><span></span><span>Sản phẩm</span><span>Mã</span><span>Cách viết</span><span>Cập nhật</span><span>Trạng thái</span><span></span></li>
 {% for v in rows %}
-<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}">{{ thumb(v) }}<span class="dw-main"><b>{{ v.ten or v.ma or v.chu_de }}</b><small class="dw-m">{% if v.ma %}{{ v.ma }} · {% endif %}{{ 'ghi mã TD lên web' if v.kieu == 'ghi_sku' else 'xếp danh mục' if v.kieu == 'xep_danh_muc' else ('sửa ảnh, không AI' if v.kieu == 'sua_anh' else cach_viet.get(v.cach_viet, '')) }}{% if v.kieu == 'sua_web' %} · sửa bài trên web{% elif v.viet_lai %} · viết lại{% endif %}{% if v.nguon == 'lich' %} · lịch tự soạn{% endif %} · {{ luc(v.cap_nhat) }}</small>{% if v.trang_thai == 'loi' and v.loi %}<small class="dw-err">{{ v.loi|truncate(110) }}</small>{% endif %}</span>
+<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}">{{ thumb(v) }}<span class="dw-main"><b>{{ v.ten or v.ma or v.chu_de }}</b><small class="dw-m">{% if v.ma %}{{ v.ma }} · {% endif %}{{ 'ghi mã TD lên web' if v.kieu == 'ghi_sku' else 'xếp danh mục' if v.kieu == 'xep_danh_muc' else ('sửa ảnh, không AI' if v.kieu == 'sua_anh' else cach_viet.get(v.cach_viet, '')) }}{% if v.kieu == 'sua_web' %} · sửa bài trên web{% elif v.viet_lai %} · viết lại{% endif %}{% if v.nguon == 'lich' %} · tự soạn sáng{% if v.hang_moi %}, hàng mới nhập{% endif %}{% endif %} · {{ luc(v.cap_nhat) }}</small>{% if v.trang_thai == 'loi' and v.loi %}<small class="dw-err">{{ v.loi|truncate(110) }}</small>{% endif %}</span>
 <span class="dw-d">{{ v.ma or '' }}</span><span class="dw-d">{{ cach_viet.get(v.cach_viet, '') }}{% if v.viet_lai %} · viết lại{% endif %}</span><span class="dw-d">{{ luc(v.cap_nhat) }}</span>{{ ui.badge(v.nhan ~ (' …' if v.dang_chay else ''), v.tone) }}<span class="dw-d"><span class="btn btn-new dw-sbtn">{{ 'Dán ›' if v.trang_thai == 'cho_dan' and v.cach_viet != 'codex' else 'Xem ›' }}</span></span></a></li>
 {% endfor %}</ul>
 {% else %}{{ ui.empty('Không có việc nào ở mục này.' if loc else 'Chưa có việc nào đang làm. Bấm “+ Soạn” để bắt đầu.') }}{% endif %}
-{% if gan_day %}<div class="dw-pad dw-recent"><p class="group-label"><b>Vừa đăng nháp</b></p><ul class="dw-list">{% for v in gan_day %}<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}">{{ thumb(v) }}<span class="dw-main"><b>{{ v.ten }}</b><small>{{ luc(v.dang_luc or v.cap_nhat) }}</small></span>{{ ui.badge('Nháp trên web', 'xong') }}</a></li>{% endfor %}</ul><a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai={{ 'bai' if tab == 'bai-viet' else 'sp' }}">Xem tất cả trên web ›</a></div>{% endif %}
-{% endif %}
-
-{% if tab == 'bai-viet' %}
-<div class="dw-pad">
-<form method="post" action="/dang-web/chu-de" class="dw-topic-add">{{ csrf_in() }}
-<label><b>Chủ đề chờ viết</b> <span class="hint">(mỗi dòng một chủ đề, dán được cả danh sách; lịch tự soạn lấy dần từ đây)</span><textarea name="chu_de" rows="3" maxlength="10000" required placeholder="Ví dụ:&#10;Nạp mực tận nơi có hại máy không?&#10;Máy in HP 107w báo hết mực dù còn mực"></textarea></label>
-<button class="btn btn-ghost">+ Thêm chủ đề</button></form>
-{% if chu_de %}<ul class="dw-topics">{% for c in chu_de %}<li><span>{{ c.ten }}</span>
-{% if c.tren_web and not c.xong %}<a class="btn btn-ghost" href="{{ c.tren_web.sua or c.tren_web.xem }}" target="_blank" rel="noopener" title="Web đã có: {{ c.tren_web.ten }}">Web đã có ↗</a>{% endif %}
-{% if c.xong %}{{ ui.badge('Đã đăng', 'xong') }}{% elif c.dang %}{{ ui.badge('Đang làm', 'lam') }}{% elif c.trung %}{{ ui.badge('Có thể trùng', 'cho') }}{% else %}<a class="btn btn-ghost" href="/dang-web/soan?loai=bai-viet&amp;chu_de={{ c.ten|urlquote }}">Soạn ›</a>{% endif %}
-<form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<button class="btn btn-ghost dw-x" name="hanh_dong" value="xoa" aria-label="Xóa chủ đề {{ c.ten }}" onclick='return confirm({{ ("Xóa chủ đề này khỏi danh sách?")|tojson }})'>×</button></form>
-{% if not c.xong %}<details class="dw-gc"><summary>{% if c.ghi_chu %}<b>Ghi chú thật:</b> {{ c.ghi_chu|truncate(90) }}{% else %}+ Ghi chú thật{% endif %}</summary>
-<form method="post" action="/dang-web/chu-de">{{ csrf_in() }}{{ an('chu_de', c.ten) }}<textarea name="ghi_chu" rows="3" maxlength="1000" aria-label="Ghi chú thật cho {{ c.ten }}" placeholder="Việc thật đã làm, AI đưa vào bài. Ví dụ: tháng 10 thợ sửa 3 máy Canon 2900 kẹt giấy ở phường Tân Định, Quận 1; nguyên nhân bánh xe kéo giấy mòn.">{{ c.ghi_chu }}</textarea>
-<button class="btn btn-ok" name="hanh_dong" value="ghi_chu">Lưu ghi chú</button></form></details>{% endif %}</li>{% endfor %}</ul>{% endif %}
-</div>
+{% if gan_day %}<div class="dw-pad dw-recent"><p class="group-label"><b>Vừa đăng</b></p><ul class="dw-list">{% for v in gan_day %}<li><a class="dw-row" href="/dang-web/viec/{{ v.id }}">{{ thumb(v) }}<span class="dw-main"><b>{{ v.ten }}</b><small>{{ luc(v.dang_luc or v.cap_nhat) }}{% if v.duyet_boi %} · duyệt: {{ v.duyet_boi }}{% endif %}</small></span>{{ ui.badge('Đang hiện trên web', 'xong') if v.trang_thai_web == 'publish' else ui.badge('Nháp trên web', 'nhap') }}</a></li>{% endfor %}</ul><a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai=sp">Xem tất cả trên web ›</a></div>{% endif %}
 {% endif %}
 
 {% if tab == 'mang-xa-hoi' %}
@@ -88,15 +75,14 @@
 {% call ui.list_foot(p, 'việc') %}Tổng {{ p.total }} việc{% endcall %}
 {% endif %}
 
-{% if tab in ('san-pham', 'bai-viet') and la_giam_doc %}
+{% if tab == 'san-pham' and la_giam_doc %}
 <details class="dw-pad dw-lich"{% if lich.bat %} open{% endif %}><summary><b>Tự soạn mỗi sáng</b> · {{ 'đang bật, ' ~ lich.gio ~ ' thứ 2 – thứ 7' if lich.bat else 'đang tắt' }}</summary>
 <form method="post" action="/dang-web/lich" class="dw-lich-form">{{ csrf_in() }}{{ an('tab', tab) }}
 <label class="chk"><input type="checkbox" name="bat" value="1" {% if lich.bat %}checked{% endif %}> Bật</label>
 <label>Giờ<input type="time" name="gio" value="{{ lich.gio }}" required></label>
-<label>Số sản phẩm<input type="number" name="so_sp" min="0" max="5" value="{{ lich.so_sp }}" inputmode="numeric"></label>
-<label>Số bài viết<input type="number" name="so_bai" min="0" max="3" value="{{ lich.so_bai }}" inputmode="numeric"></label>
+<label>Số sản phẩm mỗi sáng<input type="number" name="so_sp" min="0" max="5" value="{{ lich.so_sp }}" inputmode="numeric"></label>
 <button class="btn btn-ok">Lưu lịch</button>
-<p class="hint">Máy đăng web tự soạn sẵn các mã đã có ảnh trong ~/THANHDUC-WEB/anh-goc và chủ đề chờ viết. Soạn xong nằm ở “Chờ anh xem trước”, anh bấm Đăng mới lên web.</p>
+<p class="hint">Máy lấy trước <b>Hàng mới nhập chưa có trên web</b> (nhập 30 ngày, còn tồn, đã có ảnh trong ~/THANHDUC-WEB/anh-goc), mới nhất trước; còn chỗ thì lấy mã khác đã có ảnh mà chưa có trên web. Máy chỉ soạn, không tự đăng: mọi sản phẩm chờ anh bấm Duyệt và đăng.</p>
 </form></details>
 
 {% elif tab == 'tren-web' %}

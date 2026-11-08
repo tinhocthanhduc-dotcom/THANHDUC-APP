@@ -77,12 +77,10 @@ def test_sua_anh_bai_viet_ve_anh_bang_codex(client, db, web_login, make_user, go
 def test_bai_moi_de_ai_ve_anh_dai_dien_chon_o_xem_truoc(client, db, web_login, make_user, goc):
     csrf = web_login("giam.doc", "director")
     hw, _ = _khoa(db, make_user)
-    assert "Codex trên Z2 vẽ 2 ảnh" not in client.get("/dang-web/soan?loai=bai-viet").text
     client.get("/ai/dang-web/viec", headers=hw)
-    assert "để AI vẽ ảnh đại diện" in client.get("/dang-web/soan?loai=bai-viet").text
-    r = client.post("/dang-web/soan", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), loai="bai_viet", chu_de="Máy in kẹt giấy làm sao",
-                                                cach_viet="tu_dong", ve_anh="1"), follow_redirects=False)
-    viec_id = r.headers["location"].rsplit("/", 1)[1]
+    # TUẤN 08/11: không soạn bài mới trong app nữa (chuyển sang Dịch vụ SEO); việc bài viết còn sót vẫn chạy hết vòng.
+    viec_id = hd.tao_viec(goc, "bai_viet", {"chu_de": "Máy in kẹt giấy làm sao", "ten": "Máy in kẹt giấy làm sao",
+                                            "cach_viet": "tu_dong", "ve_anh": True})
     assert hd.doc(goc, viec_id)["ve_anh"] is True
     assert ve_anh.moi_nhat(goc, viec_id=viec_id) is None  # TUẤN 02/11: viết bài xong mới vẽ, theo dàn ý bài
 

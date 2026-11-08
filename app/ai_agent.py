@@ -64,6 +64,8 @@ AGENTS = {
                      hint='Viết nội dung nháp, sửa bài, xếp danh mục bằng gói ChatGPT trên máy chủ. Không đăng thẳng, không đụng giá.'),
     'tro-ly-zalo': dict(name='Codex/Claude · Trợ lý Zalo', scopes=('zalo',), ready=True,
                         hint='Trả lời nhân viên hỏi tồn kho, lên đơn nháp qua Zalo bằng gói thuê bao trên máy chủ. Chỉ nhận câu lệnh, trả chữ; app tự tra và lập nháp.'),
+    'n8n': dict(name='n8n · Nhắn việc chờ duyệt', scopes=('n8n',), ready=True,
+                hint='Chỉ đọc: đếm sản phẩm Đăng web chờ anh xem trước, có thể trùng, bị lỗi, kèm link để nhắn Zalo 8:00 và 16:00. Không duyệt, không đăng, không đụng tiền hay kho.'),
 }
 
 

@@ -1,0 +1,201 @@
+{
+  "name": "Đăng web - nhắn sản phẩm chờ duyệt",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "saveDataSuccessExecution": "none"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0001",
+      "name": "8:00 và 16:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8,16 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0002",
+      "name": "Cấu hình",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0021",
+              "name": "app_url",
+              "value": "http://api:8000",
+              "type": "string"
+            },
+            {
+              "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0022",
+              "name": "khoa_n8n",
+              "value": "DAN_KHOA_N8N_TAO_O_QUAN_TRI_TRO_LY_AI",
+              "type": "string"
+            },
+            {
+              "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0023",
+              "name": "zalo_token",
+              "value": "DIEN_TOKEN_BOT_ZALO",
+              "type": "string"
+            },
+            {
+              "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0024",
+              "name": "zalo_chat_id",
+              "value": "DIEN_MA_CHAT_ZALO_CUA_ANH",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0003",
+      "name": "Lấy việc chờ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.app_url }}/n8n/viec-cho",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.khoa_n8n }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0004",
+      "name": "Có việc không?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0041",
+              "leftValue": "={{ $json.co_tin }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5c1d9e20-4a7b-4c3e-9f10-8e2b7d3a0005",
+      "name": "Nhắn Zalo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://bot-api.zaloplatforms.com/bot' + $('Cấu hình').item.json.zalo_token + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Cấu hình').item.json.zalo_chat_id, text: $json.tin }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "8:00 và 16:00": {
+      "main": [
+        [
+          {
+            "node": "Cấu hình",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cấu hình": {
+      "main": [
+        [
+          {
+            "node": "Lấy việc chờ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy việc chờ": {
+      "main": [
+        [
+          {
+            "node": "Có việc không?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Có việc không?": {
+      "main": [
+        [
+          {
+            "node": "Nhắn Zalo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  }
+}
