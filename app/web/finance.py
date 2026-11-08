@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from .. import finance_catalogs as catalogs, finance_mappings as mappings
-from .. import cash_posting
+from .. import cash_posting, vietqr
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Fund, CashCategory, User
@@ -40,8 +40,14 @@ def _register(path,model,in_schema,patch_schema):
     label = 'Quỹ' if fund else 'Danh mục thu chi'
 
     def form_page(request,data,is_new=False,**ctx):
+        # 0088 VietQR: quỹ ngân hàng đủ BIN + số TK + chủ TK thì xem thử QR tĩnh (không số tiền) để in dán quầy.
+        static_qr=''
+        if fund and not is_new and data.get('kind')=='NGAN_HANG' and data.get('bank_bin') and data.get('account_no') and data.get('account_name'):
+            try:static_qr=vietqr.svg(vietqr.payload(data['bank_bin'],data['account_no'],None,''))
+            except ValueError:static_qr=''
         return render(request,'danh_muc_form.jinja',c=data,is_new=is_new,finance_catalog=True,
-                      fund=fund,label=label,path=path,can_write=True,kinds=KINDS,directions=DIRECTIONS,**ctx)
+                      fund=fund,label=label,path=path,can_write=True,kinds=KINDS,directions=DIRECTIONS,
+                      banks=vietqr.BANKS,static_qr=static_qr,**ctx)
 
     def listing(request: Request,q: str='',phan: int=0,user: User=Depends(finance_user),session: Session=Depends(get_session)):
         rows = catalogs.search(session,user,model,q[:200])
@@ -52,7 +58,7 @@ def _register(path,model,in_schema,patch_schema):
 
     def new(request: Request,user: User=Depends(finance_user)):
         return form_page(request,dict(code='',name='',kind='TIEN_MAT',direction='THU',bank_name='',account_no='',
-                                     note='',active=True,version=0),is_new=True,error=None)
+                                     bank_bin='',account_name='',note='',active=True,version=0),is_new=True,error=None)
 
     def view(request: Request,code: str,user: User=Depends(finance_user),session: Session=Depends(get_session)):
         return form_page(request,catalogs.snapshot(catalogs.load(session,user,model,code)),error=None,
@@ -61,7 +67,11 @@ def _register(path,model,in_schema,patch_schema):
     def data_from(form,is_new):
         data = dict(name=str(form.get('name','')),note=str(form.get('note','')),active=form.get('active')=='1')
         if fund:
-            data.update(kind=str(form.get('kind','')),bank_name=str(form.get('bank_name','')),account_no=str(form.get('account_no','')))
+            data.update(kind=str(form.get('kind','')),bank_name=str(form.get('bank_name','')),account_no=str(form.get('account_no','')),
+                        bank_bin=str(form.get('bank_bin','')).strip(),account_name=vietqr.ascii_upper(form.get('account_name',''),100))
+            # Chọn ngân hàng trong danh sách thì tên ngân hàng điền theo BIN nếu đang trống.
+            if data['bank_bin'] and not data['bank_name'].strip():
+                data['bank_name']=vietqr.BANK_NAMES.get(data['bank_bin'],'')
         else:
             data['direction'] = str(form.get('direction',''))
         if is_new:

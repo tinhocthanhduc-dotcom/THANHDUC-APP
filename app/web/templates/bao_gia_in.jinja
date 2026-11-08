@@ -19,7 +19,7 @@
 {% do rows.append(('Tiền hàng chưa VAT', q.subtotal|money ~ ' đồng')) %}{% do rows.append(('Thuế GTGT', q.vat_total|money ~ ' đồng')) %}
 <div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
 <div class="in-note"><h4>Ghi chú</h4><ul><li>{{ 'Đơn giá trên đã bao gồm thuế GTGT.' if q.price_includes_vat else 'Đơn giá trên chưa bao gồm thuế GTGT.' }}</li><li>Báo giá có hiệu lực đến hết ngày {{ q.valid_until|vn_date }}.</li><li>Giá có thể thay đổi theo thời điểm và số lượng đặt hàng.</li>{% if q.note %}<li><span class="q">Ghi chú báo giá:</span> {{ q.note }}</li>{% endif %}</ul></div></div>
-{{ f.totals(rows, ('TỔNG THANH TOÁN', q.total|money ~ ' đồng')) }}</div>
+{{ f.totals(rows, ('TỔNG THANH TOÁN', q.total|money ~ ' đồng')) }}{{ f.qr(qr) }}</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ q.created_at|vn_long_date }}</div>
 {{ f.signatures([('Đại diện khách hàng', '(Ký và ghi rõ họ tên)'), ('Đại diện Công ty Thành Đức', '(Ký tên và đóng dấu)')]) }}{% endblock %}

@@ -27,7 +27,7 @@
 <div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
 {% if o.note or gh.note %}<div class="in-hand"><h4>Ghi chú</h4><p>{% if o.note %}{{ o.note }}{% endif %}{% if o.note and gh.note %}
 {% endif %}{% if gh.note %}Lúc giao: {{ gh.note }}{% endif %}</p></div>{% endif %}</div>
-{{ f.totals(rows, ('TỔNG LẦN GIAO', gh.total|money ~ ' đồng'), extra) }}</div>
+{{ f.totals(rows, ('TỔNG LẦN GIAO', gh.total|money ~ ' đồng'), extra) }}{{ f.qr(qr) }}</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd"><span class="kh">Quý khách vui lòng kiểm tra hàng trước khi ký nhận.</span><span>{{ gh.delivered_at|vn_long_date|capitalize }}</span></div>
 {{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}

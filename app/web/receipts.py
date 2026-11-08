@@ -59,7 +59,9 @@ def _collection_context(session,user,parent,collection,origin,can_report,reporta
     people=dict(session.execute(select(User.id,User.full_name).where(User.id.in_(ids))).all())
     cash_ids={r.cash_doc_id for r in collection['receipts'] if r.cash_doc_id} if collection else set()
     prefix='/dich-vu' if origin=='ticket' else '/don-ban'
-    return dict(collection=collection,receipt_next=next_steps.receipt,receipt_report_label=next_steps.ticket_report_label(user,parent) if origin=='ticket' else 'Báo thu',receipt_people=people,receipt_data=form if form is not None else dict(version=parent.version if parent else 0,
+    from .. import vietqr
+    qr_url=f'/qr{prefix}/{parent.id}' if parent and origin in ('order','ticket') and vietqr.company_account(session) else ''
+    return dict(collection=collection,qr_url=qr_url,receipt_next=next_steps.receipt,receipt_report_label=next_steps.ticket_report_label(user,parent) if origin=='ticket' else 'Báo thu',receipt_people=people,receipt_data=form if form is not None else dict(version=parent.version if parent else 0,
                 method='TIEN_MAT',amount=money(available),received_at=svc._today().isoformat(),note=''),
                 receipt_methods=METHODS,receipt_statuses=STATUSES,can_report=can_report,
                 can_decide=has_role(user,'finance'),can_void=has_role(user,'director'),available=available,

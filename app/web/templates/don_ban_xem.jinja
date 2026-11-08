@@ -61,6 +61,7 @@
 {% set a=next_step.primary if next_step else None %}{% set pay_here=collection and can_report and receipt_reportable and (available>0 or error_code in ['OVER_PAYMENT','BAD_AMOUNT','BAD_FORM','VERSION_CONFLICT']) %}
 {% if pay_here and a.form=='receipt-report' %}{{ pay_form(true) }}{% endif %}
 {% if a and a.form!='receipt-report' %}{% if a.form %}<button class="btn-ok next-primary" type="submit" form="{{ a.form }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</button>{% else %}<a class="btn btn-new next-primary" href="{{ a.href }}" data-next-primary data-next-route="{{ a.route }}">{{ a.label }}</a>{% endif %}{% endif %}
+{% if qr_url and available>0 %}<a class="btn btn-info qr-link" href="{{ qr_url }}" data-qr-link>QR chuyển khoản · {{ available|money }} đ</a>{% endif %}
 {% if can_decide and collection and collection.balance.pending>0 %}<a class="btn btn-ghost" href="/bao-thu">Báo thu chờ xác nhận</a>{% endif %}
 </section>
 {% if pay_here and not (a and a.form=='receipt-report') %}<details class="card doc-card" id="thu-tien-truoc" {% if receipt_error or o.payment_term=='DAT_COC' %}open{% endif %}><summary>{{ receipt_report_label }} trước khi giao</summary>{{ pay_form(false) }}</details>{% endif %}

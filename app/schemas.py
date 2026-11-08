@@ -1052,6 +1052,8 @@ class FundIn(BaseModel):
     kind: Literal['TIEN_MAT', 'NGAN_HANG']
     bank_name: str = Field(default='', max_length=300)
     account_no: str = Field(default='', max_length=100)
+    bank_bin: str = Field(default='', max_length=8, pattern=r'^([0-9]{6})?$')
+    account_name: str = Field(default='', max_length=100)
     note: str = Field(default='', max_length=2000)
     active: bool = True
 
@@ -1063,6 +1065,8 @@ class FundPatch(BaseModel):
     kind: Literal['TIEN_MAT', 'NGAN_HANG'] | None = None
     bank_name: str | None = Field(default=None, max_length=300)
     account_no: str | None = Field(default=None, max_length=100)
+    bank_bin: str | None = Field(default=None, max_length=8, pattern=r'^([0-9]{6})?$')
+    account_name: str | None = Field(default=None, max_length=100)
     note: str | None = Field(default=None, max_length=2000)
     active: bool | None = None
 

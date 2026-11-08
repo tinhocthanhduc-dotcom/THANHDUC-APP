@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import attachments, attendance, sales_orders, sales_receipts, technician_deliveries as svc
+from .. import attachments, attendance, sales_orders, sales_receipts, technician_deliveries as svc, vietqr
 from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
@@ -69,7 +69,8 @@ def page(request,session,user,order,raw=None,error=None,code='',status=200):
         suggested=available if full else min(available,round(sum(float(row['qty'])*row['unit_gross'] for row in lines)))
         st=ctx['service_ticket']
         trip_ticket=st if st is not None and st.assignee_id==user.id and st.status in ('DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else None
-        return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,trip_ticket=trip_ticket,
+        qr_url=f'/qr/don-ban/{order.id}' if available>0 and vietqr.company_account(session) else ''
+        return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,trip_ticket=trip_ticket,qr_url=qr_url,
             raw=raw or {},error=error,error_code=code,status=status,**contact(ctx['customer'],address=order.delivery_address))
     from .. import service_tickets, stock_reservations
     return render(request,'giao_don.jinja',technician_view=technician_view,**ctx,shipments=shipments,photos=photos,
@@ -117,6 +118,7 @@ def print_pending(request: Request,order_id: int,user: User=Depends(web_user),se
     technician_view='technician' in user.roles and order.delivery_assignee_id==user.id and not has_role(user,'dispatcher','sales','warehouse','finance')
     return render(request,'giao_don_in.jinja',o=order,customer=customer,lines=lines,subtotal=subtotal,vat_total=vat_total,total=subtotal+vat_total,
         balance=balance,effective_total=int(sales_orders.effective_total(order)),words=money_words(int(balance['available'])),quantity=_quantity,statuses=STATUSES,
+        qr=vietqr.for_document(session,order.number,int(balance['available'])),
         company=get_settings(),today=attendance.today(),technician_view=technician_view,back=f'/giao-don/{order.id}'+('?return_to=tho' if technician_view else ''),
         phones=', '.join(p.phone for p in customer.phones) if customer else '',quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',
         fulfillment=FULFILLMENTS.get(order.fulfillment,order.fulfillment),payment=PAYMENTS.get(order.payment_term,order.payment_term),
