@@ -209,7 +209,7 @@ def test_pending_delivery_print_recipient_box_and_strip(client, db, setup):
     service_login(client, p['sales'])
     html = client.get(f'/giao-don/{o.id}/in').text
     assert 'Người nhận hàng' in html and '<dt>Người nhận</dt><dd>Chị Lan</dd>' in html
-    assert '<h4>Ghi chú</h4><p>Gửi xe 45 Lê Quang Sung</p>' in html and '<dt>Ghi chú</dt><dd>Gửi xe' not in html
+    assert '<b>Ghi chú:</b> Gửi xe 45 Lê Quang Sung</div>' in html and '<dt>Ghi chú</dt><dd>Gửi xe' not in html
     assert 'class="in-strip"' in html and 'Thợ giao' in html and 'Lần giao: <b>1</b>' in html
     assert 'Thông tin giao' not in html
     assert 'Phiếu in trước khi giao.' in html
@@ -236,7 +236,7 @@ def test_delivered_print_recipient_box_and_delivery_note(client, db, people):
     gh = send(db, p, o, 2)
     service_login(client, p['sales'])
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
-    assert 'Người nhận hàng' in html and '<h4>Ghi chú</h4><p>Gọi trước 15 phút</p>' in html
+    assert 'Người nhận hàng' in html and '<b>Ghi chú:</b> Gọi trước 15 phút</div>' in html
     assert 'class="in-strip"' in html and 'Thanh toán:' in html and 'Lần giao: <b>1/1</b>' in html
     assert 'Thông tin giao' not in html and 'in-blank' not in html and '<dt>Trạng thái đơn</dt>' in html
 
@@ -256,7 +256,7 @@ def test_pending_delivery_print_falls_back_to_customer_contact_and_note(client, 
     o.note = 'Gửi xe trước cổng'; db.commit()
     html = client.get(f'/giao-don/{o.id}/in').text
     # Ghi chú đơn nằm ô Ghi chú dưới bảng, không lên khung Người nhận.
-    assert '<h4>Ghi chú</h4><p>Gửi xe trước cổng</p>' in html and '<dt>Ghi chú</dt><dd>Kế toán\nĐối diện 290/9 Phan Anh</dd>' in html
+    assert '<b>Ghi chú:</b> Gửi xe trước cổng</div>' in html and '<dt>Ghi chú</dt><dd>Kế toán\nĐối diện 290/9 Phan Anh</dd>' in html
 
 
 # ---- 08/11 (TUẤN "ghi chú trên phiếu giao quá dài dòng"): ghi chú trợ lý Zalo là nội bộ, không in; ghi chú khác gọn ----
@@ -280,7 +280,7 @@ def test_delivered_print_hides_zalo_draft_note(client, db, people):
     gh = send(db, p, o, 2)
     service_login(client, p['sales'])
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
-    assert 'PHIẾU GIAO HÀNG' in html and 'Tin gốc' not in html and 'trợ lý' not in html and '<h4>Ghi chú</h4>' not in html
+    assert 'PHIẾU GIAO HÀNG' in html and 'Tin gốc' not in html and 'trợ lý' not in html and '<b>Ghi chú:</b>' not in html
 
 
 def test_pending_delivery_print_hides_zalo_draft_note(client, db, setup):
@@ -289,7 +289,7 @@ def test_pending_delivery_print_hides_zalo_draft_note(client, db, setup):
     o.note = ZALO_NOTE; db.commit()
     service_login(client, p['sales'])
     html = client.get(f'/giao-don/{o.id}/in').text
-    assert 'Tin gốc' not in html and 'trợ lý' not in html and '<h4>Ghi chú</h4><div class="ln"></div><div class="ln"></div>' in html
+    assert 'Tin gốc' not in html and 'trợ lý' not in html and '<b>Ghi chú:</b> <span class="in-fill"></span>' in html
 
 
 # ---- 08/11 (TUẤN "tiền bằng chữ ở đó chưa hợp lý"): bằng chữ là dòng ngang dưới ô tổng, ghi rõ khoản ----
@@ -303,3 +303,17 @@ def test_delivered_print_words_line_below_totals(client, db, people):
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
     assert '<b>Tổng lần giao bằng chữ:</b>' in html
     assert html.index('TỔNG LẦN GIAO') < html.index('Tổng lần giao bằng chữ')
+    assert 'class="in-sum gon"' in html
+
+
+# ---- 08/11 (TUẤN "dời ghi chú xuống dưới bằng chữ, 1 dòng"): ghi chú sau dòng bằng chữ ----
+def test_delivered_print_note_one_line_after_words(client, db, people):
+    from test_stock_reservations import stock, order
+    from test_sales_deliveries import send
+    p = people; stock(db, p, 10)
+    o = order(db, p, 2)
+    o.note = 'Gọi trước 15 phút'; db.commit()
+    gh = send(db, p, o, 2)
+    service_login(client, p['sales'])
+    html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
+    assert html.index('Tổng lần giao bằng chữ') < html.index('<b>Ghi chú:</b> Gọi trước 15 phút')
