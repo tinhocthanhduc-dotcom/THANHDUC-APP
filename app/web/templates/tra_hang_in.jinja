@@ -12,9 +12,10 @@
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL</th><th class="c">Tình trạng</th><th>Kho nhận</th><th class="m">Tiền hàng<small>chưa VAT</small></th></tr></thead><tbody>
 {% for line in r.lines %}{% set ol = lines[line.order_line_no] %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ ol.product_code or '' }}</td><td class="n">{{ ol.description }}{% if line.serials %}<span class="cd">Serial: {{ line.serials|join(', ') }}</span>{% endif %}</td><td class="c">{{ ol.unit }}</td><td class="c">{{ line.qty|qty }}</td><td class="c">{{ 'Tốt' if line.condition == 'TOT' else 'Lỗi' }}</td><td>{{ warehouses.get(line.warehouse_code, line.warehouse_code or '') }}</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
-<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-sum"><div class="left">
 <div class="in-note"><h4>Ghi chú</h4><ul><li>Tiền trả hàng được trừ vào công nợ đơn {{ o.number }}; nếu khách đã trả dư thì hoàn tiền theo phiếu chi riêng.</li><li>Hàng tình trạng Lỗi nhập về kho chờ xử lý, không bán lại khi chưa kiểm tra.</li></ul></div></div>
 {{ f.totals([('Tiền hàng chưa VAT', r.subtotal|money ~ ' đồng'), ('Thuế GTGT', r.vat_total|money ~ ' đồng')], ('TỔNG TIỀN TRẢ', r.total|money ~ ' đồng')) }}</div>
+<div class="in-words"><b>Tổng tiền trả bằng chữ:</b> {{ words }}.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd">{{ r.returned_at|vn_long_date|capitalize }}</div>
 {{ f.signatures([('Khách hàng', '(Người trả hàng ký, họ tên)'), ('Người nhận hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)')]) }}{% endblock %}

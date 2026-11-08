@@ -12,9 +12,10 @@
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
 {% for line in o.lines %}{% set p = products.get(line.product_code) %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code }}</td><td class="n">{{ p.name if p else line.product_code }}{% if line.received_qty %}<span class="cd">Đã nhận {{ quantity(line.received_qty) }}</span>{% endif %}</td><td class="c">{{ p.unit if p else '' }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_cost|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>
-<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-sum"><div class="left">
 <div class="in-note"><h4>Ghi chú</h4><ul><li>Đơn giá trên chưa bao gồm thuế GTGT.</li><li>Vui lòng ghi số đơn đặt hàng trên phiếu giao và hóa đơn.</li>{% if o.expected_date %}<li>Ngày dự kiến nhận hàng: {{ o.expected_date|vn_date }}.</li>{% endif %}{% if o.note %}<li><span class="q">Ghi chú đơn:</span> {{ o.note }}</li>{% endif %}</ul></div></div>
 {{ f.totals([('Tiền hàng chưa VAT', o.subtotal|money ~ ' đồng'), ('Thuế GTGT', o.vat_total|money ~ ' đồng')], ('TỔNG THANH TOÁN', o.total|money ~ ' đồng')) }}</div>
+<div class="in-words"><b>Tổng thanh toán bằng chữ:</b> {{ words }}.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ o.order_date|vn_long_date }}</div>
 {{ f.signatures([('Nhà cung cấp', '(Ký, ghi rõ họ tên)'), ('Đại diện Công ty Thành Đức', '(Ký, ghi rõ họ tên và đóng dấu)')]) }}{% endblock %}

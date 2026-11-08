@@ -21,10 +21,11 @@
 <thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">Số lượng</th><th>Serial / Ghi chú</th></tr></thead><tbody>
 {% for line in d.lines %}<tr><td class="c">{{ line.line_no }}</td><td class="code">{{ line.product_code }}</td><td class="n">{{ product_names.get(line.product_code, line.product_code) }}</td><td class="c">{{ units.get(line.product_code, '') }}</td><td class="c">{{ line.qty|qty }}</td><td>{{ line.serial or '' }}{% if line.serial and line.note %} · {% endif %}{{ line.note }}</td></tr>{% endfor %}
 <tr class="tot"><td colspan="4" style="text-align:right">Tổng số lượng</td><td class="c">{{ total_qty|qty }}</td><td></td></tr></tbody></table>{% endif %}
-<div class="in-sum"><div class="left">{% if show_cost %}<div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>{% endif %}
+<div class="in-sum"><div class="left">
 <div class="in-note"><h4>Ghi chú</h4>{% if d.note %}{{ d.note }}
 {% endif %}{% if not show_cost %}Phiếu {{ kinds[d.kind]|lower }} kho không in giá vốn.{% elif receipt %}Tiền hàng theo lần nhận {{ receipt_order }}; thuế GTGT và tổng ghi nhận vào công nợ nhà cung cấp.{% else %}Giá nhập chưa gồm thuế GTGT.{% endif %}</div></div>
 {% if show_cost %}{% if receipt %}{{ f.totals([('Cộng tiền hàng (chưa VAT)', receipt.amount|money ~ ' đồng'), ('Thuế GTGT', receipt.vat_amount|money ~ ' đồng')], ('TỔNG THANH TOÁN', receipt.total|money ~ ' đồng')) }}{% else %}{{ f.totals([], ('CỘNG TIỀN HÀNG', subtotal|money ~ ' đồng')) }}{% endif %}{% endif %}</div>
+{% if show_cost %}<div class="in-words"><b>Số tiền bằng chữ:</b> {{ words }}.</div>{% endif %}
 {% endblock %}
 {% block signatures %}<div class="in-sd">{{ d.doc_date|vn_long_date|capitalize }}</div>
 {% if d.kind == 'PN' %}{{ f.signatures([('Người giao hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Người lập phiếu', '(Ký, họ tên)')]) }}

@@ -17,11 +17,12 @@
 {% for line in t.lines %}{% set p = products.get(line.product_code) %}{% set included = line.kind == 'VAT_TU' and not line.amount %}<tr><td class="c">{{ loop.index }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description or (p.name if p else '') }}{% if p and line.description and line.description != p.name %}<span class="cd">{{ p.name }}</span>{% endif %}{% if included %}<span class="cd">Vật tư đã tính trong phí dịch vụ</span>{% endif %}</td><td class="c">{{ line.qty|qty }}</td><td class="m">{{ '—' if included else line.unit_price|money }}</td><td class="c">{{ '' if included else line.vat_rate ~ '%' }}</td><td class="m">{{ '—' if included else line.amount|money }}</td></tr>{% endfor %}
 </tbody></table>{% endif %}
 {% if photos %}<div class="in-photos" style="margin-top:12px">{% for photo in photos[:4] %}<figure><img src="/attachments/{{ photo.id }}/file" alt="Ảnh sau sửa"><figcaption>{{ photo.filename }}</figcaption></figure>{% endfor %}</div>{% endif %}
-<div class="in-sum"><div class="left">{% if t.billing == 'THU_TIEN' and t.total %}<div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>{% endif %}
+<div class="in-sum"><div class="left">
 <div class="in-note"><h4>Ghi chú</h4><ul>{% if t.billing == 'MIEN_PHI' %}<li><span class="q">Miễn phí:</span> {{ t.free_reason or 'theo chính sách bảo hành' }}.</li>{% elif t.billing == 'THU_TIEN' %}<li>Đơn giá trên chưa gồm thuế GTGT; tổng thanh toán đã gồm thuế.</li>{% else %}<li>Chưa chốt tiền dịch vụ.</li>{% endif %}<li>{{ warranty_terms }}.</li>{% if t.warranty_scope %}<li>Phạm vi bảo hành: {{ t.warranty_scope }}.</li>{% endif %}{% if not done %}<li><span class="q">Bản xem trước:</span> phiếu chưa hoàn thành, số liệu có thể thay đổi.</li>{% endif %}</ul></div></div>
 {% if t.billing == 'THU_TIEN' and t.total %}{% set extra = [] %}{% if balance %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else 'ok')) %}{% endif %}
 {{ f.totals([('Tiền chưa VAT', t.subtotal|money ~ ' đồng'), ('Thuế GTGT', t.vat_total|money ~ ' đồng')], ('TỔNG THANH TOÁN', t.total|money ~ ' đồng'), extra) }}
 {% elif t.billing == 'MIEN_PHI' %}{{ f.totals([], ('MIỄN PHÍ', '0 đồng')) }}{% endif %}</div>
+{% if t.billing == 'THU_TIEN' and t.total %}<div class="in-words"><b>Tổng thanh toán bằng chữ:</b> {{ words }}.</div>{% endif %}
 {% endblock %}
 {% block signatures %}<div class="in-sd">{{ (completed_at or t.created_at)|vn_long_date|capitalize }}</div>
 {{ f.signatures([('Đại diện khách hàng', '(Ký, ghi rõ họ tên)'), ('Kỹ thuật viên', '(Ký, ghi rõ họ tên)')]) }}{% endblock %}
