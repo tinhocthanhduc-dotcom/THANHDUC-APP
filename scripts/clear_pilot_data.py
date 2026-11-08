@@ -27,9 +27,10 @@ KEEP = {
     "suppliers", "supplier_opening_debts", "customer_opening_debts", "product_groups", "products", "stock_min_levels", "customers", "customer_phones",
     "customer_contacts", "customer_sites", "equipment", "push_keys", "push_subscriptions", "audit_log", "ai_keys",
     "zalo_chats", "zalo_messages", "zalo_tro_ly", "production_boms", "production_bom_lines", "virtual_agents",
+    "pl_settings",  # 0089: lương giám đốc mục tiêu là cấu hình
 }
 WIPE = {
-    "virtual_agent_log", "customer_messages", "zalo_ticket_drafts", "customer_ink_calls", "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
+    "pl_adjustments", "virtual_agent_log", "customer_messages", "zalo_ticket_drafts", "customer_ink_calls", "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
     "notification_reads", "salary_advances", "payroll_lines", "payroll_months", "payroll_inputs",
     "commission_lines", "commission_months", "attendance_punches", "attendance_requests",
     "attendance_month_locks", "pending_item_moves", "pending_dispositions", "pending_items",
