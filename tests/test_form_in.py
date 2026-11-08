@@ -34,7 +34,7 @@ def test_stock_issue_print_hides_cost_and_posted_has_no_watermark(client, web_lo
     assert db.get(StockDoc, px).status == 'DA_GHI'
     html = client.get(f'/phieu-kho/{px}/in').text
     assert 'PHIẾU XUẤT KHO' in html and 'BẢN NHÁP' not in html and 'ĐÃ HỦY' not in html
-    assert 'Giá nhập' not in html and 'Bằng chữ' not in html and '120.000' not in html and 'không in giá vốn' in html
+    assert 'Giá nhập' not in html and 'bằng chữ' not in html and '120.000' not in html and 'không in giá vốn' in html
     assert 'Xuất cho thợ' in html and 'Người nhận hàng' in html and 'Tổng số lượng' in html
     assert re.search(r'[Nn]gày \d{2} tháng 10 năm 2026', html)
     # Kế toán mở được trang in (chỉ đọc); bán hàng không vào mục phiếu kho (403 theo menu); chưa đăng nhập thì về đăng nhập.
@@ -90,7 +90,7 @@ def test_purchase_order_print_uses_frame_with_supplier_and_totals(client, db, pu
     html = client.get(f'/don-mua/{o.id}/in').text
     assert 'ĐƠN ĐẶT HÀNG' in html and o.number in html and 'BẢN NHÁP' in html and 'Minh Phát' in html and 'NCC-0001' in html
     assert 'Kho 58' in html and 'TD-0001' in html and '120.000' in html and '240.000 đồng' in html and '8%' in html
-    assert 'Tiền hàng chưa VAT' in html and 'Thuế GTGT' in html and 'TỔNG THANH TOÁN' in html and 'Bằng chữ' in html
+    assert 'Tiền hàng chưa VAT' in html and 'Thuế GTGT' in html and 'TỔNG THANH TOÁN' in html and 'Tổng thanh toán bằng chữ' in html
     assert html.count('<td><b>') == 2 and 'Nhà cung cấp' in html and 'Đại diện Công ty Thành Đức' in html
     assert re.search(r'ngày 18 tháng 10 năm 2026', html)
     assert client.post(f'/don-mua/{o.id}/order', data={'csrf': csrf, 'version': o.version}).status_code == 200
@@ -290,3 +290,16 @@ def test_pending_delivery_print_hides_zalo_draft_note(client, db, setup):
     service_login(client, p['sales'])
     html = client.get(f'/giao-don/{o.id}/in').text
     assert 'Tin gốc' not in html and 'trợ lý' not in html and '<h4>Ghi chú</h4><div class="ln"></div><div class="ln"></div>' in html
+
+
+# ---- 08/11 (TUẤN "tiền bằng chữ ở đó chưa hợp lý"): bằng chữ là dòng ngang dưới ô tổng, ghi rõ khoản ----
+def test_delivered_print_words_line_below_totals(client, db, people):
+    from test_stock_reservations import stock, order
+    from test_sales_deliveries import send
+    p = people; stock(db, p, 10)
+    o = order(db, p, 2)
+    gh = send(db, p, o, 2)
+    service_login(client, p['sales'])
+    html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
+    assert '<b>Tổng lần giao bằng chữ:</b>' in html
+    assert html.index('TỔNG LẦN GIAO') < html.index('Tổng lần giao bằng chữ')

@@ -24,11 +24,12 @@
 {% do rows.append(('Tiền hàng chưa VAT', gh.subtotal|money ~ ' đồng')) %}{% do rows.append(('Thuế GTGT', gh.vat_total|money ~ ' đồng')) %}
 {% set extra = [] %}
 {% if balance %}{% do extra.append(('Cả đơn ' ~ o.number ~ ' phải thu', balance.receivable|money ~ ' đồng', '')) %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else '')) %}{% endif %}
-<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-sum"><div class="left">
 {% set order_note = o.note|print_note %}{% set gh_note = gh.note|print_note %}
 {% if order_note or gh_note %}<div class="in-hand"><h4>Ghi chú</h4><p>{% if order_note %}{{ order_note }}{% endif %}{% if order_note and gh_note %}
 {% endif %}{% if gh_note %}Lúc giao: {{ gh_note }}{% endif %}</p></div>{% endif %}</div>
 {{ f.totals(rows, ('TỔNG LẦN GIAO', gh.total|money ~ ' đồng'), extra) }}{{ f.qr(qr) }}</div>
+<div class="in-words"><b>Tổng lần giao bằng chữ:</b> {{ words }}.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd"><span class="kh">Quý khách vui lòng kiểm tra hàng trước khi ký nhận.</span><span>{{ gh.delivered_at|vn_long_date|capitalize }}</span></div>
 {{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}

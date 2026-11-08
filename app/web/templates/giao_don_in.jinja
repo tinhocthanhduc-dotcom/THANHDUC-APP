@@ -20,10 +20,11 @@
 </tbody></table>
 {% set rows = [('Tiền hàng chưa VAT', subtotal|money ~ ' đồng'), ('Thuế GTGT', vat_total|money ~ ' đồng')] %}
 {% set extra = [('Cả đơn ' ~ o.number ~ ' phải trả', effective_total|money ~ ' đồng', ''), ('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok'), (('Còn phải trả' if o.payment_term == 'CONG_NO' else 'Thu khi giao'), balance.available|money ~ ' đồng', 'due' if balance.available else 'ok')] %}
-<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ{% if o.payment_term != 'CONG_NO' %} (thu khi giao){% endif %}:</b> {{ words }}.</div>
+<div class="in-sum"><div class="left">
 {% set order_note = o.note|print_note %}<div class="in-hand"><h4>Ghi chú</h4>{% if order_note %}<p>{{ order_note }}</p><div class="ln"></div>{% else %}<div class="ln"></div><div class="ln"></div>{% endif %}</div>
 <div class="in-fine">Phiếu in trước khi giao. Số lượng và tiền thu được ghi nhận chính thức khi thợ bấm Đã giao trên app.</div></div>
 {{ f.totals(rows, ('TỔNG LẦN GIAO', total|money ~ ' đồng'), extra) }}{{ f.qr(qr) }}</div>
+<div class="in-words"><b>Tổng lần giao bằng chữ{% if o.payment_term != 'CONG_NO' %} (thu khi giao){% endif %}:</b> {{ words }}.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd"><span class="kh">Quý khách vui lòng kiểm tra hàng trước khi ký nhận.</span><span>Ngày ....... tháng ....... năm {{ today.year }}</span></div>
 {{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}

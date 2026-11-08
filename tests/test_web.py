@@ -2975,7 +2975,7 @@ def test_m1_web_create_update_order_cancel_print_and_pickers(client,db,purchase_
     page=client.get('/don-mua?status=DA_DAT&supplier_code=NCC-0001&q=DM-26')
     assert page.status_code==200 and o.number in page.text
     printed=client.get(f'/don-mua/{o.id}/in')
-    for text in (o.number,'ĐƠN ĐẶT HÀNG','0313015734','Minh Phát','Bằng chữ','Hai trăm bốn mươi nghìn đồng','Ký, ghi rõ họ tên'):
+    for text in (o.number,'ĐƠN ĐẶT HÀNG','0313015734','Minh Phát','Tổng thanh toán bằng chữ','Hai trăm bốn mươi nghìn đồng','Ký, ghi rõ họ tên'):
         assert text in printed.text
     assert client.post(f'/don-mua/{o.id}/cancel',data={'csrf':csrf,'version':o.version}).status_code==400
     r=client.post(f'/don-mua/{o.id}/cancel',data={'csrf':csrf,'version':o.version,'reason':'Không mua'})

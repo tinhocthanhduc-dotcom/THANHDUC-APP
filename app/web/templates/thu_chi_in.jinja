@@ -15,9 +15,10 @@
 <thead><tr><th class="c">STT</th><th>Nội dung {{ 'thu' if d.kind == 'PT' else 'chi' if d.kind == 'PC' else 'chuyển' }}</th><th class="m">Số tiền</th></tr></thead><tbody>
 <tr><td class="c">1</td><td class="n">{{ d.description or kinds[d.kind] }}</td><td class="m">{{ d.amount|money }}</td></tr>
 </tbody></table>
-<div class="in-sum"><div class="left"><div class="in-words"><b>Bằng chữ:</b> {{ words }}.</div>
+<div class="in-sum"><div class="left">
 <div class="in-note"><h4>Ghi chú</h4><ul><li>Kèm theo: ............ chứng từ gốc.</li>{% if d.kind != 'CQ' %}<li>Phiếu này không thay thế biên nhận giao hàng; công nợ theo đơn hàng, phiếu dịch vụ.</li>{% endif %}</ul></div></div>
 {{ f.totals([], ('TỔNG SỐ TIỀN', d.amount|money ~ ' đồng')) }}</div>
+<div class="in-words"><b>Số tiền bằng chữ:</b> {{ words }}.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd">{{ d.doc_date|vn_long_date|capitalize }}</div>
 {% if d.kind == 'CQ' %}{{ f.signatures([('Người lập phiếu', '(Ký, họ tên)'), ('Thủ quỹ giao', '(Ký, họ tên)'), ('Thủ quỹ nhận', '(Ký, họ tên)'), ('Giám đốc', '(Ký, họ tên)')]) }}
