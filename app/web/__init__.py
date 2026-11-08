@@ -905,6 +905,10 @@ from .finance_reports import router as finance_reports_router
 
 router.include_router(finance_reports_router)
 
+from .profit_report import router as profit_report_router
+
+router.include_router(profit_report_router)
+
 from .purchases import router as purchases_router
 
 router.include_router(purchases_router)
