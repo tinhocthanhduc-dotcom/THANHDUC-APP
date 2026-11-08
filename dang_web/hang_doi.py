@@ -531,7 +531,8 @@ def bo_ghep_web(goc, web_id: int) -> int:
         return len(bo)
 
 
-LICH_MAC_DINH = {"bat": False, "gio": "07:00", "so_sp": 2, "so_bai": 1, "lan_cuoi": ""}
+# TUẤN 08/11 (Đợt 4 rút gọn): bài viết chuyển sang app Dịch vụ SEO, lịch chỉ còn soạn sản phẩm (so_bai bỏ).
+LICH_MAC_DINH = {"bat": False, "gio": "07:00", "so_sp": 2, "lan_cuoi": ""}
 
 
 def doc_lich(goc) -> dict:
@@ -613,6 +614,35 @@ def ma_co_anh(goc) -> set[str]:
         m = MA_RE.match(p.name if p.is_dir() else p.stem)
         if m and (p.is_dir() or p.suffix.lower() in DUOI_ANH):
             ra.add(m.group(1).upper())
+    return ra
+
+
+def ma_chua_len_web(goc, hang: list[tuple[str, str]]) -> list[str]:
+    """Mã (giữ thứ tự) chưa có trên web, cùng cách màn Đăng web xếp "Chưa có": bỏ mã app đã đăng, mã đã ghép
+    (Đúng là nó), mã trùng SKU, và mã có sản phẩm web gần giống chưa bị anh bấm "Không phải".
+    Chưa có danh sách web (chưa bấm Cập nhật từ web) thì chỉ bỏ mã app đã đăng."""
+    from .so_ten import so_khop_hang
+
+    da_dang = doc_trang_thai(goc)["san_pham"]
+    hang = [(c.upper(), t) for c, t in hang if c.upper() not in da_dang]
+    web = doc_json(file_sp_web(goc), {})
+    ds_web = [w for w in (web.get("ds") or []) if isinstance(w, dict) and w.get("id")] if isinstance(web, dict) else []
+    if not ds_web:
+        return [c for c, _ in hang]
+    xac = doc_xac_nhan(goc)
+    khop = so_khop_hang(hang, ds_web)
+    ra = []
+    for code, _ in hang:
+        x = xac.get(code) if isinstance(xac.get(code), dict) else {}
+        if x.get("dung"):
+            continue
+        k = khop.get(code) or {}
+        if k.get("kieu") == "sku":
+            continue
+        khong = set(x.get("khong") or [])
+        if any(w.get("id") not in khong for w in k.get("web") or []):
+            continue
+        ra.append(code)
     return ra
 
 

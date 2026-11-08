@@ -1,8 +1,9 @@
 """Máy đăng web chạy nền (lệnh `cho-viec`, container dang-web-may).
 
 Nhận việc từ màn Đăng web trong app qua thư mục chung (xem hang_doi.py):
-soạn (kiểm trùng → AI viết → xử lý ảnh) rồi chờ anh xem trước; anh bấm Đăng thì đăng nháp lên web.
-Database app chỉ đọc. Mọi thứ đăng lên web đều là Bản nháp (bài viết lại giữ nguyên trạng thái trên web).
+soạn (kiểm trùng → AI viết → xử lý ảnh) rồi chờ anh xem trước. Database app chỉ đọc.
+Sản phẩm: anh bấm "Duyệt và đăng" thì lên web công khai, "Chỉ lưu nháp" thì lên Bản nháp. Máy không bao giờ tự đăng:
+chỉ việc người đã bấm (app ghi cong_khai + duyet_boi) mới lên công khai. Bài viết luôn là Bản nháp.
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from .wordpress import (LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, chen
 
 
 SO_ANH_TRONG_BAI = 3  # tối đa số ảnh chèn vào thân mô tả / thân bài
+MOI_NHAP_NGAY = 30  # hàng nhập trong chừng này ngày là "mới nhập" (giống màn Đăng web)
 SO_ANH_BAI_VIET = 4  # bài viết: ảnh đầu làm ảnh đại diện, tối đa 3 ảnh sau chèn vào thân bài
 
 
@@ -49,12 +51,13 @@ def ten_ai(ch: CauHinh) -> str:
 
 
 class MayDangWeb:
-    def __init__(self, ch: CauHinh, wp: WordPress | None = None, nguoi_viet=None, ket_noi_db=None):
+    def __init__(self, ch: CauHinh, wp: WordPress | None = None, nguoi_viet=None, ket_noi_db=None, hang_moi=None):
         self.ch = ch
         self.goc = ch.thu_muc
         self._wp = wp
         self._nguoi_viet = nguoi_viet  # dùng trong kiểm thử; thật thì chọn theo cách viết của từng việc
         self._ket_noi_db = ket_noi_db
+        self._hang_moi = hang_moi  # dùng trong kiểm thử: hàm trả [(mã, tên)] hàng mới nhập
         self._danh_muc: list[dict] | None = None
 
     # ---------- phụ ----------
@@ -290,7 +293,9 @@ class MayDangWeb:
                 payload.pop("regular_price", None)
             if not ids:
                 payload.pop("images", None)
-            moi = wp.sua_sp(v["wp_id"], payload) if v.get("wp_id") else wp.tao_sp(payload)
+            # TUẤN 08/11 (Đợt 4): chỉ đăng công khai khi người đã bấm "Duyệt và đăng" (app ghi cong_khai + duyet_boi).
+            cong_khai = bool(v.get("cong_khai") and v.get("duyet_boi"))
+            moi = wp.sua_sp(v["wp_id"], payload, cong_khai=cong_khai) if v.get("wp_id") else wp.tao_sp(payload, cong_khai=cong_khai)
             khoa_tt, khoa = "san_pham", sp.code
             ten = payload["name"]
         else:
@@ -329,7 +334,8 @@ class MayDangWeb:
                        dang_luc=luc, loi="")
         dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua(
             "Sản phẩm" if v["loai"] == "san_pham" else "Bài viết", khoa,
-            "VIẾT LẠI" if v.get("wp_id") else "BẢN NHÁP", [f"Duyệt: {sua}", f"Chi phí AI: {v.get('chi_phi', '')}"]))
+            ("ĐĂNG CÔNG KHAI" if moi.get("status") == "publish" and v.get("cong_khai") else ("VIẾT LẠI" if v.get("wp_id") else "BẢN NHÁP")),
+            [f"Duyệt: {v.get('duyet_boi') or '—'} · {sua}", f"Chi phí AI: {v.get('chi_phi', '')}"]))
 
     # ---------- làm mới trạng thái trên web ----------
     def lam_moi_web(self) -> None:
@@ -940,6 +946,46 @@ class MayDangWeb:
         in_(f"Ghi mã TD lên web: {so} được, {len(loi)} lỗi")
 
     # ---------- lịch tự soạn ----------
+    def hang_moi_nhap(self) -> list[tuple[str, str]]:
+        """[(mã, tên)] hàng mới nhập 30 ngày còn tồn, mới nhất trước (database chỉ đọc)."""
+        if self._hang_moi is not None:
+            return self._hang_moi()
+        if self._ket_noi_db:
+            return []
+        from .du_lieu import hang_moi_nhap, ket_noi
+
+        with ket_noi(self.ch.database_url) as conn:
+            return hang_moi_nhap(conn, MOI_NHAP_NGAY)
+
+    def ten_hang(self, codes: list[str]) -> dict[str, str]:
+        """Tên trong app của các mã còn dùng (mã ngừng dùng hoặc hàng thử thì không có)."""
+        if not codes:
+            return {}
+        if self._ket_noi_db:
+            ra = {c: self._ket_noi_db(c) for c in codes}
+            return {c: sp.name for c, sp in ra.items() if sp}
+        from .du_lieu import ket_noi, lay_san_pham
+
+        with ket_noi(self.ch.database_url) as conn:
+            return {c: sp.name for c, sp in lay_san_pham(conn, codes).items()}
+
+    def chon_ma_lich(self, so: int, bo_qua: set[str]) -> list[tuple[str, bool]]:
+        """TUẤN 08/11 (Đợt 4): lấy trước Hàng mới nhập chưa có trên web đã có ảnh (mới nhất trước),
+        còn chỗ thì lấy mã khác đã có ảnh mà chưa có trên web. Trả [(mã, là hàng mới nhập)]."""
+        if so <= 0:
+            return []
+        co_anh = hd.ma_co_anh(self.goc)
+        try:
+            moi = [(c.upper(), t) for c, t in self.hang_moi_nhap() if c.upper() in co_anh and c.upper() not in bo_qua]
+        except Exception as e:  # noqa: BLE001 — không đọc được hàng mới nhập thì vẫn soạn mã có ảnh như cũ
+            in_(f"Lịch tự soạn: không đọc được hàng mới nhập ({e})")
+            moi = []
+        da_lay = {c for c, _ in moi}
+        khac = sorted(c for c in co_anh if c not in bo_qua and c not in da_lay)
+        ten = self.ten_hang(khac)
+        hang = moi + [(c, ten[c]) for c in khac if c in ten]
+        return [(c, c in da_lay) for c in hd.ma_chua_len_web(self.goc, hang)[:so]]
+
     def kiem_lich(self) -> int:
         lich = hd.doc_lich(self.goc)
         now = hd.bay_gio()
@@ -949,22 +995,17 @@ class MayDangWeb:
             return 0
         hd.ghi_lich(self.goc, {"lan_cuoi": now.date().isoformat()})
         tt = hd.doc_trang_thai(self.goc)
-        dang_co = {(v.get("ma") or v.get("chu_de")) for v in hd.ds(self.goc) if v.get("trang_thai") not in hd.XONG}
+        dang_co = {v.get("ma") for v in hd.ds(self.goc) if v.get("loai") == "san_pham" and v.get("trang_thai") not in hd.XONG}
         bo_qua = set(tt["nghi_trung"]) | dang_co
         cach = "codex" if hd.codex_song(self.goc) else ("tu_dong" if ten_ai(self.ch) else None)
         if cach is None:  # TUẤN 01/11: bỏ "Mẫu có sẵn"; không có Codex hay khóa API thì lịch không tự soạn
             in_("Lịch tự soạn: chưa có Codex hay khóa AI, bỏ qua hôm nay")
             return 0
+        # TUẤN 08/11: bài viết chuyển sang app Dịch vụ SEO, lịch chỉ soạn sản phẩm. Máy chỉ soạn, anh duyệt mới đăng.
         so = 0
-        ma = hd.ma_co_anh(self.goc)
-        for code in sorted(m for m in ma if m not in tt["san_pham"] and m not in bo_qua)[: int(lich.get("so_sp") or 0)]:
-            hd.tao_viec(self.goc, "san_pham", {"ma": code, "ten": code, "cach_viet": cach, "nguon": "lich"})
+        for code, la_moi in self.chon_ma_lich(int(lich.get("so_sp") or 0), bo_qua):
+            hd.tao_viec(self.goc, "san_pham", {"ma": code, "ten": code, "cach_viet": cach, "nguon": "lich", "hang_moi": la_moi})
             so += 1
-        if cach in ("tu_dong", "codex"):
-            ghi_chu = hd.doc_ghi_chu_chu_de(self.goc)
-            for cd in [c for c in hd.doc_chu_de(self.goc) if c not in tt["bai_viet"] and c not in bo_qua][: int(lich.get("so_bai") or 0)]:
-                hd.tao_viec(self.goc, "bai_viet", {"chu_de": cd, "ten": cd, "cach_viet": cach, "nguon": "lich", "ghi_chu": ghi_chu.get(cd, "")})
-                so += 1
         in_(f"Lịch tự soạn: tạo {so} việc")
         return so
 

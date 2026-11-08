@@ -53,12 +53,14 @@ class _WP:
         self.__dict__.setdefault("alt", []).append((media_id, alt))
         return {"id": media_id}
 
-    def tao_sp(self, payload):
+    def tao_sp(self, payload, cong_khai=False):
         self.tao.append(payload)
-        return {"id": 101, "permalink": "https://thanhduc.vn/?p=101", "status": "draft"}
+        self.__dict__.setdefault("cong_khai", []).append(cong_khai)
+        return {"id": 101, "permalink": "https://thanhduc.vn/?p=101", "status": "publish" if cong_khai else "draft"}
 
-    def sua_sp(self, sp_id, payload):
+    def sua_sp(self, sp_id, payload, cong_khai=False):
         self.sua.append((sp_id, payload))
+        self.__dict__.setdefault("cong_khai", []).append(cong_khai)
         return {"id": sp_id, "permalink": "https://thanhduc.vn/hop-muc", "status": "publish"}
 
     def tao_bai(self, payload):

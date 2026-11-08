@@ -79,13 +79,16 @@ class WordPress:
     def danh_muc_sp(self) -> list[dict]:
         return self._tat_ca("wc/v3/products/categories")
 
-    def tao_sp(self, payload: dict) -> dict:
-        payload = {**payload, "status": "draft"}
+    def tao_sp(self, payload: dict, cong_khai: bool = False) -> dict:
+        """Tạo sản phẩm. Mặc định Bản nháp; cong_khai=True chỉ khi anh đã bấm "Duyệt và đăng" trong app."""
+        payload = {**payload, "status": "publish" if cong_khai else "draft"}
         return self._json("POST", "wc/v3/products", json=payload)
 
-    def sua_sp(self, sp_id: int, payload: dict) -> dict:
-        """Ghi đè nội dung sản phẩm đã có (Viết lại). Giữ nguyên trạng thái và mã SKU trên web."""
+    def sua_sp(self, sp_id: int, payload: dict, cong_khai: bool = False) -> dict:
+        """Ghi đè nội dung sản phẩm đã có (Viết lại). Giữ nguyên mã SKU; giữ trạng thái trừ khi anh bấm "Duyệt và đăng"."""
         payload = {k: v for k, v in payload.items() if k not in ("status", "sku", "type")}
+        if cong_khai:
+            payload["status"] = "publish"
         return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload)
 
     def tat_ca_sp(self) -> list[dict]:

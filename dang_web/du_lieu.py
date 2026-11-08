@@ -65,3 +65,33 @@ def dem_san_pham(conn) -> int:
     with conn.cursor() as cur:
         cur.execute(CAU_DEM)
         return int(cur.fetchone()[0])
+
+
+# Hàng mới nhập (đơn mua, sản xuất, phiếu nhập tay) vào kho bán trong N ngày, còn tồn; mới nhập nhất trước.
+# Cùng điều kiện với khối "Hàng mới nhập chưa có trên web" của màn Đăng web (app/web/dang_web.py CAU_MOI_NHAP).
+CAU_MOI_NHAP = """
+with moi as (
+  select l.product_code as code, max(d.doc_date) as ngay
+  from stock_ledger l
+  join stock_docs d on d.id = l.doc_id
+  join warehouses w on w.code = l.warehouse_code
+  where d.kind = 'PN' and d.status = 'DA_GHI' and l.qty_in > 0 and not l.is_reversal and w.kind = 'KHO'
+    and (d.source_kind is null or d.source_kind in ('PURCHASE_RECEIPT', 'SAN_XUAT'))
+    and d.doc_date >= current_date - %s::int
+  group by l.product_code
+)
+select p.code, p.name, moi.ngay
+from moi
+join products p on p.code = moi.code
+where p.active and not p.is_test
+  and (select coalesce(sum(b.qty), 0) from stock_balances b join warehouses w on w.code = b.warehouse_code
+       where b.product_code = p.code and w.kind = 'KHO' and w.active) > 0
+order by moi.ngay desc, p.code desc
+"""
+
+
+def hang_moi_nhap(conn, so_ngay: int = 30) -> list[tuple[str, str]]:
+    """[(mã, tên)] hàng mới nhập còn tồn, mới nhất trước."""
+    with conn.cursor() as cur:
+        cur.execute(CAU_MOI_NHAP, (int(so_ngay),))
+        return [(r[0], r[1]) for r in cur.fetchall()]
