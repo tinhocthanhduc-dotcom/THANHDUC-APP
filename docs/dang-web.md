@@ -9,7 +9,7 @@ Công cụ chạy trên máy chủ Z2, trong container riêng `dang-web` (không
    - **Claude API** (khóa `ANTHROPIC_API_KEY`),
    - **ChatGPT web, dán tay** (`--chatgpt-web`, không tốn phí API),
    - **Mẫu cố định, không AI** (`--khong-ai`, miễn phí, chỉ cho sản phẩm).
-4. Đăng lên WooCommerce ở trạng thái **Bản nháp**. Người duyệt mở wp-admin, sửa nếu cần, bấm Đăng.
+4. Người xem trước trong app rồi bấm **Duyệt và đăng**: sản phẩm lên WooCommerce công khai luôn, không cần vào wp-admin (từ 08/11/2026). Muốn sửa thêm trên wp-admin thì bấm **Chỉ lưu nháp**. Máy không bao giờ tự đăng.
 
 Web thanhduc.vn vẫn ở hosting cũ, công cụ chỉ gọi REST API của web.
 
@@ -62,8 +62,8 @@ Lần đầu dựng image mất vài phút. Cuối cùng phải thấy `TẤT C�
 
 Giám đốc hoặc Kinh doanh mở menu **Bán hàng → Đăng web** trên điện thoại hoặc máy tính (bật/tắt Tự soạn mỗi sáng chỉ Giám đốc):
 
-- **Sản phẩm:** bấm **+ Soạn sản phẩm**, tìm mã, chụp ảnh ngay bằng điện thoại (tối đa 6 ảnh; chưa có ảnh vẫn đăng được, bản nháp gắn nhãn **Chưa có ảnh**, bổ sung sau bằng Sửa bằng AI › Ảnh), chọn cách viết, bấm **Soạn bản xem trước**. Vài phút sau việc nằm ở ô **Chờ anh xem trước**: xem ảnh nền trắng có logo, sửa tên, mô tả, giá, danh mục, tiêu đề Google ngay trên màn rồi bấm **Đăng nháp lên thanhduc.vn**.
-- **Bài viết:** gõ chủ đề hoặc thêm vào danh sách **Chủ đề chờ viết**. Có thể chụp hoặc chọn tối đa 4 ảnh: ảnh đầu làm ảnh đại diện, các ảnh sau chèn vào thân bài (trước các tiêu đề mục).
+- **Sản phẩm:** bấm **+ Soạn sản phẩm**, tìm mã, chụp ảnh ngay bằng điện thoại (tối đa 6 ảnh; chưa có ảnh vẫn đăng được, bản nháp gắn nhãn **Chưa có ảnh**, bổ sung sau bằng Sửa bằng AI › Ảnh), chọn cách viết, bấm **Soạn bản xem trước**. Vài phút sau việc nằm ở ô **Chờ anh xem trước**: xem ảnh nền trắng có logo, sửa tên, mô tả, giá, danh mục, tiêu đề Google ngay trên màn rồi bấm **Duyệt và đăng lên thanhduc.vn** (khách thấy ngay, màn ghi tên người duyệt) hoặc **Chỉ lưu nháp**.
+- **Bài viết:** tắt từ 08/11/2026 (Đợt 4 rút gọn), bài viết làm ở app **Dịch vụ SEO**. Việc bài viết còn sót hiện chung ở tab Sản phẩm và chỉ đăng nháp; bài cũ vẫn xem, sửa ảnh ở Trên web › Bài viết.
 - **Ảnh trong thân bài:** khi đăng, sản phẩm tự chèn tối đa 3 ảnh của nó vào mô tả chi tiết (ảnh đầu sau đoạn mở đầu, ảnh sau trước các tiêu đề mục). Nếu mô tả đã có ảnh thì giữ nguyên.
 - **Ảnh đã có logo:** ảnh banner hoặc ảnh đã đóng logo Thành Đức sẵn thì tick **Ảnh đã có logo Thành Đức, không đóng thêm** ở màn soạn để khỏi bị hai logo.
 - **Có thể trùng:** web đã có sản phẩm hoặc bài gần giống thì app dừng lại (chưa tốn tiền AI), anh mở link xem rồi chọn **Đúng là trùng, bỏ qua**, **Không trùng, vẫn soạn** hoặc **Viết lại đè lên** bài cũ.
@@ -77,7 +77,8 @@ Giám đốc hoặc Kinh doanh mở menu **Bán hàng → Đăng web** trên đi
 - **Hàng mới nhập chưa có trên web:** ô đầu tab Sản phẩm liệt kê mã nhập kho bán trong 30 ngày (đơn mua, sản xuất, phiếu nhập tay; không tính tồn đầu kỳ, hàng trả), còn tồn, chưa có trên web; tick rồi Soạn.
 - **Sức khỏe Codex:** dải nhỏ đầu màn Đăng web báo Codex còn chạy không, lần hỏi việc gần nhất, còn đăng nhập ChatGPT không, số việc chờ và lỗi gần nhất.
 - **Máy tính:** danh sách hiện thành bảng; màn soạn và xem trước chia 2 cột (trái xem, phải sửa và bấm).
-- **Tự soạn mỗi sáng:** bật ở cuối tab Sản phẩm; máy soạn sẵn các mã đã có ảnh trong `anh-goc` và chủ đề chờ viết, anh vẫn phải bấm Đăng.
+- **Tự soạn mỗi sáng:** bật ở cuối tab Sản phẩm; máy lấy trước **Hàng mới nhập chưa có trên web** (nhập 30 ngày, còn tồn, đã có ảnh trong `anh-goc`), mới nhất trước, còn chỗ thì lấy mã khác có ảnh mà chưa có trên web. Máy chỉ soạn, anh vẫn phải bấm Duyệt và đăng.
+- **Nhắc qua Zalo:** n8n trên Z2 hỏi cổng chỉ đọc `GET /n8n/viec-cho` (khóa n8n ở Quản trị › Trợ lý AI) lúc 8:00 và 16:00 rồi nhắn việc chờ kèm link. Cài: `docs/n8n-dang-web.md`.
 
 Màn này cần **máy đăng web** (container `dang-web-may`) chạy nền trên Z2. Từ 02/11/2026 máy nằm trong `deploy/docker-compose.yml`, nên lệnh cập nhật app thường lệ tự dựng lại và bật nó:
 
@@ -195,7 +196,7 @@ Mỗi lần chạy in chi phí AI (Claude: số tiền ước tính; ChatGPT: s�
 ## An toàn
 
 - Database app: kết nối đặt `default_transaction_read_only=on`, không ghi được gì.
-- Mọi sản phẩm, bài viết tạo ra đều là Bản nháp.
+- Sản phẩm chỉ lên công khai khi người bấm Duyệt và đăng trong app (máy kiểm tra có tên người duyệt); còn lại, kể cả bài viết, đều là Bản nháp.
 - Khóa nằm trong `deploy/.env` trên Z2, không lên GitHub.
 - Không bao giờ chạy `docker volume prune`, `docker system prune --volumes`, `docker compose down -v`.
 

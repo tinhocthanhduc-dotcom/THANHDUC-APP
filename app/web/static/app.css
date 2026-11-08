@@ -3376,6 +3376,10 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .dw-acts { display: grid; gap: 8px; padding: 0 14px 14px; }
 .dw-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .dw-two > :only-child { grid-column: 1 / -1; }
+/* Đợt 4 (08/11/2026): Chỉ lưu nháp · Viết lại · Bỏ dưới nút Duyệt và đăng. */
+.dw-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dw-duyet { border: 2px solid var(--ok-solid); }
+.dw-duyet .nb-who { color: var(--ok); }
 .dw-stack { display: grid; gap: 8px; }
 .dw-big { width: 100%; min-height: 52px; }
 .dw-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

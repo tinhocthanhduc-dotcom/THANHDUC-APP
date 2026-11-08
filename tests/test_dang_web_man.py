@@ -206,7 +206,7 @@ def test_tron_vong_soan_xem_truoc_sua_roi_dang_nhap(client, web_login, goc, san_
     assert v["trang_thai"] == hd.XEM_TRUOC, v.get("loi")
     assert v["gia"] == "355000" and v["danh_muc"] == "Hộp mực" and v["anh_web"]
     page = client.get(f"/dang-web/viec/{viec_id}")
-    assert "Đăng nháp lên thanhduc.vn" in page.text and 'name="ten_web"' in page.text
+    assert "Duyệt và đăng lên thanhduc.vn" in page.text and "Chỉ lưu nháp" in page.text and 'name="ten_web"' in page.text
     assert client.get(f"/dang-web/anh-web/{v['anh_web'][0]}").status_code == 200
 
     form = dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="dang", ten_web="Hộp mực Canon 326 chính hãng",
@@ -220,6 +220,7 @@ def test_tron_vong_soan_xem_truoc_sua_roi_dang_nhap(client, web_login, goc, san_
     v = hd.doc(goc, viec_id)
     assert v["trang_thai"] == hd.DA_DANG, v.get("loi")
     p = wp.tao[0]
+    assert wp.cong_khai == [False] and not v.get("cong_khai")  # "Chỉ lưu nháp": vẫn là Bản nháp như trước
     assert p["status"] == "draft" and p["name"] == "Hộp mực Canon 326 chính hãng" and p["regular_price"] == "360000"
     assert p["sku"] == "TD-0123" and p["categories"] == [{"id": 7}] and p["images"]
     assert p["description"] == "<p>Dài</p>"  # TUẤN 02/11: không chèn lại ảnh đại diện vào mô tả
@@ -227,6 +228,45 @@ def test_tron_vong_soan_xem_truoc_sua_roi_dang_nhap(client, web_login, goc, san_
 
     may.lam_moi_web()
     assert client.get("/dang-web?tab=da-dang", follow_redirects=False).headers["location"].startswith("/dang-web?tab=tren-web")
+
+
+def test_duyet_va_dang_len_web_cong_khai_ghi_nguoi_duyet(client, web_login, goc, san_pham):
+    """TUẤN duyệt mẫu 1, 2, D1 ngày 08/11/2026: người bấm Duyệt và đăng thì sản phẩm lên web công khai luôn."""
+    csrf = web_login("giam.doc", "director")
+    viec_id = _soan_sp(client, csrf).headers["location"].rsplit("/", 1)[1]
+    wp = _WP()
+    may = _may(goc, wp)
+    may.lam_mot_viec()
+    # máy soạn xong chỉ dừng ở Xem trước, không tự đăng
+    assert hd.doc(goc, viec_id)["trang_thai"] == hd.XEM_TRUOC and not may.lam_mot_viec() and wp.tao == []
+    page = client.get(f"/dang-web/viec/{viec_id}")
+    form = dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="duyet_dang", ten_web="Hộp mực Canon 326",
+                mo_ta_ngan_html="<p>Ngắn</p>", mo_ta_html="<p>Dài</p>", seo_title="SEO", seo_description="Mô tả", tu_khoa_chinh="canon 326",
+                alt_anh="Hộp mực", gia="360.000", danh_muc="Hộp mực")
+    assert client.post(f"/dang-web/viec/{viec_id}", data=form, follow_redirects=False).status_code == 303
+    v = hd.doc(goc, viec_id)
+    assert v["trang_thai"] == hd.CHO_DANG and v["cong_khai"] is True and v["duyet_boi"] == "Giam.Doc" and v["duyet_luc"]
+    assert "Đang đăng lên thanhduc.vn" in client.get(f"/dang-web/viec/{viec_id}").text
+    assert may.lam_mot_viec()
+    v = hd.doc(goc, viec_id)
+    assert v["trang_thai"] == hd.DA_DANG and v["trang_thai_web"] == "publish" and wp.cong_khai == [True]
+    trang = client.get(f"/dang-web/viec/{viec_id}").text
+    assert "Đã đăng công khai lên thanhduc.vn." in trang and "Duyệt: Giam.Doc" in trang and "Xem trang trên web" in trang
+    assert "Đang hiện trên web" in client.get("/dang-web?tab=san-pham").text
+    # bấm lại (gửi trùng) không đăng thêm lần nữa
+    form["form_key"] = str(uuid.uuid4())
+    assert client.post(f"/dang-web/viec/{viec_id}", data=form).status_code == 409
+
+
+def test_may_khong_dang_cong_khai_neu_chua_co_nguoi_duyet(goc):
+    """Việc có cong_khai mà thiếu người duyệt (sửa tay file) vẫn chỉ lên Bản nháp."""
+    vid = hd.tao_viec(goc, "san_pham", {"ma": "TD-0123", "cach_viet": "mau"})
+    wp = _WP()
+    may = _may(goc, wp)
+    may.lam_mot_viec()
+    hd.sua(goc, vid, lambda x: x.update(trang_thai=hd.CHO_DANG, cong_khai=True))
+    may.lam_mot_viec()
+    assert wp.cong_khai == [False] and hd.doc(goc, vid)["trang_thai_web"] == "draft"
 
 
 def test_co_the_trung_bo_qua_thi_ghi_nghi_trung(client, web_login, goc, san_pham):
@@ -307,25 +347,35 @@ def test_chatgpt_web_dan_tra_loi(client, web_login, goc, san_pham):
     assert v["trang_thai"] == hd.XEM_TRUOC and v["noi_dung"]["ten_web"] == "Hộp mực Canon 326"
 
 
-def test_bai_viet_va_chu_de(client, web_login, goc):
+def test_bai_viet_da_chuyen_sang_dich_vu_seo(client, web_login, goc):
+    """TUẤN 08/11 (Đợt 4): tắt viết bài trong app; việc bài viết còn sót vẫn hiện ở tab Sản phẩm và đăng nháp được."""
     csrf = web_login("giam.doc", "director")
-    client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de="Canon 2900 kẹt giấy: cách xử lý"))
-    assert hd.doc_chu_de(goc) == ["Canon 2900 kẹt giấy: cách xử lý"]
+    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de="Canon 2900 kẹt giấy: cách xử lý"))
+    assert r.status_code == 410 and hd.doc_chu_de(goc) == []
     r = client.post("/dang-web/soan", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), loai="bai_viet", chu_de="Canon 2900 kẹt giấy: cách xử lý",
                                                 cach_viet="tu_dong"), follow_redirects=False)
-    viec_id = r.headers["location"].rsplit("/", 1)[1]
-    assert "Đang làm" in client.get("/dang-web?tab=bai-viet").text
+    assert r.status_code == 410 and hd.ds(goc) == []
+    assert client.get("/dang-web?tab=bai-viet", follow_redirects=False).headers["location"] == "/dang-web?tab=san-pham"
+    assert client.get("/dang-web/soan?loai=bai-viet", follow_redirects=False).headers["location"] == "/dang-web?tab=san-pham"
+    trang = client.get("/dang-web").text
+    assert "Chủ đề chờ viết" not in trang.split("đã tắt")[1] and "Số bài viết" not in trang and "app <b>Dịch vụ SEO</b>" in trang
+    viec_id = hd.tao_viec(goc, "bai_viet", {"chu_de": "Canon 2900 kẹt giấy: cách xử lý", "ten": "Canon 2900 kẹt giấy: cách xử lý",
+                                            "cach_viet": "tu_dong"})
+    assert "Canon 2900 kẹt giấy: cách xử lý" in client.get("/dang-web?tab=san-pham").text
     wp = _WP()
     may = _may(goc, wp, nguoi_viet=_ChatGPTGia())
     may.lam_mot_viec()
     assert hd.doc(goc, viec_id)["trang_thai"] == hd.XEM_TRUOC
     page = client.get(f"/dang-web/viec/{viec_id}")
+    assert "Duyệt và đăng" not in page.text and "Đăng nháp lên thanhduc.vn" in page.text  # bài viết: chỉ nháp
+    r = client.post(f"/dang-web/viec/{viec_id}", data=dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="duyet_dang",
+                                                          tieu_de="x", tom_tat="", noi_dung_html="<p>x</p>"))
+    assert r.status_code == 409 and hd.doc(goc, viec_id)["trang_thai"] == hd.XEM_TRUOC
     client.post(f"/dang-web/viec/{viec_id}", data=dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="dang",
                                                       tieu_de="Canon 2900 kẹt giấy", tom_tat="", noi_dung_html="<p>x</p>"))
     may.lam_mot_viec()
     assert hd.doc(goc, viec_id)["trang_thai"] == hd.DA_DANG
     assert wp.tao[0]["title"] == "Canon 2900 kẹt giấy" and wp.tao[0]["content"] == "<p>x</p>"
-    assert "Đã đăng" in client.get("/dang-web?tab=bai-viet").text
 
 
 def test_loi_thi_thu_lai_va_phuc_hoi_khi_dung_giua_chung(goc):
@@ -351,15 +401,16 @@ def test_lich_tu_soan_tao_viec_mot_lan_moi_ngay(goc, monkeypatch):
 
     (goc / "anh-goc").mkdir()
     (goc / "anh-goc" / "TD-0123.jpg").write_bytes(_jpg())
-    hd.them_chu_de(goc, "Nạp mực tận nơi có hại máy không")
+    hd.them_chu_de(goc, "Nạp mực tận nơi có hại máy không")  # chủ đề cũ còn trong file: lịch không viết bài nữa
     hd.ghi_lich(goc, {"bat": True, "gio": "07:00", "so_sp": 2, "so_bai": 1})
     monkeypatch.setattr(hd, "bay_gio", lambda: datetime(2026, 11, 2, 7, 30, tzinfo=hd.GIO_VN))  # thứ 2
     may = _may(goc, _WP())
     assert may.kiem_lich() == 0 and hd.ds(goc) == []  # chưa có Codex hay khóa AI: không soạn bằng mẫu nữa
     hd.ghi_lich(goc, {"lan_cuoi": ""})
     hd.ghi_nhip_codex(goc)
-    assert may.kiem_lich() == 2  # Codex đang chạy: 1 sản phẩm + 1 bài viết
+    assert may.kiem_lich() == 1  # Codex đang chạy: 1 sản phẩm, không còn bài viết (TUẤN 08/11)
     assert may.kiem_lich() == 0  # mỗi ngày một lần
+    assert [x["loai"] for x in hd.ds(goc)] == ["san_pham"]
     v = next(x for x in hd.ds(goc) if x["loai"] == "san_pham")
     assert v["ma"] == "TD-0123" and v["cach_viet"] == "codex" and v["nguon"] == "lich"
 
@@ -626,14 +677,9 @@ def test_xep_danh_muc_bang_ai_chi_ghi_dong_da_tick(client, web_login, goc, nhieu
 
 def test_bai_viet_4_anh_anh_dau_dai_dien_con_lai_chen_than_bai(client, web_login, goc, monkeypatch):
     csrf = web_login("giam.doc", "director")
-    nhieu = [("anh", (f"a{i}.jpg", _jpg(), "image/jpeg")) for i in range(5)]
-    base = dict(csrf=csrf, loai="bai_viet", chu_de="Máy in kẹt giấy", cach_viet="tu_dong")
-    r = client.post("/dang-web/soan", data=dict(base, form_key=str(uuid.uuid4())), files=nhieu, follow_redirects=False)
-    assert r.status_code != 303 and "Bài viết tối đa 4 ảnh." in r.text
-    r = client.post("/dang-web/soan", data=dict(base, form_key=str(uuid.uuid4()), da_co_logo="1"), files=nhieu[:4],
-                    follow_redirects=False)
-    assert r.status_code == 303
-    viec_id = r.headers["location"].rsplit("/", 1)[1]
+    # TUẤN 08/11: bài viết không soạn mới trong app; việc còn sót (tạo trước đây) vẫn đăng đúng 4 ảnh.
+    viec_id = hd.tao_viec(goc, "bai_viet", {"chu_de": "Máy in kẹt giấy", "ten": "Máy in kẹt giấy", "cach_viet": "tu_dong",
+                                            "da_co_logo": True}, [(f"a{i}.jpg", _jpg()) for i in range(4)])
     assert hd.doc(goc, viec_id)["da_co_logo"] is True
 
     from dang_web import anh as anh_mod
@@ -935,8 +981,6 @@ def test_tieu_de_ai_dat_trung_thi_canh_bao_o_xem_truoc(client, web_login, goc):
 
     csrf = web_login("giam.doc", "director")
     hd.ghi_json(hd.file_bai_web(goc), {"luc": "x", "ds": [{"id": 88, "ten": "Xử lý kẹt giấy máy in Brother tại nhà", "trang_thai": "draft", "xem": ""}]})
-    hd.them_chu_de(goc, "Mẹo xử lý kẹt giấy máy Brother")
-    assert "Web đã có" in client.get("/dang-web?tab=bai-viet").text  # chủ đề chờ viết đã có bài trên web
     vid = hd.tao_viec(goc, "bai_viet", {"chu_de": "Máy in Brother kéo nhiều tờ một lúc", "ten": "Máy in Brother kéo nhiều tờ một lúc"})
     _may(goc, _WP(), nguoi_viet=_AIDoiTen()).lam_mot_viec()
     v = hd.doc(goc, vid)
@@ -945,55 +989,3 @@ def test_tieu_de_ai_dat_trung_thi_canh_bao_o_xem_truoc(client, web_login, goc):
     assert "Tiêu đề AI đặt gần giống bài đã có" in page and "Xử lý kẹt giấy máy in Brother tại nhà" in page and csrf
 
 
-def test_them_nhieu_chu_de_mot_lan(client, web_login, goc):
-    """TUẤN 07/11: dán nhiều chủ đề, mỗi dòng một chủ đề; bỏ dòng ngắn, trùng danh sách, giống bài trên web."""
-    csrf = web_login("giam.doc", "director")
-    hd.them_chu_de(goc, "Canon 2900 kẹt giấy: cách xử lý")
-    hd.ghi_json(hd.file_bai_web(goc), {"luc": "x", "ds": [{"id": 5, "ten": "Cách khắc phục máy in HP bị kẹt giấy", "trang_thai": "publish", "xem": ""}]})
-    ds = "1. Nạp mực tận nơi có hại máy không?\n- Canon 2900 kẹt giấy: cách xử lý\n• Hướng dẫn xử lý lỗi kẹt giấy máy in HP\nngắn\n\nMáy in Brother báo Toner Low dù mới thay mực"
-    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=ds), follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"].endswith("da_luu=them-cd-2-1-1-1")
-    assert hd.doc_chu_de(goc) == ["Canon 2900 kẹt giấy: cách xử lý", "Nạp mực tận nơi có hại máy không?",
-                                  "Máy in Brother báo Toner Low dù mới thay mực"]
-    trang = client.get(r.headers["location"]).text
-    assert "Đã thêm 2 chủ đề, bỏ 1 giống bài đã có trên web, bỏ 1 đã có trong danh sách, bỏ 1 dòng quá ngắn." in trang
-
-
-def test_ghi_chu_that_cho_tung_chu_de(client, web_login, goc, monkeypatch):
-    """TUẤN 07/11: mỗi chủ đề có Ghi chú thật; Soạn tay và lịch tự soạn đều đưa ghi chú vào việc viết bài."""
-    from datetime import datetime
-
-    csrf = web_login("giam.doc", "director")
-    cd = "Nạp mực Canon 2900 tại Quận 1"
-    hd.them_chu_de(goc, cd)
-    hd.them_chu_de(goc, "Máy in Brother báo Toner Low dù mới thay mực")
-    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=cd, hanh_dong="ghi_chu",
-                                                  ghi_chu="  Tháng 10 sửa 3 máy ở phường Tân Định  "), follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"].endswith("da_luu=ghi-chu-chu-de")
-    assert hd.doc_ghi_chu_chu_de(goc) == {cd: "Tháng 10 sửa 3 máy ở phường Tân Định"}
-    # hai chủ đề nằm trên cùng danh sách, chỉ chủ đề kia có ghi chú (không được dán vào nhầm hàng hay thêm thành chủ đề mới)
-    assert hd.doc_chu_de(goc) == [cd, "Máy in Brother báo Toner Low dù mới thay mực"]
-    trang = client.get(r.headers["location"]).text
-    assert "Đã lưu ghi chú thật." in trang and "Tháng 10 sửa 3 máy ở phường Tân Định" in trang and "+ Ghi chú thật" in trang
-    # Soạn tay từ chủ đề: ô Ghi chú cho AI điền sẵn
-    assert "Tháng 10 sửa 3 máy ở phường Tân Định" in client.get("/dang-web/soan", params=dict(loai="bai-viet", chu_de=cd)).text
-    # chủ đề không có trong danh sách thì không ghi
-    r = client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de="Chủ đề không tồn tại ở đây",
-                                                  hanh_dong="ghi_chu", ghi_chu="x"))
-    assert "không còn trong danh sách" in r.text and "Chủ đề không tồn tại ở đây" not in hd.doc_ghi_chu_chu_de(goc)
-    # lịch tự soạn mang ghi chú theo việc, máy đưa vào câu lệnh viết bài
-    hd.ghi_lich(goc, {"bat": True, "gio": "07:00", "so_sp": 0, "so_bai": 2})
-    monkeypatch.setattr(hd, "bay_gio", lambda: datetime(2026, 11, 2, 7, 30, tzinfo=hd.GIO_VN))
-    hd.ghi_nhip_codex(goc)
-    may = _may(goc, _WP())
-    assert may.kiem_lich() == 2
-    ghi = {v["chu_de"]: v["ghi_chu"] for v in hd.ds(goc)}
-    assert ghi == {cd: "Tháng 10 sửa 3 máy ở phường Tân Định", "Máy in Brother báo Toner Low dù mới thay mực": ""}
-    from dang_web.viet_bai import yeu_cau_bai_viet
-    assert "phường Tân Định" in yeu_cau_bai_viet(cd, ghi[cd])
-    # xóa ghi chú (để trống) rồi xóa chủ đề: không còn sót
-    client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=cd, hanh_dong="ghi_chu", ghi_chu=""))
-    assert hd.doc_ghi_chu_chu_de(goc) == {}
-    hd.ghi_ghi_chu_chu_de(goc, cd, "y")
-    client.post("/dang-web/chu-de", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), chu_de=cd, hanh_dong="xoa"))
-    assert hd.doc_ghi_chu_chu_de(goc) == {}

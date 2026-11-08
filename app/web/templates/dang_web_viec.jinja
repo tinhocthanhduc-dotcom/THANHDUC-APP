@@ -9,7 +9,7 @@
 {# TUẤN duyệt mẫu 01/11/2026: màn 3 (dán ChatGPT), 4 (xem trước, sửa, đăng nháp), 6 (có thể trùng), bản máy tính D3 (2 cột). #}
 {% block main %}<div class="{{ 'page-wide' if v.trang_thai == 'xem_truoc' else 'page-mid' }} dw-page">
 {% if ghi_sku %}{% set phu = 'Ghép mã · chỉ ghi ô Mã (SKU), không đổi tên, giá, ảnh' %}{% elif xep %}{% set phu = 'Xếp danh mục bằng AI' %}{% elif sua_anh %}{% set phu = (v.ma ~ ' · ' if v.ma else '') ~ 'Sửa ảnh, không dùng AI' %}{% else %}{% set phu = ('Bài viết' if bai else (v.ma or 'Sản phẩm trên web')) ~ ' · ' ~ cach_viet.get(v.cach_viet, '') ~ (' · sửa bằng AI, ghi đè lên web' if sua_web else (' · viết lại đè lên bài trên web' if v.viet_lai else '')) %}{% endif %}
-{% set mxh = v.loai == 'mang_xa_hoi' %}{% set ve = 'mang-xa-hoi' if mxh else (('tren-web&loai=' ~ ('bai' if bai else 'sp')) if (sua_web or xep or sua_anh) else ('bai-viet' if bai else 'san-pham')) %}{% if mxh %}{% set phu = 'Mạng xã hội · ' ~ cach_viet.get(v.cach_viet, '') %}{% endif %}
+{% set mxh = v.loai == 'mang_xa_hoi' %}{% set ve = 'mang-xa-hoi' if mxh else (('tren-web&loai=' ~ ('bai' if bai else 'sp')) if (sua_web or xep or sua_anh) else 'san-pham') %}{% if mxh %}{% set phu = 'Mạng xã hội · ' ~ cach_viet.get(v.cach_viet, '') %}{% endif %}
 {{ ui.page_head(v.ten or v.ma or v.chu_de, sub=phu, back=('/dang-web/ghep-ma?nhom=cho-ghi' if ghi_sku else '/dang-web?tab=' ~ ve), badge_label=v.nhan, badge_tone=v.tone) }}
 {% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
 {% macro nut(hanh_dong, label, cls='btn-ghost', confirm='') %}<button class="btn {{ cls }}" name="hanh_dong" value="{{ hanh_dong }}" formnovalidate{% if confirm %} onclick='return confirm({{ confirm|tojson }})'{% endif %}>{{ label }}</button>{% endmacro %}
@@ -18,7 +18,7 @@
 {% if v.dang_chay %}
 <section class="card dw-wait" data-dw-reload="5000" role="status">
 <span class="dw-spin" aria-hidden="true"></span>
-<div><b>{{ 'Đang đăng nháp lên thanhduc.vn…' if v.trang_thai in ('cho_dang', 'dang_dang') else ('Đang soạn…' if v.trang_thai == 'dang_soan' else 'Đang chờ máy đăng web nhận việc…') }}</b>
+<div><b>{{ ('Đang đăng lên thanhduc.vn…' if v.cong_khai else 'Đang đăng nháp lên thanhduc.vn…') if v.trang_thai in ('cho_dang', 'dang_dang') else ('Đang soạn…' if v.trang_thai == 'dang_soan' else 'Đang chờ máy đăng web nhận việc…') }}</b>
 <p class="hint">{% if sua_anh %}{{ 'Đặt từng ảnh vào khung web, xoay, phóng to, đóng logo; thường dưới 1 phút.' if v.trang_thai in ('cho_soan', 'dang_soan') else ('Tải ảnh lên web rồi thay ảnh trong bài.' if bai else 'Tải ảnh lên web, thay ảnh sản phẩm rồi xóa ảnh cũ không còn dùng.') }}{% elif ghi_sku %}Ghi mã TD vào ô Mã (SKU) của {{ (v.ghi or [])|length }} sản phẩm trên web; thường vài giây.{% elif xep %}AI đang đọc tên từng mục để đề xuất danh mục; thường dưới 1 phút.{% elif mxh %}{{ 'Ghép lại ảnh theo chữ và mẫu mới, thường vài giây.' if v.chi_ghep_anh else 'Lấy bài trên web, AI viết 3 bản Facebook, Zalo OA, Google Business rồi ghép ảnh. Thường 1 đến 2 phút; xong nằm ở “Chờ anh xem”.' }}{% elif v.trang_thai in ('cho_soan', 'dang_soan') %}{{ 'Lấy nội dung đang có trên web, ' if sua_web else 'Kiểm tra trùng, ' }}{{ 'tách nền ảnh, ' if not bai }}AI viết bài. Thường 1 đến 3 phút; anh có thể rời trang, xong sẽ nằm ở “Chờ anh xem trước”.{% else %}Tải ảnh và nội dung lên web.{% endif %}</p></div>
 </section>
 {% if not nhip or not nhip.song %}<p class="alert warn">Máy đăng web đang tắt nên việc chưa chạy. Trên Z2 chạy lại lệnh cập nhật app là máy tự bật.</p>{% endif %}
@@ -154,10 +154,19 @@
 <label><b>Chữ thay ảnh</b><input name="alt_anh" value="{{ d.alt_anh }}" maxlength="200"></label></div>{% endif %}
 </section>
 {% if v.can_kiem_tra or v.ghi_chu_ai %}<div class="alert warn"><b>Cần anh kiểm tra</b><ul>{% for x in v.can_kiem_tra %}<li>{{ x }}</li>{% endfor %}{% for x in v.ghi_chu_ai %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
-<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · bấm {{ 'ghi đè' if v.viet_lai else 'đăng nháp' }}</span>
-<button class="btn btn-ok dw-big" name="hanh_dong" value="dang">{{ 'Ghi đè lên bài trên web' if v.viet_lai else 'Đăng nháp lên thanhduc.vn' }}</button>
+{% if not bai and not sua_web %}
+{# TUẤN duyệt mẫu 1 / D1 ngày 08/11/2026 (Đợt 4): Duyệt và đăng công khai luôn; Chỉ lưu nháp khi muốn sửa thêm trên wp-admin. #}
+<section class="card next-box dw-duyet" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · anh duyệt rồi bấm đăng</span>
+<button class="btn btn-ok dw-big" name="hanh_dong" value="duyet_dang">{{ 'Ghi đè và đăng lên thanhduc.vn' if v.viet_lai else 'Duyệt và đăng lên thanhduc.vn' }}</button>
+<p class="hint">Khách thấy ngay sau khi máy đăng xong (khoảng 1 phút). Không cần vào wp-admin.</p>
+<div class="dw-three">{{ nut('dang', 'Chỉ lưu nháp') }}{{ nut('viet_lai', 'Viết lại', 'btn-ghost', 'Bỏ bản này và cho AI viết lại?') }}{{ nut('bo', 'Bỏ', 'btn-danger', 'Bỏ việc này?') }}</div>
+<p class="hint">{% if v.viet_lai %}“Chỉ lưu nháp”: ghi đè nội dung, ảnh và SEO, giữ nguyên trạng thái đang hiện hay nháp trên web.{% else %}“Chỉ lưu nháp”: lên web dạng Nháp như trước, khi cần sửa thêm trên wp-admin.{% endif %}</p>
+{% else %}
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · bấm {{ 'ghi đè' if v.viet_lai or sua_web else 'đăng nháp' }}</span>
+<button class="btn btn-ok dw-big" name="hanh_dong" value="dang">{{ 'Ghi đè lên bài trên web' if v.viet_lai or sua_web else 'Đăng nháp lên thanhduc.vn' }}</button>
 <div class="dw-two">{{ nut('viet_lai', 'Viết lại', 'btn-ghost', 'Bỏ bản này và cho AI viết lại?') }}{{ nut('bo', 'Bỏ', 'btn-danger', 'Bỏ việc này?') }}</div>
-<p class="hint">{% if v.viet_lai %}Ghi đè nội dung, ảnh (nếu có ảnh mới) và SEO; giữ nguyên trạng thái đang hiện hay nháp trên web.{% else %}Lên web ở dạng Bản nháp; khách chưa thấy tới khi anh bấm Đăng trong wp-admin.{% endif %}</p>
+<p class="hint">{% if v.viet_lai or sua_web %}Ghi đè nội dung, ảnh (nếu có ảnh mới) và SEO; giữ nguyên trạng thái đang hiện hay nháp trên web.{% else %}Lên web ở dạng Bản nháp; khách chưa thấy tới khi anh bấm Đăng trong wp-admin.{% endif %}</p>
+{% endif %}
 <p class="hint">{{ v.model }}{% if v.chi_phi %} · {{ v.chi_phi }}{% endif %}{% if not bai and v.danh_muc %} · Danh mục: {{ v.danh_muc }}{% endif %}</p>
 </section>
 </div></div>
@@ -191,9 +200,19 @@
 <section class="card dw-ok"><b>Đã ghi danh mục cho {{ v.so_da_ghi or 0 }} {{ 'bài viết' if bai else 'sản phẩm' }}.</b>
 <a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai={{ 'bai' if bai else 'sp' }}">Về Trên web</a></section>
 
+{% elif v.trang_thai == 'da_dang' and v.cong_khai and v.trang_thai_web == 'publish' %}
+{# TUẤN duyệt mẫu 2 ngày 08/11/2026: đã đăng công khai, ghi người duyệt. #}
+<section class="card dw-ok"><b>Đã đăng công khai lên thanhduc.vn.</b>
+<p class="hint">Duyệt: {{ v.duyet_boi }}{% if v.duyet_luc %} · {{ v.duyet_luc[11:16] }} {{ v.duyet_luc[8:10] }}/{{ v.duyet_luc[5:7] }}{% endif %}. Khách đã xem được trang sản phẩm.</p>
+{% if v.so_anh_xoa is defined %}<p class="hint">Đã xóa {{ v.so_anh_xoa }} ảnh cũ trên web{% if v.so_anh_giu %}, giữ {{ v.so_anh_giu }} ảnh còn dùng ở chỗ khác{% endif %}.</p>{% endif %}
+{% if v.link_xem %}<a class="btn btn-new dw-big" href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem trang trên web ↗</a>{% endif %}
+<div class="dw-two">{% if v.link_sua %}<a class="btn btn-ghost" href="{{ v.link_sua }}" target="_blank" rel="noopener">Sửa trên wp-admin ↗</a>{% endif %}<a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai=sp">Danh sách trên web</a></div>
+{% if v.wp_id %}<a class="btn btn-ghost dw-big" href="/dang-web/mxh/soan?nguon=sp-{{ v.wp_id }}">Soạn bài mạng xã hội ›</a>{% endif %}
+</section>
+
 {% elif v.trang_thai == 'da_dang' %}
 <section class="card dw-ok"><b>{{ 'Đã ghi đè lên bài trên web.' if v.viet_lai else 'Đã lên web ở dạng Bản nháp.' }}</b>
-<p class="hint">Mở wp-admin xem lại, sửa nếu cần rồi bấm Đăng để khách thấy.</p>
+<p class="hint">{% if v.cong_khai %}Web chưa báo đang hiện; mở wp-admin xem lại rồi bấm Đăng nếu cần.{% else %}Mở wp-admin xem lại, sửa nếu cần rồi bấm Đăng để khách thấy.{% endif %}</p>
 {% if v.so_anh_xoa is defined %}<p class="hint">Đã xóa {{ v.so_anh_xoa }} ảnh cũ trên web{% if v.so_anh_giu %}, giữ {{ v.so_anh_giu }} ảnh còn dùng ở chỗ khác{% endif %}.</p>{% endif %}
 {% if v.link_sua %}<a class="btn btn-new dw-big" href="{{ v.link_sua }}" target="_blank" rel="noopener">Sửa trên web ↗</a>{% endif %}
 <div class="dw-two">{% if v.link_xem %}<a class="btn btn-ghost" href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem trang ↗</a>{% endif %}<a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai={{ 'bai' if bai else 'sp' }}">Danh sách trên web</a></div>

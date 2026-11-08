@@ -20,7 +20,7 @@ from dang_web import hang_doi as hd
 from dang_web import ve_anh
 from dang_web.anh_mxh import CO_NHAN as MXH_CO, MAU as MXH_MAU
 from dang_web.viet_bai import KENH_MXH
-from dang_web.so_ten import do_giong_bai, so_khop_hang
+from dang_web.so_ten import so_khop_hang
 from dang_web.tren_web import CayDanhMuc
 
 from . import checked_form, paging, render, web_user
@@ -35,9 +35,12 @@ from ..text import fold
 router = APIRouter(include_in_schema=False)
 
 # TUẤN duyệt 01/11/2026 (khung 9–13, D6–D7): "Đã đăng" thành "Trên web"; tab Hàng hóa bỏ, gộp vào Trên web › Sản phẩm.
-TABS = (("san-pham", "Sản phẩm", "san_pham"), ("bai-viet", "Bài viết", "bai_viet"), ("mang-xa-hoi", "Mạng xã hội", "mang_xa_hoi"),
-        ("tren-web", "Trên web", None))
-TAB_CU = {"da-dang": "tren-web", "hang-hoa": "tren-web"}
+# TUẤN duyệt mẫu D2 08/11/2026 (Đợt 4 rút gọn): tab Bài viết bỏ, bài viết làm ở app Dịch vụ SEO.
+# Việc bài viết còn sót (và việc sửa bài viết trên web) hiện chung ở tab Sản phẩm để không bị mất.
+TABS = (("san-pham", "Sản phẩm", "san_pham"), ("mang-xa-hoi", "Mạng xã hội", "mang_xa_hoi"), ("tren-web", "Trên web", None))
+LOAI_TAB_SP = ("san_pham", "bai_viet")
+BAI_VIET_DA_CHUYEN = "Bài viết đã chuyển sang app Dịch vụ SEO; màn Đăng web chỉ còn sản phẩm."
+TAB_CU = {"da-dang": "tren-web", "hang-hoa": "tren-web", "bai-viet": "san-pham"}
 LOC_SP = (("", "Tất cả"), ("khop", "Khớp mã app"), ("khong-ma", "Không có mã TD"), ("nhap", "Nháp"), ("chua-anh", "Chưa có ảnh"))
 LOC_APP = (("chua-len", "Mã app chưa lên web"), ("co-the", "Có thể trùng"))
 LOC_BAI = (("", "Tất cả"), ("hien", "Đang hiện"), ("nhap", "Nháp"), ("app", "App đã đăng"), ("chua-anh", "Chưa có ảnh đại diện"))
@@ -115,6 +118,11 @@ def _them_nhan(v: dict) -> dict:
     v["nhan"] = hd.NHAN.get(v.get("trang_thai"), v.get("trang_thai"))
     if v.get("trang_thai") == hd.CHO_DAN and v.get("cach_viet") == "codex":
         v["nhan"] = "Chờ Codex"
+    if v.get("trang_thai") == hd.DA_DANG:
+        if v.get("kieu"):
+            v["nhan"] = "Đã ghi lên web"
+        elif v.get("trang_thai_web") == "publish" and v.get("cong_khai"):
+            v["nhan"] = "Đã đăng"
     v["tone"] = TONE.get(v.get("trang_thai"), "nhap")
     v["dang_chay"] = v.get("trang_thai") in hd.DANG_CHAY
     return v
@@ -130,6 +138,8 @@ def _anh_dau(viec_id) -> str:
 def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "", trang: str = "1", so: str = "",
             da_luu: str = "", nhom: str = "", ton: str = "", loai: str = "sp", dm: str = "",
             user: User = Depends(web_user), session: Session = Depends(get_session)):
+    if tab == "bai-viet":
+        return RedirectResponse("/dang-web?tab=san-pham", status_code=303)
     if tab in TAB_CU:
         query = {"tab": "tren-web", "loai": "sp"}
         if tab == "hang-hoa":
@@ -145,7 +155,8 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
     sp_web, bai_web = _doc_web(hd.file_sp_web(g)), _doc_web(hd.file_bai_web(g))
     dem_tab = {"tren-web": len(sp_web["ds"]) + len(bai_web["ds"])}
     tabs = [dict(label=label, href=f"/dang-web?tab={key}", on=key == tab,
-                 n=dem_tab.get(key, 0) if l is None else sum(1 for v in con if v["loai"] == l)) for key, label, l in TABS]
+                 n=dem_tab.get(key, 0) if l is None else sum(1 for v in con if v["loai"] in (LOAI_TAB_SP if l == "san_pham" else (l,))))
+            for key, label, l in TABS]
     ctx = dict(tab=tab, tabs=tabs, nhip=nhip, loi_thu_muc=loi_thu_muc, da_luu=da_luu, q=q, loc=loc,
                cach_viet=hd.CACH_VIET, cach_mac_dinh=_cach_mac_dinh(nhip), cho_lam_moi=not loi_thu_muc and hd.dang_cho_lam_moi(g),
                la_giam_doc=has_role(user, "director"), codex_sk=None if loi_thu_muc else hd.suc_khoe_codex(g))
@@ -156,20 +167,13 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
     loai = dict((t[0], t[2]) for t in TABS)[tab]
     if loai == "san_pham" and not loi_thu_muc:
         ctx["hang_moi"] = _hang_moi(session, g)
-    cua_tab = [v for v in con if v["loai"] == loai]
+    cua_tab = [v for v in con if v["loai"] in LOAI_TAB_SP]
     tiles = [dict(label=label, n=sum(1 for v in cua_tab if v["trang_thai"] in sts),
                   href=f"/dang-web?{urlencode(dict(tab=tab, loc='' if loc == key else key))}", on=loc == key) for key, label, sts in LOC]
     sts = dict((k, s) for k, _, s in LOC).get(loc)
     rows = [v for v in cua_tab if not sts or v["trang_thai"] in sts]
-    gan_day = [v for v in viec if v["loai"] == loai and v.get("trang_thai") == hd.DA_DANG][:5]
-    chu_de = []
-    if loai == "bai_viet":
-        dang_co = {v.get("chu_de") for v in con}
-        bai_tren_web = _doc_web(hd.file_bai_web(g))["ds"]
-        ghi_chu = hd.doc_ghi_chu_chu_de(g)
-        chu_de = [dict(ten=c, xong=c in tt["bai_viet"], dang=c in dang_co, trung=c in tt["nghi_trung"],
-                       tren_web=_bai_giong(c, bai_tren_web), ghi_chu=ghi_chu.get(c, "")) for c in hd.doc_chu_de(g)]
-    return render(request, "dang_web.jinja", rows=rows, tiles=tiles, gan_day=gan_day, chu_de=chu_de, lich=hd.doc_lich(g),
+    gan_day = [v for v in viec if v["loai"] == "san_pham" and not v.get("kieu") and v.get("trang_thai") == hd.DA_DANG][:5]
+    return render(request, "dang_web.jinja", rows=rows, tiles=tiles, gan_day=gan_day, chu_de=[], lich=hd.doc_lich(g),
                   co_chay=any(v["dang_chay"] for v in viec), **ctx)
 
 
@@ -264,12 +268,6 @@ def _ma_theo_web(session, g, tt) -> dict[int, str]:
         if isinstance(x, dict) and str(x.get("dung", "")).isdigit() and code in ma_app:
             ra[int(x["dung"])] = code
     return ra, ma_app
-
-
-def _bai_giong(chu_de: str, bai_web: list[dict]) -> dict | None:
-    """Chủ đề chờ viết đã có bài gần giống trên web (theo danh sách lấy về lần Cập nhật từ web gần nhất)."""
-    tot = max(((do_giong_bai(chu_de, b.get("ten", "")), b) for b in bai_web), key=lambda x: x[0], default=(0, None))
-    return tot[1] if tot[0] >= 0.7 else None
 
 
 def _tab_tren_web(request, session, g, ctx, tt, sp_web, bai_web, loai, loc, q, dm, nhom, ton, trang, so):
@@ -420,10 +418,9 @@ def _form_soan(request, session, d: dict, error="", status=200):
 @router.get("/dang-web/soan")
 def new_form(request: Request, loai: str = "san-pham", ma: str = "", chu_de: str = "", wp_id: str = "",
              user: User = Depends(web_user), session: Session = Depends(get_session)):
-    d = dict(loai="bai_viet" if loai == "bai-viet" else "san_pham", ma=ma.strip().upper(), chu_de=chu_de.strip(),
-             wp_id=wp_id if wp_id.isdigit() else "")
-    if d["loai"] == "bai_viet" and d["chu_de"]:
-        d["ghi_chu"] = hd.doc_ghi_chu_chu_de(goc()).get(" ".join(d["chu_de"].split()), "")
+    if loai == "bai-viet":  # TUẤN 08/11: bài viết làm ở app Dịch vụ SEO
+        return RedirectResponse("/dang-web?tab=san-pham", status_code=303)
+    d = dict(loai="san_pham", ma=ma.strip().upper(), chu_de="", wp_id=wp_id if wp_id.isdigit() else "")
     return _form_soan(request, session, d)
 
 
@@ -451,38 +448,23 @@ async def _doc_anh(form) -> list[tuple[str, bytes]]:
 
 @router.post("/dang-web/soan")
 async def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    loai = "bai_viet" if form.get("loai") == "bai_viet" else "san_pham"
-    d = dict(loai=loai, ma=str(form.get("ma", "")).strip().upper(), chu_de=" ".join(str(form.get("chu_de", "")).split()),
+    if form.get("loai") == "bai_viet":
+        raise BusinessError("BAI_VIET_DA_CHUYEN", BAI_VIET_DA_CHUYEN, status=410)
+    d = dict(loai="san_pham", ma=str(form.get("ma", "")).strip().upper(), chu_de="",
              ghi_chu=str(form.get("ghi_chu", "")).strip()[:3000], cach_viet=str(form.get("cach_viet", "")),
              nen_trang=form.get("nen_trang") == "1", da_co_logo=form.get("da_co_logo") == "1", wp_id=str(form.get("wp_id", "")).strip())
-    d["ve_anh"] = form.get("ve_anh") == "1"
     try:
         _can_ghi()
-        g = goc()
         if d["cach_viet"] not in hd.CACH_VIET:
             raise BusinessError("BAD_FORM", "Chọn cách viết.")
-        if loai == "bai_viet" and d["cach_viet"] == "mau":
-            raise BusinessError("BAD_FORM", "Bài viết cần AI hoặc ChatGPT web; mẫu có sẵn chỉ dùng cho sản phẩm.")
         wp_id = int(d["wp_id"]) if d["wp_id"].isdigit() else None
         anh = await _doc_anh(form)
+        sp = session.get(Product, d["ma"]) if d["ma"] else None
+        if not sp or not sp.active:
+            raise BusinessError("BAD_PRODUCT", "Chọn mã hàng đang dùng trong Hàng hóa.")
         them = dict(cach_viet=d["cach_viet"], ghi_chu=d["ghi_chu"], wp_id=wp_id, van_dang=bool(wp_id), viet_lai=bool(wp_id),
-                    da_co_logo=d["da_co_logo"])
-        if loai == "bai_viet" and len(anh) > 4:
-            raise BusinessError("PHOTO_LIMIT", "Bài viết tối đa 4 ảnh.")
-        if loai == "san_pham":
-            sp = session.get(Product, d["ma"]) if d["ma"] else None
-            if not sp or not sp.active:
-                raise BusinessError("BAD_PRODUCT", "Chọn mã hàng đang dùng trong Hàng hóa.")
-            them.update(ma=sp.code, ten=sp.name, tach_nen=not d["nen_trang"])
-        else:
-            if len(d["chu_de"]) < 8:
-                raise BusinessError("BAD_FORM", "Gõ chủ đề bài viết (ít nhất 8 chữ).")
-            them.update(chu_de=d["chu_de"][:200], ten=d["chu_de"][:200])
-        ve = loai == "bai_viet" and d["ve_anh"] and not anh and not wp_id and hd.codex_song(g)
-        if ve:
-            them["ve_anh"] = True
-        viec_id = hd.tao_viec(g, loai, them, anh)
-        # TUẤN 02/11: máy đăng web viết bài xong mới gửi Codex vẽ, kèm dàn ý H1/H2 để ảnh sát nội dung.
+                    da_co_logo=d["da_co_logo"], ma=sp.code, ten=sp.name, tach_nen=not d["nen_trang"])
+        viec_id = hd.tao_viec(goc(), "san_pham", them, anh)
     except BusinessError as exc:
         return _form_soan(request, session, d, error=exc.message, status=exc.status)
     return RedirectResponse(f"/dang-web/viec/{viec_id}", status_code=303)
@@ -926,7 +908,7 @@ def _nap_sua(v: dict, form) -> None:
 
 
 @router.post("/dang-web/viec/{viec_id}")
-def act(request: Request, viec_id: str, form=Depends(checked_form)):
+def act(request: Request, viec_id: str, form=Depends(checked_form), user: User = Depends(web_user)):
     g = goc()
     v = _viec(viec_id)
     hanh_dong = str(form.get("hanh_dong", ""))
@@ -961,10 +943,25 @@ def act(request: Request, viec_id: str, form=Depends(checked_form)):
                 raise BusinessError("BAD_FORM", "Thao tác không hợp lệ.")
         if v.get("kieu") == "ghi_sku" and hanh_dong not in ("thu_lai", "bo"):
             raise BusinessError("BAD_STATE", "Việc ghi mã chỉ thử lại hoặc bỏ được.", status=409)
-        if hanh_dong == "dang":
+        if hanh_dong == "duyet_dang":
+            # TUẤN duyệt mẫu 1 / D1 ngày 08/11/2026 (Đợt 4): người bấm thì lên web công khai luôn, không qua wp-admin.
+            # Chỉ sản phẩm soạn mới (hoặc viết đè); máy không bao giờ tự đăng công khai nếu chưa có người duyệt.
+            if v.get("loai") != "san_pham" or v.get("kieu"):
+                raise BusinessError("BAD_STATE", "Việc này không đăng công khai từ đây được.", status=409)
+            ten = (user.full_name or user.username or "").strip()[:80]
+
+            def ham(x):
+                _nap_sua(x, form)
+                x.update(loi="", cong_khai=True, duyet_boi=ten, duyet_id=user.id,
+                         duyet_luc=hd.bay_gio().isoformat(timespec="minutes"))
+
+            kq = doi(hd.CHO_DANG, (hd.XEM_TRUOC,), ham)
+        elif hanh_dong == "dang":
             def ham(x):
                 _nap_sua(x, form)
                 x["loi"] = ""
+                for k in ("cong_khai", "duyet_boi", "duyet_id", "duyet_luc"):
+                    x.pop(k, None)
 
             kq = doi(hd.CHO_DANG, (hd.XEM_TRUOC,), ham)
         elif hanh_dong == "viet_lai":
@@ -1099,42 +1096,7 @@ def refresh(request: Request, form=Depends(checked_form)):
 
 @router.post("/dang-web/chu-de")
 def topics(request: Request, form=Depends(checked_form)):
-    _can_ghi()
-    g = goc()
-    chu_de = " ".join(str(form.get("chu_de", "")).split())[:200]
-    hanh_dong = str(form.get("hanh_dong", ""))
-    if hanh_dong == "xoa":
-        hd.xoa_chu_de(g, chu_de)
-        return RedirectResponse("/dang-web?tab=bai-viet&da_luu=xoa-chu-de", status_code=303)
-    if hanh_dong == "ghi_chu":
-        if chu_de not in hd.doc_chu_de(g):
-            raise BusinessError("BAD_FORM", "Chủ đề này không còn trong danh sách.")
-        hd.ghi_ghi_chu_chu_de(g, chu_de, str(form.get("ghi_chu", "")))
-        return RedirectResponse("/dang-web?tab=bai-viet&da_luu=ghi-chu-chu-de", status_code=303)
-    # TUẤN 07/11: dán nhiều chủ đề một lần, mỗi dòng một chủ đề (bỏ số thứ tự, gạch đầu dòng).
-    dong = [re.sub(r"^\s*(?:\d+[.)]|[-*•+])\s*", "", x) for x in str(form.get("chu_de", "")).splitlines()]
-    dong = [" ".join(x.split())[:200] for x in dong if x.strip()][:50]
-    if not dong:
-        raise BusinessError("BAD_FORM", "Gõ chủ đề bài viết, mỗi dòng một chủ đề.")
-    co_san = set(hd.doc_chu_de(g))
-    bai_web = _doc_web(hd.file_bai_web(g))["ds"]
-    them = trung_web = da_co = ngan = 0
-    for c in dong:
-        if len(c) < 8:
-            ngan += 1
-        elif c in co_san:
-            da_co += 1
-        elif _bai_giong(c, bai_web):
-            trung_web += 1
-        else:
-            hd.them_chu_de(g, c)
-            co_san.add(c)
-            them += 1
-    if len(dong) == 1 and not them:
-        ly_do = ("Chủ đề cần ít nhất 8 chữ." if ngan else "Chủ đề này đã có trong danh sách." if da_co
-                 else "Web đã có bài gần giống chủ đề này (xem trong tab Trên web).")
-        raise BusinessError("BAD_FORM", ly_do)
-    return RedirectResponse(f"/dang-web?tab=bai-viet&da_luu=them-cd-{them}-{trung_web}-{da_co}-{ngan}", status_code=303)
+    raise BusinessError("BAI_VIET_DA_CHUYEN", BAI_VIET_DA_CHUYEN, status=410)
 
 
 @router.post("/dang-web/lich")
@@ -1150,8 +1112,8 @@ def schedule(request: Request, form=Depends(checked_form), user: User = Depends(
         s = str(form.get(k, "0"))
         return min(toi_da, int(s)) if s.isdigit() else 0
 
-    hd.ghi_lich(goc(), {"bat": form.get("bat") == "1", "gio": gio, "so_sp": so("so_sp", 5), "so_bai": so("so_bai", 3)})
-    return RedirectResponse(f"/dang-web?tab={'bai-viet' if form.get('tab') == 'bai-viet' else 'san-pham'}&da_luu=lich", status_code=303)
+    hd.ghi_lich(goc(), {"bat": form.get("bat") == "1", "gio": gio, "so_sp": so("so_sp", 5)})
+    return RedirectResponse("/dang-web?tab=san-pham&da_luu=lich", status_code=303)
 
 
 # ---------------- ghép mã TD cho sản phẩm trên web (TUẤN duyệt mẫu D6/6, D7 ngày 02/11/2026) ----------------
@@ -1346,7 +1308,7 @@ def write_codes(request: Request, form=Depends(checked_form), session: Session =
 # ---------------- bài mạng xã hội (TUẤN duyệt mẫu M1–M3, D1–D2 ngày 07/11/2026) ----------------
 # Máy đăng web viết 3 bản và ghép ảnh; anh sửa, chép chữ, tải ảnh, đăng tay rồi bấm "Đã đăng" từng kênh.
 # Không có gì tự lên mạng. "Đã đăng" chỉ là đánh dấu để theo dõi.
-_TAB_CUA = {"san_pham": "san-pham", "bai_viet": "bai-viet", "mang_xa_hoi": "mang-xa-hoi"}
+_TAB_CUA = {"san_pham": "san-pham", "bai_viet": "san-pham", "mang_xa_hoi": "mang-xa-hoi"}
 LOC_MXH = (
     ("dang-soan", "Đang soạn", hd.DANG_CHAY + (hd.CHO_DAN,)),
     ("xem-truoc", "Chờ anh xem", (hd.XEM_TRUOC,)),
