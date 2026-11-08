@@ -94,6 +94,22 @@ def day_label(value, short=False):
 
 
 templates.env.filters['day_label'] = day_label
+
+
+ZALO_DRAFT_NOTE = 'Đơn nháp từ Zalo.'
+PRINT_NOTE_MAX = 200
+
+
+def print_note(value):
+    """Ghi chú đơn khi in cho khách (TUẤN 08/11/2026 "ghi chú phiếu giao quá dài dòng"):
+    ghi chú trợ lý Zalo tự viết (tin gốc, giá chưa kiểm...) là việc nội bộ, không in; ghi chú khác gọn tối đa 200 ký tự."""
+    text = (value or '').strip()
+    if not text or text.startswith(ZALO_DRAFT_NOTE):
+        return ''
+    return text if len(text) <= PRINT_NOTE_MAX else text[:PRINT_NOTE_MAX].rstrip() + '…'
+
+
+templates.env.filters['print_note'] = print_note
 templates.env.filters["money"] = money
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 

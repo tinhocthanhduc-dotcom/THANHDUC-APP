@@ -257,3 +257,36 @@ def test_pending_delivery_print_falls_back_to_customer_contact_and_note(client, 
     html = client.get(f'/giao-don/{o.id}/in').text
     # Ghi chú đơn nằm ô Ghi chú dưới bảng, không lên khung Người nhận.
     assert '<h4>Ghi chú</h4><p>Gửi xe trước cổng</p>' in html and '<dt>Ghi chú</dt><dd>Kế toán\nĐối diện 290/9 Phan Anh</dd>' in html
+
+
+# ---- 08/11 (TUẤN "ghi chú trên phiếu giao quá dài dòng"): ghi chú trợ lý Zalo là nội bộ, không in; ghi chú khác gọn ----
+ZALO_NOTE = ('Đơn nháp từ Zalo. Giá do trợ lý điền theo danh mục, chưa kiểm.\nTin gốc: kd_ Thanh mua 10 mực nạp chai 35a\n'
+             'Ghi chú: Zalo: Nguyễn Thị Thanh nhờ lên đơn. Giá danh mục đang là 0, cần kiểm giá')
+
+
+def test_print_note_filter_hides_zalo_draft_and_clips_long_note():
+    from app.web import print_note
+    assert print_note(ZALO_NOTE) == '' and print_note(None) == '' and print_note('  Gọi trước  ') == 'Gọi trước'
+    long = 'x' * 300
+    assert print_note(long) == 'x' * 200 + '…'
+
+
+def test_delivered_print_hides_zalo_draft_note(client, db, people):
+    from test_stock_reservations import stock, order
+    from test_sales_deliveries import send
+    p = people; stock(db, p, 10)
+    o = order(db, p, 2)
+    o.note = ZALO_NOTE; db.commit()
+    gh = send(db, p, o, 2)
+    service_login(client, p['sales'])
+    html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
+    assert 'PHIẾU GIAO HÀNG' in html and 'Tin gốc' not in html and 'trợ lý' not in html and '<h4>Ghi chú</h4>' not in html
+
+
+def test_pending_delivery_print_hides_zalo_draft_note(client, db, setup):
+    p = setup
+    o = assigned(db, p)
+    o.note = ZALO_NOTE; db.commit()
+    service_login(client, p['sales'])
+    html = client.get(f'/giao-don/{o.id}/in').text
+    assert 'Tin gốc' not in html and 'trợ lý' not in html and '<h4>Ghi chú</h4><div class="ln"></div><div class="ln"></div>' in html
