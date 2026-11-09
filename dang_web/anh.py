@@ -11,6 +11,7 @@ from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 DUOI_ANH = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 LOGO_MAC_DINH = Path(__file__).with_name("logo-thanh-duc.png")
+TY_LE_LOGO, LOGO_MIN, LOGO_MAX, LOGO_CANH = 0.13, 0.06, 0.35, 0.03  # cỡ logo mặc định / nhỏ nhất / lớn nhất, lề góc
 
 try:  # Ảnh HEIC chụp từ iPhone
     from pillow_heif import register_heif_opener
@@ -271,8 +272,13 @@ def chuan_bien(b: dict | None) -> dict:
             return mac
         return mac if v != v else max(lo, min(hi, v))  # v != v: NaN
 
-    return {"z": so("z", 1.0, 0.2, 5.0), "r": so("r", 0.0, -45.0, 45.0), "x": so("x", 0.0, -1.5, 1.5),
-            "y": so("y", 0.0, -1.5, 1.5), "q": int(so("q", 0, 0, 3)), "f": bool(b.get("f")), "tu": bool(b.get("tu"))}
+    out = {"z": so("z", 1.0, 0.2, 5.0), "r": so("r", 0.0, -45.0, 45.0), "x": so("x", 0.0, -1.5, 1.5),
+           "y": so("y", 0.0, -1.5, 1.5), "q": int(so("q", 0, 0, 3)), "f": bool(b.get("f")), "tu": bool(b.get("tu"))}
+    # TUẤN duyệt mẫu 09/11/2026: logo kéo thả + đổi cỡ từng ảnh. lx, ly = tâm logo theo tỷ lệ khung (0..1),
+    # ls = cạnh ô logo theo tỷ lệ cạnh ngắn của khung. Không có thì logo ở góc như cũ (logo_goc của việc).
+    if all(k in b for k in ("lx", "ly", "ls")):
+        out.update(lx=so("lx", 0.5, 0.0, 1.0), ly=so("ly", 0.5, 0.0, 1.0), ls=so("ls", TY_LE_LOGO, LOGO_MIN, LOGO_MAX))
+    return out
 
 
 def _mo_rgb(nguon: Path | bytes | Image.Image) -> Image.Image:
@@ -343,13 +349,19 @@ def dat_khung(nguon: Path | bytes | Image.Image, W: int, H: int, bien: dict | No
     cx, cy = W / 2 + b["x"] * W, H / 2 + b["y"] * H
     khung.paste(lop, (round(cx - lop.width / 2), round(cy - lop.height / 2)), lop)
     if logo and Path(logo).exists():
-        rong = max(48, int(min(W, H) * ty_le_logo))
+        tu_dat = "ls" in b
+        rong = max(24 if tu_dat else 48, int(min(W, H) * (b["ls"] if tu_dat else ty_le_logo)))
         lg = ImageOps.contain(Image.open(logo).convert("RGBA"), (rong, rong), Image.Resampling.LANCZOS)
         lg.putalpha(lg.getchannel("A").point(lambda v: int(v * 0.9)))
-        canh = int(min(W, H) * 0.03)
-        x = canh if logo_goc == "trai" else W - lg.width - canh
+        if tu_dat:  # tâm logo đúng chỗ anh kéo trên màn, không ra khỏi khung
+            x = max(0, min(W - lg.width, round(b["lx"] * W - lg.width / 2)))
+            y = max(0, min(H - lg.height, round(b["ly"] * H - lg.height / 2)))
+        else:
+            canh = int(min(W, H) * LOGO_CANH)
+            x = canh if logo_goc == "trai" else W - lg.width - canh
+            y = H - lg.height - canh
         khung = khung.convert("RGBA")
-        khung.alpha_composite(lg, (x, H - lg.height - canh))
+        khung.alpha_composite(lg, (x, y))
         khung = khung.convert("RGB")
     out = io.BytesIO()
     if dinh_dang == "jpg":

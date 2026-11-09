@@ -21,15 +21,22 @@
 <div class="sa-stage">
 <div class="sa-frame{{ ' sa-wide' if bai }}" data-sa-frame tabindex="0" aria-label="Khung web. Kéo để dời ảnh, lăn chuột để phóng to">
 <img class="sa-img" data-sa-img alt="">
-<img class="sa-logo" data-sa-logo src="/dang-web/logo.png" alt="" aria-hidden="true">
+{# TUẤN duyệt mẫu 09/11/2026: logo kéo để dời, kéo chấm xanh để đổi cỡ; mỗi ảnh một vị trí. #}
+<div class="sa-logo" data-sa-logo tabindex="0" role="group" aria-label="Logo Thành Đức. Kéo để dời, kéo chấm xanh ở góc để đổi cỡ, phím mũi tên để dời" hidden><img src="/dang-web/logo.png" alt="" data-sa-logo-img draggable="false"><span class="sa-logo-hd" data-sa-logo-hd aria-hidden="true"></span></div>
+<span class="sa-guide sa-guide-v" data-sa-gv hidden></span><span class="sa-guide sa-guide-h" data-sa-gh hidden></span>
 <span class="sa-grid" aria-hidden="true"></span>
 </div>
-<span class="hint">Kéo ảnh trong khung để dời, chụm 2 ngón để phóng to · khung xanh là đúng phần lên web</span>
+<span class="hint">Kéo ảnh để dời ảnh, chụm 2 ngón để phóng to · kéo logo để dời logo, kéo chấm xanh để đổi cỡ · khung xanh là đúng phần lên web</span>
 </div>
 <div class="sa-ctrl">
 <b data-sa-title>Ảnh 1 · đang chỉnh</b>
 <label class="sa-range"><span><b>Phóng to / thu nhỏ</b><output data-sa-zv>100%</output></span><input type="range" min="20" max="400" step="1" value="100" data-sa-z></label>
 <label class="sa-range"><span><b>Xoay chỉnh góc</b><output data-sa-rv>0°</output></span><input type="range" min="-45" max="45" step="0.5" value="0" data-sa-r></label>
+<div class="sa-logo-box" data-sa-logo-box><b>Logo trên ảnh này</b>
+<label class="sa-range"><span><b>Cỡ logo</b><output data-sa-lsv>13%</output></span><input type="range" min="6" max="35" step="1" value="13" data-sa-ls></label>
+<div class="sa-btns"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="logo-trai">↙ Góc trái dưới</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="logo-phai">↘ Góc phải dưới</button></div>
+<span class="hint" data-sa-lpos>Vị trí: góc phải dưới</span>
+</div>
 <div class="sa-btns">
 <button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="q-">⟲ 90°</button>
 <button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="q+">⟳ 90°</button>
@@ -97,11 +104,9 @@
 <p class="hint">Khung web: {{ '<b>ngang 1200×675</b> cho mọi ảnh bài viết.'|safe if bai else '<b>vuông</b> cho ảnh đại diện và album, <b>ngang 1200×675</b> cho ảnh trong mô tả.'|safe }}</p>
 <button type="button" class="btn btn-new" data-sa-act="auto-all">Căn giữa + vừa khung các ảnh đã chọn</button>
 <label class="chk"><input type="checkbox" name="logo" value="1"{{ ' checked' if d.logo }} data-sa-logo-on> <b>Đóng logo Thành Đức</b></label>
-<div class="dw-chips sa-logo-pos" role="radiogroup" aria-label="Chỗ đặt logo">
-<label class="dw-chip"><input type="radio" name="logo_goc" value="phai"{{ ' checked' if d.logo_goc != 'trai' }}> Góc phải dưới</label>
-<label class="dw-chip"><input type="radio" name="logo_goc" value="trai"{{ ' checked' if d.logo_goc == 'trai' }}> Góc trái dưới</label>
-</div>
-<p class="hint">Ảnh đã có logo sẵn thì bỏ tick, tránh đóng 2 logo.</p>
+<input type="hidden" name="logo_goc" value="{{ 'trai' if d.logo_goc == 'trai' else 'phai' }}">
+<button type="button" class="btn btn-ghost" data-sa-act="logo-copy">Dùng logo này cho các ảnh đã chọn</button>
+<p class="hint">Kéo logo trong khung chỉnh để đổi chỗ, đổi cỡ. Ảnh đã có logo sẵn thì bỏ tick, tránh đóng 2 logo.</p>
 </section>
 <section class="card">
 <b>Tên file và alt</b>

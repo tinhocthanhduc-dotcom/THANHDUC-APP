@@ -888,6 +888,24 @@ def test_dat_khung_can_giua_xoay_va_logo(tmp_path):
     assert co_logo.getpixel((40, 568))[0] < 80 and co_logo.getpixel((560, 568))[0] > 200  # logo góc trái dưới
 
 
+def test_dat_khung_logo_keo_tha_doi_co(tmp_path):
+    """TUẤN 09/11/2026: logo đặt đúng tâm (lx, ly) và cỡ ls anh kéo trên màn; không ra khỏi khung."""
+    from dang_web import anh as anh_mod
+
+    im = Image.new("RGB", (600, 600), (255, 255, 255))
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (100, 100), (0, 0, 255, 255)).save(logo)
+    b = anh_mod.chuan_bien({"lx": 0.5, "ly": 0.25, "ls": 0.3})
+    assert (b["lx"], b["ly"], b["ls"]) == (0.5, 0.25, 0.3)
+    assert anh_mod.chuan_bien({"lx": 2, "ly": "x", "ls": 9})["ls"] == anh_mod.LOGO_MAX
+    assert "lx" not in anh_mod.chuan_bien({"lx": 0.5})  # thiếu số đo thì logo về góc như cũ
+    ra = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, b, logo=logo, dinh_dang="jpg"))).convert("RGB")
+    hop = anh_mod.vung_san_pham(ra, (255, 255, 255))  # logo 180×180, tâm (300, 150)
+    assert abs(hop[0] - 210) <= 3 and abs(hop[2] - 390) <= 3 and abs(hop[1] - 60) <= 3 and abs(hop[3] - 240) <= 3
+    ngoai = Image.open(io.BytesIO(anh_mod.dat_khung(im, 1200, 675, {"lx": 1, "ly": 1, "ls": 0.1}, logo=logo, dinh_dang="jpg"))).convert("RGB")
+    assert ngoai.getpixel((1195, 670))[2] > 200 and ngoai.getpixel((1195, 670))[0] < 80  # ép vào trong khung, sát góc
+
+
 def test_xoa_anh_cu_giu_anh_con_dung_o_cho_khac(goc):
     wp = _wp_co_hang()
     wp.tat_ca[1]["images"] = [{"id": 7, "src": "https://thanhduc.vn/wp-content/uploads/chung.jpg"}]

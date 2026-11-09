@@ -18,14 +18,17 @@
   var editor = form.querySelector('[data-sa-editor]');
   var frame = form.querySelector('[data-sa-frame]');
   var big = form.querySelector('[data-sa-img]');
-  var logo = form.querySelector('[data-sa-logo]');
+  var logo = form.querySelector('[data-sa-logo]'), logoImg = form.querySelector('[data-sa-logo-img]');
+  var logoBox = form.querySelector('[data-sa-logo-box]'), lsIn = form.querySelector('[data-sa-ls]');
+  var lsOut = form.querySelector('[data-sa-lsv]'), lPos = form.querySelector('[data-sa-lpos]');
+  var gV = form.querySelector('[data-sa-gv]'), gH = form.querySelector('[data-sa-gh]');
   var zIn = form.querySelector('[data-sa-z]'), rIn = form.querySelector('[data-sa-r]');
   var zOut = form.querySelector('[data-sa-zv]'), rOut = form.querySelector('[data-sa-rv]');
   var title = form.querySelector('[data-sa-title]'), note = form.querySelector('[data-sa-note]');
   var filesInput = form.querySelector('[data-sa-files]');
   var current = null, newCount = 0;
 
-  function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false }; }
+  function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false, l: null }; }
   function cards() { return Array.prototype.slice.call(form.querySelectorAll('[data-sa-list] [data-sa-card]')); }
   function setVai(card, vai) {
     var v = card.querySelector('[data-sa-vai]');
@@ -50,6 +53,7 @@
   function save(card) {
     var s = st(card), out = { z: +s.z.toFixed(4), r: +s.r.toFixed(2), x: +s.x.toFixed(4), y: +s.y.toFixed(4), q: s.q, f: s.f ? 1 : 0 };
     if (s.tu) out.tu = 1;
+    if (s.l) { out.lx = +s.l.x.toFixed(4); out.ly = +s.l.y.toFixed(4); out.ls = +s.l.s.toFixed(4); }
     card.querySelector('[data-sa-bien]').value = JSON.stringify(out);
   }
   function mark(card) {  // đụng vào ảnh nào là tick Sửa ảnh đó
@@ -86,12 +90,91 @@
     place(frame, big, s, current._bg);
     zIn.value = Math.round(s.z * 100); zOut.textContent = Math.round(s.z * 100) + '%';
     rIn.value = s.r; rOut.textContent = (s.r > 0 ? '+' : '') + s.r + '°';
-    var on = form.querySelector('[data-sa-logo-on]');
-    var trai = form.querySelector('input[name=logo_goc][value=trai]');
-    logo.hidden = !(on && on.checked);
-    logo.classList.toggle('sa-logo-trai', !!(trai && trai.checked));
+    drawLogo();
     drawMini(current);
   }
+
+  // ---- logo (TUẤN duyệt mẫu 09/11/2026): kéo để dời, kéo chấm xanh hoặc thanh "Cỡ logo" để đổi cỡ ----
+  // Cùng công thức dat_khung: ô logo cạnh ls × cạnh ngắn khung, logo vừa trong ô; (lx, ly) là tâm logo theo tỷ lệ khung.
+  var LS0 = 0.13, LMIN = 0.06, LMAX = 0.35, LM = 0.03;
+  function logoOn() { var on = form.querySelector('[data-sa-logo-on]'); return !!(on && on.checked); }
+  function logoPx(ls, W, H) {  // cỡ logo thật trên khung W×H
+    var nw = logoImg.naturalWidth || 225, nh = logoImg.naturalHeight || 253, r = ls * Math.min(W, H), k = Math.min(r / nw, r / nh);
+    return { w: nw * k, h: nh * k };
+  }
+  function corner(goc, ls, W, H) {
+    var p = logoPx(ls, W, H), m = LM * Math.min(W, H);
+    return { x: (goc === 'trai' ? m + p.w / 2 : W - m - p.w / 2) / W, y: (H - m - p.h / 2) / H, s: ls };
+  }
+  function lgOf(s, W, H) { return s.l || corner('phai', LS0, W, H); }
+  function clampLogo(l, W, H) {
+    var p = logoPx(l.s, W, H), hx = p.w / 2 / W, hy = p.h / 2 / H;
+    l.x = Math.min(1 - hx, Math.max(hx, l.x)); l.y = Math.min(1 - hy, Math.max(hy, l.y));
+    return l;
+  }
+  function drawLogo() {
+    var on = logoOn();
+    logo.hidden = !on || !current;
+    if (logoBox) logoBox.hidden = !on;
+    if (!on || !current) return;
+    var W = frame.clientWidth, H = frame.clientHeight;
+    if (!W || !H) return;
+    var l = lgOf(st(current), W, H), p = logoPx(l.s, W, H);
+    logo.style.width = p.w + 'px'; logo.style.height = p.h + 'px';
+    logo.style.left = (l.x * W - p.w / 2) + 'px'; logo.style.top = (l.y * H - p.h / 2) + 'px';
+    lsIn.value = Math.round(l.s * 100); lsOut.textContent = Math.round(l.s * 100) + '%';
+    var e = 0.002, ct = corner('trai', l.s, W, H), cp = corner('phai', l.s, W, H), ten;
+    if (Math.abs(l.y - cp.y) < e && Math.abs(l.x - cp.x) < e) ten = 'góc phải dưới';
+    else if (Math.abs(l.y - ct.y) < e && Math.abs(l.x - ct.x) < e) ten = 'góc trái dưới';
+    else ten = 'tự đặt (' + Math.round(l.x * 100) + '%, ' + Math.round(l.y * 100) + '%)';
+    lPos.textContent = 'Vị trí: ' + ten;
+  }
+  function setLogo(card, l) { st(card).l = l; save(card); mark(card); if (card === current) drawLogo(); }
+  function snapLogo(l, W, H) {  // hít vào lề 3% hoặc giữa khung, hiện vạch hồng
+    var p = logoPx(l.s, W, H), m = LM * Math.min(W, H), t = 0.02 * Math.min(W, H), sx = null, sy = null;
+    [m + p.w / 2, W / 2, W - m - p.w / 2].forEach(function (v) { if (Math.abs(l.x * W - v) < t) { l.x = v / W; sx = v; } });
+    [m + p.h / 2, H / 2, H - m - p.h / 2].forEach(function (v) { if (Math.abs(l.y * H - v) < t) { l.y = v / H; sy = v; } });
+    gV.hidden = sx === null; gH.hidden = sy === null;
+    if (sx !== null) gV.style.left = sx + 'px';
+    if (sy !== null) gH.style.top = sy + 'px';
+  }
+  var lDrag = null;
+  logo.addEventListener('pointerdown', function (e) {
+    if (!current) return;
+    e.stopPropagation(); e.preventDefault();
+    logo.setPointerCapture(e.pointerId);
+    var W = frame.clientWidth, H = frame.clientHeight, l = lgOf(st(current), W, H);
+    lDrag = { size: !!e.target.closest('[data-sa-logo-hd]'), px: e.clientX, py: e.clientY, x: l.x, y: l.y, s: l.s };
+  });
+  logo.addEventListener('pointermove', function (e) {
+    if (!lDrag || !current) return;
+    var W = frame.clientWidth, H = frame.clientHeight, dx = e.clientX - lDrag.px, dy = e.clientY - lDrag.py, l;
+    if (lDrag.size) {  // góc trên trái đứng yên, kéo chấm xanh ra là to
+      var p0 = logoPx(lDrag.s, W, H), m = Math.min(W, H);
+      var ns = Math.min(LMAX, Math.max(LMIN, lDrag.s + (dx + dy) / m));
+      var p1 = logoPx(ns, W, H);
+      l = { s: ns, x: (lDrag.x * W - p0.w / 2 + p1.w / 2) / W, y: (lDrag.y * H - p0.h / 2 + p1.h / 2) / H };
+      clampLogo(l, W, H);
+    } else {
+      l = clampLogo({ s: lDrag.s, x: lDrag.x + dx / W, y: lDrag.y + dy / H }, W, H);
+      snapLogo(l, W, H);
+    }
+    setLogo(current, l);
+  });
+  function lUp() { lDrag = null; gV.hidden = true; gH.hidden = true; }
+  logo.addEventListener('pointerup', lUp); logo.addEventListener('pointercancel', lUp);
+  logo.addEventListener('keydown', function (e) {
+    var k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!k || !current) return;
+    e.preventDefault(); e.stopPropagation();
+    var W = frame.clientWidth, H = frame.clientHeight, l = lgOf(st(current), W, H), d = e.shiftKey ? 0.05 : 0.01;
+    setLogo(current, clampLogo({ s: l.s, x: l.x + k[0] * d, y: l.y + k[1] * d }, W, H));
+  });
+  if (lsIn) lsIn.addEventListener('input', function () {
+    if (!current) return;
+    var W = frame.clientWidth, H = frame.clientHeight, l = lgOf(st(current), W, H);
+    setLogo(current, clampLogo({ s: lsIn.value / 100, x: l.x, y: l.y }, W, H));
+  });
 
   // ---- đo nền và tìm sản phẩm (ảnh phải cùng trang app; ảnh web đi qua /dang-web/anh-tren-web) ----
   function analyse(card, img) {
@@ -269,10 +352,25 @@
     }
     if (!current) return;
     var s = st(current);
+    if (act === 'logo-trai' || act === 'logo-phai') {
+      setLogo(current, corner(act === 'logo-trai' ? 'trai' : 'phai', LS0, frame.clientWidth, frame.clientHeight));
+      return;
+    }
+    if (act === 'logo-copy') {  // chép vị trí + cỡ logo (theo tỷ lệ khung) sang các ảnh đã tick Sửa
+      var l0 = lgOf(s, frame.clientWidth, frame.clientHeight), n = 0;
+      cards().forEach(function (c) {
+        var x = c.querySelector('[data-sa-chon]');
+        if (c === current || !x || !x.checked) return;
+        var w = isWide(c) ? 1600 : 1000, h = isWide(c) ? 900 : 1000;
+        st(c).l = clampLogo({ x: l0.x, y: l0.y, s: l0.s }, w, h); save(c); n += 1;
+      });
+      if (window.tdToast) window.tdToast(n ? 'Đã chép logo sang ' + n + ' ảnh' : 'Tick “Sửa” ở ảnh cần chép logo trước', n ? 'ok' : 'warn');
+      return;
+    }
     if (act === 'q-') s.q = (s.q + 3) % 4;
     else if (act === 'q+') s.q = (s.q + 1) % 4;
     else if (act === 'f') s.f = !s.f;
-    else if (act === 'reset') { current._st = blank(); s = current._st; }
+    else if (act === 'reset') { var giu = s.l; current._st = blank(); s = current._st; s.l = giu; }  // giữ logo anh đã đặt
     if (act === 'auto') { autoCenter(current); return; }
     if (act === 'q-' || act === 'q+' || act === 'f') { s.tu = false; if (current._img) analyse(current, current._img); }
     save(current); mark(current); drawBig();
@@ -287,7 +385,7 @@
       count(); return;
     }
     if (t.matches('[data-sa-chon]')) { drawMini(t.closest('[data-sa-card]')); count(); if (t.checked) pick(t.closest('[data-sa-card]')); return; }
-    if (t.matches('[data-sa-logo-on], input[name=logo_goc]')) drawBig();
+    if (t.matches('[data-sa-logo-on]')) drawBig();
   });
 
   // kéo để dời, lăn chuột / chụm 2 ngón để phóng to
@@ -331,6 +429,7 @@
     if (used) { e.preventDefault(); s.tu = false; save(current); mark(current); drawBig(); }
   });
   window.addEventListener('resize', function () { drawBig(); cards().forEach(drawMini); });
+  if (logoImg) logoImg.addEventListener('load', drawLogo);
 
   // ---- gửi: đánh số lại ảnh mới theo thứ tự trên màn, gom tệp vào ô ảnh ----
   form.addEventListener('submit', function () {
