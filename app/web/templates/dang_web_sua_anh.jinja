@@ -18,34 +18,50 @@
 <input type="file" name="anh" multiple hidden accept="image/*" data-sa-files>
 <div class="dw-cols dw-2"><div>
 <section class="card sa-editor" aria-label="Chỉnh ảnh đang chọn" data-sa-editor hidden>
+{# TUẤN duyệt mẫu 09/11/2026 lần 4: thanh công cụ trên khung, cột Công cụ (Logo, Cắt ảnh, Màu sắc; Văn bản, Tẩy, Layer đợt sau),
+   logo bật tắt từng ảnh, nút Lưu riêng ảnh này. Không dùng AI sửa ảnh trả phí. #}
 <div class="sa-stage">
+<div class="sa-tb" role="toolbar" aria-label="Công cụ sửa ảnh"><button type="button" class="sa-tbb" data-sa-mode="chon" title="Chọn: kéo logo hoặc ảnh" aria-label="Chọn: kéo logo hoặc ảnh"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l7 17 2.5-7.5L21 11z"/></svg></button><button type="button" class="sa-tbb" data-sa-mode="tay" title="Kéo ảnh (logo đứng yên)" aria-label="Kéo ảnh (logo đứng yên)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4L2.8 16a2 2 0 0 1 2.9-2.8L8 15"/></svg></button><span class="sa-sep"></span><button type="button" class="sa-tbb" data-sa-act="zin" title="Phóng to" aria-label="Phóng to"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg></button><button type="button" class="sa-tbb" data-sa-act="zout" title="Thu nhỏ" aria-label="Thu nhỏ"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg></button><button type="button" class="sa-tbb" data-sa-act="fit" title="Vừa khung" aria-label="Vừa khung"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg></button><span class="sa-sep"></span><button type="button" class="sa-tbb" data-sa-mode="cat" title="Cắt: khoanh vùng cần lấy" aria-label="Cắt: khoanh vùng cần lấy"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></button><button type="button" class="sa-tbb" data-sa-act="q+" title="Xoay 90°" aria-label="Xoay 90°"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button><button type="button" class="sa-tbb" data-sa-act="f" title="Lật ngang" aria-label="Lật ngang"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M8 7l-5 5 5 5V7zM16 7l5 5-5 5V7z"/></svg></button><button type="button" class="sa-tbb" data-sa-act="auto" title="Căn giữa tự động" aria-label="Căn giữa tự động"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M4 18h16"/></svg></button><span class="sa-sep"></span><button type="button" class="sa-tbb" data-sa-act="undo" title="Hoàn tác" aria-label="Hoàn tác"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button><button type="button" class="sa-tbb" data-sa-act="redo" title="Làm lại" aria-label="Làm lại"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button></div>
+<span class="hint sa-mode-hint" data-sa-mode-hint>Đang dùng: <b>Chọn</b> · kéo logo để dời logo, kéo chỗ khác để dời ảnh</span>
+<div class="sa-work"><nav class="sa-rail" aria-label="Công cụ"><b>Công cụ</b><button type="button" class="sa-rb" data-sa-p="logo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg><span>Logo</span></button><button type="button" class="sa-rb" data-sa-p="cat"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg><span>Cắt ảnh</span></button><button type="button" class="sa-rb" data-sa-p="mau"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7H16a6 6 0 0 0 6-6c0-4.4-4.5-8.3-10-8.3z"/></svg><span>Màu sắc</span></button></nav>
 <div class="sa-frame{{ ' sa-wide' if bai }}" data-sa-frame tabindex="0" aria-label="Khung web. Kéo để dời ảnh, lăn chuột để phóng to">
 <img class="sa-img" data-sa-img alt="">
-{# TUẤN duyệt mẫu 09/11/2026: logo kéo để dời, kéo chấm xanh để đổi cỡ; mỗi ảnh một vị trí. #}
 <div class="sa-logo" data-sa-logo tabindex="0" role="group" aria-label="Logo Thành Đức. Kéo để dời, kéo chấm xanh ở góc để đổi cỡ, phím mũi tên để dời" hidden><img src="/dang-web/logo.png" alt="" data-sa-logo-img draggable="false"><span class="sa-logo-hd" data-sa-logo-hd aria-hidden="true"></span></div>
 <span class="sa-guide sa-guide-v" data-sa-gv hidden></span><span class="sa-guide sa-guide-h" data-sa-gh hidden></span>
+<span class="sa-crop" data-sa-crop hidden></span>
 <span class="sa-grid" aria-hidden="true"></span>
-</div>
-<span class="hint">Kéo ảnh để dời ảnh, chụm 2 ngón để phóng to · kéo logo để dời logo, kéo chấm xanh để đổi cỡ · khung xanh là đúng phần lên web</span>
+</div></div>
+<span class="hint">Lăn chuột hoặc chụm 2 ngón để phóng to · khung xanh là đúng phần lên web</span>
 </div>
 <div class="sa-ctrl">
 <b data-sa-title>Ảnh 1 · đang chỉnh</b>
-<label class="sa-range"><span><b>Phóng to / thu nhỏ</b><output data-sa-zv>100%</output></span><input type="range" min="20" max="400" step="1" value="100" data-sa-z></label>
-<label class="sa-range"><span><b>Xoay chỉnh góc</b><output data-sa-rv>0°</output></span><input type="range" min="-45" max="45" step="0.5" value="0" data-sa-r></label>
-<div class="sa-logo-box" data-sa-logo-box><b>Logo trên ảnh này</b>
+<div class="sa-pn" data-sa-pn="logo"><div class="sa-logo-box"><b>Logo trên ảnh này</b>
+<label class="chk"><input type="checkbox" checked data-sa-lo> <b>Đóng logo ảnh này</b></label>
+<div class="sa-pn-in" data-sa-logo-box>
 <label class="sa-range"><span><b>Cỡ logo</b><output data-sa-lsv>13%</output></span><input type="range" min="6" max="35" step="1" value="13" data-sa-ls></label>
 <div class="sa-btns"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="logo-trai">↙ Góc trái dưới</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="logo-phai">↘ Góc phải dưới</button></div>
 <span class="hint" data-sa-lpos>Vị trí: góc phải dưới</span>
 </div>
-<div class="sa-btns">
-<button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="q-">⟲ 90°</button>
-<button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="q+">⟳ 90°</button>
-<button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="f">Lật ngang</button>
-<button type="button" class="btn btn-ghost dw-sbtn sa-auto" data-sa-act="auto">Căn giữa tự động</button>
-<button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="reset">Về như cũ</button>
-</div>
-<p class="hint">“Căn giữa tự động” tìm sản phẩm trong ảnh, đặt vào giữa khung và chừa lề đều 4 phía. Nền giữ như ảnh gốc, không tách nền.</p>
+<span class="hint" data-sa-lo-off hidden>Ảnh này không đóng logo (ví dụ ảnh đã có logo sẵn).</span>
+<span class="hint" data-sa-lo-all hidden>Ô “Đóng logo Thành Đức” bên phải đang tắt nên mọi ảnh không có logo.</span>
+</div></div>
+<div class="sa-pn" data-sa-pn="cat" hidden><div class="sa-logo-box"><b>Cắt ảnh</b>
+<span class="hint">Khung web cố định: {{ 'ngang 1200×675.' if bai else 'vuông cho ảnh đại diện, album; ngang 1200×675 cho ảnh trong mô tả.' }} Bấm ✂ trên thanh công cụ rồi khoanh vùng cần lấy, ảnh tự phóng cho vùng đó vừa khung.</span>
+<label class="sa-range"><span><b>Phóng to / thu nhỏ</b><output data-sa-zv>100%</output></span><input type="range" min="20" max="400" step="1" value="100" data-sa-z></label>
+<label class="sa-range"><span><b>Xoay chỉnh góc</b><output data-sa-rv>0°</output></span><input type="range" min="-45" max="45" step="0.5" value="0" data-sa-r></label>
+<div class="sa-btns"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-mode="cat">✂ Khoanh vùng cắt</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="reset">Về như cũ</button></div>
+<p class="hint">“Căn giữa tự động” (nút ≡) tìm sản phẩm trong ảnh, đặt vào giữa khung và chừa lề đều 4 phía. Nền giữ như ảnh gốc, không tách nền.</p>
+</div></div>
+<div class="sa-pn" data-sa-pn="mau" hidden><div class="sa-logo-box"><b>Màu sắc</b>
+<label class="sa-range"><span><b>Sáng</b><output data-sa-mv="mb">0</output></span><input type="range" min="-50" max="50" step="1" value="0" data-sa-m="mb"></label>
+<label class="sa-range"><span><b>Tương phản</b><output data-sa-mv="mc">0</output></span><input type="range" min="-50" max="50" step="1" value="0" data-sa-m="mc"></label>
+<label class="sa-range"><span><b>Đậm màu</b><output data-sa-mv="ms">0</output></span><input type="range" min="-50" max="50" step="1" value="0" data-sa-m="ms"></label>
+<div class="sa-btns"><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="mau-tu">Tự cân màu</button><button type="button" class="btn btn-ghost dw-sbtn" data-sa-act="mau-0">Về như cũ</button></div>
+<span class="hint">“Tự cân màu” làm ảnh tối sáng lên, tăng nhẹ tương phản. Chỉ chỉnh ảnh, không đổi màu nền khung.</span>
+</div></div>
 <p class="hint sa-note" data-sa-note hidden></p>
+<button type="button" class="btn btn-ok" data-sa-act="luu-rieng">✓ Lưu riêng ảnh này</button>
+<span class="hint">Chỉ xử lý ảnh đang chỉnh, các ảnh khác trên web giữ nguyên. Vẫn qua bước xem trước rồi mới ghi lên web.</span>
 </div>
 </section>
 {# TUẤN duyệt mẫu D8/8 ngày 02/11/2026: chia rõ ① Ảnh đại diện, ② Ảnh album (sản phẩm), ③ Ảnh trong mô tả / trong bài.
@@ -103,10 +119,10 @@
 <b>Áp dụng cho ảnh đã chọn (<span data-sa-count>0</span>)</b>
 <p class="hint">Khung web: {{ '<b>ngang 1200×675</b> cho mọi ảnh bài viết.'|safe if bai else '<b>vuông</b> cho ảnh đại diện và album, <b>ngang 1200×675</b> cho ảnh trong mô tả.'|safe }}</p>
 <button type="button" class="btn btn-new" data-sa-act="auto-all">Căn giữa + vừa khung các ảnh đã chọn</button>
-<label class="chk"><input type="checkbox" name="logo" value="1"{{ ' checked' if d.logo }} data-sa-logo-on> <b>Đóng logo Thành Đức</b></label>
+<label class="chk"><input type="checkbox" name="logo" value="1"{{ ' checked' if d.logo }} data-sa-logo-on> <b>Đóng logo Thành Đức (tất cả ảnh)</b></label>
 <input type="hidden" name="logo_goc" value="{{ 'trai' if d.logo_goc == 'trai' else 'phai' }}">
 <button type="button" class="btn btn-ghost" data-sa-act="logo-copy">Dùng logo này cho các ảnh đã chọn</button>
-<p class="hint">Kéo logo trong khung chỉnh để đổi chỗ, đổi cỡ. Ảnh đã có logo sẵn thì bỏ tick, tránh đóng 2 logo.</p>
+<p class="hint">Ô này bật tắt nhanh cho mọi ảnh. Ảnh nào đã có logo sẵn thì bỏ ô “Đóng logo ảnh này” ở ảnh đó, tránh đóng 2 logo.</p>
 </section>
 <section class="card">
 <b>Tên file và alt</b>

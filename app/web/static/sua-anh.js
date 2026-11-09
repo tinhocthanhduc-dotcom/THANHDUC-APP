@@ -22,13 +22,15 @@
   var logoBox = form.querySelector('[data-sa-logo-box]'), lsIn = form.querySelector('[data-sa-ls]');
   var lsOut = form.querySelector('[data-sa-lsv]'), lPos = form.querySelector('[data-sa-lpos]');
   var gV = form.querySelector('[data-sa-gv]'), gH = form.querySelector('[data-sa-gh]');
+  var loIn = form.querySelector('[data-sa-lo]'), loOff = form.querySelector('[data-sa-lo-off]'), loAll = form.querySelector('[data-sa-lo-all]');
+  var cropBox = form.querySelector('[data-sa-crop]'), modeHint = form.querySelector('[data-sa-mode-hint]');
   var zIn = form.querySelector('[data-sa-z]'), rIn = form.querySelector('[data-sa-r]');
   var zOut = form.querySelector('[data-sa-zv]'), rOut = form.querySelector('[data-sa-rv]');
   var title = form.querySelector('[data-sa-title]'), note = form.querySelector('[data-sa-note]');
   var filesInput = form.querySelector('[data-sa-files]');
   var current = null, newCount = 0;
 
-  function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false, l: null }; }
+  function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false, l: null, lo: true, m: { mb: 0, mc: 0, ms: 0 } }; }
   function cards() { return Array.prototype.slice.call(form.querySelectorAll('[data-sa-list] [data-sa-card]')); }
   function setVai(card, vai) {
     var v = card.querySelector('[data-sa-vai]');
@@ -54,6 +56,8 @@
     var s = st(card), out = { z: +s.z.toFixed(4), r: +s.r.toFixed(2), x: +s.x.toFixed(4), y: +s.y.toFixed(4), q: s.q, f: s.f ? 1 : 0 };
     if (s.tu) out.tu = 1;
     if (s.l) { out.lx = +s.l.x.toFixed(4); out.ly = +s.l.y.toFixed(4); out.ls = +s.l.s.toFixed(4); }
+    if (s.lo === false) out.lo = 0;
+    ['mb', 'mc', 'ms'].forEach(function (k) { if (s.m && s.m[k]) out[k] = s.m[k]; });
     card.querySelector('[data-sa-bien]').value = JSON.stringify(out);
   }
   function mark(card) {  // đụng vào ảnh nào là tick Sửa ảnh đó
@@ -62,6 +66,11 @@
   }
 
   // ---- vẽ ảnh vào một khung theo thông số ----
+  function filterOf(s) {  // cùng thứ tự với chinh_mau trên máy chủ: sáng → tương phản → đậm màu
+    var m = s.m || {};
+    if (!m.mb && !m.mc && !m.ms) return '';
+    return 'brightness(' + (1 + (m.mb || 0) / 100) + ') contrast(' + (1 + (m.mc || 0) / 100) + ') saturate(' + (1 + (m.ms || 0) / 100) + ')';
+  }
   function place(box, img, s, bg) {
     var W = box.clientWidth, H = box.clientHeight, nw = img.naturalWidth, nh = img.naturalHeight;
     if (!W || !H || !nw || !nh) return;
@@ -72,6 +81,7 @@
     img.style.left = (W / 2 + s.x * W) + 'px';
     img.style.top = (H / 2 + s.y * H) + 'px';
     img.style.transform = 'translate(-50%,-50%) rotate(' + s.r + 'deg) scaleX(' + (s.f ? -1 : 1) + ') rotate(' + (s.q * 90) + 'deg)';
+    img.style.filter = filterOf(s);
     if (bg) box.style.background = bg;
   }
   function drawMini(card) {
@@ -91,6 +101,8 @@
     zIn.value = Math.round(s.z * 100); zOut.textContent = Math.round(s.z * 100) + '%';
     rIn.value = s.r; rOut.textContent = (s.r > 0 ? '+' : '') + s.r + '°';
     drawLogo();
+    drawMau();
+    drawUndo();
     drawMini(current);
   }
 
@@ -113,9 +125,12 @@
     return l;
   }
   function drawLogo() {
-    var on = logoOn();
+    var all = logoOn(), one = !current || st(current).lo !== false, on = all && one;
     logo.hidden = !on || !current;
     if (logoBox) logoBox.hidden = !on;
+    if (loIn) { loIn.checked = one; loIn.disabled = !all; }
+    if (loOff) loOff.hidden = !all || one;
+    if (loAll) loAll.hidden = all;
     if (!on || !current) return;
     var W = frame.clientWidth, H = frame.clientHeight;
     if (!W || !H) return;
@@ -138,9 +153,70 @@
     if (sx !== null) gV.style.left = sx + 'px';
     if (sy !== null) gH.style.top = sy + 'px';
   }
+  // ---- hoàn tác / làm lại: mỗi ảnh một lịch sử ----
+  function push(card) {
+    card = card || current;
+    if (!card) return;
+    var h = card._h || (card._h = []);
+    var snap = JSON.stringify(st(card));
+    if (h[h.length - 1] !== snap) h.push(snap);
+    if (h.length > 60) h.shift();
+    card._f = [];
+    drawUndo();
+  }
+  function undoRedo(back) {
+    if (!current) return;
+    var from = back ? (current._h || []) : (current._f || []), to = back ? (current._f || (current._f = [])) : (current._h || (current._h = []));
+    if (!from.length) return;
+    to.push(JSON.stringify(st(current)));
+    current._st = JSON.parse(from.pop());
+    save(current); mark(current); drawBig();
+  }
+  function drawUndo() {
+    var u = form.querySelector('[data-sa-act="undo"]'), r = form.querySelector('[data-sa-act="redo"]');
+    if (u) u.disabled = !current || !(current._h || []).length;
+    if (r) r.disabled = !current || !(current._f || []).length;
+  }
+  // ---- chế độ chuột: Chọn (kéo logo hoặc ảnh), Kéo ảnh (logo đứng yên), Cắt (khoanh vùng) ----
+  var mode = 'chon', MODES = { chon: ['Chọn', 'kéo logo để dời logo, kéo chỗ khác để dời ảnh'], tay: ['Kéo ảnh', 'kéo ở đâu cũng dời ảnh, logo đứng yên'], cat: ['Cắt', 'khoanh vùng cần lấy, ảnh tự phóng cho vùng đó vừa khung'] };
+  function setMode(m) {
+    mode = MODES[m] ? m : 'chon';
+    frame.classList.toggle('sa-m-tay', mode === 'tay');
+    frame.classList.toggle('sa-m-cat', mode === 'cat');
+    Array.prototype.slice.call(form.querySelectorAll('.sa-tbb[data-sa-mode]')).forEach(function (b) { b.classList.toggle('sa-on', b.dataset.saMode === mode); b.setAttribute('aria-pressed', b.dataset.saMode === mode ? 'true' : 'false'); });
+    if (modeHint) modeHint.innerHTML = 'Đang dùng: <b>' + MODES[mode][0] + '</b> · ' + MODES[mode][1];
+  }
+  function openPanel(p) {
+    Array.prototype.slice.call(form.querySelectorAll('[data-sa-p]')).forEach(function (b) { b.classList.toggle('sa-on', b.dataset.saP === p); });
+    Array.prototype.slice.call(form.querySelectorAll('[data-sa-pn]')).forEach(function (n) { n.hidden = n.dataset.saPn !== p; });
+  }
+  function drawMau() {
+    if (!current) return;
+    var m = st(current).m || {};
+    Array.prototype.slice.call(form.querySelectorAll('[data-sa-m]')).forEach(function (el) {
+      var v = m[el.dataset.saM] || 0;
+      el.value = v;
+      var o = form.querySelector('[data-sa-mv="' + el.dataset.saM + '"]');
+      if (o) o.textContent = (v > 0 ? '+' : '') + v;
+    });
+  }
+  function tuCanMau(card) {  // ảnh tối thì sáng lên cho độ sáng trung bình ~ 0,58; tăng nhẹ tương phản, đậm màu
+    var mb = 10;
+    try {
+      var img = card._img, c = document.createElement('canvas'), g;
+      c.width = 48; c.height = 48; g = c.getContext('2d');
+      g.drawImage(img, 0, 0, 48, 48);
+      var d = g.getImageData(0, 0, 48, 48).data, sum = 0;
+      for (var i = 0; i < d.length; i += 4) sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+      var mean = sum / (d.length / 4);
+      mb = mean < 0.58 ? Math.max(0, Math.min(40, Math.round((0.58 / Math.max(mean, 0.05) - 1) * 100))) : 0;
+    } catch (err) { mb = 10; }
+    st(card).m = { mb: mb, mc: 8, ms: 5 };
+  }
   var lDrag = null;
   logo.addEventListener('pointerdown', function (e) {
-    if (!current) return;
+    if (!current || mode !== 'chon') return;
+    push();
     e.stopPropagation(); e.preventDefault();
     logo.setPointerCapture(e.pointerId);
     var W = frame.clientWidth, H = frame.clientHeight, l = lgOf(st(current), W, H);
@@ -167,9 +243,12 @@
     var k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (!k || !current) return;
     e.preventDefault(); e.stopPropagation();
+    push();
     var W = frame.clientWidth, H = frame.clientHeight, l = lgOf(st(current), W, H), d = e.shiftKey ? 0.05 : 0.01;
     setLogo(current, clampLogo({ s: l.s, x: l.x + k[0] * d, y: l.y + k[1] * d }, W, H));
   });
+  if (lsIn) lsIn.addEventListener('pointerdown', function () { push(); });
+  if (lsIn) lsIn.addEventListener('keydown', function () { push(); });
   if (lsIn) lsIn.addEventListener('input', function () {
     if (!current) return;
     var W = frame.clientWidth, H = frame.clientHeight, l = lgOf(st(current), W, H);
@@ -352,6 +431,23 @@
     }
     if (!current) return;
     var s = st(current);
+    if (act === 'undo' || act === 'redo') { undoRedo(act === 'undo'); return; }
+    if (act === 'luu-rieng') {  // chỉ ảnh đang chỉnh: bỏ tick Sửa các ảnh khác rồi gửi như nút Xem trước
+      cards().forEach(function (c) { var x = c.querySelector('[data-sa-chon]'); if (x && !x.disabled) { x.checked = c === current; drawMini(c); } });
+      count();
+      var sb = form.querySelector('[data-sa-submit]');
+      if (sb && !sb.disabled) sb.click();
+      return;
+    }
+    if (act !== 'logo-copy') push();
+    if (act === 'mau-tu' || act === 'mau-0') {
+      if (act === 'mau-tu') tuCanMau(current); else s.m = { mb: 0, mc: 0, ms: 0 };
+      save(current); mark(current); drawBig(); return;
+    }
+    if (act === 'zin' || act === 'zout' || act === 'fit') {
+      if (act === 'fit') { s.z = 1; s.x = 0; s.y = 0; } else s.z = Math.max(0.2, Math.min(4, s.z * (act === 'zin' ? 1.15 : 1 / 1.15)));
+      s.tu = false; save(current); mark(current); drawBig(); return;
+    }
     if (act === 'logo-trai' || act === 'logo-phai') {
       setLogo(current, corner(act === 'logo-trai' ? 'trai' : 'phai', LS0, frame.clientWidth, frame.clientHeight));
       return;
@@ -370,10 +466,26 @@
     if (act === 'q-') s.q = (s.q + 3) % 4;
     else if (act === 'q+') s.q = (s.q + 1) % 4;
     else if (act === 'f') s.f = !s.f;
-    else if (act === 'reset') { var giu = s.l; current._st = blank(); s = current._st; s.l = giu; }  // giữ logo anh đã đặt
+    else if (act === 'reset') { var giu = s.l, lo = s.lo, m = s.m; current._st = blank(); s = current._st; s.l = giu; s.lo = lo; s.m = m; }  // giữ logo, màu anh đã đặt
     if (act === 'auto') { autoCenter(current); return; }
     if (act === 'q-' || act === 'q+' || act === 'f') { s.tu = false; if (current._img) analyse(current, current._img); }
     save(current); mark(current); drawBig();
+  });
+  [zIn, rIn].forEach(function (el) { el.addEventListener('pointerdown', function () { push(); }); el.addEventListener('keydown', function () { push(); }); });
+  Array.prototype.slice.call(form.querySelectorAll('[data-sa-m]')).forEach(function (el) {
+    el.addEventListener('pointerdown', function () { push(); });
+    el.addEventListener('keydown', function () { push(); });
+    el.addEventListener('input', function () {
+      if (!current) return;
+      var s = st(current); s.m = s.m || {}; s.m[el.dataset.saM] = parseInt(el.value, 10) || 0;
+      save(current); mark(current); drawBig();
+    });
+  });
+  form.addEventListener('click', function (event) {
+    var md = event.target.closest('[data-sa-mode]');
+    if (md) { setMode(mode === md.dataset.saMode && md.dataset.saMode !== 'chon' ? 'chon' : md.dataset.saMode); if (mode === 'cat') openPanel('cat'); return; }
+    var rb = event.target.closest('[data-sa-p]');
+    if (rb) { openPanel(rb.dataset.saP); setMode(rb.dataset.saP === 'cat' ? 'cat' : 'chon'); }
   });
   zIn.addEventListener('input', function () { if (!current) return; var s = st(current); s.z = zIn.value / 100; s.tu = false; save(current); mark(current); drawBig(); });
   rIn.addEventListener('input', function () { if (!current) return; var s = st(current); s.r = parseFloat(rIn.value) || 0; s.tu = false; save(current); mark(current); drawBig(); });
@@ -386,19 +498,37 @@
     }
     if (t.matches('[data-sa-chon]')) { drawMini(t.closest('[data-sa-card]')); count(); if (t.checked) pick(t.closest('[data-sa-card]')); return; }
     if (t.matches('[data-sa-logo-on]')) drawBig();
+    if (t.matches('[data-sa-lo]') && current) { push(); st(current).lo = t.checked; save(current); mark(current); drawBig(); }
   });
 
   // kéo để dời, lăn chuột / chụm 2 ngón để phóng to
   var ptr = {}, start = null;
+  var crop = null;
   frame.addEventListener('pointerdown', function (e) {
     if (!current) return;
     frame.setPointerCapture(e.pointerId);
+    if (mode === 'cat' && !Object.keys(ptr).length) {
+      var r0 = frame.getBoundingClientRect();
+      crop = { px: e.clientX, py: e.clientY, r: r0 };
+      cropBox.hidden = false; cropBox.style.left = (e.clientX - r0.left) + 'px'; cropBox.style.top = (e.clientY - r0.top) + 'px';
+      cropBox.style.width = '0px'; cropBox.style.height = '0px';
+      return;
+    }
+    if (!Object.keys(ptr).length) push();
     ptr[e.pointerId] = { x: e.clientX, y: e.clientY };
     var ids = Object.keys(ptr), s = st(current);
     start = { x: s.x, y: s.y, z: s.z, px: e.clientX, py: e.clientY, d: ids.length === 2 ? dist() : 0 };
   });
   function dist() { var v = Object.keys(ptr).map(function (k) { return ptr[k]; }); return Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y); }
   frame.addEventListener('pointermove', function (e) {
+    if (crop) {
+      var r = crop.r;
+      cropBox.style.left = (Math.max(r.left, Math.min(crop.px, e.clientX)) - r.left) + 'px';
+      cropBox.style.top = (Math.max(r.top, Math.min(crop.py, e.clientY)) - r.top) + 'px';
+      cropBox.style.width = (Math.min(r.right, Math.max(crop.px, e.clientX)) - Math.max(r.left, Math.min(crop.px, e.clientX))) + 'px';
+      cropBox.style.height = (Math.min(r.bottom, Math.max(crop.py, e.clientY)) - Math.max(r.top, Math.min(crop.py, e.clientY))) + 'px';
+      return;
+    }
     if (!current || !ptr[e.pointerId] || !start) return;
     ptr[e.pointerId] = { x: e.clientX, y: e.clientY };
     var s = st(current), ids = Object.keys(ptr);
@@ -411,22 +541,37 @@
     }
     s.tu = false; save(current); mark(current); drawBig();
   });
-  function up(e) { delete ptr[e.pointerId]; var s = current && st(current); start = s ? { x: s.x, y: s.y, z: s.z, px: e.clientX, py: e.clientY, d: 0 } : null; if (!Object.keys(ptr).length) start = null; }
+  function cropUp() {  // vùng khoanh (khung W×H) phóng lên cho vừa khung, tâm vùng về giữa khung
+    var W = frame.clientWidth, H = frame.clientHeight, w = cropBox.offsetWidth, h = cropBox.offsetHeight;
+    var cx = cropBox.offsetLeft + w / 2, cy = cropBox.offsetTop + h / 2;  // đọc trước khi ẩn (ẩn rồi offset về 0)
+    cropBox.hidden = true; crop = null;
+    if (!current || w < 12 || h < 12) return;
+    var s = st(current);
+    var k = Math.min(W / w, H / h, 4 / s.z);
+    push();
+    s.x = (W / 2 + s.x * W - cx) * k / W;
+    s.y = (H / 2 + s.y * H - cy) * k / H;
+    s.z = s.z * k; s.tu = false;
+    save(current); mark(current); setMode('chon'); drawBig();
+  }
+  function up(e) {
+    if (crop) { cropUp(); return; }
+    delete ptr[e.pointerId]; var s = current && st(current); start = s ? { x: s.x, y: s.y, z: s.z, px: e.clientX, py: e.clientY, d: 0 } : null; if (!Object.keys(ptr).length) start = null; }
   frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
+  var wheelT = 0;
   frame.addEventListener('wheel', function (e) {
     if (!current) return;
     e.preventDefault();
+    if (Date.now() - wheelT > 600) push();
+    wheelT = Date.now();
     var s = st(current);
     s.z = Math.max(0.2, Math.min(4, s.z * (e.deltaY < 0 ? 1.05 : 1 / 1.05)));
     s.tu = false; save(current); mark(current); drawBig();
   }, { passive: false });
   frame.addEventListener('keydown', function (e) {
     if (!current) return;
-    var s = st(current), step = e.shiftKey ? 0.05 : 0.01, used = true;
-    if (e.key === 'ArrowLeft') s.x -= step; else if (e.key === 'ArrowRight') s.x += step;
-    else if (e.key === 'ArrowUp') s.y -= step; else if (e.key === 'ArrowDown') s.y += step;
-    else used = false;
-    if (used) { e.preventDefault(); s.tu = false; save(current); mark(current); drawBig(); }
+    var s, step = e.shiftKey ? 0.05 : 0.01, used = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) >= 0;
+    if (used) { e.preventDefault(); push(); s = st(current); if (e.key === 'ArrowLeft') s.x -= step; else if (e.key === 'ArrowRight') s.x += step; else if (e.key === 'ArrowUp') s.y -= step; else s.y += step; s.tu = false; save(current); mark(current); drawBig(); }
   });
   window.addEventListener('resize', function () { drawBig(); cards().forEach(drawMini); });
   if (logoImg) logoImg.addEventListener('load', drawLogo);
@@ -455,6 +600,8 @@
 
   // ---- khởi đầu ----
   cards().forEach(function (c) { save(c); load(c, c.dataset.src, c.dataset.fallback); });
+  setMode('chon');
+  openPanel('logo');
   if (cards().length) pick(cards()[0]);
   count();
 })();
