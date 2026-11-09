@@ -906,6 +906,27 @@ def test_dat_khung_logo_keo_tha_doi_co(tmp_path):
     assert ngoai.getpixel((1195, 670))[2] > 200 and ngoai.getpixel((1195, 670))[0] < 80  # ép vào trong khung, sát góc
 
 
+def test_dat_khung_tat_logo_rieng_va_chinh_mau(tmp_path):
+    """TUẤN duyệt mẫu 09/11/2026 lần 4: tắt logo riêng một ảnh (lo = 0); Màu sắc sáng / tương phản / đậm màu như CSS."""
+    from dang_web import anh as anh_mod
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (100, 100), (0, 0, 255, 255)).save(logo)
+    im = Image.new("RGB", (600, 600), (100, 100, 100))
+    ImageDraw.Draw(im).rectangle((0, 0, 599, 40), fill=(255, 255, 255))  # dải trắng cho máy đo nền
+    assert anh_mod.chuan_bien({"lo": 0})["lo"] is False and "lo" not in anh_mod.chuan_bien({})
+    assert anh_mod.chuan_bien({"mb": 99, "mc": "x", "ms": -7})["mb"] == 50.0
+    co = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, {}, logo=logo, dinh_dang="jpg"))).convert("RGB")
+    khong = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, {"lo": 0}, logo=logo, dinh_dang="jpg"))).convert("RGB")
+    assert co.getpixel((560, 560))[2] > 200 and khong.getpixel((560, 560))[2] < 130  # tắt logo: góc là ảnh
+    sang = anh_mod.chuan_bien({"mb": 20})
+    assert abs(anh_mod.chinh_mau(Image.new("RGB", (4, 4), (100, 100, 100)), sang).getpixel((0, 0))[0] - 120) <= 1
+    tp = anh_mod.chinh_mau(Image.new("RGB", (4, 4), (200, 200, 200)), anh_mod.chuan_bien({"mc": 50})).getpixel((0, 0))[0]
+    assert abs(tp - round((200 - 127.5) * 1.5 + 127.5)) <= 1
+    xam = anh_mod.chinh_mau(Image.new("RGB", (4, 4), (200, 50, 50)), anh_mod.chuan_bien({"ms": -50})).getpixel((0, 0))
+    assert xam[0] < 200 and xam[1] > 50  # bớt đậm màu: về gần xám
+
+
 def test_xoa_anh_cu_giu_anh_con_dung_o_cho_khac(goc):
     wp = _wp_co_hang()
     wp.tat_ca[1]["images"] = [{"id": 7, "src": "https://thanhduc.vn/wp-content/uploads/chung.jpg"}]

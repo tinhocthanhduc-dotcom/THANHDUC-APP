@@ -278,7 +278,25 @@ def chuan_bien(b: dict | None) -> dict:
     # ls = cạnh ô logo theo tỷ lệ cạnh ngắn của khung. Không có thì logo ở góc như cũ (logo_goc của việc).
     if all(k in b for k in ("lx", "ly", "ls")):
         out.update(lx=so("lx", 0.5, 0.0, 1.0), ly=so("ly", 0.5, 0.0, 1.0), ls=so("ls", TY_LE_LOGO, LOGO_MIN, LOGO_MAX))
+    # TUẤN duyệt mẫu 09/11/2026 lần 4: tắt logo riêng ảnh này (lo = 0), màu sắc: mb sáng, mc tương phản, ms đậm màu (-50..50).
+    if "lo" in b:
+        out["lo"] = bool(b.get("lo"))
+    for k in ("mb", "mc", "ms"):
+        if k in b:
+            out[k] = so(k, 0.0, -50.0, 50.0)
     return out
+
+
+def chinh_mau(im: Image.Image, b: dict) -> Image.Image:
+    """Sáng, tương phản, đậm màu giống CSS brightness() contrast() saturate() trên màn Sửa ảnh (đúng thứ tự đó)."""
+    sang, tp, dam = (1 + b.get(k, 0.0) / 100 for k in ("mb", "mc", "ms"))
+    if sang != 1:
+        im = im.point(lambda v: max(0, min(255, round(v * sang))))
+    if tp != 1:
+        im = im.point(lambda v: max(0, min(255, round((v - 127.5) * tp + 127.5))))
+    if dam != 1:
+        im = ImageEnhance.Color(im).enhance(dam)
+    return im
 
 
 def _mo_rgb(nguon: Path | bytes | Image.Image) -> Image.Image:
@@ -340,6 +358,7 @@ def dat_khung(nguon: Path | bytes | Image.Image, W: int, H: int, bien: dict | No
     nen = mau_nen(im)
     if b["tu"]:
         b.update(tu_can_giua(im.width, im.height, vung_san_pham(im, nen), W, H), r=0.0)
+    im = chinh_mau(im, b)
     s = min(W / im.width, H / im.height) * b["z"]
     nw, nh = max(1, round(im.width * s)), max(1, round(im.height * s))
     lop = im.resize((nw, nh), Image.Resampling.LANCZOS).convert("RGBA")
@@ -348,6 +367,8 @@ def dat_khung(nguon: Path | bytes | Image.Image, W: int, H: int, bien: dict | No
     khung = Image.new("RGB", (W, H), nen)
     cx, cy = W / 2 + b["x"] * W, H / 2 + b["y"] * H
     khung.paste(lop, (round(cx - lop.width / 2), round(cy - lop.height / 2)), lop)
+    if b.get("lo") is False:
+        logo = None  # anh tắt logo riêng ảnh này (ảnh đã có logo sẵn)
     if logo and Path(logo).exists():
         tu_dat = "ls" in b
         rong = max(24 if tu_dat else 48, int(min(W, H) * (b["ls"] if tu_dat else ty_le_logo)))
