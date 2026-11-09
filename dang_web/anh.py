@@ -7,7 +7,7 @@ import re
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 DUOI_ANH = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 LOGO_MAC_DINH = Path(__file__).with_name("logo-thanh-duc.png")
@@ -284,7 +284,82 @@ def chuan_bien(b: dict | None) -> dict:
     for k in ("mb", "mc", "ms"):
         if k in b:
             out[k] = so(k, 0.0, -50.0, 50.0)
+    # Đợt B: chữ (t), vết tẩy (e, màu ec), ẩn lớp chữ (hc) / lớp tẩy (he).
+    if isinstance(b.get("t"), list):
+        ds = []
+        for t in b["t"][:TOI_DA_CHU]:
+            if not isinstance(t, dict) or not str(t.get("t", "")).strip():
+                continue
+            ds.append({"t": str(t["t"])[:120], "x": _so(t.get("x"), 0.5, 0.0, 1.0), "y": _so(t.get("y"), 0.5, 0.0, 1.0),
+                       "s": _so(t.get("s"), 0.08, 0.03, 0.2), "c": _mau(t.get("c"), "#0b2a6f"), "bg": bool(t.get("bg"))})
+        if ds:
+            out["t"] = ds
+    if isinstance(b.get("e"), list):
+        vet = [[_so(d[0], 0, 0.0, 1.0), _so(d[1], 0, 0.0, 1.0), _so(d[2], 0.02, 0.005, 0.1)]
+               for d in b["e"][:TOI_DA_VET] if isinstance(d, (list, tuple)) and len(d) == 3]
+        if vet:
+            out["e"] = vet
+            out["ec"] = _mau(b.get("ec"), "#ffffff")
+    for k in ("hc", "he"):
+        if b.get(k):
+            out[k] = True
     return out
+
+
+TOI_DA_CHU, TOI_DA_VET = 10, 800
+FONT_CHU = Path(__file__).with_name("font") / "BeVietnamPro-ExtraBold.ttf"
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _so(v, mac: float, lo: float, hi: float) -> float:
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return mac
+    return mac if v != v else max(lo, min(hi, v))
+
+
+def _mau(v, mac: str) -> str:
+    return v.lower() if isinstance(v, str) and _HEX.match(v) else mac
+
+
+def ve_tay(khung: Image.Image, b: dict) -> Image.Image:
+    """Vết tẩy: chấm tròn màu nền (ec) phủ lên ảnh, tọa độ theo tỷ lệ khung; bán kính theo tỷ lệ chiều rộng."""
+    if not b.get("e") or b.get("he"):
+        return khung
+    W, H = khung.size
+    ve = ImageDraw.Draw(khung)
+    for x, y, r in b["e"]:
+        rr = r * W
+        ve.ellipse((x * W - rr, y * H - rr, x * W + rr, y * H + rr), fill=b.get("ec", "#ffffff"))
+    return khung
+
+
+def ve_chu(khung: Image.Image, b: dict) -> Image.Image:
+    """Chữ trên ảnh như màn Sửa ảnh: Be Vietnam Pro ExtraBold, cỡ s × rộng khung, dòng cao 1,1 em, căn giữa quanh (x, y);
+    có nền thì ô chữ đệm 0,1 em trên dưới, 0,3 em hai bên, bo 0,2 em (nền xanh navy cho chữ trắng, nền trắng cho màu khác)."""
+    if not b.get("t") or b.get("hc"):
+        return khung
+    W, H = khung.size
+    ve = ImageDraw.Draw(khung)
+    for t in b["t"]:
+        co = max(8, round(t["s"] * W))
+        try:
+            f = ImageFont.truetype(str(FONT_CHU), co)
+        except OSError:
+            f = ImageFont.load_default(co)
+        dong = t["t"].split("\n")
+        cao_dong = 1.1 * co
+        rong = max(ve.textlength(d, font=f) for d in dong)
+        cx, cy = t["x"] * W, t["y"] * H
+        tren = cy - cao_dong * len(dong) / 2
+        if t["bg"]:
+            nen = "#0b2a6f" if t["c"] == "#ffffff" else "#ffffff"
+            ve.rounded_rectangle((cx - rong / 2 - 0.3 * co, tren - 0.1 * co, cx + rong / 2 + 0.3 * co,
+                                  tren + cao_dong * len(dong) + 0.1 * co), radius=0.2 * co, fill=nen)
+        for i, d in enumerate(dong):
+            ve.text((cx, tren + (i + 0.5) * cao_dong), d, font=f, fill=t["c"], anchor="mm")
+    return khung
 
 
 def chinh_mau(im: Image.Image, b: dict) -> Image.Image:
@@ -367,6 +442,7 @@ def dat_khung(nguon: Path | bytes | Image.Image, W: int, H: int, bien: dict | No
     khung = Image.new("RGB", (W, H), nen)
     cx, cy = W / 2 + b["x"] * W, H / 2 + b["y"] * H
     khung.paste(lop, (round(cx - lop.width / 2), round(cy - lop.height / 2)), lop)
+    khung = ve_chu(ve_tay(khung, b), b)  # thứ tự lớp như màn Sửa ảnh: ảnh → vết tẩy → chữ → logo
     if b.get("lo") is False:
         logo = None  # anh tắt logo riêng ảnh này (ảnh đã có logo sẵn)
     if logo and Path(logo).exists():

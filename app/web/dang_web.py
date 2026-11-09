@@ -680,6 +680,16 @@ def logo_png(user: User = Depends(web_user)):
     return FileResponse(LOGO_MAC_DINH, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
 
+@router.get("/dang-web/font-chu.ttf")
+def font_chu(user: User = Depends(web_user)):
+    """Font chữ trên ảnh (Be Vietnam Pro ExtraBold): màn Sửa ảnh xem trước đúng font máy dùng khi vẽ."""
+    from dang_web.anh import FONT_CHU
+
+    if not FONT_CHU.exists():
+        raise BusinessError("NOT_FOUND", "Chưa có font.", status=404)
+    return FileResponse(FONT_CHU, media_type="font/ttf", headers={"Cache-Control": "private, max-age=604800"})
+
+
 def _bien(form, key: str) -> dict:
     import json
 

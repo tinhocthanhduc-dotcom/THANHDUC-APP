@@ -927,6 +927,32 @@ def test_dat_khung_tat_logo_rieng_va_chinh_mau(tmp_path):
     assert xam[0] < 200 and xam[1] > 50  # bớt đậm màu: về gần xám
 
 
+def test_dat_khung_chu_vet_tay_va_an_lop():
+    """Đợt B (TUẤN duyệt mẫu 09/11/2026): chữ Be Vietnam Pro đặt đúng chỗ, vết tẩy phủ màu nền, ẩn lớp thì không vẽ."""
+    from dang_web import anh as anh_mod
+
+    im = Image.new("RGB", (600, 600), (255, 255, 255))
+    ImageDraw.Draw(im).rectangle((0, 500, 599, 599), fill=(0, 0, 0))  # dải đen dưới cùng (chữ web cũ)
+    b = {"t": [{"t": "CHÍNH HÃNG", "x": 0.5, "y": 0.2, "s": 0.1, "c": "#d71920", "bg": 1}],
+         "e": [[0.5, 0.92, 0.1]], "ec": "#ffffff"}
+    cb = anh_mod.chuan_bien(b)
+    assert cb["t"][0]["c"] == "#d71920" and cb["e"] == [[0.5, 0.92, 0.1]] and cb["ec"] == "#ffffff"
+    assert anh_mod.chuan_bien({"t": [{"t": "x", "c": "red;"}], "e": [[1, 2]], "ec": "url(x)"})["t"][0]["c"] == "#0b2a6f"
+    assert "e" not in anh_mod.chuan_bien({"e": [[1, 2]]}) and len(anh_mod.chuan_bien({"t": [{"t": "a"}] * 30})["t"]) == anh_mod.TOI_DA_CHU
+    ra = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, b, dinh_dang="png"))).convert("RGB")
+    assert ra.getpixel((300, 552)) == (255, 255, 255)  # vết tẩy phủ dải đen
+    vung = ra.crop((150, 80, 450, 160))
+    assert any(r > 180 and g < 80 for r, g, _ in vung.getdata())  # có chữ đỏ quanh y = 20 %
+    an = Image.open(io.BytesIO(anh_mod.dat_khung(im, 600, 600, dict(b, hc=1, he=1), dinh_dang="png"))).convert("RGB")
+    assert an.getpixel((300, 552)) == (0, 0, 0) and not any(r > 180 and g < 80 for r, g, _ in an.crop((150, 80, 450, 160)).getdata())
+
+
+def test_font_chu_cho_man_sua_anh(client, web_login):
+    web_login("ban.hang", "sales")
+    r = client.get("/dang-web/font-chu.ttf")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("font/") and len(r.content) > 10000
+
+
 def test_xoa_anh_cu_giu_anh_con_dung_o_cho_khac(goc):
     wp = _wp_co_hang()
     wp.tat_ca[1]["images"] = [{"id": 7, "src": "https://thanhduc.vn/wp-content/uploads/chung.jpg"}]

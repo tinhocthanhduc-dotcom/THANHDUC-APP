@@ -3576,9 +3576,26 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .sa-frame.sa-m-cat .sa-logo { pointer-events: none; }
 .sa-crop { position: absolute; border: 2px dashed #ec4899; background: rgba(236, 72, 153, .08); pointer-events: none; z-index: 4; }
 .sa-pn-in { display: grid; gap: 8px; }
+@font-face { font-family: "TD Chu Anh"; src: url("/dang-web/font-chu.ttf") format("truetype"); font-weight: 800; font-display: swap; }
+.sa-er { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.sa-txts { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.sa-tx { position: absolute; transform: translate(-50%, -50%); font-family: "TD Chu Anh", system-ui, sans-serif; font-weight: 800; line-height: 1.1; white-space: pre; text-align: center; padding: .1em .3em; border-radius: .2em; pointer-events: auto; cursor: move; touch-action: none; user-select: none; }
+.sa-tx.sa-sel { outline: 1.5px dashed var(--info-solid); outline-offset: 2px; }
+.sa-frame.sa-m-tay .sa-tx, .sa-frame.sa-m-cat .sa-tx, .sa-frame.sa-m-xoa .sa-tx, .sa-frame.sa-m-xoa .sa-logo { pointer-events: none; }
+.sa-frame.sa-m-xoa { cursor: crosshair; }
+.sa-logo { z-index: 3; }
+.sa-c { width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid var(--line); cursor: pointer; }
+.sa-c.sa-on { outline: 2px solid var(--info-solid); outline-offset: 2px; }
+.sa-sw { align-items: center; }
+.sa-logo-box textarea { font: inherit; font-size: 16px; width: 100%; box-sizing: border-box; resize: vertical; }
+.sa-lyr { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.sa-lyr li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.sa-lyr li > span { flex: 1; min-width: 0; }
+.sa-lyr li.sa-an > span { opacity: .45; text-decoration: line-through; }
 @media (max-width: 640px) {
   .sa-work { grid-template-columns: minmax(0, 1fr); }
-  .sa-rail { grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); }
+  .sa-rail { grid-auto-flow: column; grid-auto-columns: minmax(52px, 1fr); overflow-x: auto; }
+  .sa-rb { font-size: .68rem; padding: 6px 1px; }
   .sa-rail > b { display: none; }
 }
 .sa-logo-box { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--info-solid); border-radius: 10px; background: var(--info-bg, rgba(37, 99, 235, .06)); }
