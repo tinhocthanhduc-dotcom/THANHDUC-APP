@@ -23,6 +23,9 @@
   var lsOut = form.querySelector('[data-sa-lsv]'), lPos = form.querySelector('[data-sa-lpos]');
   var gV = form.querySelector('[data-sa-gv]'), gH = form.querySelector('[data-sa-gh]');
   var loIn = form.querySelector('[data-sa-lo]'), loOff = form.querySelector('[data-sa-lo-off]'), loAll = form.querySelector('[data-sa-lo-all]');
+  var erCv = form.querySelector('[data-sa-er]'), txBox = form.querySelector('[data-sa-txts]'), lyr = form.querySelector('[data-sa-lyr]');
+  var ttIn = form.querySelector('[data-sa-tt]'), tsIn = form.querySelector('[data-sa-ts]'), tbgIn = form.querySelector('[data-sa-tbg]'), ebIn = form.querySelector('[data-sa-eb]');
+  var selT = -1, tMau = '#0b2a6f';
   var cropBox = form.querySelector('[data-sa-crop]'), modeHint = form.querySelector('[data-sa-mode-hint]');
   var zIn = form.querySelector('[data-sa-z]'), rIn = form.querySelector('[data-sa-r]');
   var zOut = form.querySelector('[data-sa-zv]'), rOut = form.querySelector('[data-sa-rv]');
@@ -30,7 +33,7 @@
   var filesInput = form.querySelector('[data-sa-files]');
   var current = null, newCount = 0;
 
-  function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false, l: null, lo: true, m: { mb: 0, mc: 0, ms: 0 } }; }
+  function blank() { return { z: 1, r: 0, x: 0, y: 0, q: 0, f: false, tu: false, l: null, lo: true, m: { mb: 0, mc: 0, ms: 0 }, t: [], e: [], ec: null, hc: false, he: false }; }
   function cards() { return Array.prototype.slice.call(form.querySelectorAll('[data-sa-list] [data-sa-card]')); }
   function setVai(card, vai) {
     var v = card.querySelector('[data-sa-vai]');
@@ -58,6 +61,10 @@
     if (s.l) { out.lx = +s.l.x.toFixed(4); out.ly = +s.l.y.toFixed(4); out.ls = +s.l.s.toFixed(4); }
     if (s.lo === false) out.lo = 0;
     ['mb', 'mc', 'ms'].forEach(function (k) { if (s.m && s.m[k]) out[k] = s.m[k]; });
+    if (s.t && s.t.length) out.t = s.t.map(function (t) { return { t: t.t, x: +t.x.toFixed(4), y: +t.y.toFixed(4), s: +t.s.toFixed(4), c: t.c, bg: t.bg ? 1 : 0 }; });
+    if (s.e && s.e.length) { out.e = s.e.map(function (d) { return [+d[0].toFixed(4), +d[1].toFixed(4), +d[2].toFixed(4)]; }); out.ec = s.ec || '#ffffff'; }
+    if (s.hc) out.hc = 1;
+    if (s.he) out.he = 1;
     card.querySelector('[data-sa-bien]').value = JSON.stringify(out);
   }
   function mark(card) {  // đụng vào ảnh nào là tick Sửa ảnh đó
@@ -102,6 +109,7 @@
     rIn.value = s.r; rOut.textContent = (s.r > 0 ? '+' : '') + s.r + '°';
     drawLogo();
     drawMau();
+    drawLop();
     drawUndo();
     drawMini(current);
   }
@@ -178,11 +186,12 @@
     if (r) r.disabled = !current || !(current._f || []).length;
   }
   // ---- chế độ chuột: Chọn (kéo logo hoặc ảnh), Kéo ảnh (logo đứng yên), Cắt (khoanh vùng) ----
-  var mode = 'chon', MODES = { chon: ['Chọn', 'kéo logo để dời logo, kéo chỗ khác để dời ảnh'], tay: ['Kéo ảnh', 'kéo ở đâu cũng dời ảnh, logo đứng yên'], cat: ['Cắt', 'khoanh vùng cần lấy, ảnh tự phóng cho vùng đó vừa khung'] };
+  var mode = 'chon', MODES = { chon: ['Chọn', 'kéo logo để dời logo, kéo chỗ khác để dời ảnh'], tay: ['Kéo ảnh', 'kéo ở đâu cũng dời ảnh, logo đứng yên'], cat: ['Cắt', 'khoanh vùng cần lấy, ảnh tự phóng cho vùng đó vừa khung'], xoa: ['Tẩy', 'tô lên chỗ cần xóa, chỗ tô được phủ màu nền'] };
   function setMode(m) {
     mode = MODES[m] ? m : 'chon';
     frame.classList.toggle('sa-m-tay', mode === 'tay');
     frame.classList.toggle('sa-m-cat', mode === 'cat');
+    frame.classList.toggle('sa-m-xoa', mode === 'xoa');
     Array.prototype.slice.call(form.querySelectorAll('.sa-tbb[data-sa-mode]')).forEach(function (b) { b.classList.toggle('sa-on', b.dataset.saMode === mode); b.setAttribute('aria-pressed', b.dataset.saMode === mode ? 'true' : 'false'); });
     if (modeHint) modeHint.innerHTML = 'Đang dùng: <b>' + MODES[mode][0] + '</b> · ' + MODES[mode][1];
   }
@@ -212,6 +221,98 @@
       mb = mean < 0.58 ? Math.max(0, Math.min(40, Math.round((0.58 / Math.max(mean, 0.05) - 1) * 100))) : 0;
     } catch (err) { mb = 10; }
     st(card).m = { mb: mb, mc: 8, ms: 5 };
+  }
+  // ---- Đợt B: chữ, vết tẩy, layer (cùng công thức ve_tay / ve_chu trên máy chủ) ----
+  function hexOf(bg) {
+    var m = /rgb\((\d+),\s*(\d+),\s*(\d+)/.exec(bg || '');
+    if (!m) return '#ffffff';
+    return '#' + [m[1], m[2], m[3]].map(function (v) { return ('0' + (+v).toString(16)).slice(-2); }).join('');
+  }
+  function esc2(t) { return String(t).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function drawLop() {
+    if (!current) return;
+    var s = st(current), W = frame.clientWidth, H = frame.clientHeight;
+    if (erCv && W && H) {
+      erCv.width = W; erCv.height = H;
+      var g = erCv.getContext('2d');
+      g.clearRect(0, 0, W, H);
+      if (!s.he) {
+        g.fillStyle = s.ec || hexOf(current._bg);
+        (s.e || []).forEach(function (d) { g.beginPath(); g.arc(d[0] * W, d[1] * H, d[2] * W, 0, Math.PI * 2); g.fill(); });
+      }
+    }
+    if (txBox) {
+      txBox.hidden = !!s.hc;
+      txBox.innerHTML = (s.t || []).map(function (t, i) {
+        var nen = t.bg ? (t.c === '#ffffff' ? '#0b2a6f' : '#ffffff') : 'transparent';
+        return '<div class="sa-tx' + (i === selT ? ' sa-sel' : '') + '" data-sa-tx="' + i + '" style="left:' + (t.x * 100) + '%;top:' + (t.y * 100) + '%;font-size:' + (t.s * W) + 'px;color:' + t.c + ';background:' + nen + '">' + esc2(t.t) + '</div>';
+      }).join('');
+    }
+    var cur = (s.t || [])[selT];
+    var xoaBtn = form.querySelector('[data-sa-act="chu-xoa"]');
+    if (xoaBtn) xoaBtn.disabled = !cur;
+    if (cur && document.activeElement !== ttIn) { ttIn.value = cur.t; }
+    if (cur) { tsIn.value = Math.round(cur.s * 100); tbgIn.checked = !!cur.bg; tMau = cur.c; }
+    form.querySelector('[data-sa-tsv]').textContent = tsIn.value + '%';
+    Array.prototype.slice.call(form.querySelectorAll('[data-sa-c]')).forEach(function (b) { b.classList.toggle('sa-on', b.dataset.saC === tMau); });
+    if (lyr) {
+      var dong = [];
+      if ((s.t || []).length) dong.push(['hc', 'Chữ (' + s.t.length + ')', s.hc]);
+      dong.push(['lo', 'Logo Thành Đức', s.lo === false]);
+      if ((s.e || []).length) dong.push(['he', 'Vết tẩy', s.he]);
+      lyr.innerHTML = dong.map(function (d) {
+        return '<li class="' + (d[2] ? 'sa-an' : '') + '"><span>' + d[1] + '</span><button type="button" class="btn btn-ghost dw-sbtn" data-sa-an="' + d[0] + '">' + (d[2] ? 'Hiện' : 'Ẩn') + '</button></li>';
+      }).join('') + '<li><span>Ảnh gốc</span></li>';
+    }
+  }
+  function doiChu(fn) {  // sửa chữ đang chọn
+    if (!current) return;
+    var t = (st(current).t || [])[selT];
+    if (!t) return;
+    fn(t); save(current); mark(current); drawLop();
+  }
+  var tDrag = null;
+  if (txBox) {
+    txBox.addEventListener('pointerdown', function (e) {
+      var el = e.target.closest('[data-sa-tx]');
+      if (!el || !current || mode !== 'chon') return;
+      e.stopPropagation(); e.preventDefault();
+      push();
+      selT = +el.dataset.saTx;
+      var t = st(current).t[selT];
+      tDrag = { px: e.clientX, py: e.clientY, x: t.x, y: t.y, id: e.pointerId };
+      openPanel('chu'); drawLop();
+      var el2 = txBox.querySelector('[data-sa-tx="' + selT + '"]');
+      if (el2) el2.setPointerCapture(e.pointerId);
+    });
+    txBox.addEventListener('pointermove', function (e) {
+      if (!tDrag || !current) return;
+      var t = st(current).t[selT];
+      t.x = Math.min(1, Math.max(0, tDrag.x + (e.clientX - tDrag.px) / frame.clientWidth));
+      t.y = Math.min(1, Math.max(0, tDrag.y + (e.clientY - tDrag.py) / frame.clientHeight));
+      var el = txBox.querySelector('[data-sa-tx="' + selT + '"]');
+      if (el) { el.style.left = (t.x * 100) + '%'; el.style.top = (t.y * 100) + '%'; }
+    });
+    var tUp = function () { if (tDrag && current) { save(current); mark(current); } tDrag = null; };
+    txBox.addEventListener('pointerup', tUp); txBox.addEventListener('pointercancel', tUp);
+  }
+  if (ttIn) {
+    ttIn.addEventListener('focus', function () { push(); });
+    ttIn.addEventListener('input', function () { doiChu(function (t) { t.t = ttIn.value.slice(0, 120) || ' '; }); });
+  }
+  if (tsIn) {
+    tsIn.addEventListener('pointerdown', function () { push(); });
+    tsIn.addEventListener('input', function () { form.querySelector('[data-sa-tsv]').textContent = tsIn.value + '%'; doiChu(function (t) { t.s = tsIn.value / 100; }); });
+  }
+  if (ebIn) ebIn.addEventListener('input', function () { form.querySelector('[data-sa-ebv]').textContent = ebIn.value + '%'; });
+  function toDiem(e) {  // một chấm tẩy theo tỷ lệ khung; bỏ chấm quá sát chấm trước cho gọn
+    var r = frame.getBoundingClientRect(), s = st(current), rr = (ebIn ? ebIn.value : 4) / 200;
+    var x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height, last = s.e[s.e.length - 1];
+    if (last && Math.hypot((last[0] - x) * r.width, (last[1] - y) * r.height) < rr * r.width * 0.5) return;
+    if (s.e.length >= 800) { if (window.tdToast) window.tdToast('Vết tẩy đã nhiều, bấm Xóa hết vết tẩy rồi tô lại gọn hơn', 'warn'); return; }
+    s.e.push([Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y)), rr]);
+    if (!s.ec) s.ec = hexOf(current._bg);
+    drawLop();
   }
   var lDrag = null;
   logo.addEventListener('pointerdown', function (e) {
@@ -331,6 +432,7 @@
   function pick(card) {
     if (current) current.classList.remove('sa-current');
     current = card;
+    selT = -1;
     card.classList.add('sa-current');
     editor.hidden = false;
     if (note) note.hidden = true;
@@ -440,6 +542,15 @@
       return;
     }
     if (act !== 'logo-copy') push();
+    if (act === 'chu-them') {
+      s.t = s.t || [];
+      if (s.t.length >= 10) { if (window.tdToast) window.tdToast('Tối đa 10 chữ mỗi ảnh', 'warn'); return; }
+      s.t.push({ t: (ttIn.value || 'Chữ').slice(0, 120), x: 0.5, y: 0.15, s: tsIn.value / 100, c: tMau, bg: tbgIn.checked });
+      selT = s.t.length - 1; s.hc = false;
+      save(current); mark(current); drawLop(); return;
+    }
+    if (act === 'chu-xoa') { if (s.t && s.t[selT]) { s.t.splice(selT, 1); selT = -1; save(current); mark(current); drawLop(); } return; }
+    if (act === 'tay-xoa-het') { s.e = []; s.ec = null; save(current); mark(current); drawLop(); return; }
     if (act === 'mau-tu' || act === 'mau-0') {
       if (act === 'mau-tu') tuCanMau(current); else s.m = { mb: 0, mc: 0, ms: 0 };
       save(current); mark(current); drawBig(); return;
@@ -466,7 +577,7 @@
     if (act === 'q-') s.q = (s.q + 3) % 4;
     else if (act === 'q+') s.q = (s.q + 1) % 4;
     else if (act === 'f') s.f = !s.f;
-    else if (act === 'reset') { var giu = s.l, lo = s.lo, m = s.m; current._st = blank(); s = current._st; s.l = giu; s.lo = lo; s.m = m; }  // giữ logo, màu anh đã đặt
+    else if (act === 'reset') { var cu = s; current._st = blank(); s = current._st; ['l', 'lo', 'm', 't', 'e', 'ec', 'hc', 'he'].forEach(function (k) { s[k] = cu[k]; }); }  // chỉ đặt lại khung ảnh; giữ logo, màu, chữ, vết tẩy
     if (act === 'auto') { autoCenter(current); return; }
     if (act === 'q-' || act === 'q+' || act === 'f') { s.tu = false; if (current._img) analyse(current, current._img); }
     save(current); mark(current); drawBig();
@@ -484,8 +595,17 @@
   form.addEventListener('click', function (event) {
     var md = event.target.closest('[data-sa-mode]');
     if (md) { setMode(mode === md.dataset.saMode && md.dataset.saMode !== 'chon' ? 'chon' : md.dataset.saMode); if (mode === 'cat') openPanel('cat'); return; }
+    var sw = event.target.closest('[data-sa-c]');
+    if (sw) { tMau = sw.dataset.saC; if (current && (st(current).t || [])[selT]) push(); doiChu(function (t) { t.c = tMau; }); drawLop(); return; }
+    var an = event.target.closest('[data-sa-an]');
+    if (an && current) {
+      push();
+      var s2 = st(current), k = an.dataset.saAn;
+      if (k === 'lo') s2.lo = s2.lo === false; else s2[k] = !s2[k];
+      save(current); mark(current); drawBig(); return;
+    }
     var rb = event.target.closest('[data-sa-p]');
-    if (rb) { openPanel(rb.dataset.saP); setMode(rb.dataset.saP === 'cat' ? 'cat' : 'chon'); }
+    if (rb) { openPanel(rb.dataset.saP); setMode(rb.dataset.saP === 'cat' ? 'cat' : rb.dataset.saP === 'xoa' ? 'xoa' : 'chon'); }
   });
   zIn.addEventListener('input', function () { if (!current) return; var s = st(current); s.z = zIn.value / 100; s.tu = false; save(current); mark(current); drawBig(); });
   rIn.addEventListener('input', function () { if (!current) return; var s = st(current); s.r = parseFloat(rIn.value) || 0; s.tu = false; save(current); mark(current); drawBig(); });
@@ -498,15 +618,19 @@
     }
     if (t.matches('[data-sa-chon]')) { drawMini(t.closest('[data-sa-card]')); count(); if (t.checked) pick(t.closest('[data-sa-card]')); return; }
     if (t.matches('[data-sa-logo-on]')) drawBig();
+    if (t.matches('[data-sa-tbg]') && current) { push(); doiChu(function (x) { x.bg = t.checked; }); return; }
     if (t.matches('[data-sa-lo]') && current) { push(); st(current).lo = t.checked; save(current); mark(current); drawBig(); }
   });
 
   // kéo để dời, lăn chuột / chụm 2 ngón để phóng to
   var ptr = {}, start = null;
-  var crop = null;
+  var crop = null, xoaDang = false;
   frame.addEventListener('pointerdown', function (e) {
     if (!current) return;
     frame.setPointerCapture(e.pointerId);
+    if (mode === 'xoa' && !Object.keys(ptr).length) {
+      push(); st(current).e = st(current).e || []; xoaDang = true; toDiem(e); return;
+    }
     if (mode === 'cat' && !Object.keys(ptr).length) {
       var r0 = frame.getBoundingClientRect();
       crop = { px: e.clientX, py: e.clientY, r: r0 };
@@ -521,6 +645,7 @@
   });
   function dist() { var v = Object.keys(ptr).map(function (k) { return ptr[k]; }); return Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y); }
   frame.addEventListener('pointermove', function (e) {
+    if (xoaDang) { toDiem(e); return; }
     if (crop) {
       var r = crop.r;
       cropBox.style.left = (Math.max(r.left, Math.min(crop.px, e.clientX)) - r.left) + 'px';
@@ -555,6 +680,7 @@
     save(current); mark(current); setMode('chon'); drawBig();
   }
   function up(e) {
+    if (xoaDang) { xoaDang = false; if (current) { save(current); mark(current); } return; }
     if (crop) { cropUp(); return; }
     delete ptr[e.pointerId]; var s = current && st(current); start = s ? { x: s.x, y: s.y, z: s.z, px: e.clientX, py: e.clientY, d: 0 } : null; if (!Object.keys(ptr).length) start = null; }
   frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
