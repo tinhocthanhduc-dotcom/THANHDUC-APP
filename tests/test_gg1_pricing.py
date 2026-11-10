@@ -230,8 +230,9 @@ def test_print_quote_and_partial_shipments_show_correct_discount(client,db,stock
     row=make(db,p,qty=3,price=360000,goods=True);orders.confirm(db,p['sales'],row.id,row.version)
     orders.deliver(db,p['warehouse'],row.id,row.version,[dict(order_line_no=1,qty=1)])
     gh=orders.deliveries(db,row.id)[0];html=client.get(f'/don-ban/{row.id}/giao/{gh.id}/in').text
-    assert 'Cộng tiền hàng (đã gồm VAT)' in html and '−33.333 đồng' in html and '326.667 đồng' in html
-    assert '360.000' in html  # Entered unit price remains available on print.
+    assert '360.000' not in html and 'Giảm giá' not in html  # 11/11/2026: phiếu giao không in giá.
+    html=client.get(f'/don-ban/{row.id}/xuat-kho/in').text  # Giá nhập + giảm giá cả đơn in trên Phiếu xuất kho.
+    assert 'Cộng tiền hàng (đã gồm VAT)' in html and 'Giảm giá' in html and '360.000' in html
 
 
 def test_liquidation_below_cost_cannot_hide_behind_vat_or_discount(db,stocked):
@@ -277,7 +278,7 @@ def test_many_tiny_deliveries_never_go_negative_and_reconcile(client,db,people):
     assert sum(orders.delivery_discount(db,row,g) for g in shipments)==2
     no_share=next(g for g in shipments if orders.delivery_discount(db,row,g)==0)
     service_login(client,p['sales']);html=client.get(f'/don-ban/{row.id}/giao/{no_share.id}/in').text
-    assert '<td class="l">Giảm giá</td><td class="v">0 đồng</td>' in html  # Form in: ô tổng khuôn A4, lần giao không chia giảm giá vẫn in 0.
+    assert 'Giảm giá' not in html and 'đồng' not in html  # 11/11/2026: phiếu giao không in tiền.
 
 
 @pytest.mark.parametrize('changes,code',[(dict(discount_amount='-1'),'BAD_DISCOUNT'),(dict(discount_amount='1.00'),'BAD_DISCOUNT'),(dict(price_includes_vat='2'),'BAD_PRICE_MODE'),(dict(discount_amount='1.080.001'),'DISCOUNT_TOO_LARGE')])

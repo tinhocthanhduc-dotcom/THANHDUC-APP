@@ -8,6 +8,9 @@ body{margin:0;font:12.5px/1.45 "Be Vietnam Pro",Arial,Helvetica,sans-serif;color
 .in-tools .ttl b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .in-tools .ttl span{font-size:12px;color:var(--in-mute)}
 .in-tools .print{min-height:44px;padding:0 16px;border:0;border-radius:12px;background:#1d4ed8;color:#fff;font:600 14px system-ui,sans-serif;cursor:pointer}
+.in-tools .in-ngay{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;white-space:nowrap}
+.in-tools .in-ngay input{min-height:44px;padding:0 8px;border:1px solid var(--in-line);border-radius:12px;font:16px system-ui,sans-serif;color:var(--in-ink);background:#fff}
+@media (max-width:560px){.in-tools{flex-wrap:wrap}.in-tools .ttl{flex-basis:calc(100% - 60px)}}
 .in-hint{max-width:210mm;margin:8px auto 0;padding:0 12px;font:12px system-ui,sans-serif;color:var(--in-mute)}
 .in-stage{padding:12px;overflow:hidden}
 .in-page{width:210mm;min-height:297mm;box-sizing:border-box;margin:0 auto;padding:10mm 12mm 9mm;background:#fff;box-shadow:0 2px 14px rgba(15,23,42,.18);display:flex;flex-direction:column;position:relative;transform-origin:top left}

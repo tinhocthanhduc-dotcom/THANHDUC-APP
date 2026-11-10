@@ -24,7 +24,7 @@
   {% if d.links %}<p class="qv-links"><span>Liên quan:</span>{% for j in d.links %}<a href="{{ j.href }}" data-qv-related>{{ j.no }}</a>{% endfor %}</p>{% endif %}
 </div>
 <footer class="qv-foot">
-  {% if d.print_url %}<a class="btn btn-ghost" href="{{ d.print_url }}" target="_blank" rel="noopener" data-no-quick>In</a>{% endif %}
+  {% if d.print_url %}<a class="btn btn-ghost" href="{{ d.print_url }}" target="_blank" rel="noopener" data-no-quick>{{ d.print_label or 'In' }}</a>{% endif %}
   <button type="button" class="btn btn-ghost" data-qv-close>Đóng</button>
   {% if d.confirm_url %}<a class="btn btn-ok" href="{{ d.confirm_url }}" data-no-quick>Xác nhận đã nhận tiền</a>{% endif %}
   {% if d.full_url %}<a class="btn btn-new" href="{{ d.full_url }}" data-no-quick data-qv-full>Mở đầy đủ ›</a>{% endif %}

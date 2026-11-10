@@ -574,6 +574,26 @@ def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=De
                   issued=gh.delivered_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m/%Y'))
 
 
+@router.get('/don-ban/{order_id}/xuat-kho/in')
+def print_stock_issue(request: Request,order_id: int,ngay: str='',user: User=Depends(order_user),session: Session=Depends(get_session)):
+    """Phiếu xuất kho bán hàng cho cả đơn (10/11/2026): chỉ in, không ghi sổ kho; Ngày xuất kho chọn trên thanh công cụ."""
+    from .lists import _today
+    order=svc.load(session,user,order_id)
+    try:
+        issued=date.fromisoformat(ngay) if ngay else _today()
+    except ValueError:
+        issued=_today()
+    rates=sorted({l.vat_rate for l in order.lines})
+    maker=session.get(User,order.created_by)
+    return render(request,'don_ban_xuat_kho_in.jinja',o=order,customer=session.get(Customer,order.customer_code),
+                  back=f'/don-ban/{order.id}',company=get_settings(),quantity=_quantity,words=money_words(order.total),
+                  gross=quotes.entered_line_total,entered_total=quotes.entered_total(order),issued=issued,
+                  number='PXK-'+re.sub(r'^DB-','',order.number),vat_label='Thuế GTGT'+(f' {rates[0]}%' if len(rates)==1 else ''),
+                  quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',maker=maker.full_name if maker else '',
+                  fulfillment=FULFILLMENTS.get(order.fulfillment,order.fulfillment),
+                  watermark={'NHAP':'BẢN NHÁP','DA_HUY':'ĐÃ HỦY'}.get(order.status,''))
+
+
 @router.get('/don-ban/giao/{delivery_id}')
 def delivery_order(delivery_id: int,user: User=Depends(order_user),session: Session=Depends(get_session)):
     gh=session.get(SalesDelivery,delivery_id)
