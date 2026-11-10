@@ -116,7 +116,7 @@ def print_pending(request: Request,order_id: int,user: User=Depends(web_user),se
     customer=session.get(Customer,order.customer_code)
     assignee=session.get(User,order.delivery_assignee_id) if order.delivery_assignee_id else None
     technician_view='technician' in user.roles and order.delivery_assignee_id==user.id and not has_role(user,'dispatcher','sales','warehouse','finance')
-    return render(request,'giao_don_in.jinja',o=order,customer=customer,lines=lines,subtotal=subtotal,vat_total=vat_total,total=subtotal+vat_total,
+    return render(request,'giao_don_in.jinja',o=order,customer=customer,lines=lines,total_qty=sum(l['qty'] for l in lines),subtotal=subtotal,vat_total=vat_total,total=subtotal+vat_total,
         balance=balance,effective_total=int(sales_orders.effective_total(order)),words=money_words(int(balance['available'])),quantity=_quantity,statuses=STATUSES,
         qr=vietqr.for_document(session,order.number,int(balance['available'])),
         company=get_settings(),today=attendance.today(),technician_view=technician_view,back=f'/giao-don/{order.id}'+('?return_to=tho' if technician_view else ''),

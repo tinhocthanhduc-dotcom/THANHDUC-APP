@@ -2180,9 +2180,11 @@ def test_b3_print_delivery_money_words_company_and_signatures(client,db,web_logi
     assert f'/don-ban/{order.id}/in-giao' in page.text
     r=client.get(f'/don-ban/{order.id}/in-giao')
     assert r.status_code==200
-    for expected in (order.number,'PHIẾU GIAO HÀNG','Hai trăm sáu mươi bốn nghìn năm trăm năm mươi đồng',
-                     'Người giao','Người nhận','58 Mã Lò','0313015734','0888 304 668','1,5'):
+    for expected in (order.number,'PHIẾU GIAO HÀNG','Người giao','Người nhận','58 Mã Lò','0313015734','0888 304 668','1,5'):
         assert expected in r.text
+    # 11/11/2026: phiếu giao không in giá; tiền + bằng chữ nằm ở Phiếu xuất kho bán hàng.
+    assert 'bằng chữ' not in r.text
+    assert 'Hai trăm sáu mươi bốn nghìn năm trăm năm mươi đồng' in client.get(f'/don-ban/{order.id}/xuat-kho/in').text
 
 
 def test_b3_money_inputs_use_text_and_touch_choices(client,db,web_login,b3_catalog):

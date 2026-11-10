@@ -152,9 +152,10 @@ def test_pending_delivery_print_for_technician_trip(client, db, setup):
     assert f'href="/giao-don/{o.id}/in"' in page
     html = client.get(f'/giao-don/{o.id}/in').text
     assert 'PHIẾU GIAO HÀNG' in html and o.number in html and 'chưa ghi nhận giao' in html and 'TD-0001' in html
-    # 4 cái × 200 đồng chưa VAT; chưa thu gì nên thu khi giao = cả đơn.
-    assert 'Tiền hàng chưa VAT' in html and '800 đồng' in html and 'Thu khi giao' in html and 'Đã thanh toán' in html
-    assert 'Tám trăm đồng' in html and html.count('<td><b>') == 4 and 'Khách hàng ký nhận' in html
+    # 11/11 (TUẤN): phiếu giao không in giá; chỉ số lượng (4 cái) + cột Thực nhận để khách ghi.
+    assert 'Tổng số lượng' in html and 'Thực nhận' in html and 'SL giao' in html
+    assert 'Đơn giá' not in html and 'Tiền hàng chưa VAT' not in html and 'đồng' not in html and 'in-qr' not in html
+    assert html.count('<td><b>') == 4 and 'Khách hàng ký nhận' in html
     assert 'ĐÃ HỦY' not in html and 'BẢN NHÁP' not in html
     assert f'href="/giao-don/{o.id}/in"' in client.get(f'/giao-don/{o.id}').text
     # Thợ được giao in được (về trang giao đơn của thợ); thợ khác không.
@@ -293,7 +294,7 @@ def test_pending_delivery_print_hides_zalo_draft_note(client, db, setup):
 
 
 # ---- 08/11 (TUẤN "tiền bằng chữ ở đó chưa hợp lý"): bằng chữ là dòng ngang dưới ô tổng, ghi rõ khoản ----
-def test_delivered_print_words_line_below_totals(client, db, people):
+def test_delivered_print_has_no_prices(client, db, people):
     from test_stock_reservations import stock, order
     from test_sales_deliveries import send
     p = people; stock(db, p, 10)
@@ -301,13 +302,13 @@ def test_delivered_print_words_line_below_totals(client, db, people):
     gh = send(db, p, o, 2)
     service_login(client, p['sales'])
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
-    assert '<b>Tổng lần giao bằng chữ:</b>' in html
-    assert html.index('TỔNG LẦN GIAO') < html.index('Tổng lần giao bằng chữ')
-    assert 'class="in-sum gon"' in html
+    # 11/11 (TUẤN): phiếu giao không in giá, không bằng chữ, không QR; tiền nằm ở Phiếu xuất kho.
+    assert 'bằng chữ' not in html and 'TỔNG LẦN GIAO' not in html and 'in-sum' not in html and 'Đơn giá' not in html
+    assert 'Tổng số lượng' in html and 'SL giao' in html
 
 
 # ---- 08/11 (TUẤN "dời ghi chú xuống dưới bằng chữ, 1 dòng"): ghi chú sau dòng bằng chữ ----
-def test_delivered_print_note_one_line_after_words(client, db, people):
+def test_delivered_print_note_one_line_after_table(client, db, people):
     from test_stock_reservations import stock, order
     from test_sales_deliveries import send
     p = people; stock(db, p, 10)
@@ -316,4 +317,29 @@ def test_delivered_print_note_one_line_after_words(client, db, people):
     gh = send(db, p, o, 2)
     service_login(client, p['sales'])
     html = client.get(f'/don-ban/{o.id}/giao/{gh.id}/in').text
-    assert html.index('Tổng lần giao bằng chữ') < html.index('<b>Ghi chú:</b> Gọi trước 15 phút')
+    assert html.index('Tổng số lượng') < html.index('<b>Ghi chú:</b> Gọi trước 15 phút')
+
+
+# ---- 10/11/2026 (TUẤN): nút In phiếu xuất kho bán hàng cho cả đơn, chọn Ngày xuất kho trên thanh công cụ ----
+def test_sales_stock_issue_print_whole_order_with_chosen_date(client, db, setup):
+    from app.models import StockDoc
+    p = setup
+    o = assigned(db, p)
+    o.note = 'Giao giờ hành chính'; db.commit()
+    docs = db.query(StockDoc).count()
+    service_login(client, p['sales'])
+    assert f'href="/don-ban/{o.id}/xuat-kho/in"' in client.get(f'/don-ban/{o.id}').text
+    quick = client.get('/xem-nhanh', params={'u': f'/don-ban/{o.id}'})
+    assert quick.status_code == 200 and f'/don-ban/{o.id}/xuat-kho/in' in quick.text and 'In phiếu xuất kho' in quick.text
+    html = client.get(f'/don-ban/{o.id}/xuat-kho/in?ngay=2026-11-11').text
+    assert 'PHIẾU XUẤT KHO BÁN HÀNG' in html and 'PXK-' + o.number.removeprefix('DB-') in html and o.number in html
+    assert 'Ngày 11 tháng 11 năm 2026' in html and 'value="2026-11-11"' in html and 'data-ngay-xuat-input' in html
+    assert 'Mã: TD-0001' in html and '800 đồng' in html and 'Tám trăm đồng' in html and 'Thuế GTGT' in html
+    assert 'Giao giờ hành chính' in html and html.count('<td><b>') == 4
+    assert 'Nhân viên bán hàng' in html and 'Thủ kho' in html and 'Nhân viên giao hàng' in html and 'Khách hàng ký nhận' in html
+    assert 'BẢN NHÁP' not in html and 'ĐÃ HỦY' not in html
+    # Ngày sai thì về hôm nay, không lỗi; chỉ là bản in, không sinh phiếu kho.
+    assert client.get(f'/don-ban/{o.id}/xuat-kho/in?ngay=abc').status_code == 200
+    assert db.query(StockDoc).count() == docs
+    service_login(client, p['other_tech'])
+    assert client.get(f'/don-ban/{o.id}/xuat-kho/in').status_code == 403

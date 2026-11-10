@@ -1,6 +1,5 @@
 {% extends "in_khung.jinja" %}
 {% import '_in.jinja' as f %}
-{% set basis = 'đã gồm VAT' if o.price_includes_vat else 'chưa VAT' %}
 {% set back_label = 'Về giao đơn' if technician_view else '' %}
 {% block title %}Phiếu giao hàng {{ o.number }}{% endblock %}
 {% block tools_sub %}{{ customer.name }} · bản mang theo khi giao · chưa ghi nhận giao{% endblock %}
@@ -14,16 +13,13 @@
 <div class="in-cards">{{ f.card('Giao đến', customer.name, [('Địa chỉ giao', o.delivery_address or customer.address), ('Mã số thuế', customer.tax_code)]) }}
 {{ f.card('Người nhận hàng', '', [('Người nhận', recipient or f.blank()), ('Điện thoại', customer|customer_phones(recipient) or f.blank()), (('Ghi chú', notes|join('\n')) if notes else ('Trạng thái đơn', statuses[o.status]))]) }}</div>
 <div class="in-strip"><span>Cách giao: <b>{{ fulfillment }}{% if o.fulfillment == 'THO_GIAO' %} · {{ assignee or f.blank() }}{% endif %}</b></span><span>Thanh toán: <b>{{ payment }}</b></span><span>Lần giao: <b>{{ delivery_no }}</b>{% if delivered_numbers %} (trước: {{ delivered_numbers }}){% endif %}</span>{% if quote_number %}<span>Theo báo giá: <b>{{ quote_number }}</b></span>{% endif %}</div>
-<table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:13mm"><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
-<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa / dịch vụ</th><th class="c">ĐVT</th><th class="c">SL giao</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>{{ basis }}</small></th></tr></thead><tbody>
-{% for line in lines %}<tr><td class="c">{{ loop.index }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description }}{% if line.warranty_months %}<span class="cd">Bảo hành {{ line.warranty_months }} tháng · Serial: ..............................</span>{% endif %}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_price|money }}</td><td class="c">{{ line.vat_rate }}%</td><td class="m">{{ ((line.amount + line.vat_amount) if o.price_includes_vat else line.amount)|money }}</td></tr>{% endfor %}
-</tbody></table>
-{% set rows = [('Tiền hàng chưa VAT', subtotal|money ~ ' đồng'), ('Thuế GTGT', vat_total|money ~ ' đồng')] %}
-{% set extra = [('Cả đơn ' ~ o.number ~ ' phải trả', effective_total|money ~ ' đồng', ''), ('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok'), (('Còn phải trả' if o.payment_term == 'CONG_NO' else 'Thu khi giao'), balance.available|money ~ ' đồng', 'due' if balance.available else 'ok')] %}
-<div class="in-sum gon{% if qr %} co-qr{% endif %}">{{ f.totals(rows, ('TỔNG LẦN GIAO', total|money ~ ' đồng'), extra) }}{{ f.qr(qr) }}</div>
-<div class="in-words"><b>Tổng lần giao bằng chữ{% if o.payment_term != 'CONG_NO' %} (thu khi giao){% endif %}:</b> {{ words }}.</div>
+{# 11/11/2026 (TUẤN): phiếu giao hàng không in giá; tiền nằm ở Phiếu xuất kho bán hàng. Cột Thực nhận để khách ghi tay. #}
+<table class="in-it"><colgroup><col style="width:9mm"><col style="width:22mm"><col><col style="width:14mm"><col style="width:16mm"><col style="width:20mm"><col style="width:36mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Mã hàng</th><th>Tên hàng hóa</th><th class="c">ĐVT</th><th class="c">SL giao</th><th class="c">Thực nhận</th><th>Serial / Ghi chú</th></tr></thead><tbody>
+{% for line in lines %}<tr><td class="c">{{ loop.index }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description }}{% if line.warranty_months %}<span class="cd">Bảo hành {{ line.warranty_months }} tháng</span>{% endif %}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td></td><td></td></tr>{% endfor %}
+<tr class="tot"><td colspan="4" style="text-align:right">Tổng số lượng</td><td class="c">{{ quantity(total_qty) }}</td><td></td><td></td></tr></tbody></table>
 {% set order_note = o.note|print_note %}<div class="in-ghichu"><b>Ghi chú:</b> {% if order_note %}{{ order_note }}{% else %}<span class="in-fill"></span>{% endif %}</div>
-<div class="in-fine">Phiếu in trước khi giao. Số lượng và tiền thu được ghi nhận chính thức khi thợ bấm Đã giao trên app.</div>
+<div class="in-fine">Phiếu in trước khi giao. Số lượng giao được ghi nhận chính thức khi thợ bấm Đã giao trên app.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd"><span class="kh">Quý khách vui lòng kiểm tra hàng trước khi ký nhận.</span><span>Ngày ....... tháng ....... năm {{ today.year }}</span></div>
 {{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}{% endblock %}

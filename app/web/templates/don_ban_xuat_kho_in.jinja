@@ -1,0 +1,35 @@
+{# Phiếu xuất kho bán hàng cho cả đơn (10/11/2026, theo mẫu anh Tuấn gửi): chỉ là bản in, không tạo/ghi sổ phiếu kho. Ngày xuất kho chọn trên thanh công cụ, đổi ngày thì cập nhật ngay trên tờ phiếu. #}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set basis = 'đã gồm VAT' if o.price_includes_vat else 'chưa VAT' %}
+{% block title %}Phiếu xuất kho {{ number }}{% endblock %}
+{% block tools_sub %}Đơn bán {{ o.number }} · {{ customer.name }}{% endblock %}
+{% block tools_extra %}<label class="in-ngay">Ngày xuất kho<input type="date" value="{{ issued.isoformat() }}" data-ngay-xuat-input></label>{% endblock %}
+{% block doc_title %}PHIẾU XUẤT KHO BÁN HÀNG{% endblock %}
+{% block doc_sub %}<span data-ngay-xuat>{{ issued|vn_long_date|capitalize }}</span>{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', number) }}{{ f.meta('Đơn bán', o.number) }}{{ f.meta('Theo báo giá', quote_number) }}{% endblock %}
+{% block body %}
+{% set recipient = o.contact_name or (customer.contacts[0].name if customer and customer.contacts else '') %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Địa chỉ', o.delivery_address or customer.address), ('Mã số thuế', customer.tax_code), ('Điện thoại', customer|customer_phones(recipient))]) }}
+{{ f.card('Xuất kho', '', [('Người nhận', recipient), ('Cách giao', fulfillment), ('Người lập đơn', maker)]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:14mm"><col style="width:16mm"><col style="width:27mm"><col style="width:30mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Tên hàng</th><th class="c">Đơn vị</th><th class="c">Số lượng</th><th class="m">Đơn giá<small>{{ basis }}</small></th><th class="m">Thành tiền<small>{{ basis }}</small></th></tr></thead><tbody>
+{% for line in o.lines %}<tr><td class="c">{{ loop.index }}</td><td class="n">{{ line.description }}{% if line.product_code %}<span class="cd">Mã: {{ line.product_code }}</span>{% endif %}</td><td class="c">{{ line.unit }}</td><td class="c">{{ quantity(line.qty) }}</td><td class="m">{{ line.unit_price|money }}</td><td class="m">{{ (gross(line) if o.price_includes_vat else line.amount)|money }}</td></tr>{% endfor %}
+</tbody></table>
+{% set rows = [] %}
+{% if o.price_includes_vat %}{% do rows.append(('Cộng tiền hàng (đã gồm VAT)', entered_total|money ~ ' đồng')) %}{% elif o.discount_amount > 0 %}{% do rows.append(('Cộng tiền hàng (chưa VAT)', entered_total|money ~ ' đồng')) %}{% endif %}
+{% if o.discount_amount > 0 %}{% do rows.append(('Giảm giá', '−' ~ o.discount_amount|money ~ ' đồng')) %}{% endif %}
+{% do rows.append(('Cộng tiền hàng' if not rows else 'Tiền hàng chưa VAT', o.subtotal|money ~ ' đồng')) %}{% do rows.append((vat_label, o.vat_total|money ~ ' đồng')) %}
+<div class="in-sum gon">{{ f.totals(rows, ('TỔNG TIỀN THANH TOÁN', o.total|money ~ ' đồng')) }}</div>
+<div class="in-words"><b>Số tiền bằng chữ:</b> {{ words }}.</div>
+{% set order_note = o.note|print_note %}
+<div class="in-ghichu"><b>Ghi chú:</b> {% if order_note %}{{ order_note }}{% else %}<span class="in-fill"></span>{% endif %}</div>
+{% endblock %}
+{% block signatures %}<div class="in-sd"><span data-ngay-xuat>{{ issued|vn_long_date|capitalize }}</span></div>
+{{ f.signatures([('Nhân viên bán hàng', '(Ký, họ tên)'), ('Thủ kho', '(Ký, họ tên)'), ('Nhân viên giao hàng', '(Ký, họ tên)'), ('Khách hàng ký nhận', '(Ký, họ tên)')]) }}
+<script>
+(function(){var box=document.querySelector('[data-ngay-xuat-input]');if(!box)return;
+box.addEventListener('change',function(){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(box.value);if(!m)return;
+var t='Ngày '+m[3]+' tháng '+m[2]+' năm '+m[1];document.querySelectorAll('[data-ngay-xuat]').forEach(function(el){el.textContent=t;});
+try{var u=new URL(location.href);u.searchParams.set('ngay',box.value);history.replaceState(null,'',u);}catch(e){}});})();
+</script>{% endblock %}

@@ -179,7 +179,7 @@ def test_web_partial_form_errors_csrf_print_and_director_void(db,client,people):
     detail=client.get(f'/don-ban/{o.id}')
     assert gh.number in detail.text and 'Giao một phần' in detail.text and 'Giao 6/10' in detail.text  # Đợt 1b: tiến độ trên từng dòng
     printed=client.get(f'/don-ban/{o.id}/giao/{gh.id}/in')
-    assert printed.status_code==200 and gh.number in printed.text and 'Tổng lần giao bằng chữ' in printed.text and 'Người nhận' in printed.text
+    assert printed.status_code==200 and gh.number in printed.text and 'Tổng số lượng' in printed.text and 'bằng chữ' not in printed.text and 'Người nhận' in printed.text
     assert 'Hủy lần giao' not in detail.text
     csrf=service_login(client,p['director'])
     assert 'Hủy lần giao' in client.get(f'/don-ban/{o.id}').text

@@ -226,7 +226,9 @@ def order(session, user, ident, path):
     return dict(no=o.number, chip=STATUSES.get(o.status, o.status), tone=_tone(o.status, {'DA_GIAO'}),
                 sub=f'Đơn bán · {ways.get(o.fulfillment, "")} · tạo {_dt(o.created_at)}' + (f' bởi {users[o.created_by]}' if users.get(o.created_by) else ''),
                 kv=kv, lines=lines, more=more, line_head='Hàng', amt_head='Thành tiền', money=money_rows, money_note=note,
-                who=nxt['who'], next=nxt['title'], links=[x for x in links if x], full_url=_full(user, path), print_url=None, confirm_url=confirm)
+                who=nxt['who'], next=nxt['title'], links=[x for x in links if x], full_url=_full(user, path), confirm_url=confirm,
+                # Phiếu xuất kho bán hàng (10/11/2026): đơn đã chốt trở đi.
+                print_url=_full(user, path + '/xuat-kho/in') if o.status not in ('NHAP', 'DA_HUY') else None, print_label='In phiếu xuất kho')
 
 
 def quote(session, user, ident, path):
