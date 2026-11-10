@@ -3,6 +3,8 @@
   if (!form) return;
   var editable = form.dataset.quoteEditable === '1', dirty = editable && form.dataset.quoteUnsaved === '1';
   function changed() { if (editable) dirty = true; }
+  // Giá niêm yết / lần trước là giá chưa VAT; gia-vat.js cộng VAT khi báo giá chọn "Đã gồm VAT".
+  function shownPrice(row,raw) { return window.tdShownPrice ? window.tdShownPrice(row,raw) : String(raw||'').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
   form.addEventListener('input', changed); form.addEventListener('change', changed);
   function reindex() {
     form.querySelectorAll('[data-quote-line]').forEach(function(row,index) {
@@ -30,8 +32,8 @@
       row.querySelector('[name=description]').value=button.dataset.name;
       row.querySelector('[name=unit]').value=button.dataset.unit;
       var price=row.querySelector('[name=unit_price]');
-      if (!price.dataset.userTyped) price.value=(button.dataset.lastPrice || button.dataset.price).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-      row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+button.dataset.lastPrice.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
+      if (!price.dataset.userTyped) price.value=shownPrice(row,button.dataset.lastPrice || button.dataset.price);
+      row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+shownPrice(row,button.dataset.lastPrice) : '';
     }
     changed();
   });
@@ -106,8 +108,8 @@
       hit.querySelector('[data-quote-product-name]').textContent=b.dataset.name;
       hit.querySelector('[name=description]').value=b.dataset.name;
       hit.querySelector('[name=unit]').value=b.dataset.unit;
-      hit.querySelector('[name=unit_price]').value=thousands(b.dataset.lastPrice||b.dataset.price);
-      hit.querySelector('[data-last-price-hint]').textContent=b.dataset.lastPrice ? 'Giá lần trước '+b.dataset.lastDate+': '+thousands(b.dataset.lastPrice) : '';
+      hit.querySelector('[name=unit_price]').value=shownPrice(hit,b.dataset.lastPrice||b.dataset.price);
+      hit.querySelector('[data-last-price-hint]').textContent=b.dataset.lastPrice ? 'Giá lần trước '+b.dataset.lastDate+': '+shownPrice(hit,b.dataset.lastPrice) : '';
       hit.dataset.lineEdited='1'; hit.dataset.pickedProduct='1'; hit.querySelector('[name=description]').title=code; hit.classList.remove('line-open','line-error');
       if (add!==1) hit.querySelector('[name=qty]').value=String(add);
     }

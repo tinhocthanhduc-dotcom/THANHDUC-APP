@@ -57,10 +57,11 @@
 <section class="card qf-card qf-lines"><div class="qf-card-head"><h2 class="qf-h">Hàng hóa / dịch vụ <span class="qf-count" data-line-count>{{ d.lines|length }} dòng</span></h2>
 <div class="qf-pick qf-pick-inline" role="group" aria-label="Kho xuất cả đơn" data-order-wh-all data-value="{{ default_warehouse }}"><p class="qf-pick-label">Kho xuất cả đơn <small data-pick-mixed hidden>· đang nhiều kho</small></p><div class="qf-quick">{% for wh in warehouses if wh.active %}<button type="button" class="chip{{ ' on' if wh.code==default_warehouse }}" data-pick="{{ wh.code }}" title="{{ wh.name }}">{{ wh.code }}</button>{% endfor %}</div></div>
 {% if live %}<button type="button" class="btn-ghost qf-clear" data-order-clear>Xóa tất cả</button>{% endif %}</div>
+{{ gg.price_mode(d, 'đơn bán', not live) }}
 {% if browse %}<div class="qf-find" data-browse><label><span class="sr-only">Tìm hàng để thêm</span><input type="search" data-browse-q placeholder="+ Tìm hàng: mã, tên… (↑↓ chọn · Enter thêm · F2 về đây)" autocomplete="off" enterkeyhint="enter"></label>
 <div class="qf-find-drop" data-browse-list aria-live="polite" hidden>{% set rows=browse %}{% set last_prices=browse_prices %}{% set availability=browse_stock %}{% set warehouse=default_warehouse %}{% include 'don_ban_san_pham.jinja' %}</div></div>
 <p class="qf-keys" data-browse-keys><span><kbd>↑</kbd><kbd>↓</kbd> chọn</span><span><kbd>Enter</kbd> thêm, nhảy xuống Số lượng</span><span><kbd>Enter</kbd> ở Số lượng → Đơn giá → về ô tìm</span><span>gõ <kbd>3*107a</kbd> thêm 3 cái</span><span><kbd>Esc</kbd> đóng</span></p>{% endif %}
-<div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>Kho</span><span>Tồn</span><span>ĐVT</span><span>Số lượng</span><span>Đơn giá</span><span>VAT</span><span>Thành tiền</span><span></span></div>
+<div class="qlines-head" aria-hidden="true"><span>Tên hàng</span><span>Kho</span><span>Tồn</span><span>ĐVT</span><span>Số lượng</span><span data-price-head>{{ gg.price_head(d) }}</span><span>VAT</span><span>Thành tiền</span><span></span></div>
 <div data-order-lines>{% for line in d.lines %}{% set index=loop.index0 %}{% include 'don_ban_dong_form.jinja' %}{% endfor %}</div>
 <p class="hint qf-empty" data-lines-empty {% if d.lines %}hidden{% endif %}>Chưa có dòng nào. Gõ tên hoặc mã vào ô <b>Tìm hàng để thêm</b>, hoặc thêm dòng khác (dịch vụ, công).</p>
 {% if live %}<div class="qf-adds"><button type="button" class="qf-add" data-order-add="KHAC">+ Dòng khác (dịch vụ, công)</button><button type="button" class="qf-add btn-ghost" data-order-add>+ Dòng hàng tìm theo mã</button>{% if 'hang' in quick_create_kinds().split() %}<button type="button" class="qf-add btn-ghost" data-qn-new-line>+ Tạo mới mã hàng</button>{% endif %}</div>{% endif %}
@@ -119,6 +120,6 @@
 {% if collection %}{% for r in collection.receipts %}{% include 'bao_thu_phieu.jinja' %}{% endfor %}{% endif %}</details>{% endif %}
 <template id="order-line-template">{% set line=dict(kind='HANG',product_code='',warehouse_code=default_warehouse,description='',qty='1',unit='',unit_price=None,vat_rate=default_vat_rate) %}{% set index='new' %}{% include 'don_ban_dong_form.jinja' %}</template>
 <script src="{{ asset('workflow.js') }}" defer></script>
-<script src="{{ asset('orders.js') }}" defer></script>
+<script src="{{ asset('gia-vat.js') }}" defer></script><script src="{{ asset('orders.js') }}" defer></script>
 <script src="{{ asset('picked.js') }}" defer></script>
 </div>{% endblock %}

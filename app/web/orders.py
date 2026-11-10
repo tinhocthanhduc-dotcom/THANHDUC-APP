@@ -2,6 +2,7 @@
 import re
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -561,7 +562,7 @@ def print_delivery(request: Request,order_id: int,delivery_id: int,user: User=De
     warehouse_return=request.query_params.get('return_to')=='kho' and has_role(user,'warehouse')
     return render(request,'don_ban_in.jinja',warehouse_return=warehouse_return,o=order,gh=gh,lines=lines,customer=session.get(Customer,order.customer_code),
                   back='/viec-cua-toi' if warehouse_return else f'/don-ban/{order.id}',
-                  delivery_discount=discount,entered_total=(gh.total if order.price_includes_vat else gh.subtotal)+discount,
+                  delivery_discount=discount,gross=lambda line: quotes.entered_line_total(SimpleNamespace(**line)),entered_total=(gh.total if order.price_includes_vat else gh.subtotal)+discount,
                   company=get_settings(),quantity=_quantity,words=money_words(gh.total),statuses=STATUSES,
                   delivery_index=next((i for i,g in enumerate(shipments,1) if g.id==gh.id),1),delivery_count=len(shipments),
                   quote_number=session.get(Quote,order.quote_id).number if order.quote_id else '',deliverer=deliverer.full_name if deliverer else '',

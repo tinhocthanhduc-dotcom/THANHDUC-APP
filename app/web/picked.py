@@ -1,4 +1,5 @@
 """Read-only display data for the three entry forms."""
+from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from ..models import SalesOrder, SalesOrderLine
@@ -25,14 +26,22 @@ def last_prices(session, customer_code, products):
     if not customer_code or not codes:
         return {}
     # DISTINCT ON returns one row per visible product, ordered by actual confirmation.
-    rows = session.execute(select(SalesOrderLine.product_code, SalesOrderLine.unit_price, SalesOrder.confirmed_at)
+    rows = session.execute(select(SalesOrderLine.product_code, SalesOrderLine.unit_price, SalesOrder.confirmed_at,
+                                  SalesOrder.price_includes_vat, SalesOrderLine.vat_rate)
         .join(SalesOrder, SalesOrder.id == SalesOrderLine.order_id)
         .where(SalesOrder.customer_code == customer_code, SalesOrder.confirmed_at.is_not(None),
                SalesOrder.status.in_(['DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO']), SalesOrderLine.product_code.in_(codes))
         .distinct(SalesOrderLine.product_code)
         .order_by(SalesOrderLine.product_code, SalesOrder.confirmed_at.desc(), SalesOrder.id.desc(), SalesOrderLine.line_no.desc()))
-    return {code: dict(price=price, date=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m'))
-            for code, price, stamp in rows}
+    # Giá lần trước luôn trả về giá CHƯA VAT; đơn cũ nhập giá gồm VAT thì tách VAT ra.
+    # Màn hình tự cộng lại VAT nếu chứng từ đang chọn "Đã gồm VAT".
+    return {code: dict(price=_ex_vat(price, rate) if inclusive else price,
+                       date=stamp.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m'))
+            for code, price, stamp, inclusive, rate in rows}
+
+
+def _ex_vat(price, rate):
+    return int((Decimal(price) * 100 / (100 + rate)).quantize(Decimal(1), ROUND_HALF_UP))
 
 
 def line_errors(lines, error='', code='', stock_values=None):
