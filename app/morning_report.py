@@ -1,7 +1,8 @@
 """Báo cáo sáng qua Zalo cho giám đốc (TUẤN duyệt mẫu 05/11/2026).
 
 Gửi lúc TD_MORNING_REPORT_TIME (mặc định 07:30), các ngày làm việc (TD_WORK_DAYS, bỏ ngày lễ), tới mọi giám đốc
-đã được gắn Zalo riêng (Tin nhắn Zalo > Gắn nhân viên). Bốn mục: Hôm qua, Tháng này, Tiền & công nợ, Dịch vụ.
+đã được gắn Zalo riêng (Tin nhắn Zalo > Gắn nhân viên). Đầu tin là 5 SỐ CHÍNH (TUẤN duyệt 11/11/2026): doanh thu, lãi gộp,
+tiền đã thu, nợ quá hạn, việc trễ; bên dưới giữ phần chi tiết cũ, bỏ những dòng đã có ở 5 số.
 Chỉ đọc: dùng lại đúng hàm tính số của Tổng quan, Báo cáo bán hàng, Sổ quỹ, Công nợ và Cảnh báo; không ghi chứng từ.
 Doanh thu chưa VAT; tiền thu, quỹ, công nợ đã gồm VAT.
 Mỗi ngày một tin cho mỗi người (mốc 'bao-cao-sang:YYYY-MM-DD' trong bảng dispatch_zalo_sent, không cần migration).
@@ -106,9 +107,12 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         prev_start, prev_end = _prev_month_window(month_start, end)
         prev = sales_reports.totals(session, user, prev_start, prev_end)['subtotal'] + _service_revenue(session, prev_start, prev_end)[0]
         month = month_sales + month_svc
-        margin = None
+        margin = margin_rate = margin_day = margin_day_rate = None
         if has_role(user, 'director'):
-            margin = int(purchase_reports.gross_margin(session, user, month_start, end)['totals']['profit'])
+            m = purchase_reports.gross_margin(session, user, month_start, end)['totals']
+            margin, margin_rate = int(m['profit']), _rate(m['rate'])
+            m = purchase_reports.gross_margin(session, user, start, end)['totals']
+            margin_day, margin_day_rate = int(m['profit']), _rate(m['rate'])
 
         funds = {k: int(v) for k, v in session.execute(select(Fund.kind, func.coalesce(func.sum(FundBalance.balance), 0))
                                                         .join(FundBalance, FundBalance.fund_code == Fund.code).group_by(Fund.kind))}
@@ -143,6 +147,7 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         orders=int(sales['orders']), services_done=_services_done(session, start, end),
         income=int(cash['income']), expense=int(cash['expense']),
         month_start=month_start, month_revenue=month, prev_revenue=prev, prev_month=prev_start, margin=margin,
+        margin_rate=margin_rate, margin_day=margin_day, margin_day_rate=margin_day_rate,
         fund_cash=funds.get('TIEN_MAT', 0), fund_bank=funds.get('NGAN_HANG', 0),
         pending_count=int(pending[0]), pending_amount=int(pending[1]),
         debt_total=debt_total, overdue_total=overdue_total,
@@ -151,6 +156,49 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         late_rows=[dict(number=r.number, customer=r.name, tech=r.full_name, minutes=int((now - r.due_at).total_seconds() // 60))
                    for r in late_rows],
         appointments=int(appts), appointments_free=int(appts_free))
+
+
+def _rate(value):
+    return None if value is None else float(value)
+
+
+def _pct(rate) -> str:
+    return '' if rate is None else f" ({f'{rate:.0f}'}%)"
+
+
+def period_label(d: dict) -> str:
+    start, end = d['start'], d['end']
+    return _day_label(end) if start == end else f'{_day_label(start)}–{_day_label(end)}'
+
+
+def month_change(d: dict) -> int | None:
+    if d['prev_revenue'] <= 0:
+        return None
+    return round((d['month_revenue'] - d['prev_revenue']) * 100 / d['prev_revenue'])
+
+
+def five_lines(d: dict) -> list[str]:
+    """5 số chính đầu tin (TUẤN duyệt 11/11/2026). Doanh thu, lãi gộp chưa VAT; tiền thu, công nợ đã gồm VAT."""
+    month = f"   Tháng {d['end'].month}: {_short(d['month_revenue'])}"
+    pct = month_change(d)
+    if pct is not None:
+        month += f" ({'+' if pct >= 0 else ''}{pct}% cùng kỳ T{d['prev_month'].month})"
+    lines = [f"1️⃣ Doanh thu: {_money(d['revenue'])}", month]
+    if d.get('margin_day') is not None:
+        lines += [f"2️⃣ Lãi gộp: {_money(d['margin_day'])}{_pct(d.get('margin_day_rate'))}",
+                  f"   Tháng {d['end'].month}: {_short(d['margin'])}{_pct(d.get('margin_rate'))}"]
+    lines += [f"3️⃣ Tiền đã thu: {_money(d['income'])}",
+              (f"   Chờ KT xác nhận: {d['pending_count']} phiếu · {_short(d['pending_amount'])}" if d['pending_count']
+               else '   Chờ KT xác nhận: không có'),
+              f"4️⃣ Nợ quá hạn: {_money(d['overdue_total'])}" if d['overdue_total'] else '4️⃣ Nợ quá hạn: không có',
+              f"   Tổng khách nợ: {_short(d['debt_total'])}"]
+    if d['late']:
+        r = d['late_rows'][0]
+        lines += [f"5️⃣ Việc trễ: {d['late']} phiếu quá hẹn",
+                  f"   Cũ nhất: {r['number']} {_cut(r['customer'], 22)} {_late(r['minutes'])} ({_first_name(r['tech'])})"]
+    else:
+        lines.append('5️⃣ Việc trễ: không có phiếu quá hẹn')
+    return lines
 
 
 def _late(minutes: int) -> str:
@@ -165,27 +213,14 @@ def _first_name(full: str | None) -> str:
 
 def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
     start, end = d['start'], d['end']
-    when = _day_label(end) if start == end else f'{_day_label(start)}–{_day_label(end)}'
-    lines = [f"☀️ BÁO CÁO SÁNG {d['today'].strftime('%d/%m')} · số {when}", '',
+    when = period_label(d)
+    lines = [f"☀️ 5 SỐ SÁNG {_day_label(d['today'])} · số {when}", '', *five_lines(d), '──────────',
              '💰 HÔM QUA' if start == end and (d['today'] - end).days == 1 else f'💰 {when}',
-             f"Doanh thu: {_money(d['revenue'])} (chưa VAT)",
              f"· Bán hàng {_money(d['sales_revenue'])[:-1]} · Dịch vụ {_money(d['service_revenue'])[:-1]}",
              f"· {d['orders']} đơn giao, {d['services_done']} phiếu DV xong",
-             f"Thực thu: {_money(d['income'])} · Thực chi: {_money(d['expense'])}", '',
-             f"📈 THÁNG {end.month} (đến {end.strftime('%d/%m')})"]
-    month = f"Doanh thu: {_money(d['month_revenue'])}"
-    if d['prev_revenue'] > 0:
-        pct = round((d['month_revenue'] - d['prev_revenue']) * 100 / d['prev_revenue'])
-        month += f" (cùng kỳ T{d['prev_month'].month}: {'+' if pct >= 0 else ''}{pct}%)"
-    lines.append(month)
-    if d['margin'] is not None:
-        lines.append(f"Lãi gộp tạm tính: {_money(d['margin'])}")
-    lines += ['', '🏦 TIỀN & CÔNG NỢ',
-              f"Quỹ: {_money(d['fund_cash'] + d['fund_bank'])} (TM {_short(d['fund_cash'])} · NH {_short(d['fund_bank'])})",
-              (f"Báo thu chờ xác nhận: {d['pending_count']} phiếu · {_money(d['pending_amount'])}" if d['pending_count']
-               else 'Báo thu chờ xác nhận: không có'),
-              f"Khách nợ: {_money(d['debt_total'])}, quá hạn {_money(d['overdue_total'])}" if d['overdue_total']
-              else f"Khách nợ: {_money(d['debt_total'])}, không có nợ quá hạn"]
+             f"· Thực chi: {_money(d['expense'])}", '',
+             '🏦 TIỀN & CÔNG NỢ',
+             f"Quỹ: {_money(d['fund_cash'] + d['fund_bank'])} (TM {_short(d['fund_cash'])} · NH {_short(d['fund_bank'])})"]
     ncc = f"Nợ NCC đến hạn 7 ngày tới: {_money(d['ncc_week'])}" if d['ncc_week'] else 'Nợ NCC đến hạn 7 ngày tới: không có'
     if d['ncc_overdue']:
         ncc += f" (đã quá hạn {_short(d['ncc_overdue'])})"

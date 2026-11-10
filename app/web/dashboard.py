@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from . import nav
-from .. import payroll, attendance, alerts, dashboard as svc
+from .. import payroll, attendance, alerts, dashboard as svc, morning_report
 from ..db import get_session
 from ..models import User
 from ..security import has_role
@@ -46,7 +46,9 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
     # Bản 2 (TUẤN duyệt 28/10/2026): ai đang làm gì · việc cần làm tiếp · việc đang diễn ra; bảng thợ cũ gập xuống dưới.
     live=svc.live_board(session,user,today=data['today'],approvals=(attendance_pending,advance_pending),technicians=board.get('technicians'))
     orders=_day_orders(request,session,user,data['today'])
-    return render(request,'tong_quan.jinja',s=data,orders=orders,order_statuses=ORDER_STATUSES,fulfillments=FULFILLMENTS,bars=bars,board=board,live=live,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
+    # 5 số chính (TUẤN duyệt 11/11/2026): cùng số với tin Zalo sáng, chỉ giám đốc thấy.
+    five=morning_report.build(session,user,data['today']) if has_role(user,'director') else None
+    return render(request,'tong_quan.jinja',s=data,five=five,five_when=morning_report.period_label(five) if five else '',five_pct=morning_report.month_change(five) if five else None,orders=orders,order_statuses=ORDER_STATUSES,fulfillments=FULFILLMENTS,bars=bars,board=board,live=live,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
         service_labels=SERVICE_STATUSES,advance_pending=advance_pending,attendance_pending=attendance_pending,can_save=has_role(user,'director'),alert_groups=groups,alert_counts=notices.counts,alert_labels=alerts.LABELS,
         today_query=period(data['today'],data['today']),month_query=period(data['month_start'],data['today']),
         last_query=period(data['last_month_start'],data['last_month_end']))
