@@ -61,8 +61,9 @@ def test_numbers_come_from_existing_reports_and_nothing_is_written(db, people):
     assert [db.query(m).count() for m in (StockLedger, FundLedger)] == before
 
     text = svc.render_text(d, 'https://vd.test')
-    for part in ('BÁO CÁO SÁNG 19/10 · số T7 17/10–CN 18/10', '(chưa VAT)', '📈 THÁNG 10 (đến 18/10)', 'Lãi gộp tạm tính',
-                 '🏦 TIỀN & CÔNG NỢ', 'Quỹ:', 'Nợ NCC đến hạn 7 ngày tới', '🔧 DỊCH VỤ', 'Lịch hẹn hôm nay',
+    assert d['margin_day'] is not None and d['margin_day_rate'] is not None
+    for part in ('5 SỐ SÁNG T2 19/10 · số T7 17/10–CN 18/10', '1️⃣ Doanh thu:', '   Tháng 10:', '2️⃣ Lãi gộp:',
+                 '3️⃣ Tiền đã thu:', '4️⃣ Nợ quá hạn', '5️⃣ Việc trễ', '──────────', '🏦 TIỀN & CÔNG NỢ', 'Quỹ:', 'Nợ NCC đến hạn 7 ngày tới', '🔧 DỊCH VỤ', 'Lịch hẹn hôm nay',
                  'Xem đủ: https://vd.test/tong-quan'):
         assert part in text, part
     assert 'KHO' not in text and 'CẦN ANH XEM' not in text
@@ -73,22 +74,40 @@ def test_render_short_forms_and_empty_lines():
     d = dict(today=date(2026, 11, 6), start=date(2026, 11, 5), end=date(2026, 11, 5), revenue=18450000, sales_revenue=12300000,
              service_revenue=6150000, orders=9, services_done=7, income=21700000, expense=8200000,
              month_start=date(2026, 11, 1), month_revenue=86900000, prev_revenue=77600000, prev_month=date(2026, 10, 1),
-             margin=24100000, fund_cash=18200000, fund_bank=124300000, pending_count=0, pending_amount=0,
+             margin=24100000, margin_rate=27.7, margin_day=4620000, margin_day_rate=25.04, fund_cash=18200000, fund_bank=124300000, pending_count=0, pending_amount=0,
              debt_total=96400000, overdue_total=31200000,
              ncc_overdue=0, ncc_week=22000000, open=14, late=1,
              late_rows=[dict(number='DV-2611-0412', customer='Cty Sao Mai', tech='Đoàn Cảnh Phong', minutes=2 * 24 * 60 + 5)],
              appointments=6, appointments_free=1)
     text = svc.render_text(d)
-    assert text.startswith('☀️ BÁO CÁO SÁNG 06/11 · số T5 05/11\n\n💰 HÔM QUA\nDoanh thu: 18.450.000đ (chưa VAT)')
+    assert text.startswith('☀️ 5 SỐ SÁNG T6 06/11 · số T5 05/11\n\n'
+                           '1️⃣ Doanh thu: 18.450.000đ\n'
+                           '   Tháng 11: 86,9tr (+12% cùng kỳ T10)\n'
+                           '2️⃣ Lãi gộp: 4.620.000đ (25%)\n'
+                           '   Tháng 11: 24,1tr (28%)\n'
+                           '3️⃣ Tiền đã thu: 21.700.000đ\n'
+                           '   Chờ KT xác nhận: không có\n'
+                           '4️⃣ Nợ quá hạn: 31.200.000đ\n'
+                           '   Tổng khách nợ: 96,4tr\n'
+                           '5️⃣ Việc trễ: 1 phiếu quá hẹn\n'
+                           '   Cũ nhất: DV-2611-0412 Cty Sao Mai trễ 2 ngày (Phong)\n'
+                           '──────────\n💰 HÔM QUA\n')
     assert '· Bán hàng 12.300.000 · Dịch vụ 6.150.000' in text
-    assert 'Doanh thu: 86.900.000đ (cùng kỳ T10: +12%)' in text
+    assert '· Thực chi: 8.200.000đ' in text
     assert 'Quỹ: 142.500.000đ (TM 18,2tr · NH 124,3tr)' in text
-    assert 'Báo thu chờ xác nhận: không có' in text
-    assert 'Khách nợ: 96.400.000đ, quá hạn 31.200.000đ\nNợ NCC' in text      # không liệt kê tên khách
     assert 'Nợ NCC đến hạn 7 ngày tới: 22.000.000đ' in text
     assert '· DV-2611-0412 Cty Sao Mai – trễ 2 ngày (Phong)' in text
     assert 'Lịch hẹn hôm nay: 6 lượt (1 chưa giao thợ)' in text
+    # Không trùng dòng với 5 số, không liệt kê tên khách nợ.
+    assert text.count('Doanh thu') == 1 and 'Khách nợ:' not in text and '📈' not in text
 
+    # Không có lãi gộp (không phải giám đốc), không nợ quá hạn, không việc trễ, có báo thu chờ.
+    d2 = dict(d, margin=None, margin_rate=None, margin_day=None, margin_day_rate=None, overdue_total=0, late=0, late_rows=[],
+              pending_count=2, pending_amount=3200000, prev_revenue=0)
+    text = svc.render_text(d2)
+    assert '2️⃣' not in text and '   Tháng 11: 86,9tr\n3️⃣' in text
+    assert '   Chờ KT xác nhận: 2 phiếu · 3,2tr' in text
+    assert '4️⃣ Nợ quá hạn: không có' in text and '5️⃣ Việc trễ: không có phiếu quá hẹn' in text
 
 def test_sends_once_per_day_only_to_linked_director_in_window(db, people, monkeypatch):
     p = people
@@ -102,7 +121,7 @@ def test_sends_once_per_day_only_to_linked_director_in_window(db, people, monkey
     assert svc.run_once(db, now=AT - timedelta(days=1), sender=send) == 0            # Chủ nhật
     assert svc.run_once(db, now=AT, sender=send) == 1
     assert sent[0][1].user_id == p['director'].id and sent[0][3] is None and sent[0][4] == 'bao_cao_sang'
-    assert 'BÁO CÁO SÁNG 19/10' in sent[0][2]
+    assert '5 SỐ SÁNG T2 19/10' in sent[0][2]
     assert svc.run_once(db, now=AT + timedelta(minutes=5), sender=send) == 0         # mỗi ngày một tin
     assert db.scalar(select(func.count()).select_from(DispatchZaloSent)) == 1
     # Ngày lễ không gửi; tắt cấu hình hoặc thiếu token cũng không gửi.
@@ -127,7 +146,7 @@ def test_preview_page_and_test_send_director_only(db, people, client, monkeypatc
     assert client.get('/zalo/bao-cao-sang').status_code == 403
     csrf = service_login(client, p['director'])
     page = client.get('/zalo/bao-cao-sang')
-    assert page.status_code == 200 and 'BÁO CÁO SÁNG' in page.text and 'Gửi thử cho tôi qua Zalo' in page.text
+    assert page.status_code == 200 and '5 SỐ SÁNG' in page.text and 'Gửi thử cho tôi qua Zalo' in page.text
     from test_web import csrf_of
     csrf = csrf_of(page.text) or csrf
     form_key = page.text.split('name="form_key" value="')[1].split('"')[0]
@@ -138,3 +157,15 @@ def test_preview_page_and_test_send_director_only(db, people, client, monkeypatc
     assert row.kind == 'bao_cao_sang' and row.status == 'DA_GUI'
     # Gửi thử không ghi mốc, 7:30 hôm sau vẫn gửi bình thường.
     assert db.scalar(select(func.count()).select_from(DispatchZaloSent)) == 0
+
+
+
+def test_overview_shows_five_numbers_for_director_only(db, people, client):
+    p = people
+    fee(db, p, 250000)
+    service_login(client, p['director'])
+    page = client.get('/tong-quan')
+    assert page.status_code == 200 and '5 số chính · số' in page.text and 'Nợ quá hạn' in page.text and 'Việc trễ' in page.text
+    service_login(client, p['finance'])      # kế toán xem Tổng quan nhưng không có khối 5 số
+    page = client.get('/tong-quan')
+    assert page.status_code == 200 and '5 số chính' not in page.text
