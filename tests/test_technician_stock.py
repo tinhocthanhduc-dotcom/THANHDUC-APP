@@ -220,3 +220,23 @@ def test_stock_page_paginates_each_section_and_folds_non_company(client,db,held)
     assert 'data-stock-group="THO" open' in only                                # không còn dòng Kho công ty thì mở sẵn
     live=client.get('/ton-kho?q=phan+trang&phan=1').text
     assert 'Hiện <b>1–25</b> / 30 dòng' in live and 'trang=2' in live
+
+
+def test_stock_page_hides_empty_rows_by_default(client,db,held):
+    # TUẤN 11/11: Tồn kho chỉ hiện dòng có số lượng (mọi khu: Kho công ty, Thợ đang giữ, Chờ Xử lý); ẩn hàng hết, có nút hiện lại.
+    from app.models import Product
+    p,a,b=held;transfer(db,p)
+    for code,wh,qty in (('TD-9101','K58',0),('TD-9102',a.code,0),('TD-9103','K58',5)):
+        db.add(Product(code=code,name=f'Hàng ẩn {code}',search_text=f'hang an {code.lower()}'));db.flush()
+        db.add(StockBalance(warehouse_code=wh,product_code=code,qty=Decimal(qty),value=qty*100,avg_cost=100))
+    db.commit()
+    service_login(client,p['warehouse'])
+    page=client.get('/ton-kho').text
+    assert 'TD-9103' in page and 'TD-9101' not in page and 'TD-9102' not in page
+    assert 'Hiện cả hàng hết (2 dòng đang ẩn)' in page and 'tt=tat-ca' in page
+    every=client.get('/ton-kho?tt=tat-ca').text
+    assert 'TD-9101' in every and 'TD-9102' in every and 'Hiện cả hàng hết' not in every
+    empty=client.get('/ton-kho?tt=het').text
+    assert 'TD-9101' in empty and 'TD-9102' in empty and 'TD-9103' not in empty
+    live=client.get('/ton-kho?q=hang+an&phan=1').text
+    assert 'TD-9103' in live and 'TD-9101' not in live
