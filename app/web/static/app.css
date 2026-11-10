@@ -2007,11 +2007,14 @@ main:has(> .svn) { max-width: none; }
   .svn .qf-card { padding: 12px; }
   .svn .svn-sum { display: none; }
 }
-/* GG1: Giá nhập chưa VAT / đã gồm VAT + giảm giá toàn đơn */
+/* GG1: Đơn giá chưa VAT / đã gồm VAT + giảm giá toàn đơn */
 .qf-mode { display: grid; gap: 6px; }
 .qf-seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .qf-seg2 label { min-width: 0; }
 .qf-seg2 span { min-height: 38px; display: flex; align-items: center; justify-content: center; padding: 4px 6px; font-size: .88rem; font-weight: 600; }
+.qf-price-mode { padding: 10px 12px; border-radius: 8px; background: var(--info-bg); margin: 4px 0 10px; }
+.qf-price-mode .qf-seg2 { max-width: 360px; }
+.qf-price-mode .hint { margin: 0; font-size: .78rem; }
 .qf-sum dl div[hidden] { display: none; }
 .qf-sum .qf-minus dt, .qf-sum .qf-minus dd { color: var(--bad); }
 .qf-disc { display: grid; gap: 4px; }

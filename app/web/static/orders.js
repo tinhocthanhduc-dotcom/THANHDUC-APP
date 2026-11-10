@@ -94,8 +94,10 @@
       row.querySelector('[name=description]').value=button.dataset.name;
       row.querySelector('[name=unit]').value=button.dataset.unit;
       var price=row.querySelector('[name=unit_price]');
-      if (!price.dataset.userTyped) price.value=(button.dataset.lastPrice || button.dataset.price).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-      row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+button.dataset.lastPrice.replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
+      // Giá niêm yết / lần trước là giá chưa VAT; gia-vat.js cộng VAT khi đơn chọn "Đã gồm VAT".
+      var shown=function(raw){ return window.tdShownPrice ? window.tdShownPrice(row,raw) : String(raw||'').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); };
+      if (!price.dataset.userTyped) price.value=shown(button.dataset.lastPrice || button.dataset.price);
+      row.querySelector('[data-last-price-hint]').textContent=button.dataset.lastPrice ? 'Giá lần trước '+button.dataset.lastDate+': '+shown(button.dataset.lastPrice) : '';
   }
 
   // Bản 2: VAT từng dòng chỉ hiện mức đang chọn, bấm để đổi vòng; SĐT khách tự điền khi chọn khách.

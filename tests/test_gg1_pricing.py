@@ -298,3 +298,41 @@ def test_live_credit_check_receives_same_vat_discount_fields(client,db,people):
     assert page.status_code==200 and 'data-condition="credit" data-ok="0"' in page.text
     page=client.get('/don-ban/dieu-kien',params={**data,'discount_amount':'1.080.001'})
     assert page.status_code==200 and 'data-condition="pricing" data-ok="0"' in page.text
+
+
+@pytest.mark.parametrize('kind',['quote','order'])
+def test_price_mode_sits_on_lines_card_with_clear_label(client,db,people,kind):
+    # Nút "Đơn giá trên báo giá/đơn bán" nằm đầu ô Hàng hóa, không còn chữ "Giá nhập"; cột ghi rõ kiểu giá.
+    service_login(client,people['sales'])
+    html=client.get('/bao-gia/moi' if kind=='quote' else '/don-ban/moi').text
+    doc='báo giá' if kind=='quote' else 'đơn bán'
+    assert 'Đơn giá trên '+doc in html and '>Giá nhập<' not in html
+    assert html.index('qf-lines') < html.index('data-price-mode') < html.index('qlines-head')
+    assert html.count('name="price_includes_vat"')==2 and 'data-price-head>Đơn giá chưa VAT<' in html
+    assert 'gia-vat.js' in html
+
+
+def test_print_shows_vat_inclusive_line_totals_and_note(client,db,people):
+    csrf=service_login(client,people['sales'])
+    form=dict(csrf=csrf,customer_code='KTD-000001',description='Hộp mực',qty='2',unit_price='378.000',vat_0='8',kind_0='KHAC',
+              valid_until='2026-12-31',price_includes_vat='1')
+    r=client.post('/bao-gia/moi',data=form,follow_redirects=False);assert r.status_code==303,r.text
+    qid=int(r.headers['location'].split('?')[0].split('/')[-1])
+    q=db.get(Quote,qid)
+    # Số tiền lưu không đổi: doanh thu chưa VAT, tổng gồm VAT.
+    assert (q.subtotal,q.vat_total,q.total)==(700000,56000,756000)
+    html=client.get(f'/bao-gia/{qid}/in').text
+    assert 'Giá đã gồm VAT' in html and 'Đơn giá trên đã bao gồm thuế GTGT.' in html
+    assert 'Thành tiền<small>đã gồm VAT</small>' in html and '756.000' in html
+
+
+def test_last_price_is_ex_vat_even_from_vat_inclusive_order(db,people):
+    # Giá lần trước luôn là giá chưa VAT để màn hình cộng VAT đúng theo kiểu đơn giá đang chọn.
+    from app.models import Product
+    from app.web.picked import last_prices
+    o=make(db,people,'order',price=378000,discount=0,included=True,goods=True)
+    orders.confirm(db,people['sales'],o.id,o.version)
+    assert last_prices(db,'KTD-000001',[db.get(Product,'TD-0001')])['TD-0001']['price']==350000
+    plain=make(db,people,'order',price=360000,discount=0,included=False,goods=True)
+    orders.confirm(db,people['sales'],plain.id,plain.version)
+    assert last_prices(db,'KTD-000001',[db.get(Product,'TD-0001')])['TD-0001']['price']==360000
