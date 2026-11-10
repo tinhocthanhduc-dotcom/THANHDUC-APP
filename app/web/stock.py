@@ -473,7 +473,12 @@ def void(request: Request, doc_id: int, form=Depends(checked_form), session: Ses
 
 
 TON_SORTS = {'': 'Kho · mã hàng', 'it': 'Có thể dùng ít → nhiều', 'gia-tri': 'Giá trị tồn cao → thấp'}
-TON_STATES = {'con': 'Còn hàng', 'het': 'Hết hàng'}
+TON_STATES = {'con': 'Còn hàng', 'het': 'Hết hàng', 'tat-ca': 'Cả hàng hết'}
+
+
+def _has_stock(row):
+    # TUẤN 11/11: mặc định chỉ hiện dòng có số lượng (tồn khác 0 hoặc đang giữ cho đơn), ẩn hàng hết.
+    return row['qty'] != 0 or row.get('reserved', 0) > 0
 
 
 @router.get('/ton-kho')
@@ -499,15 +504,17 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: 
         if fold(q):
             stmt = stmt.where(or_(and_(*tim.like_all(Product.search_text, q)), Product.code.ilike(like_pattern(q))))
         return stmt
-    rows = list(session.execute(narrow(stmt, warehouse_column)).mappings())
-    values=stock_reservations.quantities(session,[(r['warehouse_code'],r['product_code']) for r in rows])
-    rows=[{**r,**values.get((r['warehouse_code'],r['product_code']),dict(reserved=0,available=r['qty']))} for r in rows]
+    def with_holds(found):
+        values = stock_reservations.quantities(session, [(r['warehouse_code'], r['product_code']) for r in found])
+        return [{**r, **values.get((r['warehouse_code'], r['product_code']), dict(reserved=0, available=r['qty']))} for r in found]
+    rows = with_holds(list(session.execute(narrow(stmt, warehouse_column)).mappings()))
     for r in rows:
         low = can_alert and r.get('warehouse_kind', 'KHO') == 'KHO' and r['min_qty'] > 0 and r['qty'] <= r['min_qty']
         r['state'] = 'het' if r['qty'] <= 0 else 'sap' if low else 'con'
     # Ô đếm luôn tính trên tồn thường (cùng kho/nhóm/tìm), để bấm qua lại giữa các ô không đổi số.
-    totals = [r.qty for r in session.execute(narrow(normal, StockBalance.warehouse_code))] if canh_bao else [r['qty'] for r in rows]
-    counts = dict(all=len(totals), con=sum(x > 0 for x in totals), het=sum(x <= 0 for x in totals))
+    base = with_holds(list(session.execute(narrow(normal, StockBalance.warehouse_code)).mappings())) if canh_bao else rows
+    counts = dict(all=len(base), co=sum(_has_stock(r) for r in base), con=sum(r['qty'] > 0 for r in base),
+                  het=sum(r['qty'] <= 0 for r in base))
     if can_alert:
         counts['sap'] = len(rows) if canh_bao else int(session.scalar(select(func.count()).select_from(
             narrow(stock_min_levels.low_stock_query(), StockMinLevel.warehouse_code).order_by(None).subquery())))
@@ -523,8 +530,10 @@ def balances(request: Request, kho: str = '', q: str = '', phan: int = 0, nhom: 
             r['need'] = max(ceil(r['min_qty'] - r['qty'] - r['incoming']), 0)
             r['supplier'] = suppliers.get(r['product_code'])
         can_purchase = nav.allowed(user, '/don-mua/moi') and has_role(user, 'warehouse')
-    if tt:
+    if tt in ('con', 'het'):
         rows = [r for r in rows if (r['qty'] > 0) == (tt == 'con')]
+    elif not tt and not canh_bao:
+        rows = [r for r in rows if _has_stock(r)]
     if xep == 'it':
         rows.sort(key=lambda r: r['available'])
     elif xep == 'gia-tri':
