@@ -645,6 +645,8 @@ class ServiceLineIn(BaseModel):
     qty: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
     unit_price: int = Field(strict=True, ge=0, le=10_000_000_000)
     vat_rate: Literal[0, 5, 8, 10] = DEFAULT_VAT_RATE
+    # Giá đã gồm VAT (thợ gõ tiền thu, giá mực hợp đồng): VAT = gross − amount nếu lệch công thức ≤ 1 đồng.
+    gross: int | None = Field(default=None, strict=True, ge=0, le=20_000_000_000)
 
 
 class ServiceLineOut(ServiceLineIn):

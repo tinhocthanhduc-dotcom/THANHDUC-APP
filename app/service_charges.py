@@ -27,7 +27,18 @@ def return_locked(t):
 
 
 def line_input(line):
-    return {key:getattr(line,key) for key in ServiceLineIn.model_fields}
+    data={key:getattr(line,key) for key in ServiceLineIn.model_fields if key!='gross'}
+    data['gross']=line.amount+line.vat_amount
+    return data
+
+
+def line_vat(amount: int, vat_rate: int, gross: int | None) -> int:
+    """VAT dòng phiếu dịch vụ. Giá đã gồm VAT giữ đúng tổng khách trả (VAT = gross − amount) khi chỉ lệch
+    công thức làm tròn tối đa 1 đồng; còn lại VAT = làm tròn(amount × thuế suất)."""
+    vat=_round(Decimal(amount)*vat_rate/100)
+    if gross is not None and vat_rate and gross-amount>=0 and abs(gross-amount-vat)<=1:
+        return gross-amount
+    return vat
 
 
 def _issued_key(line):
@@ -99,12 +110,15 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
     if at_workshop and changed:
         t.quote_approved_at=t.quote_approved_by=None
     lines = []
+    # Lưu lại dòng không đổi (form không gửi gross) thì giữ tổng gồm VAT cũ của dòng đó.
+    kept={_issued_key(x):x.amount+x.vat_amount for x in t.lines if x.stock_doc_id is None}
     start=max((x.line_no for x in issued),default=0)+1
     for i, x in enumerate(editable, start):
         amount = _round(x.qty * x.unit_price)
+        gross = x.gross if x.gross is not None else kept.get(_issued_key(x))
         lines.append(ServiceLine(line_no=i, kind=x.kind, product_code=x.product_code, warehouse_code=x.warehouse_code,
                                  description=x.description, qty=x.qty, unit_price=x.unit_price, vat_rate=x.vat_rate,
-                                 amount=amount, vat_amount=_round(Decimal(amount) * x.vat_rate / 100)))
+                                 amount=amount, vat_amount=line_vat(amount, x.vat_rate, gross)))
     t.lines[:] = issued
     session.flush()  # xóa dòng cũ trước để số dòng mới không trùng
     t.lines.extend(lines)

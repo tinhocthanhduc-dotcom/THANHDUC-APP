@@ -14,10 +14,10 @@ FEE_DESCRIPTION = 'Phí dịch vụ (gồm công và vật tư)'
 
 
 def net_from_gross(total, vat=DEFAULT_VAT_RATE):
-    center=service_charges._round(Decimal(total)*100/(100+vat))
-    candidates=[(net,service_charges._round(Decimal(net)*vat/100)) for net in range(max(0,center-2),center+3)]
-    net,tax=min(candidates,key=lambda pair:(abs(sum(pair)-total),abs(pair[0]-center),pair[0]))
-    return net,tax
+    """Giá đã gồm VAT giữ nguyên số khách trả: tiền trước thuế làm tròn, VAT = tổng − tiền trước thuế
+    (cùng cách báo giá/đơn bán gồm VAT, quotes.priced_amounts). VAT lệch công thức tối đa 1 đồng."""
+    net=service_charges._round(Decimal(total)*100/(100+vat))
+    return net,total-net
 
 
 def money(value):
@@ -41,7 +41,7 @@ def charges(session,user,ticket,version,total,mode,reason,materials):
         (x.stock_doc_id is not None or own is None or x.warehouse_code!=own.code)]
     lines.extend(material_lines(session,user,materials))
     net,tax=net_from_gross(amount)
-    if not free:lines.append(dict(kind='PHI',description=FEE_DESCRIPTION,qty=1,unit_price=net,vat_rate=DEFAULT_VAT_RATE))
+    if not free:lines.append(dict(kind='PHI',description=FEE_DESCRIPTION,qty=1,unit_price=net,vat_rate=DEFAULT_VAT_RATE,gross=amount))
     return ServiceCharges(version=version,billing='MIEN_PHI' if free else 'THU_TIEN',free_reason=reason if free else '',lines=lines),net+tax
 
 

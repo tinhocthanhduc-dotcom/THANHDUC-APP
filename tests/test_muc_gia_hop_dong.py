@@ -1,4 +1,6 @@
 """TUẤN 27/10/2026: Mực định kỳ giá theo hợp đồng ghi lúc tạo phiếu; thợ thấy sẵn, mặc định Chưa thu, mỗi phiếu ghi nợ riêng."""
+import pytest
+
 from app import sales_receipts, service_tickets as svc
 from app.models import PartRequest, ServiceTicket
 from test_my_work import people, purchase_people, ticket, NOW  # noqa: F401
@@ -9,16 +11,17 @@ from test_ux1e_gon_man_tho import post
 from test_web import service_login
 
 
-def test_dispatcher_records_contract_price_as_fee_line(client, db, held):  # noqa: F811
+@pytest.mark.parametrize('price', ['350.000', '790.000'])
+def test_dispatcher_records_contract_price_as_fee_line(client, db, held, price):  # noqa: F811
     p, a, b = held
     csrf = service_login(client, p['dispatcher'])
     assert 'name="ink_price"' in client.get('/dich-vu/moi').text
-    r = client.post('/dich-vu/moi', data=form(csrf, ink_price='350.000', assignee_id=str(p['technician'].id)), follow_redirects=False)
+    r = client.post('/dich-vu/moi', data=form(csrf, ink_price=price, assignee_id=str(p['technician'].id)), follow_redirects=False)
     assert r.status_code == 303, r.text
     t = db.query(ServiceTicket).one()
     [line] = t.lines
     assert line.kind == 'PHI' and line.description == svc.INK_FEE_DESCRIPTION and line.qty == 1
-    assert line.amount + line.vat_amount == 350000 and t.billing == 'THU_TIEN'
+    assert line.amount + line.vat_amount == int(price.replace('.', '')) and t.billing == 'THU_TIEN'
 
 
 def test_bad_price_saves_nothing_and_other_kind_ignores_price(client, db, held):  # noqa: F811
@@ -58,3 +61,24 @@ def test_office_page_shows_no_default_warranty_and_cost_not_yet(client, db, held
     assert 'chưa có, tính khi thợ hoàn thành phiếu' in html and 'giá vốn): 0 đồng' not in html
     html = client.get(f'/dich-vu/{repair.id}').text
     assert '90 ngày' not in html and 'Bảo hành: thợ chọn khi hoàn thành' in html
+
+
+def test_resaving_unchanged_inclusive_fee_keeps_exact_total(client, db, held):  # noqa: F811
+    """TUẤN 11/11/2026: lưu lại tiền phiếu (form không gửi giá gồm VAT) vẫn giữ 790.000, không tụt về 789.999."""
+    from app import service_charges
+    from app.schemas import ServiceCharges
+    p, a, b = held
+    csrf = service_login(client, p['dispatcher'])
+    r = client.post('/dich-vu/moi', data=form(csrf, ink_price='790.000', assignee_id=str(p['technician'].id)), follow_redirects=False)
+    assert r.status_code == 303, r.text
+    t = db.query(ServiceTicket).one()
+    plain = [{k: v for k, v in service_charges.line_input(x).items() if k != 'gross'} for x in t.lines]
+    service_charges.set_charges(db, p['dispatcher'], t.id, ServiceCharges(version=t.version, billing='THU_TIEN', lines=plain))
+    db.expire_all()
+    [line] = t.lines
+    assert line.amount + line.vat_amount == 790000
+    changed = [dict(plain[0], unit_price=plain[0]['unit_price'] + 1000)]
+    service_charges.set_charges(db, p['dispatcher'], t.id, ServiceCharges(version=t.version, billing='THU_TIEN', lines=changed))
+    db.expire_all()
+    [line] = t.lines
+    assert line.vat_amount == service_charges._round(__import__('decimal').Decimal(line.amount) * 8 / 100)

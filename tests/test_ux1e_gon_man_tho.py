@@ -39,14 +39,24 @@ def test_customer_total_material_zero_px_cost_and_report(client,db,job):
     csv=client.get(f'/dieu-phoi/bao-cao.csv?from={start}&to={start}');assert 'Chi phí vật tư' in csv.text and '498000' in csv.text
 
 
-@pytest.mark.parametrize('total',[100001,100000,6,7])
+@pytest.mark.parametrize('total',[100001,100000,6,7,790000])
 def test_rounding_actual_and_full_receipt_always_agree(client,db,job,total):
+    # TUẤN 11/11/2026: gõ 790.000 (gồm VAT) phải thu đúng 790.000, không ra 789.999.
     p,_,t=job;net,tax=technician_work.net_from_gross(total)
+    assert net+tax==total and abs(tax-service_charges._round(Decimal(net)*8/100))<=1
     r=post(client,t,data(client,p,t,customer_amount=str(total)));assert r.status_code==303
-    db.expire_all();assert t.receivable==net+tax
-    receipt=db.scalar(select(SalesReceipt).where(SalesReceipt.ticket_id==t.id));assert receipt.amount==t.receivable
-    possible=[n for n in range(max(0,net-4),net+5) if n+service_charges._round(Decimal(n)*8/100)==total]
-    if possible:assert t.receivable==total
+    db.expire_all();assert t.receivable==t.total==total
+    fee=next(line for line in t.lines if line.kind=='PHI');assert (fee.amount,fee.vat_amount)==(net,tax)
+    receipt=db.scalar(select(SalesReceipt).where(SalesReceipt.ticket_id==t.id));assert receipt.amount==total
+
+
+def test_line_vat_keeps_gross_only_within_one_dong():
+    assert technician_work.net_from_gross(790000)==(731481,58519)
+    assert service_charges.line_vat(731481,8,790000)==58519
+    assert service_charges.line_vat(731481,8,None)==58518
+    assert service_charges.line_vat(731481,8,790005)==58518
+    assert service_charges.line_vat(731481,0,790000)==0
+    assert service_charges.line_vat(5,8,4)==0
 
 
 @pytest.mark.parametrize('mode,partial,amount',[('FULL','',540000),('PARTIAL','100.000',100000),('','',0)])
