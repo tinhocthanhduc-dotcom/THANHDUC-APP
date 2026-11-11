@@ -6,25 +6,9 @@
     const raw = v.replace(/\./g, "").trim();
     return /^[0-9]{1,18}$/.test(raw) ? BigInt(raw) : 0n;
   };
+  // Giá thợ gõ là giá đã gồm VAT: phải thu đúng số đó, VAT = tổng − tiền trước thuế (như báo giá gồm VAT).
   function actual() {
-    const gross = money(form.elements.customer_amount.value),
-      denom = 100n + BigInt(form.dataset.vat),
-      center = (gross * 100n + denom / 2n) / denom;
-    let best = null;
-    for (let net = center - 2n; net <= center + 2n; net++) {
-      if (net < 0n) continue;
-      const tax = (net * BigInt(form.dataset.vat) + 50n) / 100n,
-        total = net + tax,
-        error = total > gross ? total - gross : gross - total,
-        distance = net > center ? net - center : center - net;
-      if (
-        !best ||
-        error < best.error ||
-        (error === best.error && distance < best.distance)
-      )
-        best = { total, error, distance };
-    }
-    return best ? best.total : 0n;
+    return money(form.elements.customer_amount.value);
   }
   function update() {
     if (!form) return;

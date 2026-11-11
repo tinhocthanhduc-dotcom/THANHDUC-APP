@@ -140,7 +140,7 @@ def _ink(session, user, t, ink, ink_price=None):
         from .technician_work import net_from_gross
         net, _ = net_from_gross(ink_price, DEFAULT_VAT_RATE)
         set_charges_in_tx(session, user, t, ServiceCharges(billing='THU_TIEN', lines=[dict(kind='PHI', description=INK_FEE_DESCRIPTION,
-                                                                                        qty=1, unit_price=net, vat_rate=DEFAULT_VAT_RATE)]))
+                                                                                        qty=1, unit_price=net, vat_rate=DEFAULT_VAT_RATE, gross=ink_price)]))
 
 
 def create(session: Session, user: User, body: ServiceTicketIn, ink=None, ink_price=None, self_claim: bool = False) -> ServiceTicket:
