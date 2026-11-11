@@ -46,8 +46,8 @@ def customers_page(request, session, user, q='', loai='', trang_thai='', no='', 
     if can_debt:
         d = finance_reports._debts()
         due = func.min(case((d.c.remaining > d.c.pending, d.c.due)))
-        debts = {code: dict(remaining=int(rem), due=first) for code, rem, first in session.execute(
-            select(d.c.customer_code, func.sum(d.c.remaining), due).group_by(d.c.customer_code)) if rem > 0}
+        debts = {code: dict(remaining=int(rem), since=since or today, due=first) for code, rem, since, first in session.execute(
+            select(d.c.customer_code, func.sum(d.c.remaining), func.min(d.c.day), due).group_by(d.c.customer_code)) if rem > 0}
 
     def alert(c):
         x = debts.get(c.code)
