@@ -928,6 +928,8 @@ class SalesOrderOptions(SalesOrderVersion):
 
 class SalesOrderConfirm(SalesOrderVersion):
     credit_override_reason: str = Field(default='', max_length=2000)
+    # Lý do bán dưới giá vốn (TUẤN 11/11/2026); bắt buộc khi có dòng dưới vốn, trừ giám đốc.
+    below_cost_reason: str = Field(default='', max_length=500)
 
 
 class SalesOrderUpdate(SalesOrderOptions, OrderPricing):
@@ -1484,6 +1486,7 @@ class SalesDeliveryOut(BaseModel):
 
 class SalesCounterSale(SalesReceiptReport):
     delivery_lines: list[SalesDeliveryLineIn] | None = None
+    below_cost_reason: str = Field(default='', max_length=500)
 
 
 class SalesDeliveryAssign(SalesOrderVersion):

@@ -66,7 +66,9 @@ def _form(request, session, data=None, quote=None, error=None, code='', status=2
     saved = request.query_params.get('da_luu') == '1' and not error
     frame = dict(toast_message=doc_frame.quote_toast(quote, linked_order) if quote and saved else '',
                  doc_next=doc_frame.quote_next(quote, linked_order) if quote else None)
-    return render(request, 'bao_gia_xem.jinja' if quote and quote.status != 'NHAP' else 'bao_gia_form.jinja', **frame, browse=browse, groups=products.groups(session) if browse else [],
+    from .. import below_cost
+    below = below_cost.summary(session, quote) if quote and quote.status != 'DA_HUY' else None
+    return render(request, 'bao_gia_xem.jinja' if quote and quote.status != 'NHAP' else 'bao_gia_form.jinja', **frame, below=below, is_director=has_role(request.state.user,'director'), browse=browse, groups=products.groups(session) if browse else [],
                   browse_prices=picked.last_prices(session,data.get('customer_code'),browse), quote_date=vn_created,
                   workflow=steps.quote(quote,linked_order),primary_checks=steps.quote_checks(data) if quote is None or quote.status=='NHAP' else [],today=svc._today().isoformat(), q=quote, d=data, line_errors=picked.line_errors(data['lines'],error,code), customer_card=card, customer_name=customer.name if customer else '',
                   product_names=names, statuses=STATUSES, vat_rates=VAT_RATES,

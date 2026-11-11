@@ -44,6 +44,10 @@ def service(t):
     return flow(labels,current,{'DA_HUY':'Đã hủy','KHONG_LAM_DUOC':'Không làm được'}.get(t.status,''))
 
 
+def _money(value):
+    return f"{int(round(value)):,}".replace(',', '.')
+
+
 def check(key,label,ok,blocking=True,**extra):
     return dict(key=key,label=label,ok=bool(ok),blocking=blocking,**extra)
 
@@ -68,7 +72,7 @@ def order_checks(session,user,data,stock_values,customer):
     pool=supply_query().subquery()
     checks=[check('customer','Đã chọn khách hàng',customer and customer.status=='DANG_DUNG'),
             check('lines','Có ít nhất 1 dòng',data['lines'])]
-    demand={};total=0;values=[];rates=[];liquidation_costs=[]
+    demand={};total=0;values=[];rates=[];liquidation_costs=[];normal_costs=[]
     for i,line in enumerate(data['lines'],1):
         if line.get('kind')=='HANG':
             checks.append(check('warehouse-'+str(i),f'Dòng {i} đã chọn kho' if line.get('warehouse_code') else f'Dòng {i} chưa chọn kho',line.get('warehouse_code')))
@@ -88,6 +92,10 @@ def order_checks(session,user,data,stock_values,customer):
                     balance=session.get(StockBalance,(wh.code,line['product_code']))
                     if balance:liquidation_costs.append((len(values),qty,price,balance.avg_cost))
                 if line.get('warehouse_code') and (not wh or not wh.active or (wh.kind!='KHO' and not liquidation)):checks.append(check('active-warehouse-'+str(i),f'Dòng {i}: kho không còn dùng',False))
+                if not liquidation:
+                    from .. import below_cost
+                    cost=below_cost.cost_of(session,line.get('warehouse_code'),line.get('product_code'))
+                    if cost:normal_costs.append((len(values),i,product,qty,price,cost))
             elif not line.get('description','').strip():checks.append(check('description-'+str(i),f'Dòng {i}: cần mô tả',False))
             values.append(quotes.proportion(price,qty,Decimal(1)));rates.append(int(line.get('vat_rate',8)))
             if line.get('kind')=='HANG' and line.get('warehouse_code') and line.get('product_code'):
@@ -102,6 +110,19 @@ def order_checks(session,user,data,stock_values,customer):
             for index,qty,price,cost in liquidation_costs:
                 below=priced[index][0]<cost*qty if pricing['price_includes_vat'] or pricing['discount_amount'] else price<cost
                 if below and not has_role(user,'director'):checks.append(check('CAN_GIAM_DOC_DUYET_GIA','Giá thanh lý dưới giá vốn, cần giám đốc chốt đơn.',False))
+            # Bán dưới giá vốn (TUẤN 11/11/2026): nhân viên không thấy số vốn, phải ghi lý do; giám đốc thấy lãi gộp.
+            director=has_role(user,'director');reason=bool(str(data.get('below_cost_reason','')).strip())
+            net_all=cost_all=0
+            for index,no,product,qty,price,cost in normal_costs:
+                net=priced[index][0] if pricing['price_includes_vat'] or pricing['discount_amount'] else price*qty
+                net_all+=net;cost_all+=cost*qty
+                if net<cost*qty:
+                    name=product.name if product else ''
+                    label=f'Dòng {no} ({name}) bán dưới giá vốn'+(f' · lỗ {_money(cost*qty-net)} đ' if director else ' · ghi lý do để chốt')
+                    checks.append(check(f'below-cost-{no}',label,director or reason))
+            if director and normal_costs and net_all:
+                margin=net_all-cost_all
+                checks.append(check('margin',f'Lãi gộp dự kiến: {"+" if margin>=0 else "−"} {_money(abs(margin))} đ · {round(margin*100/net_all,1)}% (chỉ giám đốc thấy)',margin>=0,False))
         except BusinessError as exc:
             checks.append(check('pricing',exc.message,False))
     for (wh,product),qty in demand.items():

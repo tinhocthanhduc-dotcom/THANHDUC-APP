@@ -13,7 +13,7 @@ LABELS = {'CHO_NCC_QUA_HAN':'Hàng gửi NCC quá hạn','CHO_XU_LY_QUA_HAN':'H�
           'BAO_THU_CHO':'Báo thu chờ xác nhận','KHACH_VUOT_HAN_MUC':'Khách vượt hạn mức',
           'KHACH_NO_QUA_HAN':'Khách nợ quá hạn','NCC_NO_QUA_HAN':'NCC nợ quá hạn',
           'DON_MUA_TRE':'Đơn mua trễ hẹn','CHUA_CHOT_SO':'Ngày chưa chốt sổ',
-          'CHAM_LUAN_CHUYEN':'Hàng chậm luân chuyển'}
+          'CHAM_LUAN_CHUYEN':'Hàng chậm luân chuyển','DUOI_GIA_VON':'Đơn bán dưới giá vốn'}
 LIMIT = 20
 
 
@@ -61,7 +61,7 @@ def collect(session,user,today=None,now=None) -> list[dict]:
         now=now or dashboard._now()
         now=now.replace(tzinfo=dashboard.TZ) if now.tzinfo is None else now.astimezone(dashboard.TZ)
         today=today or now.date()
-        counts={k:0 for k in LABELS if k!='CHAM_LUAN_CHUYEN' or has_role(user,'director')}
+        counts={k:0 for k in LABELS if k not in ('CHAM_LUAN_CHUYEN','DUOI_GIA_VON') or has_role(user,'director')}
         pending=pending_notices(session,user,now=now)
         counts.pop('CHO_XU_LY_QUA_HAN',None)
         counts.pop('CHO_NCC_QUA_HAN',None)
@@ -170,6 +170,14 @@ def collect(session,user,today=None,now=None) -> list[dict]:
                 lambda r:(f"{r['link_key']} · {r['warehouse_code']} chậm luân chuyển",f"{r['name']}: tồn {_qty(r['qty'])}, giá trị {_money(r['value'])} đồng; nhập đầu {r['oldest'].strftime('%d/%m/%Y')}, không xuất {config.ALERT_SLOW_STOCK_DAYS} ngày.",
                     '/the-kho/'+quote(r['warehouse_code'],safe='')+'/'+quote(r['link_key'],safe='')))
 
+        if has_role(user,'director'):
+            # Đơn chốt dưới giá vốn 7 ngày gần nhất (TUẤN 11/11/2026): chỉ để anh xem lại, không chặn việc gì.
+            from . import below_cost
+            rows=below_cost.recent(session,today-timedelta(days=6),today)
+            counts['DUOI_GIA_VON']=len(rows)
+            for r in rows[:LIMIT]:
+                items.append(dict(level='VANG',kind='DUOI_GIA_VON',title=f"{r['number']} bán dưới giá vốn · lỗ {_money(r['loss'])} đồng",
+                    detail=f"{r['by']} · lý do: {r['reason'] or 'giám đốc chốt'}",link=f"/don-ban/{r['order_id']}",_oldest=_stamp(r['at'])))
         items.sort(key=lambda r:(0 if r['level']=='DO' else 1,r['kind'],r['_oldest'],r['link']))
         for item in items:del item['_oldest']
         return AlertList(items,counts,red_count)

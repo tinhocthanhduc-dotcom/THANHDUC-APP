@@ -3,6 +3,7 @@
 {% macro token(action='') %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ action_form.get('version',q.version) if failed_action == action else q.version }}">{% endmacro %}
 {% import '_ui.jinja' as ui %}
 {% import 'viec_khac.jinja' as other %}
+{% import '_gia_von.jinja' as gv %}
 {% block title %}{{ q.number }}{% endblock %}
 {% block main %}<div class="page-wide doc-view" data-doc-view="quote">
 {% set tones={'DA_GUI':'cho','CHAP_NHAN':'xong','TU_CHOI':'huy','DA_HUY':'huy'} %}
@@ -27,6 +28,7 @@
 {% for line in q.lines %}<tr data-quote-line="{{ line.line_no }}"><td data-label="Tên hàng"><b>{{ line.description or product_names.get(line.product_code, line.product_code) }}</b><div class="hint">{{ line.product_code or 'Dòng tự do' }}</div><div class="hint doc-line-meta">{{ line.qty|qty }} {{ line.unit }} × {{ line.unit_price|money }}</div></td><td data-label="SL" class="num">{{ line.qty|qty }} {{ line.unit }}</td><td data-label="Đơn giá" class="num">{{ line.unit_price|money }}</td><td data-label="VAT" class="num">{{ line.vat_rate }}%</td><td data-label="Thành tiền" class="num"><b>{{ line.amount|money }}</b></td></tr>{% endfor %}
 </tbody></table></div>
 </section>
+{{ gv.card(below, is_director) }}
 {% if q.note %}<section class="card doc-card"><h2 class="doc-h">Ghi chú báo giá</h2><p class="service-text">{{ q.note }}</p></section>{% endif %}
 </div>
 
