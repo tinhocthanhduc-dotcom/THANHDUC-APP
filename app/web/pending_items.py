@@ -125,6 +125,13 @@ def transfer(request:Request,form=Depends(checked_form),user:User=Depends(web_us
     return RedirectResponse(f'/cho-xu-ly/{rows[0].id}',status_code=303)
 
 
+def _huy_deciders(session,user,treatments):
+    from .. import approval_limits
+    if has_role(user,'director'):return {xl.id for xl in treatments if xl.kind=='HUY'}
+    table=approval_limits.limits(session)
+    return {xl.id for xl in treatments if xl.kind=='HUY' and xl.status=='CHO_DUYET' and approval_limits.delegated(session,user,'HUY_HANG',approval_limits.disposal_cost(session,xl),xl.requested_by,table)}
+
+
 def detail_page(request,session,user,ident,error=None,code='',status=200):
     row=svc.load(session,user,ident)
     history=list(session.scalars(select(AuditLog).where(AuditLog.entity=='pending_item',AuditLog.entity_id==str(row.id)).order_by(AuditLog.id.desc())))
@@ -132,7 +139,7 @@ def detail_page(request,session,user,ident,error=None,code='',status=200):
     treatments=list(session.scalars(select(PendingDisposition).where(PendingDisposition.item_id==row.id).order_by(PendingDisposition.id.desc())))
     disposition_photos={xl.id:attachments.list_for(session,user,'pending_disposition',str(xl.id)) for xl in treatments}
     return render(request,'cho_xu_ly_chi_tiet.jinja',**context(user),row=row,holding=warehouse.supplier_hold,recovered=warehouse.recovered_only,available=max(0,row.qty_left-dispositions.reserved(session,row.id)),
-        treatments=treatments,disposition_photos=disposition_photos,disposition_kinds=dispositions.KINDS,disposition_statuses=dispositions.STATUSES,can_decide_return=has_role(user,'finance'),can_approve=has_role(user,'director'),
+        treatments=treatments,disposition_photos=disposition_photos,disposition_kinds=dispositions.KINDS,disposition_statuses=dispositions.STATUSES,can_decide_return=has_role(user,'finance'),can_approve=has_role(user,'director'),can_approve_huy=_huy_deciders(session,user,treatments),
         destinations=list(session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','LOI'))).order_by(Warehouse.code))),
         default_warehouse=get_settings().sales_default_warehouse,product=session.get(Product,row.product_code),
         photos=attachments.list_for(session,user,'pending_item',str(ident)),history=history,source_links=source_links(session,[row],user),
@@ -152,9 +159,13 @@ def supplier_picker(request:Request,q:str='',user:User=Depends(web_user),session
 @router.get('/cho-xu-ly/duyet-huy')
 def approvals(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
     from ..models import StockBalance
-    dispositions.director(user)
+    from .. import approval_limits
+    approval_limits.approver(user,session,('HUY_HANG',))
     rows=session.execute(select(PendingDisposition,PendingItem,Product.name,StockBalance.avg_cost).join(PendingItem,PendingItem.id==PendingDisposition.item_id).join(Product,Product.code==PendingItem.product_code).outerjoin(
         StockBalance,(StockBalance.warehouse_code==PendingItem.warehouse_code)&(StockBalance.product_code==PendingItem.product_code)).where(PendingDisposition.kind=='HUY',PendingDisposition.status=='CHO_DUYET').order_by(PendingDisposition.requested_at,PendingDisposition.id)).all()
+    if not has_role(user,'director'):
+        table=approval_limits.limits(session)
+        rows=[r for r in rows if approval_limits.delegated(session,user,'HUY_HANG',approval_limits.disposal_cost(session,r[0]),r[0].requested_by,table)]
     photos={xl.id:attachments.list_for(session,user,'pending_disposition',str(xl.id)) for xl,item,name,cost in rows}
     return render(request,'cho_xu_ly_duyet_huy.jinja',rows=rows,photos=photos,qty_text=qty_text)
 

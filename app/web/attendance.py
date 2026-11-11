@@ -25,6 +25,11 @@ TOTAL_LABELS=('Tổng công','Ngày đi làm','Ngày lễ','Ngày phép','Ngày 
 
 def director_user(user:User=Depends(web_user)):svc.director(user);return user
 
+
+def approver_user(user:User=Depends(web_user),session:Session=Depends(get_session)):
+    from .. import approval_limits
+    approval_limits.approver(user,session,('BO_SUNG','NGHI'));return user
+
 def reader_user(user:User=Depends(web_user)):svc.reader(user);return user
 
 
@@ -85,12 +90,12 @@ def cancel(request:Request,ident:int,form=Depends(checked_form),user:User=Depend
 
 
 @router.get('/cham-cong/duyet')
-def queue(request:Request,user:User=Depends(director_user),session:Session=Depends(get_session)):
+def queue(request:Request,user:User=Depends(approver_user),session:Session=Depends(get_session)):
     return _render(request,'cham_cong_duyet.jinja',rows=svc.requests(session,user,True))
 
 
 @router.post('/cham-cong/duyet/{ident}/{action}')
-def decide(request:Request,ident:int,action:str,form=Depends(checked_form),user:User=Depends(director_user),session:Session=Depends(get_session)):
+def decide(request:Request,ident:int,action:str,form=Depends(checked_form),user:User=Depends(approver_user),session:Session=Depends(get_session)):
     try:
         if action=='duyet':svc.approve(session,user,ident,form.get('version'),str(form.get('note','')))
         elif action=='tu-choi':svc.reject(session,user,ident,form.get('version'),str(form.get('note','')))

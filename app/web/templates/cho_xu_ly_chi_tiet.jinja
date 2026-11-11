@@ -26,7 +26,7 @@
 <div class="cx-wide"><dt>Lý do / mô tả</dt><dd class="service-text">{{ row.reason or '—' }}</dd></div>
 </dl></section>
 {% import 'o_anh.jinja' as anh with context %}{% set photo_hidden %}{% endset %}{# TUẤN 24/10: ô ảnh chuẩn, tối đa 2 ảnh. #}{{ anh.saved('Ảnh hàng', photos, '/cho-xu-ly/' ~ row.id ~ '/anh', photo_hidden, can_edit and row.status=='DANG_CHO', none, 'image/jpeg,image/png,image/webp', 2, '', 'photo') }}
-<section class="card doc-card cx-xl"><div class="doc-card-head"><h2 class="doc-h">Phiếu xử lý · {{ treatments|length }}</h2>{% if can_approve %}<a class="btn btn-ghost" href="/cho-xu-ly/duyet-huy">Duyệt hủy hàng ›</a>{% endif %}</div>
+<section class="card doc-card cx-xl"><div class="doc-card-head"><h2 class="doc-h">Phiếu xử lý · {{ treatments|length }}</h2>{% if can_approve or can_approve_huy %}<a class="btn btn-ghost" href="/cho-xu-ly/duyet-huy">Duyệt hủy hàng ›</a>{% endif %}</div>
 {% if treatments %}<div class="table-scroll"><table class="list-table cx-table"><thead><tr><th>Phiếu</th><th>Cách xử lý</th><th class="num">SL</th><th>Trạng thái</th><th>Ngày</th>{% if can_value %}<th class="num">Giá vốn</th>{% endif %}<th>Lý do · chứng từ</th></tr></thead><tbody>
 {% for xl in treatments %}<tr id="xl-{{ xl.id }}"><td data-label="Phiếu"><b>{{ xl.number }}</b></td><td data-label="Cách xử lý">{{ disposition_kinds[xl.kind] }}</td><td class="num" data-label="SL">{{ qty_text(xl.qty) }}</td>
 <td data-label="Trạng thái">{{ ui.badge(disposition_statuses[xl.status], {'CHO_DUYET':'cho','DA_GHI':'xong','TU_CHOI':'huy','DA_HUY':'huy'}.get(xl.status,'nhap')) }}</td>

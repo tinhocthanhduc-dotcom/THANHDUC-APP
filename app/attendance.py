@@ -262,10 +262,17 @@ def _leave_overlap(session,row):
             raise BusinessError('LEAVE_OVERLAP','Đã có nghỉ được duyệt trùng ngày/buổi.',status=409)
 
 
+def _decider(session,user,row):
+    """Giám đốc duyệt mọi phiếu; kế toán duyệt trong hạn mức, không phiếu của mình (TUẤN duyệt 11/11/2026)."""
+    from . import approval_limits
+    key,size=approval_limits.attendance_key(row);approval_limits.require(session,user,key,size,row.user_id)
+
+
 def approve(session,user,ident,version,note=''):
-    director(user)
+    from . import approval_limits
+    approval_limits.approver(user)
     with _transaction(session):
-        original=_load_request(session,ident);start,end=request_days(original)
+        original=_load_request(session,ident);_decider(session,user,original);start,end=request_days(original)
         _month_locks(session,start,end);_user_lock(session,original.user_id);row=_request_lock(session,ident,version)
         _eligible(session,row.user_id,start,end);before=_snapshot(row)
         if row.punch_at:
@@ -289,8 +296,10 @@ def _finish(session,user,ident,version,status,note):
 
 
 def reject(session,user,ident,version,note):
-    director(user);note=str(note or '').strip()
+    from . import approval_limits
+    approval_limits.approver(user);note=str(note or '').strip()
     if not note:raise BusinessError('NOTE_REQUIRED','Từ chối phải có ghi chú.')
+    _decider(session,user,_load_request(session,ident))
     return _finish(session,user,ident,version,'TU_CHOI',note)
 
 
@@ -437,11 +446,13 @@ def board(session,user,month):
 
 
 def requests(session,user,pending=False):
-    if pending:director(user)
+    from . import approval_limits
+    if pending:approval_limits.approver(user)
     stmt=select(Request,User.full_name,User.roles).join(User,User.id==Request.user_id)
     stmt=stmt.where(Request.status=='CHO_DUYET') if pending else stmt.where(Request.user_id==user.id)
-    rows=[]
+    rows=[];table=approval_limits.limits(session)
     for row,name,roles in session.execute(stmt.order_by(Request.created_at.desc(),Request.id.desc())):
+        if pending and not approval_limits.can_decide(session,user,*approval_limits.attendance_key(row),row.user_id,table):continue
         day=row.punch_at.astimezone(TZ).date() if row.punch_at else row.from_date
         rows.append(dict(item=row,name=name,late_submission=bool(row.punch_at and row.created_at-row.punch_at>timedelta(days=7)),visit_day=day,technician='technician' in roles))
     # One grouped visit query for the entire queue, not one query per request.
@@ -455,4 +466,8 @@ def requests(session,user,pending=False):
 
 
 def pending_count(session,user):
-    director(user);return int(session.scalar(select(func.count()).select_from(Request).where(Request.status=='CHO_DUYET')))
+    from . import approval_limits
+    approval_limits.approver(user)
+    if not has_role(user,'director') and all(approval_limits.limits(session)[k]<=0 for k in ('BO_SUNG','NGHI')):return 0
+    if has_role(user,'director'):return int(session.scalar(select(func.count()).select_from(Request).where(Request.status=='CHO_DUYET')))
+    return len(requests(session,user,True))

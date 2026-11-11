@@ -154,6 +154,10 @@ def _decider(session,user,ident):
     row=session.get(PendingDisposition,ident)
     if row and row.kind=='TRA_NCC':
         if not has_role(user,'finance'):raise BusinessError('FORBIDDEN','Chỉ kế toán hoặc giám đốc được xử lý Trả NCC.',status=403)
+    elif row and row.kind=='HUY' and row.status=='CHO_DUYET' and not has_role(user,'director'):
+        # Kế toán duyệt hủy hàng trong hạn mức giá vốn, không phiếu của mình (TUẤN duyệt 11/11/2026).
+        from . import approval_limits
+        approval_limits.require(session,user,'HUY_HANG',approval_limits.disposal_cost(session,row),row.requested_by)
     else:director(user)
 
 

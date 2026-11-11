@@ -1,0 +1,17 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Hạn mức duyệt{% endblock %}
+{% block main %}<div class="page-wide">
+{% call ui.page_head('Hạn mức duyệt', sub='Việc kế toán được duyệt thay giám đốc · chỉ giám đốc sửa', back='/viec-cua-toi') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if saved %}{{ ui.toast('Đã lưu hạn mức duyệt.', 'ok') }}{% endif %}
+<form method="post" action="/han-muc-duyet" class="card frame limit-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="table-scroll"><table class="list-table limit-table"><thead><tr><th>Việc</th><th>Kế toán duyệt khi</th><th>Trên mức</th></tr></thead><tbody>
+<tr data-limit="BO_SUNG"><td><b>Bổ sung giờ vào / ra</b><span class="hint">quên chấm công</span></td><td><div class="seg stock-seg" role="group" aria-label="Bổ sung giờ"><label><input type="radio" name="BO_SUNG" value="1" {% if limits.BO_SUNG|string != '0' %}checked{% endif %}><span>Mọi phiếu</span></label><label><input type="radio" name="BO_SUNG" value="0" {% if limits.BO_SUNG|string == '0' %}checked{% endif %}><span>Không giao</span></label></div></td><td class="hint">—</td></tr>
+<tr data-limit="NGHI"><td><b>Xin nghỉ</b><span class="hint">nghỉ phép, nghỉ không lương</span></td><td><div class="seg stock-seg" role="group" aria-label="Xin nghỉ">{% for n in leave_picks %}<label><input type="radio" name="NGHI" value="{{ n }}" {% if limits.NGHI|string == n|string %}checked{% endif %}><span>{{ 'Không giao' if n == 0 else 'Tới ' ~ n ~ ' ngày' }}</span></label>{% endfor %}</div></td><td>Giám đốc duyệt</td></tr>
+<tr data-limit="TAM_UNG"><td><b>Tạm ứng lương</b></td><td><label class="limit-money">Tới (đồng)<input name="TAM_UNG" value="{{ limits.TAM_UNG|money if limits.TAM_UNG is number else limits.TAM_UNG }}" inputmode="numeric" data-money required></label></td><td>Giám đốc duyệt</td></tr>
+<tr data-limit="HUY_HANG"><td><b>Hủy hàng chờ xử lý</b><span class="hint">theo giá vốn</span></td><td><label class="limit-money">Tới (đồng)<input name="HUY_HANG" value="{{ limits.HUY_HANG|money if limits.HUY_HANG is number else limits.HUY_HANG }}" inputmode="numeric" data-money required></label></td><td>Giám đốc duyệt</td></tr>
+<tr><td class="hint" colspan="3">Nhập 0 = không giao. Vẫn chỉ giám đốc: điều chỉnh sổ quỹ, ghi sổ kiểm kê, hủy báo thu / phiếu trả, thanh lý dưới giá vốn. Không ai duyệt phiếu của chính mình; giám đốc vẫn duyệt hoặc từ chối được mọi phiếu.</td></tr>
+</tbody></table></div>
+<div class="action-bar"><button class="btn-ok">Lưu hạn mức</button></div>
+</form>
+</div>{% endblock %}

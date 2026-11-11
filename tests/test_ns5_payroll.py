@@ -7,6 +7,8 @@ from decimal import Decimal
 from threading import Barrier
 
 import pytest
+
+from app import approval_limits
 from sqlalchemy import event,select,func,text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -201,6 +203,7 @@ def test_zero_net_marks_paid_without_mapping_or_document(db,p,monkeypatch):
 
 
 def test_advance_cap_cancel_reject_roles_versions_and_failure(db,p,money):
+    approval_limits.save(db,p['director'],dict.fromkeys(approval_limits.KEYS,0))  # giám đốc không giao kế toán duyệt
     r=svc.request_advance(db,p['technician'],2000000,'Gia đình');assert r.number=='TU-27-00001'
     err('VUOT_HAN_MUC_TAM_UNG',svc.request_advance,db,p['technician'],1000001,'Vượt')
     err('FORBIDDEN',svc.decide_advance,db,p['finance'],r.id,r.version)
@@ -345,6 +348,7 @@ def test_concurrent_approvals_only_one_snapshot(db,p,engine,monkeypatch):
 
 
 def test_web_inputs_advance_and_finance_visibility(client,db,p,money,monkeypatch):
+    approval_limits.save(db,p['director'],dict.fromkeys(approval_limits.KEYS,0))
     summary(monkeypatch);ready(db,p);csrf=web_login(client,p['technician'])
     response=client.post('/tam-ung',data={'csrf':csrf,'amount':'300.000','reason':'Tạm ứng trên web'})
     assert response.status_code==200 and '300.000' in response.text

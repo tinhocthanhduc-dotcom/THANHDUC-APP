@@ -259,12 +259,15 @@ def cancel_advance(session,user,ident,version):
 
 
 def decide_advance(session,user,ident,version,approve=True,note=''):
-    director(user);note=str(note or '').strip()
+    from . import approval_limits
+    approval_limits.approver(user);note=str(note or '').strip()
     if not approve and not note:raise BusinessError('REASON_REQUIRED','Từ chối phải có ghi chú.')
     if len(note)>4000:raise BusinessError('BAD_NOTE','Ghi chú tối đa 4.000 ký tự.')
     with _transaction(session):
         _guard(session);row=_advance(session,ident,version)
         if row.status!='CHO_DUYET':raise BusinessError('BAD_STATUS','Yêu cầu không còn chờ duyệt.',status=409)
+        # Kế toán duyệt thay trong hạn mức giám đốc đặt, không phiếu của mình (TUẤN duyệt 11/11/2026).
+        approval_limits.require(session,user,'TAM_UNG',int(row.amount),row.user_id)
         before=_snapshot(row);row.status='DA_DUYET' if approve else 'TU_CHOI';row.decided_by=user.id;row.decided_at=_now();row.decision_note=note
         _record(session,user,'advance_decide',row,before)
     return row
@@ -307,11 +310,24 @@ def payslip(session,user,line_id):
 def advances(session,user):
     _access(user);q=select(Advance,User.full_name,CashDoc.number,CashDoc.doc_date).join(User,User.id==Advance.user_id).outerjoin(CashDoc,CashDoc.id==Advance.cash_doc_id)
     if not has_role(user,'finance'): _person(session,user)
+    from . import approval_limits
+    table=approval_limits.limits(session);limit=table['TAM_UNG'] if approval_limits.delegated(session,user,'TAM_UNG',0,None,table) else 0
     if not has_role(user,'director'):
-        q=q.where(or_(Advance.user_id==user.id,Advance.status.in_(('DA_DUYET','DA_CHI')))) if has_role(user,'finance') else q.where(Advance.user_id==user.id)
-    return [dict(item=r,name=name,cash_number=number,cash_day=day) for r,name,number,day in session.execute(q.order_by(Advance.requested_at.desc(),Advance.id.desc()))]
+        if has_role(user,'finance'):
+            visible=[Advance.user_id==user.id,Advance.status.in_(('DA_DUYET','DA_CHI'))]
+            if limit:visible.append((Advance.status=='CHO_DUYET')&(Advance.amount<=limit))
+            q=q.where(or_(*visible))
+        else:q=q.where(Advance.user_id==user.id)
+    rows=[]
+    for r,name,number,day in session.execute(q.order_by(Advance.requested_at.desc(),Advance.id.desc())):
+        decide=r.status=='CHO_DUYET' and approval_limits.can_decide(session,user,'TAM_UNG',int(r.amount),r.user_id,table)
+        rows.append(dict(item=r,name=name,cash_number=number,cash_day=day,can_decide=decide))
+    return rows
 
 
 def pending_count(session,user):
-    if 'admin' in user.roles and 'director' not in user.roles or not has_role(user,'director'):return 0
-    return session.scalar(select(func.count()).select_from(Advance).where(Advance.status=='CHO_DUYET'))
+    from . import approval_limits
+    if 'admin' in user.roles and 'director' not in user.roles:return 0
+    if has_role(user,'director'):return session.scalar(select(func.count()).select_from(Advance).where(Advance.status=='CHO_DUYET'))
+    if not has_role(user,'finance'):return 0
+    return sum(1 for r in approval_limits.for_user(session,user) if r['key']=='TAM_UNG')

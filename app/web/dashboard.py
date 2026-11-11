@@ -42,7 +42,7 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
     debt={k:v for k,v in groups.items() if k in DEBT_KINDS}
     eye=dict(sorted(((k,v) for k,v in groups.items() if k not in CALM_KINDS+DEBT_KINDS),key=lambda kv:(-sum(1 for a in kv[1] if a['level']=='DO'),-notices.counts[kv[0]])))
     avg30=sum(r['amount'] for r in data['revenue_daily'])//max(1,len(data['revenue_daily']))
-    advance_pending=payroll.pending_count(session,user);attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0
+    advance_pending=payroll.pending_count(session,user);attendance_pending=attendance.pending_count(session,user) if has_role(user,'director','finance') else 0
     # Bản 2 (TUẤN duyệt 28/10/2026): ai đang làm gì · việc cần làm tiếp · việc đang diễn ra; bảng thợ cũ gập xuống dưới.
     live=svc.live_board(session,user,today=data['today'],approvals=(attendance_pending,advance_pending),technicians=board.get('technicians'))
     orders=_day_orders(request,session,user,data['today'])

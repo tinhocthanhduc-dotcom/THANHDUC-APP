@@ -4393,3 +4393,7 @@ dialog.qv::backdrop { background: rgba(15,20,30,.42); }
 .below-note{display:grid;gap:6px;border:1px solid var(--warn)}
 .below-note textarea{font-size:16px}
 .below-cost td.bad{color:var(--bad);font-weight:700}
+/* Hạn mức duyệt (TUẤN duyệt 11/11/2026) */
+.limit-table td .hint{display:block}
+.limit-table .seg{flex-wrap:wrap}
+.limit-money input{max-width:220px;text-align:right}
