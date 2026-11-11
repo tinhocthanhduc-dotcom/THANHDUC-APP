@@ -1,5 +1,5 @@
 """Giao diện web cho nhân viên: đăng nhập, khách hàng, hàng hóa. Mọi quy tắc nằm ở tầng nghiệp vụ, trang web chỉ gọi vào."""
-from datetime import date
+from datetime import UTC, date, datetime
 import contextvars
 import hashlib
 import re
@@ -32,7 +32,7 @@ from ..models import Supplier, User, Warehouse
 from ..routers.customers import WRITERS as CUSTOMER_WRITERS
 from ..schemas import (Confirmation, CustomerCreate, CustomerIn, CustomerPatch, ProductIn, ProductPatch,
                        SupplierIn, SupplierPatch, WarehouseIn, WarehousePatch)
-from ..security import has_role, issue_token, verify_password
+from ..security import has_role, issue_token, reissue, verify_password, web_token_minutes
 from . import nav
 from .. import search as tim
 
@@ -281,7 +281,30 @@ async def web_error_page(request: Request, exc: BusinessError) -> Response:
 
 
 def csrf_token(session_token: str) -> str:
+    """Mã chống form giả của phiên. Phiếu mới mang sẵn mã (`cs`) để gia hạn phiên không làm cũ các trang đang mở;
+    phiếu cũ (trước 11/11/2026) tính từ chính chuỗi phiếu như trước."""
+    try:
+        cs = jwt.decode(session_token, options={"verify_signature": False}).get("cs")
+    except jwt.PyJWTError:
+        cs = None
+    if isinstance(cs, str) and cs:
+        return cs
     return hmac.new(get_settings().secret_key.encode(), b"csrf:" + session_token.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+# Phiên web tự gia hạn (TUẤN 11/11/2026): phiếu đã dùng quá 30 phút thì ký lại, cookie mới gắn vào trả lời (xem main.py).
+RENEW_AFTER_SECONDS = 30 * 60
+
+
+def web_session_token(token: str) -> str:
+    """Đổi phiếu vừa cấp lúc đăng nhập / đổi mật khẩu sang phiếu web (hạn theo web_idle_days)."""
+    payload = jwt.decode(token, get_settings().secret_key, algorithms=["HS256"])
+    return reissue(payload, csrf_token(token))
+
+
+def set_session_cookie(response: Response, token: str) -> None:
+    s = get_settings()
+    response.set_cookie(COOKIE, token, max_age=web_token_minutes() * 60, httponly=True, samesite="lax", secure=s.cookie_secure)
 
 
 def web_user(request: Request, session: Session = Depends(get_session)) -> User:
@@ -297,6 +320,12 @@ def web_user(request: Request, session: Session = Depends(get_session)) -> User:
     user = session.get(User, user_id)
     if not user or not user.active or type(payload.get("tv")) is not int or payload["tv"]!=user.token_version:
         raise LoginRequired(target)
+    now_ts = int(datetime.now(UTC).timestamp())
+    login_at = payload.get("lat") if type(payload.get("lat")) is int else payload.get("iat")
+    if type(login_at) is int and now_ts - login_at > get_settings().web_max_days * 86400:
+        raise LoginRequired(target)
+    if type(payload.get("iat")) is int and now_ts - payload["iat"] > RENEW_AFTER_SECONDS:
+        request.state.renew_session = reissue(payload, csrf_token(token))
     from ..models import Employee
     request.state.payroll_account = not ('admin' in user.roles and 'director' not in user.roles) and session.scalar(select(Employee.id).where(Employee.user_id==user.id)) is not None
     request.state.user = user
@@ -430,14 +459,11 @@ async def login_submit(request: Request, session: Session = Depends(get_session)
     try:user,token=user_service.authenticate(session,username,str(form.get('password','')))
     except BusinessError:
         return render(request, "dang_nhap.jinja", next=next_url, username=username, error="Sai tên đăng nhập hoặc mật khẩu.", status=401)
-    s = get_settings()
     # Quay lại trang đang mở trước khi hết phiên nếu vai trò được vào, không thì về trang đầu theo vai trò.
     target = next_url if next_url != "/" and nav.allowed(user, next_url.split("?")[0]) else nav.home_url(user)
     if user.must_change_password:target="/doi-mat-khau"
     response = RedirectResponse(target, status_code=303)
-    response.set_cookie(
-        COOKIE, token, max_age=s.token_minutes * 60, httponly=True, samesite="lax", secure=s.cookie_secure
-    )
+    set_session_cookie(response, web_session_token(token))
     return response
 
 
