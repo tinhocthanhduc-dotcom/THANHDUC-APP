@@ -4359,36 +4359,92 @@ dialog.qv::backdrop { background: rgba(15,20,30,.42); }
 .qr-static { margin-top: 12px; text-align: center; } .qr-static .qr-img { max-width: 220px; }
 .tho-app .qr-amount { font-size: 2.3rem; }
 
-/* Lãi ròng tháng (đợt 4, 08/11/2026) */
-.pl-head { flex-wrap: wrap; gap: 10px; align-items: center; }
-.pl-month { display: inline-flex; align-items: center; gap: 8px; } .pl-month strong { min-width: 130px; text-align: center; }
-.pl-month .btn { min-width: 40px; padding: 6px 10px; }
-.pl-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: var(--ok-bg); color: var(--ok); }
-.pl-pill.warn { background: var(--warn-bg); color: var(--warn); }
-.pl-tabs { flex-wrap: wrap; margin: 12px 0; } .pl-tabs .count { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--line); font-size: .8rem; }
-.pl-tabs .primary .count { background: rgba(255,255,255,.3); }
-.pl-tiles { margin: 10px 0 16px; } .pl-tiles .t-n { font-size: 1.3rem; }
-.pl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .pl-grid { grid-template-columns: 1fr; } }
-.pl-table td:nth-child(3), .pl-table td:nth-child(4), .pl-table td[data-label^="Tháng"], .pl-table td[data-label="Số tiền"] { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
-.pl-table tr.pl-sub th, .pl-table tr.pl-sub td { background: var(--surface-2, #f6f7f9); font-weight: 600; }
-.pl-table tr.pl-total th, .pl-table tr.pl-total td { border-top: 2px solid var(--text); font-weight: 700; }
-.pl-table tr.pl-final th, .pl-table tr.pl-final td { font-size: 1.05rem; }
-.pl-table tr.pl-estimate td, .pl-table tr.pl-estimate th { background: var(--warn-bg); }
-.pl-table .plus { color: var(--ok); } .pl-table .minus { color: var(--bad); }
-.pl-table td small { color: var(--muted); display: block; font-weight: 400; }
-.pl-side { display: grid; gap: 12px; }
-.pl-box h2 { margin: 0 0 8px; font-size: 1rem; } .pl-box.ok { border-color: var(--ok); } .pl-box.bad { border-color: var(--bad); }
-.pl-verdict { display: block; font-size: 1.2rem; margin-bottom: 6px; } .pl-verdict.plus { color: var(--ok); } .pl-verdict.minus { color: var(--bad); }
-.pl-kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 8px 0; } .pl-kv dt { color: var(--muted); } .pl-kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-.pl-kv dd.plus { color: var(--ok); } .pl-kv dd.minus { color: var(--bad); } .pl-kv dd small { display: block; font-weight: 400; color: var(--muted); }
-.pl-actions { display: flex; gap: 6px; justify-content: flex-end; } .pl-actions form.inline { display: inline; }
-.pl-form { margin-top: 14px; } .pl-form h3 { margin-top: 0; }
-.pl-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; height: 160px; align-items: end; margin: 12px 0 4px; }
-.pl-bar-col { display: grid; grid-template-rows: 1fr auto; height: 100%; text-align: center; } .pl-bar-col small { color: var(--muted); font-size: .75rem; }
-.pl-bar-stack { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
-.pl-bar { display: block; width: 40%; min-height: 2px; border-radius: 3px 3px 0 0; } .pl-bar.gross { background: var(--accent); } .pl-bar.net { background: var(--ok); } .pl-bar.net.minus { background: var(--bad); }
-.pl-legend { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; } .pl-legend.gross { background: var(--accent); } .pl-legend.net { background: var(--ok); }
+/* Lãi ròng tháng — bản sửa (TUẤN duyệt 11/11/2026). Tiền tố lr- riêng: trước dùng pl- trùng bảng linh kiện (.pl-head) nên vỡ khung. */
+.lr-page { container-type: inline-size; }
+.lr-month { display: inline-flex; align-items: center; gap: 6px; } .lr-month strong { min-width: 116px; text-align: center; white-space: nowrap; }
+.lr-month .btn { min-width: 44px; padding: 4px 8px; }
+.lr-sm { min-height: 36px; padding: 4px 12px; font-size: .88rem; border-radius: 10px; white-space: nowrap; }
+.lr-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lr-top { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; align-items: stretch; }
+.lr-answer { background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--bad); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.lr-answer.ok { border-left-color: var(--ok); }
+.lr-q { margin: 0; font-weight: 700; color: var(--muted); font-size: .9rem; }
+.lr-v { margin: 4px 0 0; font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lr-meter { margin: 12px 0 6px; height: 12px; border-radius: 999px; background: var(--tag); position: relative; overflow: hidden; }
+.lr-meter span { position: absolute; inset: 0 auto 0 0; background: var(--bad); border-radius: 999px; }
+.lr-answer.ok .lr-meter span { background: var(--ok); }
+.lr-meter-l { display: flex; justify-content: space-between; gap: 8px; font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lr-how { margin: 10px 0 0; font-size: .9rem; }
+.lr-todo { background: var(--warn-bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.lr-todo.done { background: var(--ok-bg); }
+.lr-todo h2 { margin: 0 0 8px; font-size: .95rem; color: var(--warn); } .lr-todo.done h2 { color: var(--ok); }
+.lr-todo p { margin: 0; font-size: .9rem; }
+.lr-todo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.lr-todo li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.lr-todo li > div { min-width: 0; } .lr-todo li b { display: block; font-size: .92rem; } .lr-todo li small { color: var(--muted); font-size: .8rem; }
+.lr-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.lr-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
+.lr-tile .k { font-size: .8rem; font-weight: 700; color: var(--muted); }
+.lr-tile .n { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lr-tile .d { font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lr-tabs { display: flex; gap: 8px; margin: 16px 0 12px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.lr-tabs::-webkit-scrollbar { display: none; }
+.lr-tabs a { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 600; font-size: .92rem; white-space: nowrap; }
+.lr-tabs a.on { background: var(--info-solid); border-color: var(--info-solid); color: var(--info-solid-text); }
+.lr-c { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--tag); font-size: .75rem; line-height: 1; }
+.lr-tabs a.on .lr-c { background: rgba(255,255,255,.28); color: inherit; } .lr-c.warn { background: var(--warn-bg); color: var(--warn); }
+.lr-grid, .lr-adj-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.lr-side { display: grid; gap: 12px; min-width: 0; }
+.lr-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.lr-panel-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.lr-panel-h h2, .lr-form h2 { margin: 0; font-size: 1rem; }
+.lr-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 128px 112px; gap: 8px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--line); }
+.lr-hd { border-top: 0; padding-top: 2px; font-size: .75rem; font-weight: 700; color: var(--muted); } .lr-hd span:nth-child(n+3) { text-align: right; }
+.lr-sg { font-weight: 800; color: var(--muted); text-align: center; }
+.lr-nm { min-width: 0; } .lr-nm b { display: block; font-size: .95rem; } .lr-nm small { display: block; color: var(--muted); font-size: .8rem; margin-top: 1px; overflow-wrap: anywhere; }
+.lr-amt { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lr-prev { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: .9rem; }
+.lr-row.sub { background: var(--tag); margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+.lr-row.total { border-top: 2px solid var(--text); } .lr-row.final .lr-amt { font-size: 1.15rem; }
+.lr-row.est .lr-nm b::after, .lr-row.uoc .lr-nm b::after { content: "chưa có số"; margin-left: 8px; font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); vertical-align: 2px; }
+.lr-row.uoc .lr-nm b::after { content: "ước"; }
+.lr-page .plus { color: var(--ok); } .lr-page .minus { color: var(--bad); } .lr-row .lr-prev.plus, .lr-row .lr-prev.minus { opacity: .85; }
+.lr-note { margin: 10px 0 0; font-size: .8rem; color: var(--muted); } .lr-note-top { margin-top: 0; }
+.lr-kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 6px 0 0; }
+.lr-kv dt { color: var(--muted); font-size: .9rem; } .lr-kv dd { margin: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lr-adj { display: grid; }
+.lr-adj-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.lr-adj-name { min-width: 0; flex: 1 1 160px; } .lr-adj-name b { display: block; } .lr-adj-name small { color: var(--muted); font-size: .8rem; }
+.lr-adj-act { display: flex; align-items: center; gap: 6px; } .lr-adj-act form { margin: 0; } .lr-adj-act .lr-num { margin-right: 4px; }
+.lr-chip { font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--tag); color: var(--muted); }
+.lr-empty { padding: 14px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); text-align: center; margin: 6px 0 0; }
+.lr-copy { margin-top: 10px; }
+.lr-form label { font-weight: 700; color: var(--text); }
+.lr-groups .chip span { min-height: 40px; }
+.lr-table td[data-label^="Tháng"], .lr-table td[data-label="Doanh thu"], .lr-table td[data-label="Giá vốn"], .lr-table td[data-label="Lãi gộp"], .lr-table td[data-label="Lỗ"] { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.lr-table tr.lr-estimate td, .lr-table tr.lr-estimate th { background: var(--warn-bg); }
+.lr-table td small { color: var(--muted); font-weight: 400; }
+.lr-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; height: 160px; align-items: end; margin: 12px 0 4px; }
+.lr-bar-col { display: grid; grid-template-rows: 1fr auto; height: 100%; text-align: center; } .lr-bar-col small { color: var(--muted); font-size: .75rem; }
+.lr-bar-stack { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
+.lr-bar { display: block; width: 40%; min-height: 2px; border-radius: 3px 3px 0 0; } .lr-bar.gross { background: var(--accent); } .lr-bar.net { background: var(--ok); } .lr-bar.net.minus { background: var(--bad); }
+.lr-legend { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; } .lr-legend.gross { background: var(--accent); } .lr-legend.net { background: var(--ok); }
+@container (max-width: 820px) {
+  .lr-grid, .lr-adj-grid { grid-template-columns: 1fr; }
+  .lr-grid > .lr-side { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@container (max-width: 640px) {
+  .lr-top { grid-template-columns: 1fr; }
+  .lr-tiles { grid-template-columns: 1fr 1fr; }
+  .lr-tile .n { font-size: 1.05rem; }
+  .lr-v { font-size: 1.25rem; }
+  .lr-panel { padding: 12px; }
+  .lr-hd { display: none; }
+  .lr-row { grid-template-columns: 18px minmax(0, 1fr) auto; row-gap: 0; }
+  .lr-row .lr-prev { grid-column: 2 / 4; text-align: left; font-size: .78rem; }
+  .lr-row .lr-prev::before { content: attr(data-prev) ": "; }
+  .lr-row.sub { margin: 0 -12px; padding-left: 12px; padding-right: 12px; }
+}
 /* Bán dưới giá vốn (TUẤN 11/11/2026). */
 .below-note{display:grid;gap:6px;border:1px solid var(--warn)}
 .below-note textarea{font-size:16px}

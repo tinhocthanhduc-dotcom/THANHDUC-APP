@@ -160,7 +160,7 @@ def test_web_page_tabs_forms_and_director_only(client, db, report_people, monkey
     assert page.status_code == 200, page.text
     html = page.text
     assert 'data-pl-table' in html and 'Tháng 10/2026' in html and '>150.000<' in html and 'data-payroll-status="CHUA_CO"' in html
-    assert 'Chưa · thiếu 45.150.000' in html and 'chi phí ngoài sổ 0 khoản' in html and 'href="/bao-cao/lai-rong"' in html
+    assert 'Chưa · thiếu 45.150.000' in html and 'Chi phí ngoài sổ: 0 khoản' in html and 'data-todo-box' in html and 'href="/bao-cao/lai-rong"' in html
     assert 'Lãi ròng' in client.get('/bao-cao/tai-chinh').text  # có trong menu Báo cáo của giám đốc
     assert 'data-group-table' in client.get('/bao-cao/lai-rong?thang=2026-10&tab=theo-loai').text
     assert 'data-customer-table' in client.get('/bao-cao/lai-rong?thang=2026-10&tab=theo-khach').text
@@ -178,7 +178,7 @@ def test_web_page_tabs_forms_and_director_only(client, db, report_people, monkey
     r = client.post('/bao-cao/lai-rong/luong-giam-doc', data=dict(csrf=csrf, thang='2026-10', version='1', amount='40.000.000'), follow_redirects=False)
     assert r.status_code == 303 and svc.director_salary(db) == 40000000
     summary = client.get('/bao-cao/lai-rong?thang=2026-10').text
-    assert 'Sau lương GĐ 40 tr' in summary and 'Chưa · thiếu 47.150.000' in summary
+    assert 'Còn lại sau lương GĐ 40 tr' in summary and 'Chưa · thiếu 47.150.000' in summary
     r = client.post('/bao-cao/lai-rong/ngoai-so/chep', data=dict(csrf=csrf, thang='2026-11'), follow_redirects=False)
     assert r.status_code == 303 and svc.adjustments(db, date(2026, 11, 1))['amount'] == 7000000
     r = client.post(f'/bao-cao/lai-rong/ngoai-so/{adj.id}/xoa', data=dict(csrf=csrf, thang='2026-10', version='1'), follow_redirects=False)
