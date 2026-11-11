@@ -18,7 +18,8 @@ from .lists import KINDS, OLD_DEBT_DAYS, _today
 from .. import search as tim
 
 router = APIRouter()
-TABS = {'no': 'Còn nợ', 'chua-tra': 'Khách chưa trả', 'o-nv': 'Tiền ở nhân viên', 'qua-han': f'Quá {OLD_DEBT_DAYS} ngày', 'vuot': 'Vượt hạn mức'}
+# Quá hạn = quá hạn trả của chứng từ (ngày giao + số ngày nợ), cùng cách tính với báo cáo sáng, nhắc nợ thứ Hai (TUẤN 11/11/2026).
+TABS = {'no': 'Còn nợ', 'chua-tra': 'Khách chưa trả', 'o-nv': 'Tiền ở nhân viên', 'qua-han': 'Quá hạn', 'vuot': 'Vượt hạn mức'}
 OLD_TABS = {'cho': 'o-nv'}  # link cũ trước khi tách tiền ở nhân viên
 TRANSFER = 'ck'  # khóa "người giữ" của chuyển khoản: tiền đã vào tài khoản công ty, không ở người
 SORTS = {'no': 'Nợ nhiều nhất', 'lau': 'Nợ lâu nhất', 'ten': 'Tên khách'}
@@ -63,15 +64,18 @@ def _rows(session, user, today):
     d = finance_reports._debts()
     by_code = {}
     for r in session.execute(select(d).order_by(d.c.day, d.c.kind, d.c.id)):
-        x = by_code.setdefault(r.customer_code, dict(code=r.customer_code, remaining=0, pending=0, since=None, docs=[]))
+        x = by_code.setdefault(r.customer_code, dict(code=r.customer_code, remaining=0, pending=0, since=None, late=0, docs=[]))
         x['remaining'] += int(r.remaining); x['pending'] += int(r.pending)
         unpaid = max(0, int(r.remaining) - int(r.pending))
         day = r.day or today
+        late = max(0, (today - r.due).days) if r.due else 0
         if unpaid:  # Nợ từ / quá hạn chỉ tính chứng từ khách còn chưa trả; trả hết cho thợ thì không còn là khách nợ lâu
             x['since'] = day if x['since'] is None or day < x['since'] else x['since']
+            x['late'] = max(x['late'], late)
         href = (f'/don-ban/{r.id}#thu-tien' if r.kind == 'DB' else opening_url(r.customer_code, '#thu-tien') if r.kind == 'DK'
                 else nav.ticket_url(user, r.id, '#thu-tien'))
-        x['docs'].append(dict(kind=r.kind, number=r.number, href=href, remaining=int(r.remaining), unpaid=unpaid, day=day))
+        x['docs'].append(dict(kind=r.kind, number=r.number, href=href, remaining=int(r.remaining), unpaid=unpaid, day=day, due=r.due,
+                              late=late if unpaid else 0))
     if not by_code:
         return []
     customers = {c.code: c for c in session.scalars(select(Customer).where(Customer.code.in_(list(by_code))))}
@@ -93,7 +97,8 @@ def _rows(session, user, today):
         days = (today - since).days
         rows.append(dict(x, c=c, name=c.name, kind=c.kind, phones=phones.get(code, []), since=since, days=days, pay_href=pay,
                          unpaid=unpaid, holders=holders.get(code, []),
-                         old=unpaid > 0 and days > OLD_DEBT_DAYS, limit=limit, allow_debt=c.allow_debt,
+                         old=unpaid > 0 and x['late'] > 0, limit=limit, allow_debt=c.allow_debt,
+                         due=min((doc['due'] for doc in x['docs'] if doc['unpaid'] and doc['due']), default=None),
                          over=x['remaining'] > limit, left=limit - x['remaining'], last=last.get(code),
                          orders=sum(1 for doc in x['docs'] if doc['kind'] == 'DB'), tickets=sum(1 for doc in x['docs'] if doc['kind'] == 'DV'),
                          opening=next((doc for doc in x['docs'] if doc['kind'] == 'DK'), None),
@@ -138,14 +143,14 @@ def listing(request: Request, q: str = '', tab: str = '', loai: str = '', xep: s
     # Ô số đếm trên toàn bộ khách còn nợ (không theo ô tìm); bấm ô là chuyển tab.
     groups = {k: [r for r in all_rows if pick[k](r)] for k in TABS}
     total = lambda k, key='remaining': sum(r[key] for r in groups[k])
-    oldest = max((r['days'] for r in groups['qua-han']), default=0)
+    oldest = max((r['late'] for r in groups['qua-han']), default=0)
     short = lambda g: (g['label'].replace('Tiền mặt ở ', '') if g['cash'] else 'CK chờ đối soát') + ' ' + money(g['amount'])
     held = ' · '.join(short(g) for g in people[:2]) + (f' · +{len(people) - 2} người' if len(people) > 2 else '')
     tiles = [dict(label='Khách chưa trả', n=f"{len(groups['chua-tra'])} khách", sub=(money(total('chua-tra', 'unpaid')) + ' đ · phải đi thu') if groups['chua-tra'] else 'Không có',
                   href='/cong-no-khach-hang?tab=chua-tra', on=tab == 'chua-tra', tone='huy' if groups['chua-tra'] else ''),
              dict(label='Đã thu · đang ở nhân viên', n=money(total('o-nv', 'pending')), sub=held if people else 'Không có tiền chờ xác nhận',
                   href='/cong-no-khach-hang?tab=o-nv', on=tab == 'o-nv', tone='cho' if groups['o-nv'] else ''),
-             dict(label=f'Khách nợ quá {OLD_DEBT_DAYS} ngày', n=f"{len(groups['qua-han'])} khách", sub=(money(total('qua-han', 'unpaid')) + f' đ · cũ nhất {oldest} ngày') if groups['qua-han'] else 'Không có',
+             dict(label='Khách nợ quá hạn', n=f"{len(groups['qua-han'])} khách", sub=(money(total('qua-han', 'unpaid')) + f' đ · quá lâu nhất {oldest} ngày') if groups['qua-han'] else 'Không có',
                   href='/cong-no-khach-hang?tab=qua-han', on=tab == 'qua-han', tone='huy' if groups['qua-han'] else ''),
              dict(label='Vượt hạn mức · không cho nợ', n=f"{len(groups['vuot'])} khách", sub=(money(total('vuot')) + ' đ') if groups['vuot'] else 'Không có',
                   href='/cong-no-khach-hang?tab=vuot', on=tab == 'vuot', tone='huy' if groups['vuot'] else '')]

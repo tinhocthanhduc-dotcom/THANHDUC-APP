@@ -29,6 +29,7 @@ def to_out(c: Customer) -> CustomerOut:
         contacts=[{"name": x.name, "phones": list(x.phones), "note": x.note} for x in c.contacts],
         allow_debt=c.allow_debt,
         credit_limit=c.credit_limit,
+        due_days=c.due_days,
         status=c.status,
         old_codes=list(c.old_codes or []),
         is_test=c.is_test,
@@ -116,7 +117,7 @@ def _set_children(c: Customer, own_phones: list[str], contacts) -> None:
 
 def create(session: Session, user: User, body: CustomerCreate) -> tuple[Customer, list[Warning]]:
     data = body.customer
-    if (data.allow_debt or data.credit_limit) and not has_role(user, *CREDIT_ROLES):
+    if (data.allow_debt or data.credit_limit or data.due_days != 30) and not has_role(user, *CREDIT_ROLES):
         raise BusinessError("FIELD_FORBIDDEN", "Chỉ kế toán hoặc giám đốc được đặt công nợ.", status=403)
     own = phones(data.phones)
     contacts = [x.model_copy(update={"phones": phones(x.phones)}) for x in data.contacts]
@@ -137,6 +138,7 @@ def create(session: Session, user: User, body: CustomerCreate) -> tuple[Customer
         note=data.note.strip(),
         allow_debt=data.allow_debt,
         credit_limit=data.credit_limit,
+        due_days=data.due_days,
         status="DANG_DUNG",
         old_codes=[],
         is_test=data.is_test,
@@ -163,7 +165,7 @@ def update(session: Session, user: User, code: str, body: CustomerPatch) -> tupl
     if body.version != c.version:
         raise BusinessError("VERSION_CONFLICT", "Người khác vừa sửa khách này, hãy tải lại.", {"current": c.version}, status=409)
     changes = body.model_dump(exclude_unset=True, exclude={"version", "confirmation", "reason"})
-    if {"allow_debt", "credit_limit", "status"} & changes.keys() and not has_role(user, *CREDIT_ROLES):
+    if {"allow_debt", "credit_limit", "due_days", "status"} & changes.keys() and not has_role(user, *CREDIT_ROLES):
         raise BusinessError("FIELD_FORBIDDEN", "Chỉ kế toán hoặc giám đốc được sửa công nợ hoặc ngừng khách.", status=403)
     before = snapshot(c)
 
@@ -183,7 +185,7 @@ def update(session: Session, user: User, code: str, body: CustomerPatch) -> tupl
         session, kind, tax if tax != c.tax_code else "", new_phones, changes.get("name"), c.code, body.confirmation
     )
 
-    for field in ("kind", "email", "address", "note", "allow_debt", "credit_limit", "status"):
+    for field in ("kind", "email", "address", "note", "allow_debt", "credit_limit", "due_days", "status"):
         if field in changes:
             v = changes[field]
             setattr(c, field, v.strip() if isinstance(v, str) else v)

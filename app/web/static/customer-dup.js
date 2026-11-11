@@ -56,12 +56,20 @@
     });
   });
 })();
-/* Đợt 3: Cho nợ mới hiện ô Hạn mức nợ. */
+/* Đợt 3: Cho nợ mới hiện ô Hạn mức nợ; hạn nợ theo khách (11/11/2026) hiện cùng lúc. */
 (function () {
   var box = document.querySelector("[data-kh-credit]");
   if (!box) return;
-  var limit = box.querySelector("[data-kh-limit]");
+  var limit = box.querySelector("[data-kh-limit]"),
+    days = box.querySelector("[data-kh-days]");
   box.addEventListener("change", function (e) {
-    if (e.target.matches("[data-kh-debt]")) limit.hidden = e.target.value !== "1" && !limit.querySelector("input").value.replace(/[0.]/g, "");
+    if (e.target.matches("[data-kh-debt]")) {
+      limit.hidden = e.target.value !== "1" && !limit.querySelector("input").value.replace(/[0.]/g, "");
+      if (days) days.hidden = e.target.value !== "1";
+    }
+  });
+  box.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-kh-days-pick]");
+    if (b && days) days.querySelector("input").value = b.dataset.khDaysPick;
   });
 })();

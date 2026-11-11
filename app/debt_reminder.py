@@ -50,14 +50,14 @@ def first_workday_of_week(session, day: date) -> bool:
 
 def build(session, user, today: date) -> dict:
     from .web.customer_debts import _rows
-    from .web.lists import OLD_DEBT_DAYS
     with session.no_autoflush:
         finance_reports.check_reader(user)
         rows = _rows(session, user, today)
     old = sorted((r for r in rows if r['old']), key=lambda r: (-r['unpaid'], r['code']))
-    items = [dict(name=r['name'], code=r['code'], amount=r['unpaid'], days=r['days'], phone=(r['phones'] or [''])[0],
-                  docs=[doc['number'] or doc['kind'] for doc in r['docs'] if doc['unpaid']]) for r in old]
-    return dict(today=today, days=OLD_DEBT_DAYS, items=items, total=sum(i['amount'] for i in items),
+    # Quá hạn theo hạn trả của chứng từ (TUẤN 11/11/2026), cùng danh sách tab Quá hạn ở Công nợ khách hàng.
+    items = [dict(name=r['name'], code=r['code'], amount=r['unpaid'], days=r['late'], phone=(r['phones'] or [''])[0],
+                  docs=[doc['number'] or doc['kind'] for doc in r['docs'] if doc['late']]) for r in old]
+    return dict(today=today, items=items, total=sum(i['amount'] for i in items),
                 oldest=max((i['days'] for i in items), default=0), pending=sum(r['pending'] for r in rows))
 
 
@@ -66,11 +66,11 @@ def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
     link = f"Báo thu: {base_url}/cong-no-khach-hang?tab=qua-han"
     head = [f"📒 NHẮC NỢ QUÁ HẠN · {_day_label(d['today'])}"]
     if not d['items']:
-        head.append(f"Không có khách chưa trả quá {d['days']} ngày.")
+        head.append("Không có khách chưa trả quá hạn.")
         tail = [f"Đã thu, đang ở nhân viên: {_money(d['pending'])}"] if d['pending'] else []
         return '\n'.join(head + tail + ['', link])
-    head += [f"Khách chưa trả quá {d['days']} ngày: {len(d['items'])} khách",
-             f"Tổng: {_money(d['total'])} · cũ nhất {d['oldest']} ngày", '']
+    head += [f"Khách chưa trả quá hạn: {len(d['items'])} khách",
+             f"Tổng: {_money(d['total'])} · quá lâu nhất {d['oldest']} ngày", '']
     tail = ['']
     if d['pending']:
         tail.append(f"Đã thu, đang ở nhân viên: {_money(d['pending'])}")
@@ -78,7 +78,7 @@ def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
     body, shown = [], 0
     for n, i in enumerate(d['items'][:TOP], 1):
         docs = ', '.join(i['docs'][:DOCS]) + (f' +{len(i["docs"]) - DOCS}' if len(i['docs']) > DOCS else '')
-        detail = ' · '.join(x for x in (f"{i['days']} ngày", i['phone'], docs) if x)
+        detail = ' · '.join(x for x in (f"quá {i['days']} ngày", i['phone'], docs) if x)
         lines = [f"{n}. {_cut(i['name'], 32)} – {_money(i['amount'])}", f"   {detail}"]
         if i.get('code'):  # đợt 4 (Q10): mở thẳng màn soạn tin nhắc nợ cho khách này
             lines.append(f"   Soạn tin: {base_url}/tin-gui-khach/moi?loai=NHAC_NO&khach={quote(i['code'])}")

@@ -97,6 +97,10 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
             customer_code=customer_code,contact_name='',delivery_address='',note='',promised_date='',version=0,lines=[],
             fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days=30,deposit_amount='',price_includes_vat=False,discount_amount=0)
+        # Hạn nợ theo khách (TUẤN 11/11/2026): khách được nợ thì đơn mới tự điền Công nợ N ngày.
+        picked_customer=session.get(Customer,customer_code) if not order and customer_code else None
+        if picked_customer and picked_customer.allow_debt:
+            data.update(payment_term='CONG_NO',due_days=picked_customer.due_days)
         for line in data['lines']:
             line['unit_price']=money(line['unit_price'])
         if data.get('deposit_amount') not in (None,''):
