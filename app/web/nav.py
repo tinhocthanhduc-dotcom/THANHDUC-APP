@@ -113,7 +113,7 @@ GROUPS = (
 ACCOUNT_GROUPS = (
     # Xếp theo vòng tháng: duyệt công → bảng công → KPI → hoa hồng → lương → chi lương.
     {'label': 'Nhân sự & lương', 'section': 'Quản lý', 'items': (
-        {'label': 'Duyệt chấm công', 'href': '/cham-cong/duyet', 'prefixes': ('/cham-cong/duyet',), 'roles': ('director',)},
+        {'label': 'Duyệt chấm công', 'href': '/cham-cong/duyet', 'prefixes': ('/cham-cong/duyet',), 'roles': ('director','finance')},
         {'label': 'Bảng công', 'href': '/cham-cong/bang', 'prefixes': ('/cham-cong/bang',), 'roles': ('finance',)},
         {'label': 'KPI tổng', 'href': '/kpi/tong', 'prefixes': ('/kpi/tong',), 'roles': ('director',)},
         {'label': 'Hoa hồng tháng', 'href': '/hoa-hong/thang', 'prefixes': ('/hoa-hong/thang',), 'roles': ('finance',)},
@@ -126,6 +126,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
+        {'label': 'Hạn mức duyệt', 'href': '/han-muc-duyet', 'prefixes': ('/han-muc-duyet',), 'roles': ('director',)},
         {'label': 'Nhân viên AI', 'href': '/nhan-vien-ao', 'prefixes': ('/nhan-vien-ao',), 'roles': ('director',)},
         {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',)},
         {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no'), 'roles': ('director',)},

@@ -3,6 +3,8 @@ from datetime import UTC,datetime,timedelta
 from decimal import Decimal
 
 import pytest
+
+from app import approval_limits
 from sqlalchemy import select,func
 from app import (alerts,attachments,finance_reports,my_work,pending_dispositions as svc,pending_items,stock_docs,stock_posting)
 from app.models import (CashDoc,FundLedger,PendingDisposition,PendingItem,PendingItemMove,StockBalance,StockDoc,StockDocLine,StockLedger,Warehouse)
@@ -60,7 +62,8 @@ def test_supplier_return_or_rejection(db,lot,kind,destination):
 
 
 def test_destruction_request_approval_and_reject_no_cash(db,lot):
-    p,item=lot;before=counts(db);row=make(db,p,item,'HUY',3,reason='Hỏng không sửa được')
+    p,item=lot;approval_limits.save(db,p['director'],dict.fromkeys(approval_limits.KEYS,0))  # giám đốc không giao kế toán
+    before=counts(db);row=make(db,p,item,'HUY',3,reason='Hỏng không sửa được')
     assert row.status=='CHO_DUYET' and row.stock_doc_id is None and item.qty_left==10 and counts(db)[:2]==before[:2]
     for role in ('warehouse','finance','sales','technician'):assert error('FORBIDDEN',svc.approve,db,p[role],row.id,row.version).status==403
     svc.approve(db,p['director'],row.id,row.version);doc=db.get(StockDoc,row.stock_doc_id)
@@ -142,7 +145,8 @@ def test_manual_outbound_still_blocked(db,lot,warehouse,kind):
 
 @pytest.mark.parametrize('role',['technician','sales','finance'])
 def test_non_warehouse_cannot_create_or_approve(db,lot,role,client):
-    p,item=lot;assert error('FORBIDDEN',make,db,p,item,'SUA_XONG',1,actor=role,to_warehouse_code='K58').status==403
+    p,item=lot;approval_limits.save(db,p['director'],dict.fromkeys(approval_limits.KEYS,0))
+    assert error('FORBIDDEN',make,db,p,item,'SUA_XONG',1,actor=role,to_warehouse_code='K58').status==403
     csrf=service_login(client,p[role]);r=client.post(f'/cho-xu-ly/{item.id}/xu-ly',data=dict(csrf=csrf,kind='SUA_XONG',qty='1',version=item.version,to_warehouse_code='K58'));assert r.status_code==403
     assert client.get('/cho-xu-ly/duyet-huy').status_code==403;assert_pending_invariant(db)
 

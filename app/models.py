@@ -2385,3 +2385,14 @@ class VirtualAgentLog(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     undone_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ApprovalLimit(Base):
+    """0091 Hạn mức duyệt: giám đốc giao kế toán duyệt thay trong hạn mức (TUẤN duyệt 11/11/2026). 0 = không giao."""
+    __tablename__ = 'approval_limits'
+    __table_args__ = (CheckConstraint("key in ('BO_SUNG','NGHI','TAM_UNG','HUY_HANG')", name='ck_approval_limits_key'),
+                      CheckConstraint('value >= 0', name='ck_approval_limits_value'))
+    key: Mapped[str] = mapped_column(String(16), primary_key=True)
+    value: Mapped[int] = mapped_column(BigInteger)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

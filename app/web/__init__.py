@@ -1042,6 +1042,8 @@ from .tin_gui_khach import router as tin_gui_khach_router
 router.include_router(tin_gui_khach_router)
 from .nhan_vien_ao import router as nhan_vien_ao_router  # noqa: E402
 router.include_router(nhan_vien_ao_router)
+from .han_muc_duyet import router as han_muc_duyet_router  # noqa: E402
+router.include_router(han_muc_duyet_router)
 # Tạo mới nhanh trong cửa sổ (khách, mã hàng, NCC) ngay trên màn đang soạn.
 from .quick_create import router as quick_create_router  # noqa: E402
 

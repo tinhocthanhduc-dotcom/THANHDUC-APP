@@ -39,6 +39,13 @@ AREA_OF = dict(device_reports='sv', zalo_ticket_drafts='sv', customer_messages_w
     pending_destruction='kh', pending_supplier_returns='kh', stock_counts_pending='kh')
 
 
+def _disposal_pending(session,user):
+    """Hủy hàng chờ duyệt trong hạn mức của kế toán (giám đốc đã có nhóm riêng trong Việc của tôi)."""
+    from .. import approval_limits
+    if has_role(user,'director') or not has_role(user,'finance'):return 0
+    return sum(1 for r in approval_limits.for_user(session,user) if r['key']=='HUY_HANG')
+
+
 def _area(user, key):
     if key == 'orders_waiting':return 'kh' if has_role(user, 'warehouse') else 'sa'
     return AREA_OF.get(key, 'sv' if key.startswith(('service_', 'machines_')) else 'kh')
@@ -140,5 +147,5 @@ def page(request: Request, user, session):
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
     return render(request, 'viec_cua_toi.jinja', groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
         chips=chips, money_open=money_open, calm=CALM, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
-        advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director') else 0,pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
+        advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director','finance') else 0,disposal_pending=_disposal_pending(session,user),pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))

@@ -141,10 +141,12 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         appts, appts_free = session.execute(select(func.count(), func.count().filter(t.assignee_id.is_(None)))
                                             .where(opened, t.appointment_at.is_not(None), appt_day == today)).one()
 
+        approvals = _approvals(session, user, start, end)
+
     from . import below_cost
     below_rows = below_cost.recent(session, start, end) if has_role(user, 'director') else []
     return dict(
-        today=today, start=start, end=end,
+        today=today, start=start, end=end, **approvals,
         revenue=int(sales['subtotal']) + svc_amount, sales_revenue=int(sales['subtotal']), service_revenue=svc_amount,
         orders=int(sales['orders']), services_done=_services_done(session, start, end),
         income=int(cash['income']), expense=int(cash['expense']),
@@ -159,6 +161,44 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
                    for r in late_rows],
         appointments=int(appts), appointments_free=int(appts_free),
         below_cost=below_rows)
+
+
+def _approvals(session, user, start: date, end: date) -> dict:
+    """Hạn mức duyệt (TUẤN duyệt 11/11/2026): phiếu chờ giám đốc (trên mức/không giao/của kế toán) và phiếu kế toán đã duyệt."""
+    from . import approval_limits
+    if not has_role(user, 'director'):
+        return dict(boss_waiting=[], delegated=None)
+    waiting = [r for r in approval_limits.queue(session) if not r['delegable']]
+    lo = datetime.combine(start, time.min, TZ)
+    hi = datetime.combine(end + timedelta(days=1), time.min, TZ)
+    return dict(boss_waiting=waiting, delegated=approval_limits.delegated_between(session, lo, hi))
+
+
+def approval_lines(d: dict, base_url: str) -> list[str]:
+    lines = []
+    waiting = d.get('boss_waiting') or []
+    if waiting:
+        lines += ['', f'✍️ CHỜ ANH DUYỆT · {len(waiting)}']
+        for r in waiting[:5]:
+            money = f" {_money(r['amount'])}" if r['amount'] else ''
+            lines.append(f"· {r['label']} · {_first_name(r['who'])}{money}")
+        if len(waiting) > 5:
+            lines.append(f'· … và {len(waiting) - 5} phiếu nữa')
+        lines.append(f'→ {base_url}/viec-cua-toi')
+    k = d.get('delegated')
+    if k:
+        parts = []
+        if k['advance']:
+            parts.append(f"{k['advance']} tạm ứng {_short(k['advance_amount'])}")
+        if k['punch']:
+            parts.append(f"{k['punch']} bổ sung giờ")
+        if k['leave']:
+            parts.append(f"{k['leave']} xin nghỉ")
+        if k['disposal']:
+            parts.append(f"{k['disposal']} hủy hàng {_short(k['disposal_amount'])}")
+        if parts:
+            lines += ['', 'Kế toán đã duyệt hôm qua: ' + ' · '.join(parts)]
+    return lines
 
 
 def _rate(value):
@@ -232,7 +272,7 @@ def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
     appt = f"Lịch hẹn hôm nay: {d['appointments']} lượt" if d['appointments'] else 'Lịch hẹn hôm nay: không có'
     if d['appointments_free']:
         appt += f" ({d['appointments_free']} chưa giao thợ)"
-    lines += [appt]
+    lines += [appt, *approval_lines(d, base_url)]
     below = d.get('below_cost') or []
     if below:
         # Đơn chốt dưới giá vốn (TUẤN 11/11/2026): số đơn, người chốt, lỗ, lý do.

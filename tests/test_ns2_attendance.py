@@ -8,6 +8,8 @@ from pathlib import Path
 from threading import Barrier
 
 import pytest
+
+from app import approval_limits
 from sqlalchemy import select,func,text,event
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -132,6 +134,8 @@ def test_leave_overlap_is_blocked_and_nonwork_dates_do_not_double_count(db,p,clo
 
 @pytest.mark.parametrize('role',['finance','admin','dispatcher'])
 def test_only_director_decides_and_locks(client,db,p,clock,role):
+    # Kế toán chỉ duyệt khi giám đốc giao hạn mức (TUẤN duyệt 11/11/2026); ở đây giám đốc không giao việc nào.
+    approval_limits.save(db,p['director'],dict.fromkeys(approval_limits.KEYS,0))
     row=req(db,p,'BO_SUNG_VAO',punch_at='2026-11-02T08:00');csrf=web_login(client,p[role])
     assert client.get('/cham-cong/duyet').status_code==403
     for action in ('duyet','tu-choi'):
