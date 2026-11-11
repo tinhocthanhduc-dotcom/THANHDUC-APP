@@ -4,85 +4,122 @@
 {% macro pct(value) %}{{ ('%.1f'|format(value)|replace('.',','))+'%' if value is not none else '—' }}{% endmacro %}
 {% block title %}Lãi ròng tháng {{ month.strftime('%m/%Y') }}{% endblock %}
 {% block main %}
-<div class="pl-page" data-pl-page>
-{% call ui.page_head('Lãi ròng tháng', sub='Chỉ giám đốc xem. Mọi số chưa VAT, theo giờ Việt Nam.') %}<nav class="pl-month" aria-label="Chọn tháng"><a class="btn" href="{{ url(prev, tab) }}" aria-label="Tháng trước">‹</a><strong>Tháng {{ month.strftime('%m/%Y') }}</strong><a class="btn" href="{{ url(next, tab) }}" aria-label="Tháng sau">›</a></nav>{% endcall %}
-<div class="bar pl-head">{% if summary %}<span class="pl-pill {{ 'warn' if summary.payroll.status!='DA_CHOT' else 'ok' }}" data-payroll-status="{{ summary.payroll.status }}">{% if summary.payroll.status=='DA_CHOT' %}Lương tháng {{ month.strftime('%m') }} đã chốt{% elif summary.payroll.status=='UOC' %}Lương chưa chốt · ước theo tháng {{ summary.payroll.source.strftime('%m/%Y') }}{% else %}Chưa có bảng lương nào{% endif %} · chi phí ngoài sổ {{ summary.adjustments.rows|length }} khoản</span>{% endif %}</div>
-<nav class="seg stock-seg pl-tabs" aria-label="Bảng">{% for key,label in tabs %}<a class="btn {{ 'primary' if tab==key else '' }}" href="{{ url(month, key) }}" {% if tab==key %}aria-current="page"{% endif %}>{{ label }}{% if key=='ngoai-so' and summary %} <span class="count">{{ summary.adjustments.rows|length }}</span>{% endif %}</a>{% endfor %}</nav>
+<div class="lr-page" data-pl-page>
+{% call ui.page_head('Lãi ròng tháng', sub='Chỉ giám đốc xem · số chưa VAT, theo giờ Việt Nam') %}<nav class="lr-month" aria-label="Chọn tháng"><a class="btn" href="{{ url(prev, tab) }}" aria-label="Tháng trước">‹</a><strong>Tháng {{ month.strftime('%m/%Y') }}</strong><a class="btn" href="{{ url(next, tab) }}" aria-label="Tháng sau">›</a></nav>{% endcall %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}
 {% if summary %}
-{% set s = summary %}{% set p = s.previous %}
+{% set s = summary %}{% set p = s.previous %}{% set pm = p.month.strftime('%m') %}
 {% if tab=='tong-hop' %}
-<div class="tiles pl-tiles"><div class="tile"><span class="t-label">Doanh thu thuần</span><span class="t-n">{{ s.revenue|money }}</span></div>
-<div class="tile"><span class="t-label">Lãi gộp · {{ pct(s.rate) }}</span><span class="t-n">{{ signed(s.gross) }}</span></div>
-<div class="tile {{ 'tile-ok' if s.before_director>=0 else 'tile-bad' }}"><span class="t-label">Lãi ròng trước lương GĐ</span><span class="t-n"><b>{{ signed(s.before_director) }}</b></span></div>
-<div class="tile {{ 'tile-ok' if s.remaining>=0 else 'tile-bad' }}" data-remaining="{{ s.remaining }}"><span class="t-label">Sau lương GĐ {{ (s.director_salary//1000000) }} tr</span><span class="t-n"><b>{{ signed(s.remaining) }}</b></span></div></div>
-<div class="pl-grid">
-<section class="sales-report-section pl-table-wrap"><div class="bar"><h2>Bảng lãi tháng {{ month.strftime('%m/%Y') }}</h2><a class="btn" href="/bao-cao/lai-rong/tong-hop.csv?thang={{ month.strftime('%Y-%m') }}">Tải CSV</a></div>
-<table class="sales-report-table pl-table" data-pl-table><thead><tr><th>Dòng</th><th>Nguồn</th><th>Tháng {{ month.strftime('%m') }}</th><th>Tháng {{ p.month.strftime('%m') }}</th></tr></thead><tbody>
-<tr><th data-label="Dòng">Doanh thu thuần (chưa VAT)</th><td data-label="Nguồn">Phiếu giao {{ s.deliveries|money }} · phiếu DV {{ s.services|money }} · trả hàng {{ signed(s.returns) }}</td><td data-label="Tháng này">{{ signed(s.revenue) }}</td><td data-label="Tháng trước">{{ signed(p.revenue) }}</td></tr>
-<tr><th data-label="Dòng">Giá vốn</th><td data-label="Nguồn">Sổ kho theo phiếu xuất + chi phí thợ đã duyệt</td><td data-label="Tháng này">{{ s.cost|money }}</td><td data-label="Tháng trước">{{ p.cost|money }}</td></tr>
-<tr class="pl-sub"><th data-label="Dòng">Lãi gộp</th><td data-label="Nguồn">{{ pct(s.rate) }} · {{ pct(p.rate) }}</td><td data-label="Tháng này">{{ signed(s.gross) }}</td><td data-label="Tháng trước">{{ signed(p.gross) }}</td></tr>
-<tr class="{{ 'pl-estimate' if s.payroll.status!='DA_CHOT' else '' }}"><th data-label="Dòng">Lương và hoa hồng</th><td data-label="Nguồn">{% if s.payroll.status=='DA_CHOT' %}Bảng lương {{ month.strftime('%m/%Y') }} đã chốt ({{ s.payroll.people }} người) · <a href="/luong?thang={{ month.strftime('%Y-%m') }}">mở</a>{% elif s.payroll.status=='UOC' %}Ước = bảng lương {{ s.payroll.source.strftime('%m/%Y') }} ({{ s.payroll.people }} người); chốt lương xong sẽ tự thay{% else %}Chưa có bảng lương nào đã chốt{% endif %}</td><td data-label="Tháng này">{{ s.payroll.amount|money }}</td><td data-label="Tháng trước">{{ p.payroll.amount|money }}</td></tr>
-<tr><th data-label="Dòng">Chi phí hoạt động</th><td data-label="Nguồn">Phiếu chi danh mục có cờ "Chi phí"{% if s.opex.rows %}: {% for r in s.opex.rows %}{{ r.name|lower }} {{ r.amount|money }}{{ ' · ' if not loop.last }}{% endfor %}{% else %} — chưa có phiếu chi{% endif %} · <a href="/danh-muc-thu-chi">cờ danh mục</a></td><td data-label="Tháng này">{{ s.opex.amount|money }}</td><td data-label="Tháng trước">{{ p.opex.amount|money }}</td></tr>
-<tr><th data-label="Dòng">Hàng hỏng</th><td data-label="Nguồn">Hàng chờ xử lý đã hủy, theo giá vốn · <a href="/bao-cao/cho-xu-ly">xem</a></td><td data-label="Tháng này">{{ s.damage|money }}</td><td data-label="Tháng trước">{{ p.damage|money }}</td></tr>
-<tr><th data-label="Dòng">Chi phí ngoài sổ</th><td data-label="Nguồn">{% if s.adjustments.rows %}{% for r in s.adjustments.rows %}{{ r.name }} {{ r.amount|money }}{{ ' · ' if not loop.last }}{% endfor %}{% else %}Chưa nhập{% endif %} · <a href="{{ url(month,'ngoai-so') }}">tab Chi phí ngoài sổ</a></td><td data-label="Tháng này">{{ s.adjustments.amount|money }}</td><td data-label="Tháng trước">{{ p.adjustments.amount|money }}</td></tr>
-<tr class="pl-total"><th data-label="Dòng">Lãi ròng trước lương giám đốc</th><td data-label="Nguồn"></td><td data-label="Tháng này" class="{{ 'plus' if s.before_director>=0 else 'minus' }}">{{ signed(s.before_director) }}</td><td data-label="Tháng trước" class="{{ 'plus' if p.before_director>=0 else 'minus' }}">{{ signed(p.before_director) }}</td></tr>
-<tr><th data-label="Dòng">Lương giám đốc mục tiêu</th><td data-label="Nguồn">{{ s.director_salary|money }} · <a href="{{ url(month,'ngoai-so') }}#luong-gd">sửa</a></td><td data-label="Tháng này">{{ s.director_salary|money }}</td><td data-label="Tháng trước">{{ s.director_salary|money }}</td></tr>
-<tr class="pl-total pl-final"><th data-label="Dòng">Còn lại</th><td data-label="Nguồn"></td><td data-label="Tháng này" class="{{ 'plus' if s.remaining>=0 else 'minus' }}">{{ signed(s.remaining) }}</td><td data-label="Tháng trước" class="{{ 'plus' if s.previous_remaining>=0 else 'minus' }}">{{ signed(s.previous_remaining) }}</td></tr>
-</tbody></table>
-<p class="hint">Mọi số chưa VAT. Giá vốn là bình quân sổ kho. Nợ khó đòi chưa trích; thuế TNDN chỉ ước ở chi phí ngoài sổ. Không lấy phiếu chi lương, tạm ứng, trả NCC, hoàn tiền khách, chuyển quỹ vào chi phí (danh mục đặt "Không tính").</p></section>
-<aside class="pl-side">
-<section class="card pl-box {{ 'ok' if s.remaining>=0 else 'bad' }}" data-director-box><h2>Trả nổi lương giám đốc {{ (s.director_salary//1000000) }} triệu?</h2>
-{% if s.remaining>=0 %}<strong class="pl-verdict plus">Được · dư {{ s.remaining|money }}</strong><p>Tháng này sau khi trừ mọi chi phí và lương giám đốc vẫn còn {{ s.remaining|money }} đồng.</p>
-{% else %}<strong class="pl-verdict minus">Chưa · thiếu {{ s.gap|money }}</strong><p>Tháng này công ty trả được tối đa <b>{{ signed(s.before_director) }}</b> đồng mà không âm.{% if s.gap_revenue %} Cần lãi gộp thêm {{ s.gap|money }} (≈ {{ s.gap_revenue|money }} doanh thu ở biên {{ pct(s.rate) }}) hoặc giảm chi tương ứng.{% endif %}</p>{% endif %}
-<dl class="pl-kv"><dt>Tháng trước</dt><dd>{{ signed(p.before_director) }} trước lương GĐ</dd><dt>Anh đã rút</dt><dd>{{ s.owner.amount|money }} đ{% if not s.owner.rows %} <small>(chưa có phiếu chi nhóm Chủ sở hữu)</small>{% endif %}</dd></dl></section>
-<section class="card pl-box" data-cash-box><h2>Lãi {{ signed(s.before_director) }} nhưng tiền ở đâu?</h2>
-<dl class="pl-kv"><dt>Dòng tiền ròng tháng</dt><dd class="{{ 'plus' if s.cash.net>=0 else 'minus' }}">{{ signed(s.cash.net) }}</dd>
+{% set missing_payroll = s.payroll.status!='DA_CHOT' %}{% set missing_adj = not s.adjustments.rows %}{% set missing_opex = s.opex.amount==0 %}
+{% set ratio = ((s.before_director*100/s.director_salary) if s.director_salary > 0 else 100) %}{% set ratio = [[ratio,0]|max,100]|min %}
+<div class="lr-top">
+<section class="lr-answer {{ 'ok' if s.remaining>=0 else 'bad' }}" data-director-box>
+<p class="lr-q">Trả nổi lương giám đốc {{ (s.director_salary//1000000) }} triệu?</p>
+{% if s.remaining>=0 %}<p class="lr-v plus">Được · dư {{ s.remaining|money }}</p>{% else %}<p class="lr-v minus">Chưa · thiếu {{ s.gap|money }}</p>{% endif %}
+<div class="lr-meter" role="img" aria-label="Lãi trước lương giám đốc đạt {{ ratio|round|int }}% lương mục tiêu"><span style="width:{{ ratio|round|int }}%"></span></div>
+<div class="lr-meter-l"><span>Lãi trước lương GĐ {{ signed(s.before_director) }} / {{ s.director_salary|money }}</span><span>{{ ratio|round|int }}%</span></div>
+{% if s.remaining<0 %}<p class="lr-how">{% if s.gap_revenue %}Cần thêm ≈ <b>{{ s.gap_revenue|money }}</b> doanh thu ở biên {{ pct(s.rate) }} hoặc giảm chi {{ s.gap|money }}.{% else %}Cần giảm chi hoặc tăng lãi gộp thêm {{ s.gap|money }}.{% endif %} Tháng trước: {{ signed(p.before_director) }} trước lương GĐ.</p>
+{% else %}<p class="lr-how">Sau khi trừ mọi chi phí và lương giám đốc vẫn còn {{ s.remaining|money }} đồng. Tháng trước: {{ signed(p.before_director) }} trước lương GĐ.</p>{% endif %}
+</section>
+<section class="lr-todo {{ 'done' if not (missing_payroll or missing_adj or missing_opex) }}" data-payroll-status="{{ s.payroll.status }}" data-todo-box>
+{% if missing_payroll or missing_adj or missing_opex %}<h2>Cần bổ sung để số đúng</h2><ul>
+{% if s.payroll.status=='CHUA_CO' %}<li><div><b>Chưa có bảng lương</b><small>Lương đang tính 0 đ</small></div><a class="btn lr-sm" href="/luong?thang={{ month.strftime('%Y-%m') }}">Mở Lương</a></li>
+{% elif s.payroll.status=='UOC' %}<li><div><b>Lương tháng {{ month.strftime('%m') }} chưa chốt</b><small>Đang ước theo tháng {{ s.payroll.source.strftime('%m/%Y') }}: {{ s.payroll.amount|money }}</small></div><a class="btn lr-sm" href="/luong?thang={{ month.strftime('%Y-%m') }}">Mở Lương</a></li>{% endif %}
+{% if missing_adj %}<li><div><b>Chi phí ngoài sổ: 0 khoản</b><small>Mặt bằng, khấu hao, thuế ước</small></div><a class="btn btn-info lr-sm" href="{{ url(month,'ngoai-so') }}#sua-khoan">+ Nhập</a></li>{% endif %}
+{% if missing_opex %}<li><div><b>Chi phí hoạt động 0 đ</b><small>Kiểm tra cờ "Chi phí" ở danh mục</small></div><a class="btn lr-sm" href="/danh-muc-thu-chi">Danh mục</a></li>{% endif %}
+</ul>
+{% else %}<h2>Số đã đủ</h2><p>Lương tháng {{ month.strftime('%m') }} đã chốt ({{ s.payroll.people }} người) · chi phí ngoài sổ {{ s.adjustments.rows|length }} khoản · chi phí hoạt động {{ s.opex.amount|money }}.</p>{% endif %}
+</section>
+</div>
+<div class="lr-tiles">
+<div class="lr-tile"><span class="k">Doanh thu thuần</span><span class="n">{{ signed(s.revenue) }}</span><span class="d">Tháng {{ pm }}: {{ signed(p.revenue) }}</span></div>
+<div class="lr-tile"><span class="k">Lãi gộp · {{ pct(s.rate) }}</span><span class="n">{{ signed(s.gross) }}</span><span class="d">Tháng {{ pm }}: {{ signed(p.gross) }}</span></div>
+<div class="lr-tile"><span class="k">Lãi ròng trước lương GĐ</span><span class="n {{ 'plus' if s.before_director>=0 else 'minus' }}">{{ signed(s.before_director) }}</span><span class="d">Tháng {{ pm }}: {{ signed(p.before_director) }}</span></div>
+<div class="lr-tile" data-remaining="{{ s.remaining }}"><span class="k">Còn lại sau lương GĐ {{ (s.director_salary//1000000) }} tr</span><span class="n {{ 'plus' if s.remaining>=0 else 'minus' }}">{{ signed(s.remaining) }}</span><span class="d">Tháng {{ pm }}: {{ signed(s.previous_remaining) }}</span></div>
+</div>
+{% endif %}
+{% endif %}
+<nav class="lr-tabs" aria-label="Bảng">{% for key,label in tabs %}<a class="{{ 'on' if tab==key else '' }}" href="{{ url(month, key) }}" {% if tab==key %}aria-current="page"{% endif %}>{{ label }}{% if key=='ngoai-so' and summary %} <span class="lr-c {{ 'warn' if not summary.adjustments.rows and tab!=key }}">{{ summary.adjustments.rows|length }}</span>{% endif %}</a>{% endfor %}</nav>
+{% if summary %}
+{% set s = summary %}{% set p = s.previous %}{% set pm = p.month.strftime('%m') %}
+{% if tab=='tong-hop' %}
+{% macro row(sign, name, src, cur, prev, cls='', cur_cls='', prev_cls='') %}<div class="lr-row {{ cls }}"><span class="lr-sg">{{ sign }}</span><span class="lr-nm"><b>{{ name }}</b>{% if src %}<small>{{ src }}</small>{% endif %}</span><span class="lr-amt {{ cur_cls }}">{{ cur }}</span><span class="lr-prev {{ prev_cls }}" data-prev="Tháng {{ pm }}">{{ prev }}</span></div>{% endmacro %}
+<div class="lr-grid">
+<section class="lr-panel" data-pl-table><div class="lr-panel-h"><h2>Từ doanh thu đến tiền còn lại · {{ month.strftime('%m/%Y') }}</h2><a class="btn lr-sm" href="/bao-cao/lai-rong/tong-hop.csv?thang={{ month.strftime('%Y-%m') }}">Tải CSV</a></div>
+<div class="lr-wf">
+<div class="lr-row lr-hd"><span></span><span>Dòng · nguồn số</span><span>Tháng {{ month.strftime('%m') }}</span><span>Tháng {{ pm }}</span></div>
+{{ row('+', 'Doanh thu thuần', 'Phiếu giao ' ~ (s.deliveries|money) ~ ' · phiếu DV ' ~ (s.services|money) ~ ' · trả hàng ' ~ signed(s.returns), signed(s.revenue), signed(p.revenue)) }}
+{{ row('−', 'Giá vốn', 'Sổ kho theo phiếu xuất + chi phí thợ đã duyệt', s.cost|money, p.cost|money) }}
+{{ row('=', 'Lãi gộp · ' ~ pct(s.rate), '', signed(s.gross), signed(p.gross), 'sub') }}
+{% set src %}{% if s.payroll.status=='DA_CHOT' %}Bảng lương {{ month.strftime('%m/%Y') }} đã chốt ({{ s.payroll.people }} người) · <a href="/luong?thang={{ month.strftime('%Y-%m') }}">mở</a>{% elif s.payroll.status=='UOC' %}Ước = bảng lương {{ s.payroll.source.strftime('%m/%Y') }} ({{ s.payroll.people }} người); chốt lương xong sẽ tự thay{% else %}Chưa có bảng lương đã chốt · <a href="/luong?thang={{ month.strftime('%Y-%m') }}">mở Lương</a>{% endif %}{% endset %}
+{{ row('−', 'Lương và hoa hồng', src, s.payroll.amount|money, p.payroll.amount|money, 'est' if s.payroll.status=='CHUA_CO' else ('uoc' if s.payroll.status=='UOC' else '')) }}
+{% set src %}Phiếu chi danh mục có cờ "Chi phí"{% if s.opex.rows %}: {% for r in s.opex.rows %}{{ r.name|lower }} {{ r.amount|money }}{{ ' · ' if not loop.last }}{% endfor %}{% else %} · chưa có phiếu chi{% endif %} · <a href="/danh-muc-thu-chi">cờ danh mục</a>{% endset %}
+{{ row('−', 'Chi phí hoạt động', src, s.opex.amount|money, p.opex.amount|money, 'est' if s.opex.amount==0 else '') }}
+{{ row('−', 'Hàng hỏng', 'Hàng chờ xử lý đã hủy, theo giá vốn · <a href="/bao-cao/cho-xu-ly">xem</a>'|safe, s.damage|money, p.damage|money) }}
+{% set src %}{% if s.adjustments.rows %}{% for r in s.adjustments.rows %}{{ r.name }} {{ r.amount|money }}{{ ' · ' if not loop.last }}{% endfor %} · <a href="{{ url(month,'ngoai-so') }}">sửa</a>{% else %}Chưa nhập · <a href="{{ url(month,'ngoai-so') }}#sua-khoan">nhập khoản</a>{% endif %}{% endset %}
+{{ row('−', 'Chi phí ngoài sổ', src, s.adjustments.amount|money, p.adjustments.amount|money, 'est' if not s.adjustments.rows else '') }}
+{{ row('=', 'Lãi ròng trước lương giám đốc', '', signed(s.before_director), signed(p.before_director), 'total', 'plus' if s.before_director>=0 else 'minus', 'plus' if p.before_director>=0 else 'minus') }}
+{% set src %}<a href="{{ url(month,'ngoai-so') }}#luong-gd">sửa</a>{% endset %}
+{{ row('−', 'Lương giám đốc mục tiêu', src, s.director_salary|money, s.director_salary|money) }}
+{{ row('=', 'Còn lại', '', signed(s.remaining), signed(s.previous_remaining), 'total final', 'plus' if s.remaining>=0 else 'minus', 'plus' if s.previous_remaining>=0 else 'minus') }}
+</div>
+<p class="lr-note">Mọi số chưa VAT. Giá vốn là bình quân sổ kho. Nợ khó đòi chưa trích; thuế TNDN chỉ ước ở chi phí ngoài sổ. Không lấy phiếu chi lương, tạm ứng, trả NCC, hoàn tiền khách, chuyển quỹ vào chi phí (danh mục đặt "Không tính").</p></section>
+<div class="lr-side">
+<section class="lr-panel" data-cash-box><div class="lr-panel-h"><h2>Lãi {{ signed(s.before_director) }}, tiền ở đâu?</h2></div>
+<dl class="lr-kv"><dt>Dòng tiền ròng tháng</dt><dd class="{{ 'plus' if s.cash.net>=0 else 'minus' }}">{{ signed(s.cash.net) }}</dd>
 <dt><a href="/bao-cao/tai-chinh#cong-no">Nợ khách tăng</a></dt><dd>{{ signed(s.cash.receivable_change) }}</dd>
 <dt><a href="/ton-kho">Tồn kho tăng</a></dt><dd>{{ signed(s.cash.stock_change) }}</dd>
 <dt>Chi ngoài sổ chưa chi thật</dt><dd>{{ signed(s.cash.adjustments) }}</dd>
-<dt>Giám đốc rút</dt><dd>{{ signed(s.cash.owner) }}</dd></dl>
-<p class="hint">Thu {{ s.cash.income|money }} − chi {{ s.cash.expense|money }} theo sổ quỹ. Nợ khách và tồn kho tăng là lãi chưa thành tiền; chi ngoài sổ là chi phí chưa rút tiền.</p></section>
-</aside></div>
+<dt>Giám đốc đã rút</dt><dd>{{ signed(s.cash.owner) }}</dd></dl>
+<p class="lr-note">Thu {{ s.cash.income|money }} − chi {{ s.cash.expense|money }} theo sổ quỹ. Nợ khách và tồn kho tăng là lãi chưa thành tiền; chi ngoài sổ là chi phí chưa rút tiền.</p></section>
+<section class="lr-panel" data-owner-box><div class="lr-panel-h"><h2>Anh đã rút tháng này</h2><b class="lr-num">{{ s.owner.amount|money }} đ</b></div>
+<p class="lr-note">{% if s.owner.rows %}Theo phiếu chi danh mục có cờ "Chủ sở hữu".{% else %}Chưa có phiếu chi nhóm Chủ sở hữu.{% endif %}</p></section>
+</div></div>
 {% elif tab=='theo-loai' %}
 <section class="sales-report-section"><h2>Lãi gộp theo loại</h2><p>Gộp theo nhóm hàng của mã hàng; tiền công dịch vụ (phí) và chi phí thợ đã duyệt tính vào dòng "{{ 'Dịch vụ · tiền công' }}". Cộng lại bằng đúng lãi gộp Tổng hợp.</p>
-<table class="sales-report-table pl-table" data-group-table><thead><tr><th>Loại</th><th>Doanh thu</th><th>Giá vốn</th><th>Lãi gộp</th><th>%</th></tr></thead><tbody>
+<table class="sales-report-table lr-table" data-group-table><thead><tr><th>Loại</th><th>Doanh thu</th><th>Giá vốn</th><th>Lãi gộp</th><th>%</th></tr></thead><tbody>
 {% for r in groups.rows %}<tr class="{{ 'purchase-loss' if r.profit<0 else '' }}"><th data-label="Loại">{{ r.group }}{% if r.products %} <small>({{ r.products }} mã)</small>{% endif %}</th><td data-label="Doanh thu">{{ signed(r.revenue) }}</td><td data-label="Giá vốn">{{ signed(r.cost) }}</td><td data-label="Lãi gộp">{{ signed(r.profit) }}</td><td data-label="%">{{ pct(r.rate) }}</td></tr>{% else %}<tr><td colspan="5">Tháng này chưa có phiếu giao hay phiếu dịch vụ hoàn thành.</td></tr>{% endfor %}
 </tbody><tfoot><tr><th data-label="Tổng">Cộng</th><td data-label="Doanh thu">{{ signed(groups.totals.revenue) }}</td><td data-label="Giá vốn">{{ signed(groups.totals.cost) }}</td><td data-label="Lãi gộp">{{ signed(groups.totals.profit) }}</td><td data-label="%">{{ pct(groups.totals.rate) }}</td></tr></tfoot></table></section>
 {% elif tab=='theo-khach' %}
 <section class="sales-report-section"><h2>10 khách lãi nhất</h2><p>{{ customers.count }} khách có phát sinh trong tháng. Lãi gộp theo phiếu giao, phiếu dịch vụ, trả hàng của từng khách.</p>
-<table class="sales-report-table pl-table" data-customer-table><thead><tr><th>Khách hàng</th><th>Chứng từ</th><th>Doanh thu</th><th>Giá vốn</th><th>Lãi gộp</th><th>%</th></tr></thead><tbody>
+<table class="sales-report-table lr-table" data-customer-table><thead><tr><th>Khách hàng</th><th>Chứng từ</th><th>Doanh thu</th><th>Giá vốn</th><th>Lãi gộp</th><th>%</th></tr></thead><tbody>
 {% for c in customers.top %}<tr><th data-label="Khách hàng"><a href="/khach-hang/{{ c.customer_code|urlencode }}">{{ c.customer_code }} · {{ c.name }}</a></th><td data-label="Chứng từ">{{ c.documents }}</td><td data-label="Doanh thu">{{ signed(c.revenue) }}</td><td data-label="Giá vốn">{{ signed(c.cost) }}</td><td data-label="Lãi gộp">{{ signed(c.profit) }}</td><td data-label="%">{{ pct(c.rate) }}</td></tr>{% else %}<tr><td colspan="6">Chưa có khách lãi trong tháng.</td></tr>{% endfor %}
 </tbody></table>
 <h2>Khách lỗ</h2><p>Trả hàng, bảo hành miễn phí hoặc giá bán dưới vốn.</p>
-<table class="sales-report-table pl-table" data-loss-table><thead><tr><th>Khách hàng</th><th>Chứng từ</th><th>Doanh thu</th><th>Giá vốn</th><th>Lỗ</th></tr></thead><tbody>
+<table class="sales-report-table lr-table" data-loss-table><thead><tr><th>Khách hàng</th><th>Chứng từ</th><th>Doanh thu</th><th>Giá vốn</th><th>Lỗ</th></tr></thead><tbody>
 {% for c in customers.losses %}<tr class="purchase-loss"><th data-label="Khách hàng"><a href="/khach-hang/{{ c.customer_code|urlencode }}">{{ c.customer_code }} · {{ c.name }}</a></th><td data-label="Chứng từ">{{ c.documents }}</td><td data-label="Doanh thu">{{ signed(c.revenue) }}</td><td data-label="Giá vốn">{{ signed(c.cost) }}</td><td data-label="Lỗ">{{ signed(c.profit) }}</td></tr>{% else %}<tr><td colspan="5">Không có khách lỗ trong tháng.</td></tr>{% endfor %}
 </tbody><tfoot><tr><th data-label="Tổng">Cộng cả tháng</th><td></td><td data-label="Doanh thu">{{ signed(customers.totals.revenue) }}</td><td data-label="Giá vốn">{{ signed(customers.totals.cost) }}</td><td data-label="Lãi gộp">{{ signed(customers.totals.profit) }}</td></tr></tfoot></table></section>
 {% elif tab=='12-thang' %}
 <section class="sales-report-section"><h2>12 tháng đến {{ month.strftime('%m/%Y') }}</h2><p>Lương tháng chưa chốt ước theo tháng chốt gần nhất (tô vàng). Lương giám đốc mục tiêu {{ months.director_salary|money }} đ/tháng.</p>
-<div class="pl-bars" data-pl-bars>{% set peak = months.rows|map(attribute='gross')|map('abs')|max %}{% set peak = [peak, months.rows|map(attribute='before_director')|map('abs')|max, 1]|max %}{% for r in months.rows %}<div class="pl-bar-col" title="{{ r.month.strftime('%m/%Y') }}"><div class="pl-bar-stack"><span class="pl-bar gross" style="height:{{ (r.gross|abs*100/peak)|round|int }}%"></span><span class="pl-bar net {{ 'minus' if r.before_director<0 else '' }}" style="height:{{ (r.before_director|abs*100/peak)|round|int }}%"></span></div><small>{{ r.month.strftime('%m') }}</small></div>{% endfor %}</div>
-<p class="hint"><span class="pl-legend gross"></span> Lãi gộp &nbsp; <span class="pl-legend net"></span> Lãi ròng trước lương GĐ (đỏ là âm)</p>
-<table class="sales-report-table pl-table" data-months-table><thead><tr><th>Tháng</th><th>Doanh thu</th><th>Lãi gộp</th><th>Lương</th><th>Chi phí</th><th>Hàng hỏng</th><th>Ngoài sổ</th><th>Trước lương GĐ</th><th>Còn lại</th></tr></thead><tbody>
-{% for r in months.rows %}<tr class="{{ 'pl-estimate' if r.payroll_status=='UOC' else '' }}"><th data-label="Tháng"><a href="{{ url(r.month) }}">{{ r.month.strftime('%m/%Y') }}</a></th><td data-label="Doanh thu">{{ signed(r.revenue) }}</td><td data-label="Lãi gộp">{{ signed(r.gross) }}</td><td data-label="Lương">{{ r.payroll|money }}{% if r.payroll_status=='UOC' %} <small>ước</small>{% endif %}</td><td data-label="Chi phí">{{ r.opex|money }}</td><td data-label="Hàng hỏng">{{ r.damage|money }}</td><td data-label="Ngoài sổ">{{ r.adjustments|money }}</td><td data-label="Trước lương GĐ" class="{{ 'plus' if r.before_director>=0 else 'minus' }}">{{ signed(r.before_director) }}</td><td data-label="Còn lại" class="{{ 'plus' if r.remaining>=0 else 'minus' }}">{{ signed(r.remaining) }}</td></tr>{% endfor %}
+<div class="lr-bars" data-pl-bars>{% set peak = months.rows|map(attribute='gross')|map('abs')|max %}{% set peak = [peak, months.rows|map(attribute='before_director')|map('abs')|max, 1]|max %}{% for r in months.rows %}<div class="lr-bar-col" title="{{ r.month.strftime('%m/%Y') }}"><div class="lr-bar-stack"><span class="lr-bar gross" style="height:{{ (r.gross|abs*100/peak)|round|int }}%"></span><span class="lr-bar net {{ 'minus' if r.before_director<0 else '' }}" style="height:{{ (r.before_director|abs*100/peak)|round|int }}%"></span></div><small>{{ r.month.strftime('%m') }}</small></div>{% endfor %}</div>
+<p class="hint"><span class="lr-legend gross"></span> Lãi gộp &nbsp; <span class="lr-legend net"></span> Lãi ròng trước lương GĐ (đỏ là âm)</p>
+<table class="sales-report-table lr-table" data-months-table><thead><tr><th>Tháng</th><th>Doanh thu</th><th>Lãi gộp</th><th>Lương</th><th>Chi phí</th><th>Hàng hỏng</th><th>Ngoài sổ</th><th>Trước lương GĐ</th><th>Còn lại</th></tr></thead><tbody>
+{% for r in months.rows %}<tr class="{{ 'lr-estimate' if r.payroll_status=='UOC' else '' }}"><th data-label="Tháng"><a href="{{ url(r.month) }}">{{ r.month.strftime('%m/%Y') }}</a></th><td data-label="Doanh thu">{{ signed(r.revenue) }}</td><td data-label="Lãi gộp">{{ signed(r.gross) }}</td><td data-label="Lương">{{ r.payroll|money }}{% if r.payroll_status=='UOC' %} <small>ước</small>{% endif %}</td><td data-label="Chi phí">{{ r.opex|money }}</td><td data-label="Hàng hỏng">{{ r.damage|money }}</td><td data-label="Ngoài sổ">{{ r.adjustments|money }}</td><td data-label="Trước lương GĐ" class="{{ 'plus' if r.before_director>=0 else 'minus' }}">{{ signed(r.before_director) }}</td><td data-label="Còn lại" class="{{ 'plus' if r.remaining>=0 else 'minus' }}">{{ signed(r.remaining) }}</td></tr>{% endfor %}
 </tbody></table></section>
 {% elif tab=='ngoai-so' %}
-<section class="sales-report-section" id="ngoai-so"><h2>Chi phí ngoài sổ tháng {{ month.strftime('%m/%Y') }}</h2><p>Khoản không có phiếu chi trong tháng nhưng là chi phí thật: mặt bằng trả trước chia đều, khấu hao, thuế ước. Chỉ dùng cho báo cáo này, không ghi sổ quỹ.</p>
-<table class="sales-report-table pl-table" data-adjust-table><thead><tr><th>Khoản</th><th>Nhóm</th><th>Số tiền</th><th></th></tr></thead><tbody>
-{% for r in s.adjustments.rows %}<tr><th data-label="Khoản">{{ r.name }}{% if r.note %} <small>{{ r.note }}</small>{% endif %}</th><td data-label="Nhóm">{{ r.pl_group or '—' }}</td><td data-label="Số tiền">{{ r.amount|money }}</td><td class="pl-actions"><a class="btn" href="{{ url(month,'ngoai-so',sua=r.id) }}#sua-khoan">Sửa</a><form method="post" action="/bao-cao/lai-rong/ngoai-so/{{ r.id }}/xoa" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="thang" value="{{ month.strftime('%Y-%m') }}"><input type="hidden" name="version" value="{{ r.version }}"><button class="btn btn-danger" onclick="return confirm('Xóa khoản này?')">Xóa</button></form></td></tr>{% else %}<tr><td colspan="4">Tháng này chưa có khoản nào.</td></tr>{% endfor %}
-</tbody><tfoot><tr><th data-label="Tổng">Cộng</th><td></td><td data-label="Số tiền">{{ s.adjustments.amount|money }}</td><td></td></tr></tfoot></table>
-{% if not s.adjustments.rows %}<form method="post" action="/bao-cao/lai-rong/ngoai-so/chep" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="thang" value="{{ month.strftime('%Y-%m') }}"><button class="btn" data-copy-previous>Chép từ tháng {{ prev.strftime('%m/%Y') }}</button></form>{% endif %}
+{% macro hidden() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="thang" value="{{ month.strftime('%Y-%m') }}">{% endmacro %}
+<div class="lr-adj-grid" id="ngoai-so">
+<section class="lr-panel" data-adjust-table><div class="lr-panel-h"><h2>Chi phí ngoài sổ · {{ month.strftime('%m/%Y') }}</h2><b class="lr-num">{{ s.adjustments.amount|money }}</b></div>
+<p class="lr-note lr-note-top">Chi phí thật nhưng không có phiếu chi trong tháng: mặt bằng trả trước chia đều, khấu hao, thuế ước. Chỉ dùng cho báo cáo này, không ghi sổ quỹ.</p>
+<div class="lr-adj">{% for r in s.adjustments.rows %}<div class="lr-adj-row"><div class="lr-adj-name"><b>{{ r.name }}</b><small>{% if r.pl_group %}<span class="lr-chip">{{ r.pl_group }}</span> {% endif %}{{ r.note or '' }}</small></div><div class="lr-adj-act"><b class="lr-num">{{ r.amount|money }}</b><a class="btn lr-sm" href="{{ url(month,'ngoai-so',sua=r.id) }}#sua-khoan">Sửa</a><form method="post" action="/bao-cao/lai-rong/ngoai-so/{{ r.id }}/xoa" onsubmit="return confirm('Xóa khoản này?')">{{ hidden() }}<input type="hidden" name="version" value="{{ r.version }}"><button class="btn btn-danger lr-sm">Xóa</button></form></div></div>
+{% else %}<p class="lr-empty">Tháng này chưa có khoản nào.</p>{% endfor %}</div>
+{% if not s.adjustments.rows %}<form method="post" action="/bao-cao/lai-rong/ngoai-so/chep" class="lr-copy">{{ hidden() }}<button class="btn" data-copy-previous>Chép từ tháng {{ prev.strftime('%m/%Y') }}</button></form>{% endif %}
+</section>
+<div class="lr-side">
 {% set editing = (s.adjustments.rows|selectattr('id','equalto',edit_id|int)|first) if edit_id else none %}
-<form method="post" action="/bao-cao/lai-rong/ngoai-so" class="card form pl-form" id="sua-khoan" data-adjust-form><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="thang" value="{{ month.strftime('%Y-%m') }}">
-{% if editing %}<input type="hidden" name="id" value="{{ editing.id }}"><input type="hidden" name="version" value="{{ editing.version }}"><h3>Sửa khoản</h3>{% else %}<h3>+ Thêm khoản</h3>{% endif %}
+{% set groups = ['Mặt bằng','Khấu hao','Thuế','Khác'] %}{% set cur_group = editing.pl_group if editing and editing.pl_group else '' %}
+<form method="post" action="/bao-cao/lai-rong/ngoai-so" class="lr-panel form lr-form" id="sua-khoan" data-adjust-form>{{ hidden() }}
+{% if editing %}<input type="hidden" name="id" value="{{ editing.id }}"><input type="hidden" name="version" value="{{ editing.version }}"><h2>Sửa khoản</h2>{% else %}<h2>+ Thêm khoản</h2>{% endif %}
 <label>Tên khoản<input name="name" value="{{ editing.name if editing else '' }}" required maxlength="200" placeholder="Mặt bằng (trả 6 tháng, chia đều)"></label>
-<div class="row2"><label>Nhóm<input name="pl_group" value="{{ editing.pl_group if editing else '' }}" maxlength="100" list="pl-groups" placeholder="Mặt bằng, Khấu hao, Thuế…"><datalist id="pl-groups"><option value="Mặt bằng"><option value="Khấu hao"><option value="Thuế"><option value="Khác"></datalist></label>
-<label>Số tiền tháng này (đồng)<input name="amount" value="{{ editing.amount|money if editing else '' }}" inputmode="numeric" data-money required></label></div>
+<div class="field-group"><p class="group-label">Nhóm</p><div class="chips lr-groups">{% for g in (groups + ([cur_group] if cur_group and cur_group not in groups else [])) %}<label class="chip"><input type="radio" name="pl_group" value="{{ g }}" {% if g==cur_group %}checked{% endif %}><span>{{ g }}</span></label>{% endfor %}</div></div>
+<label>Số tiền tháng này (đồng)<input name="amount" value="{{ editing.amount|money if editing else '' }}" inputmode="numeric" data-money required></label>
 <label>Ghi chú<input name="note" value="{{ editing.note if editing else '' }}" maxlength="2000"></label>
-<div class="actions"><button class="{{ 'btn-ok' if editing else 'primary' }}">{{ 'Lưu' if editing else 'Thêm khoản' }}</button>{% if editing %}<a class="btn" href="{{ url(month,'ngoai-so') }}">Hủy sửa</a>{% endif %}</div></form>
-<form method="post" action="/bao-cao/lai-rong/luong-giam-doc" class="card form pl-form" id="luong-gd" data-director-form><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="thang" value="{{ month.strftime('%Y-%m') }}"><input type="hidden" name="version" value="{{ setting.version if setting else 1 }}">
-<h3>Lương giám đốc mục tiêu</h3><label>Mỗi tháng (đồng)<input name="amount" value="{{ s.director_salary|money }}" inputmode="numeric" data-money required></label>
-<p class="hint">Chỉ dùng để tính dòng "Còn lại"; không ghi phiếu chi. Tiền anh rút thật ghi phiếu chi ở danh mục có cờ "Chủ sở hữu".</p><button class="primary">Lưu</button></form></section>
+<div class="actions">{% if editing %}<button class="btn-ok">Lưu</button><a class="btn" href="{{ url(month,'ngoai-so') }}">Hủy sửa</a>{% else %}<button class="btn-ok">Thêm khoản</button>{% endif %}</div></form>
+<form method="post" action="/bao-cao/lai-rong/luong-giam-doc" class="lr-panel form lr-form" id="luong-gd" data-director-form>{{ hidden() }}<input type="hidden" name="version" value="{{ setting.version if setting else 1 }}">
+<h2>Lương giám đốc mục tiêu</h2><label>Mỗi tháng (đồng)<input name="amount" value="{{ s.director_salary|money }}" inputmode="numeric" data-money required></label>
+<p class="lr-note lr-note-top">Chỉ dùng để tính dòng "Còn lại"; không ghi phiếu chi. Tiền anh rút thật ghi phiếu chi ở danh mục có cờ "Chủ sở hữu".</p><div class="actions"><button class="btn-ok">Lưu</button></div></form>
+</div></div>
 {% endif %}
 {% endif %}
 </div>
