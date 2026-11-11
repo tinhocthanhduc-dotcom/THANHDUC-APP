@@ -4,6 +4,7 @@
 {% import 'da_chon.jinja' as picked %}
 {% import 'gia_giam.jinja' as gg %}
 {% import 'viec_khac.jinja' as other %}
+{% import '_gia_von.jinja' as gv %}
 {% block main %}<div class="doc-detail quote-form-page">
 <div class="recv-head doc-head-bar"><a class="btn" href="/bao-gia" aria-label="Quay lại Báo giá">←</a><div><h1>{{ q.number if q else 'Tạo báo giá' }}</h1><p class="hint">Báo giá{% if q %} · {{ customer_name or q.customer_code }}{% endif %}</p></div>{% if is_new and can_write %}<a class="btn btn-ghost qf-reset" href="/bao-gia/moi">Làm mới</a>{% endif %}{% if q %}<a class="btn btn-ghost doc-print" href="/bao-gia/{{ q.id }}/in">Xem trước A4 / In</a>{% endif %}</div>
 {% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
@@ -62,6 +63,7 @@
 {% set wf_part='action' %}{% set workflow_total=(q.total|money if q else '—') if live else '' %}{% include 'thanh_buoc.jinja' %}
 </aside>
 </form>
+{% if q %}{{ gv.card(below, is_director) }}{% endif %}
 
 {% if q and can_write %}
 <div class="quote-actions">

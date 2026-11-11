@@ -141,6 +141,8 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         appts, appts_free = session.execute(select(func.count(), func.count().filter(t.assignee_id.is_(None)))
                                             .where(opened, t.appointment_at.is_not(None), appt_day == today)).one()
 
+    from . import below_cost
+    below_rows = below_cost.recent(session, start, end) if has_role(user, 'director') else []
     return dict(
         today=today, start=start, end=end,
         revenue=int(sales['subtotal']) + svc_amount, sales_revenue=int(sales['subtotal']), service_revenue=svc_amount,
@@ -155,7 +157,8 @@ def build(session, user, today: date, now: datetime | None = None) -> dict:
         open=int(open_count), late=int(late_count),
         late_rows=[dict(number=r.number, customer=r.name, tech=r.full_name, minutes=int((now - r.due_at).total_seconds() // 60))
                    for r in late_rows],
-        appointments=int(appts), appointments_free=int(appts_free))
+        appointments=int(appts), appointments_free=int(appts_free),
+        below_cost=below_rows)
 
 
 def _rate(value):
@@ -229,7 +232,14 @@ def render_text(d: dict, base_url: str = 'https://quanlythanhduc.com') -> str:
     appt = f"Lịch hẹn hôm nay: {d['appointments']} lượt" if d['appointments'] else 'Lịch hẹn hôm nay: không có'
     if d['appointments_free']:
         appt += f" ({d['appointments_free']} chưa giao thợ)"
-    lines += [appt, '', f"Xem đủ: {base_url}/tong-quan"]
+    lines += [appt]
+    below = d.get('below_cost') or []
+    if below:
+        # Đơn chốt dưới giá vốn (TUẤN 11/11/2026): số đơn, người chốt, lỗ, lý do.
+        lines += ['', f"⚠️ ĐƠN DƯỚI GIÁ VỐN: {len(below)} đơn · lỗ {_money(sum(r['loss'] for r in below))}"]
+        lines += [f"· {r['number']} {_first_name(r['by'])} lỗ {_short(r['loss'])}" + (f" – {_cut(r['reason'], 40)}" if r['reason'] else '')
+                  for r in below[:5]]
+    lines += ['', f"Xem đủ: {base_url}/tong-quan"]
     return '\n'.join(lines)
 
 

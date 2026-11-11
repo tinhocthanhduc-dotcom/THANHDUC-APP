@@ -17,6 +17,9 @@
     // Ghi chú chốt vượt hạn mức chỉ hiện khi điều kiện công nợ đang cảnh báo.
     var credit = checks.querySelector('[data-condition="credit"][data-ok="0"]');
     form.querySelectorAll("[data-credit-note]").forEach(function (box) { box.hidden = !credit; });
+    // Lý do bán dưới giá vốn chỉ hiện khi có dòng dưới giá vốn (TUẤN 11/11/2026).
+    var below = checks.querySelector('[data-condition^="below-cost-"]');
+    form.querySelectorAll("[data-below-note]").forEach(function (box) { box.hidden = !below; });
     var hint = action.querySelector("[data-primary-missing]");
     hint.hidden = !missing.length;
     hint.textContent =

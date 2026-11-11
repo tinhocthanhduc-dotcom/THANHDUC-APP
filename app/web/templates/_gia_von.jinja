@@ -1,0 +1,9 @@
+{# Bán dưới giá vốn (TUẤN 11/11/2026): mọi người thấy dòng nào dưới giá vốn, không thấy số vốn; giám đốc thấy lãi gộp. #}
+{% macro card(below, is_director) %}{% if below and (below.below or (is_director and below.lines)) %}<section class="card doc-card below-cost" data-below-cost>
+{% if below.below %}<p class="alert warn"><b>Dưới giá vốn:</b> {% for l in below.below %}Dòng {{ l.line_no }} ({{ l.product_code }}){% if is_director %} lỗ {{ (-l.margin)|money }} đ{% endif %}{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+{% if is_director and below.lines %}<h2 class="doc-h">Lãi gộp <span class="hint">· chỉ giám đốc thấy</span></h2>
+<div class="table-scroll"><table class="list-table"><thead><tr><th>Dòng</th><th class="num">Tiền hàng</th><th class="num">Giá vốn</th><th class="num">Lãi gộp</th></tr></thead><tbody>
+{% for no,l in below.lines|dictsort %}<tr><td data-label="Dòng">{{ no }} · {{ l.product_code }}</td><td class="num" data-label="Tiền hàng">{{ l.net|money }}</td><td class="num" data-label="Giá vốn">{{ l.cost|money }}</td><td class="num {{ 'bad' if l.below }}" data-label="Lãi gộp">{{ ('+' if l.margin>=0 else '−') ~ (l.margin|abs|money) }}</td></tr>{% endfor %}
+</tbody></table></div><p><b>Cả phiếu: {{ ('+' if below.margin>=0 else '−') ~ (below.margin|abs|money) }} đ{% if below.rate is not none %} · {{ below.rate }}%{% endif %}</b> <span class="hint">(chỉ tính dòng hàng có giá vốn, chưa VAT)</span></p>{% endif %}
+</section>{% endif %}{% endmacro %}
+{% macro reason(below, is_director, action_form, failed) %}{% if below and below.below and not is_director %}<label class="alert warn below-note"><b>Dòng {% for l in below.below %}{{ l.line_no }}{{ ', ' if not loop.last }}{% endfor %} bán dưới giá vốn · lý do (bắt buộc)</b><textarea name="below_cost_reason" required maxlength="500">{{ action_form.get('below_cost_reason','') if failed else '' }}</textarea></label>{% endif %}{% endmacro %}

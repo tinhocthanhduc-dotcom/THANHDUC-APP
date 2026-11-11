@@ -35,13 +35,17 @@ def body(amount=100,*,goods=False,qty=1,term='CONG_NO',**kw):
         **({'deposit_amount':1} if term=='DAT_COC' else {}),**kw)
 
 
+# Giá test thấp hơn giá vốn 100.000 của TD-0001; ghi lý do để chốt (TUẤN duyệt 11/11/2026).
+BELOW='Giá thử nghiệm hạn mức nợ'
+
+
 def draft(db,p,amount=100,**kw):
     return svc.create(db,p['sales'],body(amount,**kw))
 
 
 def confirmed(db,p,amount=100,**kw):
     row=draft(db,p,amount,**kw)
-    return svc.confirm(db,p['sales'],row.id,row.version)
+    return svc.confirm(db,p['sales'],row.id,row.version,below_cost_reason=BELOW)
 
 
 def state(db,customer):
@@ -75,7 +79,7 @@ def test_second_commitment_only_warns_and_sales_confirms_with_trace(db,people,cr
     assert all(label in warning for label in ('Nợ thực tế: 0','đơn chốt chưa giao: 100',
         'đơn này: 100','hạn mức: 100'))
     # Kinh doanh chốt được, không cần giám đốc, không cần lý do.
-    svc.confirm(db,p['sales'],b.id,b.version)
+    svc.confirm(db,p['sales'],b.id,b.version,below_cost_reason=BELOW)
     assert b.status=='DA_CHOT' and b.credit_override_by==p['sales'].id and b.credit_override_reason==''
     log=db.scalar(select(AuditLog).where(AuditLog.action=='sales_order.confirm',AuditLog.entity_id==str(b.id)))
     assert log.after['credit_override_by']==p['sales'].id
@@ -107,7 +111,7 @@ def test_partial_delivery_counts_actual_plus_only_unshipped_and_closing_releases
     svc.close_remaining(db,p['sales'],a.id,'Khách không lấy thêm',a.version)
     assert state(db,credit_customer)['committed']==0 and a.receivable==40
     assert not warned(db,credit_customer,1)
-    svc.confirm(db,p['sales'],b.id,b.version)
+    svc.confirm(db,p['sales'],b.id,b.version,below_cost_reason=BELOW)
     assert state(db,credit_customer)['remaining']==41 and b.credit_override_by is None
 
 
@@ -128,7 +132,7 @@ def test_confirmed_advance_only_offsets_its_own_order_once(db,people,credit_cust
     assert exposure['committed']==max(0,100-delivered*10-max(0,amount-delivered*10))
     assert exposure['remaining']==expected
     b=draft(db,p,100-expected)
-    svc.confirm(db,p['sales'],b.id,b.version)
+    svc.confirm(db,p['sales'],b.id,b.version,below_cost_reason=BELOW)
     assert state(db,credit_customer)['remaining']==100
 
 
@@ -162,7 +166,7 @@ def test_vat_rounding_and_voided_delivery_keep_exact_exposure(db,people,credit_c
     credit_customer.credit_limit=108;db.commit()
     a=svc.create(db,p['sales'],SalesOrderIn(customer_code=credit_customer.code,payment_term='CONG_NO',
         lines=[dict(kind='HANG',product_code='TD-0001',warehouse_code='K58',qty=3,unit_price=33,vat_rate=8)]))
-    svc.confirm(db,p['sales'],a.id,a.version)
+    svc.confirm(db,p['sales'],a.id,a.version,below_cost_reason=BELOW)
     assert a.total==107 and state(db,credit_customer)['committed']==107
     svc.deliver(db,p['warehouse'],a.id,a.version,[dict(order_line_no=1,qty=1)])
     assert state(db,credit_customer)['actual_debt']==36
@@ -283,7 +287,7 @@ def test_commitments_are_scoped_to_each_customer_in_batched_read(db,people,credi
                            allow_debt=True,credit_limit=100)
     db.add(other);db.commit()
     b=svc.create(db,p['sales'],body().model_copy(update=dict(customer_code=other.code)))
-    svc.confirm(db,p['sales'],b.id,b.version)
+    svc.confirm(db,p['sales'],b.id,b.version,below_cost_reason=BELOW)
     assert state(db,credit_customer)['committed']==0
     confirmed(db,p)
     assert svc.credit_exposure(db,[credit_customer.code,other.code])=={

@@ -261,13 +261,13 @@ def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
     return order
 
 
-def confirm(session: Session, user, order_id, version, credit_override_reason=''):
+def confirm(session: Session, user, order_id, version, credit_override_reason='', below_cost_reason=''):
     check_writer(user)
     with _transaction(session):
-        return confirm_in_tx(session,user,order_id,version,credit_override_reason)
+        return confirm_in_tx(session,user,order_id,version,credit_override_reason,below_cost_reason)
 
 
-def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
+def confirm_in_tx(session, user, order_id, version, credit_override_reason='', below_cost_reason=''):
     check_writer(user)
     order = _load(session, order_id, lock=True)
     _version(order, version)
@@ -284,6 +284,9 @@ def confirm_in_tx(session, user, order_id, version, credit_override_reason=''):
     check_prices(session,user,order)
     before = snapshot(order)
     quotes._totals(order)
+    # Bán dưới giá vốn (TUẤN 11/11/2026): thiếu lý do thì chặn, trừ giám đốc; ghi nhật ký cho báo cáo sáng.
+    from . import below_cost
+    below_cost.check_confirm(session,user,order,below_cost_reason)
     _apply_terms(order,order)
     credit_note=_check_credit(session,user,order,credit_override_reason)
     order.status, order.receivable = 'DA_CHOT', 0
@@ -833,7 +836,7 @@ def counter_sale(session,user,order_id,body):
             lock_counter(session,'XL',day)
         if any(line.kind=='HANG' for line in order.lines):
             lock_counter(session,'PX',day)
-        confirm_in_tx(session,user,order.id,order.version)
+        confirm_in_tx(session,user,order.id,order.version,below_cost_reason=getattr(body,'below_cost_reason',''))
         deliver_in_tx(session,user,order.id,order.version,lines=body.delivery_lines,receiver_name=order.contact_name,_stamp=stamp)
         sales_receipts.report_in_tx(session,user,order.id,body.model_copy(update={'version':order.version}))
         _record(session,user,order,'counter_sale',before)
@@ -882,11 +885,11 @@ def _money_label(status, receivable, paid, pending, remaining, advance):
     return 'Đã thu đủ' if status=='DA_GIAO' else 'Đã thu đủ phần đã giao'
 
 
-def save_and_confirm(session,user,body,order_id=None,credit_override_reason=''):
+def save_and_confirm(session,user,body,order_id=None,credit_override_reason='',below_cost_reason=''):
     check_writer(user)
     with _transaction(session):
         order = update_in_tx(session,user,order_id,body) if order_id is not None else _new(session,user,body)
-        return confirm_in_tx(session,user,order.id,order.version,credit_override_reason)
+        return confirm_in_tx(session,user,order.id,order.version,credit_override_reason,below_cost_reason)
 
 
 def _credit_commitments(customer_codes, exclude_order_id=None):

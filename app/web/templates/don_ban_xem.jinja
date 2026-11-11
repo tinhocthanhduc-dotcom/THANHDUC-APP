@@ -11,6 +11,7 @@
 </form>{% endmacro %}
 
 {% import 'viec_khac.jinja' as other %}
+{% import '_gia_von.jinja' as gv %}
 {% block title %}{{ o.number }}{% endblock %}
 {% block main %}<div class="page-wide doc-view" data-doc-view="order">
 {% set tones={'DA_CHOT':'lam','GIAO_MOT_PHAN':'lam','DA_GIAO':'cho' if (available>0 or (collection and collection.balance.pending>0)) else 'xong','DA_HUY':'huy'} %}
@@ -44,6 +45,7 @@
 </tbody></table></div>
 {% if can_keep and o.status in ['DA_CHOT','GIAO_MOT_PHAN'] and reservations.values()|selectattr('missing','gt',0)|list %}<form method="post" action="/don-ban/{{ o.id }}/reserve" class="doc-inline">{{ token('reserve') }}<button class="btn-ok">Giữ thêm hàng còn thiếu</button></form>{% endif %}
 </section>
+{{ gv.card(below, is_director) }}
 
 {% if o.note %}<section class="card doc-card"><h2 class="doc-h">Ghi chú</h2><p class="service-text">{{ o.note }}</p></section>{% endif %}
 <details class="card doc-card" {% if failed_action=='void-delivery' or failed_receipt_id %}open{% endif %}><summary>Lịch sử · lần giao, phiếu xuất, báo thu</summary>{% include 'don_ban_lan_giao.jinja' %}{% if stock_numbers %}<section class="card service-action"><h2>Phiếu xuất kho</h2><ul>{% for line in o.lines if line.stock_doc_id %}<li>Dòng {{ line.line_no }} · {{ line.product_code }} · {% if can_open('/phieu-kho') %}<a href="/phieu-kho/{{ line.stock_doc_id }}">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</a>{% else %}<span class="doc-ref">{{ stock_numbers.get(line.stock_doc_id,'Phiếu xuất') }}</span>{% endif %}</li>{% endfor %}</ul></section>{% endif %}

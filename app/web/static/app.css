@@ -4389,3 +4389,7 @@ dialog.qv::backdrop { background: rgba(15,20,30,.42); }
 .pl-bar-stack { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
 .pl-bar { display: block; width: 40%; min-height: 2px; border-radius: 3px 3px 0 0; } .pl-bar.gross { background: var(--accent); } .pl-bar.net { background: var(--ok); } .pl-bar.net.minus { background: var(--bad); }
 .pl-legend { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; } .pl-legend.gross { background: var(--accent); } .pl-legend.net { background: var(--ok); }
+/* Bán dưới giá vốn (TUẤN 11/11/2026). */
+.below-note{display:grid;gap:6px;border:1px solid var(--warn)}
+.below-note textarea{font-size:16px}
+.below-cost td.bad{color:var(--bad);font-weight:700}

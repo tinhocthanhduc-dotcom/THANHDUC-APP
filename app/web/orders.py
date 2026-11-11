@@ -143,7 +143,9 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
                          progress=doc_frame.line_progress(order,reservations,delivery_state))
     # Cảnh báo công nợ trên đơn nháp đã lưu (nút Chốt đơn): không chặn, chỉ nhắc.
     credit_warning=svc.credit_warning(session,customer,order.total,exclude_order_id=order.id) if order is not None and order.status=='NHAP' and order.payment_term=='CONG_NO' else ''
-    return render(request,'don_ban_xem.jinja' if viewing else 'don_ban_form.jinja',**frame,trip_ticket=trip_ticket,credit_warning=credit_warning,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+    from .. import below_cost
+    below=below_cost.summary(session,order) if order is not None and order.status!='DA_HUY' else None
+    return render(request,'don_ban_xem.jinja' if viewing else 'don_ban_form.jinja',**frame,trip_ticket=trip_ticket,credit_warning=credit_warning,below=below,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=delivery_state,
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,
@@ -322,6 +324,7 @@ def conditions(request: Request,user: User=Depends(order_user),session: Session=
     _writer(user)
     data=_raw(request.query_params)
     data['credit_override_reason']=str(request.query_params.get('credit_override_reason',''))
+    data['below_cost_reason']=str(request.query_params.get('below_cost_reason',''))[:500]
     customer=session.get(Customer,data['customer_code']) if data['customer_code'] else None
     stock=stock_reservations.quantities(session,[(l.get('warehouse_code'),l.get('product_code')) for l in data['lines'] if l.get('product_code') and l.get('warehouse_code')])
     return render(request,'dieu_kien.jinja',primary_checks=steps.order_checks(session,user,data,stock,customer))
@@ -347,12 +350,13 @@ def create(request: Request,form=Depends(checked_form),session: Session=Depends(
     _writer(user)
     raw=_raw(form)
     raw['credit_override_reason']=str(form.get('credit_override_reason',''))
+    raw['below_cost_reason']=str(form.get('below_cost_reason',''))[:500]
     trip=str(form.get('service_ticket_id','')).strip()
     try:
         body=_body(raw)
         body['delivery_address']=body['delivery_address'] or None
         body=SalesOrderIn(customer_code=raw['customer_code'],service_ticket_id=trip or None,**body)
-        order=svc.save_and_confirm(session,user,body,credit_override_reason=SalesOrderConfirm(version=1,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason) if form.get('then')=='confirm' else svc.create(session,user,body)
+        order=svc.save_and_confirm(session,user,body,credit_override_reason=SalesOrderConfirm(version=1,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason,below_cost_reason=str(form.get('below_cost_reason',''))[:500]) if form.get('then')=='confirm' else svc.create(session,user,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
         raw['service_ticket_id']=trip
@@ -367,7 +371,7 @@ def _counter_after_save(request,session,user,order,form):
     try:
         values=form.getlist('counter_serials')
         body=SalesCounterSale(version=order.version,method=str(form.get('counter_method','TIEN_MAT')),amount=order.total,
-            delivery_lines=[dict(order_line_no=l.line_no,qty=l.qty,serials=parse_serials(values[i] if i<len(values) else '')) for i,l in enumerate(order.lines)])
+            delivery_lines=[dict(order_line_no=l.line_no,qty=l.qty,serials=parse_serials(values[i] if i<len(values) else '')) for i,l in enumerate(order.lines)],below_cost_reason=str(form.get('below_cost_reason',''))[:500])
         svc.counter_sale(session,user,order.id,body)
     except (BusinessError,ValidationError) as exc:
         # Giữ đơn nháp và nói rõ vì sao chưa bán được, như màn Tạo đơn từ báo giá.
@@ -414,12 +418,12 @@ def from_quote(request: Request,quote_id: int,form=Depends(checked_form),session
     raw=dict(version=str(form.get('version','')),contact_name=str(form.get('contact_name',source.contact_name)),
              delivery_address=str(form.get('delivery_address',customer.address)),note=str(form.get('note',source.note)),promised_date=str(form.get('promised_date','')),
              warehouses={int(k[10:]):str(v) for k,v in form.items() if re.fullmatch(r'warehouse_[0-9]+',k)},
-             **{k:str(form[k]) for k in svc.TERM_FIELDS if k in form},credit_override_reason=str(form.get('credit_override_reason','')))
+             **{k:str(form[k]) for k in svc.TERM_FIELDS if k in form},credit_override_reason=str(form.get('credit_override_reason','')),below_cost_reason=str(form.get('below_cost_reason',''))[:500])
     try:
         # Trường để trống thì dùng mặc định của đơn (Tại quầy, Trả ngay, 30 ngày, không cọc).
         terms={k:raw[k] for k in svc.TERM_FIELDS if raw.get(k,'').strip()}
         if 'deposit_amount' in terms:terms['deposit_amount']=_deposit(terms['deposit_amount'])
-        body=SalesOrderFromQuote(**{k:v for k,v in raw.items() if k not in svc.TERM_FIELDS and k not in ('credit_override_reason','version','promised_date')},**terms,
+        body=SalesOrderFromQuote(**{k:v for k,v in raw.items() if k not in svc.TERM_FIELDS and k not in ('credit_override_reason','below_cost_reason','version','promised_date')},**terms,
                                  **{'version':_version(form),'promised_date':raw['promised_date'] or None})
         order=svc.create_from_quote(session,user,quote_id,body)
     except (BusinessError,ValidationError) as exc:
@@ -428,7 +432,7 @@ def from_quote(request: Request,quote_id: int,form=Depends(checked_form),session
     if form.get('then')=='confirm':
         try:
             reason=SalesOrderConfirm(version=order.version,credit_override_reason=raw['credit_override_reason']).credit_override_reason
-            svc.confirm(session,user,order.id,order.version,reason)
+            svc.confirm(session,user,order.id,order.version,reason,raw['below_cost_reason'])
         except (BusinessError,ValidationError) as exc:
             # Đơn nháp đã tạo; báo rõ vì sao chưa chốt để sửa kho/số lượng rồi chốt trên đơn.
             message,code,status=_error(exc)
@@ -449,10 +453,11 @@ def update(request: Request,order_id: int,form=Depends(checked_form),session: Se
     order=svc.load(session,user,order_id)
     raw=_raw(form)
     raw['credit_override_reason']=str(form.get('credit_override_reason',''))
+    raw['below_cost_reason']=str(form.get('below_cost_reason',''))[:500]
     raw['customer_code']=order.customer_code  # B2 không cho đổi khách của đơn đã lập.
     try:
         body=SalesOrderUpdate(version=_version(form),**_body(raw))
-        if form.get('then')=='confirm': svc.save_and_confirm(session,user,body,order_id,SalesOrderConfirm(version=body.version,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason)
+        if form.get('then')=='confirm': svc.save_and_confirm(session,user,body,order_id,SalesOrderConfirm(version=body.version,credit_override_reason=str(form.get('credit_override_reason',''))).credit_override_reason,str(form.get('below_cost_reason',''))[:500])
         else: svc.update_lines(session,user,order_id,body)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_error(exc)
@@ -510,11 +515,11 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
         elif action=='counter-sale':
             order=svc.load(session,user,order_id)
             raw={k:str(form.get(k,'')) for k in ('version','method','amount','received_at','note')}
-            body=SalesCounterSale(**_report_body(form,raw).model_dump(),delivery_lines=[dict(order_line_no=l.line_no,qty=l.qty,serials=parse_serials(form.get('serials_'+str(l.line_no),''))) for l in order.lines])
+            body=SalesCounterSale(**_report_body(form,raw).model_dump(),delivery_lines=[dict(order_line_no=l.line_no,qty=l.qty,serials=parse_serials(form.get('serials_'+str(l.line_no),''))) for l in order.lines],below_cost_reason=str(form.get('below_cost_reason',''))[:500])
             svc.counter_sale(session,user,order_id,body)
         elif action=='confirm':
-            body=SalesOrderConfirm(version=version,credit_override_reason=str(form.get('credit_override_reason','')))
-            svc.confirm(session,user,order_id,version,body.credit_override_reason)
+            body=SalesOrderConfirm(version=version,credit_override_reason=str(form.get('credit_override_reason','')),below_cost_reason=str(form.get('below_cost_reason',''))[:500])
+            svc.confirm(session,user,order_id,version,body.credit_override_reason,body.below_cost_reason)
         elif action=='deliver':
             rows=[dict(order_line_no=int(k[8:]),qty=str(v).replace(',','.'),serials=parse_serials(form.get('serials_'+k[8:],''))) for k,v in form.items() if re.fullmatch(r'deliver_[0-9]+',k)]
             body=SalesDeliveryIn(version=version,lines=rows if rows or 'delivery_form' in form else None,

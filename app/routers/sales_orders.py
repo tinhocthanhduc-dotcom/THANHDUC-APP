@@ -46,7 +46,7 @@ def update_lines(order_id: int, body: SalesOrderUpdate, user: User = Depends(cur
 
 @router.post('/{order_id}/confirm', response_model=SalesOrderOut)
 def confirm(order_id: int, body: SalesOrderConfirm, user: User = Depends(current_user), session: Session = Depends(get_session)):
-    return svc.confirm(session, user, order_id, body.version, body.credit_override_reason)
+    return svc.confirm(session, user, order_id, body.version, body.credit_override_reason, body.below_cost_reason)
 
 
 @router.post('/{order_id}/deliver', response_model=SalesOrderOut)

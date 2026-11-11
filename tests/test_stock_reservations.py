@@ -42,7 +42,7 @@ def stock(db, p, qty=7, warehouse='K58', kind='PN', **changes):
 def order(db, p, qty=4, warehouse='K58', confirm=True, who='sales', lines=None):
     lines=lines or [dict(kind='HANG',product_code='TD-0001',warehouse_code=warehouse,qty=qty,unit_price=200,vat_rate=0)]
     row=sales_orders.create(db,p[who],SalesOrderIn(customer_code='KTD-000001',lines=lines))
-    if confirm:sales_orders.confirm(db,p[who],row.id,row.version)
+    if confirm:sales_orders.confirm(db,p[who],row.id,row.version,below_cost_reason='Giá thử nghiệm giữ hàng')
     return row
 
 
