@@ -1,4 +1,5 @@
 """Đăng nhập và phân quyền theo vai trò."""
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -32,11 +33,29 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
-def issue_token(user: User) -> str:
+def issue_token(user: User, *, minutes: int | None = None, login_at: int | None = None, csrf: str | None = None) -> str:
+    """Phiếu đăng nhập. `lat` = lúc nhập mật khẩu (giữ nguyên khi gia hạn), `cs` = mã chống form giả của phiên web
+    (giữ nguyên khi gia hạn để trang đang mở ở tab khác vẫn gửi được)."""
     s = get_settings()
     now = datetime.now(UTC)
-    payload = {"tv": user.token_version, "sub": str(user.id), "iat": now, "exp": now + timedelta(minutes=s.token_minutes)}
+    payload = {"tv": user.token_version, "sub": str(user.id), "iat": now,
+               "exp": now + timedelta(minutes=s.token_minutes if minutes is None else minutes),
+               "lat": int(now.timestamp()) if login_at is None else int(login_at), "cs": csrf or secrets.token_hex(16)}
     return jwt.encode(payload, s.secret_key, algorithm="HS256")
+
+
+def web_token_minutes() -> int:
+    return get_settings().web_idle_days * 24 * 60
+
+
+def reissue(payload: dict, csrf: str, minutes: int | None = None) -> str:
+    """Ký lại phiếu đã kiểm (cùng người, cùng token_version), giữ lúc đăng nhập và mã chống form giả, hạn mới tính từ bây giờ."""
+    s = get_settings()
+    now = datetime.now(UTC)
+    login_at = payload.get("lat") if type(payload.get("lat")) is int else int(payload.get("iat", now.timestamp()))
+    data = {"tv": payload["tv"], "sub": str(payload["sub"]), "iat": now,
+            "exp": now + timedelta(minutes=web_token_minutes() if minutes is None else minutes), "lat": login_at, "cs": csrf}
+    return jwt.encode(data, s.secret_key, algorithm="HS256")
 
 
 def current_user(token: str | None = Depends(_oauth2), session: Session = Depends(get_session)) -> User:

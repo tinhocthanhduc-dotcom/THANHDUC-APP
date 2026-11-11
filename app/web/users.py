@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Employee,User,AuditLog
-from . import COOKIE,checked_form,nav,render,web_user
+from . import COOKIE,checked_form,nav,render,set_session_cookie,web_session_token,web_user
 
 router=APIRouter()
 
@@ -140,6 +140,6 @@ def change_password(request:Request,form=Depends(checked_form),user:User=Depends
         token=svc.change_own_password(session,user,str(form.get('old_password','')),new)
     except BusinessError as exc:return _render(request,'doi_mat_khau.jinja',error=exc.message,error_code=exc.code,status=exc.status)
     response=RedirectResponse(nav.home_url(user),status_code=303)
-    settings=get_settings();response.set_cookie(COOKIE,token,max_age=settings.token_minutes*60,httponly=True,samesite='lax',secure=settings.cookie_secure)
+    set_session_cookie(response,web_session_token(token))
     response.headers['Cache-Control']='no-store'
     return response

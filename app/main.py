@@ -32,6 +32,19 @@ async def force_https(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def renew_session_cookie(request: Request, call_next):
+    """Phiên web tự gia hạn (TUẤN 11/11/2026): web_user để phiếu mới ở request.state, ở đây gắn cookie vào trả lời.
+    Trả lời đã tự đặt hoặc xóa cookie đăng nhập (đăng nhập, đăng xuất, đổi mật khẩu) thì để nguyên."""
+    response = await call_next(request)
+    token = getattr(request.state, "renew_session", None)
+    if token:
+        from .web import COOKIE, set_session_cookie
+        if not any(v.decode("latin-1").startswith(COOKIE + "=") for k, v in response.raw_headers if k.lower() == b"set-cookie"):
+            set_session_cookie(response, token)
+    return response
+
+
 # TD1: đo tốc độ, đặt ngoài cùng để tính cả thời gian các middleware khác.
 from . import perf
 app.add_middleware(perf.Middleware)

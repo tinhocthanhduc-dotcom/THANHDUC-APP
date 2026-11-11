@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Khóa ký phiên đăng nhập. Bắt buộc đặt chuỗi ngẫu nhiên dài trên máy chủ thật.
     secret_key: str = "change-me"
     token_minutes: int = 12 * 60
+    # Phiên đăng nhập trên web tự gia hạn khi còn dùng (TUẤN 11/11/2026): bỏ không dùng quá web_idle_days thì phải đăng nhập lại,
+    # và dù dùng liên tục cũng phải đăng nhập lại sau web_max_days kể từ lần nhập mật khẩu. Đổi mật khẩu, khóa tài khoản vẫn văng ngay.
+    web_idle_days: int = Field(default=7, ge=1, le=90)
+    web_max_days: int = Field(default=30, ge=1, le=365)
     search_limit: int = 20
     supplier_hold_alert_days: int = Field(default=30, ge=0, le=36500)
     supplier_debt_alert_days: int = Field(default=30, ge=0, le=365)
