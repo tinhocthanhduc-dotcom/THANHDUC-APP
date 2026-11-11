@@ -44,15 +44,16 @@ def _customer_link(code):
 
 
 def customer_overdue(user,today):
-    """Từng khoản khách còn nợ kèm số ngày quá hạn (0 = chưa quá hạn). Dùng chung cho Cảnh báo và Báo cáo sáng.
-    Đơn bán tính theo hạn riêng; dịch vụ và nợ đầu kỳ quá 30 ngày như trước."""
+    """Từng khoản khách CHƯA TRẢ (trừ tiền nhân viên đã thu chờ xác nhận) kèm số ngày quá hạn (0 = chưa quá hạn).
+    Dùng chung cho Cảnh báo, Báo cáo sáng; cùng hạn trả với Công nợ khách hàng và nhắc nợ thứ Hai (TUẤN 11/11/2026):
+    đơn bán theo hạn của đơn; dịch vụ, nợ đầu kỳ theo số ngày nợ của khách (không được nợ: 30 ngày)."""
     sales=sales_reports._debts(user,today)
     all_debts=finance_reports._debts()
-    service_days=func.greatest(0,literal(today,type_=Date)-all_debts.c.day-config.ALERT_DEBT_DAYS)
-    return union_all(select(sales.c.customer_code,sales.c.remaining,sales.c.days,
-            cast(func.timezone('Asia/Ho_Chi_Minh',sales.c.confirmed_at),Date).label('oldest')),
-        select(all_debts.c.customer_code,all_debts.c.remaining,service_days,all_debts.c.day)
-            .where(all_debts.c.kind.in_(('DV','DK')))).subquery()
+    service_days=func.greatest(0,literal(today,type_=Date)-all_debts.c.due)
+    return union_all(select(sales.c.customer_code,(sales.c.remaining-sales.c.pending).label('remaining'),sales.c.days,
+            cast(func.timezone('Asia/Ho_Chi_Minh',sales.c.confirmed_at),Date).label('oldest')).where(sales.c.remaining>sales.c.pending),
+        select(all_debts.c.customer_code,(all_debts.c.remaining-all_debts.c.pending).label('remaining'),service_days,all_debts.c.day)
+            .where(all_debts.c.kind.in_(('DV','DK')),all_debts.c.remaining>all_debts.c.pending)).subquery()
 
 
 def collect(session,user,today=None,now=None) -> list[dict]:

@@ -52,12 +52,13 @@ def test_list_matches_debt_page_tab_and_writes_nothing(db, people):
     from app.web.customer_debts import _rows
     tab = [r for r in _rows(db, p['finance'], MONDAY) if r['old']]
     assert [i['name'] for i in d['items']] == ['Cty An Phát', 'Trường MN Hoa Sen']      # nợ 10 ngày không vào
-    assert d['total'] == sum(r['unpaid'] for r in tab) == 20_700_000 and d['oldest'] == 74
+    # Nợ đầu kỳ của khách không được nợ: hạn 30 ngày, quá hạn = 74 − 30 (TUẤN 11/11/2026).
+    assert d['total'] == sum(r['unpaid'] for r in tab) == 20_700_000 and d['oldest'] == 44
     assert [db.query(m).count() for m in (StockLedger, FundLedger)] == before
     text = svc.render_text(d, 'https://vd.test')
-    assert text.startswith('📒 NHẮC NỢ QUÁ HẠN · T2 09/11\nKhách chưa trả quá 30 ngày: 2 khách\nTổng: 20.700.000đ · cũ nhất 74 ngày')
-    assert '1. Cty An Phát – 12.500.000đ\n   74 ngày · 0903123456 · NDK-KN-1' in text
-    assert '2. Trường MN Hoa Sen – 8.200.000đ\n   52 ngày · NDK-KN-2' in text
+    assert text.startswith('📒 NHẮC NỢ QUÁ HẠN · T2 09/11\nKhách chưa trả quá hạn: 2 khách\nTổng: 20.700.000đ · quá lâu nhất 44 ngày')
+    assert '1. Cty An Phát – 12.500.000đ\n   quá 44 ngày · 0903123456 · NDK-KN-1' in text
+    assert '2. Trường MN Hoa Sen – 8.200.000đ\n   quá 22 ngày · NDK-KN-2' in text
     assert text.endswith('Báo thu: https://vd.test/cong-no-khach-hang?tab=qua-han')
 
 
@@ -70,7 +71,7 @@ def test_render_caps_lines_and_length():
     assert '10. ' in text and '11. ' not in text and '+20 khách nữa, xem đủ trong app' in text
     assert 'DB-1, DV-2, NDK-3 +1' in text and 'Đã thu, đang ở nhân viên: 1.500.000đ' in text
     empty = svc.render_text(dict(today=MONDAY, days=30, items=[], total=0, oldest=0, pending=0))
-    assert 'Không có khách chưa trả quá 30 ngày.' in empty
+    assert 'Không có khách chưa trả quá hạn.' in empty
 
 
 def test_sends_once_a_week_to_linked_accountant_only(db, people, monkeypatch):
@@ -120,3 +121,19 @@ def test_preview_and_test_send_director_only(db, people, client, monkeypatch):
     assert calls[0][1]['chat_id'] == 'zalo-thanh'
     assert db.scalar(select(ZaloMessage).order_by(ZaloMessage.id.desc())).kind == 'nhac_no'
     assert db.scalar(select(func.count()).select_from(DispatchZaloSent)) == 0
+
+
+def test_customer_due_days_moves_the_due_date(db, people):
+    """Hạn nợ theo khách (TUẤN 11/11/2026): khách được nợ 60 ngày thì nợ 52 ngày chưa quá hạn; 45 ngày thì quá 7."""
+    p = people
+    _debts(db, p['director'])
+    for code, days in (('KN-1', 60), ('KN-2', 45)):
+        c = db.get(Customer, code)
+        c.allow_debt, c.credit_limit, c.due_days = True, 100_000_000, days
+    db.commit()
+    d = svc.build(db, p['finance'], MONDAY)
+    assert [(i['name'], i['days']) for i in d['items']] == [('Cty An Phát', 14), ('Trường MN Hoa Sen', 7)]
+    from app import alerts
+    overdue = alerts.customer_overdue(p['director'], MONDAY)
+    rows = {r.customer_code: r.days for r in db.execute(select(overdue))}
+    assert rows == {'KN-1': 14, 'KN-2': 7, 'KN-3': 0}

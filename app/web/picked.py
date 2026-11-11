@@ -18,7 +18,9 @@ def customer_cards(session, user, customers):
         contact=c.contacts[0].name if c.contacts else '',
         debt=exposure.get(c.code, {}).get('actual_debt', 0),
         committed=exposure.get(c.code, {}).get('committed', 0),
-        limit=c.credit_limit, can_debt=permitted) for c in customers}
+        limit=c.credit_limit, can_debt=permitted,
+        # Hạn nợ theo khách (TUẤN 11/11/2026): màn đơn bán tự chọn Công nợ N ngày khi chọn khách được nợ.
+        term='CONG_NO' if c.allow_debt else 'TRA_NGAY', due_days=c.due_days) for c in customers}
 
 
 def last_prices(session, customer_code, products):

@@ -10,7 +10,7 @@ from ..models import Equipment, Product, Quote, SalesOrder, ServiceTicket, User
 from ..security import has_role
 from . import money, nav, paging, render
 from .doc_frame import QUOTE_NEXT, order_next
-from .lists import OLD_DEBT_DAYS, _today
+from .lists import _today
 from .orders import STATUSES as ORDER_STATUSES
 from .quotes import STATUSES as QUOTE_STATUSES
 from .services import STATUSES as SERVICE_STATUSES
@@ -145,7 +145,8 @@ def build(request, session, user, c, tab='mo', trang='', so='', saved=False, war
             since = min(r.day or today for r in rows)
             total = int(sum(r.remaining for r in rows))
             debt = dict(total=total, since=since, days=(today - since).days, pending=int(sum(r.pending for r in rows)),
-                        old=(today - since).days > OLD_DEBT_DAYS, over=total > (c.credit_limit if c.allow_debt else 0),
+                        # Quá hạn theo hạn trả từng chứng từ (TUẤN 11/11/2026), như Công nợ khách hàng.
+                        old=any(r.due and r.due < today and r.remaining > r.pending for r in rows), over=total > (c.credit_limit if c.allow_debt else 0),
                         docs=sorted(rows, key=lambda r: r.day or today))
 
     open_docs = [x for x in docs if x['open']]

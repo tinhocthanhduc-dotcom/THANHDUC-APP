@@ -66,8 +66,11 @@ def test_tabs_and_filters_narrow_rows_and_totals(client, db, people, configured_
     assert 'data-debt-row="KTD-000002"' in over and 'data-debt-row="KTD-000001"' not in over and 'Còn nợ <b>500</b> đ' in over
     pending = client.get(PAGE + '?tab=cho').text
     assert 'data-debt-row="KTD-000001"' in pending and 'data-debt-row="KTD-000002"' not in pending
+    # Quá hạn theo hạn trả (TUẤN 11/11/2026): đơn trả ngay chưa trả quá hạn từ hôm sau ngày giao; khách được nợ 30 ngày thì chưa.
     old = client.get(PAGE + '?tab=qua-han').text
-    assert 'data-debt-row=' not in old and 'Không có khách nào trong nhóm này.' in old and 'Xóa lọc' in old
+    assert 'data-debt-row="KTD-000002"' in old and 'data-debt-row="KTD-000001"' not in old and 'data-overdue' in old
+    none = client.get(PAGE + '?tab=qua-han&q=khongcoai').text
+    assert 'data-debt-row=' not in none and 'Không có khách nào khớp' in none and 'Xóa lọc' in none
     assert 'data-debt-row="KTD-000002"' in client.get(PAGE + '?q=le quy').text
     assert 'data-debt-row="KTD-000001"' not in client.get(PAGE + '?q=le quy').text
     assert 'data-debt-row="KTD-000002"' in client.get(PAGE + '?q=0909000').text

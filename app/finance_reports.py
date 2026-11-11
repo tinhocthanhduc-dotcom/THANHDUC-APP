@@ -107,14 +107,25 @@ def daily(session, user, start=None, end=None):
         .outerjoin(flow, flow.c.day == days.c.day).order_by(days.c.day))
 
 
+def customer_due_days(code_col):
+    """Số ngày nợ cho phiếu dịch vụ và nợ đầu kỳ (TUẤN 11/11/2026): khách được nợ theo số ngày của khách, còn lại 30 ngày như cũ."""
+    from .config import ALERT_DEBT_DAYS
+    return (select(case((Customer.allow_debt.is_(True), Customer.due_days), else_=ALERT_DEBT_DAYS))
+            .where(Customer.code == code_col).correlate_except(Customer).scalar_subquery())
+
+
 def _debts():
+    """Mỗi chứng từ còn nợ. Cột due = hạn trả, một cách tính cho mọi màn (TUẤN 11/11/2026):
+    đơn bán = ngày giao đầu + số ngày nợ của đơn (trả ngay 0); dịch vụ, nợ đầu kỳ = ngày nợ + số ngày nợ của khách."""
     def source(model, receipt_key, status, stamp, kind):
         from . import sales_receipts
         receipts=sales_receipts.totals(model)
         paid, pending = func.coalesce(receipts.c.paid, 0), func.coalesce(receipts.c.pending, 0)
         day = cast(func.timezone('Asia/Ho_Chi_Minh', stamp), Date)
+        due = sales_orders.due_date_sql() if model is SalesOrder else day + customer_due_days(model.customer_code)
         return (select(literal(kind).label('kind'), model.id, model.number, model.customer_code, day.label('day'),
-                model.receivable, paid.label('paid'), pending.label('pending'), (model.receivable - paid).label('remaining'))
+                model.receivable, paid.label('paid'), pending.label('pending'), (model.receivable - paid).label('remaining'),
+                due.label('due'))
             .outerjoin(receipts, receipts.c.parent_id == model.id)
             .where(model.status.in_(status), model.receivable > paid))
     def opening():
@@ -124,7 +135,8 @@ def _debts():
         receipts = sales_receipts.totals(o)
         paid, pending = func.coalesce(receipts.c.paid, 0), func.coalesce(receipts.c.pending, 0)
         return (select(literal('DK').label('kind'), o.id, o.number, o.customer_code, o.as_of.label('day'),
-                o.amount.label('receivable'), paid.label('paid'), pending.label('pending'), (o.amount - paid).label('remaining'))
+                o.amount.label('receivable'), paid.label('paid'), pending.label('pending'), (o.amount - paid).label('remaining'),
+                (o.as_of + customer_due_days(o.customer_code)).label('due'))
             .outerjoin(receipts, receipts.c.parent_id == o.id).where(o.amount > paid))
     return union_all(source(SalesOrder, SalesReceipt.order_id, ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'), sales_orders.first_delivery(), 'DB'),
                      source(ServiceTicket, SalesReceipt.ticket_id, ('HOAN_THANH', 'DA_DONG'), ServiceTicket.priced_at, 'DV'),

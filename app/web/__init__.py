@@ -494,7 +494,7 @@ def _customer_form(request: Request, user: User, c: dict, session=None, **ctx) -
 def _customer_where(exc) -> dict:
     """Đợt 3: lỗi khách thuộc ô nào để tô đỏ đúng ô."""
     if isinstance(exc, ValidationError):
-        names = ("name", "email", "address", "phones", "tax_code", "credit_limit", "reason")
+        names = ("name", "email", "address", "phones", "tax_code", "credit_limit", "due_days", "reason")
         for err in exc.errors():
             loc = [str(x) for x in err["loc"]]
             if "contacts" in loc:
@@ -511,7 +511,7 @@ def _customer_where(exc) -> dict:
 def _blank_customer() -> dict:
     return {
         "code": "", "kind": "CA_NHAN", "name": "", "tax_code": "", "phones": [], "email": "", "address": "", "note": "",
-        "contacts": [], "allow_debt": False, "credit_limit": 0, "status": "DANG_DUNG", "old_codes": [], "is_test": False, "version": 0,
+        "contacts": [], "allow_debt": False, "credit_limit": 0, "due_days": 30, "status": "DANG_DUNG", "old_codes": [], "is_test": False, "version": 0,
     }
 
 
@@ -536,6 +536,7 @@ def _customer_from_form(form) -> dict:
         "contacts": contacts,
         "allow_debt": form.get("allow_debt") == "1",
         "credit_limit": _digits(form.get("credit_limit")),
+        "due_days": _digits(form.get("due_days")) if str(form.get("due_days", "")).strip() else 30,
         "status": str(form.get("status", "DANG_DUNG")),
     }
 
@@ -622,7 +623,7 @@ def customer_create(request: Request, form=Depends(checked_form), session: Sessi
     return_to = _return_to(form.get("quay_ve"))
     shown = {**_blank_customer(), **data}
     if not has_role(user, *customer_svc.CREDIT_ROLES):
-        data.pop("allow_debt"), data.pop("credit_limit")
+        data.pop("allow_debt"), data.pop("credit_limit"), data.pop("due_days")
     data.pop("status")
     try:
         body = CustomerCreate(customer=CustomerIn(**data), confirmation=_confirmation(form))
@@ -673,7 +674,7 @@ def customer_update(request: Request, code: str, form=Depends(checked_form), ses
     shown = {**_customer_dict(customer_svc.load(session, code, resolve_merged=False)), **data, "version": _digits(form.get("version"))}
     # Người không có quyền công nợ không gửi các trường đó, để không bị chặn khi chỉ sửa tên hay số điện thoại.
     if not has_role(user, *customer_svc.CREDIT_ROLES):
-        data.pop("allow_debt"), data.pop("credit_limit"), data.pop("status")
+        data.pop("allow_debt"), data.pop("credit_limit"), data.pop("due_days"), data.pop("status")
     try:
         body = CustomerPatch(version=_digits(form.get("version")), confirmation=_confirmation(form), **data)
         c, warnings = customer_svc.update(session, user, code, body)

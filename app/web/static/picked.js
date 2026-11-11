@@ -166,11 +166,28 @@
           contact.value = button.dataset.contact || "";
         form.dataset.customerAddress = button.dataset.address || "";
         fillAddress(form);
+        fillTerms(form, button);
         collapse(block);
       }
     },
     true,
   );
+  // Hạn nợ theo khách (TUẤN 11/11/2026): chọn khách thì điền cách thanh toán của khách, trừ khi người lập đã tự chọn.
+  function fillTerms(form, button) {
+    if (!form.hasAttribute("data-order-terms") || form.dataset.termTouched || !button.dataset.term) return;
+    var radio = form.querySelector('[name=payment_term][value="' + button.dataset.term + '"]'),
+      days = form.querySelector("[name=due_days]");
+    if (!radio) return;
+    radio.checked = true;
+    if (days && button.dataset.dueDays) days.value = button.dataset.dueDays;
+    radio.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  document.addEventListener("click", function (e) {
+    if (e.isTrusted && e.target.closest("[name=payment_term],[name=due_days]")) {
+      var f = e.target.closest("form");
+      if (f) f.dataset.termTouched = "1";
+    }
+  }, true);
   function fillAddress(form) {
     var address = form.querySelector("[name=delivery_address]"),
       fulfill = form.querySelector("[name=fulfillment]:checked");

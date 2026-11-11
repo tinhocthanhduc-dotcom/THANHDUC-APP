@@ -134,6 +134,7 @@ class CustomerIn(BaseModel):
     contacts: list[ContactIn] = Field(default_factory=list, max_length=50)
     allow_debt: bool = False
     credit_limit: int = Field(default=0, ge=0)
+    due_days: int = Field(default=30, ge=0, le=180)
     is_test: bool = False
 
 
@@ -158,6 +159,7 @@ class CustomerPatch(BaseModel):
     contacts: list[ContactIn] | None = Field(default=None, max_length=50)
     allow_debt: bool | None = None
     credit_limit: int | None = Field(default=None, ge=0)
+    due_days: int | None = Field(default=None, ge=0, le=180)
     status: Literal["DANG_DUNG", "NGUNG"] | None = None
     confirmation: Confirmation | None = None
     reason: str = Field(default="", max_length=500)
@@ -183,6 +185,7 @@ class CustomerOut(BaseModel):
     contacts: list[ContactOut]
     allow_debt: bool
     credit_limit: int
+    due_days: int = 30
     status: str
     old_codes: list[str]
     is_test: bool

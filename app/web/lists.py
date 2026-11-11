@@ -2,7 +2,7 @@
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from .. import customers as customer_svc, finance_reports, products as product_svc
 from ..models import Customer, Product, ProductGroup, SalesOrder, ServiceTicket, StockBalance, StockMinLevel, Warehouse
@@ -45,12 +45,13 @@ def customers_page(request, session, user, q='', loai='', trang_thai='', no='', 
     debts, today = {}, _today()
     if can_debt:
         d = finance_reports._debts()
-        debts = {code: dict(remaining=int(rem), since=since or today) for code, rem, since in session.execute(
-            select(d.c.customer_code, func.sum(d.c.remaining), func.min(d.c.day)).group_by(d.c.customer_code)) if rem > 0}
+        due = func.min(case((d.c.remaining > d.c.pending, d.c.due)))
+        debts = {code: dict(remaining=int(rem), due=first) for code, rem, first in session.execute(
+            select(d.c.customer_code, func.sum(d.c.remaining), due).group_by(d.c.customer_code)) if rem > 0}
 
     def alert(c):
         x = debts.get(c.code)
-        return bool(x) and (x['remaining'] > (c.credit_limit if c.allow_debt else 0) or (today - x['since']).days > OLD_DEBT_DAYS)
+        return bool(x) and (x['remaining'] > (c.credit_limit if c.allow_debt else 0) or bool(x['due'] and x['due'] < today))
     counts = {code: sum(1 for c in found if c.status == code) for code in CUSTOMER_TABS}
     rows = [c for c in found if (status == 'tat-ca' or c.status == status) and (not no or c.code in debts)]
     query = dict(q=q, loai=loai, trang_thai='' if status == 'DANG_DUNG' else status, no=no, tu=tu, den=den)

@@ -56,6 +56,7 @@ class Customer(Base):
         CheckConstraint("kind in ('CA_NHAN','CONG_TY')", name="ck_customers_kind"),
         CheckConstraint("status in ('DANG_DUNG','NGUNG','DA_GOP')", name="ck_customers_status"),
         CheckConstraint("credit_limit >= 0", name="ck_customers_credit_limit"),
+        CheckConstraint("due_days between 0 and 180", name="ck_customers_due_days"),
         CheckConstraint("(status = 'DA_GOP') = (merged_into is not null)", name="ck_customers_merge"),
         # MST là duy nhất trong số khách đang dùng.
         Index("uq_customers_tax", "tax_code", unique=True, postgresql_where="tax_code <> '' and status <> 'DA_GOP'"),
@@ -71,6 +72,8 @@ class Customer(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     allow_debt: Mapped[bool] = mapped_column(Boolean, default=False)
     credit_limit: Mapped[int] = mapped_column(BigInteger, default=0)
+    # Số ngày nợ mặc định khi khách được nợ (TUẤN 11/11/2026): đơn bán tự điền, hạn phiếu dịch vụ / nợ đầu kỳ theo số này.
+    due_days: Mapped[int] = mapped_column(Integer, default=30, server_default=text('30'))
     status: Mapped[str] = mapped_column(String(16), default="DANG_DUNG")
     merged_into: Mapped[str | None] = mapped_column(ForeignKey("customers.code"), nullable=True)
     old_codes: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list)

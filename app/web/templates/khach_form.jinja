@@ -62,6 +62,12 @@
       <label><input type="radio" name="allow_debt" value="1" data-kh-debt {% if c.allow_debt %}checked{% endif %}><span>Cho nợ</span></label>
     </div>
     <label class="{{ ui.invalid(fe,'credit_limit') }}" data-kh-limit {% if not c.allow_debt and not c.credit_limit %}hidden{% endif %}>Hạn mức nợ (đồng)<input name="credit_limit" value="{{ c.credit_limit | money }}" inputmode="numeric" data-money>{{ ui.field_error(fe,'credit_limit') }}</label>
+    <div class="kh-days {{ ui.invalid(fe,'due_days') }}" data-kh-days {% if not c.allow_debt %}hidden{% endif %}>
+      <label>Số ngày nợ mặc định<input name="due_days" value="{{ c.get('due_days', 30) }}" inputmode="numeric"></label>
+      <div class="seg kh-days-pick" role="group" aria-label="Chọn nhanh số ngày nợ">{% for n in [7,15,30,45,60] %}<button type="button" class="btn-ghost" data-kh-days-pick="{{ n }}">{{ n }} ngày</button>{% endfor %}</div>
+      <p class="hint">Đơn bán mới của khách này tự điền "Công nợ {{ c.get('due_days', 30) }} ngày"; vẫn đổi được trên từng đơn. Quá hạn = ngày giao + số ngày nợ.</p>
+      {{ ui.field_error(fe,'due_days') }}
+    </div>
     {% if c.code %}
     <label>Trạng thái
       <select name="status">
@@ -72,7 +78,7 @@
     {% endif %}
   </section>
   {% elif c.code and (c.allow_debt or c.credit_limit) %}
-  <p class="hint">Cho nợ, hạn mức {{ c.credit_limit | money }} đ. Chỉ kế toán hoặc giám đốc sửa được.</p>
+  <p class="hint">Cho nợ, hạn mức {{ c.credit_limit | money }} đ{% if c.allow_debt %}, nợ {{ c.get('due_days', 30) }} ngày{% endif %}. Chỉ kế toán hoặc giám đốc sửa được.</p>
   {% endif %}
   </fieldset>
   {% if c.old_codes %}<p class="hint">Mã cũ: {{ c.old_codes | join(", ") }}</p>{% endif %}
