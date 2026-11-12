@@ -1,0 +1,1 @@
+{% for c in rows %}<a class="btn btn-ghost" href="/sua-bao-thu/{{ receipt_id }}?khach={{ c.code|urlquote }}">{{ c.code }} · {{ c.name }}</a>{% else %}<p class="hint">Không có khách phù hợp.</p>{% endfor %}
