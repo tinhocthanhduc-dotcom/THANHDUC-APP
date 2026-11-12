@@ -121,9 +121,20 @@ def report(session: Session, user, order_id, body: SalesReceiptReport):
         return report_in_tx(session,user,order_id,body)
 
 
-def report_in_tx(session, user, order_id, body: SalesReceiptReport):
+# Thu hộ theo khách (TUẤN duyệt 12/11/2026): thợ báo thu thay chứng từ không phải của mình, chỉ qua report_for_customer(thu_ho=True).
+# Dấu riêng để không ai gọi các hàm _in_tx bỏ qua quyền bằng một cờ True tùy tiện.
+_COLLECT = object()
+COLLECT_TAG = 'Thu hộ theo khách'
+
+
+def _collecting(user, permit):
+    return permit is _COLLECT and has_role(user, 'technician')
+
+
+def report_in_tx(session, user, order_id, body: SalesReceiptReport, _permit=None):
     order = sales_orders._load(session, order_id, lock=True)
-    if not (has_role(user, 'sales') or (has_role(user, 'technician') and order.delivery_assignee_id == user.id)):
+    if not (has_role(user, 'sales') or (has_role(user, 'technician') and order.delivery_assignee_id == user.id)
+            or _collecting(user, _permit)):
         raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh hoặc thợ được giao đơn được báo thu.', status=403)
     sales_orders._version(order, body.version)
     if order.status not in ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO'):
@@ -149,7 +160,9 @@ def _ticket(session,ticket_id):
     return row
 
 
-def check_ticket_reporter(user, ticket):
+def check_ticket_reporter(user, ticket, _permit=None):
+    if _collecting(user, _permit):
+        return
     if not (has_role(user,'dispatcher','sales') or
             (has_role(user,'technician') and ticket.assignee_id == user.id)):
         raise BusinessError('FORBIDDEN','Chỉ điều phối, kinh doanh, giám đốc hoặc thợ được giao phiếu được báo thu dịch vụ.',status=403)
@@ -163,9 +176,9 @@ def report_for_ticket(session,user,ticket_id,body: SalesReceiptReport):
         return report_for_ticket_in_tx(session, user, ticket, body)
 
 
-def report_for_ticket_in_tx(session, user, ticket: ServiceTicket, body: SalesReceiptReport):
+def report_for_ticket_in_tx(session, user, ticket: ServiceTicket, body: SalesReceiptReport, _permit=None):
     """Caller đã khóa phiếu, kiểm phiên bản và quản lý transaction."""
-    check_ticket_reporter(user, ticket)
+    check_ticket_reporter(user, ticket, _permit)
     if ticket.status not in ('HOAN_THANH','DA_DONG') or (ticket.receivable or 0)<=0 or ticket.billing=='MIEN_PHI':
         raise BusinessError('BAD_STATUS','Chỉ báo thu cho phiếu dịch vụ đã hoàn thành hoặc đã đóng còn số phải thu.',status=409)
     current = balance(ticket)
@@ -181,8 +194,8 @@ def report_for_ticket_in_tx(session, user, ticket: ServiceTicket, body: SalesRec
     return receipt
 
 
-def check_opening_reporter(user):
-    if not has_role(user, 'finance'):
+def check_opening_reporter(user, _permit=None):
+    if not has_role(user, 'finance') and not _collecting(user, _permit):
         raise BusinessError('FORBIDDEN', 'Chỉ kế toán hoặc giám đốc được báo thu nợ đầu kỳ.', status=403)
 
 
@@ -203,9 +216,9 @@ def report_for_opening(session, user, opening_id, body: SalesReceiptReport):
         return report_for_opening_in_tx(session, user, opening, body)
 
 
-def report_for_opening_in_tx(session, user, opening: CustomerOpeningDebt, body: SalesReceiptReport):
+def report_for_opening_in_tx(session, user, opening: CustomerOpeningDebt, body: SalesReceiptReport, _permit=None):
     """Caller đã khóa nợ đầu kỳ, kiểm phiên bản và quản lý transaction."""
-    check_opening_reporter(user)
+    check_opening_reporter(user, _permit)
     current = balance(opening)
     if current['paid'] + current['pending'] + body.amount > opening.amount:
         raise BusinessError('OVER_PAYMENT', 'Tổng đã thu và chờ xác nhận vượt số nợ đầu kỳ của khách.',
@@ -272,7 +285,11 @@ def check_customer_reporter(user, docs):
         check_opening_reporter(user)
 
 
-def report_for_customer(session, user, customer_code, body: CustomerReceiptReport):
+def report_for_customer(session, user, customer_code, body: CustomerReceiptReport, thu_ho=False):
+    """thu_ho=True: thợ thu hộ công nợ khách (TUẤN duyệt 12/11/2026), mọi chứng từ khách còn nợ, ghi chú bắt đầu COLLECT_TAG."""
+    if thu_ho and not has_role(user, 'technician'):
+        raise BusinessError('FORBIDDEN', 'Chỉ thợ dùng Thu hộ theo khách; văn phòng báo thu ở Công nợ khách hàng.', status=403)
+    permit = _COLLECT if thu_ho else None
     with _transaction(session):
         customer = session.scalar(select(Customer).where(Customer.code == customer_code).with_for_update())
         if customer is None:
@@ -287,20 +304,21 @@ def report_for_customer(session, user, customer_code, body: CustomerReceiptRepor
         if body.amount > total:
             raise BusinessError('OVER_PAYMENT', f'Khách đưa dư {body.amount - total:,} đ so với tổng nợ {total:,} đ. Sửa lại số tiền.'.replace(',', '.'),
                                 {'total': total, 'amount': body.amount}, status=409)
-        check_customer_reporter(user, docs)
+        if not thu_ho:
+            check_customer_reporter(user, docs)
         plan = allocate(docs, body.amount)
-        tag = f'Báo thu theo khách: tổng {body.amount:,} đ chia {len(plan)} chứng từ'.replace(',', '.')
-        note = (body.note.strip() + ' · ' + tag) if body.note.strip() else tag
+        tag = f'{COLLECT_TAG if thu_ho else "Báo thu theo khách"}: tổng {body.amount:,} đ chia {len(plan)} chứng từ'.replace(',', '.')
+        note = (tag + ' · ' + body.note.strip() if thu_ho else body.note.strip() + ' · ' + tag) if body.note.strip() else tag
         receipts = []
         for doc, part in plan:
             row = doc['doc']
             sub = SalesReceiptReport(version=row.version, method=body.method, amount=part, received_at=body.received_at, note=note[:4000])
             if doc['kind'] == 'DB':
-                receipts.append(report_in_tx(session, user, row.id, sub))
+                receipts.append(report_in_tx(session, user, row.id, sub, permit))
             elif doc['kind'] == 'DV':
-                receipts.append(report_for_ticket_in_tx(session, user, row, sub))
+                receipts.append(report_for_ticket_in_tx(session, user, row, sub, permit))
             else:
-                receipts.append(report_for_opening_in_tx(session, user, row, sub))
+                receipts.append(report_for_opening_in_tx(session, user, row, sub, permit))
         return receipts
 
 
@@ -347,7 +365,7 @@ def held_by(session, user):
     """Tiền mặt đang chờ của chính người báo, không phụ thuộc người hiện giữ phiếu."""
     with session.no_autoflush:
         rows = [dict(row) for row in session.execute(select(
-            SalesReceipt.id, SalesReceipt.number, SalesReceipt.ticket_id, SalesReceipt.order_id,
+            SalesReceipt.id, SalesReceipt.number, SalesReceipt.ticket_id, SalesReceipt.order_id, SalesReceipt.opening_id, SalesReceipt.note,
             ServiceTicket.number.label('ticket_number'), func.coalesce(SalesOrder.number, CustomerOpeningDebt.number).label('order_number'),
             Customer.name.label('customer'), SalesReceipt.amount, SalesReceipt.received_at,
             func.sum(SalesReceipt.amount).over().label('held_total')
@@ -362,7 +380,13 @@ def held_by(session, user):
         for row in rows:
             row.pop('held_total')
             row['amount'] = int(row['amount'])
+            row['thu_ho'] = is_collected(row.pop('note'))
         return dict(rows=rows, total=total)
+
+
+def is_collected(note):
+    """Báo thu do thợ thu hộ theo khách (nhãn "Thu hộ" ở Tiền tôi giữ và màn Báo thu)."""
+    return (note or '').startswith(COLLECT_TAG)
 
 
 def for_ticket(session,user,ticket_id):

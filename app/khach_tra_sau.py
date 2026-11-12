@@ -52,3 +52,45 @@ def one(session, user, ticket_id):
     if not rows:
         raise BusinessError('NOT_ELIGIBLE', 'Phiếu này không còn trong mục Khách trả sau (đã báo đủ, quá 90 ngày hoặc không phải phiếu của bạn).', status=409)
     return rows[0]
+
+
+# ---- Thu hộ theo khách (TUẤN duyệt mẫu 12/11/2026) ----
+# Thợ thu tiền khách đang nợ dù đơn/phiếu không phải của mình: một số tổng, trừ chứng từ cũ nhất trước
+# qua sales_receipts.report_for_customer(thu_ho=True). Chờ kế toán xác nhận như mọi báo thu; hoa hồng không đổi người hưởng.
+
+def customers(session, user, q='', code=None, limit=50):
+    """Khách còn chưa trả (còn nợ − chờ xác nhận > 0). Khách thợ từng làm phiếu hiện trước, rồi nợ cũ trước."""
+    from .finance_reports import _debts
+    check(user)
+    d = _debts()
+    unpaid = func.greatest(d.c.remaining - d.c.pending, 0)
+    mine = (select(ServiceTicket.id).where(ServiceTicket.customer_code == Customer.code, ServiceTicket.assignee_id == user.id)
+            .correlate(Customer).exists())
+    since = func.min(d.c.day).filter(unpaid > 0)
+    stmt = (select(Customer.code, Customer.name, func.count().filter(unpaid > 0).label('docs'), func.sum(unpaid).label('due'),
+                   since.label('since'), mine.label('mine'))
+            .join(Customer, Customer.code == d.c.customer_code)
+            .group_by(Customer.code, Customer.name).having(func.sum(unpaid) > 0)
+            .order_by(mine.desc(), since, Customer.code))
+    if code is not None:
+        stmt = stmt.where(Customer.code == code)
+    q = (q or '').strip()[:100]
+    if q:
+        stmt = stmt.where(*customer_svc.matches(q))
+    return [dict(code=r.code, name=r.name, docs=int(r.docs), due=int(r.due), since=r.since, mine=bool(r.mine))
+            for r in session.execute(stmt.limit(limit))]
+
+
+def customer(session, user, code):
+    rows = customers(session, user, code=code)
+    if not rows:
+        raise BusinessError('NOTHING_DUE', 'Khách này không còn khoản nào chưa trả (có thể người khác vừa báo thu).', status=409)
+    return rows[0]
+
+
+def customer_name(session, receipt):
+    from .models import CustomerOpeningDebt, SalesOrder
+    parent = (session.get(ServiceTicket, receipt.ticket_id) if receipt.ticket_id else session.get(SalesOrder, receipt.order_id)
+              if receipt.order_id else session.get(CustomerOpeningDebt, receipt.opening_id))
+    c = session.get(Customer, parent.customer_code) if parent else None
+    return c.name if c else ''

@@ -19,11 +19,18 @@ KINDS = {'SUA_TAI_CHO': 'Sửa tại chỗ', 'MANG_VE': 'Mang về xưởng', 'B
 
 
 @router.get('/tien-toi-giu/khach-tra-sau')
-def pick(request: Request, q: str = '', phan: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+def pick(request: Request, q: str = '', phan: str = '', tab: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """tab=khach: Thu hộ theo khách (TUẤN duyệt mẫu 12/11/2026); mặc định: phiếu của tôi."""
+    if tab == 'khach':
+        rows = svc.customers(session, user, q)
+        if phan:
+            return render(request, 'thu_ho_dong.jinja', rows=rows, q=q)
+        return render(request, 'khach_tra_sau_ds.jinja', tab='khach', rows=rows, q=q, days=svc.DAYS, kinds=KINDS,
+                      mine_count=len(svc.tickets(session, user)))
     rows = svc.tickets(session, user, q)
     if phan:
         return render(request, 'khach_tra_sau_dong.jinja', rows=rows, q=q, kinds=KINDS)
-    return render(request, 'khach_tra_sau_ds.jinja', rows=rows, q=q, days=svc.DAYS, kinds=KINDS)
+    return render(request, 'khach_tra_sau_ds.jinja', tab='phieu', rows=rows, q=q, days=svc.DAYS, kinds=KINDS, mine_count=len(rows) if not q else None)
 
 
 def _form(request, session, user, ticket_id, data=None, error=None, status=200):
@@ -66,3 +73,53 @@ def reported(session, user, receipt_id):
         return None
     ticket = session.get(ServiceTicket, row.ticket_id)
     return dict(amount=row.amount, number=ticket.number, method=METHODS[row.method])
+
+
+# ---- Thu hộ theo khách (TUẤN duyệt mẫu 12/11/2026) ----
+
+def _collect_form(request, session, user, code, data=None, error=None, status=200):
+    from .lists import _today
+    row = svc.customer(session, user, code)
+    docs = sales_receipts.customer_unpaid_docs(session, code)
+    data = data or dict(amount=f'{row["due"]:,}'.replace(',', '.'), method='TIEN_MAT', received_at=_today().isoformat())
+    return render(request, 'thu_ho_bao_thu.jinja', row=row, docs=docs, total=sum(d['unpaid'] for d in docs), data=data,
+                  methods=METHODS, today=_today(), error=error.message if error else None, error_code=error.code if error else '', status=status)
+
+
+@router.get('/tien-toi-giu/thu-ho/{code}')
+def collect_form(request: Request, code: str, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _collect_form(request, session, user, code)
+
+
+@router.post('/tien-toi-giu/thu-ho/{code}')
+def collect(request: Request, code: str, form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from ..schemas import CustomerReceiptReport
+    from .customer_debts import _parse_amount
+    raw = {key: str(form.get(key, '')) for key in ('method', 'amount', 'received_at', 'expected_total')}
+    try:
+        svc.check(user)
+        amount = _parse_amount(raw['amount'])
+        received = date.fromisoformat(raw['received_at']) if raw['received_at'] else None
+        expected = int(raw['expected_total']) if raw['expected_total'].isdigit() else None
+        body = CustomerReceiptReport(method=raw['method'], amount=amount, received_at=received, expected_total=expected)
+        receipts = sales_receipts.report_for_customer(session, user, code, body, thu_ho=True)
+    except (BusinessError, ValidationError, ValueError) as exc:
+        session.rollback()
+        if isinstance(exc, BusinessError) and exc.code in ('FORBIDDEN', 'NOT_FOUND', 'NOTHING_DUE'):
+            raise
+        error = exc if isinstance(exc, BusinessError) else BusinessError('BAD_FORM', 'Số tiền, cách thu hoặc ngày thu chưa hợp lệ.')
+        return _collect_form(request, session, user, code, data=raw, error=error, status=error.status)
+    return RedirectResponse('/tien-toi-giu?thu_ho=' + '.'.join(str(r.id) for r in receipts), status_code=303)
+
+
+def collected(session, user, raw):
+    """Thông báo vừa thu hộ trên Tiền tôi giữ: chỉ đọc lại báo thu của chính người báo."""
+    ids = [int(x) for x in (raw or '').split('.') if x.isdigit()][:50]
+    if not ids:
+        return None
+    rows = [r for r in (session.get(SalesReceipt, i) for i in ids) if r is not None and r.reported_by == user.id
+            and sales_receipts.is_collected(r.note)]
+    if not rows:
+        return None
+    name = svc.customer_name(session, rows[0])
+    return dict(amount=sum(r.amount for r in rows), n=len(rows), customer=name, method=METHODS[rows[0].method])

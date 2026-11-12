@@ -1,0 +1,43 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Thu hộ · {{ row.name }}{% endblock %}
+{# Thu hộ theo khách (TUẤN duyệt mẫu 12/11/2026): một số tổng trừ chứng từ cũ nhất trước qua sales_receipts.report_for_customer(thu_ho=True).
+   Dư so với tổng chưa trả thì chặn; mỗi chứng từ một báo thu chờ kế toán xác nhận. Không hiện hàng hóa, giá bán. #}
+{% block main %}
+<div class="kts-page">
+{{ ui.page_head('Thu hộ · ' ~ row.name, back='/tien-toi-giu/khach-tra-sau?tab=khach') }}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<section class="card kts-info"><span class="hint">Khách còn chưa trả</span><b class="kts-total">{{ total|money }} đ</b><span class="hint">{{ docs|length }} khoản{% if docs %} · cũ nhất {{ docs[0].day.strftime('%d/%m') if docs[0].day else '' }}{% endif %}</span></section>
+<form method="post" action="/tien-toi-giu/thu-ho/{{ row.code|urlquote }}" class="card form kts-form" data-collect-form data-total="{{ total }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="expected_total" value="{{ total }}">
+<label><b>Khách đưa bao nhiêu?</b><input name="amount" inputmode="numeric" data-money required value="{{ data.amount }}" class="kts-amount" data-collect-amount autocomplete="off"></label>
+<div role="group" aria-label="Cách thu"><b>Cách thu</b><div class="seg">{% for key, label in methods.items() %}<label><input type="radio" name="method" value="{{ key }}"{% if data.method == key %} checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
+<div class="kts-alloc" data-alloc><b>Tự trừ khoản cũ nhất trước</b>
+{% for d in docs %}<div class="kts-alloc-row" data-unpaid="{{ d.unpaid }}"><span>{{ d.number }}{% if d.day %} · {{ d.day.strftime('%d/%m') }}{% endif %} <small data-left></small></span><b data-part>0</b></div>{% endfor %}
+</div>
+<p class="alert bad" data-over hidden></p>
+<details{% if data.received_at and data.received_at != today.isoformat() %} open{% endif %}><summary>Ngày thu: hôm nay {{ today.strftime('%d/%m') }} · đổi ngày</summary><label>Ngày khách đưa tiền<input type="date" name="received_at" value="{{ data.received_at }}" max="{{ today.isoformat() }}"></label></details>
+<div class="swipe" data-swipe><button type="submit" class="btn-ok" data-collect-submit>Vuốt để báo đã thu</button></div>
+<p class="hint">Tiền vào Tiền tôi giữ, chờ kế toán xác nhận. Xác nhận xong công nợ khách mới giảm. Hoa hồng vẫn của người bán hoặc thợ làm đơn, phiếu đó.</p>
+</form>
+</div>
+<script>
+(function () {
+  var form = document.querySelector('[data-collect-form]'); if (!form) return;
+  var input = form.querySelector('[data-collect-amount]'), btn = form.querySelector('[data-collect-submit]'), over = form.querySelector('[data-over]');
+  var total = parseInt(form.dataset.total, 10) || 0, rows = form.querySelectorAll('[data-alloc] [data-unpaid]');
+  var fmt = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); };
+  function update() {
+    var amount = parseInt((input.value || '').replace(/\D/g, ''), 10) || 0, left = Math.min(amount, total);
+    rows.forEach(function (row) { var owe = parseInt(row.dataset.unpaid, 10) || 0, part = Math.min(left, owe); left -= part;
+      row.querySelector('[data-part]').textContent = fmt(part); row.classList.toggle('kts-none', part === 0);
+      row.querySelector('[data-left]').textContent = part === 0 ? '' : part === owe ? '(trả đủ)' : '(còn ' + fmt(owe - part) + ')'; });
+    var bad = amount > total;
+    over.hidden = !bad; if (bad) over.textContent = 'Khách đưa dư ' + fmt(amount - total) + ' đ so với ' + fmt(total) + ' đ còn chưa trả. Sửa lại số tiền.';
+    btn.disabled = bad || amount <= 0;
+    btn.textContent = amount > 0 && !bad ? 'Vuốt để báo đã thu ' + fmt(amount) : 'Vuốt để báo đã thu';
+  }
+  input.addEventListener('input', update); update();
+})();
+</script>
+{% endblock %}
