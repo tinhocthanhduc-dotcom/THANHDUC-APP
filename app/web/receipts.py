@@ -140,10 +140,10 @@ def report_ticket(request: Request,ticket_id: int,form=Depends(checked_form),ses
 
 
 @router.get('/tien-toi-giu')
-def held(request: Request,da_bao: int=0,user: User=Depends(web_user),session: Session=Depends(get_session)):
-    from .khach_tra_sau import reported
+def held(request: Request,da_bao: int=0,thu_ho: str='',user: User=Depends(web_user),session: Session=Depends(get_session)):
+    from .khach_tra_sau import collected, reported
     return render(request,'tien_toi_giu.jinja',held=svc.held_by(session,user),just_reported=reported(session,user,da_bao),
-                  can_late=has_role(user,'technician'))
+                  just_collected=collected(session,user,thu_ho[:600]),can_late=has_role(user,'technician'))
 
 
 FILTER_KEYS=('method','from','to','nguoi')

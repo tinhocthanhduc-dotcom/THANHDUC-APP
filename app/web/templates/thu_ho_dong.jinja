@@ -1,0 +1,2 @@
+{% for r in rows %}<a class="card kts-row" href="/tien-toi-giu/thu-ho/{{ r.code|urlquote }}" data-collect-customer="{{ r.code }}"><span><b>{{ r.name }}</b><small>{{ r.docs }} khoản{% if r.since %} · nợ từ {{ r.since.strftime('%d/%m') }}{% endif %}{% if r.mine %} · khách bạn từng làm{% endif %}</small></span><span class="kts-due"><small>Chưa trả</small><b>{{ r.due|money }}</b></span></a>
+{% else %}<p class="card hint">{{ 'Không có khách đang nợ khớp "' ~ q ~ '".' if q else 'Không có khách nào đang nợ.' }}</p>{% endfor %}

@@ -4516,3 +4516,14 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .kts-owe { color: var(--bad); }
 .kts-form { display: grid; gap: 12px; }
 .kts-amount { font-size: 20px; font-weight: 700; }
+/* Thu hộ theo khách (TUẤN duyệt mẫu 12/11/2026). */
+.kts-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--line, #e2e8f0); }
+.kts-tabs a { text-align: center; padding: 10px 4px; border-radius: 9px; text-decoration: none; color: var(--text); font-weight: 600; }
+.kts-tabs a.on { background: var(--card, #fff); color: var(--primary, #1e3a8a); font-weight: 700; }
+.kts-search label { display: grid; gap: 6px; }
+.kts-total { font-size: 24px; }
+.kts-alloc { display: grid; gap: 8px; }
+.kts-alloc-row { display: flex; justify-content: space-between; gap: 10px; }
+.kts-alloc-row small { color: var(--muted); }
+.kts-alloc-row.kts-none { color: var(--muted); }
+.kts-tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; vertical-align: middle; }

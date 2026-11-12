@@ -1,13 +1,21 @@
 {% extends 'base.jinja' %}
 {% import '_ui.jinja' as ui %}
 {% block title %}Khách trả sau{% endblock %}
-{# Khách trả sau (TUẤN duyệt mẫu 12/11/2026): chỉ mở khi thợ bấm, không hiện trên Hôm nay. Lõi: app.khach_tra_sau. #}
+{# Khách trả sau (TUẤN duyệt mẫu 12/11/2026): chỉ mở khi thợ bấm, không hiện trên Hôm nay. Lõi: app.khach_tra_sau.
+   Tab Thu hộ theo khách (TUẤN duyệt mẫu 12/11/2026): khách còn chưa trả, báo thu trừ chứng từ cũ nhất trước. #}
 {% block main %}
 <div class="kts-page">
 {{ ui.page_head('Khách trả sau', back='/tien-toi-giu') }}
-<form method="get" action="/tien-toi-giu/khach-tra-sau" role="search" class="kts-search"><label><span class="sr-only">Tìm khách hoặc số phiếu</span><input type="search" name="q" value="{{ q }}" placeholder="Gõ tên khách hoặc số phiếu (không dấu)" autocomplete="off" data-live=".kts-list" data-source="/tien-toi-giu/khach-tra-sau"></label><noscript><button>Tìm</button></noscript></form>
+<nav class="kts-tabs" aria-label="Loại thu"><a href="/tien-toi-giu/khach-tra-sau"{% if tab != 'khach' %} class="on" aria-current="page"{% endif %} data-kts-tab="phieu">Phiếu của tôi{% if mine_count is not none %} ({{ mine_count }}){% endif %}</a><a href="/tien-toi-giu/khach-tra-sau?tab=khach"{% if tab == 'khach' %} class="on" aria-current="page"{% endif %} data-kts-tab="khach">Thu hộ theo khách</a></nav>
+<form method="get" action="/tien-toi-giu/khach-tra-sau" role="search" class="kts-search">{% if tab == 'khach' %}<input type="hidden" name="tab" value="khach">{% endif %}<label>{% if tab == 'khach' %}<b>Tìm khách đang nợ</b>{% else %}<span class="sr-only">Tìm khách hoặc số phiếu</span>{% endif %}<input type="search" name="q" value="{{ q }}" placeholder="{{ 'Tên, mã hoặc SĐT khách (không dấu)' if tab == 'khach' else 'Gõ tên khách hoặc số phiếu (không dấu)' }}" autocomplete="off" data-live=".kts-list"></label><noscript><button>Tìm</button></noscript></form>
+{% if tab == 'khach' %}
+<p class="hint">Khách bạn từng làm hiện trước. Gõ để tìm mọi khách còn nợ.</p>
+<div class="kts-list" aria-live="polite">{% include 'thu_ho_dong.jinja' %}</div>
+<p class="hint">Số hiện là khách còn chưa trả, đã trừ tiền đang chờ kế toán xác nhận.</p>
+{% else %}
 <p class="hint">Phiếu bạn đã làm, đã đóng, khách còn nợ · {{ days }} ngày gần nhất</p>
 <div class="kts-list" aria-live="polite">{% include 'khach_tra_sau_dong.jinja' %}</div>
-<p class="alert info">Nợ cũ hơn {{ days }} ngày hoặc phiếu của thợ khác: văn phòng thu qua Công nợ khách hàng.</p>
+<p class="alert info">Nợ cũ hơn {{ days }} ngày, đơn bán hoặc phiếu của thợ khác: dùng tab <a href="/tien-toi-giu/khach-tra-sau?tab=khach">Thu hộ theo khách</a>.</p>
+{% endif %}
 </div>
 {% endblock %}

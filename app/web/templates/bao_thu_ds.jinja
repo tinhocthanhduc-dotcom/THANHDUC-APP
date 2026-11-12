@@ -49,7 +49,7 @@
 <tbody>{% for r in g.rows %}<tr id="bt-{{ r.id }}" data-receipt-row data-rq-row data-amount="{{ r.amount }}" data-search="{{ (r.number ~ ' ' ~ receipt_sources[r.id].number ~ ' ' ~ names.get(receipt_sources[r.id].customer_code,''))|lower }}">
 {% if g.kind=='cash' and not g.own %}<td class="rq-cb">{% if r in g.eligible %}<input type="checkbox" name="receipt_id" value="{{ r.id }}" form="cash-confirm-{{ g.reporter_id }}" aria-label="Chọn {{ r.number }}" data-rq-cb{% if r.id in g.checked %} checked{% endif %}>{% endif %}</td>{% endif %}
 <td class="rq-nowrap rq-date">{{ r.received_at.strftime('%d/%m') }}</td>
-<td class="rq-nowrap rq-bt"><a href="/bao-thu/{{ r.id }}">{{ r.number }}</a></td>
+<td class="rq-nowrap rq-bt"><a href="/bao-thu/{{ r.id }}">{{ r.number }}</a>{% if is_collected(r.note) %} <span class="kts-tag" data-receipt-collect>Thu hộ</span>{% endif %}</td>
 <td class="rq-nowrap"><span class="rq-src">Nguồn: </span>{{ source(r) }}</td>
 <td class="rq-kh"><span title="{{ names.get(receipt_sources[r.id].customer_code,'') }}">{{ names.get(receipt_sources[r.id].customer_code,'') }}</span></td>
 {% if g.kind=='ck' %}<td class="rq-nowrap">{{ receipt_people.get(r.reported_by,r.reported_by) }}</td>{% endif %}

@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import customers as customer_svc
 from .. import customer_sites as site_svc
 from .. import products as product_svc
+from .. import sales_receipts as sales_receipts_svc
 from .. import inventory_catalogs as catalog_svc
 from .. import form_keys
 from ..config import get_settings
@@ -258,6 +259,7 @@ def _receipt_switch(ctx, receipt):
 
 
 templates.env.globals["receipt_switch"] = _receipt_switch
+templates.env.globals["is_collected"] = sales_receipts_svc.is_collected
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 
 
