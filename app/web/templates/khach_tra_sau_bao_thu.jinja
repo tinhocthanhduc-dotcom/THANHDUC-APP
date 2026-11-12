@@ -1,0 +1,22 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Báo đã thu{% endblock %}
+{# Khách trả sau: báo thu phiếu đã đóng, đi qua sales_receipts.report_for_ticket (chặn vượt số còn thu, chờ kế toán xác nhận). #}
+{% block main %}
+<div class="kts-page">
+{{ ui.page_head('Báo đã thu · ' ~ row.number, back='/tien-toi-giu/khach-tra-sau') }}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<section class="card kts-info"><b>{{ row.customer }}</b><span class="hint">{{ row.number }} · {{ kinds.get(row.kind, row.kind) }}{% if row.closed_at %} · xong {{ row.closed_at|vn_date }}{% endif %}</span>
+<span>Phải thu {{ row.receivable|money }} · <b class="kts-owe">Còn nợ {{ row.due|money }}</b></span></section>
+<form method="post" action="/tien-toi-giu/khach-tra-sau/{{ row.id }}" class="card form kts-form" data-late-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ data.version }}">
+<label><b>Khách đưa bao nhiêu?</b><input name="amount" inputmode="numeric" data-money required value="{{ data.amount }}" class="kts-amount"></label>
+<div class="chips fill-chips" data-fill="amount"><button type="button" class="chip-btn" data-fill-value="{{ row.due|money }}">Đủ {{ row.due|money }}</button></div>
+<div role="group" aria-label="Cách thu"><b>Cách thu</b><div class="seg">{% for key, label in methods.items() %}<label><input type="radio" name="method" value="{{ key }}"{% if data.method == key %} checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
+{% if qr_url %}<a class="btn btn-ghost" href="{{ qr_url }}">QR chuyển khoản cho khách quét</a>{% endif %}
+<details{% if data.received_at and data.received_at != today.isoformat() %} open{% endif %}><summary>Ngày thu: hôm nay {{ today.strftime('%d/%m') }} · đổi ngày</summary><label>Ngày khách đưa tiền<input type="date" name="received_at" value="{{ data.received_at }}" max="{{ today.isoformat() }}"></label></details>
+<div class="swipe" data-swipe><button type="submit" class="btn-ok">Vuốt để báo đã thu</button></div>
+<p class="hint">Khoản này vào Tiền tôi giữ, chờ kế toán xác nhận. Xác nhận xong công nợ khách mới giảm.</p>
+</form>
+</div>
+{% endblock %}
