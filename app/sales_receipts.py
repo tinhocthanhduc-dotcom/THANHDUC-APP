@@ -389,14 +389,16 @@ def _locked(session, receipt_id):
     return parent,receipt
 
 
-def _post_cash(session,user,parent,receipt):
+def _post_cash(session,user,parent,receipt,doc_date=None):
     fund_key = 'THU_TIEN_MAT' if receipt.method=='TIEN_MAT' else 'THU_CHUYEN_KHOAN'
     category_key = 'DANH_MUC_DICH_VU' if receipt.ticket_id is not None else 'DANH_MUC_BAN_HANG'  # nợ đầu kỳ thu như bán hàng
     fund = finance_mappings.require(session,fund_key)
     category = finance_mappings.require(session,category_key)
-    doc = cash_docs.insert(session,user,CashDocIn(kind='PT',doc_date=receipt.received_at,fund_code=fund,
+    day = doc_date or receipt.received_at
+    note = '' if day == receipt.received_at else f' (ngày thu {receipt.received_at:%d/%m/%Y}, ngày đó đã chốt sổ)'
+    doc = cash_docs.insert(session,user,CashDocIn(kind='PT',doc_date=day,fund_code=fund,
         category_code=category,amount=receipt.amount,customer_code=parent.customer_code,
-        description=f'Thu {receipt.number} cho {parent.number}',source_type='SALES_RECEIPT',source_id=str(receipt.id)))
+        description=f'Thu {receipt.number} cho {parent.number}{note}',source_type='SALES_RECEIPT',source_id=str(receipt.id)))
     cash_posting.post_in_tx(session,user,doc.id,doc.version)
     receipt.cash_doc_id = doc.id
 

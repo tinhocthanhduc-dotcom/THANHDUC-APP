@@ -1,7 +1,8 @@
 {# Đổi hình thức báo thu Tiền mặt ⇄ Chuyển khoản một bước (TUẤN duyệt 07/11/2026). Lõi: sales_receipts.switch_method. #}
 {% set sw=receipt_switch(r) %}
-{% if sw.replaces %}<p class="hint" data-receipt-replaces>Thay cho {{ sw.replaces }} (đổi hình thức)</p>{% endif %}
-{% if sw.replaced_by %}<p class="alert" data-receipt-replaced-by>Đã đổi hình thức → {{ sw.replaced_by }}</p>{% endif %}
+{% if sw.replaces %}<p class="hint" data-receipt-replaces>Thay cho {{ sw.replaces }}</p>{% endif %}
+{% if sw.replaced_by %}<p class="alert" data-receipt-replaced-by>{{ 'Đã sửa' if sw.corrected else 'Đã đổi hình thức' }} → {{ sw.replaced_by }}</p>{% endif %}
+{% if sw.can_correct %}<a class="btn btn-ghost" href="/sua-bao-thu/{{ r.id }}" data-receipt-correct="{{ r.id }}">Sửa báo thu</a>{% endif %}
 {% if sw.can %}{% set target='CHUYEN_KHOAN' if r.method=='TIEN_MAT' else 'TIEN_MAT' %}{% set failed_switch=failed_receipt_id==r.id and failed_receipt_action=='switch' %}
 <details class="receipt-switch" data-receipt-switch="{{ r.id }}" {% if failed_switch %}open{% endif %}><summary>Đổi hình thức</summary>
 <form method="post" action="/doi-hinh-thuc-bao-thu/{{ r.id }}" class="form">{% include "tho_return.jinja" %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ receipt_version }}"><input type="hidden" name="origin" value="{{ origin }}"><input type="hidden" name="method" value="{{ target }}">{% for key in ['method','from','to'] %}<input type="hidden" name="filter_{{ key }}" value="{{ receipt_filters.get(key,'') }}">{% endfor %}

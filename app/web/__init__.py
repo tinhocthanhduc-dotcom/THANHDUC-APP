@@ -249,9 +249,12 @@ def _receipt_switch(ctx, receipt):
     session = object_session(receipt)
     replaced_by = session.get(SalesReceipt, receipt.replaced_by_id).number if session and receipt.replaced_by_id else ''
     replaces = session.scalar(select(SalesReceipt.number).where(SalesReceipt.replaced_by_id == receipt.id)) if session else None
+    from .. import receipt_corrections
     return dict(can=bool(user) and sales_receipts.can_switch(user, receipt),
                 confirm_now=bool(user) and sales_receipts.can_confirm_now(user, receipt),
-                replaced_by=replaced_by, replaces=replaces or '')
+                replaced_by=replaced_by, replaces=replaces or '',
+                # Sửa báo thu (12/11/2026): giám đốc sửa BT đã xác nhận một bước; phân biệt nhãn với Đổi hình thức.
+                can_correct=receipt_corrections.can_correct(user, receipt), corrected=receipt_corrections.is_correction(receipt))
 
 
 templates.env.globals["receipt_switch"] = _receipt_switch
@@ -1044,6 +1047,8 @@ from .nhan_vien_ao import router as nhan_vien_ao_router  # noqa: E402
 router.include_router(nhan_vien_ao_router)
 from .han_muc_duyet import router as han_muc_duyet_router  # noqa: E402
 router.include_router(han_muc_duyet_router)
+from .sua_bao_thu import router as sua_bao_thu_router  # noqa: E402
+router.include_router(sua_bao_thu_router)
 # Tạo mới nhanh trong cửa sổ (khách, mã hàng, NCC) ngay trên màn đang soạn.
 from .quick_create import router as quick_create_router  # noqa: E402
 
