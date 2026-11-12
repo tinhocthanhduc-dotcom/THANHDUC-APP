@@ -1,0 +1,2 @@
+{% for r in rows %}<a class="card kts-row" href="/tien-toi-giu/khach-tra-sau/{{ r.id }}" data-late-ticket="{{ r.id }}"><span><b>{{ r.customer }}</b><small>{{ r.number }} · xong {{ r.closed_at|vn_date if r.closed_at else '' }} · {{ kinds.get(r.kind, r.kind) }}</small></span><span class="kts-due"><small>Còn nợ</small><b>{{ r.due|money }}</b></span></a>
+{% else %}<p class="card hint">{{ 'Không có phiếu khớp "' ~ q ~ '".' if q else 'Không có phiếu nào của bạn đã đóng mà khách còn nợ.' }}</p>{% endfor %}

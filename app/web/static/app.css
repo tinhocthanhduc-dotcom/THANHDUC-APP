@@ -4497,3 +4497,17 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .sbt-side { position: static; }
 }
 @media (max-width: 560px) { .sbt-row { grid-template-columns: minmax(0, 1fr); } }
+
+/* Khách trả sau trên màn thợ (TUẤN duyệt mẫu 12/11/2026). Tiền tố kts-. */
+.kts-page { display: grid; gap: 12px; }
+.kts-entry { display: grid; gap: 10px; margin-top: 12px; background: var(--warn-bg); }
+.kts-entry p { margin: 0; }
+.kts-search input { width: 100%; font-size: 16px; }
+.kts-list { display: grid; gap: 8px; }
+.kts-row { display: flex; justify-content: space-between; gap: 10px; text-decoration: none; color: var(--text); padding: 12px 14px; }
+.kts-row span { display: grid; } .kts-row small { color: var(--muted); }
+.kts-due { text-align: right; } .kts-due b { color: var(--bad); }
+.kts-info { display: grid; gap: 4px; }
+.kts-owe { color: var(--bad); }
+.kts-form { display: grid; gap: 12px; }
+.kts-amount { font-size: 20px; font-weight: 700; }

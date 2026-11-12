@@ -1,0 +1,13 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Khách trả sau{% endblock %}
+{# Khách trả sau (TUẤN duyệt mẫu 12/11/2026): chỉ mở khi thợ bấm, không hiện trên Hôm nay. Lõi: app.khach_tra_sau. #}
+{% block main %}
+<div class="kts-page">
+{{ ui.page_head('Khách trả sau', back='/tien-toi-giu') }}
+<form method="get" action="/tien-toi-giu/khach-tra-sau" role="search" class="kts-search"><label><span class="sr-only">Tìm khách hoặc số phiếu</span><input type="search" name="q" value="{{ q }}" placeholder="Gõ tên khách hoặc số phiếu (không dấu)" autocomplete="off" data-live=".kts-list" data-source="/tien-toi-giu/khach-tra-sau"></label><noscript><button>Tìm</button></noscript></form>
+<p class="hint">Phiếu bạn đã làm, đã đóng, khách còn nợ · {{ days }} ngày gần nhất</p>
+<div class="kts-list" aria-live="polite">{% include 'khach_tra_sau_dong.jinja' %}</div>
+<p class="alert info">Nợ cũ hơn {{ days }} ngày hoặc phiếu của thợ khác: văn phòng thu qua Công nợ khách hàng.</p>
+</div>
+{% endblock %}
