@@ -2893,23 +2893,28 @@ input::-webkit-date-and-time-value { text-align: left; }
 
 /* Công nợ khách hàng gọn (TUẤN duyệt 06/11/2026): một dòng mỗi khách, cột nút rộng cố định, 3 nút nằm ngang.
    Chỉ áp cho .cnk-table; Công nợ NCC vẫn dùng các luật .cnk-* ở trên. */
-.list-table.cnk-table { table-layout: fixed; min-width: 1020px; font-variant-numeric: tabular-nums; }
-.cnk-table .cnk-c-doc { width: 170px; } .cnk-table .cnk-c-day { width: 130px; } .cnk-table .cnk-c-lim { width: 125px; }
-.cnk-table .cnk-c-amt { width: 165px; } .cnk-table .cnk-c-act { width: 285px; }
-.list-table.cnk-table td { vertical-align: middle; padding: 8px 10px; overflow: hidden; }
+.list-table.cnk-table { table-layout: fixed; min-width: 900px; font-variant-numeric: tabular-nums; }
+/* 12/11/2026 (TUẤN báo mất chữ): không cắt chữ bằng "…" nữa, chữ dài xuống dòng; cột nút hẹp lại, nút tự xuống hàng. */
+.cnk-table .cnk-c-doc { width: 140px; } .cnk-table .cnk-c-day { width: 150px; } .cnk-table .cnk-c-lim { width: 135px; }
+.cnk-table .cnk-c-amt { width: 155px; } .cnk-table .cnk-c-act { width: 190px; }
+.list-table.cnk-table td { vertical-align: middle; padding: 8px 10px; overflow-wrap: anywhere; }
 .list-table.cnk-table th { padding: 8px 10px; white-space: normal; vertical-align: bottom; }
-.cnk-table .cnk-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cnk-table .lt-sub.cnk-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .82rem; }
+.cnk-table .cnk-name { display: block; white-space: normal; }
+.cnk-table .lt-sub.cnk-line { display: block; white-space: normal; font-size: .82rem; }
 .cnk-table .cnk-docs { display: flex; flex-wrap: wrap; gap: 4px; }
 .cnk-table .cnk-doc { margin: 0; font-size: .82rem; }
 .cnk-table .cnk-doc.cnk-more { color: var(--text); background: var(--surface); border: 1px solid var(--line); }
-.cnk-table .cnk-day { white-space: nowrap; }
 .cnk-table .cnk-nodebt { display: inline-block; padding: 0 8px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-weight: 600; font-size: .8rem; white-space: nowrap; }
 .list-table.cnk-table td.cnk-left { min-width: 0; }
 .cnk-table .cnk-left .cnk-pend { display: block; font-size: .82rem; }
 .cnk-table .cnk-hold { display: inline-block; margin-top: 3px; font-size: .78rem; line-height: 1.35; padding: 2px 8px; text-decoration: none; }
 .cnk-table .cnk-hold:hover { outline: 1px solid currentColor; }
-.list-table.cnk-table .cnk-acts { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 6px; margin: 0; }
+.list-table.cnk-table .cnk-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0; }
+@media (min-width: 641px) {
+  .cnk-table .cnk-day > span:not(.cnk-ph) { display: block; white-space: normal; }
+  .list-table.cnk-table .cnk-acts .cnk-pay { flex: 1 0 100%; justify-content: center; }  /* Báo thu một hàng riêng, Sổ nợ + Soạn tin hàng dưới */
+  .list-table.cnk-table .cnk-acts .cnk-sm { white-space: normal; text-align: center; }
+}
 @media (max-width: 640px) {
   .list-table.cnk-table { min-width: 0; table-layout: auto; }
   .list-table.lt-cards.cnk-table tr { gap: 4px 8px; }
