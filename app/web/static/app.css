@@ -774,6 +774,10 @@ form[data-submitting] button:disabled::before, form[data-submitting] .btn:disabl
 .swipe.swipe-on > button { pointer-events: none; }
 .swipe.swipe-drag, .swipe.swipe-drag .swipe-knob { touch-action: none; cursor: grabbing; }
 .swipe.swipe-locked { cursor: not-allowed; }
+.swipe.swipe-busy { cursor: progress; }
+.swipe.swipe-busy > button { padding-left: 16px; padding-right: 68px; }
+.swipe.swipe-busy .swipe-knob { animation: swipe-busy 0.9s ease-in-out infinite; }
+@keyframes swipe-busy { 50% { opacity: .45; } }
 /* Chip: input thật, chọn một (radio) hoặc nhiều (checkbox). */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { position: relative; }
