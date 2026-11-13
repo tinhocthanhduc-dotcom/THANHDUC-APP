@@ -192,18 +192,21 @@ def bring_trip(session,user,ident,version,items,materials):
         parts=[x if isinstance(x,WorkshopTripItem) else WorkshopTripItem.model_validate(x) for x in items]
         ids=[x.ticket_id for x in parts]
         if len(ids)!=len(set(ids)) or ident not in ids:
-            raise BusinessError('BAD_TRIP','Danh sách nhận máy phải có phiếu gốc và không trùng phiếu.')
-        children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.split_from_id==ident)
-            .order_by(ServiceTicket.id).with_for_update().execution_options(populate_existing=True)))
+            raise BusinessError('BAD_TRIP','Danh sách nhận máy phải có phiếu đang mở và không trùng phiếu.')
+        # TUẤN 13/11/2026: chuyến gồm phiếu đang mở và các máy cùng chỗ thợ tick "Mang về"; máy sửa xong tại chỗ ở lại.
+        others=[t.id for t in tickets.family(session,root) if t.id!=root.id]
+        children=list(session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_(others))
+            .order_by(ServiceTicket.id).with_for_update().execution_options(populate_existing=True))) if others else []
         family={root.id:root,**{t.id:t for t in children}}
-        if set(ids)-family.keys():raise BusinessError('BAD_TRIP','Chỉ nhận máy trên phiếu gốc và phiếu tách cùng chuyến.',status=409)
+        if set(ids)-family.keys():raise BusinessError('BAD_TRIP','Chỉ nhận máy trên các phiếu cùng chỗ.',status=409)
         eligible={root.id}
         for child in children:
             eq=session.scalar(select(Equipment).where(Equipment.serial==child.serial).execution_options(populate_existing=True)) if child.serial else None
-            if child.assignee_id==root.assignee_id and child.status=='DANG_LAM' and eq is not None and eq.custody_location=='TAI_KHACH':
+            if child.assignee_id==root.assignee_id and child.status=='DANG_LAM' and eq is not None and eq.custody_location=='TAI_KHACH' \
+                    and child.kind in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE') and not service_charges.return_locked(child):
                 eligible.add(child.id)
-        if set(ids)!=eligible:
-            raise BusinessError('BAD_TRIP','Gửi đủ các máy còn ở khách, đang làm và cùng thợ của chuyến.',status=409)
+        if set(ids)-eligible:
+            raise BusinessError('BAD_TRIP','Chỉ mang về máy còn ở khách, phiếu đang làm và cùng thợ.',status=409)
         by_id={x.ticket_id:x for x in parts}
         # All ticket locks precede machine locks, in deterministic order.
         machines={serial:custody._machine(session,serial,lock=True) for serial in sorted({family[n].serial for n in ids if family[n].serial})}

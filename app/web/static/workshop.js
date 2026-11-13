@@ -65,3 +65,16 @@
     update();
   });
 })();
+
+// TUẤN 13/11/2026: máy cùng chỗ chỉ mang về khi thợ tick; bỏ tick thì ẩn và không gửi trường của máy đó.
+(function() {
+  function sync(box) {
+    var machine = box.closest('[data-trip-machine]');
+    var body = machine && machine.querySelector('[data-trip-body]');
+    if (!body) return;
+    body.hidden = !box.checked;
+    body.querySelectorAll('input, textarea, select, button').forEach(function(el) { el.disabled = !box.checked; });
+  }
+  document.querySelectorAll('[data-trip-pick]').forEach(sync);
+  document.addEventListener('change', function(event) { if (event.target.matches('[data-trip-pick]')) sync(event.target); });
+})();

@@ -32,6 +32,7 @@ PREFIXES = {
     "CQ": "Chuyển quỹ",
     "NZ": "Phiếu nháp từ Zalo",
     "TG": "Tin gửi khách",
+    "MT": "Mã máy tạm (máy mất tem)",
 }
 
 

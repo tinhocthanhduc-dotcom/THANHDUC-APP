@@ -627,3 +627,57 @@ def confirm_cash_group(session,user,items,counted,reporter_id):
             except BusinessError as exc:
                 raise BusinessError(exc.code,row.number+': '+exc.message,{**exc.details,'receipt_id':row.id,'number':row.number},status=exc.status) from exc
         return locked
+
+
+# ---- Thu chung cả chỗ (TUẤN duyệt mẫu 13/11/2026) ----
+# Nhiều máy cùng một chỗ (phiếu gốc + phiếu tách): khách trả một lần, app báo thu từng phiếu đúng số của phiếu đó,
+# thiếu thì trừ phiếu gốc trước (theo thứ tự phiếu). Mỗi phiếu một báo thu chờ kế toán xác nhận; hoa hồng tính đúng từng phiếu.
+FAMILY_TAG = 'Thu chung cả chỗ'
+
+
+def family_due(session, user, ticket):
+    """Các phiếu cùng chỗ người này được báo thu, còn số chưa thu (phải thu − đã thu − chờ xác nhận)."""
+    from . import service_tickets
+    rows = []
+    for t in service_tickets.family(session, ticket):
+        allowed = has_role(user, 'dispatcher', 'sales') or (has_role(user, 'technician') and t.assignee_id == user.id)
+        b = balance(t) if t.status in ('HOAN_THANH', 'DA_DONG') and (t.receivable or 0) > 0 and t.billing != 'MIEN_PHI' else None
+        rows.append(dict(t=t, allowed=allowed, done=t.status in ('HOAN_THANH', 'DA_DONG'),
+                         receivable=int(t.receivable or 0) if b else 0, paid=int(b['paid']) if b else 0,
+                         pending=int(b['pending']) if b else 0,
+                         due=max(0, int(b['remaining']) - int(b['pending'])) if b and allowed else 0))
+    return rows
+
+
+def report_for_family(session, user, ticket_id, amount, method, note=''):
+    from . import service_tickets
+    from .schemas import SalesReceiptReport
+    with _transaction(session):
+        start = session.get(ServiceTicket, ticket_id)
+        if start is None:
+            raise BusinessError('NOT_FOUND', 'Không tìm thấy phiếu dịch vụ.', status=404)
+        ids = [t.id for t in service_tickets.family(session, start)]
+        locked = list(session.scalars(select(ServiceTicket).where(ServiceTicket.id.in_(ids)).order_by(ServiceTicket.id)
+                                      .with_for_update().execution_options(populate_existing=True)))
+        rows = [r for r in family_due(session, user, start) if r['due'] > 0]
+        if not any(has_role(user, 'dispatcher', 'sales') or (has_role(user, 'technician') and t.assignee_id == user.id) for t in locked):
+            raise BusinessError('FORBIDDEN', 'Chỉ thợ được giao, điều phối hoặc kinh doanh được thu chung các phiếu này.', status=403)
+        total = sum(r['due'] for r in rows)
+        if not rows:
+            raise BusinessError('NOTHING_DUE', 'Các phiếu cùng chỗ không còn số chưa thu (hoàn thành phiếu trước, hoặc đã báo thu đủ).', status=409)
+        if type(amount) is not int or amount <= 0:
+            raise BusinessError('BAD_AMOUNT', 'Nhập số tiền khách trả lớn hơn 0.')
+        if amount > total:
+            raise BusinessError('OVER_PAYMENT', f'Khách đưa dư {amount - total:,} đ so với tổng chưa thu {total:,} đ. Sửa lại số tiền.'.replace(',', '.'),
+                                {'total': total}, status=409)
+        numbers = ', '.join(r['t'].number for r in rows)
+        text = f'{FAMILY_TAG}: {numbers}' + (f'. {note.strip()}' if note and note.strip() else '')
+        left, out = amount, []
+        for r in rows:
+            part = min(left, r['due'])
+            if part <= 0:
+                break
+            out.append(report_for_ticket_in_tx(session, user, r['t'], SalesReceiptReport(version=r['t'].version, amount=part, method=method, note=text[:4000])))
+            left -= part
+        session.flush()
+    return out

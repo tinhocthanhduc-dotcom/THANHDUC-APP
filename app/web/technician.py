@@ -205,8 +205,9 @@ def detail_context(session, user, ticket, ctx):
     # MM1: phiếu tách cùng chuyến (cùng thợ, đang làm, máy còn ở khách) nhận về xưởng chung một lần vuốt.
     trip_machines=[]
     if can_bring and ticket.serial:
-        for child in session.scalars(select(ServiceTicket).where(ServiceTicket.split_from_id==ticket.id,ServiceTicket.status=='DANG_LAM',
-                ServiceTicket.assignee_id==ticket.assignee_id).order_by(ServiceTicket.id)):
+        # TUẤN 13/11/2026: mọi máy cùng chỗ (phiếu gốc + phiếu tách) còn ở khách, đang làm, cùng thợ; thợ tick máy nào mang về.
+        for child in [x for x in service_tickets.family(session,ticket) if x.id!=ticket.id and x.status=='DANG_LAM'
+                and x.assignee_id==ticket.assignee_id and x.kind in (None,'SUA_TAI_CHO','BAO_HANH','MANG_VE')]:
             ceq=session.get(Equipment,child.serial) if child.serial else None
             if ceq is None or ceq.custody_location!='TAI_KHACH':continue
             cp=session.get(Product,ceq.product_code) if ceq.product_code else None
@@ -416,6 +417,9 @@ def complete(request: Request, ticket_id: int, form=Depends(checked_form),
         except (BusinessError,ValidationError) as exc:
             message,code,status=_message(exc)
             return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,completion_form=shown,technician_view=True)
+        # TUẤN 13/11/2026: nhiều máy cùng chỗ, chọn Chưa thu thì sang Thu chung cả chỗ để thu một lần.
+        if shown['collection_mode']=='' and len(service_tickets.family(session,session.get(ServiceTicket,ticket_id)))>1:
+            return RedirectResponse(f'/tho/phieu/{ticket_id}/thu-chung',status_code=303)
         return after_post(request,session,user,ticket_id,'/tho')
     raw = _raw(form)
     shown = {key: str(form.get(key, '')) for key in ('note', 'amount', 'method', 'fault_found', 'fix_done')}

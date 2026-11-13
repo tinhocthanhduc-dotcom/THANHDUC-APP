@@ -82,6 +82,14 @@ def items(session, user, tho=False):
                        ServiceStep.at >= now - timedelta(days=1))
                 .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
             out.append(_item('self_claimed', step_id, f'{who(assignee)} đã tự nhận phiếu', number, f'/dich-vu/{ticket_id}', info=True))
+    # Thợ thêm máy tại chỗ (TUẤN 13/11/2026): điều phối biết để kiểm tra máy mới, model, serial.
+    if has_role(user, 'dispatcher'):
+        for step_id, ticket_id, number, actor, note in session.execute(select(ServiceStep.id, ServiceStep.ticket_id, ServiceTicket.number, ServiceStep.actor_id, ServiceStep.note)
+                .join(ServiceTicket, ServiceTicket.id == ServiceStep.ticket_id)
+                .where(ServiceStep.action == 'add_machines', ServiceStep.actor_id != user.id, ServiceStep.at >= now - timedelta(days=1))
+                .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
+            count = len((note or '').split(':', 1)[-1].split(','))
+            out.append(_item('machines_added', step_id, f'{who(actor)} thêm {count} máy tại chỗ', f'{number} · {note}', f'/dich-vu/{ticket_id}', info=True))
     # Điều phối AI (TUẤN 07/11/2026): điều phối biết phiếu nào nhân viên AI vừa giao, mở phiếu để đổi thợ / hoàn tác.
     if has_role(user, 'dispatcher'):
         from . import nhan_vien_ao

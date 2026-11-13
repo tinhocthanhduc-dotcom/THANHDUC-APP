@@ -1,0 +1,18 @@
+{# TUẤN 13/11/2026: "+ Thêm máy của khách" trên phiếu đã có máy. Thợ tới nơi thấy thêm máy hỏng, hoặc điều phối khi khách báo thêm.
+   Mỗi máy một phiếu tách, cùng thợ, cùng trạng thái; máy của phiếu này giữ nguyên. #}
+{% if can_add_machine %}{% set mf=machine_form or {} %}{% set picks=mf.get('add_picks') or [] %}{% set new_machine_selected='NEW' in picks %}
+<details class="card add-machine-card" data-add-machine {% if failed_action=='add_machine' or mf.get('add_open') %}open{% endif %}>
+<summary><span class="add-machine-title">+ Thêm máy của khách</span><small>Mỗi máy một phiếu</small></summary>
+<form method="post" action="{{ '/tho/phieu/' if technician_view else '/dich-vu/' }}{{ t.id }}/them-may" class="form" data-busy data-machine-selector data-add-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+{% if technician_view %}{% include 'tho_return.jinja' %}{% endif %}
+<p class="hint">Chọn máy khác của khách cần sửa. App tách mỗi máy một phiếu, cùng thợ{{ ', phiếu mới ở trạng thái Đang làm' if t.status=='DANG_LAM' else '' }}. Giá và vật tư tính riêng từng phiếu.</p>
+{% if failed_action=='add_machine' and error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<div class="field-group"><p class="group-label">Máy khác của khách{{ ' tại địa điểm này' if t.site_id else '' }}</p>
+{% if add_machines %}<div class="add-machine-list">{% for row in add_machines %}<label class="add-machine-row{{ ' machine-held' if row.why }}"><input type="checkbox" name="add_pick" value="SERIAL:{{ row.eq.serial }}" {% if 'SERIAL:' ~ row.eq.serial in picks and not row.why %}checked{% endif %} {% if row.why %}disabled{% endif %}><span><b>{{ row.name or row.eq.serial }}</b><small>{{ row.eq.serial }}{% if row.why %} · Đang ở phiếu {{ row.why }}{% endif %}</small></span></label>{% endfor %}</div>
+{% else %}<p class="hint">Khách chưa có máy nào khác trong app.</p>{% endif %}
+<label class="add-machine-row add-machine-new"><input type="checkbox" name="add_pick" value="NEW" {% if new_machine_selected %}checked{% endif %}><span><b>+ Máy mới chưa có trong app</b></span></label></div>
+{% include 'dich_vu_may_moi_nhieu.jinja' %}
+<p class="hint" data-machine-split-note>Chưa chọn máy nào.</p>
+<button class="btn btn-new" data-add-submit>Thêm máy, tách phiếu</button>
+</form></details>{% endif %}
