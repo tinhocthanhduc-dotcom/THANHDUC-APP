@@ -25,6 +25,8 @@ DISPATCHERS = ("dispatcher",)
 TECHNICIAN = "technician"
 
 OPEN = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")
+# Ô "Không có serial" trên máy mới: app cấp mã tạm MT-yy-nnnnn.
+TEMP_SERIAL = "__MA_TAM__"
 CLOSED = ("HOAN_THANH", "DA_DONG", "KHONG_LAM_DUOC", "DA_HUY")
 # Trạng thái đích ngoài giao thợ; điều phối còn được hủy các trạng thái CANCELLABLE.
 FLOW = {
@@ -161,7 +163,9 @@ def create_in_tx(session: Session, user: User, body: ServiceTicketIn, *, _split_
     else:
         _split_permission(user, _split_from)
         fields=('customer_code','site_id','kind','priority','symptom','appointment_at','appointment_slot')
-        if body.new_machine is not None or body.warranty_of_id is not None or any(getattr(body,k)!=getattr(_split_from,k) for k in fields):
+        # Máy thêm vào phiếu bảo hành không có căn cứ bảo hành: phiếu tách là Sửa tại chỗ (TUẤN 13/11/2026).
+        kind_ok=lambda k:k=='kind' and _split_from.kind=='BAO_HANH' and body.kind=='SUA_TAI_CHO'
+        if body.new_machine is not None or body.warranty_of_id is not None or any(getattr(body,k)!=getattr(_split_from,k) and not kind_ok(k) for k in fields):
             raise BusinessError('BAD_SPLIT','Thông tin phiếu tách phải lấy từ phiếu gốc.',status=409)
     customer = session.scalars(select(Customer).where(Customer.code == body.customer_code).with_for_update(read=True)).first()
     if customer is None or customer.status != "DANG_DUNG":
@@ -245,54 +249,122 @@ def _split_child(user,t,source):
         raise BusinessError('BAD_SPLIT','Phiếu không thuộc lần tách này.',status=409)
 
 
-def set_machines(session: Session,user: User,ticket_id: int,version: int,serials: list[str],new_machine=None) -> list[ServiceTicket]:
+def _new_serials(session,user,t,new_machines):
+    """Tạo các máy mới của khách trên phiếu; máy mất tem (serial trống) nhận mã tạm MT-yy-nnnnn (TUẤN 13/11/2026)."""
+    out=[]
+    for m in new_machines:
+        if not (m.serial or '').strip() or m.serial.strip()==TEMP_SERIAL:
+            m=m.model_copy(update={'serial':next_number(session,'MT',_now().astimezone(service_sla.TZ).date()),
+                'note':(m.note+'\n' if m.note else '')+'Máy mất tem, mã tạm do app cấp.'})
+        out.append(_machine_serial(session,user,t.customer_code,t.site_id,None,m,t.kind))
+    return out
+
+
+def _check_extra(session,t,chosen):
+    """Khóa và kiểm các máy sẽ tách phiếu: đúng khách, đúng địa điểm, không đang gắn phiếu mở khác."""
+    for serial in sorted(chosen):
+        eq=session.scalar(select(Equipment).where(Equipment.serial==serial).with_for_update().execution_options(populate_existing=True))
+        _check_site_and_serial(session,t.customer_code,t.site_id,serial,t.id)
+        if eq.site_id is not None and eq.site_id!=t.site_id:
+            raise BusinessError('BAD_SERIAL','Máy không thuộc địa điểm của phiếu.',{'serial':serial})
+    busy=session.execute(select(ServiceTicket.number,ServiceTicket.serial).where(ServiceTicket.serial.in_(chosen),
+        ServiceTicket.status.in_(OPEN),ServiceTicket.id!=t.id).order_by(ServiceTicket.id).limit(1)).first()
+    if busy:
+        raise BusinessError('SERIAL_BUSY',f'Máy {busy.serial} đang gắn với phiếu mở {busy.number}.',{'ticket_number':busy.number,'serial':busy.serial},status=409)
+
+
+def _spawn_children(session,user,t,serials,action='split'):
+    """Mỗi máy thêm một phiếu tách từ t: cùng khách, địa điểm, thợ, hẹn; đuổi theo trạng thái của t."""
+    result=[]
+    # Phiếu bảo hành: máy thêm không có căn cứ bảo hành, tách thành Sửa tại chỗ.
+    kind='SUA_TAI_CHO' if t.kind=='BAO_HANH' else t.kind
+    for serial in serials:
+        child=create_in_tx(session,user,ServiceTicketIn(customer_code=t.customer_code,site_id=t.site_id,serial=serial,
+            kind=kind,priority=t.priority,symptom=t.symptom,appointment_at=t.appointment_at,appointment_slot=t.appointment_slot),_split_from=t)
+        note='Tách từ '+t.number
+        if t.assignee_id is not None:
+            assign_in_tx(session,user,child.id,t.assignee_id,child.version,note,_split_from=t)
+        if t.status in ('DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+            transition_in_tx(session,user,child,'DA_NHAN',note,_split_from=t)
+        if t.status in ('DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+            transition_in_tx(session,user,child,'DA_HEN',note,t.appointment_at,appointment_slot=t.appointment_slot,_split_from=t)
+        if t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
+            transition_in_tx(session,user,child,'DANG_LAM',note,_split_from=t)
+        if t.status in ('CHO_LINH_KIEN','TAM_DUNG'):
+            transition_in_tx(session,user,child,t.status,note,hold_reason=t.hold_reason,_split_from=t)
+        result.append(child)
+    if result:
+        before=snapshot(t)
+        t.version+=1
+        label='Thêm máy tại chỗ' if action=='add_machines' else 'Tách thêm'
+        session.add(ServiceStep(ticket_id=t.id,action=action,from_status=t.status,to_status=t.status,actor_id=user.id,
+            assignee_id=t.assignee_id,note=label+': '+', '.join(c.number for c in result)))
+        session.flush()
+        audit.record(session,user,'service_ticket.split','service_ticket',str(t.id),before,
+            {**snapshot(t),'split_tickets':[c.number for c in result]})
+    return result
+
+
+def set_machines(session: Session,user: User,ticket_id: int,version: int,serials: list[str],new_machine=None,new_machines=()) -> list[ServiceTicket]:
+    news=list(new_machines)+([new_machine] if new_machine is not None else [])
     with _transaction(session):
         t=_machine_ticket(session,user,ticket_id,version)
         chosen=[_serial(value) for value in serials]
         if any(value is None or len(value)>64 for value in chosen):
             raise BusinessError('BAD_SERIAL','Danh sách máy chưa hợp lệ.')
-        if len(chosen)!=len(set(chosen)) or (new_machine is not None and _serial(new_machine.serial) in chosen):
+        typed=[_serial(m.serial) for m in news if (m.serial or '').strip() and m.serial.strip()!=TEMP_SERIAL]
+        if len(chosen+typed)!=len(set(chosen+typed)):
             raise BusinessError('SERIAL_DUPLICATE','Không chọn trùng một máy nhiều lần.')
-        before=snapshot(t)
-        if new_machine is not None:
-            chosen.append(_machine_serial(session,user,t.customer_code,t.site_id,None,new_machine,t.kind))
+        chosen+=_new_serials(session,user,t,news)
         if not chosen:
             return [_set_machine_in_tx(session,user,t,None)]
         # Serialize multi-machine selections, including two different source tickets.
-        for serial in sorted(chosen):
-            eq=session.scalar(select(Equipment).where(Equipment.serial==serial).with_for_update().execution_options(populate_existing=True))
-            _check_site_and_serial(session,t.customer_code,t.site_id,serial,t.id)
-            if eq.site_id is not None and eq.site_id!=t.site_id:
-                raise BusinessError('BAD_SERIAL','Máy không thuộc địa điểm của phiếu.',{'serial':serial})
-        busy=session.execute(select(ServiceTicket.number,ServiceTicket.serial).where(ServiceTicket.serial.in_(chosen),
-            ServiceTicket.status.in_(OPEN),ServiceTicket.id!=t.id).order_by(ServiceTicket.id).limit(1)).first()
-        if busy:
-            raise BusinessError('SERIAL_BUSY',f'Máy {busy.serial} đang gắn với phiếu mở {busy.number}.',{'ticket_number':busy.number,'serial':busy.serial},status=409)
+        _check_extra(session,t,chosen)
         _set_machine_in_tx(session,user,t,chosen[0])
-        result=[t]
-        for serial in chosen[1:]:
-            child=create_in_tx(session,user,ServiceTicketIn(customer_code=t.customer_code,site_id=t.site_id,serial=serial,
-                kind=t.kind,priority=t.priority,symptom=t.symptom,appointment_at=t.appointment_at,appointment_slot=t.appointment_slot),_split_from=t)
-            note='Tách từ '+t.number
-            if t.assignee_id is not None:
-                assign_in_tx(session,user,child.id,t.assignee_id,child.version,note,_split_from=t)
-            if t.status in ('DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
-                transition_in_tx(session,user,child,'DA_NHAN',note,_split_from=t)
-            if t.status in ('DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
-                transition_in_tx(session,user,child,'DA_HEN',note,t.appointment_at,appointment_slot=t.appointment_slot,_split_from=t)
-            if t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'):
-                transition_in_tx(session,user,child,'DANG_LAM',note,_split_from=t)
-            if t.status in ('CHO_LINH_KIEN','TAM_DUNG'):
-                transition_in_tx(session,user,child,t.status,note,hold_reason=t.hold_reason,_split_from=t)
-            result.append(child)
-        if len(result)>1:
-            t.version+=1
-            session.add(ServiceStep(ticket_id=t.id,action='split',from_status=t.status,to_status=t.status,actor_id=user.id,
-                assignee_id=t.assignee_id,note='Tách thêm: '+', '.join(c.number for c in result[1:])))
-            session.flush()
-            audit.record(session,user,'service_ticket.split','service_ticket',str(t.id),before,
-                {**snapshot(t),'split_tickets':[c.number for c in result[1:]]})
-    return result
+        return [t]+_spawn_children(session,user,t,chosen[1:])
+
+
+ADD_STATUSES=('MOI','DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM')
+
+
+def add_machines(session: Session,user: User,ticket_id: int,version: int,serials: list[str],new_machines=()) -> list[ServiceTicket]:
+    """TUẤN 13/11/2026: thợ (tại chỗ) hoặc điều phối thêm máy của khách vào phiếu đã có máy; mỗi máy một phiếu tách.
+    Máy của phiếu gốc giữ nguyên, kể cả phiếu bảo hành hoặc đã có máy giữ."""
+    with _transaction(session):
+        _require(user,(*DISPATCHERS,TECHNICIAN),'Chỉ điều phối, giám đốc hoặc thợ được giao được thêm máy.')
+        t=session.scalar(select(ServiceTicket).where(ServiceTicket.id==ticket_id).with_for_update().execution_options(populate_existing=True))
+        if t is None:raise BusinessError('NOT_FOUND','Không tìm thấy phiếu dịch vụ.',status=404)
+        _split_permission(user,t)
+        _check_version(t,version)
+        held=session.scalar(select(EquipmentCustody.id).where(EquipmentCustody.ticket_id==t.id).limit(1)) is not None
+        if t.status not in ADD_STATUSES or t.counter_intake or held:
+            raise BusinessError('BAD_STATUS','Chỉ thêm máy khi phiếu chưa xong và máy chưa mang về.',status=409)
+        chosen=[_serial(value) for value in serials]
+        if any(value is None or len(value)>64 for value in chosen):
+            raise BusinessError('BAD_SERIAL','Danh sách máy chưa hợp lệ.')
+        news=list(new_machines)
+        typed=[_serial(m.serial) for m in news if (m.serial or '').strip() and m.serial.strip()!=TEMP_SERIAL]
+        if len(chosen+typed)!=len(set(chosen+typed)) or (t.serial and t.serial in chosen+typed):
+            raise BusinessError('SERIAL_DUPLICATE','Không chọn trùng một máy nhiều lần.')
+        chosen+=_new_serials(session,user,t,news)
+        if not chosen:
+            raise BusinessError('BAD_SERIAL','Chọn ít nhất một máy để thêm.')
+        _check_extra(session,t,chosen)
+        return _spawn_children(session,user,t,chosen,action='add_machines')
+
+
+def family(session: Session, t: ServiceTicket) -> list[ServiceTicket]:
+    """Các phiếu cùng chỗ: phiếu gốc trên cùng và mọi phiếu tách từ nó (nhiều tầng), theo id."""
+    root=t
+    for _ in range(10):
+        if root.split_from_id is None:break
+        root=session.get(ServiceTicket,root.split_from_id)
+    seen={root.id:root};frontier=[root.id]
+    while frontier:
+        kids=list(session.scalars(select(ServiceTicket).where(ServiceTicket.split_from_id.in_(frontier))))
+        frontier=[k.id for k in kids if k.id not in seen]
+        seen.update({k.id:k for k in kids})
+    return sorted(seen.values(),key=lambda x:x.id)
 
 
 def _technician(session: Session, user_id: int) -> User:

@@ -167,13 +167,12 @@ def test_bring_trip_failure_rolls_back_all_machines_stock_and_visits(db,job,inva
     assert state(db)==before
 
 
-@pytest.mark.parametrize('invalid',['foreign','other_assignee','not_working','omitted','duplicate'])
+@pytest.mark.parametrize('invalid',['foreign','other_assignee','not_working','duplicate'])
 def test_trip_rejects_unrelated_or_ineligible_machine(db,job,invalid):
     p,_,t,eqs=job;eqs=eqs[:2];tickets=split(db,p,t,eqs);parts=items(tickets,eqs)
     if invalid=='foreign':parts[1]['ticket_id']=ticket(db,p,'DANG_LAM').id
     elif invalid=='other_assignee':tickets[1].assignee_id=p['other_tech'].id;db.commit()
     elif invalid=='not_working':tickets[1].status='DA_HEN';db.commit()
-    elif invalid=='omitted':parts=parts[:1]
     else:parts.append(parts[1])
     before=state(db);fail('BAD_TRIP',service_workshop.bring_trip,db,p['technician'],t.id,t.version,parts,[])
     assert state(db)==before

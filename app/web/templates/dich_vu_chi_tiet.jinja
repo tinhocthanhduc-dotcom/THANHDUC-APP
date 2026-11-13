@@ -49,6 +49,7 @@
     <dt>Hạn xử lý</dt><dd{% if late %} class="tot-due"{% endif %}>{{ t.due_at|service_time }}{% if late %} · quá hạn{% endif %}</dd>
   </dl>
 </section>
+{% include 'dich_vu_cung_cho.jinja' %}{% include 'dich_vu_them_may.jinja' %}
 <section class="card doc-card" aria-label="Lỗi và kết quả"><h2 class="doc-h">Lỗi và kết quả</h2>
   <div><b>Khách báo:</b> <span class="service-text">{{ t.symptom }}</span></div>
   {% if t.fault_found %}<div><b>Lỗi thợ gặp:</b> <span class="service-text" data-fault-found>{{ t.fault_found }}</span></div>{% endif %}

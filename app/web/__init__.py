@@ -910,6 +910,9 @@ from .custody import router as custody_router
 
 router.include_router(custody_router)
 
+# Thu chung cả chỗ đăng ký trước /dich-vu/{ticket_id}/{action} của services.
+from .thu_chung import router as thu_chung_router  # noqa: E402
+router.include_router(thu_chung_router)
 from .services import router as services_router
 
 router.include_router(services_router)

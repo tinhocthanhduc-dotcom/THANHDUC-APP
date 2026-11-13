@@ -536,6 +536,7 @@ def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),sess
         shown['materials']=_workshop_materials(form)
         # Giữ nguyên dữ liệu thợ đã nhập cho từng máy của chuyến khi có lỗi.
         shown['trip_raw']={key:[str(v) for v in form.getlist(key)] for key in form if key.startswith('trip-')}
+        shown['trip_picks']=[str(v) for v in form.getlist('trip_pick')] if form.get('trip_choose')=='1' else None
         trip_ids=set()
         for key in form:
             match=re.fullmatch(r'trip-([0-9]+)-(version|machine_version|accessories|accessories_note|condition_note)',key)
@@ -544,6 +545,10 @@ def workshop_bring(request:Request,ticket_id:int,form=Depends(checked_form),sess
             if match:
                 if len(match[1])>18:raise BusinessError('BAD_TRIP','Số phiếu trong chuyến chưa hợp lệ.')
                 trip_ids.add(int(match[1]))
+        if form.get('trip_choose')=='1':
+            # TUẤN 13/11/2026: chỉ mang về máy thợ tick "Mang về cùng chuyến"; máy sửa xong tại chỗ ở lại.
+            picked={int(v) for v in form.getlist('trip_pick') if str(v).isdigit() and len(str(v))<=18}
+            trip_ids&=picked
         if trip_ids:
             from ..schemas import WorkshopTripItem
             trip_ids.add(ticket_id)
@@ -600,6 +605,26 @@ def workshop_schedule(request:Request,ticket_id:int,form=Depends(checked_form),s
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
 
 
+@router.post('/dich-vu/{ticket_id}/them-may')
+@router.post('/tho/phieu/{ticket_id}/them-may')
+def add_machines(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
+    """TUẤN 13/11/2026: "+ Thêm máy của khách" trên phiếu đã có máy; mỗi máy thêm một phiếu tách, cùng thợ."""
+    user=request.state.user
+    technician_view=request.url.path.startswith('/tho/') and 'technician' in user.roles
+    shown=dict(add_picks=[str(v) for v in form.getlist('add_pick')],nm=service_machines.shown_new(form),add_open=True)
+    try:
+        serials,news=service_machines.add_picks(form)
+        split=svc.add_machines(session,user,ticket_id,_version(form),serials,news)
+    except (BusinessError,ValidationError) as exc:
+        if isinstance(exc,BusinessError) and exc.status in (403,404):
+            return render(request,'loi.jinja',error=exc,status=exc.status)
+        message,code,status=_message(exc)
+        return _detail(request,session,user,ticket_id,failed_action='add_machine',error=message,error_code=code,status=status,
+                       technician_view=technician_view,machine_form=shown)
+    target=f'/tho/phieu/{ticket_id}' if technician_view else f'/dich-vu/{ticket_id}'
+    return RedirectResponse(target+'?da_luu=1&tach='+','.join(t.number for t in split),status_code=303)
+
+
 @router.post('/dich-vu/{ticket_id}/may')
 @router.post('/tho/phieu/{ticket_id}/may')
 def set_machine(request:Request,ticket_id:int,form=Depends(checked_form),session:Session=Depends(get_session)):
@@ -607,11 +632,13 @@ def set_machine(request:Request,ticket_id:int,form=Depends(checked_form),session
     technician_view=request.url.path.startswith('/tho/') and 'technician' in user.roles
     shown={key:str(form.get(key,'')) for key in service_machines.FORM_FIELDS}
     shown['machine_picks']=[str(v) for v in form.getlist('machine_pick')]
+    shown['nm']=service_machines.shown_new(form)
     split=[]
     try:
-        if len(form.getlist('machine_pick'))>=2:
-            serials,new_machine=service_machines.multiple(form)
-            split=svc.set_machines(session,user,ticket_id,_version(form),serials,new_machine)[1:]
+        picks=[str(v) for v in form.getlist('machine_pick')]
+        if len(picks)>=2 or ('NEW' in picks and form.getlist('nm_idx')):
+            serials,news=service_machines.multiple(form)
+            split=svc.set_machines(session,user,ticket_id,_version(form),serials,new_machines=news)[1:]
         else:
             svc.set_machine(session,user,ticket_id,service_machines.body(form,_version(form)))
     except (BusinessError,ValidationError) as exc:

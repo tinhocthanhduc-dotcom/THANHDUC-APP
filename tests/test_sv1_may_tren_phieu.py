@@ -310,11 +310,12 @@ def test_machine_form_retains_duplicate_input(client, db, job):
     csrf = service_login(client, p['dispatcher'])
     before = state(db, t)
     r = client.post(f'/dich-vu/{t.id}/may', data=dict(csrf=csrf, version=t.version,
-        machine_pick='NEW', new_serial=eq.serial, new_product_code='TD-0001', new_product_q='Máy in đã chọn'))
+        machine_pick='NEW', nm_idx='0', nm_serial=eq.serial, nm_product_code='TD-0001', nm_product_q='Máy in đã chọn'))
     assert r.status_code == 409, r.text
     parsed = Tags(r.text)
-    assert parsed.find('input', name='new_serial', value=eq.serial)[0]['aria-invalid'] == 'true'
-    assert parsed.find('input', name='new_product_q', value='Máy in đã chọn')
+    # TUẤN 13/11/2026: ô máy mới thành nhiều khung nm_* (thêm nhiều máy mới một lần).
+    assert parsed.find('input', name='nm_serial', value=eq.serial)[0]['aria-invalid'] == 'true'
+    assert parsed.find('input', name='nm_product_q', value='Máy in đã chọn')
     assert parsed.find('input', name='machine_pick', value='NEW')[0].get('checked', 'missing') != 'missing'
     assert parsed.find('form', action=f'/dich-vu/{t.id}/may')[0].get('data-busy', 'missing') != 'missing'
     assert state(db, t) == before

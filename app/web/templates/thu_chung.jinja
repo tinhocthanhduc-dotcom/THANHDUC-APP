@@ -1,0 +1,35 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Thu chung cả chỗ{% endblock %}
+{# TUẤN duyệt mẫu 13/11/2026: nhiều máy cùng chỗ, khách trả một lần. Mỗi phiếu một báo thu đúng số, thiếu thì trừ phiếu gốc trước. #}
+{% block main %}
+<div class="kts-page thu-chung-page">
+{{ ui.page_head('Thu chung cả chỗ', back=base ~ '/' ~ t.id) }}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<section class="card kts-info"><b>{{ customer.name if customer else t.customer_code }}</b><span class="hint">{{ rows|length }} phiếu cùng chỗ</span></section>
+<section class="card tc-list" data-family-due>
+<h2 class="doc-h">Phiếu thu chung lần này</h2>
+{% for r in rows %}{% set f=r.t %}<div class="tc-row{{ ' tc-off' if not r.due }}" data-due="{{ r.due }}">
+<span><b><a href="{{ base }}/{{ f.id }}">{{ f.number }}</a> · {{ names.get(f.serial) or f.serial or 'Chưa chọn máy' }}</b>
+<small>{% if not r.done %}Chưa hoàn thành: hoàn thành phiếu này trước, hoặc thu sau{% elif not r.allowed %}Phiếu của thợ khác{% elif r.receivable == 0 %}Không thu tiền{% elif not r.due %}Đã báo thu đủ{% else %}Phải thu {{ r.receivable|money }}{% if r.paid or r.pending %} · đã báo {{ (r.paid + r.pending)|money }}{% endif %}{% endif %}</small></span>
+<b class="tc-amt">{{ r.due|money if r.due else '—' }}</b></div>{% endfor %}
+<div class="tc-total"><b>Tổng thu cả chỗ</b><b class="tc-sum" data-family-total="{{ total }}">{{ total|money }} đ</b></div>
+</section>
+{% if total %}
+<form method="post" action="{{ base }}/{{ t.id }}/thu-chung" class="card form kts-form" data-family-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div role="group" aria-label="Khách trả"><b>Khách trả</b><div class="seg">{% for key, label in [('FULL', 'Thu đủ ' ~ (total|money)), ('PARTIAL', 'Thu một phần')] %}<label><input type="radio" name="mode" value="{{ key }}"{% if data.mode == key %} checked{% endif %} required data-family-mode><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label data-family-partial {% if data.mode != 'PARTIAL' %}hidden{% endif %}><b>Khách đưa bao nhiêu?</b><input name="amount" inputmode="numeric" data-money value="{{ data.amount }}" class="kts-amount"></label>
+<p class="hint" data-family-split {% if data.mode != 'PARTIAL' %}hidden{% endif %}>Thu một phần: app trừ theo thứ tự phiếu, phiếu gốc trước; phần thiếu nằm ở phiếu sau.</p>
+<div role="group" aria-label="Cách thu"><b>Cách thu</b><div class="seg">{% for key, label in methods.items() %}<label><input type="radio" name="method" value="{{ key }}"{% if data.method == key %} checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
+{% if qr_url %}<a class="btn btn-ghost" href="{{ qr_url }}">QR chuyển khoản cho cả {{ total|money }} đ</a>{% endif %}
+<label>Ghi chú (không bắt buộc)<input name="note" maxlength="500" value="{{ data.note or '' }}"></label>
+<div class="swipe" data-swipe><button type="submit" class="btn-ok">Vuốt để báo đã thu {{ rows|selectattr('due')|list|length }} phiếu</button></div>
+<p class="hint">App ghi mỗi phiếu một Báo thu đúng số của phiếu đó, cùng ghi chú "Thu chung cả chỗ", chờ kế toán xác nhận. Hoa hồng tính đúng từng phiếu.</p>
+</form>
+<script>
+(function(){var f=document.querySelector('[data-family-form]');if(!f)return;function s(){var p=f.querySelector('[data-family-mode][value=PARTIAL]').checked;f.querySelector('[data-family-partial]').hidden=!p;f.querySelector('[data-family-split]').hidden=!p;var a=f.querySelector('[name=amount]');a.required=p;}f.addEventListener('change',s);s();})();
+</script>
+{% else %}<p class="card hint">Chưa có phiếu nào cần thu: hoàn thành từng máy trước (chọn "Chưa thu"), rồi quay lại đây thu một lần.</p>{% endif %}
+</div>
+{% endblock %}

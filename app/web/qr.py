@@ -57,7 +57,17 @@ def _quote(session, user, quote_id):
                 receipt_hint='Khách chuyển theo báo giá thì lập đơn bán từ báo giá rồi báo thu trên đơn.')
 
 
-LOADERS = {'don-ban': _order, 'dich-vu': _ticket, 'bao-gia': _quote}
+def _family(session, user, ticket_id):
+    # Thu chung cả chỗ (TUẤN 13/11/2026): một QR cho tổng chưa thu của các phiếu cùng chỗ.
+    t = service_tickets.load(session, user, ticket_id)
+    due = sum(r['due'] for r in sales_receipts.family_due(session, user, t))
+    technician = has_role(user, 'technician') and not has_role(user, *service_tickets.CREATORS)
+    back = (f'/tho/phieu/{t.id}' if technician else f'/dich-vu/{t.id}') + '/thu-chung'
+    return dict(kind='Thu chung cả chỗ', number=t.number, customer_code=t.customer_code, due=due, cap=due, back=back,
+                receipt_hint='Khách chuyển xong, quay lại Thu chung cả chỗ, chọn Chuyển khoản rồi vuốt báo thu.')
+
+
+LOADERS = {'don-ban': _order, 'dich-vu': _ticket, 'bao-gia': _quote, 'thu-chung': _family}
 
 
 def _amount(request, doc):
