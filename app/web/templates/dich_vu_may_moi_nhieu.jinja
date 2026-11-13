@@ -7,7 +7,7 @@
 <input type="hidden" name="nm_product_code" value="{{ row.code }}" data-machine-product-code>
 <span class="hint" data-machine-picked-label>{% if row.code %}Đã chọn: {{ row.code }}{% else %}Không chọn dòng nào thì tên đã gõ được lưu là máy ngoài danh mục.{% endif %}</span>
 <div class="machine-product-options device-options" aria-live="polite"></div></div>
-<label>Serial<input name="nm_serial" value="{{ '' if row.temp else row.serial }}" maxlength="64" autocomplete="off" {% if row.temp %}readonly{% else %}required{% endif %} data-nm-serial></label>
+<label>Serial<input name="nm_serial" value="{{ '' if row.temp else row.serial }}" maxlength="64" autocomplete="off" {% if row.temp %}readonly{% else %}required{% endif %} {% if error_code=='DUPLICATE_SERIAL' and row.serial and not row.temp %}aria-invalid="true"{% endif %} data-nm-serial></label>
 <label class="nm-temp-line"><input type="checkbox" name="nm_no_serial" value="{{ i }}" {% if row.temp %}checked{% endif %} data-nm-temp><span><b>Không có serial</b> (tem mất) · app cấp mã tạm, ghi mã đó lên máy</span></label>
 </div>{% endmacro %}
 {% set nm_rows=(mf.get('nm') if mf is defined and mf else none) or [dict(idx='0',serial='',q='',code='',temp=false)] %}
