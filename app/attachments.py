@@ -139,6 +139,10 @@ def _prepare(data: bytes) -> tuple[bytes, str, str, int | None, int | None]:
                 raise BusinessError("BAD_FILE_TYPE", "Chỉ nhận ảnh JPEG, PNG, WEBP hoặc tệp PDF.")
             if im.width * im.height > MAX_PIXELS:
                 raise BusinessError("FILE_TOO_LARGE", "Ảnh quá lớn.")
+            # TUẤN 13/11 "Giao xong chậm": ảnh JPEG gốc từ máy ảnh (12MP) giải nén thẳng ở kích thước nhỏ gần 1280px,
+            # nhanh gấp ~3 lần so với giải nén đủ rồi mới thu nhỏ; ảnh lưu ra vẫn cạnh dài 1280px như cũ.
+            if im.format == "JPEG":
+                im.draft("RGB", (MAX_SIDE, MAX_SIDE))
             im = ImageOps.exif_transpose(im).convert("RGB")
             im.thumbnail((MAX_SIDE, MAX_SIDE))
             out = io.BytesIO()

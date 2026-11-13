@@ -71,6 +71,7 @@
     syncLock();
     if (window.MutationObserver) new MutationObserver(syncLock).observe(button, { attributes: true, attributeFilter: ['disabled'] });
     function explainLock() {
+      if (button.dataset.photoBusy) { if (lockToast) lockToast.remove(); lockToast = window.tdToast('Đang nén ảnh, chờ 1–2 giây rồi vuốt lại'); return; }
       var why = box.dataset.why || 'Chưa đủ điều kiện';
       var target = document.getElementById(button.getAttribute('aria-describedby') || '');
       if (target) {
@@ -362,12 +363,14 @@
     var files = Array.prototype.slice.call(input.files || []);
     if (!files.some(function (f) { return /^image\//.test(f.type); })) return;
     event.stopImmediatePropagation();
-    var buttons = input.form ? Array.prototype.slice.call(input.form.querySelectorAll('button')) : [];
-    buttons.forEach(function (b) { b.disabled = true; });
+    // form.elements có cả nút nằm ngoài form (form="…"), như thanh vuốt Giao xong ở đáy màn thợ: trước đây thanh vuốt
+    // vẫn mở trong lúc nén, vuốt nhanh là gửi ảnh gốc vài MB qua 4G (TUẤN 13/11 "Giao xong chậm"). Chỉ mở lại nút do mình khóa.
+    var buttons = input.form ? Array.prototype.filter.call(input.form.elements, function (b) { return b.tagName === 'BUTTON' && !b.disabled; }) : [];
+    buttons.forEach(function (b) { b.disabled = true; b.dataset.photoBusy = '1'; });
     Promise.all(files.map(shrinkPhoto)).then(function (out) {
       try { var dt = new DataTransfer(); out.forEach(function (f) { dt.items.add(f); }); input.files = dt.files; } catch (e) { /* giữ ảnh gốc */ }
     }).then(function () {
-      buttons.forEach(function (b) { b.disabled = false; });
+      buttons.forEach(function (b) { b.disabled = false; delete b.dataset.photoBusy; });
       input.dataset.shrunk = '1';
       input.dispatchEvent(new Event('change', { bubbles: true }));
       delete input.dataset.shrunk;
