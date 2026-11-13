@@ -174,7 +174,9 @@ async def action(request: Request,order_id: int,action: str,form=Depends(checked
             if len(uploads)>10:raise BusinessError('FILE_TOO_LARGE','Mỗi lần giao tối đa 10 ảnh.')
             limit=get_settings().max_upload_mb*1024*1024
             data=[(p.filename,await p.read(limit+1)) for p in uploads]
-            svc.deliver(session,user,order_id,body,data)
+            # Ghi kho/tiền + xử lý ảnh là việc đồng bộ: chạy ở luồng phụ để một lần Giao xong không làm khựng màn của người khác.
+            from starlette.concurrency import run_in_threadpool
+            await run_in_threadpool(svc.deliver,session,user,order_id,body,data)
         else:
             raise BusinessError('NOT_FOUND','Không tìm thấy thao tác.',status=404)
     except (BusinessError,ValidationError) as exc:

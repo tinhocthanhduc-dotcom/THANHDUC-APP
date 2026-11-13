@@ -74,3 +74,23 @@ def test_photo_is_big_camera_button(db, setup, client):
     assert re.search(r'<label class="btn photo-capture">[^<]*<input type="file" name="photos" accept="image/jpeg,image/png,image/webp" capture="environment"\s+required data-photo-pick', page.text)
     assert 'photo-slot photo-wide' in page.text
     assert 'data-photo-picked' in page.text
+
+
+def test_giao_xong_khong_gui_anh_goc_luc_dang_nen():
+    """TUẤN 13/11 "Giao xong chậm": thanh vuốt ở ngoài form (form="giao-xong") trước đây không bị khóa lúc nén ảnh,
+    vuốt nhanh là gửi ảnh gốc vài MB. Nay khóa mọi nút của form (form.elements), chỉ mở lại nút do bước nén khóa."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'ui.js').read_text()
+    assert "input.form.elements" in js and "b.dataset.photoBusy = '1'" in js and "delete b.dataset.photoBusy" in js
+    assert "'Đang nén ảnh, chờ 1–2 giây rồi vuốt lại'" in js
+
+
+def test_anh_jpeg_lon_giai_nen_nho_van_ra_1280():
+    import io
+    from PIL import Image
+    from app.attachments import _prepare
+    src = io.BytesIO(); Image.new('RGB', (4000, 3000), (200, 120, 40)).save(src, 'JPEG', quality=90)
+    data, ctype, ext, w, h = _prepare(src.getvalue())
+    assert (ctype, ext, w, h) == ('image/jpeg', 'jpg', 1280, 960)
+    src = io.BytesIO(); Image.new('RGB', (3000, 4000), (200, 120, 40)).save(src, 'JPEG', quality=90)
+    assert _prepare(src.getvalue())[3:] == (960, 1280)
