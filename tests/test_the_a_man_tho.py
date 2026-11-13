@@ -245,3 +245,17 @@ def test_swipe_accepts_finger_after_camera_ghost_touch():
     assert '.isPrimary' not in swipe  # không bỏ qua ngón không phải "ngón chính"
     assert 'event.pointerId !== drag.id' in swipe  # chỉ theo đúng ngón đang kéo
     assert "visibilitychange" in swipe and "pageshow" in swipe  # quay lại từ máy ảnh thì xóa trạng thái kéo dở
+
+
+def test_swipe_shows_sending_and_blocks_second_swipe():
+    """TUẤN 13/11 "vuốt vẫn chậm": vuốt xong nút tròn bật về đầu, không báo gì trong 1–3 giây chờ mạng.
+    Đã thử Playwright (iPhone 12, máy chủ chậm 2,5 s): thanh giữ ở cuối "Đang gửi…", vuốt lần hai không gửi thêm;
+    form bị chặn (confirm Hủy) hoặc thiếu ô bắt buộc thì thanh trả về như cũ."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static'
+    js = (root / 'ui.js').read_text()
+    swipe = js[js.index('function bindSwipe'):js.index("window.bindSwipe = bindSwipe")]
+    assert "'Đang gửi…'" in swipe and "swipe-busy" in swipe
+    assert "box.classList.contains('swipe-busy')) return" in swipe  # đang gửi thì không nhận vuốt mới
+    assert "if (!submit()) busy(false)" in swipe  # không gửi được thì trả thanh
+    assert '.swipe.swipe-busy' in (root / 'app.css').read_text()

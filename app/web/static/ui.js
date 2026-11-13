@@ -94,13 +94,36 @@
         window.tdToast(bad && bad.validationMessage ? 'Chưa điền đủ: ' + bad.validationMessage : 'Chưa điền đủ thông tin bắt buộc', 'bad');
         return;
       }
+      // Biết form có thật sự được gửi không: không có sự kiện submit (ô sai) hoặc bị chặn (confirm Hủy…) thì trả thanh về.
+      var sent = false;
+      function seen(e) { sent = e.target === form && (!e.defaultPrevented || form.hasAttribute('data-flush-draft')); }
+      window.addEventListener('submit', seen, { once: true });
       form.requestSubmit(button);
+      window.removeEventListener('submit', seen);
+      return sent;
+    }
+    // Lỗi TUẤN 13/11 "vuốt vẫn chậm": vuốt hết thì nút tròn bật ngay về đầu thanh và không có gì báo đang gửi,
+    // trong khi gửi qua mạng + mở trang mới mất 1–3 giây, nên thợ tưởng chưa ăn và vuốt lại.
+    // Nay giữ nút tròn ở cuối, thanh đổi thành "Đang gửi…" (khóa vuốt lần hai) tới khi trang mới mở.
+    var busyTimer = null, label = null;
+    function busy(on) {
+      clearTimeout(busyTimer);
+      box.classList.toggle('swipe-busy', on);
+      if (on) {
+        label = button.textContent; button.textContent = 'Đang gửi…';
+        // Mạng treo quá lâu: trả thanh để thợ vuốt lại (máy chủ chặn trùng bằng số phiên bản).
+        busyTimer = setTimeout(function () { busy(false); window.tdToast('Mạng chậm, chưa thấy trả lời. Kiểm tra mạng rồi vuốt lại.', 'bad'); }, 20000);
+      } else {
+        if (label !== null) button.textContent = label;
+        label = null; setX(0);
+      }
     }
     function done() {
-      setX(0);
       buzz(40);
-      if (box.dataset.swipeDemo !== undefined) { window.tdToast(box.dataset.swipeDemo || 'Đã ghi nhận'); return; }
-      submit();
+      if (box.dataset.swipeDemo !== undefined) { setX(0); window.tdToast(box.dataset.swipeDemo || 'Đã ghi nhận'); return; }
+      setX(maxX());
+      busy(true);
+      if (!submit()) busy(false);
     }
     // Lỗi TUẤN 07/11 "sau khi tải ảnh thì không vuốt được, phải về Hôm nay vào lại": mở máy ảnh/chọn ảnh xong,
     // điện thoại có khi không gửi lại lúc nhấc ngón đã bấm nút Chụp ảnh, nên coi như vẫn còn một ngón đang chạm.
@@ -108,10 +131,10 @@
     // Nay nhận mọi ngón bấm vào thanh, chỉ theo đúng ngón đang kéo; quay lại trang (sau máy ảnh) thì xóa trạng thái kéo dở.
     function reset() {
       if (drag) { try { box.releasePointerCapture(drag.id); } catch (e) { /* đã nhả */ } }
-      drag = null; box.classList.remove('swipe-drag'); setX(0); syncLock();
+      drag = null; box.classList.remove('swipe-drag'); busy(false); syncLock();
     }
     box.addEventListener('pointerdown', function (event) {
-      if (event.button > 0) return;
+      if (event.button > 0 || box.classList.contains('swipe-busy')) return;
       if (drag && drag.id !== event.pointerId && drag.moved && Date.now() - drag.at < 1000) return;  // ngón thứ hai trong lúc đang kéo thật
       if (locked()) { quietClickUntil = Date.now() + 800; explainLock(); return; }
       try { box.setPointerCapture(event.pointerId); } catch (e) { /* trình duyệt cũ */ }
