@@ -39,8 +39,9 @@ def fuser_package(db, boss, **extra):
 
 def test_seed_groups_and_lookup_priority_model_then_group_then_verify(db, make_user):
     boss = make_user('bg.boss', 'director')
-    assert [g.name for g in pb.groups(db)] == ['Laser đen trắng A4 đơn năng', 'Laser đen trắng A4 đa năng', 'Laser màu A4', 'Laser A3',
-                                               'Phun hộp mực', 'Phun bình mực', 'In kim, nhiệt']
+    assert [g.name for g in pb.groups(db)] == ['Máy in Laser đen trắng A4 đơn năng', 'Máy in Laser đen trắng A4 đa năng', 'Máy in Laser màu A4',
+                                               'Máy in laser khổ A3', 'Máy in phun Canon', 'Máy in phun Epson', 'Máy in phun hãng khác',
+                                               'Máy in kim, in nhiệt']
     s = fuser_package(db, boss)
     assert [(o.name, o.is_main) for o in pb.options(db, s.id)] == [('Thay bao lụa sấy', True), ('Thay rulo ép', True), ('Thay bạc ép', False)]
     assert [pb.level_by_options(n) for n in (0, 1, 2, 3)] == [1, 2, 3, 3]
@@ -48,7 +49,7 @@ def test_seed_groups_and_lookup_priority_model_then_group_then_verify(db, make_u
     pb.save_model(db, boss, 'Canon LBP 2900', a4.id)
     pb.save_model(db, boss, 'HP LaserJet M402', a4.id)
     pb.save_model(db, boss, 'Canon LBP 3500', group(db, 'LASER_A3').id)
-    pb.save_model(db, boss, 'Epson L3110', group(db, 'PHUN_BINH').id)
+    pb.save_model(db, boss, 'Epson L3110', group(db, 'PHUN_EPSON').id)
     r = pb.lookup(db, s.id, 'canon lbp 2900', 2)
     assert r['ok'] and r['price'] == 450_000 and r['price_vat'] == 486_000 and r['warranty'] == 3 and r['source'] == 'nhom'
     assert r['name'] == 'Sửa chữa cụm sấy máy Canon LBP 2900'
@@ -190,8 +191,8 @@ def test_excel_roundtrip_preview_then_apply(client, db, make_user):
     s = fuser_package(db, boss)
     a4 = group(db, 'LASER_A4_DON')
     text = pb.export_csv(db, 'goi')
-    assert text.startswith('﻿') and 'Sửa chữa cụm sấy,Laser đen trắng A4 đơn năng,2,450000,600000,3' in text
-    edited = text.replace('Sửa chữa cụm sấy,Laser đen trắng A4 đơn năng,2,450000,600000,3', 'Sửa chữa cụm sấy;Laser đen trắng A4 đơn năng;2;480000;600000;3')
+    assert text.startswith('﻿') and 'Sửa chữa cụm sấy,Máy in Laser đen trắng A4 đơn năng,2,450000,600000,3' in text
+    edited = text.replace('Sửa chữa cụm sấy,Máy in Laser đen trắng A4 đơn năng,2,450000,600000,3', 'Sửa chữa cụm sấy;Máy in Laser đen trắng A4 đơn năng;2;480000;600000;3')
     edited = edited.replace(',', ';')
     plan = pb.plan_import(db, 'goi', edited.encode('utf-8'))
     assert not plan['errors'] and [c['new'] for c in plan['changes']] == [480_000]

@@ -3,7 +3,8 @@
     python -m scripts.bang_gia_mau [--user giamdoc] [--apply]
 
 Chạy thử (không --apply) chỉ in ra sẽ thêm gì. Chỉ THÊM cái chưa có (so theo tên, không phân biệt hoa thường):
-không bao giờ sửa giá, model hay dịch vụ đã có. Giá là GIÁ MẪU chưa VAT để anh sửa lại trên trang Bảng giá;
+không bao giờ sửa giá, model hay dịch vụ đã có. Riêng gói do bộ mẫu tạo mà nhóm Máy in phun Canon / hãng khác
+còn trống cả 3 cấp thì thêm giá mẫu cho nhóm đó (đổi nhóm máy 14/11: phun bình Canon trước nằm chung nhóm Epson). Giá là GIÁ MẪU chưa VAT để anh sửa lại trên trang Bảng giá;
 mọi lần thêm ghi Lịch sử đổi giá như sửa tay.
 """
 import argparse
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app import price_book as pb  # noqa: E402
 from app.db import engine  # noqa: E402
-from app.models import PriceService, RepairGroup, RepairSymptom, User  # noqa: E402
+from app.models import PriceService, RepairGroup, RepairPrice, RepairSymptom, User  # noqa: E402
 
 MODELS = {
     'LASER_A4_DON': ['Canon LBP 2900', 'Canon LBP 3300', 'Canon LBP 6030', 'Canon LBP 6230dn', 'Canon LBP 161dn',
@@ -28,14 +29,15 @@ MODELS = {
     'LASER_MAU': ['HP Color LaserJet Pro M454dw', 'HP Color LaserJet Pro MFP M479fdw', 'Canon LBP 621Cw', 'Canon MF641Cw',
                   'Brother HL-L3230CDN'],
     'LASER_A3': ['Canon LBP 3500', 'Canon LBP 3970', 'Canon LBP 8780x', 'HP LaserJet 5200', 'HP LaserJet M706n'],
-    'PHUN_HOP': ['Canon PIXMA E410', 'Canon PIXMA MG2570S', 'HP DeskJet 2135'],
-    'PHUN_BINH': ['Epson L3110', 'Epson L3150', 'Epson L805', 'Epson L1800', 'Canon PIXMA G2010', 'Brother DCP-T720DW'],
+    'PHUN_CANON': ['Canon PIXMA G1010', 'Canon PIXMA G2010', 'Canon PIXMA G3010', 'Canon PIXMA E410', 'Canon PIXMA MG2570S'],
+    'PHUN_EPSON': ['Epson L3110', 'Epson L3150', 'Epson L3210', 'Epson L805', 'Epson L1800'],
+    'PHUN_KHAC': ['HP DeskJet 2135', 'HP Smart Tank 515', 'Brother DCP-T720DW'],
     'KIM_NHIET': ['Epson LQ-310', 'Epson LQ-2190', 'Xprinter XP-365B', 'Godex G500'],
 }
 
 # Hệ số giá theo nhóm so với Laser A4 đơn năng; giá làm tròn 10.000.
 FACTOR = {'LASER_A4_DON': 1.0, 'LASER_A4_DA': 1.2, 'LASER_MAU': 1.5, 'LASER_A3': 1.8,
-          'PHUN_HOP': 0.8, 'PHUN_BINH': 1.0, 'KIM_NHIET': 1.0}
+          'PHUN_CANON': 1.0, 'PHUN_EPSON': 1.0, 'PHUN_KHAC': 1.0, 'KIM_NHIET': 1.0}
 LASER = ('LASER_A4_DON', 'LASER_A4_DA', 'LASER_MAU', 'LASER_A3')
 ALL = tuple(FACTOR)
 
@@ -71,11 +73,11 @@ PACKAGES = [
      ('Vệ sinh, chỉnh cụm scan', 'Thay 1 linh kiện scan hoặc ADF', 'Thay cụm scan hoặc cụm ADF'),
      ('1', '1,5', '2'), [('Thay cáp scan', 'cáp scan', True), ('Thay quả đào ADF', 'quả đào ADF', True)]),
     ('Sửa chữa cụm đầu phun', 'Khắc phục in mất màu, sọc, tắc đầu phun.',
-     (200_000, 400_000, 700_000), (0, 300_000), (0, 1, 3), ('PHUN_HOP', 'PHUN_BINH'),
+     (200_000, 400_000, 700_000), (0, 300_000), (0, 1, 3), ('PHUN_CANON', 'PHUN_EPSON', 'PHUN_KHAC'),
      ('Thông, vệ sinh đầu phun', 'Thông sâu, thay phụ kiện đầu phun', 'Thay đầu phun'),
      ('1', '1,5', '2'), [('Thông đầu phun', 'dung dịch', False), ('Thay đầu phun', 'đầu phun', True), ('Thay cáp đầu phun', 'cáp', True)]),
     ('Sửa chữa hệ thống dẫn mực', 'Khắc phục mực không xuống, tràn mực, đầy bộ đệm thải.',
-     (150_000, 250_000, 400_000), (0, 0), (1, 1, 3), ('PHUN_BINH',),
+     (150_000, 250_000, 400_000), (0, 0), (1, 1, 3), ('PHUN_CANON', 'PHUN_EPSON', 'PHUN_KHAC'),
      ('Xả khí, vệ sinh đường mực', 'Thay ống dẫn mực hoặc bộ đệm thải', 'Thay cụm bơm, dẫn mực'),
      ('0,5', '1', '1,5'), [('Thay bộ đệm thải, reset', 'bộ đệm thải', True), ('Thay cụm bơm mực', 'cụm bơm', True)]),
     ('Sửa chữa đầu kim, cơ in', 'Khắc phục in mất nét, đứt nét, ruy băng kẹt, máy in nhiệt in mờ.',
@@ -106,13 +108,27 @@ SYMPTOMS = [
     ('Bản in bị sọc, mờ một vệt', 'Sửa chữa cụm quang', 1, 3, None),
     ('Không scan, photo được', 'Sửa chữa bộ phận scan, ADF', 1, 3, None),
     ('In mất màu, sọc ngang', 'Sửa chữa cụm đầu phun', 1, 3, None),
-    ('Báo đầy bộ đệm thải, mực không xuống', 'Sửa chữa hệ thống dẫn mực', 1, 3, 'PHUN_BINH'),
+    ('Báo đầy bộ đệm thải, mực không xuống', 'Sửa chữa hệ thống dẫn mực', 1, 3, None),
     ('In kim mất nét, đứt chữ', 'Sửa chữa đầu kim, cơ in', 1, 3, 'KIM_NHIET'),
 ]
 
 
+SAMPLE_NOTE = 'Giá mẫu, giám đốc sửa lại theo thực tế.'
+REFILL = ('PHUN_CANON', 'PHUN_KHAC')
+
+
 def _r(value: float) -> int:
     return int(-(-value // 10_000) * 10_000)
+
+
+def _levels(base, genuine, months, code) -> dict:
+    """Giá mẫu 3 cấp của một nhóm: {cấp: (giá, giá chính hãng hoặc 0, bảo hành)}."""
+    f, out = FACTOR[code], {}
+    for lv in (1, 2, 3):
+        price = _r(base[lv - 1] * f)
+        extra = genuine[lv - 2] if lv > 1 else 0
+        out[lv] = (price, price + _r(extra * f) if extra else 0, months[lv - 1])
+    return out
 
 
 def run(session, user, apply: bool) -> list[str]:
@@ -126,11 +142,22 @@ def run(session, user, apply: bool) -> list[str]:
             if apply:
                 pb.save_model(session, user, name, groups[code].id, 'Mẫu')
     for sort, (name, desc, base, genuine, months, applies, scopes, hours, opts) in enumerate(PACKAGES, start=1):
-        if session.scalar(select(PriceService).where(PriceService.kind == 'GOI', func.lower(PriceService.name) == name.lower())):
+        old = session.scalar(select(PriceService).where(PriceService.kind == 'GOI', func.lower(PriceService.name) == name.lower()))
+        if old:
+            # Chỉ bù giá cho nhóm mới đổi 14/11 (Máy in phun Canon) trên gói do bộ mẫu tạo; gói/nhóm anh tự đặt không đụng.
+            for code in (c for c in applies if c in REFILL and old.technical_note == SAMPLE_NOTE):
+                g = groups[code]
+                if session.scalar(select(RepairPrice.id).where(RepairPrice.service_id == old.id, RepairPrice.group_id == g.id).limit(1)):
+                    continue
+                log.append(f'Giá    {old.name} · {g.name}')
+                if apply:
+                    levels = {lv: (p, ch or None, bh) for lv, (p, ch, bh) in _levels(base, genuine, months, code).items()}
+                    pb._apply_levels(session, user, old, levels, group_id=g.id, label=g.name)
+                    session.commit()
             continue
         log.append(f'Gói    {name} · {len(applies)} nhóm máy')
         form = dict(kind='GOI', name=name, description=desc, active='1', sort=str(sort), option_rows=str(len(opts)),
-                    technical_note='Giá mẫu, giám đốc sửa lại theo thực tế.')
+                    technical_note=SAMPLE_NOTE)
         for lv in (1, 2, 3):
             form[f'scope_{lv}'], form[f'hours_{lv}'] = scopes[lv - 1], hours[lv - 1]
         for i, (oname, hint, main) in enumerate(opts):
@@ -138,13 +165,11 @@ def run(session, user, apply: bool) -> list[str]:
             if main:
                 form[f'opt_main_{i}'] = '1'
         for code in applies:
-            g, f = groups[code], FACTOR[code]
-            for lv in (1, 2, 3):
-                price = _r(base[lv - 1] * f)
-                form[f'g{g.id}_p{lv}'], form[f'g{g.id}_bh{lv}'] = str(price), str(months[lv - 1])
-                extra = genuine[lv - 2] if lv > 1 else 0
-                if extra:
-                    form[f'g{g.id}_ch{lv}'] = str(price + _r(extra * f))
+            g = groups[code]
+            for lv, (price, ch, bh) in _levels(base, genuine, months, code).items():
+                form[f'g{g.id}_p{lv}'], form[f'g{g.id}_bh{lv}'] = str(price), str(bh)
+                if ch:
+                    form[f'g{g.id}_ch{lv}'] = str(ch)
         if apply:
             pb.save_service(session, user, form)
     for name, unit, price, months, desc in FEES:

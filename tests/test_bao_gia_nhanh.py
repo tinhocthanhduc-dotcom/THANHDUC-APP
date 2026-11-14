@@ -31,7 +31,7 @@ def setup_book(db, boss):
     pb.save_service(db, boss, dict(kind='PHI', name='Cài đặt máy in, driver', price='100.000', active='1'))
     pb.save_model(db, boss, 'Canon LBP 2900', a4.id)
     pb.save_model(db, boss, 'Canon LBP 3500', a3.id)
-    pb.save_model(db, boss, 'Epson L3110', group(db, 'PHUN_BINH').id)
+    pb.save_model(db, boss, 'Epson L3110', group(db, 'PHUN_EPSON').id)
     pb.save_symptom(db, boss, dict(name='Kẹt giấy', service_id=str(feed.id), level_min='1', level_max='2'))
     pb.save_symptom(db, boss, dict(name='Kẹt giấy', service_id=str(fuser.id), level_min='2', level_max='2'))
     pb.save_symptom(db, boss, dict(name='In nhăn giấy', service_id=str(fuser.id), level_min='1', level_max='3'))
@@ -66,8 +66,13 @@ def test_compute_uses_declared_levels_vat_and_never_guesses(db, make_user):
     r = qq.compute(db, 'Canon LBP 3500', ['In nhăn giấy'], 'CUA_HANG')
     assert r['lines'][0]['levels'] == [3] and r['lines'][0]['low'] == 1_404_000
     # Nhóm phun không làm dịch vụ: Cần kỹ thuật xác nhận.
+    # Nhóm phun Epson không có giá cả 3 cấp: dịch vụ không hiện, tin báo cần kỹ thuật kiểm tra.
     r = qq.compute(db, 'Epson L3110', ['Kẹt giấy'], 'CUA_HANG')
-    assert all(not ln['ok'] for ln in r['lines']) and qq.range_text(r['lines'][0]) == qq.VERIFY
+    assert r['lines'] == []
+    # A3: bộ kéo giấy không làm (ẩn); cụm sấy có giá nhưng chỉ cấp 3, hiện tượng khai cấp 2 → Cần xác nhận, không lấy cấp 3.
+    r = qq.compute(db, 'Canon LBP 3500', ['Kẹt giấy'], 'CUA_HANG')
+    assert [(ln['name'], ln['ok']) for ln in r['lines']] == [('Sửa chữa cụm sấy', False)]
+    r = qq.compute(db, 'Epson L3110', ['Kẹt giấy'], 'CUA_HANG')
     assert 'cần kỹ thuật kiểm tra máy mới báo được chi phí' in qq.zalo_text(r) and 'Giá tham khảo' not in qq.zalo_text(r)
     # Model lạ: không đoán giá.
     r = qq.compute(db, 'Brother HL lạ', ['Kẹt giấy'], 'CUA_HANG')
@@ -115,7 +120,7 @@ def test_web_compose_save_and_convert_to_onsite_ticket(client, db, service_peopl
     assert 'Laser đen trắng A4 đơn năng' in page and '162.000 – 270.000' in page and 'Chuyển thành phiếu nhận máy' in page
     assert 'Hẹn thợ tới kiểm tra' in page and 'Bảo hành' not in page
     part = client.get('/hoi-gia/xem-truoc?model=Epson+L3110&ht=K%E1%BA%B9t+gi%E1%BA%A5y').text
-    assert 'Cần kỹ thuật xác nhận' in part and '<html' not in part
+    assert 'Cần kỹ thuật xác nhận' in part and 'Sửa chữa bộ kéo giấy' not in part and '<html' not in part
     assert 'Minh Phát' in client.get('/hoi-gia/tim-khach?q=minh').text
     bad = client.post('/hoi-gia/luu', data=dict(csrf=csrf, model='Canon LBP 2900', noi='CUA_HANG'))
     assert bad.status_code == 400 and 'Chọn ít nhất một hiện tượng' in bad.text
