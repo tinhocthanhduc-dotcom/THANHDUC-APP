@@ -29,6 +29,7 @@ KEEP = {
     "zalo_chats", "zalo_messages", "zalo_tro_ly", "production_boms", "production_bom_lines", "virtual_agents",
     "pl_settings",  # 0089: lương giám đốc mục tiêu là cấu hình
     "approval_limits",  # 0091: hạn mức duyệt là cấu hình giám đốc đặt
+    "repair_groups", "repair_models", "price_services", "repair_prices", "repair_options", "repair_symptoms",  # 0092: bảng giá chung là cấu hình
 }
 WIPE = {
     "pl_adjustments", "virtual_agent_log", "customer_messages", "zalo_ticket_drafts", "customer_ink_calls", "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",

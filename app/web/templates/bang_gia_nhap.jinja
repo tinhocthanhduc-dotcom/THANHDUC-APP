@@ -1,0 +1,14 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Nhập Excel bảng giá{% endblock %}
+{% block main %}<div class="page-wide bg-page">
+{% call ui.page_head('Xem trước thay đổi', sub='Tab ' ~ tabs[tab] ~ ' · chưa ghi gì cho tới khi bấm Áp dụng', back='/bang-gia?tab=' ~ tab) %}{% endcall %}
+{% if plan.errors %}<div class="alert bad" role="alert" data-error-code="IMPORT_ERRORS"><b>{{ plan.errors|length }} dòng lỗi, sửa file rồi tải lại:</b><ul>{% for e in plan.errors[:20] %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<section class="card list-frame">
+{% if plan.changes %}<div class="table-scroll"><table class="list-table lt-cards bg-table"><thead><tr><th>Mục</th><th class="num">Giá cũ</th><th class="num">Giá mới</th></tr></thead><tbody>
+{% for c in plan.changes %}<tr data-change-row><td class="lt-first"><b>{{ c.label }}</b></td><td class="num">{{ c.old|money if c.old is not none else 'mới' }}</td><td class="num"><b>{{ c.new|money }}</b></td></tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('File không có giá nào khác giá hiện tại.') }}{% endif %}
+</section>
+{% if plan.changes and not plan.errors %}<form method="post" action="/bang-gia/nhap-excel" class="action-bar"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="ap_dung" value="1"><textarea name="content" hidden>{{ content }}</textarea>
+<button class="btn-ok">Áp dụng {{ plan.changes|length }} thay đổi</button><a class="btn btn-ghost" href="/bang-gia?tab={{ tab }}">Hủy</a></form>{% endif %}
+</div>{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Model máy{% endblock %}
+{% block main %}<div class="page-wide list-page bg-page">
+{% call ui.page_head('Model máy', sub='Mỗi model thuộc một nhóm máy; giá gói lấy theo nhóm, trừ khi model có giá riêng', back='/bang-gia?tab=goi') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if saved %}{{ ui.toast('Đã lưu model.', 'ok') }}{% endif %}
+<section class="card list-frame">
+{% call ui.list_bar('/bang-gia/model-may', q, 'Tìm model (không dấu)…', active=(1 if nhom else 0)) %}<select name="nhom" aria-label="Nhóm máy"><option value="">Mọi nhóm máy</option>{% for g in machine_groups %}<option value="{{ g.id }}" {% if nhom|string == g.id|string %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table"><thead><tr><th>Model</th><th>Nhóm máy</th><th>Ghi chú</th>{% if can_edit %}<th>Đổi nhóm</th>{% endif %}</tr></thead><tbody>
+{% for m in rows %}<tr data-model-row="{{ m.name }}"><td class="lt-first"><b>{{ m.name }}</b>{% if not m.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td><td>{{ group_names.get(m.group_id, '') }}</td><td><span class="lt-sub">{{ m.note }}</span></td>
+{% if can_edit %}<td><form method="post" action="/bang-gia/model-may/luu" class="bg-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="id" value="{{ m.id }}"><input type="hidden" name="name" value="{{ m.name }}"><input type="hidden" name="note" value="{{ m.note }}"><input type="hidden" name="active" value="{{ '1' if m.active else '0' }}">
+<select name="group_id" aria-label="Nhóm máy của {{ m.name }}">{% for g in machine_groups %}<option value="{{ g.id }}" {% if g.id == m.group_id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select><button class="btn btn-ghost bg-small">Lưu</button></form></td>{% endif %}
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Chưa có model nào khớp.' if q or nhom else 'Chưa có model máy. Thêm 30–50 model hay sửa nhất trước.') }}{% endif %}
+</section>
+{% if can_edit %}<form method="post" action="/bang-gia/model-may/luu" class="card bg-form" aria-label="Thêm model"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<h2 class="doc-h">Thêm model</h2>
+<label>Tên model<input name="name" list="bg-known" value="{{ form.get('name', '') }}" placeholder="vd: Canon LBP 2900" required maxlength="160" autocomplete="off"></label>
+<datalist id="bg-known">{% for n in suggestions %}<option value="{{ n }}">{% endfor %}</datalist>
+<label>Nhóm máy<select name="group_id" required><option value="">Chọn nhóm máy</option>{% for g in machine_groups %}<option value="{{ g.id }}" {% if form.get('group_id')|string == g.id|string %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></label>
+<label>Ghi chú<input name="note" value="{{ form.get('note', '') }}" maxlength="500" placeholder="vd: linh kiện hiếm, hay hỏng cụm sấy"></label>
+<p class="hint">Gợi ý tên lấy từ máy đang bán và máy khách đã ghi ở Thiết bị.</p>
+<div class="action-bar"><button class="btn-ok">Lưu model</button></div></form>{% endif %}
+</div>{% endblock %}

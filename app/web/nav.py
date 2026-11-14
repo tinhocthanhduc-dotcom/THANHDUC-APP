@@ -43,6 +43,8 @@ GROUPS = (
     )},
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
+        # Bảng giá chung (TUẤN duyệt 14/11/2026): mọi bộ phận xem giá; chỉ giám đốc sửa (kiểm ở app/price_book.py).
+        {'label': 'Bảng giá', 'href': '/bang-gia', 'prefixes': ('/bang-gia',), 'roles': ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'technician')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
         # Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn nháp trợ lý lập từ tin Zalo, kinh doanh kiểm và chốt.
         # TUẤN duyệt 06/11/2026: khách quá nhịp lấy mực để kinh doanh gọi hỏi thăm.
