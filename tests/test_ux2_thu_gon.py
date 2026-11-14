@@ -69,18 +69,18 @@ def test_service_single_machine_and_site_defaults_and_none(client,db,service_peo
     assert 'data-phone="0901234567"' in client.get('/dich-vu/tim-khach?q=minh').text
     html=client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
     site=db.query(CustomerSite).filter_by(customer_code='KTD-000001').one()
-    assert f'<option value="{site.id}" data-address="{site.address}" selected>' in html
+    assert f'name="site_id" value="{site.id}" data-address="{site.address}" checked' in html
     # TUẤN 05/11: khách chỉ có một máy cũng không tự chọn máy đó.
-    assert '<option value="AB123" selected>' not in html and '<option value="" selected>— Không chọn máy —' in html
-    assert '<option value="AB123" selected>' not in client.get('/dich-vu/moi?customer_code=KTD-000001').text
+    assert 'name="pick" value="AB123"' in html and 'value="AB123" checked' not in html
+    assert 'value="AB123" checked' not in client.get('/dich-vu/moi?customer_code=KTD-000001').text
     db.add(Equipment(serial='SECOND',product_code='TD-0001',customer_code='KTD-000001',created_by=service_people['dispatcher'].id))
     db.add(CustomerSite(customer_code='KTD-000001',name='Chi nhánh',created_by=service_people['dispatcher'].id));db.commit()
     html=client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
-    assert '<option value="" selected>— Không chọn máy —' in html and re.search(r'<option value="" data-address="[^"]*" selected>Địa chỉ chính', html)
+    assert 'name="pick" value="SECOND"' in html and ' checked data-sv-pick' not in html and re.search(r'name="site_id" value="" data-address="[^"]*" checked', html)
     response=client.post('/dich-vu/moi',data=dict(csrf=csrf,customer_code='KTD-000001',site_id='',serial='',kind='SUA_TAI_CHO',priority='THUONG',symptom='Máy lỗi'))
     assert response.status_code==400
     assert 'KTD-000001 · Minh Phát' in response.text and '0901234567 · 58 Mã Lò' in response.text
-    assert '<option value="" selected>— Không chọn máy —' in response.text
+    assert 'name="pick" value="AB123"' in response.text and ' checked data-sv-pick' not in response.text
 
 
 def test_last_price_only_confirmed_non_cancelled_one_query(client,db,stocked):

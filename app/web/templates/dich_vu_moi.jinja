@@ -2,7 +2,7 @@
 {% block title %}Nhận đơn dịch vụ{% endblock %}
 {% import 'da_chon.jinja' as picked %}
 {% block main %}
-{# Đợt 3 · khuôn 5: chỉ đổi đầu trang (nút quay lại, dòng phụ, thanh bước) và ô chọn khách cho giống Báo giá; phần còn lại giữ nguyên. #}
+{# TUẤN duyệt mẫu Nhận đơn mới 14/11/2026: 6 bước đánh số, loại việc là nút bấm, tick nhiều máy, địa điểm khác, tóm tắt N máy → N phiếu. #}
 {% import '_ui.jinja' as ui %}
 {% set cust_bad = error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error) %}
 <div class="svn-head">{{ ui.page_head('Nhận đơn dịch vụ', sub='Dịch vụ · phiếu mới', back='/dich-vu') }}
@@ -16,11 +16,7 @@
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% if draft %}<input type="hidden" name="nhap" value="{{ draft.id }}">{% endif %}{% if d.get('hg') %}<input type="hidden" name="hg" value="{{ d.hg }}">{% endif %}
 <fieldset class="svn-grid" {% if not can_create %}disabled{% endif %}>
 <div class="svn-main">
-{% if can_open('/quay-sua/nhan') %}<section class="card qf-card svn-how"><h2 class="qf-h">Cách nhận máy</h2>
-<div class="seg svn-how-seg"><label><input type="radio" checked aria-label="Thợ đến khách"><span>Thợ đến khách</span></label><a class="svn-how-link" href="/quay-sua/nhan{{ '?customer_code=' ~ d.customer_code if d.customer_code }}">Khách mang máy tới ›</a></div>
-<p class="svn-note">Khách mang máy tới cửa hàng: nhận tại quầy, máy vào thẳng Kho kỹ thuật, không cần giao thợ.</p></section>{% endif %}
-<div class="svn-top">
-<section class="card qf-card svn-cust"><h2 class="qf-h">Khách hàng</h2>
+<section class="card qf-card svn-cust"><h2 class="qf-h svn-h"><span class="svn-n">1</span>Khách hàng</h2>
 {% call picked.block(text=picked.card(customer_card), invalid=cust_bad, locked=('Không sửa được ở trạng thái này' if not can_create else '')) %}<div class="service-picker" data-picker>
   <label>Khách hàng (tìm và chọn)<input name="customer_code" value="{{ d.customer_code }}" required autocomplete="off" placeholder="Tên, mã hoặc số điện thoại" data-live=".service-options" data-source="/dich-vu/tim-khach"{% if cust_bad %} aria-invalid="true"{% endif %}></label>
   <span class="hint" data-picked-label>{{ customer_name }}</span><div class="service-options device-options" aria-live="polite"></div>
@@ -29,59 +25,62 @@
   <p class="hint svn-cust-hint">Có thể tìm bằng tên, mã khách hàng hoặc số điện thoại.</p>
 </div>{% endcall %}
 </section>
-<section class="card qf-card svn-machine"><h2 class="qf-h">Máy và địa điểm</h2>
-<div data-service-choices aria-live="polite">{% if d.customer_code %}{% include 'dich_vu_chon_may.jinja' %}{% else %}<p class="svn-note">Chọn khách để xem địa điểm và máy.</p>{% endif %}</div>
-</section>
+<section class="card qf-card svn-req"><h2 class="qf-h svn-h"><span class="svn-n">2</span>Khách cần gì?</h2>
+{% set kind_subs = {'SUA_TAI_CHO': 'Thợ đến sửa ở chỗ khách', 'MANG_VE': 'Thợ nhận máy về Kho kỹ thuật', 'BAO_HANH': 'Chọn phiếu trước để miễn phí', 'MUC_DINH_KY': 'Giao mực theo hợp đồng', '': 'Thợ chọn loại khi báo kết quả'} %}
+<div class="svn-kinds{% if kind_bad %} svn-bad{% endif %}" role="radiogroup" aria-label="Loại dịch vụ">
+{% if ink_only %}<label class="svn-kind"><input type="radio" name="kind" value="MUC_DINH_KY" checked data-sv-kind><span><b>{{ service_kind_choices['MUC_DINH_KY'] }}</b><small>{{ kind_subs['MUC_DINH_KY'] }}</small></span></label>
+{% else %}{% for value, label in service_kind_choices.items() %}<label class="svn-kind"><input type="radio" name="kind" value="{{ value }}" {% if d.kind == value %}checked{% endif %} data-sv-kind {% if kind_bad %}aria-invalid="true"{% endif %}><span><b>{{ 'Mang máy về xưởng' if value=='MANG_VE' else label }}</b><small>{{ kind_subs[value] }}</small></span></label>{% endfor %}
+<label class="svn-kind"><input type="radio" name="kind" value="" {% if not d.kind %}checked{% endif %} data-sv-kind><span><b>Chưa rõ</b><small>{{ kind_subs[''] }}</small></span></label>
+{% if can_open('/quay-sua/nhan') %}<a class="svn-kind svn-kind-go" href="/quay-sua/nhan{{ '?customer_code=' ~ d.customer_code if d.customer_code }}" data-sv-counter><span><b>Khách mang máy tới ›</b><small>Nhận tại quầy, không cần thợ</small></span></a>{% endif %}{% endif %}
 </div>
-<section class="card qf-card svn-req"><h2 class="qf-h">Yêu cầu của khách</h2>
-<div class="svn-kindrow">
-<label class="svn-fld{% if kind_bad %} svn-bad{% endif %}"><span>Loại dịch vụ</span>
-<select name="kind" data-sv-kind {% if kind_bad %}aria-invalid="true"{% endif %}>
-{% if ink_only %}<option value="MUC_DINH_KY" selected>{{ service_kind_choices['MUC_DINH_KY'] }}</option>{% else %}<option value="">— Chưa chọn —</option>
-{% for value, label in service_kind_choices.items() %}<option value="{{ value }}" {% if d.kind == value %}selected{% endif %}>{{ label }}</option>{% endfor %}{% endif %}
-</select></label>
-<div class="svn-fld" role="group" aria-labelledby="svn-prio-label"><p class="group-label" id="svn-prio-label">Mức ưu tiên</p>
+<p class="svn-note" data-sv-kind-hint>{{ kind_hints.get(d.kind or '', kind_hints['']) }}</p>
+<div class="svn-fld svn-prio-row" role="group" aria-labelledby="svn-prio-label"><p class="group-label" id="svn-prio-label">Mức ưu tiên</p>
 <div class="seg stock-seg qf-seg3 svn-prio">
 {% for value, label in service_priorities.items() %}<label{% if value=='KHAN' %} class="svn-urgent"{% endif %}><input type="radio" name="priority" value="{{ value }}" {% if d.priority == value %}checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}
 </div></div>
-</div>
-<p class="svn-note" data-sv-kind-hint>{{ kind_hints.get(d.kind or '', kind_hints['']) }}</p>
 <section class="svn-warranty" data-warranty-section {% if d.kind != 'BAO_HANH' %}hidden{% endif %}>
 <h3>Bảo hành cho phiếu trước</h3>
 {% set warranty_value=d.get('warranty_of_id','') %}{% include 'bao_hanh_picker.jinja' %}
 <p class="hint">Không chọn phiếu trước: kiểm hạn bảo hành của máy. Hết hạn vẫn nhận đơn, không tự miễn phí.</p>
 </section>
 {% include 'dich_vu_moi_muc.jinja' %}
-<label class="svn-fld"><span data-symptom-label>{{ 'Ghi chú cho thợ' if d.kind=='MUC_DINH_KY' else 'Mô tả lỗi' }} <i class="svn-req-mark">*</i></span><textarea name="symptom" required minlength="3" maxlength="4000" placeholder="Khách báo gì, máy báo lỗi gì, đã thử gì…" data-sv-symptom>{{ d.symptom }}</textarea></label>
+</section>
+<section class="card qf-card svn-machine"><div class="svn-h-row"><h2 class="qf-h svn-h"><span class="svn-n">3</span>Máy và địa điểm</h2><span class="svn-count" data-sv-count hidden></span></div>
+<div data-service-choices aria-live="polite">{% if d.customer_code %}{% include 'dich_vu_chon_may.jinja' %}{% else %}<p class="svn-note">Chọn khách để xem địa điểm và máy.</p>{% endif %}</div>
+</section>
+<section class="card qf-card svn-sym"><h2 class="qf-h svn-h"><span class="svn-n">4</span><span data-symptom-label>{{ 'Ghi chú cho thợ' if d.kind=='MUC_DINH_KY' else 'Khách báo lỗi' }} </span><i class="svn-req-mark">*</i> <small class="svn-note">(chung cho các máy không ghi lỗi riêng)</small></h2>
+<label class="svn-fld"><span class="sr-only">Mô tả lỗi</span><textarea name="symptom" required minlength="3" maxlength="4000" placeholder="Khách báo gì, máy báo lỗi gì, đã thử gì…" data-sv-symptom>{{ d.symptom }}</textarea></label>
 <div class="svn-quick"><span class="svn-note">Thêm nhanh:</span>{% for q in ['Kẹt giấy','In mờ, nhạt','Không lên nguồn','Báo lỗi trên màn hình','Kéo nhiều tờ','Lem mực','Kết nối mạng'] %}<button type="button" class="chip" data-sv-quick="{{ q }}">+ {{ q }}</button>{% endfor %}</div>
 </section>
 </div>
 <aside class="qf-side svn-side">
-<section class="card qf-card svn-appt{% if error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT'] %} svn-bad{% endif %}"><h2 class="qf-h">Hẹn khách và giao thợ</h2>
+<section class="card qf-card svn-appt{% if error_code in ['BAD_APPOINTMENT','APPOINTMENT_REQUIRED','BAD_SLOT'] %} svn-bad{% endif %}"><h2 class="qf-h svn-h"><span class="svn-n">5</span>Hẹn khách{% if can_assign_new %} và giao thợ{% endif %}</h2>
 {% with ap_form=d, returning=false %}{% include 'hen_khach.jinja' %}{% endwith %}
-{% if can_assign_new %}<div class="svn-fld" role="group" aria-labelledby="svn-tech-label"><p class="group-label" id="svn-tech-label">Giao thợ ngay <small>(không bắt buộc)</small></p>
+{% if can_assign_new %}<div class="svn-fld" role="group" aria-labelledby="svn-tech-label"><p class="group-label" id="svn-tech-label"><span class="svn-n svn-n-sm">6</span>Giao thợ ngay <small>(không bắt buộc)</small></p>
 <div class="seg stock-seg svn-techs"><label><input type="radio" name="assignee_id" value="" {% if not d.get('assignee_id') %}checked{% endif %}><span>Chưa giao</span></label>{% for tech in technicians %}<label><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if d.get('assignee_id')|string==tech.id|string %}checked{% endif %}><span>{{ tech.full_name }}</span></label>{% endfor %}</div></div>
 <p class="svn-note" data-sv-tech-hint>Chưa giao: phiếu nằm ở hàng chờ Điều phối.</p>{% endif %}
-{% if self_claim_minutes %}<label class="svn-self-claim"><input type="checkbox" name="tu_nhan" value="1" data-sv-self-claim {% if d.get('tu_nhan', '1') == '1' %}checked{% endif %}><span><b>Cho thợ tự nhận trong {{ self_claim_minutes }} phút</b><small>Phiếu chưa giao thợ hiện ở màn tất cả thợ, ai nhận trước người đó làm; hết giờ chưa ai nhận thì chuông báo Điều phối giao. Không áp dụng cho phiếu Khẩn, Bảo hành hoặc đã chọn thợ.</small></span></label>{% endif %}
+{% if self_claim_minutes %}<label class="svn-self-claim" data-sv-self-claim-row><input type="checkbox" name="tu_nhan" value="1" data-sv-self-claim {% if d.get('tu_nhan', '1') == '1' %}checked{% endif %}><span><b>Cho thợ tự nhận trong {{ self_claim_minutes }} phút</b> <details class="svn-why"><summary aria-label="Giải thích">?</summary><small>Phiếu chưa giao thợ hiện ở màn tất cả thợ, ai nhận trước người đó làm; hết giờ chưa ai nhận thì chuông báo Điều phối giao. Không áp dụng cho phiếu Khẩn, Bảo hành hoặc đã chọn thợ.</small></details></span></label>{% endif %}
 </section>
-<section class="card qf-card svn-sum"><h2 class="qf-h">Tóm tắt phiếu</h2>
+<section class="card qf-card svn-sum"><h2 class="qf-h">Tóm tắt</h2>
 <dl class="svn-dl">
 <dt>Khách</dt><dd data-sv-sum="customer">{{ customer_card.name if customer_card else 'Chưa chọn' }}</dd>
-<dt>Địa điểm</dt><dd data-sv-sum="site">Địa chỉ chính</dd>
-<dt>Loại</dt><dd data-sv-sum="kind">{{ service_kind_choices.get(d.kind, 'Chưa phân loại') }}</dd>
+<dt>Việc</dt><dd data-sv-sum="kind">{{ service_kind_choices.get(d.kind, 'Chưa rõ') }}</dd>
 <dt>Ưu tiên</dt><dd data-sv-sum="priority">{{ service_priorities.get(d.priority, '') }}</dd>
+<dt>Địa điểm</dt><dd data-sv-sum="site">Địa chỉ chính</dd>
 <dt>Hẹn</dt><dd data-sv-sum="appointment">Chưa hẹn</dd>
 <dt>Thợ</dt><dd data-sv-sum="tech">Điều phối giao sau</dd>
 </dl>
+<div class="svn-sum-machines" data-sv-sum-machines hidden><b data-sv-sum-mtitle></b><ol data-sv-sum-mlist></ol></div>
 <ul class="svn-checks">
 <li data-sv-check="customer" data-ok="{{ '1' if d.customer_code else '0' }}">Đã chọn khách hàng</li>
 <li data-sv-check="symptom" data-ok="{{ '1' if (d.symptom or '')|trim|length >= 3 else '0' }}">Có mô tả lỗi</li>
 <li data-sv-check="appointment" data-ok="0">Đã hẹn khách</li>
+<li data-sv-check="machine" data-ok="opt" data-optional>Máy: để trống được</li>
 <li data-sv-check="kind" data-ok="{{ '1' if d.kind else 'opt' }}" data-optional>{{ 'Loại: ' ~ service_kind_choices[d.kind] if d.kind in service_kind_choices else 'Loại dịch vụ: để trống được' }}</li>
 </ul>
 </section>
 {% set primary_checks=[] %}{% set wf_part='action' %}{% include 'thanh_buoc.jinja' %}
-<p class="svn-note svn-after">Nhận đơn xong, phiếu vào hàng chờ của điều phối (hoặc thẳng tới thợ nếu đã chọn thợ).</p>
+<p class="svn-note svn-after" data-sv-after>Nhận đơn xong, phiếu vào hàng chờ của điều phối (hoặc thẳng tới thợ nếu đã chọn thợ).</p>
 </aside>
 </fieldset>
 </form>

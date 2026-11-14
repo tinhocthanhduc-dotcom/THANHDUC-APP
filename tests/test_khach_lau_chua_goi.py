@@ -107,7 +107,7 @@ def test_sales_creates_ink_ticket_only(client, db, held):  # noqa: F811
     p, a, b = held
     csrf = service_login(client, p['sales'])
     page = client.get('/dich-vu/moi?customer_code=KTD-000001').text
-    assert 'value="MUC_DINH_KY" selected' in page and 'value="SUA_TAI_CHO"' not in page
+    assert 'name="kind" value="MUC_DINH_KY" checked' in page and 'value="SUA_TAI_CHO"' not in page
     assert client.get('/dich-vu/chon-khach?customer_code=KTD-000001').status_code == 200
     assert client.get('/dich-vu', follow_redirects=False).status_code == 403
     before = db.query(ServiceTicket).count()

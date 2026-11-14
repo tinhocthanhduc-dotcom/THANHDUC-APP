@@ -1017,12 +1017,12 @@ def test_d3_reception_create_and_customer_choices(client, db, service_people, mo
     csrf = service_login(client, make_user('dv.reception', 'reception'))
     page = client.get('/dich-vu/moi').text
     assert 'data-live=".service-options"' in page and 'href="/khach-hang/moi?quay_ve=/dich-vu/moi"' in page
-    # Nhận đơn: Loại dịch vụ là ô xổ xuống, mặc định trống; khách vẫn tìm bằng ô gõ.
-    assert '<select name="kind" data-sv-kind' in page and '<option value="">— Chưa chọn —</option>' in page
-    assert re.search(r'<option value="[A-Z_]+" selected', page) is None
+    # Nhận đơn mới (TUẤN duyệt 14/11/2026): loại việc là nút bấm, mặc định "Chưa rõ"; khách vẫn tìm bằng ô gõ.
+    assert '<input type="radio" name="kind" value="" checked data-sv-kind>' in page and '<b>Chưa rõ</b>' in page
+    assert re.search(r'name="kind" value="[A-Z_]+" checked', page) is None
     assert page.count('data-next-primary') == 1 and 'data-sv-quick="Kẹt giấy"' in page
     choices = client.get('/dich-vu/chon-khach?customer_code=KTD-000001').text
-    assert '<select name="site_id"' in choices and '<select name="serial"' in choices
+    assert 'name="site_id" value="NEW"' in choices and 'name="pick" value="AB123"' in choices
     assert 'Văn phòng' in choices and 'AB123' in choices
     assert 'OTHER456' not in choices and 'Địa điểm khách khác' not in choices
     assert 'Minh Phát' in client.get('/dich-vu/tim-khach?q=minh phat').text
@@ -1238,7 +1238,7 @@ def test_d3_create_errors_keep_form_and_version_is_required(client, db, service_
     response = client.post('/dich-vu/moi', data=data)
     assert response.status_code == 400 and 'không tồn tại' in response.text
     assert 'Giữ nguyên mô tả lỗi</textarea>' in response.text and 'value="KTD-999999"' in response.text
-    assert '<option value="BAO_HANH" selected>' in response.text and 'value="KHAN" checked' in response.text
+    assert 'name="kind" value="BAO_HANH" checked' in response.text and 'value="KHAN" checked' in response.text
     response = client.post('/dich-vu/moi', data={**data, 'customer_code': 'KTD-000001', 'symptom': 'x'})
     assert response.status_code == 400 and 'Mô tả lỗi chưa hợp lệ' in response.text
     ticket = new_service(db, service_people)

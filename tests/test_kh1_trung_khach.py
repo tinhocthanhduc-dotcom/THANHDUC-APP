@@ -96,5 +96,5 @@ def test_nhan_don_dich_vu_chon_san_khach_khong_chon_san_may(client, db, service_
     html = client.get("/dich-vu/moi?customer_code=KTD-000001").text
     assert 'name="customer_code" value="KTD-000001"' in html and "KTD-000001 · Minh Phát" in html
     # TUẤN 05/11: chọn sẵn khách nhưng không chọn sẵn máy cũ, kể cả khi khách chỉ có một máy.
-    assert '<option value="AB123" selected>' not in html and '<option value="" selected>— Không chọn máy —' in html
+    assert 'name="pick" value="AB123"' in html and 'value="AB123" checked' not in html
     assert 'href="/khach-hang/moi?quay_ve=/dich-vu/moi"' in html

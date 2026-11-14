@@ -40,7 +40,8 @@
     var el = form.querySelector('select[name=' + name + ']') || form.querySelector('[name=' + name + ']:checked');
     if (!el) return null;
     if (el.tagName === 'SELECT') { var o = el.options[el.selectedIndex]; return o ? {value: el.value, label: o.textContent.trim(), option: o} : null; }
-    var span = el.closest('label'); return {value: el.value, label: span ? span.textContent.trim() : el.value};
+    var span = el.closest('label'), b = span && span.querySelector('b');
+    return {value: el.value, label: b ? b.textContent.trim() : (span ? span.textContent.trim() : el.value), option: el};
   }
   function set(key, text, empty) { var dd = q('[data-sv-sum=' + key + ']'); if (dd) { dd.textContent = text; dd.classList.toggle('svn-empty', !!empty); } }
   function check(key, ok, text) {
@@ -54,15 +55,57 @@
     if (c.value === 'GIO') { var t = q('[name=appointment_at]'); return t && t.value ? t.value.replace('T', ' ') : ''; }
     return c.label;
   }
+  // Nhận đơn nhiều máy (TUẤN duyệt 14/11/2026): mỗi máy tick một phiếu; ô "Lỗi riêng máy này" hiện khi tick.
+  function machines(kind) {
+    var rows = [];
+    form.querySelectorAll('[data-sv-pick]').forEach(function(box) {
+      var row = box.closest('[data-sv-m]'), own = row && row.querySelector('[data-sv-own]');
+      if (row) row.classList.toggle('is-on', box.checked);
+      if (own) { own.hidden = own.disabled = !box.checked; }
+      if (box.checked) rows.push(box.dataset.label + ' · ' + box.value + (own && own.value.trim() ? ' · ' + own.value.trim() : ''));
+    });
+    var newOn = q('[data-sv-newm]');
+    if (newOn && newOn.checked) form.querySelectorAll('[data-nm-block]').forEach(function(block) {
+      var name = block.querySelector('[name=nm_product_q]'), serial = block.querySelector('[name=nm_serial]'), temp = block.querySelector('[data-nm-temp]');
+      rows.push(((name && name.value.trim()) || 'Máy mới') + ' · ' + (temp && temp.checked ? 'mã tạm' : ((serial && serial.value.trim()) || 'chưa có serial')) + ' (máy mới)');
+    });
+    var n = rows.length, count = q('[data-sv-count]');
+    if (count) { count.hidden = n < 1; count.textContent = n + ' máy · tạo ' + n + ' phiếu'; }
+    var box = q('[data-sv-sum-machines]');
+    if (box) {
+      box.hidden = n < 1;
+      q('[data-sv-sum-mtitle]').textContent = n > 1 ? n + ' máy → ' + n + ' phiếu' : '1 máy';
+      var list = q('[data-sv-sum-mlist]'); list.replaceChildren();
+      rows.forEach(function(text) { var li = document.createElement('li'); li.textContent = text; list.appendChild(li); });
+    }
+    var must = !!(kind && kind.value === 'MANG_VE');
+    var label = q('[data-machine-required-label]');
+    if (label) label.textContent = must ? '(bắt buộc, chọn ít nhất 1 máy)' : '(không bắt buộc)';
+    check('machine', n > 0 || !must, n ? 'Đã chọn ' + n + ' máy' : (must ? 'Mang về xưởng: chọn ít nhất 1 máy' : 'Máy: để trống được'));
+    var li = q('[data-sv-check=machine]'); if (li) li.dataset.ok = n ? '1' : (must ? '0' : 'opt');
+    var button = document.querySelector('[data-next-primary][form=service-create]');
+    if (button) button.textContent = n > 1 ? 'Nhận đơn ' + n + ' máy' : 'Nhận đơn';
+    var after = q('[data-sv-after]');
+    if (after) after.textContent = n > 1 ? 'Tạo ' + n + ' phiếu cùng hẹn, cùng thợ; phiếu đầu là phiếu gốc, thợ thấy chung nhóm "Máy cùng chỗ".' : 'Nhận đơn xong, phiếu vào hàng chờ của điều phối (hoặc thẳng tới thợ nếu đã chọn thợ).';
+  }
+  form.addEventListener('input', function(event) {
+    if (!event.target.matches('[data-sv-mfilter]')) return;
+    var text = event.target.value.trim().toLowerCase();
+    form.querySelectorAll('[data-sv-m]').forEach(function(row) { row.hidden = !!text && row.dataset.text.indexOf(text) < 0 && !row.querySelector('[data-sv-pick]').checked; });
+  });
   function update() {
     var title = q('[data-card-title]'), code = q('[name=customer_code]');
     var hasCustomer = !!(code && code.value && title && title.textContent.trim());
     set('customer', hasCustomer ? title.textContent.split(' · ').slice(1).join(' · ') || title.textContent : 'Chưa chọn', !hasCustomer);
     var site = picked('site_id');
-    set('site', site ? site.label : 'Địa chỉ chính');
+    var isNewSite = !!(site && site.value === 'NEW'), newSite = q('[data-sv-newsite]');
+    if (newSite) { newSite.hidden = newSite.disabled = !isNewSite; }
+    var typedAddr = q('[name=site_address]');
+    set('site', isNewSite ? ((typedAddr && typedAddr.value.trim()) || 'Địa điểm khác') + ' (mới)' : (site ? site.label : 'Địa chỉ chính'));
     var addr = q('[data-sv-site-address]');
     if (addr && site && site.option) addr.textContent = site.option.dataset.address || '';
     var kind = picked('kind');
+    machines(kind);
     set('kind', kind && kind.value ? kind.label : 'Chưa phân loại', !(kind && kind.value));
     var hint = q('[data-sv-kind-hint]');
     if (hint) hint.textContent = hints[kind ? kind.value : ''] || hints[''] || '';
@@ -115,7 +158,7 @@
   function sync() {
     var off = value('priority') === 'KHAN' || value('kind') === 'BAO_HANH' || value('assignee_id') !== '';
     box.disabled = off;
-    if (label) label.classList.toggle('is-off', off);
+    if (label) { label.classList.toggle('is-off', off); label.hidden = value('assignee_id') !== ''; }
   }
   form.addEventListener('change', sync);
   sync();
@@ -140,10 +183,12 @@
     form.dispatchEvent(new Event('change', {bubbles: true}));
   }
   function fill(r) {
-    var kind = q('select[name=kind]');
-    if (kind) { kind.value = 'MUC_DINH_KY'; mark(kind); }
-    if (r.site_id) pick(q('select[name=site_id]'), r.site_id);
-    if (r.serial) pick(q('select[name=serial]'), r.serial);
+    var kind = q('[name=kind][value=MUC_DINH_KY]');
+    if (kind) { kind.checked = true; mark(kind.closest('label')); }
+    var site = r.site_id && q('[name=site_id][value="' + r.site_id + '"]');
+    if (site) { site.checked = true; mark(site.closest('label')); }
+    var machine = r.serial && Array.prototype.find.call(form.querySelectorAll('[data-sv-pick]'), function(el) { return el.value === r.serial && !el.disabled; });
+    if (machine) { machine.checked = true; mark(machine.closest('label')); }
     var box = inkBox();
     if (box) {
       clearInk();
@@ -164,8 +209,8 @@
     if (symptom && r.note && (!symptom.value.trim() || symptom.value.trim() === 'Giao mực định kỳ')) { symptom.value = r.note; mark(symptom); }
   }
   function undo() {
-    var kind = q('select[name=kind]'); if (kind) kind.value = '';
-    var serial = q('select[name=serial]'); if (serial && !serial.disabled) serial.value = '';
+    var kind = q('[name=kind][value=""]'); if (kind) kind.checked = true;
+    filled.forEach(function(el) { var box = el.querySelector && el.querySelector('[data-sv-pick]'); if (box) box.checked = false; });
     clearInk();
     var price = q('[name=ink_price]'); if (price) price.value = '';
     var symptom = q('[name=symptom]'); if (symptom && used && symptom.value === used.note) symptom.value = '';

@@ -195,7 +195,7 @@ def test_intake_requires_machine_only_for_mang_ve(client, db, job, kind, entry):
         if entry == 'web':
             parsed = Tags(r.text)
             assert parsed.find('textarea', name='symptom') and 'Giữ nguyên mô tả nhận máy' in r.text
-            assert 'required' in parsed.find('select', name='serial')[0]
+            assert '(bắt buộc, chọn ít nhất 1 máy)' in r.text and parsed.find('input', name='pick', value=eq.serial)
         assert state(db, t) == before
         if entry == 'api':
             r = client.post('/service-tickets', headers=headers(client, p['dispatcher']),
@@ -216,8 +216,8 @@ def test_intake_with_new_machine_and_duplicate_retains_form(client, db, job, ent
         r = client.post('/service-tickets', headers=auth, json=data)
     else:
         csrf = service_login(client, p['dispatcher'])
-        data = service_form(csrf, kind='MANG_VE', site_id=site.id, create_machine='1', new_serial='INTAKE-NEW',
-            new_product_code='TD-0001', new_product_q='Máy in', symptom='Máy mới cần sửa')
+        data = service_form(csrf, kind='MANG_VE', site_id=site.id, create_machine='1', nm_idx='0', nm_serial='INTAKE-NEW',
+            nm_product_code='TD-0001', nm_product_q='Máy in', symptom='Máy mới cần sửa')
         r = client.post('/dich-vu/moi', data=data)
     assert r.status_code == (201 if entry == 'api' else 200), r.text
     db.expire_all()
@@ -231,8 +231,8 @@ def test_intake_with_new_machine_and_duplicate_retains_form(client, db, job, ent
         assert r.json()['error'] == 'DUPLICATE_SERIAL'
     else:
         parsed = Tags(r.text)
-        assert parsed.find('input', name='new_serial', value='INTAKE-NEW')
-        assert parsed.find('input', name='new_product_code', value='TD-0001')
+        assert parsed.find('input', name='nm_serial', value='INTAKE-NEW')
+        assert parsed.find('input', name='nm_product_code', value='TD-0001')
         assert parsed.find('input', name='create_machine')[0].get('checked', 'missing') != 'missing'
         assert 'Máy mới cần sửa' in r.text
     assert state(db, t) == before
