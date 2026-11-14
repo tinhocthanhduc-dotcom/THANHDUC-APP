@@ -2517,6 +2517,8 @@ class QuickQuote(Base):
         CheckConstraint(_in('status', QUICK_QUOTE_STATUSES), name='ck_quick_quotes_status'),
         CheckConstraint("place in ('CUA_HANG','TAN_NOI')", name='ck_quick_quotes_place'),
         CheckConstraint("sent_via in ('','BOT','CA_NHAN')", name='ck_quick_quotes_sent_via'),
+        CheckConstraint("price_mode in ('KHOANG','CAP')", name='ck_quick_quotes_price_mode'),
+        CheckConstraint('edits >= 0', name='ck_quick_quotes_edits'),
         Index('ix_quick_quotes_status', 'status', 'created_at'),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -2537,6 +2539,12 @@ class QuickQuote(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 0098 Hỏi giá sửa bản 2: cách ghi giá trong tin, link khách, sửa phiếu giữ số.
+    price_mode: Mapped[str] = mapped_column(String(8), default='KHOANG', server_default='KHOANG')
+    token: Mapped[str | None] = mapped_column(String(40), unique=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    edits: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
 
 
 class RepairInspection(Base):

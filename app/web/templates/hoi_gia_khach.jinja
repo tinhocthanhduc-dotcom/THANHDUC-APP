@@ -1,0 +1,16 @@
+{# Link báo giá nhanh hết hạn / không có (mẫu HG3, 14/11/2026). Không hiện giá. #}
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>Báo giá sửa chữa · Thành Đức</title>
+<style>
+:root{--ink:#1d2a3a;--muted:#5d6b7c;--line:#dfe5ec;--bg:#f3f6f9;--card:#fff;--navy:#1f3a5f;--warn:#a15c00}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:16px}.co{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.co b{color:var(--navy);font-size:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px 16px;text-align:center}.h{font-size:20px;margin:0 0 6px;color:var(--warn)}
+.call{display:block;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:600;margin-top:12px}
+</style></head><body><main class="wrap">
+<div class="co"><b>Tin Học Thành Đức</b>{% if co.company_hotline %}<small>{{ co.company_hotline }}</small>{% endif %}</div>
+<section class="card">{% if state == 'het_han' %}<h2 class="h">Báo giá đã hết hiệu lực</h2><p>Anh/chị liên hệ Thành Đức để nhận báo giá mới nhất.</p>
+{% else %}<h2 class="h">Không tìm thấy báo giá</h2><p>Link không đúng. Anh/chị liên hệ Thành Đức để được gửi lại.</p>{% endif %}
+{% if co.company_hotline %}<a class="call" href="tel:{{ co.company_hotline|replace(' ', '')|replace('.', '') }}">Gọi {{ co.company_hotline }}</a>{% endif %}</section>
+</main></body></html>

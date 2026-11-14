@@ -4,14 +4,24 @@
 
 {% macro model_info() %}{% if r.group %}<span class="badge b-lam" data-hg-group>{{ r.group.name }}</span>{% elif r.unknown_model %}<p class="hg-warn" data-hg-group>Model chưa có trong bảng giá: giá sẽ là <b>Cần kỹ thuật xác nhận</b>.</p>{% endif %}{% endmacro %}
 
+{# Bản 2 (mẫu HG1–HG2 duyệt 14/11/2026): lưới cấp 1/2/3/chính hãng, bấm ô bật/tắt; giám đốc sửa giá riêng phiếu. #}
+{% macro grid(lines, edit=True) %}
+<div class="table-scroll hg-grid-wrap"><table class="list-table hg-grid"><thead><tr><th>Dịch vụ</th>{% for k in level_keys %}<th class="num">{{ level_short[k] }}<span class="lt-sub">{{ level_hint[k] }}</span></th>{% endfor %}</tr></thead><tbody>
+{% for ln in lines %}<tr{% if not ln.ok %} class="hg-off"{% endif %}><td class="hg-svc"><b>{{ ln.name }}</b>{% if edit %}<input type="hidden" name="cap_sid" value="{{ ln.service_id }}">{% endif %}
+{% set ws = [] %}{% for k in level_keys %}{% set c = (ln.cells or {}).get(k) %}{% if c and c.on %}{% do ws.append(c.warranty) %}{% endif %}{% endfor %}
+{% if ws and ws|max %}<span class="lt-sub">BH {{ ws|max }} tháng</span>{% elif not ln.ok %}<span class="badge b-cho" title="{{ ln.reason }}">Cần kỹ thuật xác nhận</span>{% endif %}</td>
+{% for k in level_keys %}{% set c = (ln.cells or {}).get(k) %}<td class="num" data-label="{{ level_short[k] }}">{% if c %}
+{% if edit %}<label class="hg-cb{{ ' on' if c.on }}{{ ' ed' if c.price != c.base }}"><input type="checkbox" name="cap" value="{{ ln.service_id }}:{{ k }}" {% if c.on %}checked{% endif %} aria-label="{{ ln.name }} {{ level_short[k] }}">{% if director %}<input class="hg-gia" name="gia_{{ ln.service_id }}_{{ k }}" value="{{ money(c.price) }}" inputmode="numeric" data-money aria-label="Giá {{ ln.name }} {{ level_short[k] }}">{% else %}<span>{{ money(c.price) }}</span>{% endif %}</label>
+{% else %}<span class="hg-cb ro{{ ' on' if c.on }}{{ ' ed' if c.price != c.base }}">{{ money(c.price) }}</span>{% endif %}
+{% if c.price != c.base %}<s class="hg-base">{{ money(c.base) }}</s>{% endif %}
+{% else %}<span class="mu">—</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div>{% endmacro %}
+
 {% macro result() %}
 {% if not r.symptoms %}<p class="hint">Chọn model và hiện tượng khách kể để xem giá tham khảo.</p>
-{% elif not r.lines %}<p class="alert warn">Hiện tượng này chưa gắn dịch vụ cho nhóm máy này. <b>Cần kỹ thuật xác nhận</b>, chưa báo giá.</p>
+{% elif not r.lines %}<p class="alert warn">Hiện tượng này chưa gắn dịch vụ cho nhóm máy này. <b>Cần kỹ thuật xác nhận</b>, chưa báo giá. Có thể thêm hạng mục ngoài bảng giá bên dưới.</p>
 {% else %}
-<div class="table-scroll hg-dk"><table class="list-table hg-table"><thead><tr><th>Dịch vụ</th><th class="num">Giá tham khảo (gồm VAT)</th></tr></thead><tbody>
-{% for ln in r.lines %}<tr><td>{{ ln.name }} <small class="mu">· {{ levels_text(ln) }}</small></td><td class="num">{% if ln.ok %}<b>{{ range_text(ln) }}</b>{% else %}<span class="badge b-cho" title="{{ ln.reason }}">Cần kỹ thuật xác nhận</span>{% endif %}</td></tr>{% endfor %}
-</tbody></table></div>
-<div class="hg-tiles">{% for ln in r.lines %}<div class="hg-tile"><b>{{ ln.name }}</b> <small class="mu">{{ levels_text(ln) }}</small><span class="hg-money">{% if ln.ok %}{{ range_text(ln) }}{% else %}<span class="badge b-cho">Cần kỹ thuật xác nhận</span>{% endif %}</span></div>{% endfor %}</div>
+{{ grid(r.lines) }}
 {% for f in r.trip_fees %}<p class="hg-fee">+ {{ f.name }}: <b>{{ money(f.price) }}</b></p>{% endfor %}
-<p class="hint">Các dịch vụ thay thế nhau tùy nguyên nhân, không cộng lại. Giá lấy từ bảng giá chung, chưa kiểm tra máy.</p>
+<p class="hint">Ô xanh là cấp đưa vào tin và bản in; mặc định bật đúng cấp hay gặp với hiện tượng.{% if director %} Giám đốc sửa số trong ô để đổi giá riêng cho phiếu này.{% else %} Giá lấy đúng bảng giá chung.{% endif %} Các dịch vụ thay thế nhau tùy nguyên nhân, không cộng lại.</p>
 {% endif %}{% endmacro %}

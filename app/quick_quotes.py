@@ -8,8 +8,11 @@ Khách hỏi giá qua Zalo/điện thoại khi chưa gửi máy. Nhân viên ch�
 - Lưu ảnh chụp giá lúc báo (lines, text); bảng giá đổi sau không làm sai tin đã gửi.
 - Khách đồng ý: Chuyển thành phiếu nhận máy (quầy) hoặc Hẹn thợ tới (nhận đơn dịch vụ), điền sẵn, không nhập lại.
 - Không trừ kho, không tạo nợ, không gửi tự động: người làm bấm Sao chép hoặc Gửi Zalo công ty.
+Bản 2 (TUẤN duyệt mẫu HG1–HG3 14/11/2026): lưới ô cấp 1/2/3/chính hãng bật/tắt; giám đốc sửa giá ô (giữ giá bảng);
+hạng mục ngoài bảng giá; tin ghi khoảng hoặc từng cấp + link /hg/{mã}; sửa phiếu giữ số HG; bản in A4.
 """
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -67,10 +70,75 @@ def _fee(session: Session, *words) -> list[PriceService]:
     return [s for s in pb.services(session, 'PHI', active_only=True) if any(w in fold(s.name) for w in words)]
 
 
-def compute(session: Session, model_name: str, symptoms: list[str], place: str) -> dict:
-    """Khoảng giá tham khảo cho các hiện tượng đã chọn. Mỗi dịch vụ một dòng; cấp lấy đúng level_min..level_max đã khai."""
+LEVEL_KEYS = ('1', '2', '3', 'CH')
+LEVEL_NAMES = {'1': 'cấp 1', '2': 'cấp 2', '3': 'cấp 3', 'CH': 'chính hãng'}
+LEVEL_SHORT = {'1': 'Cấp 1', '2': 'Cấp 2', '3': 'Cấp 3', 'CH': 'Chính hãng'}
+LEVEL_HINT = {'1': 'Nhẹ', '2': 'Trung bình', '3': 'Nặng', 'CH': 'LK hãng · cấp 2'}
+MODES = {'KHOANG': 'Khoảng giá (từ – đến)', 'CAP': 'Từng cấp'}
+MAX_CUSTOM = 5
+MAX_PRICE = 500_000_000
+VALID_DAYS = 7
+
+
+def _int(text) -> int | None:
+    digits = ''.join(ch for ch in str(text or '') if ch.isdigit())
+    return int(digits[:12]) if digits else None
+
+
+def parse_options(form) -> dict:
+    """Lựa chọn trên lưới cấp (mẫu HG2 duyệt 14/11/2026): ô cấp bật/tắt, giá giám đốc sửa, hạng mục ngoài bảng giá."""
+    getlist = form.getlist if hasattr(form, 'getlist') else (lambda k: form.get(k) if isinstance(form.get(k), list) else ([form[k]] if k in form else []))
+    seen = {_int(v) for v in getlist('cap_sid')} - {None}
+    picks = {sid: set() for sid in seen}
+    for v in getlist('cap'):
+        sid, _, lv = str(v).partition(':')
+        sid = _int(sid)
+        if sid in picks and lv in LEVEL_KEYS:
+            picks[sid].add(lv)
+    overrides = {}
+    for key in (form.keys() if hasattr(form, 'keys') else []):
+        if str(key).startswith('gia_'):
+            parts = str(key).split('_')
+            if len(parts) == 3 and _int(parts[1]) is not None and parts[2] in LEVEL_KEYS:
+                val = _int(form.get(key))
+                if val is not None:
+                    overrides[(_int(parts[1]), parts[2])] = val
+    names, prices, months = getlist('hm_ten'), getlist('hm_gia'), getlist('hm_bh')
+    customs = []
+    for i, name in enumerate(names[:20]):
+        name = ' '.join(str(name or '').split())[:200]
+        price = _int(prices[i]) if i < len(prices) else None
+        warranty = _int(months[i]) if i < len(months) else None
+        if name or price:
+            customs.append(dict(name=name, price=price, warranty=warranty or 0))
+    mode = str(form.get('cach', '') or 'KHOANG')
+    return dict(picks=picks if seen else None, overrides=overrides, customs=customs, mode=mode if mode in MODES else 'KHOANG')
+
+
+def check_customs(customs: list[dict]) -> list[dict]:
+    if len(customs) > MAX_CUSTOM:
+        raise BusinessError('BAD_ITEM', f'Tối đa {MAX_CUSTOM} hạng mục ngoài bảng giá.')
+    out = []
+    for c in customs:
+        if len(c['name']) < 2:
+            raise BusinessError('BAD_ITEM', 'Hạng mục ngoài bảng giá: nhập tên việc sửa.')
+        if not c['price'] or c['price'] < 1000 or c['price'] > MAX_PRICE:
+            raise BusinessError('BAD_ITEM', f'Hạng mục "{c["name"]}": nhập giá gồm VAT (từ 1.000đ).')
+        if not 0 <= (c['warranty'] or 0) <= 36:
+            raise BusinessError('BAD_ITEM', f'Hạng mục "{c["name"]}": bảo hành 0–36 tháng.')
+        out.append(dict(custom=True, name=c['name'], price=c['price'], warranty=c['warranty'] or 0, ok=True,
+                        low=c['price'], high=c['price'], levels=[], cells={}, reason=''))
+    return out
+
+
+def compute(session: Session, model_name: str, symptoms: list[str], place: str, picks: dict | None = None,
+            overrides: dict | None = None, customs: list[dict] | None = None) -> dict:
+    """Giá tham khảo cho các hiện tượng đã chọn. Mỗi dịch vụ một dòng với đủ ô cấp 1/2/3/chính hãng có giá;
+    mặc định bật đúng cấp đã khai (level_min..level_max). picks {service_id: {'1','CH'..}} thay mặc định cho dịch vụ đã thấy,
+    overrides {(service_id, cấp): giá gồm VAT} là giá giám đốc sửa riêng cho phiếu."""
     model_name = ' '.join(str(model_name or '').split())[:160]
     place = place if place in PLACES else 'CUA_HANG'
+    picks, overrides = picks or {}, overrides or {}
     chosen = []
     for s in symptoms[:MAX_SYMPTOMS]:
         s = ' '.join(str(s or '').split())[:200]
@@ -89,7 +157,7 @@ def compute(session: Session, model_name: str, symptoms: list[str], place: str) 
                 continue
             lo, hi = ranges.get(r.service_id, (r.level_min, r.level_max))
             ranges[r.service_id] = (min(lo, r.level_min), max(hi, r.level_max))
-    lines = []
+    lines, overridden = [], []
     for sid, (lo, hi) in ranges.items():
         s = session.get(PriceService, sid)
         if s is None or s.kind != 'GOI' or not s.active:
@@ -97,23 +165,37 @@ def compute(session: Session, model_name: str, symptoms: list[str], place: str) 
         if model is not None and not session.scalar(select(RepairPrice.id).where(
                 RepairPrice.service_id == sid, or_(RepairPrice.group_id == model.group_id, RepairPrice.model_id == model.id)).limit(1)):
             continue  # nhóm máy này không làm dịch vụ (cả 3 cấp trống, không giá riêng model): không hiện
-
-        prices, levels, reason = [], [], ''
-        for lv in range(lo, hi + 1):
-            r = pb.lookup(session, sid, model.name if model else model_name, lv)
-            if r['ok']:
-                prices.append(r['price_vat'])
-                levels.append(lv)
-            else:
-                reason = reason or r['reason']
-        line = dict(service_id=sid, name=s.name, sort=s.sort, levels=levels, declared=[lo, hi], ok=bool(prices),
-                    low=min(prices) if prices else None, high=max(prices) if prices else None, reason='' if prices else reason)
+        want = picks.get(sid)
+        if want is None:
+            want = {str(lv) for lv in range(lo, hi + 1)}
+        cells, reason = {}, ''
+        for key in LEVEL_KEYS:
+            r = pb.lookup(session, sid, model.name if model else model_name, 2 if key == 'CH' else int(key), genuine=key == 'CH')
+            if not r['ok']:
+                if key != 'CH' and lo <= int(key) <= hi:
+                    reason = reason or r['reason']
+                cells[key] = None
+                continue
+            base = r['price_vat']
+            price = overrides.get((sid, key), base)
+            if not 1000 <= price <= MAX_PRICE:
+                raise BusinessError('BAD_PRICE', f'{s.name} {LEVEL_NAMES[key]}: giá phải từ 1.000đ.')
+            if price != base:
+                overridden.append((sid, key))
+            cells[key] = dict(price=price, base=base, warranty=r['warranty'] or 0, on=key in want)
+        on = [k for k in LEVEL_KEYS if cells[k] and cells[k]['on']]
+        prices = [cells[k]['price'] for k in on]
+        line = dict(service_id=sid, name=s.name, sort=s.sort, cells=cells, levels=[int(k) for k in on if k != 'CH'],
+                    genuine='CH' in on, declared=[lo, hi], ok=bool(prices), low=min(prices) if prices else None,
+                    high=max(prices) if prices else None, reason='' if prices else (reason or VERIFY))
         lines.append(line)
     lines.sort(key=lambda x: (not x['ok'], x['sort'], fold(x['name'])))
     fees = [dict(name=f.name, price=pb.with_vat(f.price), note=(f.description or '').strip()[:160]) for f in _fee(session, 'kiem tra')]
     trip = sorted((dict(name=f.name, price=pb.with_vat(f.price), note='') for f in _fee(session, 'tan noi')), key=lambda x: x['price']) if place == 'TAN_NOI' else []
+    extra = check_customs(customs or [])
     return dict(model_name=model.name if model else model_name, model=model, group=group, symptoms=chosen, place=place,
-                lines=lines, check_fees=fees, trip_fees=trip, unknown_model=bool(model_name) and model is None)
+                lines=lines, customs=extra, check_fees=fees, trip_fees=trip, overridden=overridden,
+                unknown_model=bool(model_name) and model is None)
 
 
 def range_text(line: dict) -> str:
@@ -125,20 +207,37 @@ def range_text(line: dict) -> str:
 
 
 def levels_text(line: dict) -> str:
-    lv = line['levels'] or list(range(line['declared'][0], line['declared'][1] + 1))
-    return f'C{lv[0]}' if len(lv) == 1 else f'C{lv[0]}–C{lv[-1]}'
+    if line.get('custom'):
+        return 'ngoài bảng giá'
+    lv = line['levels'] or ([] if line.get('genuine') else list(range(line['declared'][0], line['declared'][1] + 1)))
+    text = '' if not lv else (f'C{lv[0]}' if len(lv) == 1 else f'C{lv[0]}–C{lv[-1]}')
+    if line.get('genuine'):
+        text = (text + ' + ' if text else '') + 'CH'
+    return text
 
 
-def zalo_text(result: dict) -> str:
+def levels_list_text(line: dict) -> str:
+    """Từng cấp: "cấp 1 486.000đ · cấp 2 675.000đ"."""
+    cells = line.get('cells') or {}
+    return ' · '.join(f"{LEVEL_NAMES[k]} {money(cells[k]['price'])}đ" for k in LEVEL_KEYS if cells.get(k) and cells[k]['on'])
+
+
+def zalo_text(result: dict, mode: str = 'KHOANG', link: str = '') -> str:
     model = result['model_name'] or 'của anh/chị'
     sym = ', '.join(s[:1].lower() + s[1:] for s in result['symptoms'])
     head = f'Dạ, máy {model}' + (f' bị {sym}' if sym else '')
     priced = [ln for ln in result['lines'] if ln['ok']]
+    extra = result.get('customs') or []
     out = []
-    if priced:
+    if priced or extra:
         out.append(head + ' thì chi phí tùy nguyên nhân và tình trạng máy. Giá tham khảo bên em (đã gồm VAT):')
         for ln in priced:
-            out.append(f"• {ln['name']}: " + (f"khoảng {money(ln['low'])}đ" if ln['low'] == ln['high'] else f"{money(ln['low'])} – {money(ln['high'])}đ"))
+            if mode == 'CAP' and ln.get('cells'):
+                out.append(f"• {ln['name']}: {levels_list_text(ln)}")
+            else:
+                out.append(f"• {ln['name']}: " + (f"khoảng {money(ln['low'])}đ" if ln['low'] == ln['high'] else f"{money(ln['low'])} – {money(ln['high'])}đ"))
+        for ln in extra:
+            out.append(f"• {ln['name']}: {money(ln['price'])}đ")
     else:
         out.append(head + ' thì bên em cần kỹ thuật kiểm tra máy mới báo được chi phí chính xác.')
     for f in result['trip_fees']:
@@ -147,6 +246,8 @@ def zalo_text(result: dict) -> str:
         note = f['note'].rstrip('.')
         out.append(f"{f['name']} {money(f['price'])}đ" + (f", {note[:1].lower() + note[1:]}." if note else '.'))
     out.append('Sau khi kiểm tra, Thành Đức sẽ báo chi phí và thời gian cụ thể, chỉ sửa khi anh/chị đồng ý ạ.')
+    if link:
+        out.append(f'Xem báo giá chi tiết: {link}')
     return '\n'.join(out)[:MAX_TEXT]
 
 
@@ -169,30 +270,122 @@ def _clean_text(text) -> str:
     return text
 
 
-def create(session: Session, user: User, *, model_name: str, symptoms: list[str], place: str, customer_code: str = '',
-           contact: str = '', note: str = '', text: str | None = None) -> QuickQuote:
-    require(user)
+def is_director(user: User) -> bool:
+    return bool(user and has_role(user, 'director'))
+
+
+def link(row: QuickQuote) -> str:
+    from .dispatch_alerts import base_url
+    return f'{base_url()}/hg/{row.token}' if row.token else ''
+
+
+def valid_until(row: QuickQuote):
+    return ((row.updated_at or row.created_at).astimezone(TZ) + timedelta(days=VALID_DAYS)).date()
+
+
+def _with_link(body: str, url: str) -> str:
+    if not url or url in body:
+        return body
+    return _clean_text(body.rstrip() + f'\nXem báo giá chi tiết: {url}')
+
+
+def _build(session: Session, user: User, model_name, symptoms, place, options: dict | None):
     if len(' '.join(str(model_name or '').split())) < 2:
         raise BusinessError('BAD_MODEL', 'Nhập model máy khách hỏi, ví dụ Canon LBP 2900.')
-    result = compute(session, model_name, symptoms, place)
+    options = options or {}
+    result = compute(session, model_name, symptoms, place, options.get('picks'), options.get('overrides'), options.get('customs'))
     if not result['symptoms']:
         raise BusinessError('BAD_SYMPTOM', 'Chọn ít nhất một hiện tượng khách kể.')
-    customer = _customer(session, customer_code)
-    body = _clean_text(text) if text is not None and str(text).strip() else zalo_text(result)
+    if result['overridden'] and not is_director(user):
+        raise BusinessError('DIRECTOR_ONLY', 'Chỉ giám đốc sửa giá từng ô. Hãy để giá theo bảng giá chung.', status=403)
     lines = [{k: v for k, v in ln.items() if k != 'sort'} for ln in result['lines']]
+    lines += result['customs'] + [dict(fee=True, **f) for f in result['trip_fees'] + result['check_fees']]
+    return result, lines
+
+
+def _summary(lines):
+    return [[ln['name'], ln.get('low'), ln.get('high'), levels_text(ln) if not ln.get('fee') else ''] for ln in lines if not ln.get('fee')]
+
+
+def create(session: Session, user: User, *, model_name: str, symptoms: list[str], place: str, customer_code: str = '',
+           contact: str = '', note: str = '', text: str | None = None, options: dict | None = None) -> QuickQuote:
+    require(user)
+    result, lines = _build(session, user, model_name, symptoms, place, options)
+    customer = _customer(session, customer_code)
+    mode = (options or {}).get('mode', 'KHOANG')
     row = QuickQuote(number=doc_numbers.next_number(session, PREFIX, _now().date()), customer_code=customer.code if customer else None,
                      contact=' '.join(str(contact or '').split())[:200], model_name=result['model_name'],
                      model_id=result['model'].id if result['model'] else None, place=result['place'], symptoms=result['symptoms'],
-                     note=str(note or '').strip()[:2000],
-                     lines=lines + [dict(fee=True, **f) for f in result['trip_fees'] + result['check_fees']],
-                     text=body, created_by=user.id)
+                     note=str(note or '').strip()[:2000], lines=lines, price_mode=mode, token=secrets.token_urlsafe(18),
+                     text='', created_by=user.id)
+    url = link(row)
+    row.text = _with_link(_clean_text(text), url) if text is not None and str(text).strip() else zalo_text(result, mode, url)
     session.add(row)
     session.flush()
     audit.record(session, user, 'quick_quote.create', 'quick_quote', str(row.id), None,
                  dict(number=row.number, model=row.model_name, symptoms=row.symptoms, place=row.place, customer=row.customer_code or '',
-                      lines=[[ln['name'], ln.get('low'), ln.get('high')] for ln in lines]))
+                      mode=mode, lines=_summary(lines), overridden=[f'{sid}:{lv}' for sid, lv in result['overridden']]))
     session.commit()
     return row
+
+
+def update(session: Session, user: User, qid: int, *, model_name: str, symptoms: list[str], place: str, customer_code: str = '',
+           contact: str = '', note: str = '', text: str | None = None, options: dict | None = None) -> QuickQuote:
+    """Sửa phiếu (mẫu HG2): giữ số HG, chỉ khi chờ khách. Tin đã gửi thì về Chờ khách trả lời để gửi lại tin mới."""
+    row = _open(session, user, qid)
+    result, lines = _build(session, user, model_name, symptoms, place, options)
+    customer = _customer(session, customer_code)
+    mode = (options or {}).get('mode', 'KHOANG')
+    before = dict(model=row.model_name, symptoms=row.symptoms, place=row.place, customer=row.customer_code or '', mode=row.price_mode,
+                  status=row.status, lines=_summary(row.lines))
+    row.customer_code = customer.code if customer else None
+    row.contact = ' '.join(str(contact or '').split())[:200]
+    row.model_name, row.model_id = result['model_name'], result['model'].id if result['model'] else None
+    row.place, row.symptoms, row.note = result['place'], result['symptoms'], str(note or '').strip()[:2000]
+    row.lines, row.price_mode = lines, mode
+    row.token = row.token or secrets.token_urlsafe(18)
+    url = link(row)
+    row.text = _with_link(_clean_text(text), url) if text is not None and str(text).strip() else zalo_text(result, mode, url)
+    if row.status == 'DA_GUI':
+        row.status = 'MOI'
+    row.updated_at, row.updated_by, row.edits = _now(), user.id, (row.edits or 0) + 1
+    audit.record(session, user, 'quick_quote.update', 'quick_quote', str(row.id), before,
+                 dict(model=row.model_name, symptoms=row.symptoms, place=row.place, customer=row.customer_code or '', mode=mode,
+                      status=row.status, lines=_summary(lines), overridden=[f'{sid}:{lv}' for sid, lv in result['overridden']]))
+    session.commit()
+    return row
+
+
+def from_row(row: QuickQuote) -> dict:
+    """Điền sẵn form sửa từ phiếu đã lưu: cấp đã bật, giá giám đốc đã sửa, hạng mục ngoài bảng giá."""
+    picks, overrides, customs = {}, {}, []
+    for ln in row.lines:
+        if ln.get('fee'):
+            continue
+        if ln.get('custom'):
+            customs.append(dict(name=ln['name'], price=ln['price'], warranty=ln.get('warranty') or 0))
+            continue
+        cells = ln.get('cells')
+        if cells is None:  # phiếu bản 1: chỉ có danh sách cấp
+            picks[ln['service_id']] = {str(lv) for lv in ln.get('levels') or []}
+            continue
+        picks[ln['service_id']] = {k for k, c in cells.items() if c and c.get('on')}
+        overrides.update({(ln['service_id'], k): c['price'] for k, c in cells.items() if c and c['price'] != c['base']})
+    return dict(model=row.model_name, ht=list(row.symptoms), noi=row.place, khach=row.customer_code or '', lien_he=row.contact,
+                ghi_chu=row.note, text_edited='', text='', options=dict(picks=picks, overrides=overrides, customs=customs, mode=row.price_mode))
+
+
+def public(session: Session, token: str) -> tuple[QuickQuote | None, str]:
+    """Link khách: ok | het_han | khong_co. Phiếu khách không sửa hoặc quá hạn không hiện giá."""
+    token = str(token or '')[:40]
+    if len(token) < 16:
+        return None, 'khong_co'
+    row = session.scalars(select(QuickQuote).where(QuickQuote.token == token)).first()
+    if row is None:
+        return None, 'khong_co'
+    if row.status == 'KHONG_SUA' or valid_until(row) < _now().date():
+        return row, 'het_han'
+    return row, 'ok'
 
 
 def load(session: Session, user: User, qid: int, lock: bool = False) -> QuickQuote:

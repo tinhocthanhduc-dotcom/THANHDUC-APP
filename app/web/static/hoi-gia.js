@@ -29,14 +29,25 @@
   text.addEventListener('input', function () { edited.value = '1'; reset.hidden = false; });
   form.querySelector('[data-hg-reset-btn]').addEventListener('click', function () { edited.value = ''; reset.hidden = true; refresh(); });
 
+  // Bản 2 (mẫu HG2 duyệt 14/11/2026): gửi cả lựa chọn ô cấp, giá giám đốc sửa, hạng mục ngoài bảng giá, cách ghi tin.
+  var SKIP = {text: 1, csrf: 1, form_key: 1, next: 1, text_edited: 1};
   function params() {
     var data = new URLSearchParams();
-    ['model', 'noi', 'khach'].forEach(function (name) {
-      var el = form.querySelector('[name=' + name + ']:not([type=radio])') || form.querySelector('[name=' + name + ']:checked');
-      if (el) data.append(name, el.value);
-    });
-    form.querySelectorAll('[name=ht]:checked').forEach(function (el) { data.append('ht', el.value); });
+    new FormData(form).forEach(function (value, name) { if (!SKIP[name]) data.append(name, value); });
     return data;
+  }
+  function refreshText() {
+    if (edited.value === '1') return;
+    var current = ++seq;
+    fetch(form.dataset.preview + '?' + params().toString(), {credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
+      .then(function (html) {
+        if (current !== seq) return;
+        var box = document.createElement('div'); box.innerHTML = html;
+        var t = box.querySelector('[data-part=text]');
+        if (t && edited.value !== '1') text.value = t.value;
+      })
+      .catch(function () {});
   }
   function refresh() {
     var current = ++seq;
@@ -55,8 +66,24 @@
       .catch(function () {});
   }
   form.addEventListener('change', function (event) {
-    var n = event.target.name;
+    var n = event.target.name || '';
     if (n === 'ht' || n === 'noi' || n === 'model') refresh();
+    else if (n === 'cap' || n === 'cach' || n.indexOf('gia_') === 0 || n.indexOf('hm_') === 0) {
+      if (n === 'cap') event.target.closest('.hg-cb').classList.toggle('on', event.target.checked);
+      refreshText();
+    }
+  });
+  // Hạng mục ngoài bảng giá: thêm dòng, tối đa data-max.
+  var custBox = form.querySelector('[data-hg-customs]');
+  if (custBox) custBox.querySelector('[data-hg-cust-add]').addEventListener('click', function (event) {
+    var list = custBox.querySelector('[data-hg-cust-list]'), rows = list.querySelectorAll('[data-hg-cust]');
+    var max = parseInt(custBox.dataset.max, 10) || 5;
+    if (rows.length >= max) return;
+    var row = rows[rows.length - 1].cloneNode(true);
+    row.querySelectorAll('input').forEach(function (el) { el.value = ''; });
+    list.appendChild(row);
+    row.querySelector('input').focus();
+    if (rows.length + 1 >= max) event.currentTarget.hidden = true;
   });
   form.querySelector('[data-hg-model]').addEventListener('input', function () {
     clearTimeout(timer); timer = setTimeout(refresh, 400);

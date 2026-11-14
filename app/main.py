@@ -81,6 +81,8 @@ from .web.repair_inspection import public_router as repair_quote_public  # noqa:
 app.include_router(repair_quote_public)  # /bg/<mã>: link báo giá sửa cho khách, không đăng nhập
 from .web.contract_quotes import public_router as contract_quote_public  # noqa: E402
 app.include_router(contract_quote_public)  # /bgh/<mã>: link báo giá hợp đồng cho khách, không đăng nhập
+from .web.quick_quotes import public_router as quick_quote_public  # noqa: E402
+app.include_router(quick_quote_public)  # /hg/<mã>: link báo giá nhanh (Hỏi giá sửa) cho khách, không đăng nhập
 app.include_router(web.router)
 app.mount("/static", web.static, name="static")
 app.add_exception_handler(web.LoginRequired, web.login_required_handler)

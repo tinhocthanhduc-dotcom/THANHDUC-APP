@@ -1,0 +1,48 @@
+{# Mẫu HG3 duyệt 14/11/2026: bản A4 báo giá nhanh (Hỏi giá sửa), khuôn in chung; chỉ phần cho khách, không linh kiện, giá vốn. #}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set svc = row.lines|rejectattr('fee')|rejectattr('custom')|list %}
+{% set custom = row.lines|selectattr('custom')|list %}
+{% set fees = row.lines|selectattr('fee')|list %}
+{% set cols = [] %}{% for k in level_keys %}{% for ln in svc %}{% if (ln.cells or {}).get(k) and ln.cells[k].on and k not in cols %}{% do cols.append(k) %}{% endif %}{% endfor %}{% endfor %}
+{% set legacy = svc and not (svc|selectattr('cells')|list) %}
+{% set ncol = (cols|length) if cols else 1 %}
+{% block title %}{{ row.number }}{% endblock %}
+{% block tools_sub %}Báo giá sửa chữa · {{ row.model_name }}{% endblock %}
+{% block doc_title %}BÁO GIÁ DỊCH VỤ SỬA CHỮA MÁY IN{% endblock %}
+{% block doc_sub %}Báo giá tham khảo trước khi kiểm tra máy{% endblock %}
+{% block meta %}{{ f.meta('Số', row.number) }}{{ f.meta('Ngày', (row.updated_at or row.created_at)|vn_date) }}{{ f.meta('Hiệu lực đến', until.strftime('%d/%m/%Y')) }}{% endblock %}
+{% block body %}
+<style>
+.hg-lv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0 0;break-inside:avoid}
+.hg-lv div{border:1px solid var(--in-line);border-radius:6px;padding:7px 9px;font-size:11px;color:#374151}
+.hg-lv b{display:block;color:var(--in-navy);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.hg-terms{margin-top:12px;break-inside:avoid}
+.hg-terms h4{margin:0 0 4px;font-size:10.5px;font-weight:700;color:var(--in-navy);text-transform:uppercase;letter-spacing:.8px}
+.hg-terms ol{margin:0;padding-left:16px;font-size:11px;color:#374151;display:grid;gap:2px}
+.in-it td.m.na{color:var(--in-mute);font-style:italic;font-size:10.5px;white-space:normal}
+.in-it td.bh{white-space:nowrap}
+.hg-note{margin:8px 0 0;font-size:11px;color:#374151}
+</style>
+<div class="in-cards">{{ f.card('Khách hàng', customer.name if customer else (row.contact or 'Quý khách'), [('Mã khách', customer.code if customer else ''), ('Địa chỉ', customer.address if customer else ''), ('Điện thoại', (customer|customer_phones('')) if customer else '')]) }}
+{{ f.card('Thiết bị', row.model_name, [('Hiện tượng', row.symptoms|join('; ')), ('Nơi sửa', places[row.place]), ('Người báo giá', maker.full_name if maker else '')]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col>{% for k in cols %}<col style="width:{{ {1: 34, 2: 28, 3: 24, 4: 22}[cols|length] }}mm">{% endfor %}{% if not cols %}<col style="width:40mm">{% endif %}<col style="width:18mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Dịch vụ sửa chữa<small>trọn gói công + linh kiện</small></th>{% for k in cols %}<th class="m">{{ level_short[k] }}<small>{{ level_hint[k] }}</small></th>{% endfor %}{% if not cols %}<th class="m">Đơn giá<small>đã gồm VAT</small></th>{% endif %}<th class="c">Bảo hành</th></tr></thead><tbody>
+{% set n = namespace(i=0) %}
+{% for ln in svc %}{% set n.i = n.i + 1 %}<tr><td class="c">{{ n.i }}</td><td class="n">{{ ln.name }}</td>
+{% if legacy or not ln.cells %}<td class="m{{ ' na' if not ln.ok }}" colspan="{{ ncol }}">{{ (money(ln.low) if ln.low == ln.high else money(ln.low) ~ ' – ' ~ money(ln.high)) if ln.ok else 'Báo khi kiểm tra' }}</td><td class="c bh">—</td>
+{% else %}{% set ws = [] %}{% for k in cols %}{% set c = ln.cells.get(k) %}<td class="m{{ ' na' if not (c and c.on) }}">{% if c and c.on %}{{ money(c.price) }}{% do ws.append(c.warranty) %}{% else %}—{% endif %}</td>{% endfor %}{% if not cols %}<td class="m na">Báo khi kiểm tra</td>{% endif %}
+<td class="c bh">{{ (ws|max ~ ' tháng') if ws and ws|max else '—' }}</td>{% endif %}</tr>{% endfor %}
+{% for c in custom %}{% set n.i = n.i + 1 %}<tr><td class="c">{{ n.i }}</td><td class="n">{{ c.name }}</td><td class="m" colspan="{{ ncol }}">{{ money(c.price) }}</td><td class="c bh">{{ (c.warranty ~ ' tháng') if c.warranty else '—' }}</td></tr>{% endfor %}
+{% for x in fees %}{% set n.i = n.i + 1 %}<tr><td class="c">{{ n.i }}</td><td class="n">{{ x.name }}{% if x.note %}<span class="cd">{{ x.note }}</span>{% endif %}</td><td class="m" colspan="{{ ncol }}">{{ money(x.price) }}</td><td class="c bh">—</td></tr>{% endfor %}
+</tbody></table>
+<p class="hg-note"><b>Đơn vị: đồng, đã bao gồm thuế GTGT 8%.</b> Các dịch vụ thay thế nhau tùy nguyên nhân hỏng, không cộng dồn.</p>
+<div class="hg-lv"><div><b>Cấp 1 · Nhẹ</b>Chỉnh, vệ sinh, thay chi tiết nhỏ; không thay linh kiện chính.</div><div><b>Cấp 2 · Trung bình</b>Thay 1 linh kiện chính của cụm.</div><div><b>Cấp 3 · Nặng</b>Thay từ 2 linh kiện chính hoặc thay cả cụm.</div><div><b>Chính hãng</b>Linh kiện chính hãng, mức cấp 2.</div></div>
+<div class="hg-terms"><h4>Điều khoản</h4><ol>
+<li>Giá tham khảo khi chưa kiểm tra máy. Kỹ thuật Thành Đức kiểm tra rồi báo cấp sửa, chi phí và thời gian cụ thể; chỉ sửa khi khách hàng đồng ý.</li>
+<li>Bảo hành tính từ ngày bàn giao máy, cho hạng mục đã sửa. Không bảo hành hư hỏng do cháy nổ, vào nước, rơi vỡ, dùng mực hoặc giấy không đúng chuẩn.</li>
+<li>Thanh toán khi nhận máy: tiền mặt hoặc chuyển khoản.</li>
+<li>Báo giá có hiệu lực đến hết ngày {{ until.strftime('%d/%m/%Y') }}.</li></ol></div>
+{% endblock %}
+{% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ (row.updated_at or row.created_at)|vn_long_date }}</div>
+{{ f.signatures([('Khách hàng', '(Xác nhận đồng ý, ký ghi rõ họ tên)'), ('Người báo giá', maker.full_name if maker else '(Ký, ghi rõ họ tên)')]) }}{% endblock %}

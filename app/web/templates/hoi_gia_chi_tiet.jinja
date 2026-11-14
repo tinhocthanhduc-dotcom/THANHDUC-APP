@@ -1,11 +1,13 @@
 {% extends "base.jinja" %}
 {% import '_ui.jinja' as ui %}
+{% import 'hoi_gia_phan.jinja' as part with context %}
 {% block title %}{{ row.number }} · Báo giá nhanh{% endblock %}
 {% block main %}<div class="page-wide hg-page">
 {# Báo giá nhanh (mẫu B1 14/11/2026): giá đã chụp lúc báo, bảng giá đổi sau không đổi tin đã gửi. #}
 {% set tone = {'MOI': 'cho', 'DA_GUI': 'lam', 'CHUYEN_PHIEU': 'xong', 'KHONG_SUA': 'huy'}[row.status] %}
 {% call ui.page_head(row.number ~ ' · ' ~ row.model_name, sub=places[row.place] ~ ' · ' ~ (customer.name if customer else (row.contact or 'Khách chưa chọn')) ~ ' · ' ~ (row.created_at|vn_time) ~ ' ' ~ (row.created_at|vn_date), back='/hoi-gia', badge_label=statuses[row.status], badge_tone=tone) %}{% endcall %}
 {% if saved %}{{ ui.toast('Đã lưu ' ~ row.number) }}{% endif %}
+<div class="hg-acts">{% if open %}<a class="btn btn-ghost" href="/hoi-gia/{{ row.id }}/sua">✎ Sửa phiếu</a>{% endif %}<a class="btn btn-ghost" href="/hoi-gia/{{ row.id }}/in">In A4 / Lưu PDF</a>{% if row.edits %}<span class="hint">Đã sửa {{ row.edits }} lần · lần cuối {{ row.updated_at|vn_time }} {{ row.updated_at|vn_date }}</span>{% endif %}</div>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 <form method="post" action="/hoi-gia/{{ row.id }}/luu-tin" class="pnz-two hg-two" data-hg-detail {% if copy %}data-hg-copied{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
@@ -17,12 +19,17 @@
 {% if row.note %}<dt>Ghi chú</dt><dd>{{ row.note }}</dd>{% endif %}
 {% if ticket %}<dt>Phiếu</dt><dd>{% if ticket_href %}<a href="{{ ticket_href }}">{{ ticket.number }} ›</a>{% else %}{{ ticket.number }}{% endif %}</dd>{% endif %}</dl>
 </section>
-<section class="card hg-card"><h2 class="qf-h">Giá đã báo <small class="mu">· gồm VAT, lúc lập</small></h2>
-{% set svc_lines = row.lines|rejectattr('fee')|list %}
-{% if svc_lines %}<div class="table-scroll"><table class="list-table hg-table"><thead><tr><th>Dịch vụ</th><th class="num">Giá tham khảo</th></tr></thead><tbody>
+<section class="card hg-card"><h2 class="qf-h">Giá đã báo <small class="mu">· gồm VAT, {{ 'từng cấp' if row.price_mode == 'CAP' else 'khoảng giá' }} trong tin</small></h2>
+{% set svc_lines = row.lines|rejectattr('fee')|rejectattr('custom')|list %}
+{% set cust_lines = row.lines|selectattr('custom')|list %}
+{% set grid_lines = svc_lines|selectattr('cells')|list %}
+{% if grid_lines %}{{ part.grid(svc_lines, edit=False) }}
+{% elif svc_lines %}<div class="table-scroll"><table class="list-table hg-table"><thead><tr><th>Dịch vụ</th><th class="num">Giá tham khảo</th></tr></thead><tbody>
 {% for ln in svc_lines %}<tr><td>{{ ln.name }} <small class="mu">· {{ levels_text(ln) }}</small></td><td class="num">{% if ln.ok %}<b>{{ range_text(ln) }}</b>{% else %}<span class="badge b-cho">Cần kỹ thuật xác nhận</span>{% endif %}</td></tr>{% endfor %}
-</tbody></table></div>{% else %}<p class="hint">Chưa có giá: cần kỹ thuật xác nhận.</p>{% endif %}
+</tbody></table></div>{% elif not cust_lines %}<p class="hint">Chưa có giá: cần kỹ thuật xác nhận.</p>{% endif %}
+{% for c in cust_lines %}<p class="hg-fee">+ <b>{{ c.name }}</b> <small class="mu">· ngoài bảng giá{% if c.warranty %} · BH {{ c.warranty }} tháng{% endif %}</small>: <b>{{ money(c.price) }}</b></p>{% endfor %}
 {% for f in row.lines if f.fee %}<p class="hg-fee">{{ f.name }}: <b>{{ money(f.price) }}</b></p>{% endfor %}
+{% if grid_lines %}<p class="hint">Ô xanh là cấp đã báo khách; ô viền tím là giá giám đốc sửa riêng cho phiếu (giá bảng gạch ngang).</p>{% endif %}
 </section>
 </div>
 <aside class="pnz-side">
@@ -31,6 +38,7 @@
 <div class="tg-acts"><button type="button" class="btn btn-new" data-hg-copy-only>Sao chép tin</button>{% if linked %}<button class="btn btn-ok" formaction="/hoi-gia/{{ row.id }}/gui-zalo" data-service-confirm="Gửi tin này cho khách qua Zalo công ty?">Gửi Zalo công ty</button>{% endif %}<button class="btn btn-ghost">Lưu tin</button></div>
 {% if row.status == 'MOI' %}<button class="btn btn-ok pnz-full" formaction="/hoi-gia/{{ row.id }}/da-gui">Đã gửi khách (Zalo cá nhân, gọi điện)</button>{% endif %}
 {% else %}<p class="zl-quote tg-final">{{ row.text }}</p>{% endif %}
+{% if link %}<p class="hint">Link khách xem báo giá (hết hạn {{ until.strftime('%d/%m/%Y') }}): <a href="{{ link }}" target="_blank" rel="noopener">{{ link }}</a></p>{% endif %}
 {% if row.sent_via %}<p class="hint">Đã gửi bằng {{ 'Zalo công ty' if row.sent_via == 'BOT' else 'Zalo cá nhân / gọi điện' }}.</p>{% endif %}
 </section>
 {% if open %}
