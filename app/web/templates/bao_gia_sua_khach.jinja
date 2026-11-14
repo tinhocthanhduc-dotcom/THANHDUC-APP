@@ -8,19 +8,19 @@
 .wrap{max-width:560px;margin:0 auto;padding:16px}
 .co{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}.co b{color:var(--navy);font-size:18px}.co small{color:var(--muted)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
-h1{font-size:20px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 8px;font-size:14px}
+.h{font-size:20px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 8px;font-size:14px}
 .kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0}.kv span{min-width:0}.kv b{white-space:nowrap}
 .ln{border-top:1px solid var(--line);padding:10px 0}.ln:first-of-type{border-top:0}.ln p{margin:4px 0 0;color:var(--muted);font-size:14px}
 .tot{border-top:2px solid var(--navy);margin-top:8px;padding-top:8px;font-size:18px}.tot b{color:var(--navy)}
 .alt{background:#eef4fb;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:15px}
 .tag{display:inline-block;background:#e8f5ee;color:var(--ok);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600}
-.state{text-align:center;padding:28px 16px}.state h1{color:var(--warn)}
+.state{text-align:center;padding:28px 16px}.state .h{color:var(--warn)}
 .call{display:block;text-align:center;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:600;margin-top:12px}
 .foot{color:var(--muted);font-size:13px;text-align:center}
 </style></head><body><main class="wrap">
 <div class="co"><b>{{ co.name or 'Thành Đức' }}</b>{% if co.hotline or co.phone %}<small>{{ co.hotline or co.phone }}</small>{% endif %}</div>
 {% if state == 'ok' %}{% set c = s.chosen %}
-<section class="card"><h1>Báo giá sửa máy {{ s.model }}</h1>
+<section class="card"><h2 class="h">Báo giá sửa máy {{ s.model }}</h2>
 <p class="sub">{{ s.number }} · lần {{ v.no }} · gửi {{ s.customer }}{% if s.serial %} · serial {{ s.serial }}{% endif %}</p>
 {% for ln in s.lines %}{% set p = ln[ln.pick] %}<div class="ln"><div class="kv"><span><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</span><b>{{ p.price|money }}đ</b></div>{% if ln.description %}<p>{{ ln.description }}</p>{% endif %}</div>{% endfor %}
 <div class="kv"><span>VAT 8%</span><b>{{ c.vat|money }}đ</b></div>
@@ -36,7 +36,7 @@ h1{font-size:20px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 8px;font-siz
  'lan_moi': ('Đã có báo giá mới', 'Bên em đã gửi lần báo giá mới hơn. Anh/chị xem link trong tin nhắn mới nhất.'),
  'bao_lai': ('Bên em đang báo giá lại', 'Kỹ thuật đang kiểm tra lại theo ý anh/chị. Bên em sẽ gửi link báo giá mới.'),
  'qua_lan': ('Link đã mở quá nhiều lần', 'Để bảo mật, link không hiện giá nữa. Anh/chị liên hệ để nhận link mới.')}.get(state, ('Không tìm thấy báo giá', 'Link không đúng hoặc đã bị xóa.')) %}
-<h1>{{ msg[0] }}</h1><p class="sub">{{ msg[1] }}</p>
+<h2 class="h">{{ msg[0] }}</h2><p class="sub">{{ msg[1] }}</p>
 {% if co.hotline or co.phone %}<a class="call" href="tel:{{ (co.hotline or co.phone)|replace(' ', '')|replace('.', '') }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}</section>
 {% endif %}
 <p class="foot">{{ co.address }}{% if co.website %} · {{ co.website }}{% endif %}</p>
