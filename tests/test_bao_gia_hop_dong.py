@@ -144,7 +144,7 @@ def test_web_flow_print_public_and_permissions(client, db, priced):
     data = {'csrf': csrf, 'khach': t.customer_code, 'model_0': 'Canon LBP 2900', 'qty_0': '2', 'lv_seen': '1', 'kt_seen': '1',
             'lv': ['1', '2', '3', 'CH'], 'hieu_luc': '30', 'ap_thang': '12', 'giam': ''}
     page = client.post('/bao-gia-hop-dong/moi', data=dict(data, do='lay-goi'))
-    assert page.status_code == 200 and 'Sửa chữa cụm sấy máy Canon LBP 2900' in page.text and 'Chọn chung cho tất cả model' in page.text
+    assert page.status_code == 200 and 'Sửa chữa cụm sấy' in page.text and 'cụm sấy máy Canon' not in page.text and 'Chọn chung cho tất cả model' in page.text
     r = client.post('/bao-gia-hop-dong/moi', data=dict(data, do='luu'), follow_redirects=False)
     assert r.status_code == 303
     q = db.query(ContractQuote).one()
