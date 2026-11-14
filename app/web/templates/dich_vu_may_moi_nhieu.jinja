@@ -9,11 +9,12 @@
 <div class="machine-product-options device-options" aria-live="polite"></div></div>
 <label>Serial<input name="nm_serial" value="{{ '' if row.temp else row.serial }}" maxlength="64" autocomplete="off" {% if row.temp %}readonly{% else %}required{% endif %} {% if error_code=='DUPLICATE_SERIAL' and row.serial and not row.temp %}aria-invalid="true"{% endif %} data-nm-serial></label>
 <label class="nm-temp-line"><input type="checkbox" name="nm_no_serial" value="{{ i }}" {% if row.temp %}checked{% endif %} data-nm-temp><span><b>Không có serial</b> (tem mất) · app cấp mã tạm, ghi mã đó lên máy</span></label>
+{% if nm_own is defined and nm_own %}<input class="svn-own" name="nm_own" value="{{ row.own or '' }}" maxlength="500" autocomplete="off" placeholder="Lỗi riêng máy này (nếu có)" aria-label="Lỗi riêng máy mới">{% endif %}
 </div>{% endmacro %}
 {% set nm_rows=(mf.get('nm') if mf is defined and mf else none) or [dict(idx='0',serial='',q='',code='',temp=false)] %}
 <fieldset class="machine-new-fields machine-new-list" data-machine-new-fields data-nm-list {% if not new_machine_selected %}hidden disabled{% endif %}>
 {% for row in nm_rows %}{{ nm_block(row.idx, row, loop.index) }}{% endfor %}
-<template data-nm-template>{{ nm_block('__I__', dict(serial='',q='',code='',temp=false), '__N__') }}</template>
+<template data-nm-template>{{ nm_block('__I__', dict(serial='',q='',code='',temp=false,own=''), '__N__') }}</template>
 <button type="button" class="btn btn-ghost machine-new-more" data-nm-add>+ Thêm một máy mới nữa</button>
 {% if error_code in ['DUPLICATE_SERIAL','BAD_PRODUCT','BAD_FORM','SERIAL_DUPLICATE'] %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
 <p class="hint">Máy mới được gắn đúng khách và địa điểm của phiếu.</p>

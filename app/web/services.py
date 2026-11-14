@@ -370,6 +370,31 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
 # Đường dẫn /moi và các ô tìm/chọn được đăng ký trước /{ticket_id} ở cuối module.
 
 
+def _intake_info(session, customer_code, machines):
+    """Màn Nhận đơn mới: mỗi máy có hạn bảo hành, lần sửa cuối, phiếu đang mở/đang giữ máy; kèm các phiếu chưa xong của khách."""
+    if not customer_code:
+        return dict(machine_info={}, open_tickets=[])
+    serials = [eq.serial for eq, _ in machines]
+    busy, last = {}, {}
+    if serials:
+        for number, serial in session.execute(select(ServiceTicket.number, ServiceTicket.serial).where(ServiceTicket.serial.in_(serials),
+                ServiceTicket.status.in_(svc.OPEN)).order_by(ServiceTicket.id)):
+            busy.setdefault(serial, number)
+        last = dict(session.execute(select(ServiceTicket.serial, func.max(ServiceTicket.created_at)).where(ServiceTicket.serial.in_(serials),
+                ServiceTicket.status.in_(('HOAN_THANH', 'DA_DONG'))).group_by(ServiceTicket.serial)).all())
+    held_ids = {eq.custody_ticket_id for eq, _ in machines if eq.custody_location != 'TAI_KHACH' and eq.custody_ticket_id is not None}
+    held_numbers = dict(session.execute(select(ServiceTicket.id, ServiceTicket.number).where(ServiceTicket.id.in_(held_ids))).all()) if held_ids else {}
+    today = svc._now().astimezone(TZ).date()
+    info = {}
+    for eq, _ in machines:
+        held = held_numbers.get(eq.custody_ticket_id) if eq.custody_location != 'TAI_KHACH' and eq.custody_ticket_id is not None else None
+        info[eq.serial] = dict(busy=held or busy.get(eq.serial), held=bool(held), last=last[eq.serial].astimezone(TZ).date() if eq.serial in last else None,
+                               warranty=None if eq.warranty_until is None else eq.warranty_until >= today)
+    open_rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code == customer_code, ServiceTicket.status.in_(svc.OPEN))
+                                     .order_by(ServiceTicket.id.desc()).limit(4)))
+    return dict(machine_info=info, open_tickets=open_rows)
+
+
 def _choices(session, customer_code):
     from ..models import CustomerSite, Equipment, Product
     sites = list(session.scalars(select(CustomerSite).where(CustomerSite.customer_code == customer_code,
@@ -397,7 +422,8 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     ink_only=_ink_only(request.state.user)
     if ink_only: data['kind']='MUC_DINH_KY'
     repeat = service_repeat.last_ink(session, customer.code) if customer and can_create else []
-    return render(request, "dich_vu_moi.jinja", draft=draft, repeat=repeat, ink_only=ink_only, appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
+    data.setdefault('site_keep', '1')
+    return render(request, "dich_vu_moi.jinja", **_intake_info(session, customer.code if customer else '', machines), draft=draft, repeat=repeat, ink_only=ink_only, appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, sites_main_address=customer.address if customer else '', machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
                   can_create_machine=service_machines.can_create(request.state.user),can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),self_claim_minutes=service_self_claim.minutes(),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
@@ -413,7 +439,7 @@ def pick_choices(request: Request, customer_code: str = "", user: User = Depends
     sites, machines = _choices(session, customer_code)
     customer = session.get(Customer, customer_code[:50]) if customer_code else None
     repeat = service_repeat.last_ink(session, customer.code) if customer and has_role(user, *svc.CREATORS) else []
-    return render(request, "dich_vu_chon_may.jinja", repeat=repeat, can_create_machine=service_machines.can_create(user),sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial=''))
+    return render(request, "dich_vu_chon_may.jinja", **_intake_info(session, customer.code if customer else '', machines), repeat=repeat, can_create_machine=service_machines.can_create(user),sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial='', site_keep='1'))
 
 
 @router.get("/dich-vu/moi")
@@ -488,8 +514,16 @@ def ink_pick(request: Request, q: str = "", user: User = Depends(web_user), sess
 
 @router.post("/dich-vu/moi")
 def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
-    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "new_serial", "new_product_code", "new_product_q", "tu_nhan")}
+    # TUẤN duyệt mẫu 14/11/2026: nhận nhiều máy một lần (mỗi máy một phiếu), địa điểm khác nhập tay, lỗi riêng từng máy.
+    data = {key: str(form.get(key, "")) for key in ("customer_code", "site_id", "serial", "kind", "priority", "symptom", "warranty_of_id", "appointment_at", "appointment_slot", "appointment_choice", "assignee_id", "create_machine", "tu_nhan", "site_address", "site_contact", "site_phone", "site_keep")}
     data['ink']=_ink_shown(session,form);data['ink_price']=str(form.get('ink_price',''))[:20]
+    picks=[str(v).strip() for v in form.getlist('pick') if str(v).strip()][:svc.MAX_INTAKE_MACHINES+1]
+    if not picks and data['serial'].strip():picks=[data['serial'].strip()]
+    data['picks']=picks
+    data['own']={serial:str(form.get('own_'+serial,'')).strip()[:500] for serial in picks}
+    nm_own=[str(v).strip()[:500] for v in form.getlist('nm_own')]
+    if data['create_machine']=='1':
+        data['nm']=[dict(row,own=nm_own[i] if i<len(nm_own) else '') for i,row in enumerate(service_machines.shown_new(form))]
     if data['kind']=='MUC_DINH_KY' and not data['symptom'].strip():data['symptom']=INK_NOTE
     ink_only=_ink_only(request.state.user)
     nhap=str(form.get('nhap','')).strip();draft=None
@@ -498,19 +532,29 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
         if nhap: draft=zalo_phieu_nhap.check_open(session,request.state.user,_draft_id(nhap))
         if ink_only and data['kind']!='MUC_DINH_KY': raise BusinessError('INK_ONLY','Kinh doanh chỉ nhận đơn Mực định kỳ.')
         appointment, slot = service_appointments.parse(form,svc._now())
-        new_machine=service_machines.intake(form)
-        body = ServiceTicketIn(**{**{k:v for k,v in data.items() if k not in ('appointment_at','appointment_slot','appointment_choice','assignee_id','create_machine','new_serial','new_product_code','new_product_q','ink','ink_price','tu_nhan')},
-                                 "appointment_at":appointment,"appointment_slot":slot, "site_id": data['site_id'] or None, "serial": None if new_machine else data['serial'] or None, "new_machine":new_machine,"warranty_of_id": data['warranty_of_id'] or None})
+        # Form cũ (một máy mới, ô new_*) vẫn nhận; màn mới gửi các khung nm_*.
+        news=(service_machines.new_machines(form) if form.getlist('nm_idx') else [service_machines.new_machine(form)]) if data['create_machine']=='1' else []
+        new_site=None
+        if data['site_id']=='NEW':
+            from ..schemas import CustomerSiteIn
+            address=data['site_address'].strip()
+            if len(address)<5: raise BusinessError('BAD_SITE','Địa điểm khác: nhập địa chỉ nơi thợ đến (ít nhất 5 ký tự).')
+            new_site=CustomerSiteIn(name=address[:200],address=address[:2000],contact_name=data['site_contact'].strip()[:200],contact_phone=data['site_phone'].strip()[:32])
+        body = ServiceTicketIn(customer_code=data['customer_code'],site_id=int(data['site_id']) if data['site_id'].isdigit() and len(data['site_id'])<=18 else None,
+                               kind=data['kind'],priority=data['priority'],symptom=data['symptom'],warranty_of_id=data['warranty_of_id'] or None,
+                               appointment_at=appointment,appointment_slot=slot)
+        if data['site_id'] not in ('','NEW') and body.site_id is None: raise BusinessError('BAD_SITE','Địa điểm chưa hợp lệ.')
         ink=_ink_lines(form) if body.kind=='MUC_DINH_KY' else []
         price=str(form.get('ink_price','')).strip() if body.kind=='MUC_DINH_KY' else ''
         if price:
             from ..technician_work import money
             price=money(price)
         assignee=str(form.get('assignee_id','')).strip()
-        if assignee:
-            if not assignee.isdigit() or len(assignee)>18 or int(assignee)<1: raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
-            t=svc.create_and_assign(session,request.state.user,body,int(assignee),ink=ink,ink_price=price or None)
-        else: t=svc.create(session,request.state.user,body,ink=ink,ink_price=price or None,self_claim=data['tu_nhan']=='1')
+        if assignee and (not assignee.isdigit() or len(assignee)>18 or int(assignee)<1): raise BusinessError('BAD_ASSIGNEE','Thợ được chọn chưa hợp lệ.')
+        tickets=svc.create_intake(session,request.state.user,body,picks=picks,new_machines=news,own_symptoms=data['own'],new_symptoms=nm_own[:len(news)],
+                                  new_site=new_site,keep_site=data['site_keep']=='1',assignee_id=int(assignee) if assignee else None,
+                                  ink=ink,ink_price=price or None,self_claim=data['tu_nhan']=='1')
+        t=tickets[0]
     except (BusinessError, ValidationError) as exc:
         error, code, status = _message(exc)
         if draft is None and nhap and isinstance(exc, BusinessError):
@@ -524,7 +568,9 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
         quick_quotes.mark_converted(session, request.state.user, hg, t)
     if ink_only:
         return RedirectResponse(f"/khach-hang/nhac-muc?da_tao={quote(t.number)}", status_code=303)
-    return RedirectResponse(f"/dich-vu/{t.id}?da_luu=1", status_code=303)
+    target=f"/dich-vu/{t.id}?da_luu=1"
+    if len(tickets)>1: target+='&nhan='+','.join(x.number for x in tickets)
+    return RedirectResponse(target, status_code=303)
 
 
 @router.get('/dich-vu/tim-bao-hanh')

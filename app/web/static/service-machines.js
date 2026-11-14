@@ -34,16 +34,17 @@
     });
     var intake = document.querySelector('[data-service-form]');
     if (intake) {
-      var kind = intake.querySelector('[name=kind]');
-      var required = kind && kind.value === 'MANG_VE';
-      var label = intake.querySelector('[data-machine-required-label]');
-      if (label) label.textContent = required ? '(bắt buộc)' : '(không bắt buộc)';
+      // Nhận đơn mới: chữ "(bắt buộc)" do services.js cập nhật theo loại việc đã chọn.
       var create = intake.querySelector('[name=create_machine]');
       var isNew = !!(create && create.checked);
-      var serial = intake.querySelector('[name=serial]');
-      if (serial) { serial.disabled = isNew; serial.required = required && !isNew; }
       var fields = intake.querySelector('[data-machine-new-fields]');
       if (fields) fields.hidden = fields.disabled = !isNew;
+      intake.querySelectorAll('[data-nm-block]').forEach(function(block, i) {
+        var title = block.querySelector('[data-nm-title]');
+        if (title) title.textContent = 'Máy mới ' + (i + 1);
+        var temp = block.querySelector('[data-nm-temp]'), serial = block.querySelector('[data-nm-serial]');
+        if (temp && serial) { serial.readOnly = temp.checked; serial.required = !temp.checked; if (temp.checked) serial.value = ''; serial.placeholder = temp.checked ? 'App cấp mã tạm khi lưu' : ''; }
+      });
     }
     if (window.bindLive) root.querySelectorAll('[data-machine-product-picker] [data-live]').forEach(window.bindLive);
   }
@@ -77,7 +78,7 @@
       var form = drop.closest('form');
       drop.closest('[data-nm-block]').remove();
       if (!box.querySelector('[data-nm-block]') && form) {
-        var chip = Array.prototype.find.call(form.elements, function(el) { return (el.name === 'add_pick' || el.name === 'machine_pick') && el.value === 'NEW'; });
+        var chip = Array.prototype.find.call(form.elements, function(el) { return ((el.name === 'add_pick' || el.name === 'machine_pick') && el.value === 'NEW') || el.name === 'create_machine'; });
         if (chip) chip.checked = false;
         var html0 = box.querySelector('[data-nm-template]').innerHTML.split('__I__').join('0').split('__N__').join('1');
         box.querySelector('[data-nm-add]').insertAdjacentHTML('beforebegin', html0);

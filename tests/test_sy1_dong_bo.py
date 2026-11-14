@@ -24,7 +24,8 @@ def test_f4_intake_lists_outside_catalog_machine(client, web_login, d1_catalog, 
     db.add(Equipment(serial='TRONG-1', product_code='TD-0001', customer_code='KTD-000001', active=True, search_text='may in', created_by=1))
     db.commit()
     page = client.get('/dich-vu/moi?customer_code=KTD-000001').text
-    assert 'NGOAI-9 · Canon LBP 2900' in page and 'TRONG-1 · Máy in' in page
+    assert 'name="pick" value="NGOAI-9"' in page and '<b>Canon LBP 2900</b>' in page
+    assert 'name="pick" value="TRONG-1"' in page and '<b>Máy in</b>' in page
     # Khách khác không thấy máy này.
     assert 'NGOAI-9' not in client.get('/dich-vu/moi?customer_code=KTD-000002').text
 

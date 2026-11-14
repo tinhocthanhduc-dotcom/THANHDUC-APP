@@ -4679,6 +4679,71 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .rq-desc { display: grid; gap: 2px; }
 .rq-desc small { color: var(--muted); }
 .rq-desc textarea { font-size: 16px; }
+
+/* Nhận đơn mới (TUẤN duyệt 14/11/2026): bước đánh số, loại việc là nút, tick nhiều máy, địa điểm khác */
+.svn-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.svn-h small { font-weight: 400; }
+.svn-h-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.svn-n { display: inline-flex; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: var(--surface); font-size: .8rem; font-weight: 700; align-items: center; justify-content: center; }
+.svn-n-sm { width: 20px; height: 20px; font-size: .72rem; margin-right: 6px; vertical-align: middle; }
+.svn-count { background: var(--sel); color: var(--accent); font-weight: 700; font-size: .82rem; padding: 4px 10px; border-radius: 6px; }
+.svn-kinds { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+@container (min-width: 620px) { .svn-kinds { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+.svn-kind { position: relative; display: block; min-width: 0; cursor: pointer; color: var(--text); text-decoration: none; }
+.svn-kind input { position: absolute; opacity: 0; pointer-events: none; }
+.svn-kind > span { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; height: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.svn-kind b { font-size: .92rem; }
+.svn-kind small { font-size: .76rem; color: var(--muted); font-weight: 400; line-height: 1.25; }
+.svn-kind input:checked + span { border: 2px solid var(--accent); background: var(--sel); padding: 7px 11px; }
+.svn-kind input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.svn-kind-go > span { border-style: dashed; }
+.svn-kind-go:hover > span { border-color: var(--accent); }
+.svn-kinds.svn-bad .svn-kind > span { border-color: var(--bad); }
+.svn-prio-row { grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 10px; }
+.svn-prio-row .group-label { margin: 0; }
+.svn-open { background: #fff8e6; border: 1px solid #f1d48a; border-radius: 8px; padding: 10px 12px; font-size: .88rem; color: var(--text); margin-bottom: 10px; }
+.svn-open span { color: var(--muted); }
+.svn-sites { display: flex; flex-wrap: wrap; gap: 6px; }
+.svn-sites label { flex: 1 1 140px; min-width: 0; }
+.svn-sites span { min-height: 42px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px 8px; font-weight: 600; font-size: .86rem; line-height: 1.2; }
+.svn-newsite { display: grid; gap: 8px; margin: 0 0 10px; padding: 12px; border: 2px solid #f59e0b; border-radius: 8px; background: #fffaf0; min-width: 0; }
+.svn-newsite[hidden] { display: none; }
+.svn-newsite input:not([type=checkbox]) { width: 100%; box-sizing: border-box; font-size: 16px; }
+.svn-newsite-row { display: grid; gap: 8px; }
+@container (min-width: 560px) { .svn-newsite-row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+.svn label.svn-check { display: flex; flex-direction: row; gap: 10px; align-items: center; min-height: 44px; font-size: .88rem; }
+.svn-check input { width: 20px; height: 20px; flex: none; }
+.svn-machine [data-service-choices] > .svn-fld { margin-bottom: 8px; }
+.svn-mfilter { width: 100%; box-sizing: border-box; font-size: 16px; margin-bottom: 6px; }
+.svn-machines { display: grid; gap: 8px; }
+@container (min-width: 620px) { .svn-machines { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.svn label.svn-m { display: flex; flex-direction: row; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-weight: 400; cursor: pointer; min-width: 0; }
+.svn-m > input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.svn-m.is-on { border: 2px solid var(--accent); background: var(--sel); padding: 9px 11px; }
+.svn-m.is-off { opacity: .55; cursor: not-allowed; }
+.svn-m[hidden] { display: none; }
+.svn-m-body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.svn-m-body small { color: var(--muted); }
+.svn-chip { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #eef0f4; color: #4b5363; white-space: nowrap; }
+.svn-chip.ok { background: #e7f6ec; color: #166534; }
+.svn-chip.warn { background: #fff4d6; color: #8a5a00; }
+.svn-own { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; }
+.svn-own[hidden] { display: none; }
+.svn-newm { display: grid; gap: 8px; margin-top: 10px; }
+.svn-newm-open { display: block; cursor: pointer; }
+.svn-newm-open input { position: absolute; opacity: 0; pointer-events: none; }
+.svn-newm-open span { display: flex; align-items: center; justify-content: center; min-height: 44px; border: 1px dashed var(--accent); border-radius: 8px; color: var(--accent); font-weight: 700; background: var(--surface); }
+.svn-newm-open input:checked + span { display: none; }
+.svn-newm-open input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.svn-sum-machines { border-top: 1px solid var(--line); padding-top: 8px; font-size: .88rem; }
+.svn-sum-machines[hidden] { display: none; }
+.svn-sum-machines ol { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 2px; }
+.svn-why { display: inline; }
+.svn-why summary { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); align-items: center; justify-content: center; font-size: .75rem; cursor: pointer; list-style: none; color: var(--accent); }
+.svn-why summary::-webkit-details-marker { display: none; }
+.svn-why[open] small { display: block; margin-top: 4px; }
+.svn-self-claim[hidden] { display: none; }
+
 /* Gửi báo giá sửa cho khách (mẫu M5 14/11/2026) */
 .rq-send { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
 .rq-send-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }

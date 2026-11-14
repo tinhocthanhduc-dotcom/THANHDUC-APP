@@ -1,18 +1,45 @@
+{# TUẤN duyệt mẫu Nhận đơn mới 14/11/2026: địa điểm là nút bấm + "Địa điểm khác" nhập tay; tick nhiều máy (mỗi máy một phiếu); nhiều máy mới; lỗi riêng từng máy. #}
 {% if repeat is defined %}{% include 'dich_vu_lap_lai.jinja' %}{% endif %}
+{% if open_tickets is defined and open_tickets %}<div class="svn-open" data-sv-open role="note"><b>Khách đang có {{ open_tickets|length }} phiếu chưa xong:</b>
+{% for t in open_tickets %}<a href="/dich-vu/{{ t.id }}" target="_blank" rel="noopener">{{ t.number }}{% if t.serial %} · {{ t.serial }}{% endif %} · {{ service_status(t) }}</a>{% if not loop.last %}, {% endif %}{% endfor %}. <span>Kiểm tra để khỏi tạo trùng.</span></div>{% endif %}
 {% set main_address = sites_main_address if sites_main_address is defined else '' %}
-<label class="svn-fld{% if error_code is defined and error_code=='BAD_SITE' %} svn-bad{% endif %}"><span>Địa điểm làm việc</span>
-<select name="site_id" data-sv-site {% if error_code is defined and error_code=='BAD_SITE' %}aria-invalid="true"{% endif %}>
-<option value="" data-address="{{ main_address }}" {% if not d.get('site_id') %}selected{% endif %}>Địa chỉ chính</option>
-{% for site in sites %}<option value="{{ site.id }}" data-address="{{ site.address }}" {% if d.get('site_id')|string == site.id|string %}selected{% endif %}>{{ site.name }}</option>{% endfor %}
-</select></label>
-<p class="svn-note" data-sv-site-address>{% for site in sites if d.get('site_id')|string == site.id|string %}{{ site.address }}{% else %}{{ main_address }}{% endfor %}</p>
-{% set new_machine_selected=d.get('create_machine')=='1' %}
-<label class="svn-fld{% if error_code is defined and error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD'] %} svn-bad{% endif %}"><span>Máy của khách <small data-machine-required-label>{{ '(bắt buộc)' if d.get('kind')=='MANG_VE' else '(không bắt buộc)' }}</small></span>
-<select name="serial" {% if new_machine_selected %}disabled{% elif d.get('kind')=='MANG_VE' %}required{% endif %} {% if error_code is defined and error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD'] %}aria-invalid="true"{% endif %}>
-<option value="" {% if not d.get('serial') %}selected{% endif %}>— Không chọn máy —</option>
-{% for machine, product_name in machines %}<option value="{{ machine.serial }}" {% if d.get('serial') == machine.serial %}selected{% endif %}>{{ machine.serial }} · {{ product_name }}</option>{% endfor %}
-</select></label>
-{% if error_code is defined and error_code=='SERIAL_REQUIRED' %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
-{% if can_create_machine %}<div data-machine-intake><label class="chip"><input type="checkbox" name="create_machine" value="1" {% if new_machine_selected %}checked{% endif %}><span>+ Máy mới</span></label>
-{% with mf=d %}{% include 'dich_vu_may_moi.jinja' %}{% endwith %}</div>{% endif %}
-<p class="svn-note">{% if machines %}Chọn máy để thợ xem lịch sử sửa và hạn bảo hành.{% else %}Khách chưa có máy nào được theo dõi.{% endif %}</p>
+{% set site_value = d.get('site_id')|string if d.get('site_id') else '' %}
+{% set site_bad = error_code is defined and error_code=='BAD_SITE' %}
+<div class="svn-fld{% if site_bad %} svn-bad{% endif %}" role="group" aria-labelledby="svn-site-label"><p class="group-label" id="svn-site-label">Địa điểm làm việc</p>
+<div class="seg stock-seg svn-sites" data-sv-sites>
+<label><input type="radio" name="site_id" value="" data-address="{{ main_address }}" {% if not site_value %}checked{% endif %}><span>Địa chỉ chính</span></label>
+{% for site in sites %}<label><input type="radio" name="site_id" value="{{ site.id }}" data-address="{{ site.address }}" {% if site_value == site.id|string %}checked{% endif %}><span>{{ site.name }}</span></label>{% endfor %}
+<label class="svn-site-new"><input type="radio" name="site_id" value="NEW" data-address="" {% if site_value == 'NEW' %}checked{% endif %}><span>+ Địa điểm khác</span></label>
+</div></div>
+<p class="svn-note" data-sv-site-address>{% for site in sites if site_value == site.id|string %}{{ site.address }}{% else %}{{ main_address if site_value != 'NEW' else '' }}{% endfor %}</p>
+<fieldset class="svn-newsite" data-sv-newsite {% if site_value != 'NEW' %}hidden disabled{% endif %}>
+<label class="svn-fld"><span>Địa chỉ nơi thợ đến <i class="svn-req-mark">*</i></span><input name="site_address" value="{{ d.get('site_address','') }}" maxlength="2000" required autocomplete="off" placeholder="Ví dụ: Chi nhánh Q7 · 45 Nguyễn Thị Thập, P. Tân Phú" {% if site_bad and site_value=='NEW' %}aria-invalid="true"{% endif %}></label>
+<div class="svn-newsite-row">
+<label class="svn-fld"><span>Người liên hệ tại đó</span><input name="site_contact" value="{{ d.get('site_contact','') }}" maxlength="200" autocomplete="off"></label>
+<label class="svn-fld"><span>SĐT tại đó</span><input name="site_phone" value="{{ d.get('site_phone','') }}" maxlength="32" inputmode="tel" autocomplete="off"></label>
+</div>
+<label class="svn-check"><input type="checkbox" name="site_keep" value="1" {% if d.get('site_keep')=='1' %}checked{% endif %}><span><b>Lưu vào địa điểm của khách</b> · lần sau chọn lại được. Bỏ tick: chỉ dùng cho phiếu này.</span></label>
+</fieldset>
+{% if site_bad %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+{% set picks = d.get('picks') or ([d.get('serial')] if d.get('serial') else []) %}
+{% set own = d.get('own') or {} %}
+{% set info = machine_info if machine_info is defined else {} %}
+{% set machine_bad = error_code is defined and error_code in ['BAD_SERIAL','SERIAL_REQUIRED','MACHINE_HELD','SERIAL_BUSY','SERIAL_DUPLICATE'] %}
+<div class="svn-fld{% if machine_bad %} svn-bad{% endif %}" role="group" aria-labelledby="svn-machine-label">
+<p class="group-label" id="svn-machine-label">Máy của khách <small data-machine-required-label>{{ '(bắt buộc, chọn ít nhất 1 máy)' if d.get('kind')=='MANG_VE' else '(không bắt buộc)' }}</small> <small>· tick được nhiều máy, mỗi máy một phiếu</small></p>
+{% if machines|length > 6 %}<input type="search" class="svn-mfilter" placeholder="Lọc theo tên hoặc serial" autocomplete="off" data-sv-mfilter aria-label="Lọc máy">{% endif %}
+<div class="svn-machines" data-sv-machines>
+{% for machine, product_name in machines %}{% set m = info.get(machine.serial, {}) %}{% set on = machine.serial in picks %}{% set off = m.get('busy') and not on %}
+<label class="svn-m{% if on %} is-on{% endif %}{% if off %} is-off{% endif %}" data-sv-m data-text="{{ (machine.serial ~ ' ' ~ (product_name or ''))|lower }}">
+<input type="checkbox" name="pick" value="{{ machine.serial }}" {% if on %}checked{% endif %} {% if off %}disabled{% endif %} data-sv-pick data-label="{{ product_name or machine.serial }}">
+<span class="svn-m-body"><span><b>{{ product_name or 'Máy' }}</b>{% if m.get('warranty') == true %} <span class="svn-chip ok">Còn BH đến {{ machine.warranty_until.strftime('%d/%m/%Y') }}</span>{% elif m.get('warranty') == false %} <span class="svn-chip">Hết BH</span>{% endif %}{% if off %} <span class="svn-chip warn">{{ 'Đang giữ theo' if m.get('held') else 'Đang ở' }} {{ m.busy }}</span>{% endif %}
+<br><small>{{ machine.serial }}{% if m.get('last') %} · sửa lần cuối {{ m.last.strftime('%d/%m/%Y') }}{% endif %}</small></span>
+<input class="svn-own" name="own_{{ machine.serial }}" value="{{ own.get(machine.serial, '') }}" maxlength="500" autocomplete="off" placeholder="Lỗi riêng máy này (nếu có)" {% if not on %}hidden disabled{% endif %} data-sv-own></span>
+</label>{% endfor %}
+</div>
+{% if not machines %}<p class="svn-note">Khách chưa có máy nào được theo dõi.</p>{% endif %}
+</div>
+{% if machine_bad %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+{% if can_create_machine %}{% set new_machine_selected=d.get('create_machine')=='1' %}<div class="svn-newm" data-machine-intake>
+<label class="svn-newm-open"><input type="checkbox" name="create_machine" value="1" {% if new_machine_selected %}checked{% endif %} data-sv-newm><span>+ Máy mới chưa có trong app</span></label>
+{% set nm_own=true %}{% with mf=d %}{% include 'dich_vu_may_moi_nhieu.jinja' %}{% endwith %}</div>{% endif %}
