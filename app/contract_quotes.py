@@ -183,7 +183,7 @@ def catalog(session: Session, d: dict) -> list[dict]:
             if not any(cells.values()):
                 continue
             want = d['levels'] if fresh else md['picks'].get(s.id, [])
-            row['services'].append(dict(service=s, name=pb.customer_name(s, m.name), cells=cells,
+            row['services'].append(dict(service=s, name=pb.customer_name(s), cells=cells,
                                         picked=[lv for lv in want if cells.get(lv)]))
         out.append(row)
     return out
