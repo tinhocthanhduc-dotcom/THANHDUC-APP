@@ -4566,3 +4566,43 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tc-amt { white-space: nowrap; }
 .tc-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding-top: 10px; }
 .tc-sum { font-size: 22px; color: var(--accent); }
+
+/* Bảng giá chung (TUẤN duyệt mẫu 14/11/2026), tiền tố bg- */
+.bg-tabs { overflow-x: auto; }
+.bg-chips { margin: 8px 0 12px; }
+.bg-chips .chip-btn { display: inline-flex; align-items: center; text-decoration: none; }
+.bg-chips .chip-btn.on { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+.bg-small { min-height: 36px; padding: 4px 12px; }
+.bg-actions { grid-auto-flow: column; justify-content: start; }
+.bg-goi td.num .lt-sub { white-space: nowrap; }
+.bg-lookup, .bg-form, .bg-grid-card { margin-top: 16px; }
+.bg-lookup-form { display: grid; gap: 10px; }
+@media (min-width: 900px) { .bg-lookup-form { grid-template-columns: minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) auto auto; align-items: end; } }
+.bg-result { margin-top: 12px; }
+.bg-result .hint { display: block; }
+.bg-check { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.bg-check input { width: auto; min-height: 0; }
+.bg-two { display: grid; gap: 10px; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+.bg-level { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; display: grid; gap: 6px; }
+.bg-option { display: grid; gap: 6px; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) auto; align-items: center; margin-bottom: 8px; }
+.bg-fs { border: 0; padding: 0; margin: 0; min-width: 0; }
+.bg-price-grid th[scope=row] { min-width: 150px; text-align: left; }
+.bg-cell { display: grid; gap: 4px; min-width: 120px; }
+.bg-cell input { min-height: 36px; }
+.bg-model-levels { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0,1fr)); margin: 8px 0; }
+.bg-inline { display: flex; gap: 6px; align-items: center; margin: 0; }
+.bg-inline select { min-width: 160px; }
+.bg-excel { margin-top: 16px; }
+.bg-excel summary { list-style: none; display: inline-flex; cursor: pointer; }
+.bg-upload { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+.bg-save { position: sticky; bottom: 0; background: var(--bg, var(--surface)); padding: 10px 0; }
+@media (max-width: 600px) {
+  .bg-option { grid-template-columns: minmax(0,1fr); }
+  .bg-model-levels { grid-template-columns: minmax(0,1fr); }
+  .bg-actions { grid-auto-flow: row; }
+}
+@media (max-width: 760px) {
+  .bg-table.lt-cards td[data-label] { display: flex; justify-content: space-between; gap: 12px; text-align: right; }
+  .bg-table.lt-cards td[data-label]::before { content: attr(data-label); color: var(--muted); font-weight: 400; text-align: left; }
+  .bg-table.lt-cards td[data-label] .lt-sub { display: inline; margin-left: 6px; }
+}

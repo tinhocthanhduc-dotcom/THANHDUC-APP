@@ -1,0 +1,14 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Lịch sử đổi giá{% endblock %}
+{% block main %}<div class="page-wide list-page bg-page">
+{% call ui.page_head('Lịch sử đổi giá', sub='Mọi lần đổi giá hàng hóa, dịch vụ, gói sửa · không sửa, không xóa', back='/bang-gia') %}{% endcall %}
+<section class="card list-frame">
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table"><thead><tr><th>Lúc</th><th>Thay đổi</th><th>Người đổi</th></tr></thead><tbody>
+{% for r in rows %}<tr data-history-row><td class="lt-first">{{ r.at|vn_date }}<span class="lt-sub">{{ r.at|vn_time if r.at else '' }}</span></td><td><b>{{ r.what }}</b>{% if r.reason %}<span class="lt-sub">{{ r.reason }}</span>{% endif %}</td><td>{{ r.who }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('Chưa có lần đổi giá nào.') }}{% endif %}
+{{ ui.list_foot(page, 'lần đổi') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

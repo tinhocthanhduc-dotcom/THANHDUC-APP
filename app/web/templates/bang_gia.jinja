@@ -1,0 +1,105 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Bảng giá{% endblock %}
+{% block main %}<div class="page-wide list-page bg-page" data-list-page="bang-gia">
+{% call ui.page_head('Bảng giá', sub='Giá chưa VAT và gồm VAT ' ~ default_vat_rate ~ '% cho mọi hàng hóa, dịch vụ, gói sửa' ~ (' · chỉ giám đốc sửa' if not can_edit else '')) %}<a class="btn btn-ghost" href="/bang-gia/lich-su">Lịch sử đổi giá</a>{% if tab != 'hien-tuong' %}<a class="btn btn-new" href="/bang-gia/in?tab={{ tab }}{% if nhom %}&nhom={{ nhom|urlencode }}{% elif gid is defined %}&nhom={{ gid }}{% endif %}" target="_blank" rel="noopener">Xuất bảng giá cho khách ›</a>{% endif %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if saved %}{{ ui.toast('Đã cập nhật ' ~ saved[6:] ~ ' giá từ Excel.' if saved.startswith('excel-') else 'Đã lưu.', 'ok') }}{% endif %}
+<section class="card list-frame">
+<nav class="ltabs bg-tabs" aria-label="Loại giá">{% for key, label in tabs.items() %}<a class="ltab{{ ' on' if key == tab }}" href="/bang-gia?tab={{ key }}"{% if key == tab %} aria-current="page"{% endif %}>{{ label }} <span>{{ counts.get(key, 0) }}</span></a>{% endfor %}</nav>
+
+{% if tab in ('may-in', 'muc', 'linh-kien') %}
+{% call ui.list_bar('/bang-gia', q, 'Tìm tên, mã hàng (không dấu)…', active=(1 if nhom else 0)) %}<input type="hidden" name="tab" value="{{ tab }}">{% if loc %}<input type="hidden" name="loc" value="{{ loc }}">{% endif %}
+<select name="nhom" aria-label="Nhóm hàng"><option value="">Mọi nhóm hàng</option>{% for g in groups %}<option {% if nhom == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select>{% endcall %}
+<div class="chips bg-chips"><a class="chip-btn{{ ' on' if not loc }}" href="{{ link(loc='') }}">Tất cả</a>{% if can_cost %}<a class="chip-btn{{ ' on' if loc == 'duoi-von' }}" href="{{ link(loc='duoi-von') }}">Giá dưới vốn · {{ chips.duoi_von }}</a>{% endif %}<a class="chip-btn{{ ' on' if loc == 'doi-gia' }}" href="{{ link(loc='doi-gia') }}">Đổi giá 30 ngày · {{ chips.doi_gia }}</a></div>
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table">
+<thead><tr><th>Mã · tên hàng</th><th class="num">Chưa VAT</th><th class="num">Gồm VAT</th><th class="num">Tồn</th>{% if can_cost %}<th class="num">Giá vốn</th><th class="num">Lãi</th>{% endif %}<th>Cập nhật giá</th></tr></thead><tbody>
+{% for r in rows %}<tr data-price-row="{{ r.code }}"{% if r.below %} class="lt-alert"{% endif %}{% if can_open('/hang-hoa/' ~ r.code) %} data-href="/hang-hoa/{{ r.code }}"{% endif %}>
+<td class="lt-first"><b>{{ r.name }}</b><span class="lt-sub">{{ r.code }}{% if r.group %} · {{ r.group }}{% endif %}{% if r.warranty %} · BH {{ r.warranty }} th{% endif %}</span></td>
+<td class="num" data-label="Chưa VAT"><b>{{ r.price|money }}</b></td>
+<td class="num" data-label="Gồm VAT">{{ r.vat|money }}</td>
+<td class="num" data-label="Tồn">{% if r.stock is none %}<span class="lt-sub">—</span>{% else %}{{ r.stock|qty }}{% endif %}</td>
+{% if can_cost %}<td class="num{{ ' lt-bad' if r.below }}" data-label="Giá vốn">{{ r.cost|money if r.cost else '—' }}</td><td class="num{{ ' lt-bad' if r.below }}" data-label="Lãi">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</td>{% endif %}
+<td class="lt-phone-hide"><span class="lt-sub">{{ r.changed_at|vn_date if r.changed_at else '' }}{% if r.changed_by %} · {{ r.changed_by }}{% endif %}</span></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có mã hàng nào khớp bộ lọc.' if q or nhom or loc else 'Chưa có mã hàng trong tab này.', link(q='', nhom='', loc='') if q or nhom or loc else '', 'Xóa lọc') }}{% endif %}
+{{ ui.list_foot(page, 'mã hàng') }}
+<p class="hint">Giá bán hàng hóa lấy từ Hàng hóa (một giá lẻ cho mỗi mã). Báo giá và đơn bán vẫn ưu tiên giá khách mua lần trước và giá hợp đồng mực định kỳ.</p>
+
+{% elif tab == 'dich-vu' %}
+{% call ui.list_bar('/bang-gia', q, 'Tìm dịch vụ, phụ phí…') %}<input type="hidden" name="tab" value="dich-vu">{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table">
+<thead><tr><th>Dịch vụ · phụ phí</th><th>Đơn vị</th><th class="num">Chưa VAT</th><th class="num">Gồm VAT</th><th class="num">Bảo hành</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
+{% for s in rows %}<tr data-service-row="{{ s.id }}"{% if can_edit %} data-href="/bang-gia/dich-vu/{{ s.id }}"{% endif %}>
+<td class="lt-first"><b>{{ s.name }}</b>{% if s.description %}<span class="lt-sub">{{ s.description|truncate(90) }}</span>{% endif %}{% if not s.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td>
+<td data-label="Đơn vị">{{ s.unit }}</td><td class="num" data-label="Chưa VAT"><b>{{ s.price|money }}</b></td><td class="num" data-label="Gồm VAT">{{ with_vat(s.price)|money }}</td>
+<td class="num" data-label="Bảo hành">{{ (s.warranty_months ~ ' th') if s.warranty_months else '—' }}</td>
+{% if can_edit %}<td><a class="btn btn-ghost bg-small" href="/bang-gia/dich-vu/{{ s.id }}">Sửa</a></td>{% endif %}
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Chưa có dịch vụ, phụ phí nào. Ví dụ: Phí kiểm tra máy, Phụ phí sửa tận nơi.') }}{% endif %}
+{% if can_edit %}<div class="action-bar bg-actions"><a class="btn btn-new" href="/bang-gia/dich-vu/moi?kind=PHI">+ Thêm dịch vụ, phụ phí</a></div>{% endif %}
+
+{% elif tab == 'goi' %}
+<div class="chips bg-chips" aria-label="Nhóm máy">{% for g in machine_groups %}<a class="chip-btn{{ ' on' if g.id == gid }}" href="/bang-gia?tab=goi&nhom={{ g.id }}">{{ g.name }}</a>{% endfor %}</div>
+{% call ui.list_bar('/bang-gia', q, 'Tìm dịch vụ (vd: cụm sấy, nguồn)…') %}<input type="hidden" name="tab" value="goi"><input type="hidden" name="nhom" value="{{ gid }}">{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table bg-goi">
+<thead><tr><th>Dịch vụ (tên khách thấy)</th>{% for lv, label in levels.items() %}<th class="num">Cấp {{ lv }} · {{ label }}</th>{% endfor %}<th class="num">Bảo hành</th></tr></thead><tbody>
+{% for r in rows %}{% set s = r.service %}<tr data-package-row="{{ s.id }}"{% if can_edit %} data-href="/bang-gia/dich-vu/{{ s.id }}"{% endif %}>
+<td class="lt-first"><b>{{ s.name }}</b>{% if r.empty %}<span class="lt-sub lt-bad">Chưa có giá nhóm nào</span>{% elif not r.levels %}<span class="lt-sub lt-bad">Chưa có giá cho nhóm này</span>{% endif %}{% if r.overrides %}<span class="lt-sub">Giá riêng: {{ r.overrides|join(', ') }}</span>{% endif %}{% if not s.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td>
+{% for lv in levels %}{% set p = r.levels.get(lv) %}<td class="num" data-level="{{ lv }}" data-label="Cấp {{ lv }}">{% if p %}<b>{{ p.price|money }}</b><span class="lt-sub">gồm VAT {{ with_vat(p.price)|money }}{% if p.price_genuine %} · CH {{ p.price_genuine|money }}{% endif %}</span>{% else %}<span class="lt-sub">—</span>{% endif %}</td>{% endfor %}
+<td class="num">BH {% for lv in levels %}{% set p = r.levels.get(lv) %}{{ p.warranty_months if p else "—" }}{{ " · " if not loop.last }}{% endfor %} th</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Nhóm máy này chưa có gói sửa nào có giá.' ~ (' Bấm + Thêm gói sửa để bắt đầu.' if can_edit else '')) }}{% endif %}
+<p class="hint">Giá chưa VAT, giá gồm VAT ghi nhỏ bên dưới; CH = khi khách chọn linh kiện chính hãng; ô "—" là cấp không áp dụng. Model khác nhóm thì đặt giá riêng ở màn Sửa. Cấp do phương án kỹ thuật chính: không thay linh kiện chính → cấp 1, thay 1 → cấp 2, từ 2 → cấp 3.</p>
+<div class="action-bar bg-actions">{% if can_edit %}<a class="btn btn-new" href="/bang-gia/dich-vu/moi?kind=GOI">+ Thêm gói sửa</a>{% endif %}<a class="btn btn-ghost" href="/bang-gia/model-may">Model máy · {{ model_count }}</a></div>
+
+<section class="card bg-lookup" id="tra-gia" aria-label="Tra giá theo model">
+<h2 class="doc-h">Tra giá theo model</h2>
+<form method="get" action="/bang-gia/tra-gia#tra-gia" class="bg-lookup-form">
+<label>Model máy<input name="model" list="bg-models" value="{{ tra.model if tra else '' }}" placeholder="vd: Canon LBP 2900" autocomplete="off" required></label>
+<datalist id="bg-models">{% for n in model_names %}<option value="{{ n }}">{% endfor %}</datalist>
+<label>Dịch vụ<select name="dv" required><option value="">Chọn dịch vụ</option>{% for s in packages %}<option value="{{ s.id }}" {% if tra and tra.dv|string == s.id|string %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></label>
+<div class="seg" role="group" aria-label="Cấp">{% for lv, label in levels.items() %}<label><input type="radio" name="cap" value="{{ lv }}" {% if (tra.cap if tra else '2')|string == lv|string %}checked{% endif %}><span>Cấp {{ lv }}</span></label>{% endfor %}</div>
+<label class="bg-check"><input type="checkbox" name="ch" value="1" {% if tra and tra.ch %}checked{% endif %}> Linh kiện chính hãng</label>
+<button class="btn btn-ghost">Tra giá</button>
+</form>
+{% if tra and tra.result %}{% set res = tra.result %}{% if res.ok %}<div class="alert ok bg-result" data-lookup="ok"><b>{{ res.name }}</b> · cấp {{ res.level }}: <b>{{ res.price|money }}</b> chưa VAT · <b>{{ res.price_vat|money }}</b> gồm VAT · bảo hành {{ res.warranty }} tháng<span class="hint">{{ 'Giá riêng của model' if res.source == 'model' else 'Giá theo nhóm máy của model' }}</span></div>
+{% else %}<div class="alert warn bg-result" data-lookup="xac-minh"><b>Cần kỹ thuật xác nhận.</b> {{ res.reason }}</div>{% endif %}{% endif %}
+</section>
+
+{% else %}
+{% call ui.list_bar('/bang-gia', q, 'Tìm hiện tượng, dịch vụ…') %}<input type="hidden" name="tab" value="hien-tuong">{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table">
+<thead><tr><th>Hiện tượng khách tả</th><th>Dịch vụ có thể cần</th><th>Cấp</th><th>Nhóm máy</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
+{% for r in rows %}<tr data-symptom-row="{{ r.id }}">
+<td class="lt-first"><b>{{ r.name }}</b>{% if r.note %}<span class="lt-sub">{{ r.note }}</span>{% endif %}{% if not r.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td>
+<td>{{ service_names.get(r.service_id, '') }}</td>
+<td>{{ 'Cấp ' ~ r.level_min if r.level_min == r.level_max else 'Cấp ' ~ r.level_min ~ '–' ~ r.level_max }}</td>
+<td>{{ group_names.get(r.group_id, 'Mọi nhóm máy') }}</td>
+{% if can_edit %}<td><form method="post" action="/bang-gia/hien-tuong/luu" class="bg-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="xoa" value="1"><button class="btn btn-ghost bg-small">Xóa</button></form></td>{% endif %}
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Chưa có hiện tượng nào. Ví dụ: "In bị nhăn giấy" → Sửa chữa cụm sấy, cấp 1–3.') }}{% endif %}
+{% if can_edit %}{% if packages %}<form method="post" action="/bang-gia/hien-tuong/luu" class="card bg-form" aria-label="Thêm hiện tượng">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<h2 class="doc-h">Thêm hiện tượng</h2>
+<label>Hiện tượng khách tả<input name="name" value="{{ form.get('name', '') }}" placeholder="vd: In bị nhăn giấy, bản in mờ một bên" required></label>
+<label>Dịch vụ có thể cần<select name="service_id" required><option value="">Chọn gói sửa</option>{% for s in packages %}<option value="{{ s.id }}" {% if form.get('service_id')|string == s.id|string %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></label>
+<div class="bg-two"><label>Từ cấp<select name="level_min">{% for lv in levels %}<option {% if form.get('level_min', '1')|string == lv|string %}selected{% endif %}>{{ lv }}</option>{% endfor %}</select></label>
+<label>Đến cấp<select name="level_max">{% for lv in levels %}<option {% if form.get('level_max', '3')|string == lv|string %}selected{% endif %}>{{ lv }}</option>{% endfor %}</select></label></div>
+<label>Nhóm máy<select name="group_id"><option value="">Mọi nhóm máy</option>{% for g in machine_groups %}<option value="{{ g.id }}" {% if form.get('group_id')|string == g.id|string %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select></label>
+<label>Ghi chú nội bộ<input name="note" value="{{ form.get('note', '') }}"></label>
+<div class="action-bar"><button class="btn-ok">Lưu hiện tượng</button></div>
+</form>{% else %}<p class="hint">Thêm gói sửa ở tab Gói sửa chữa trước, rồi gắn hiện tượng vào gói.</p>{% endif %}{% endif %}
+{% endif %}
+
+{% if can_edit and tab != 'hien-tuong' %}<details class="bg-excel"><summary class="btn btn-ghost">Sửa hàng loạt bằng Excel</summary>
+<p class="hint">1. Tải file của tab này, mở bằng Excel, sửa cột giá. 2. Lưu dạng <b>CSV UTF-8</b>. 3. Chọn file và bấm Xem trước; app chỉ ghi khi anh bấm Áp dụng.</p>
+<div class="action-bar"><a class="btn btn-ghost" href="/bang-gia/excel?tab={{ tab }}">Tải Excel tab {{ tabs[tab] }}</a></div>
+<form method="post" action="/bang-gia/nhap-excel" enctype="multipart/form-data" class="bg-upload"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tab" value="{{ tab }}">
+<input type="file" name="file" accept=".csv,text/csv" required aria-label="File CSV"><button class="btn btn-ghost">Xem trước thay đổi</button></form>
+</details>{% endif %}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}

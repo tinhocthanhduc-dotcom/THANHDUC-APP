@@ -2396,3 +2396,111 @@ class ApprovalLimit(Base):
     value: Mapped[int] = mapped_column(BigInteger)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RepairGroup(Base):
+    """0092 Nhóm máy sửa (Laser A4 đơn năng…): giá gói sửa đặt theo nhóm, model khác nhóm thì ghi đè."""
+    __tablename__ = 'repair_groups'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+
+
+class RepairModel(Base):
+    """0092 Model máy thuộc một nhóm máy; dùng để tra giá gói và giá riêng theo model."""
+    __tablename__ = 'repair_models'
+    __table_args__ = (Index('uq_repair_models_name', text('lower(name)'), unique=True),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(160))
+    group_id: Mapped[int] = mapped_column(ForeignKey('repair_groups.id'))
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+    search_text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PriceService(Base):
+    """0092 Dịch vụ trong Bảng giá chung: GOI = gói sửa 3 cấp (giá ở repair_prices), PHI = dịch vụ/phụ phí một giá.
+
+    Giá chưa VAT. customer_name là tên in cho khách, {model} được thay bằng tên model máy.
+    technical_note và phương án (repair_options) chỉ nội bộ, không ra tài liệu gửi khách.
+    """
+    __tablename__ = 'price_services'
+    __table_args__ = (CheckConstraint("kind in ('GOI','PHI')", name='ck_price_services_kind'),
+                      CheckConstraint('price >= 0', name='ck_price_services_price'),
+                      CheckConstraint('warranty_months between 0 and 60', name='ck_price_services_warranty'),
+                      Index('uq_price_services_name', 'kind', text('lower(name)'), unique=True))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(4))
+    name: Mapped[str] = mapped_column(String(160))
+    customer_name: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    description: Mapped[str] = mapped_column(Text, default='', server_default='')
+    technical_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    unit: Mapped[str] = mapped_column(String(32), default='lần', server_default='lần')
+    price: Mapped[int] = mapped_column(BigInteger, default=0, server_default='0')
+    warranty_months: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    scope_1: Mapped[str] = mapped_column(Text, default='', server_default='')
+    scope_2: Mapped[str] = mapped_column(Text, default='', server_default='')
+    scope_3: Mapped[str] = mapped_column(Text, default='', server_default='')
+    hours_1: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal(0), server_default='0')
+    hours_2: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal(0), server_default='0')
+    hours_3: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal(0), server_default='0')
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+    sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    search_text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __mapper_args__ = {'version_id_col': version}
+
+
+class RepairPrice(Base):
+    """0092 Giá gói một cấp (1 Nhẹ, 2 TB, 3 Nặng) của dịch vụ GOI cho một nhóm máy, hoặc giá riêng cho một model."""
+    __tablename__ = 'repair_prices'
+    __table_args__ = (CheckConstraint('level between 1 and 3', name='ck_repair_prices_level'),
+                      CheckConstraint('price > 0', name='ck_repair_prices_price'),
+                      CheckConstraint('price_genuine is null or price_genuine > 0', name='ck_repair_prices_genuine'),
+                      CheckConstraint('warranty_months between 0 and 60', name='ck_repair_prices_warranty'),
+                      CheckConstraint('(group_id is null) <> (model_id is null)', name='ck_repair_prices_target'),
+                      Index('uq_repair_prices_group', 'service_id', 'group_id', 'level', unique=True, postgresql_where=text('group_id is not null')),
+                      Index('uq_repair_prices_model', 'service_id', 'model_id', 'level', unique=True, postgresql_where=text('model_id is not null')))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    service_id: Mapped[int] = mapped_column(ForeignKey('price_services.id', ondelete='CASCADE'), index=True)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('repair_groups.id'))
+    model_id: Mapped[int | None] = mapped_column(ForeignKey('repair_models.id', ondelete='CASCADE'))
+    level: Mapped[int] = mapped_column(Integer)
+    price: Mapped[int] = mapped_column(BigInteger)
+    price_genuine: Mapped[int | None] = mapped_column(BigInteger)
+    warranty_months: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RepairOption(Base):
+    """0092 Phương án kỹ thuật của một dịch vụ gói (nội bộ). Số phương án "chính" quyết định cấp: 0→1, 1→2, từ 2→3."""
+    __tablename__ = 'repair_options'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    service_id: Mapped[int] = mapped_column(ForeignKey('price_services.id', ondelete='CASCADE'), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    part_hint: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    is_main: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+
+
+class RepairSymptom(Base):
+    """0092 Hiện tượng khách tả → dịch vụ gói và khoảng cấp có thể cần (dùng cho Báo giá nhanh). group_id trống = mọi nhóm."""
+    __tablename__ = 'repair_symptoms'
+    __table_args__ = (CheckConstraint('level_min between 1 and 3 and level_max between level_min and 3', name='ck_repair_symptoms_levels'),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    service_id: Mapped[int] = mapped_column(ForeignKey('price_services.id', ondelete='CASCADE'))
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('repair_groups.id'))
+    level_min: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    level_max: Mapped[int] = mapped_column(Integer, default=3, server_default='3')
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+    search_text: Mapped[str] = mapped_column(Text, default='', server_default='')

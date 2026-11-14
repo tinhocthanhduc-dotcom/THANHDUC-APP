@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bảng giá · {{ title }}</title>
+<style>
+:root{--ink:#14213d;--muted:#5b6475;--line:#d7dce5;--navy:#1f3a68}
+body{margin:0;background:#fff;color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.sheet{max-width:794px;margin:0 auto;padding:24px 16px}
+header{display:flex;gap:14px;align-items:center;border-bottom:3px solid var(--navy);padding-bottom:10px;margin-bottom:14px}
+header img{width:64px;height:64px;object-fit:contain}
+header b{display:block;font-size:16px;color:var(--navy)}header span{color:var(--muted);font-size:12px}
+h1{font-size:20px;margin:6px 0 2px;color:var(--navy)}.sub{color:var(--muted);margin:0 0 12px;font-size:12px}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+th{background:#eef2f8;font-size:12px}td.n,th.n{text-align:right;white-space:nowrap}.note{display:block;color:var(--muted);font-size:12px}
+.foot{margin-top:14px;color:var(--muted);font-size:12px}.bar{margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap}
+.bar a,.bar button{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);text-decoration:none;cursor:pointer}
+@media print{.bar{display:none}.sheet{padding:0}}
+@media(max-width:600px){th,td{padding:6px 4px;font-size:13px}}
+</style></head>
+<body><div class="sheet">
+<div class="bar"><button onclick="window.print()">In / lưu PDF</button><a href="?tab={{ tab }}&nhom={{ nhom|urlencode }}&vat={{ '0' if show_vat else '1' }}">{{ 'Xem giá chưa VAT' if show_vat else 'Xem giá gồm VAT' }}</a></div>
+<header><img src="{{ asset('logo-thanh-duc.jpg') }}" alt=""><div><b>CÔNG TY TNHH TMDV TIN HỌC THÀNH ĐỨC</b><span>Máy in · mực in · sửa chữa, bảo trì máy văn phòng</span></div></header>
+<h1>{{ title if title.startswith('Bảng giá') else 'Bảng giá ' ~ title|lower }}</h1>
+<p class="sub">Áp dụng từ {{ today.strftime('%d/%m/%Y') }} · giá {{ 'đã bao gồm thuế GTGT' if show_vat else 'chưa bao gồm thuế GTGT' }} · đơn vị: đồng</p>
+<table><thead><tr><th>Tên</th>{% if cols == 5 %}<th class="n">Cấp 1 · Nhẹ</th><th class="n">Cấp 2 · TB</th><th class="n">Cấp 3 · Nặng</th><th class="n">BH (tháng)</th>{% else %}<th>Đơn vị</th><th class="n">Giá</th><th class="n">Bảo hành</th>{% endif %}</tr></thead><tbody>
+{% for r in rows %}<tr><td><b>{{ r.name }}</b>{% if r.note %}<span class="note">{{ r.note }}</span>{% endif %}</td>
+{% if cols == 5 %}{% for p in r.prices %}<td class="n">{{ p|money if p else '—' }}</td>{% endfor %}<td class="n">{{ r.warranty_text }}</td>
+{% else %}<td>{{ r.unit }}</td><td class="n"><b>{{ r.prices[0]|money }}</b></td><td class="n">{{ (r.warranty ~ ' tháng') if r.warranty else '—' }}</td>{% endif %}</tr>
+{% else %}<tr><td colspan="{{ cols + 1 }}">Chưa có giá trong mục này.</td></tr>{% endfor %}
+</tbody></table>
+{% if cols == 5 %}<p class="foot">Giá trọn gói gồm công và linh kiện thay thế loại phổ thông. Cấp do kỹ thuật xác định sau khi kiểm tra máy và báo khách trước khi sửa.</p>{% endif %}
+<p class="foot">Giá có thể thay đổi theo thời điểm; vui lòng liên hệ để nhận báo giá chính thức.</p>
+</div></body></html>
