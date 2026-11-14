@@ -52,6 +52,8 @@ def quote_approve(session,user,ident,version,promised_return_on,note=''):
         before=tickets.snapshot(t)
         t.quote_approved_at,t.quote_approved_by=tickets._now(),user.id
         t.promised_return_on=promised_return_on
+        from .repair_quotes import close_open
+        close_open(session,t.id,'DONG_Y')  # đợt 4: lần báo giá đang chờ khách đóng theo
         tickets._record(session,user,t,'quote_approve',before,t.status,note)
     return t
 
@@ -80,6 +82,8 @@ def quote_decline(session,user,ident,version,mode,fee,reason):
             billing_reason=reason,lines=lines))
         service_charges.complete(session,user,t)
         t.declined_at=tickets._now()
+        from .repair_quotes import close_open
+        close_open(session,t.id,'KHONG_SUA')
         t.repaired_by=None
         t.warranty_months,t.warranty_scope=0,''
         _ready(session,user,t,'quote_decline',before,reason)

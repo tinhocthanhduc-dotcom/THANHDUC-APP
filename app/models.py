@@ -2553,6 +2553,7 @@ class RepairInspection(Base):
     applied_lines: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')  # mô tả dòng PHI đã ghi vào phiếu
     warranty_months: Mapped[int | None] = mapped_column(Integer)
     ai_job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id', ondelete='SET NULL'))  # Codex Z2 soạn mô tả cho khách
+    recheck_reason: Mapped[str] = mapped_column(Text, default='', server_default='')  # 0096: khách chưa đồng ý, báo lại kỹ thuật
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     __mapper_args__ = {'version_id_col': version}
     items: Mapped[list["RepairInspectionItem"]] = relationship(order_by='RepairInspectionItem.sort', cascade='all, delete-orphan')
@@ -2577,3 +2578,41 @@ class RepairInspectionItem(Base):
     genuine: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
     customer_note: Mapped[str] = mapped_column(Text, default='', server_default='')  # mô tả kết quả cho khách (đã duyệt)
     sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+
+
+QUOTE_VERSION_STATUSES = ('CHO', 'DONG_Y', 'CHUA_DONG_Y', 'KHONG_SUA', 'THAY_THE', 'THU_HOI')
+
+
+class RepairQuoteVersion(Base):
+    """0096 Một lần gửi báo giá sửa chữa cho khách (lần 1, 2…): bản chụp phần cho khách, link mã ngẫu nhiên, khách trả lời."""
+    __tablename__ = 'repair_quote_versions'
+    __table_args__ = (
+        CheckConstraint("status in ('CHO','DONG_Y','CHUA_DONG_Y','KHONG_SUA','THAY_THE','THU_HOI')", name='ck_repair_quote_versions_status'),
+        CheckConstraint("reply_choice in ('','PA1','PA2')", name='ck_repair_quote_versions_choice'),
+        CheckConstraint('wanted_price is null or wanted_price >= 0', name='ck_repair_quote_versions_wanted'),
+        UniqueConstraint('ticket_id', 'no', name='uq_repair_quote_versions_no'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id', ondelete='CASCADE'), index=True)
+    no: Mapped[int] = mapped_column(Integer)
+    token: Mapped[str] = mapped_column(String(40), unique=True)
+    status: Mapped[str] = mapped_column(String(12), default='CHO', server_default='CHO')
+    snapshot: Mapped[dict] = mapped_column(JSONB)
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    ai_job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id', ondelete='SET NULL'))
+    valid_until: Mapped[date] = mapped_column(Date)
+    sent_via: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    opened_count: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reply_choice: Mapped[str] = mapped_column(String(4), default='', server_default='')
+    reply_via: Mapped[str] = mapped_column(String(12), default='', server_default='')
+    reply_person: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    reply_reason: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    reply_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    wanted_price: Mapped[int | None] = mapped_column(BigInteger)
+    replied_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -1,0 +1,23 @@
+{# Mẫu M7 duyệt 14/11/2026: phiếu A4 báo giá sửa chữa, đúng bản khách đã gửi (không linh kiện, không giá vốn). #}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% set c = s.chosen %}
+{% block title %}Báo giá sửa {{ s.number }} · lần {{ v.no }}{% endblock %}
+{% block tools_sub %}{{ s.customer }} · lần {{ v.no }}{% endblock %}
+{% block doc_title %}BÁO GIÁ SỬA CHỮA{% endblock %}
+{% block doc_sub %}Trân trọng gửi đến Quý khách hàng{% endblock %}
+{% block meta %}{{ f.meta('Phiếu', s.number) }}{{ f.meta('Lần', v.no|string) }}{{ f.meta('Ngày báo giá', v.created_at|vn_date) }}{{ f.meta('Hiệu lực đến', v.valid_until|vn_date) }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Khách hàng', s.customer, [('Mã khách', customer.code if customer else ''), ('Địa chỉ', customer.address if customer else ''), ('Điện thoại', (customer|customer_phones('')) if customer else '')]) }}
+{{ f.card('Máy sửa', s.model, [('Serial', s.serial), ('Tình trạng khách báo', s.symptom), ('Người lập', maker.full_name if maker else '')]) }}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:30mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Hạng mục sửa chữa (trọn gói)</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td class="n"><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<br><small>{{ ln.description }}</small>{% endif %}</td><td class="m">{{ p.price|money }}</td></tr>{% endfor %}
+</tbody></table>
+<div class="in-sum"><div class="left">
+<div class="in-note"><h4>Ghi chú</h4><ul><li>Giá trọn gói gồm công và linh kiện cho từng hạng mục.</li>{% if c.warranty %}<li>Bảo hành {{ c.warranty }} tháng cho hạng mục đã sửa.</li>{% endif %}{% if s.alt %}<li>Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng {{ s.alt.total|money }} đồng (đã gồm VAT).</li>{% endif %}<li>Báo giá có hiệu lực đến hết ngày {{ v.valid_until|vn_date }}.</li></ul></div></div>
+{{ f.totals([('Cộng tiền sửa (chưa VAT)', c.subtotal|money ~ ' đồng'), ('Thuế GTGT 8%', c.vat|money ~ ' đồng')], ('TỔNG THANH TOÁN', c.total|money ~ ' đồng')) }}</div>
+<div class="in-words"><b>Tổng thanh toán bằng chữ:</b> {{ words }}.</div>
+{% endblock %}
+{% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ v.created_at|vn_long_date }}</div>
+{{ f.signatures([('Khách hàng đồng ý', '(Ký và ghi rõ họ tên)'), ('Đại diện Công ty Thành Đức', '(Ký tên và đóng dấu)')]) }}{% endblock %}

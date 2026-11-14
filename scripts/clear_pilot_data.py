@@ -32,7 +32,7 @@ KEEP = {
     "repair_groups", "repair_models", "price_services", "repair_prices", "repair_options", "repair_symptoms",  # 0092: bảng giá chung là cấu hình
 }
 WIPE = {
-    "pl_adjustments", "virtual_agent_log", "customer_messages", "quick_quotes", "repair_inspection_items", "repair_inspections", "zalo_ticket_drafts", "customer_ink_calls", "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
+    "pl_adjustments", "virtual_agent_log", "customer_messages", "quick_quotes", "repair_quote_versions", "repair_inspection_items", "repair_inspections", "zalo_ticket_drafts", "customer_ink_calls", "dispatch_zalo_sent", "zalo_ai_jobs", "zalo_agent_logs", "ai_actions", "production_orders", "production_order_lines", "production_outputs", "equipment_reports",
     "notification_reads", "salary_advances", "payroll_lines", "payroll_months", "payroll_inputs",
     "commission_lines", "commission_months", "attendance_punches", "attendance_requests",
     "attendance_month_locks", "pending_item_moves", "pending_dispositions", "pending_items",

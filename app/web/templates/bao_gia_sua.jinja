@@ -5,7 +5,7 @@
 {% if not rq %}
 <p class="hint">Thợ chưa ghi kết quả kiểm tra máy. Thợ mở <b>Máy chờ kiểm tra</b> trên điện thoại, hoặc điều phối ghi thay.</p>
 <a class="btn btn-new" href="/kiem-tra-may/{{ t.id }}">Kiểm tra máy ›</a>
-{% else %}{% set q=rq.q %}
+{% else %}{% set q=rq.q %}{% if rq.row.recheck_reason %}<p class="alert warn"><b>Khách chưa đồng ý.</b> {{ rq.row.recheck_reason }}. Thợ kiểm tra lại rồi áp giá, gửi lần mới.</p>{% endif %}
 <form method="post" action="/kiem-tra-may/{{ t.id }}/ap-gia" class="rq-two" data-busy data-rq-quote>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
 <div class="rq-tech"><p class="group-label"><b>Phần kỹ thuật</b> <span class="badge b-cho">Nội bộ</span></p>
@@ -43,6 +43,7 @@
 <a class="btn btn-ghost pnz-full" href="/kiem-tra-may/{{ t.id }}">Sửa kết quả kiểm tra</a>
 </div>
 </form>
+{% include 'bao_gia_sua_gui.jinja' %}
 {% endif %}
 </section>
-<script src="{{ asset('bao-gia-sua.js') }}" defer></script>
+<script src="{{ asset('bao-gia-sua.js') }}" defer></script><script src="{{ asset('bao-gia-gui.js') }}" defer></script>

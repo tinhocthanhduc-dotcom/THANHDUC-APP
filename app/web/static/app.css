@@ -4679,3 +4679,19 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .rq-desc { display: grid; gap: 2px; }
 .rq-desc small { color: var(--muted); }
 .rq-desc textarea { font-size: 16px; }
+/* Gửi báo giá sửa cho khách (mẫu M5 14/11/2026) */
+.rq-send { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rq-send-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rq-send-h h3 { margin: 0; }
+.rq-send-new, .rq-send-form, .rq-reply { display: grid; gap: 8px; }
+.rq-link { margin: 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; background: var(--surface); font-family: ui-monospace, monospace; font-size: 14px; overflow-wrap: anywhere; }
+.rq-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.rq-zl { width: 100%; font-size: 16px; line-height: 1.45; }
+.rq-pane { display: grid; gap: 10px; }
+.rq-pane[hidden] { display: none; }
+.rq-opts { display: grid; gap: 6px; }
+.rq-opt { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.rq-hist { border-top: 1px solid var(--line); padding-top: 8px; }
+.rq-hist summary { cursor: pointer; font-weight: 600; }
+.rq-hist .rq-kv { padding: 6px 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 760px) { .rq-acts .btn { flex: 1 1 100%; } }

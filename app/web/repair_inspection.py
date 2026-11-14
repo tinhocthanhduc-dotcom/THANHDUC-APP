@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from .. import price_book as pb
 from .. import repair_inspection as ri
 from ..db import get_session
@@ -102,8 +103,22 @@ def panel_context(session, user, t, picks=None) -> dict:
         return dict(rq=None, rq_warranty=None)
     finance = has_role(user, 'finance')
     q = ri.quote(session, t, row, picks, with_cost=finance)
+    from .. import repair_quotes as rqs
+    from ..tin_gui_khach import linked_chat
+    vers = rqs.versions(session, t.id)
+    open_v = next((v for v in vers if v.status == 'CHO'), None)
+    send = None
+    if open_v is not None:
+        text, source = rqs.suggested_text(session, open_v)
+        send = dict(v=open_v, link=rqs.link(open_v), text=text, source=source, ai=rqs.ai_text(session, open_v),
+                    late=rqs.overdue(open_v), days=rqs.waiting_days(open_v),
+                    stale=bool(row.applied_at and open_v.created_at < row.applied_at))
     return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles,
-                        current=bool(row.applied_at)), rq_warranty=row.warranty_months if row.applied_at else None)
+                        current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1,
+                        can_send=bool(row.applied_at) and (open_v is None or send['stale']),
+                        linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
+                        statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS),
+                rq_warranty=row.warranty_months if row.applied_at else None)
 
 
 @router.post('/kiem-tra-may/{ticket_id}/ap-gia')
@@ -122,3 +137,96 @@ def apply_quote(request: Request, ticket_id: int, form=Depends(checked_form), se
         from .services import _detail
         return _detail(request, session, user, ticket_id, failed_action='rq-apply', error=exc.message, error_code=exc.code, status=exc.status)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_ap_gia=1', status_code=303)
+
+
+# ---------- Đợt 4: gửi khách, khách trả lời (mẫu M5 14/11/2026) ----------
+
+def _ticket_error(request, session, user, ticket_id, exc):
+    if exc.status in (403, 404):
+        raise exc  # trang lỗi chung; không rollback trước để tài khoản còn nạp được khi vẽ menu
+    session.rollback()
+    from .services import _detail
+    return _detail(request, session, user, ticket_id, failed_action='rq-send', error=exc.message, error_code=exc.code, status=exc.status)
+
+
+@router.post('/kiem-tra-may/{ticket_id}/gui')
+def quote_create(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .. import repair_quotes as rqs
+    user = request.state.user
+    version = str(form.get('version', '') or '')
+    try:
+        v = rqs.create(session, user, ticket_id, int(version) if version.isdigit() else None)
+    except BusinessError as exc:
+        return _ticket_error(request, session, user, ticket_id, exc)
+    return RedirectResponse(f'/dich-vu/{ticket_id}?bao_gia_lan={v.no}#gui-khach', status_code=303)
+
+
+QUOTE_ACTIONS = ('gui-zalo', 'da-gui', 'thu-hoi', 'dong-y', 'chua-dong-y')
+
+
+@router.post('/kiem-tra-may/bao-gia/{vid}/{action}')
+def quote_action(request: Request, vid: int, action: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from datetime import date
+    from .. import repair_quotes as rqs
+    from ..models import RepairQuoteVersion
+    user = request.state.user
+    if action not in QUOTE_ACTIONS:
+        raise BusinessError('NOT_FOUND', 'Không có thao tác này.', status=404)
+    v = session.get(RepairQuoteVersion, vid)
+    if v is None:
+        raise BusinessError('NOT_FOUND', 'Không có lần báo giá này.', status=404)
+    ticket_id = v.ticket_id
+    text = form.get('text')
+    try:
+        if action == 'gui-zalo':
+            rqs.send_bot(session, user, vid, text)
+        elif action == 'da-gui':
+            rqs.mark_sent(session, user, vid, 'COPY', text)
+        elif action == 'thu-hoi':
+            rqs.revoke(session, user, vid)
+        elif action == 'dong-y':
+            raw = str(form.get('promised_return_on', '') or '')
+            try:
+                day = date.fromisoformat(raw)
+            except ValueError:
+                day = None
+            version = str(form.get('version', '') or '')
+            rqs.agree(session, user, vid, int(version) if version.isdigit() else None, str(form.get('pa', '')),
+                      str(form.get('via', '')), str(form.get('person', '')), day, str(form.get('note', '') or ''))
+        elif action == 'chua-dong-y':
+            from . import _digits
+            wanted = _digits(form.get('wanted_price')) or None
+            rqs.not_yet(session, user, vid, str(form.get('reason', '')), wanted, str(form.get('via', '')), str(form.get('note', '') or ''))
+    except BusinessError as exc:
+        return _ticket_error(request, session, user, ticket_id, exc)
+    return RedirectResponse(f'/dich-vu/{ticket_id}?bao_gia_xong={action}#gui-khach', status_code=303)
+
+
+@router.get('/kiem-tra-may/bao-gia/{vid}/in')
+def quote_print(request: Request, vid: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import repair_quotes as rqs
+    from ..models import RepairQuoteVersion, ServiceTicket
+    from ..money_words import money_words
+    rqs.require(user)
+    v = session.get(RepairQuoteVersion, vid)
+    if v is None:
+        raise BusinessError('NOT_FOUND', 'Không có lần báo giá này.', status=404)
+    t = session.get(ServiceTicket, v.ticket_id)
+    return render(request, 'bao_gia_sua_in.jinja', v=v, s=v.snapshot, t=t, customer=session.get(Customer, t.customer_code),
+                  words=money_words(v.snapshot['chosen']['total']), company=get_settings(), maker=session.get(User, v.created_by), back=f'/dich-vu/{t.id}#gui-khach')
+
+
+public_router = APIRouter(include_in_schema=False)
+
+
+@public_router.get('/bg/{token}')
+def quote_public(request: Request, token: str, session: Session = Depends(get_session)):
+    """Khách mở link báo giá: không cần đăng nhập, chỉ đọc bản chụp phần cho khách (mẫu M6)."""
+    from .. import repair_quotes as rqs
+    v, state = rqs.public(session, token)
+    resp = render(request, 'bao_gia_sua_khach.jinja', v=v if state == 'ok' else None, s=v.snapshot if v is not None and state == 'ok' else None,
+                  state=state, co=rqs.link_settings(), status=200 if state == 'ok' else 404 if state == 'khong_co' else 410)
+    resp.headers['Cache-Control'] = 'no-store'
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    resp.headers['Referrer-Policy'] = 'no-referrer'
+    return resp

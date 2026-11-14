@@ -1,0 +1,43 @@
+{# Mẫu M6 duyệt 14/11/2026: khách mở link báo giá, không đăng nhập. Chỉ hiện giá khi lần báo giá còn hiệu lực. #}
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>{% if state == 'ok' %}Báo giá sửa máy {{ s.model }}{% else %}Báo giá sửa chữa{% endif %} · {{ co.name or 'Thành Đức' }}</title>
+<style>
+:root{--ink:#1d2a3a;--muted:#5d6b7c;--line:#dfe5ec;--bg:#f3f6f9;--card:#fff;--navy:#1f3a5f;--ok:#1d7a46;--warn:#a15c00}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+.co{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}.co b{color:var(--navy);font-size:18px}.co small{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.h{font-size:20px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 8px;font-size:14px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0}.kv span{min-width:0}.kv b{white-space:nowrap}
+.ln{border-top:1px solid var(--line);padding:10px 0}.ln:first-of-type{border-top:0}.ln p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.tot{border-top:2px solid var(--navy);margin-top:8px;padding-top:8px;font-size:18px}.tot b{color:var(--navy)}
+.alt{background:#eef4fb;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:15px}
+.tag{display:inline-block;background:#e8f5ee;color:var(--ok);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600}
+.state{text-align:center;padding:28px 16px}.state .h{color:var(--warn)}
+.call{display:block;text-align:center;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:600;margin-top:12px}
+.foot{color:var(--muted);font-size:13px;text-align:center}
+</style></head><body><main class="wrap">
+<div class="co"><b>{{ co.name or 'Thành Đức' }}</b>{% if co.hotline or co.phone %}<small>{{ co.hotline or co.phone }}</small>{% endif %}</div>
+{% if state == 'ok' %}{% set c = s.chosen %}
+<section class="card"><h2 class="h">Báo giá sửa máy {{ s.model }}</h2>
+<p class="sub">{{ s.number }} · lần {{ v.no }} · gửi {{ s.customer }}{% if s.serial %} · serial {{ s.serial }}{% endif %}</p>
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<div class="ln"><div class="kv"><span><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</span><b>{{ p.price|money }}đ</b></div>{% if ln.description %}<p>{{ ln.description }}</p>{% endif %}</div>{% endfor %}
+<div class="kv"><span>VAT 8%</span><b>{{ c.vat|money }}đ</b></div>
+<div class="kv tot"><span><b>Tổng cộng</b></span><b>{{ c.total|money }}đ</b></div>
+{% if c.warranty %}<p class="sub">Bảo hành {{ c.warranty }} tháng cho hạng mục đã sửa.</p>{% endif %}
+{% if s.alt %}<div class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}. Anh/chị muốn chọn phương án này thì báo lại giúp em.</div>{% endif %}
+</section>
+<section class="card"><p class="sub" style="margin:0">Báo giá có hiệu lực đến hết ngày <b>{{ v.valid_until|vn_date }}</b>. Anh/chị đồng ý thì nhắn Zalo hoặc gọi lại, bên em sửa và hẹn ngày trả máy.</p>
+{% if co.hotline or co.phone %}<a class="call" href="tel:{{ (co.hotline or co.phone)|replace(' ', '')|replace('.', '') }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}</section>
+{% else %}
+<section class="card state">{% set msg = {'het_han': ('Báo giá đã hết hạn', 'Báo giá này đã quá ngày hiệu lực. Anh/chị liên hệ để nhận báo giá mới.'),
+ 'thu_hoi': ('Báo giá đã thu hồi', 'Báo giá này không còn dùng. Anh/chị liên hệ để nhận báo giá mới.'),
+ 'lan_moi': ('Đã có báo giá mới', 'Bên em đã gửi lần báo giá mới hơn. Anh/chị xem link trong tin nhắn mới nhất.'),
+ 'bao_lai': ('Bên em đang báo giá lại', 'Kỹ thuật đang kiểm tra lại theo ý anh/chị. Bên em sẽ gửi link báo giá mới.'),
+ 'qua_lan': ('Link đã mở quá nhiều lần', 'Để bảo mật, link không hiện giá nữa. Anh/chị liên hệ để nhận link mới.')}.get(state, ('Không tìm thấy báo giá', 'Link không đúng hoặc đã bị xóa.')) %}
+<h2 class="h">{{ msg[0] }}</h2><p class="sub">{{ msg[1] }}</p>
+{% if co.hotline or co.phone %}<a class="call" href="tel:{{ (co.hotline or co.phone)|replace(' ', '')|replace('.', '') }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}</section>
+{% endif %}
+<p class="foot">{{ co.address }}{% if co.website %} · {{ co.website }}{% endif %}</p>
+</main></body></html>
