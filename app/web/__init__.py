@@ -1056,6 +1056,8 @@ from .price_book import router as price_book_router  # noqa: E402
 router.include_router(price_book_router)
 from .quick_quotes import router as quick_quotes_router  # noqa: E402
 router.include_router(quick_quotes_router)
+from .repair_inspection import router as repair_inspection_router  # noqa: E402
+router.include_router(repair_inspection_router)
 from .sua_bao_thu import router as sua_bao_thu_router  # noqa: E402
 router.include_router(sua_bao_thu_router)
 from .khach_tra_sau import router as khach_tra_sau_router  # noqa: E402

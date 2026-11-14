@@ -27,6 +27,7 @@
 <p class="tho-kv"><span>Hẹn</span><b>{{ t.appointment_at|appointment_label(t.appointment_slot) if t.appointment_at else 'Chưa hẹn' }}</b></p>
 {% if maps %}<a class="btn btn-ghost" href="{{ maps }}" target="_blank" rel="noopener">Chỉ đường</a>{% endif %}</section>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}{% if saved %}<p class="alert ok">Đã lưu.</p>{% endif %}{% set tach=request.query_params.get('tach','') %}{% if tach and not error %}<p class="alert ok" data-split-done>Đã tách thêm {{ tach.split(',')|length }} phiếu, mỗi máy một phiếu: {{ tach.replace(',', ', ') }}.</p>{% endif %}
+{% if rq_inspect %}<section class="card rq-cta"><div><b>Máy chờ kiểm tra ở xưởng</b><p class="hint">Chọn dịch vụ, tick phương án để điều phối báo giá cho khách.</p></div><a class="btn btn-new" href="/kiem-tra-may/{{ t.id }}">Kiểm tra máy ›</a></section>{% endif %}
 {% if arrived %}{% include 'dich_vu_loai.jinja' %}{% endif %}
 {# TUẤN 24/10: máy sửa xong còn ở kho thì bước 1 là nhận máy; nhận xong mới hiện màn trả máy, thu tiền. #}{% set pickup_first=return_job and custody_machine and can_custody_confirm|default(false) %}{% if pickup_first %}{% include 'may_khach.jinja' %}{% endif %}
 {% include 'dich_vu_cung_cho.jinja' %}{% set working=(t.status=='DANG_LAM' or (return_job and t.status=='DA_HEN')) and not pickup_first %}{% if working %}

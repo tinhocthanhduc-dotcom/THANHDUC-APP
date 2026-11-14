@@ -2537,3 +2537,43 @@ class QuickQuote(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RepairInspection(Base):
+    """0095 Thợ kiểm tra máy (đợt 3 báo giá sửa chữa): một bản cho mỗi phiếu sửa ở xưởng."""
+    __tablename__ = 'repair_inspections'
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id', ondelete='CASCADE'), primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(160), default='', server_default='')
+    model_id: Mapped[int | None] = mapped_column(ForeignKey('repair_models.id', ondelete='SET NULL'))
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    inspected_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    inspected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    applied_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    applied_lines: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')  # mô tả dòng PHI đã ghi vào phiếu
+    warranty_months: Mapped[int | None] = mapped_column(Integer)
+    ai_job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id', ondelete='SET NULL'))  # Codex Z2 soạn mô tả cho khách
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+    items: Mapped[list["RepairInspectionItem"]] = relationship(order_by='RepairInspectionItem.sort', cascade='all, delete-orphan')
+
+
+class RepairInspectionItem(Base):
+    """0095 Một dịch vụ gói thợ chọn khi kiểm tra: phương án, cấp tự tính, cấp chọn (khác thì có lý do), linh kiện dự kiến."""
+    __tablename__ = 'repair_inspection_items'
+    __table_args__ = (
+        CheckConstraint('level between 1 and 3 and level_auto between 1 and 3', name='ck_repair_inspection_items_level'),
+        CheckConstraint("level = level_auto or btrim(level_reason) <> ''", name='ck_repair_inspection_items_reason'),
+        UniqueConstraint('ticket_id', 'service_id', name='uq_repair_inspection_items_service'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey('repair_inspections.ticket_id', ondelete='CASCADE'), index=True)
+    service_id: Mapped[int] = mapped_column(ForeignKey('price_services.id'))
+    options: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')
+    level_auto: Mapped[int] = mapped_column(Integer)
+    level: Mapped[int] = mapped_column(Integer)
+    level_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    parts: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')  # [{code, qty}]
+    genuine: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    customer_note: Mapped[str] = mapped_column(Text, default='', server_default='')  # mô tả kết quả cho khách (đã duyệt)
+    sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')

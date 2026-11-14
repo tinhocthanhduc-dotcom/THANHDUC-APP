@@ -1,0 +1,43 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Kiểm tra máy · {{ t.number }}{% endblock %}
+{% block main %}<div class="page-mid rq-page">
+{# TUẤN duyệt mẫu M3 14/11/2026: thợ chọn dịch vụ, tick phương án; app tự ra cấp. Chọn cấp khác ghi lý do. Thợ không thấy giá. #}
+{% call ui.page_head('Kiểm tra máy', sub=t.number ~ ' · ' ~ (customer.name if customer else t.customer_code), back='/kiem-tra-may') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+<section class="card rq-card">
+<dl class="svn-dl"><dt>Máy</dt><dd>{{ machine or 'Chưa ghi tên máy' }}{% if t.serial %} · SN {{ t.serial }}{% endif %}</dd>
+<dt>Khách báo</dt><dd>{{ t.symptom }}</dd>
+{% if hq %}<dt>Báo giá nhanh</dt><dd>{{ hq.number }}{% for ln in hq.lines if not ln.fee and ln.ok %} · {{ ln.name }}{% endfor %}</dd>{% endif %}
+{% if row %}<dt>Đã kiểm tra</dt><dd>{{ users.get(row.inspected_by, '') }} · {{ row.inspected_at|vn_time }} {{ row.inspected_at|vn_date }}{% if row.applied_at %} · <b>đã báo giá</b>{% endif %}</dd>{% endif %}</dl>
+</section>
+{% if not waiting %}<p class="alert warn">Máy không còn ở bước chờ sửa tại xưởng, không sửa kết quả kiểm tra được.</p>{% endif %}
+<form method="post" action="/kiem-tra-may/{{ t.id }}" class="form rq-form" data-rq-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version if row else '' }}">
+<section class="card rq-card">
+<label><b>Model máy</b><input name="model" value="{{ v.model }}" list="rq-models" placeholder="vd: Canon LBP 2900" autocomplete="off" required maxlength="160"></label>
+<datalist id="rq-models">{% for n in model_names %}<option value="{{ n }}">{% endfor %}</datalist>
+<p class="hint">Đúng model trong bảng giá thì điều phối tra được giá. Đổi model thì lưu lại để xem đúng dịch vụ của nhóm máy.</p>
+</section>
+{% macro service(s) %}{% set g = v.item(s.id) %}{% set on = s.id in v.chosen %}
+<section class="card rq-svc" data-rq-svc>
+<label class="rq-check rq-head"><input type="checkbox" name="dv" value="{{ s.id }}" {% if on %}checked{% endif %} data-rq-on><span><b>{{ s.name }}</b></span></label>
+<div class="rq-body">
+{% if opts[s.id] %}<p class="group-label"><b>Phương án kỹ thuật</b> <span class="badge b-cho">Nội bộ</span></p>
+<div class="rq-opts">{% for o in opts[s.id] %}<label class="rq-opt"><input type="checkbox" name="opt_{{ s.id }}" value="{{ o.id }}" {% if o.id|string in g.opts %}checked{% endif %} {% if o.is_main %}data-main{% endif %}><span>{{ o.name }}{% if o.part_hint %} <small class="mu">· {{ o.part_hint }}</small>{% endif %}{% if o.is_main %} <small class="rq-main">chính</small>{% endif %}</span></label>{% endfor %}</div>{% endif %}
+<p class="group-label"><b>Cấp độ</b> <span class="hint" data-rq-auto-text>· app tự chọn theo phương án</span></p>
+<div class="rq-levels">{% for n, label in levels.items() %}<label class="rq-level"><input type="radio" name="cap_{{ s.id }}" value="{{ n }}" {% if g.cap == n|string %}checked{% endif %} data-rq-cap><span><b>{{ label }}</b><small>{{ s['scope_' ~ n] or '' }}</small></span></label>{% endfor %}</div>
+<label class="rq-reason" data-rq-reason>Lý do chọn cấp khác app tính<input name="ly_do_{{ s.id }}" value="{{ g.reason }}" maxlength="500" placeholder="vd: cụm sấy cháy cả hai đầu, phải thay cả cụm"></label>
+<label class="rq-check"><input type="checkbox" name="ch_{{ s.id }}" value="1" {% if g.genuine %}checked{% endif %}><span>Khách cần linh kiện chính hãng (PA2)</span></label>
+<p class="group-label"><b>Linh kiện dự kiến</b> <span class="badge b-cho">Nội bộ</span></p>
+<div class="rq-parts">{% for p in g.parts + [dict(code='', qty=1), dict(code='', qty=1)] %}<div class="rq-part"><input name="lk_{{ s.id }}" value="{{ p.code }}" list="rq-parts" placeholder="Mã TD-…" autocomplete="off" aria-label="Mã linh kiện"><input name="sl_{{ s.id }}" value="{{ p.qty }}" inputmode="numeric" aria-label="Số lượng"></div>{% endfor %}</div>
+</div></section>{% endmacro %}
+<p class="group-label rq-h"><b>Dịch vụ cần làm</b></p>
+{% for s in main %}{{ service(s) }}{% else %}<p class="hint">Bảng giá chưa có dịch vụ gói nào cho nhóm máy này.</p>{% endfor %}
+{% if others %}<details class="rq-others" {% if not main %}open{% endif %}><summary>Dịch vụ khác ({{ others|length }})</summary>{% for s in others %}{{ service(s) }}{% endfor %}</details>{% endif %}
+<datalist id="rq-parts">{% for code, name in part_rows %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</datalist>
+<section class="card rq-card"><label><b>Ghi chú cho điều phối</b><textarea name="note" rows="3" maxlength="2000" placeholder="vd: bao lụa rách, rulo mòn; khách cần gấp">{{ v.note }}</textarea></label></section>
+{% if waiting %}{% call ui.next_box('điều phối báo giá', 'Gửi kết quả kiểm tra') %}<div class="swipe" data-swipe data-tone="ok"><button type="submit" class="btn-ok">Vuốt để gửi kết quả kiểm tra</button></div>{% endcall %}{% endif %}
+</form>
+<script src="{{ asset('kiem-tra-may.js') }}" defer></script>
+</div>{% endblock %}
