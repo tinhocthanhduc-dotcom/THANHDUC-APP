@@ -114,7 +114,7 @@ def test_apply_writes_one_package_line_keeps_others_and_reapplies(db, workshop, 
     assert lines == [('PHI', 'Phí vệ sinh', 50000, 4000), ('PHI', 'Sửa chữa cụm sấy máy Canon LBP 2900', 450000, 36000)]
     row = db.get(RepairInspection, t.id)
     assert row.applied_at and row.warranty_months == 3 and row.applied_lines == ['Sửa chữa cụm sấy máy Canon LBP 2900']
-    assert ri.waiting_rows(db)[0]['stage'] == 'Đã báo giá'
+    assert ri.waiting_rows(db)[0]['stage'] == 'Đã báo giá, chưa gửi khách'
     svc.quote_approve(db, disp, t.id, t.version, service_tickets._now().date() + timedelta(days=1), 'Khách đồng ý')
     assert t.quote_approved_at
     # Khách chọn chính hãng (PA2): áp lại thay dòng cũ, không nhân đôi; đổi giá thì bỏ "khách đồng ý".

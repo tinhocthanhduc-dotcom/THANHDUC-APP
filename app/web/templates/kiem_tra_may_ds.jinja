@@ -8,6 +8,6 @@
 {% for r in rows %}{% set t=r.ticket %}{% set c=customers.get(t.customer_code) %}
 <a class="card rq-row" href="/kiem-tra-may/{{ t.id }}"><div><b>{{ t.number }} · {{ r.machine or 'Máy chưa ghi tên' }}</b>
 <p class="hint">{{ c.name if c else t.customer_code }} · {{ t.symptom|truncate(90) }}</p></div>
-<span class="badge {{ 'b-cho' if r.todo else ('b-xong' if t.quote_approved_at else 'b-lam') }}">{{ r.stage }}</span></a>
+<span class="badge {{ 'b-huy' if r.late or r.recheck else ('b-cho' if r.todo else ('b-xong' if t.quote_approved_at else 'b-lam')) }}">{{ r.stage }}</span></a>
 {% else %}<p class="card hint">Không có máy nào ở xưởng chờ sửa.</p>{% endfor %}
 </div>{% endblock %}
