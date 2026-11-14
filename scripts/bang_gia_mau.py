@@ -3,7 +3,7 @@
     python -m scripts.bang_gia_mau [--user giamdoc] [--apply]
 
 Chạy thử (không --apply) chỉ in ra sẽ thêm gì. Chỉ THÊM cái chưa có (so theo tên, không phân biệt hoa thường):
-không bao giờ sửa giá, model hay dịch vụ đã có. Riêng gói do bộ mẫu tạo mà nhóm Máy in phun Canon
+không bao giờ sửa giá, model hay dịch vụ đã có. Riêng gói do bộ mẫu tạo mà nhóm Máy in phun Canon / hãng khác
 còn trống cả 3 cấp thì thêm giá mẫu cho nhóm đó (đổi nhóm máy 14/11: phun bình Canon trước nằm chung nhóm Epson). Giá là GIÁ MẪU chưa VAT để anh sửa lại trên trang Bảng giá;
 mọi lần thêm ghi Lịch sử đổi giá như sửa tay.
 """
@@ -31,12 +31,13 @@ MODELS = {
     'LASER_A3': ['Canon LBP 3500', 'Canon LBP 3970', 'Canon LBP 8780x', 'HP LaserJet 5200', 'HP LaserJet M706n'],
     'PHUN_CANON': ['Canon PIXMA G1010', 'Canon PIXMA G2010', 'Canon PIXMA G3010', 'Canon PIXMA E410', 'Canon PIXMA MG2570S'],
     'PHUN_EPSON': ['Epson L3110', 'Epson L3150', 'Epson L3210', 'Epson L805', 'Epson L1800'],
+    'PHUN_KHAC': ['HP DeskJet 2135', 'HP Smart Tank 515', 'Brother DCP-T720DW'],
     'KIM_NHIET': ['Epson LQ-310', 'Epson LQ-2190', 'Xprinter XP-365B', 'Godex G500'],
 }
 
 # Hệ số giá theo nhóm so với Laser A4 đơn năng; giá làm tròn 10.000.
 FACTOR = {'LASER_A4_DON': 1.0, 'LASER_A4_DA': 1.2, 'LASER_MAU': 1.5, 'LASER_A3': 1.8,
-          'PHUN_CANON': 1.0, 'PHUN_EPSON': 1.0, 'KIM_NHIET': 1.0}
+          'PHUN_CANON': 1.0, 'PHUN_EPSON': 1.0, 'PHUN_KHAC': 1.0, 'KIM_NHIET': 1.0}
 LASER = ('LASER_A4_DON', 'LASER_A4_DA', 'LASER_MAU', 'LASER_A3')
 ALL = tuple(FACTOR)
 
@@ -72,11 +73,11 @@ PACKAGES = [
      ('Vệ sinh, chỉnh cụm scan', 'Thay 1 linh kiện scan hoặc ADF', 'Thay cụm scan hoặc cụm ADF'),
      ('1', '1,5', '2'), [('Thay cáp scan', 'cáp scan', True), ('Thay quả đào ADF', 'quả đào ADF', True)]),
     ('Sửa chữa cụm đầu phun', 'Khắc phục in mất màu, sọc, tắc đầu phun.',
-     (200_000, 400_000, 700_000), (0, 300_000), (0, 1, 3), ('PHUN_CANON', 'PHUN_EPSON'),
+     (200_000, 400_000, 700_000), (0, 300_000), (0, 1, 3), ('PHUN_CANON', 'PHUN_EPSON', 'PHUN_KHAC'),
      ('Thông, vệ sinh đầu phun', 'Thông sâu, thay phụ kiện đầu phun', 'Thay đầu phun'),
      ('1', '1,5', '2'), [('Thông đầu phun', 'dung dịch', False), ('Thay đầu phun', 'đầu phun', True), ('Thay cáp đầu phun', 'cáp', True)]),
     ('Sửa chữa hệ thống dẫn mực', 'Khắc phục mực không xuống, tràn mực, đầy bộ đệm thải.',
-     (150_000, 250_000, 400_000), (0, 0), (1, 1, 3), ('PHUN_CANON', 'PHUN_EPSON'),
+     (150_000, 250_000, 400_000), (0, 0), (1, 1, 3), ('PHUN_CANON', 'PHUN_EPSON', 'PHUN_KHAC'),
      ('Xả khí, vệ sinh đường mực', 'Thay ống dẫn mực hoặc bộ đệm thải', 'Thay cụm bơm, dẫn mực'),
      ('0,5', '1', '1,5'), [('Thay bộ đệm thải, reset', 'bộ đệm thải', True), ('Thay cụm bơm mực', 'cụm bơm', True)]),
     ('Sửa chữa đầu kim, cơ in', 'Khắc phục in mất nét, đứt nét, ruy băng kẹt, máy in nhiệt in mờ.',
@@ -113,7 +114,7 @@ SYMPTOMS = [
 
 
 SAMPLE_NOTE = 'Giá mẫu, giám đốc sửa lại theo thực tế.'
-REFILL = ('PHUN_CANON',)
+REFILL = ('PHUN_CANON', 'PHUN_KHAC')
 
 
 def _r(value: float) -> int:

@@ -40,7 +40,8 @@ def fuser_package(db, boss, **extra):
 def test_seed_groups_and_lookup_priority_model_then_group_then_verify(db, make_user):
     boss = make_user('bg.boss', 'director')
     assert [g.name for g in pb.groups(db)] == ['Máy in Laser đen trắng A4 đơn năng', 'Máy in Laser đen trắng A4 đa năng', 'Máy in Laser màu A4',
-                                               'Máy in laser khổ A3', 'Máy in phun Canon', 'Máy in phun Epson', 'Máy in kim, in nhiệt']
+                                               'Máy in laser khổ A3', 'Máy in phun Canon', 'Máy in phun Epson', 'Máy in phun hãng khác',
+                                               'Máy in kim, in nhiệt']
     s = fuser_package(db, boss)
     assert [(o.name, o.is_main) for o in pb.options(db, s.id)] == [('Thay bao lụa sấy', True), ('Thay rulo ép', True), ('Thay bạc ép', False)]
     assert [pb.level_by_options(n) for n in (0, 1, 2, 3)] == [1, 2, 3, 3]
