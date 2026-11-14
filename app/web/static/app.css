@@ -4867,3 +4867,17 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tg2-ch b { color: var(--text); }
 .tg2-note { text-align: center; }
 .tg2-full { width: 100%; }
+/* Bảng giá màn thợ: hai nút Giá sửa / Giá sản phẩm + thẻ giá sản phẩm (mẫu SP1–SP2 duyệt 15/11/2026). */
+.tg2-tab { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--tag); }
+.tg2-tab a { text-align: center; padding: 10px 4px; border-radius: 9px; font-weight: 700; color: var(--muted); text-decoration: none; }
+.tg2-tab a.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.tg2-filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 10px; }
+.tg2-filters a { flex: none; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); text-decoration: none; font-size: .9rem; }
+.tg2-filters a.on { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
+[data-tgsp-list] { display: grid; gap: 8px; }
+.tgsp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tgsp-n { font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
+.tgsp-pr { grid-row: 1 / 3; grid-column: 2; text-align: right; }
+.tgsp-pr b { display: block; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.tgsp-pr small, .tgsp-c { color: var(--muted); font-size: .8rem; }
+.tgsp-meta { grid-column: 1 / 3; display: flex; gap: 6px; flex-wrap: wrap; }

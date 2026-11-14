@@ -1,9 +1,10 @@
 {% extends "base.jinja" %}
 {% import '_ui.jinja' as ui %}
-{% block title %}Tra giá sửa{% endblock %}
+{% block title %}Bảng giá{% endblock %}
 {% block main %}<div class="tg2">
 {# TUẤN duyệt mẫu T1–T3 15/11/2026: thợ chỉ chọn model và lỗi rồi bấm Tra giá; giá đã gồm VAT, không đoán giá. #}
-{% call ui.page_head('Tra giá sửa', sub='Chọn model và lỗi, bấm Tra giá') %}{% endcall %}
+{% call ui.page_head('Bảng giá', sub='Chọn model và lỗi, bấm Tra giá') %}{% endcall %}
+{% include 'tra_gia_tab.jinja' %}
 {% if result %}
 <section class="tg2-sum"><div><b>{{ m.name }}</b><span>{{ ht|join(' · ') }}</span></div><a href="/tra-gia?model={{ m.name|urlencode }}{% for h in ht %}&ht={{ h|urlencode }}{% endfor %}">Sửa lại</a></section>
 {% set shown = result.lines %}
@@ -17,11 +18,11 @@
 </section>{% endfor %}
 <p class="hint tg2-note">Giá đã gồm VAT, là giá báo khách. Ô xanh là cấp hay gặp với lỗi đã chọn; kỹ thuật kiểm tra rồi chốt cấp.</p>
 {% else %}<p class="alert warn"><b>Lỗi này chưa gắn gói sửa cho loại máy này.</b> Báo kỹ thuật trưởng để xác nhận giá.</p>{% endif %}
-<a class="btn btn-ghost tg2-full" href="/tra-gia">Tra máy khác</a>
+<a class="btn btn-ghost tg2-full" href="/tra-gia?tab=sua">Tra máy khác</a>
 {% else %}
 <form method="get" action="/tra-gia" class="tg2-form" data-tg2>
 <p class="tg2-step"><i>1</i>Model máy</p>
-{% if m %}<div class="tg2-picked"><div><b>{{ m.name }}</b><small>{{ group.name if group else '' }}</small></div><a class="btn btn-ghost" href="/tra-gia">Đổi máy</a></div>
+{% if m %}<div class="tg2-picked"><div><b>{{ m.name }}</b><small>{{ group.name if group else '' }}</small></div><a class="btn btn-ghost" href="/tra-gia?tab=sua">Đổi máy</a></div>
 <input type="hidden" name="model" value="{{ m.name }}">
 {% else %}<label class="sr-only" for="tg2-q">Model máy</label>
 <input id="tg2-q" type="search" name="q" value="{{ q or model }}" class="tg2-search" placeholder="Gõ model, vd 2900, M402…" autocomplete="off" data-tg2-find="/tra-gia/tim">

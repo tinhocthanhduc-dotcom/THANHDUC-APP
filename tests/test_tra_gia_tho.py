@@ -81,3 +81,40 @@ def test_my_open_tickets_listed_and_permissions(client, db, make_user):
     web_login(client, admin)
     assert client.get('/tra-gia').status_code == 403
     assert client.get('/tra-gia/tim', params={'q': 'lbp'}).status_code == 403
+
+
+def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user):
+    """Mẫu SP1–SP2: giá bán gồm VAT, BH, Còn/Hết hàng; không giá vốn, không số tồn, không hàng ngừng bán; nhớ tab đã chọn."""
+    from test_bang_gia_chung import stocked
+    boss = make_user('tgsp.boss', 'director')
+    stocked(db, boss, 'TD-9012', 'Hop muc HP 12A chinh hang', 'Muc', 1_250_000, 987_654, qty=7)
+    stocked(db, boss, 'TD-9040', 'Hop muc 12A tuong thich', 'Muc', 250_000, 123_456, qty=0)
+    p = stocked(db, boss, 'TD-9112', 'May in HP 1020 cu 12', 'May in cu', 1_500_000, 900_000, qty=1)
+    p.warranty_months = 3
+    stocked(db, boss, 'TD-9099', 'Hop muc 12A ngung ban', 'Muc', 200_000, 100_000, qty=4).active = False
+    db.commit()
+    tech = make_user('tgsp.tho', 'technician')
+    web_login(client, tech)
+    page = client.get('/tra-gia/san-pham', params={'q': '12'}).text
+    assert 'Giá sản phẩm' in page and 'Giá sửa' in page
+    card = page.split('data-tgsp-code="TD-9012"')[1].split('</section>')[0]
+    assert '1.350.000' in card and 'Còn hàng' in card and 'BH' not in card  # 1.250.000 + 8% VAT
+    card = page.split('data-tgsp-code="TD-9040"')[1].split('</section>')[0]
+    assert '270.000' in card and 'Hết hàng' in card
+    assert 'BH 3 tháng' in page.split('data-tgsp-code="TD-9112"')[1].split('</section>')[0]
+    assert 'TD-9099' not in page
+    for secret in ('987.654', '123.456', '900.000', '>7<'):  # giá vốn, số tồn
+        assert secret not in page
+    # Lọc nhóm hàng; tìm không ra thì báo, không đoán.
+    page = client.get('/tra-gia/san-pham', params={'q': '12', 'nhom': 'May in cu'}).text
+    assert 'TD-9112' in page and 'TD-9012' not in page
+    assert 'Không thấy hàng này.' in client.get('/tra-gia/san-pham/tim', params={'q': 'zzzz'}).text
+    assert 'data-tgsp-code="TD-9012"' in client.get('/tra-gia/san-pham/tim', params={'q': 'hp 12a'}).text
+    # Nhớ tab: đã mở Giá sản phẩm thì bấm tab Bảng giá về lại Giá sản phẩm; bấm Giá sửa thì ở Giá sửa.
+    r = client.get('/tra-gia', follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == '/tra-gia/san-pham'
+    assert client.get('/tra-gia?tab=sua').status_code == 200
+    assert client.get('/tra-gia', follow_redirects=False).status_code == 200
+    client.cookies.clear()
+    web_login(client, make_user('tgsp.admin', 'admin'))
+    assert client.get('/tra-gia/san-pham', params={'q': '12'}).status_code == 403

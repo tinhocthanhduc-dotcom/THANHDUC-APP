@@ -1,0 +1,3 @@
+{# Bảng giá màn thợ (mẫu SP1 duyệt 15/11/2026): hai nút Giá sửa / Giá sản phẩm, app nhớ lần chọn trước. #}
+{% set sp = request.url.path.startswith('/tra-gia/san-pham') %}
+<nav class="tg2-tab" aria-label="Loại giá"><a href="/tra-gia?tab=sua" {% if not sp %}class="on" aria-current="page"{% endif %}>Giá sửa</a><a href="/tra-gia/san-pham" {% if sp %}class="on" aria-current="page"{% endif %}>Giá sản phẩm</a></nav>
