@@ -2504,3 +2504,36 @@ class RepairSymptom(Base):
     note: Mapped[str] = mapped_column(Text, default='', server_default='')
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
     search_text: Mapped[str] = mapped_column(Text, default='', server_default='')
+
+
+QUICK_QUOTE_STATUSES = ('MOI', 'DA_GUI', 'CHUYEN_PHIEU', 'KHONG_SUA')
+
+
+class QuickQuote(Base):
+    """0093 Báo giá nhanh HG (đợt 2 báo giá sửa chữa): khách hỏi giá khi chưa gửi máy. lines = ảnh chụp giá lúc báo
+    [{service_id, name, levels:[..], low, high, ok, reason}], giá gồm VAT. Không trừ kho, không tạo nợ."""
+    __tablename__ = 'quick_quotes'
+    __table_args__ = (
+        CheckConstraint(_in('status', QUICK_QUOTE_STATUSES), name='ck_quick_quotes_status'),
+        CheckConstraint("place in ('CUA_HANG','TAN_NOI')", name='ck_quick_quotes_place'),
+        CheckConstraint("sent_via in ('','BOT','CA_NHAN')", name='ck_quick_quotes_sent_via'),
+        Index('ix_quick_quotes_status', 'status', 'created_at'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), unique=True)
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey('customers.code'))
+    contact: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    model_name: Mapped[str] = mapped_column(String(160))
+    model_id: Mapped[int | None] = mapped_column(ForeignKey('repair_models.id', ondelete='SET NULL'))
+    place: Mapped[str] = mapped_column(String(8), default='CUA_HANG', server_default='CUA_HANG')
+    symptoms: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    lines: Mapped[list] = mapped_column(JSONB, default=list, server_default='[]')
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    status: Mapped[str] = mapped_column(String(12), default='MOI', server_default='MOI')
+    sent_via: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id', ondelete='SET NULL'))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,0 +1,52 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% import 'hoi_gia_phan.jinja' as part with context %}
+{% block title %}Báo giá nhanh{% endblock %}
+{% block main %}<div class="page-wide hg-page">
+{# TUẤN duyệt mẫu B1 14/11/2026: khách hỏi giá qua Zalo/điện thoại khi chưa gửi máy. Giá gồm VAT lấy từ bảng giá chung, không đoán. #}
+{% call ui.page_head('Báo giá nhanh', sub='Khách hỏi giá sửa, chưa gửi máy · ' ~ user.full_name, back='/hoi-gia') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+<form method="post" action="/hoi-gia/luu" class="pnz-two hg-two" id="hg-form" data-hg-form data-preview="/hoi-gia/xem-truoc">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="hg-main">
+<section class="card hg-card">
+<label><b>Model máy</b><input name="model" value="{{ d.model }}" list="hg-models" placeholder="vd: Canon LBP 2900" autocomplete="off" required maxlength="160" data-hg-model></label>
+<datalist id="hg-models">{% for n in model_names %}<option value="{{ n }}">{% endfor %}</datalist>
+<div data-slot="group">{{ part.model_info() }}</div>
+<p class="group-label"><b>Hiện tượng khách kể</b></p>
+<div data-slot="chips">{{ part.chips() }}</div>
+<p class="group-label"><b>Sửa ở đâu</b></p>
+<div class="seg hg-seg">{% for k, label in places.items() %}<label><input type="radio" name="noi" value="{{ k }}" {% if d.noi == k %}checked{% endif %}><span>{{ label }}{% if k == 'TAN_NOI' %} (+ phí đi lại){% endif %}</span></label>{% endfor %}</div>
+<p class="group-label"><b>Khách</b> <span class="hint">(không bắt buộc)</span></p>
+<div class="hg-picker" data-hg-picker>
+<input type="hidden" name="khach" value="{{ d.khach }}" data-hg-khach>
+<p class="hg-picked" data-hg-picked {% if not customer %}hidden{% endif %}><b data-hg-picked-name>{% if customer %}{{ customer.code }} · {{ customer.name }}{% endif %}</b> <button type="button" class="btn btn-ghost bg-small" data-hg-unpick>Bỏ chọn</button></p>
+<label class="sr-only" for="hg-tim-khach">Tìm khách</label><input id="hg-tim-khach" type="search" placeholder="Tìm khách: tên, mã hoặc số điện thoại" autocomplete="off" data-hg-find="/hoi-gia/tim-khach" {% if customer %}hidden{% endif %}>
+<div class="service-options device-options" aria-live="polite" data-hg-options></div>
+</div>
+<label>Hoặc ghi tên, số điện thoại người hỏi<input name="lien_he" value="{{ d.lien_he }}" maxlength="200" placeholder="vd: Anh Nam 0909…"></label>
+<label>Ghi chú thêm<input name="ghi_chu" value="{{ d.ghi_chu }}" maxlength="2000" placeholder="vd: máy dùng 3 năm, đã thay mực"></label>
+<noscript><button class="btn btn-ghost" formmethod="get" formaction="/hoi-gia/moi" formnovalidate>Xem giá</button></noscript>
+</section>
+<section class="card hg-card"><h2 class="qf-h">Dịch vụ có thể cần <small class="mu">· chưa kiểm tra</small></h2>
+<div data-slot="result" aria-live="polite">{{ part.result() }}</div>
+</section>
+</div>
+<aside class="pnz-side">
+<section class="card hg-card"><h2 class="qf-h">Tin Zalo gửi khách</h2>
+<input type="hidden" name="text_edited" value="{{ '1' if d.get('text_edited') == '1' else '' }}" data-hg-edited>
+<textarea name="text" class="tg-box hg-box" rows="10" maxlength="2000" data-hg-text placeholder="Chọn model và hiện tượng, app soạn sẵn tin.">{{ text }}</textarea>
+<p class="hint" data-hg-reset hidden>Anh/chị đã sửa tin, đổi lựa chọn sẽ không soạn lại. <button type="button" class="link" data-hg-reset-btn>Soạn lại theo giá</button></p>
+<div class="tg-acts"><button class="btn btn-new" name="next" value="copy" data-hg-copy>Sao chép tin</button>{% if linked %}<button class="btn btn-ok" name="next" value="bot">Gửi Zalo công ty</button>{% endif %}</div>
+<p class="hint">Sao chép rồi dán vào Zalo khách. {% if not linked %}Gửi thẳng Zalo công ty khi khách đã chọn và đã gắn Zalo.{% endif %}</p>
+</section>
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · khi khách đồng ý</span>
+{% if conv.nhan %}<button class="btn btn-new pnz-full" name="next" value="nhan">Chuyển thành phiếu nhận máy ›</button>{% endif %}
+{% if conv.hen %}<button class="btn btn-new pnz-full" name="next" value="hen">Hẹn thợ tới kiểm tra ›</button>{% endif %}
+<button class="btn btn-ghost pnz-full" name="next" value="">Lưu · khách chưa trả lời</button>
+<p class="hint">Model hiếm hoặc hiện tượng chưa có trong bảng: app hiện "Cần kỹ thuật xác nhận", không hiện giá.</p>
+</section>
+</aside>
+</form>
+<script src="{{ asset('hoi-gia.js') }}" defer></script>
+</div>{% endblock %}

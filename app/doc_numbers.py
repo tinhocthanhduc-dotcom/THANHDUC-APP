@@ -33,6 +33,7 @@ PREFIXES = {
     "NZ": "Phiếu nháp từ Zalo",
     "TG": "Tin gửi khách",
     "MT": "Mã máy tạm (máy mất tem)",
+    "HG": "Báo giá nhanh sửa chữa",
 }
 
 
