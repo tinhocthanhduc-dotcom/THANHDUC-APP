@@ -1,0 +1,53 @@
+{# TUẤN duyệt mẫu M5 14/11/2026: mỗi lần gửi là "Báo giá lần N" (bản chụp phần cho khách); link, tin Zalo, in A4; nhân viên ghi khách trả lời. #}
+{% set sd=rq.send %}{% set fx=form if failed_action=='rq-send' else {} %}
+<div class="rq-send" id="gui-khach" data-rq-send>
+<div class="rq-send-h"><h3>Gửi khách</h3>{% if sd %}<span class="badge {{ 'b-huy' if sd.late else 'b-cho' }}">{{ rq.statuses['CHO'] }}{% if sd.v.sent_at %} · {{ sd.days }} ngày{% else %} · chưa gửi{% endif %}</span>{% endif %}</div>
+{% set lan=request.query_params.get('bao_gia_lan','') %}{% if lan and not error %}<p class="alert ok">Đã lưu báo giá lần {{ lan }}. Gửi tin Zalo hoặc in A4 cho khách.</p>{% endif %}
+{% set done=request.query_params.get('bao_gia_xong','') %}{% if done and not error %}<p class="alert ok">{{ {'gui-zalo': 'Đã gửi Zalo công ty.', 'da-gui': 'Đã ghi đã gửi khách.', 'thu-hoi': 'Đã thu hồi link, khách mở sẽ không thấy giá.', 'chua-dong-y': 'Đã ghi khách chưa đồng ý, báo lại kỹ thuật kiểm tra.'}.get(done, 'Đã lưu.') }}</p>{% endif %}
+{% if rq.can_send %}
+<form method="post" action="/kiem-tra-may/{{ t.id }}/gui" class="rq-send-new" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+<p class="hint">{% if sd and sd.stale %}Báo giá đã đổi sau lần {{ sd.v.no }}: lưu lần mới, link lần {{ sd.v.no }} sẽ không hiện giá nữa.{% else %}Lưu bản khách đang hiện bên trên thành <b>báo giá lần {{ rq.next_no }}</b>, có link xem và tin Zalo soạn sẵn. Hiệu lực {{ rq.valid_days }} ngày.{% endif %}</p>
+<button class="btn btn-new pnz-full">Lưu và gửi báo giá lần {{ rq.next_no }}</button></form>
+{% elif not rq.row.applied_at and not sd %}<p class="hint">Bấm Áp vào báo giá trước, rồi mới gửi khách.</p>{% endif %}
+{% if sd %}{% set v=sd.v %}
+<dl class="svn-dl"><dt>Lần</dt><dd><b>{{ v.no }}</b> · {{ v.snapshot.chosen.total|money }} đ gồm VAT{% if v.snapshot.alt %} · phương án khác {{ v.snapshot.alt.total|money }} đ{% endif %}</dd>
+<dt>Hiệu lực</dt><dd>đến {{ v.valid_until.strftime('%d/%m/%Y') }}</dd>
+<dt>Gửi</dt><dd>{% if v.sent_at %}{{ v.sent_at|vn_time }} {{ v.sent_at|vn_date }} · {{ rq.sent_via.get(v.sent_via, '') }}{% else %}<span class="mu">chưa gửi</span>{% endif %}</dd>
+<dt>Khách mở link</dt><dd>{% if v.opened_count %}{{ v.opened_count }} lần · lần cuối {{ v.last_opened_at|vn_time }} {{ v.last_opened_at|vn_date }}{% else %}<span class="mu">chưa mở</span>{% endif %}</dd></dl>
+<form method="post" class="rq-send-form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<p class="group-label"><b>Link xem báo giá</b></p>
+<p class="rq-link" data-rq-link>{{ sd.link }}</p>
+<div class="rq-acts"><button type="button" class="btn btn-ghost" data-rq-copy-link>Sao chép link</button><a class="btn btn-ghost" href="/kiem-tra-may/bao-gia/{{ v.id }}/in">In A4</a><button class="btn btn-ghost" formaction="/kiem-tra-may/bao-gia/{{ v.id }}/thu-hoi" formnovalidate data-service-confirm="Thu hồi link? Khách mở sẽ không thấy giá nữa.">Thu hồi link</button></div>
+<p class="group-label"><b>Tin Zalo</b> <span class="hint">· {{ {'ai': 'Codex soạn, số đã khớp, sửa được', 'gui': 'đã gửi', 'mau': 'mẫu, sửa được'}[sd.source] }}</span></p>
+<textarea name="text" rows="9" maxlength="2000" class="rq-zl" data-rq-text>{{ fx.get('text', sd.text) }}</textarea>
+{% if sd.ai.status == 'DANG' %}<p class="hint">Codex trên Z2 đang viết lại tin (tối đa 3 phút). <a href="/dich-vu/{{ t.id }}#gui-khach">Tải lại</a> để lấy bản mới, hoặc gửi luôn bản mẫu.</p>{% elif sd.ai.status == 'XONG' and not sd.ai.ok %}<p class="hint">Bản Codex lệch số so với báo giá nên giữ bản mẫu.</p>{% endif %}
+<div class="rq-acts">{% if rq.linked %}<button class="btn btn-ok" formaction="/kiem-tra-may/bao-gia/{{ v.id }}/gui-zalo" data-service-confirm="Gửi tin này cho khách qua Zalo công ty?">{{ 'Gửi lại Zalo công ty' if v.sent_via == 'BOT' else 'Gửi Zalo công ty' }}</button>{% endif %}<button type="button" class="btn btn-new" data-rq-copy-text>Sao chép tin</button><button class="btn btn-ghost" formaction="/kiem-tra-may/bao-gia/{{ v.id }}/da-gui">Đã gửi (Zalo cá nhân, gọi điện, đưa bản in)</button></div>
+{% if not rq.linked %}<p class="hint">Khách chưa gắn Zalo công ty: Sao chép tin, gửi bằng Zalo cá nhân rồi bấm Đã gửi.</p>{% endif %}
+</form>
+<div class="rq-reply"><p class="group-label"><b>Khách trả lời</b></p>
+<div class="seg rq-tabs" data-rq-tabs>{% for key, label in [('dong-y','Đồng ý'),('chua','Chưa đồng ý'),('khong','Không sửa')] %}<label><input type="radio" name="rq_tab" value="{{ key }}" {% if (fx.get('rq_tab') or 'dong-y')==key %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
+<form method="post" action="/kiem-tra-may/bao-gia/{{ v.id }}/dong-y" class="form rq-pane" data-rq-pane="dong-y" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}"><input type="hidden" name="rq_tab" value="dong-y">
+<div class="field-group" role="group"><p class="group-label">Khách chọn</p><div class="rq-opts">
+{% set s=v.snapshot %}<label class="rq-opt"><input type="radio" name="pa" value="{{ s.pick }}" {% if fx.get('pa', s.pick)==s.pick %}checked{% endif %}><span>{{ 'PA2 · Chính hãng' if s.pick=='PA2' else 'PA1 · Tiêu chuẩn' }} · <b>{{ s.chosen.total|money }} đ</b></span></label>
+{% if s.alt %}<label class="rq-opt"><input type="radio" name="pa" value="{{ s.alt_key }}" {% if fx.get('pa')==s.alt_key %}checked{% endif %}><span>{{ 'PA2 · Chính hãng' if s.alt_key=='PA2' else 'PA1 · Tiêu chuẩn' }} · <b>{{ s.alt.total|money }} đ</b></span></label>{% endif %}</div></div>
+<div class="field-group" role="group"><p class="group-label">Qua đâu</p><div class="seg">{% for key, label in rq.via.items() %}<label><input type="radio" name="via" value="{{ key }}" required {% if fx.get('via', 'ZALO')==key %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Ai xác nhận<input name="person" required maxlength="200" value="{{ fx.get('person', '') }}" placeholder="vd: Anh Nam kế toán"></label>
+<div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}"><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
+<label class="xg-date">Hoặc chọn ngày<input type="date" name="promised_return_on" value="{{ fx.get('promised_return_on', '') }}" required data-xg-date></label></div>
+<label>Ghi chú (không bắt buộc)<input name="note" maxlength="500" value="{{ fx.get('note', '') }}"></label>
+<button class="btn btn-ok pnz-full">Khách đồng ý</button></form>
+<form method="post" action="/kiem-tra-may/bao-gia/{{ v.id }}/chua-dong-y" class="form rq-pane" data-rq-pane="chua" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="rq_tab" value="chua">
+<div class="field-group" role="group"><p class="group-label">Lý do</p><div class="chips">{% for r in rq.reasons %}<label class="chip"><input type="radio" name="reason" value="{{ r }}" required {% if fx.get('reason')==r %}checked{% endif %}><span>{{ r }}</span></label>{% endfor %}</div></div>
+<div class="field-group" role="group"><p class="group-label">Qua đâu</p><div class="seg">{% for key, label in rq.via.items() %}<label><input type="radio" name="via" value="{{ key }}" {% if fx.get('via', 'ZALO')==key %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Giá khách mong muốn (gồm VAT, không bắt buộc)<input name="wanted_price" inputmode="numeric" data-money value="{{ fx.get('wanted_price', '') }}"></label>
+<label>Khách nói gì<input name="note" maxlength="500" value="{{ fx.get('note', '') }}"></label>
+<p class="hint">Báo lại kỹ thuật: máy về "Khách chưa đồng ý · kiểm tra lại", thợ thấy lý do, kiểm tra lại; điều phối áp giá và gửi lần sau.</p>
+<button class="btn btn-danger pnz-full">Khách chưa đồng ý · báo lại kỹ thuật</button></form>
+<div class="rq-pane" data-rq-pane="khong"><p class="hint">Dùng nút <b>Khách không sửa</b> trong khung sửa ở xưởng (thu phí kiểm tra hoặc miễn phí). Lần báo giá này tự chuyển Không sửa.</p></div>
+</div>
+{% endif %}
+{% set older=rq.versions|rejectattr('status','equalto','CHO')|list %}{% if older %}
+<details class="rq-hist"><summary>Các lần báo giá trước ({{ older|length }})</summary>
+{% for o in older %}<p class="rq-kv"><span><b>Lần {{ o.no }}</b> · {{ o.snapshot.chosen.total|money }} đ{% if o.reply_reason %} · {{ o.reply_reason }}{% if o.wanted_price %} (muốn {{ o.wanted_price|money }}){% endif %}{% endif %}{% if o.reply_choice %} · {{ o.reply_choice }} · {{ o.reply_person }}{% endif %}</span><span class="badge {{ {'DONG_Y':'b-xong','CHUA_DONG_Y':'b-huy','KHONG_SUA':'b-huy'}.get(o.status,'b-lam') }}">{{ rq.statuses[o.status] }}</span></p>{% endfor %}
+</details>{% endif %}
+</div>

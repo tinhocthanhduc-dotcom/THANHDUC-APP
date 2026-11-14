@@ -115,9 +115,15 @@ def waiting_rows(session: Session) -> list[dict]:
     out = []
     for t in tickets:
         r = found.get(t.id)
-        stage = ('Khách đồng ý' if t.quote_approved_at else 'Đã báo giá' if r and r.applied_at else
+        from . import repair_quotes as rq
+        sent = rq.open_version(session, t.id)
+        stage = ('Khách đồng ý' if t.quote_approved_at else
+                 f'Chờ khách trả lời · {rq.waiting_days(sent)} ngày' if sent and sent.sent_at else
+                 'Đã báo giá, chưa gửi khách' if r and r.applied_at else
+                 'Khách chưa đồng ý · kiểm tra lại' if r and r.recheck_reason else
                  'Chờ điều phối báo giá' if r else 'Chờ kiểm tra')
-        out.append(dict(ticket=t, inspection=r, stage=stage, machine=machine_name(session, t), todo=r is None))
+        out.append(dict(ticket=t, inspection=r, stage=stage, machine=machine_name(session, t), todo=r is None,
+                        late=rq.overdue(sent), recheck=bool(r and r.recheck_reason and not r.applied_at)))
     out.sort(key=lambda x: (not x['todo'], x['ticket'].id))
     return out
 
@@ -430,6 +436,7 @@ def apply(session: Session, user: User, ticket_id: int, version, choices: dict, 
         before = snapshot(row)
         row.applied_lines = [ln['customer_name'][:500] for ln in q['lines']]
         row.applied_at, row.applied_by, row.warranty_months = _now(), user.id, q['warranty']
+        row.recheck_reason = ''
         audit.record(session, user, 'repair_inspection.apply', 'service_ticket', str(t.id), before,
                      dict(snapshot(row), lines=[[ln['customer_name'], ln['pick']['price'], ln['item'].level, ln['genuine'], ln['description']] for ln in q['lines']],
                           pct=q['margin']['pct'], level_changes=[[ln['service'].name, ln['item'].level_auto, ln['item'].level,

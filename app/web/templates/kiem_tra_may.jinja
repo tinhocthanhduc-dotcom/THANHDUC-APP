@@ -11,6 +11,7 @@
 {% if hq %}<dt>Báo giá nhanh</dt><dd>{{ hq.number }}{% for ln in hq.lines if not ln.fee and ln.ok %} · {{ ln.name }}{% endfor %}</dd>{% endif %}
 {% if row %}<dt>Đã kiểm tra</dt><dd>{{ users.get(row.inspected_by, '') }} · {{ row.inspected_at|vn_time }} {{ row.inspected_at|vn_date }}{% if row.applied_at %} · <b>đã báo giá</b>{% endif %}</dd>{% endif %}</dl>
 </section>
+{% if row and row.recheck_reason %}<p class="alert warn" role="status"><b>Khách chưa đồng ý, kiểm tra lại.</b> {{ row.recheck_reason }}</p>{% endif %}
 {% if not waiting %}<p class="alert warn">Máy không còn ở bước chờ sửa tại xưởng, không sửa kết quả kiểm tra được.</p>{% endif %}
 <form method="post" action="/kiem-tra-may/{{ t.id }}" class="form rq-form" data-rq-form>
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version if row else '' }}">
