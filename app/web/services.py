@@ -415,6 +415,17 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
         # Phiếu nháp từ Zalo: điền sẵn khách/loại/lỗi/hẹn; máy và thợ để điều phối tự chọn.
         draft = zalo_phieu_nhap.check_open(session, user, _draft_id(nhap))
         return _new_form(request, session, zalo_phieu_nhap.prefill(session, draft, svc._now()), draft=draft)
+    hg = request.query_params.get('hg', '')
+    if hg:
+        # Báo giá nhanh (đợt 2, 14/11/2026): khách đồng ý, hẹn thợ tới kiểm tra; điền sẵn khách + mô tả lỗi.
+        from .. import quick_quotes
+        quick = quick_quotes.load_open(session, user, hg)
+        if _ink_only(user):
+            raise BusinessError('INK_ONLY', 'Kinh doanh chỉ nhận đơn Mực định kỳ. Hãy chuyển thành phiếu nhận máy hoặc nhờ điều phối hẹn thợ.', status=403)
+        c = session.get(Customer, quick.customer_code) if quick.customer_code else None
+        code = c.code if c and c.status == 'DANG_DUNG' else ''
+        return _new_form(request, session, dict(customer_code=code, kind='SUA_TAI_CHO', priority='THUONG',
+                                                symptom=quick_quotes.ticket_symptom(quick), warranty_of_id='', hg=str(quick.id)))
     chosen = session.get(Customer, request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
     if chosen and chosen.status == 'DANG_DUNG':
         # Quay về từ màn tạo/chọn khách: chọn sẵn khách, để _new_form tự chọn địa điểm duy nhất (máy không chọn sẵn).
@@ -472,6 +483,7 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
     if data['kind']=='MUC_DINH_KY' and not data['symptom'].strip():data['symptom']=INK_NOTE
     ink_only=_ink_only(request.state.user)
     nhap=str(form.get('nhap','')).strip();draft=None
+    hg=str(form.get('hg','')).strip()[:18]
     try:
         if nhap: draft=zalo_phieu_nhap.check_open(session,request.state.user,_draft_id(nhap))
         if ink_only and data['kind']!='MUC_DINH_KY': raise BusinessError('INK_ONLY','Kinh doanh chỉ nhận đơn Mực định kỳ.')
@@ -493,9 +505,13 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
         error, code, status = _message(exc)
         if draft is None and nhap and isinstance(exc, BusinessError):
             raise
+        if hg: data['hg']=hg
         return _new_form(request, session, data, error, code, status, draft=draft)
     if draft is not None:
         zalo_phieu_nhap.mark_created(session, request.state.user, draft.id, t)
+    if hg:
+        from .. import quick_quotes
+        quick_quotes.mark_converted(session, request.state.user, hg, t)
     if ink_only:
         return RedirectResponse(f"/khach-hang/nhac-muc?da_tao={quote(t.number)}", status_code=303)
     return RedirectResponse(f"/dich-vu/{t.id}?da_luu=1", status_code=303)

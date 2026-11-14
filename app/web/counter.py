@@ -86,12 +86,22 @@ def _form(request, session, data=None, error='', error_code='', status=200):
 
 
 @router.get('/quay-sua/nhan')
-def new(request: Request, customer_code: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+def new(request: Request, customer_code: str = '', hg: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
     counter._require(user)
+    quick = None
+    if hg:
+        # Báo giá nhanh (đợt 2, 14/11/2026): khách đồng ý, điền sẵn khách + mô tả lỗi, không nhập lại.
+        from .. import quick_quotes
+        quick = quick_quotes.load_open(session, user, hg)
+        customer_code = customer_code or quick.customer_code or ''
     chosen = session.get(Customer, customer_code[:50]) if customer_code else None
     data = None
-    if chosen and chosen.status == 'DANG_DUNG':
-        data = dict(customer_code=chosen.code, serial='', symptom='', accessories=[], accessories_note='', condition_note='', expected='', expected_pick='')
+    if (chosen and chosen.status == 'DANG_DUNG') or quick:
+        data = dict(customer_code=chosen.code if chosen and chosen.status == 'DANG_DUNG' else '', serial='', symptom='', accessories=[],
+                    accessories_note='', condition_note='', expected='', expected_pick='')
+    if quick:
+        from .. import quick_quotes
+        data.update(symptom=quick_quotes.ticket_symptom(quick), hg=str(quick.id))
     return _form(request, session, data)
 
 
@@ -158,7 +168,7 @@ def _expected(form):
 async def create(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
     user = request.state.user
     keys = ('customer_code', 'serial', 'symptom', 'accessories_note', 'condition_note', 'expected', 'expected_pick',
-            'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'tem_job', 'tem_anh')
+            'create_machine', 'new_serial', 'new_product_code', 'new_product_q', 'tem_job', 'tem_anh', 'hg')
     data = {k: str(form.get(k, '')) for k in keys}
     data['accessories'] = [str(v) for v in form.getlist('accessories')]
     try:
@@ -172,6 +182,9 @@ async def create(request: Request, form=Depends(checked_form), session: Session 
     except (BusinessError, ValidationError) as exc:
         message, code, status = _message(exc)
         return _form(request, session, data, message, code, status)
+    if data['hg']:
+        from .. import quick_quotes
+        quick_quotes.mark_converted(session, user, data['hg'], t)
     return RedirectResponse(f'/quay-sua/{t.id}?da_nhan=1', status_code=303)
 
 

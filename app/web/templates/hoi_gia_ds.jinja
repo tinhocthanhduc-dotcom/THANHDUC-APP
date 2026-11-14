@@ -1,0 +1,19 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Hỏi giá sửa{% endblock %}
+{% block main %}<div class="page-wide hg-page">
+{# Báo giá nhanh (mẫu B1 14/11/2026): khách hỏi giá sửa khi chưa gửi máy. #}
+{% call ui.page_head('Hỏi giá sửa', sub='Báo giá nhanh khi khách chưa gửi máy. Giá tham khảo gồm VAT lấy từ Bảng giá.') %}<a class="btn btn-new" href="/hoi-gia/moi">+ Báo giá nhanh</a>{% endcall %}
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/hoi-gia', q, 'Tìm số HG, model, khách, hiện tượng…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards hg-list"><thead><tr><th>Số</th><th>Model · hiện tượng</th><th>Khách</th><th class="num">Giá tham khảo</th><th>Trạng thái</th></tr></thead><tbody>
+{% for r in rows %}{% set first = (r.lines|rejectattr('fee')|list)[:1] %}<tr data-href="/hoi-gia/{{ r.id }}">
+<td data-label="Số"><a href="/hoi-gia/{{ r.id }}"><b>{{ r.number }}</b></a><span class="lt-sub">{{ r.created_at|vn_time }} {{ r.created_at|vn_date }}</span></td>
+<td data-label="Model"><b>{{ r.model_name }}</b><span class="lt-sub">{{ r.symptoms|join(', ') }}</span></td>
+<td data-label="Khách">{{ names.get(r.customer_code, r.contact) or '—' }}</td>
+<td data-label="Giá" class="num">{% if first %}{{ range_text(first[0]) }}{% if (r.lines|rejectattr('fee')|list)|length > 1 %}<span class="lt-sub">+{{ (r.lines|rejectattr('fee')|list)|length - 1 }} dịch vụ khác</span>{% endif %}{% else %}—{% endif %}</td>
+<td data-label="Trạng thái">{{ ui.badge(statuses[r.status], {'MOI': 'cho', 'DA_GUI': 'lam', 'CHUYEN_PHIEU': 'xong', 'KHONG_SUA': 'huy'}[r.status]) }}{% if r.ticket_id and tickets.get(r.ticket_id) %}<span class="lt-sub">{{ tickets[r.ticket_id].number }}</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('Chưa có báo giá nhanh nào.' if view == 'cho' else 'Không có báo giá nào ở mục này.', '/hoi-gia/moi', '+ Báo giá nhanh') }}{% endif %}
+{% call ui.list_foot(p, 'báo giá') %}{% endcall %}
+</div>{% endblock %}

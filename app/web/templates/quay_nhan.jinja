@@ -7,9 +7,10 @@
 {% set cust_bad = error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error) %}
 <div class="svn-head">{{ ui.page_head('Nhận máy khách mang tới', sub='Máy khách tại quầy · phiếu mới', back='/quay-sua') }}
 {{ ui.steps([('Nhận máy tại quầy','cur'),('Báo giá',''),('Khách đồng ý',''),('Sửa xong',''),('Khách lấy máy','')]) }}</div>
+{% if d.get('hg') %}<div class="pnz-banner" data-hg-banner><b>Từ báo giá nhanh.</b> Đã điền sẵn mô tả lỗi{{ ' và khách' if d.customer_code }}. <a href="/hoi-gia/{{ d.hg }}">Xem báo giá nhanh ›</a></div>{% endif %}
 {% if error %}<p class="alert bad form-alert" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
 <form id="counter-intake" method="post" action="/quay-sua/nhan" enctype="multipart/form-data" class="form quay-form" data-service-form data-choices-source="/quay-sua/chon-khach" data-busy>
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="kind" value="MANG_VE">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="kind" value="MANG_VE">{% if d.get('hg') %}<input type="hidden" name="hg" value="{{ d.hg }}">{% endif %}
 <div class="svn-grid">
 <div class="svn-main">
 {# Chụp tem máy (TUẤN duyệt 06/11/2026): máy Z2 đọc model + serial, app điền sẵn khách/máy; nhân viên vẫn bấm Nhận máy. #}

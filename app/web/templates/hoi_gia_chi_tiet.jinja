@@ -1,0 +1,51 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ row.number }} · Báo giá nhanh{% endblock %}
+{% block main %}<div class="page-wide hg-page">
+{# Báo giá nhanh (mẫu B1 14/11/2026): giá đã chụp lúc báo, bảng giá đổi sau không đổi tin đã gửi. #}
+{% set tone = {'MOI': 'cho', 'DA_GUI': 'lam', 'CHUYEN_PHIEU': 'xong', 'KHONG_SUA': 'huy'}[row.status] %}
+{% call ui.page_head(row.number ~ ' · ' ~ row.model_name, sub=places[row.place] ~ ' · ' ~ (customer.name if customer else (row.contact or 'Khách chưa chọn')) ~ ' · ' ~ (row.created_at|vn_time) ~ ' ' ~ (row.created_at|vn_date), back='/hoi-gia', badge_label=statuses[row.status], badge_tone=tone) %}{% endcall %}
+{% if saved %}{{ ui.toast('Đã lưu ' ~ row.number) }}{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<form method="post" action="/hoi-gia/{{ row.id }}/luu-tin" class="pnz-two hg-two" data-hg-detail {% if copy %}data-hg-copied{% endif %}>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<div class="hg-main">
+<section class="card hg-card"><h2 class="qf-h">Khách hỏi</h2>
+<dl class="svn-dl"><dt>Model</dt><dd>{{ row.model_name }}{% if not row.model_id %} <small class="mu">(chưa có trong bảng giá)</small>{% endif %}</dd>
+<dt>Hiện tượng</dt><dd>{{ row.symptoms|join(', ') }}</dd><dt>Sửa ở đâu</dt><dd>{{ places[row.place] }}</dd>
+<dt>Khách</dt><dd>{% if customer %}{{ customer.code }} · {{ customer.name }}{% elif row.contact %}{{ row.contact }}{% else %}<span class="mu">Chưa chọn</span>{% endif %}</dd>
+{% if row.note %}<dt>Ghi chú</dt><dd>{{ row.note }}</dd>{% endif %}
+{% if ticket %}<dt>Phiếu</dt><dd>{% if ticket_href %}<a href="{{ ticket_href }}">{{ ticket.number }} ›</a>{% else %}{{ ticket.number }}{% endif %}</dd>{% endif %}</dl>
+</section>
+<section class="card hg-card"><h2 class="qf-h">Giá đã báo <small class="mu">· gồm VAT, lúc lập</small></h2>
+{% set svc_lines = row.lines|rejectattr('fee')|list %}
+{% if svc_lines %}<div class="table-scroll"><table class="list-table hg-table"><thead><tr><th>Dịch vụ</th><th class="num">Giá tham khảo</th></tr></thead><tbody>
+{% for ln in svc_lines %}<tr><td>{{ ln.name }} <small class="mu">· {{ levels_text(ln) }}</small></td><td class="num">{% if ln.ok %}<b>{{ range_text(ln) }}</b>{% else %}<span class="badge b-cho">Cần kỹ thuật xác nhận</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="hint">Chưa có giá: cần kỹ thuật xác nhận.</p>{% endif %}
+{% for f in row.lines if f.fee %}<p class="hg-fee">{{ f.name }}: <b>{{ money(f.price) }}</b></p>{% endfor %}
+</section>
+</div>
+<aside class="pnz-side">
+<section class="card hg-card"><h2 class="qf-h">Tin Zalo gửi khách</h2>
+{% if open %}<textarea name="text" class="tg-box hg-box" rows="10" maxlength="2000" required data-hg-text>{{ text }}</textarea>
+<div class="tg-acts"><button type="button" class="btn btn-new" data-hg-copy-only>Sao chép tin</button>{% if linked %}<button class="btn btn-ok" formaction="/hoi-gia/{{ row.id }}/gui-zalo" data-service-confirm="Gửi tin này cho khách qua Zalo công ty?">Gửi Zalo công ty</button>{% endif %}<button class="btn btn-ghost">Lưu tin</button></div>
+{% if row.status == 'MOI' %}<button class="btn btn-ok pnz-full" formaction="/hoi-gia/{{ row.id }}/da-gui">Đã gửi khách (Zalo cá nhân, gọi điện)</button>{% endif %}
+{% else %}<p class="zl-quote tg-final">{{ row.text }}</p>{% endif %}
+{% if row.sent_via %}<p class="hint">Đã gửi bằng {{ 'Zalo công ty' if row.sent_via == 'BOT' else 'Zalo cá nhân / gọi điện' }}.</p>{% endif %}
+</section>
+{% if open %}
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · khi khách trả lời</span>
+{% if conv.nhan %}<button class="btn btn-new pnz-full" formaction="/hoi-gia/{{ row.id }}/nhan">Chuyển thành phiếu nhận máy ›</button>{% endif %}
+{% if conv.hen %}<button class="btn btn-new pnz-full" formaction="/hoi-gia/{{ row.id }}/hen">Hẹn thợ tới kiểm tra ›</button>{% endif %}
+<button class="btn btn-danger pnz-full" formaction="/hoi-gia/{{ row.id }}/khong-sua" formnovalidate data-service-confirm="Khách không sửa? Báo giá chuyển sang Không sửa.">Khách không sửa</button>
+</section>
+{% elif row.status == 'KHONG_SUA' %}
+{% call ui.next_box('Xong', 'Khách không sửa') %}<button class="btn btn-ghost" formaction="/hoi-gia/{{ row.id }}/mo-lai" formnovalidate>Mở lại</button>{% endcall %}
+{% elif ticket %}
+{% call ui.next_box('Xong', 'Đã chuyển thành phiếu ' ~ ticket.number) %}{% endcall %}
+{% endif %}
+</aside>
+</form>
+<script src="{{ asset('services.js') }}" defer></script>
+<script src="{{ asset('hoi-gia.js') }}" defer></script>
+</div>{% endblock %}

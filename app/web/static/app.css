@@ -4606,3 +4606,21 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .bg-table.lt-cards td[data-label]::before { content: attr(data-label); color: var(--muted); font-weight: 400; text-align: left; }
   .bg-table.lt-cards td[data-label] .lt-sub { display: inline; margin-left: 6px; }
 }
+/* Báo giá nhanh (mẫu B1 14/11/2026). */
+.hg-main { display: grid; gap: 14px; min-width: 0; }
+.hg-card { display: grid; gap: 10px; min-width: 0; }
+.hg-card .group-label { margin: 4px 0 0; }
+.hg-chips { flex-wrap: wrap; }
+.hg-warn { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: .9rem; }
+.hg-picked { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.hg-table td { white-space: normal; }
+.hg-tiles { display: none; gap: 8px; }
+.hg-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.hg-money { font-weight: 700; font-variant-numeric: tabular-nums; }
+.hg-fee { margin: 0; }
+.hg-box { min-height: 300px; }
+@media (max-width: 640px) {
+  .hg-dk { display: none; }
+  .hg-tiles { display: grid; }
+  .hg-two .pnz-side { order: 0; }
+}
