@@ -4794,3 +4794,39 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .hd-table td:first-child, .hd-table th:first-child { padding-left: 12px; min-width: 130px; }
 @media (min-width: 761px) { .hd-cell { width: 84px; font-size: 14px; padding-left: 6px; padding-right: 6px; } }
 .hd-table th { white-space: normal; } .hd-table .lt-sub { display: block; white-space: normal; }
+/* Hỏi giá sửa bản 2 (mẫu HG1–HG3 duyệt 14/11/2026): lưới cấp, hạng mục ngoài bảng giá. */
+.hg-two > *, .hg-card > * { min-width: 0; }
+.hg-card { grid-template-columns: minmax(0, 1fr); }
+.hg-grid th, .hg-grid td { padding-left: 6px; padding-right: 6px; vertical-align: middle; }
+.hg-grid th { white-space: normal; }
+.hg-grid .lt-sub { display: block; white-space: normal; }
+.hg-grid td.hg-svc { min-width: 140px; white-space: normal; }
+.hg-grid tr.hg-off td { background: var(--warn-bg); }
+.hg-cb { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; background: var(--surface); }
+.hg-cb.on { border-color: var(--accent); background: var(--info-bg); font-weight: 700; }
+.hg-cb.ro { cursor: default; color: var(--muted); }
+.hg-cb.ro.on { color: var(--text); }
+.hg-cb.ed { border-style: dashed; border-color: #7c3aed; }
+.hg-cb input[type=checkbox] { width: 18px; height: 18px; margin: 0; }
+.hg-gia { width: 92px; text-align: right; font-weight: 700; font-size: 16px; padding: 4px 6px; min-height: 0; }
+.hg-base { display: block; font-size: .75rem; color: var(--muted); }
+.hg-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+.hg-cust { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+@media (max-width: 760px) {
+  .hg-grid thead { display: none; }
+  .hg-grid, .hg-grid tbody { display: block; }
+  .hg-grid tr { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .hg-grid td { display: block; border: 0; padding: 0; }
+  .hg-grid td.hg-svc { flex: 1 0 100%; }
+  .hg-grid td[data-label]::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--muted); text-align: left; }
+  .hg-grid td[data-label]:has(.mu) { display: none; }
+  .hg-cust { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .hg-cust label:first-child { grid-column: 1 / -1; }
+}
+@media (min-width: 761px) {
+  .hg-grid td.hg-svc { min-width: 110px; }
+  .hg-cb { padding: 4px 6px; gap: 4px; }
+  .hg-cb input[type=checkbox] { width: 16px; height: 16px; }
+  .hg-gia { width: 76px; font-size: 14px; padding: 3px 4px; }
+}
+.hg-card .hint a { overflow-wrap: anywhere; word-break: break-all; }

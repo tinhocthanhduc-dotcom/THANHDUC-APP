@@ -14,6 +14,7 @@ from ..service_tickets import CREATORS
 from . import checked_form, nav, paging, picked, render, web_user
 
 router = APIRouter(include_in_schema=False)
+public_router = APIRouter(include_in_schema=False)
 
 
 def _params(src) -> dict:
@@ -21,12 +22,28 @@ def _params(src) -> dict:
     return dict(model=str(get('model', '') or '')[:160], ht=[str(v)[:200] for v in src.getlist('ht')][:qq.MAX_SYMPTOMS],
                 noi=str(get('noi', '') or 'CUA_HANG'), khach=str(get('khach', '') or '')[:16], lien_he=str(get('lien_he', '') or '')[:200],
                 ghi_chu=str(get('ghi_chu', '') or '')[:2000], text_edited='1' if str(get('text_edited', '')) == '1' else '',
-                text=str(get('text', '') or '')[:4000])
+                text=str(get('text', '') or '')[:4000], options=qq.parse_options(src))
 
 
-def _preview(session, d):
-    result = qq.compute(session, d['model'], d['ht'], d['noi'])
-    return dict(r=result, text=qq.zalo_text(result) if result['symptoms'] else '',
+def _preview(session, d, user=None):
+    """Xem trước: hạng mục ngoài bảng giá đang nhập dở (thiếu giá) thì chưa tính, báo khi lưu."""
+    opts = d.get('options') or {}
+    customs = []
+    for c in opts.get('customs') or []:
+        try:
+            qq.check_customs([c])
+            customs.append(c)
+        except BusinessError:
+            pass
+    overrides = opts.get('overrides') if qq.is_director(user) else {}
+    try:
+        result = qq.compute(session, d['model'], d['ht'], d['noi'], opts.get('picks'), overrides, customs)
+    except BusinessError:
+        result = qq.compute(session, d['model'], d['ht'], d['noi'], opts.get('picks'), {}, customs)
+    mode = opts.get('mode', 'KHOANG')
+    return dict(r=result, text=qq.zalo_text(result, mode) if result['symptoms'] else '', mode=mode, modes=qq.MODES,
+                customs=opts.get('customs') or [], director=qq.is_director(user), level_keys=qq.LEVEL_KEYS,
+                level_short=qq.LEVEL_SHORT, level_hint=qq.LEVEL_HINT, max_custom=qq.MAX_CUSTOM,
                 symptom_chips=qq.symptom_names(session, result['model']), range_text=qq.range_text, levels_text=qq.levels_text, money=qq.money)
 
 
@@ -34,15 +51,15 @@ def _can_convert(user):
     return dict(nhan=has_role(user, *COUNTER_ROLES), hen=has_role(user, *CREATORS) and nav.allowed(user, '/dich-vu'))  # kinh doanh chỉ nhận Mực định kỳ
 
 
-def _compose(request, session, user, d, error='', error_code='', status=200):
+def _compose(request, session, user, d, error='', error_code='', status=200, row=None):
     customer = session.get(Customer, d['khach']) if d['khach'] else None
-    ctx = _preview(session, d)
+    ctx = _preview(session, d, user)
     if d['text_edited']:
         ctx['text'] = d['text']
     linked = bool(customer and qq.linked_chat(session, customer.code))
     return render(request, 'hoi_gia_moi.jinja', d=d, customer=customer, linked=linked, places=qq.PLACES,
                   model_names=[m.name for m in pb.models(session) if m.active], conv=_can_convert(user),
-                  error=error, error_code=error_code, status=status, **ctx)
+                  row=row, error=error, error_code=error_code, status=status, **ctx)
 
 
 @router.get('/hoi-gia')
@@ -71,7 +88,8 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
 @router.get('/hoi-gia/xem-truoc')
 def preview(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
     qq.require(user)
-    return render(request, 'hoi_gia_ket_qua.jinja', d=_params(request.query_params), **_preview(session, _params(request.query_params)))
+    d = _params(request.query_params)
+    return render(request, 'hoi_gia_ket_qua.jinja', d=d, **_preview(session, d, user))
 
 
 @router.get('/hoi-gia/tim-khach')
@@ -97,7 +115,7 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
     nxt = str(form.get('next', ''))
     try:
         row = qq.create(session, user, model_name=d['model'], symptoms=d['ht'], place=d['noi'], customer_code=d['khach'],
-                        contact=d['lien_he'], note=d['ghi_chu'], text=d['text'] if d['text_edited'] else None)
+                        contact=d['lien_he'], note=d['ghi_chu'], text=d['text'] if d['text_edited'] else None, options=d['options'])
         if nxt == 'copy':
             row = qq.mark_sent(session, user, row.id)
         elif nxt == 'bot':
@@ -108,8 +126,62 @@ def create(request: Request, form=Depends(checked_form), session: Session = Depe
                 return RedirectResponse(f'/hoi-gia/{row.id}?loi_gui={exc.code}', status_code=303)
     except BusinessError as exc:
         session.rollback()
+        if exc.status == 403 and exc.code == 'FORBIDDEN':
+            raise
         return _compose(request, session, user, d, exc.message, exc.code, exc.status)
     return RedirectResponse(_next(row, nxt), status_code=303)
+
+
+@router.get('/hoi-gia/{qid}/sua')
+def edit(request: Request, qid: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    row = qq.load(session, user, qid)
+    if row.status not in qq.OPEN:
+        return RedirectResponse(f'/hoi-gia/{qid}', status_code=303)
+    return _compose(request, session, user, qq.from_row(row), row=row)
+
+
+@router.post('/hoi-gia/{qid}/sua')
+def save_edit(request: Request, qid: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    row = qq.load(session, user, qid)
+    d = _params(form)
+    try:
+        qq.update(session, user, qid, model_name=d['model'], symptoms=d['ht'], place=d['noi'], customer_code=d['khach'],
+                  contact=d['lien_he'], note=d['ghi_chu'], text=d['text'] if d['text_edited'] else None, options=d['options'])
+    except BusinessError as exc:
+        session.rollback()
+        if exc.status == 404 or exc.code == 'FORBIDDEN':
+            raise
+        return _compose(request, session, user, d, exc.message, exc.code, exc.status, row=session.get(type(row), qid))
+    return RedirectResponse(f'/hoi-gia/{qid}?da_luu=1', status_code=303)
+
+
+def _print_ctx(session, row):
+    from ..config import get_settings
+    return dict(row=row, customer=session.get(Customer, row.customer_code) if row.customer_code else None, company=get_settings(),
+                places=qq.PLACES, level_keys=qq.LEVEL_KEYS, level_short=qq.LEVEL_SHORT, level_hint=qq.LEVEL_HINT,
+                maker=session.get(User, row.created_by), until=qq.valid_until(row), money=qq.money)
+
+
+@router.get('/hoi-gia/{qid}/in')
+def print_page(request: Request, qid: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    row = qq.load(session, user, qid)
+    return render(request, 'hoi_gia_in.jinja', **_print_ctx(session, row), back=f'/hoi-gia/{row.id}')
+
+
+@public_router.get('/hg/{token}')
+def quote_public(request: Request, token: str, session: Session = Depends(get_session)):
+    """Khách mở link báo giá nhanh: không đăng nhập, chỉ bản báo giá cho khách (không linh kiện, giá vốn)."""
+    row, state = qq.public(session, token)
+    if state == 'ok':
+        resp = render(request, 'hoi_gia_in.jinja', **_print_ctx(session, row), back='')
+    else:
+        from ..config import get_settings
+        resp = render(request, 'hoi_gia_khach.jinja', state=state, co=get_settings(), status=404 if state == 'khong_co' else 410)
+    resp.headers['Cache-Control'] = 'no-store'
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    resp.headers['Referrer-Policy'] = 'no-referrer'
+    return resp
 
 
 def _detail(request, session, user, qid, error='', error_code='', status=200, text=None):
@@ -123,7 +195,8 @@ def _detail(request, session, user, qid, error='', error_code='', status=200, te
     if err and not error:
         error, error_code = ('Khách chưa chọn hoặc chưa gắn Zalo công ty, chưa gửi được. Hãy Sao chép rồi gửi bằng Zalo cá nhân.'
                              if err == 'NOT_LINKED' else 'Zalo chưa gửi được. Báo giá đã lưu, hãy thử lại hoặc Sao chép.'), err
-    return render(request, 'hoi_gia_chi_tiet.jinja', row=row, customer=customer, ticket=ticket, ticket_href=ticket_href, linked=bool(qq.linked_chat(session, row.customer_code)),
+    return render(request, 'hoi_gia_chi_tiet.jinja', row=row, customer=customer, link=qq.link(row), level_keys=qq.LEVEL_KEYS,
+                  level_short=qq.LEVEL_SHORT, level_hint=qq.LEVEL_HINT, modes=qq.MODES, until=qq.valid_until(row), ticket=ticket, ticket_href=ticket_href, linked=bool(qq.linked_chat(session, row.customer_code)),
                   statuses=qq.STATUSES, places=qq.PLACES, range_text=qq.range_text, levels_text=qq.levels_text, money=qq.money,
                   open=row.status in qq.OPEN, conv=_can_convert(user), text=row.text if text is None else text,
                   saved=request.query_params.get('da_luu') == '1', copy=request.query_params.get('chep') == '1',

@@ -118,7 +118,7 @@ def test_web_compose_save_and_convert_to_onsite_ticket(client, db, service_peopl
     csrf = service_login(client, p['dispatcher'])
     page = client.get('/hoi-gia/moi?model=Canon+LBP+2900&ht=K%E1%BA%B9t+gi%E1%BA%A5y').text
     assert 'Laser đen trắng A4 đơn năng' in page and '162.000 – 270.000' in page and 'Chuyển thành phiếu nhận máy' in page
-    assert 'Hẹn thợ tới kiểm tra' in page and 'Bảo hành' not in page
+    assert 'Hẹn thợ tới kiểm tra' in page and 'Hạng mục ngoài bảng giá' in page
     part = client.get('/hoi-gia/xem-truoc?model=Epson+L3110&ht=K%E1%BA%B9t+gi%E1%BA%A5y').text
     assert 'Cần kỹ thuật xác nhận' in part and 'Sửa chữa bộ kéo giấy' not in part and '<html' not in part
     assert 'Minh Phát' in client.get('/hoi-gia/tim-khach?q=minh').text
@@ -151,7 +151,9 @@ def test_web_edited_text_copy_and_roles(client, db, service_people, make_user): 
     r = client.post('/hoi-gia/luu', data=dict(csrf=csrf, model='Canon LBP 2900', ht='Kẹt giấy', noi='TAN_NOI', next='copy',
                                              text='Dạ em báo giá sửa tay cho anh ạ', text_edited='1'), follow_redirects=False)
     row = db.scalars(select(QuickQuote)).one()
-    assert r.status_code == 303 and row.status == 'DA_GUI' and row.sent_via == 'CA_NHAN' and row.text == 'Dạ em báo giá sửa tay cho anh ạ'
+    assert r.status_code == 303 and row.status == 'DA_GUI' and row.sent_via == 'CA_NHAN'
+    # Tin sửa tay giữ nguyên, app thêm link báo giá chi tiết ở cuối (mẫu HG1 bản 2).
+    assert row.text == 'Dạ em báo giá sửa tay cho anh ạ\nXem báo giá chi tiết: ' + qq.link(row)
     page = client.get(f'/hoi-gia/moi').text
     # Kinh doanh chỉ nhận Mực định kỳ: có Chuyển thành phiếu nhận máy, không có Hẹn thợ.
     assert 'Chuyển thành phiếu nhận máy' in page and 'Hẹn thợ tới kiểm tra' not in page
