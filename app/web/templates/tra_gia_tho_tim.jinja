@@ -1,0 +1,3 @@
+{# Tra giá thợ (mẫu T1 duyệt 15/11/2026): danh sách model khớp chữ đã gõ. #}
+{% if matches %}<div class="tg2-list">{% for x in matches %}<a class="tg2-it" href="/tra-gia?model={{ x.name|urlencode }}"><b>{{ x.name }}</b><small>{{ group_names.get(x.group_id, '') }}</small><span aria-hidden="true">›</span></a>{% endfor %}</div>
+{% elif q and q|length >= 2 %}<p class="hint">Không thấy model nào có “{{ q }}”. Thử gõ ngắn hơn, ví dụ chỉ số model.</p>{% endif %}

@@ -1,0 +1,8 @@
+{# Giá sản phẩm màn thợ (mẫu SP2 duyệt 15/11/2026): nhóm hàng để lọc, mỗi hàng một thẻ, giá to bên phải. #}
+{% if q|length < 2 %}<p class="hint">Gõ ít nhất 2 ký tự, app hiện hàng khớp ngay bên dưới.</p>
+{% elif not groups %}<p class="alert warn"><b>Không thấy hàng này.</b> Thử gõ ngắn hơn (vd chỉ số mã), hoặc hỏi bán hàng. Không tự báo giá khách.</p>
+{% else %}
+<div class="tg2-filters">{% set total = groups|sum(attribute=1) %}<a href="/tra-gia/san-pham?q={{ q|urlencode }}" {% if not nhom %}class="on"{% endif %}>Tất cả <b>{{ total }}</b></a>{% for g, n in groups %}<a href="/tra-gia/san-pham?q={{ q|urlencode }}&nhom={{ g|urlencode }}" {% if nhom == g %}class="on"{% endif %}>{{ g }} <b>{{ n }}</b></a>{% endfor %}</div>
+{% for p in rows %}<section class="tgsp" data-tgsp-code="{{ p.code }}"><b class="tgsp-n">{{ p.name }}</b><div class="tgsp-pr"><b>{{ money(p.price) }}</b><small>gồm VAT</small></div><small class="tgsp-c">{{ p.code }}{% if p.group %} · {{ p.group }}{% endif %}</small><div class="tgsp-meta">{% if p.in_stock %}<span class="badge b-xong">Còn hàng</span>{% else %}<span class="badge b-huy">Hết hàng</span>{% endif %}{% if p.warranty > 0 %}<span class="badge b-lam">BH {{ p.warranty }} tháng</span>{% endif %}</div></section>{% else %}<p class="hint">Nhóm này không có hàng khớp.</p>{% endfor %}
+<p class="hint tg2-note">Giá đã gồm VAT, là giá bán lẻ báo khách. Giá khác cho khách quen thì hỏi bán hàng.</p>
+{% endif %}

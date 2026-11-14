@@ -1,0 +1,43 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Bảng giá{% endblock %}
+{% block main %}<div class="tg2">
+{# TUẤN duyệt mẫu T1–T3 15/11/2026: thợ chỉ chọn model và lỗi rồi bấm Tra giá; giá đã gồm VAT, không đoán giá. #}
+{% call ui.page_head('Bảng giá', sub='Chọn model và lỗi, bấm Tra giá') %}{% endcall %}
+{% include 'tra_gia_tab.jinja' %}
+{% if result %}
+<section class="tg2-sum"><div><b>{{ m.name }}</b><span>{{ ht|join(' · ') }}</span></div><a href="/tra-gia?model={{ m.name|urlencode }}{% for h in ht %}&ht={{ h|urlencode }}{% endfor %}">Sửa lại</a></section>
+{% set shown = result.lines %}
+{% if shown %}{% for ln in shown %}
+<section class="tg2-card" data-tg2-service="{{ ln.service_id }}">
+{% set ws = [] %}{% for k in ['1', '2', '3', 'CH'] %}{% set c = (ln.cells or {}).get(k) %}{% if c %}{% do ws.append(c.warranty) %}{% endif %}{% endfor %}
+<div class="tg2-h"><b>{{ ln.name }}</b>{% if ws and ws|max %}<small>BH {{ ws|max }} tháng</small>{% endif %}</div>
+{% if ln.cells and (ln.cells['1'] or ln.cells['2'] or ln.cells['3']) %}<div class="tg2-lv">{% for k in level_keys %}{% set c = ln.cells.get(k) %}<div class="{{ 'on' if c and c.on else ('na' if not c else '') }}"><small>Cấp {{ k }} · {{ level_hint[k] }}</small><b>{{ money(c.price) if c else '—' }}</b></div>{% endfor %}</div>
+{% if ln.cells.get('CH') %}<p class="tg2-ch"><span>Linh kiện chính hãng</span><b>{{ money(ln.cells['CH'].price) }}</b></p>{% endif %}
+{% else %}<p class="alert warn"><b>Cần kỹ thuật xác nhận.</b> {{ ln.reason }}</p>{% endif %}
+</section>{% endfor %}
+<p class="hint tg2-note">Giá đã gồm VAT, là giá báo khách. Ô xanh là cấp hay gặp với lỗi đã chọn; kỹ thuật kiểm tra rồi chốt cấp.</p>
+{% else %}<p class="alert warn"><b>Lỗi này chưa gắn gói sửa cho loại máy này.</b> Báo kỹ thuật trưởng để xác nhận giá.</p>{% endif %}
+<a class="btn btn-ghost tg2-full" href="/tra-gia?tab=sua">Tra máy khác</a>
+{% else %}
+<form method="get" action="/tra-gia" class="tg2-form" data-tg2>
+<p class="tg2-step"><i>1</i>Model máy</p>
+{% if m %}<div class="tg2-picked"><div><b>{{ m.name }}</b><small>{{ group.name if group else '' }}</small></div><a class="btn btn-ghost" href="/tra-gia?tab=sua">Đổi máy</a></div>
+<input type="hidden" name="model" value="{{ m.name }}">
+{% else %}<label class="sr-only" for="tg2-q">Model máy</label>
+<input id="tg2-q" type="search" name="q" value="{{ q or model }}" class="tg2-search" placeholder="Gõ model, vd 2900, M402…" autocomplete="off" data-tg2-find="/tra-gia/tim">
+{% if model %}<p class="alert warn"><b>Chưa có model “{{ model }}” trong bảng giá.</b> Giá cần kỹ thuật trưởng xác nhận, không tự báo khách.{% if matches %} Có phải máy dưới đây?{% endif %}</p>{% endif %}
+<div data-tg2-list aria-live="polite">{% include 'tra_gia_tho_tim.jinja' %}</div>
+<noscript><button class="btn btn-ghost">Tìm model</button></noscript>
+{% if mine %}<p class="tg2-sec">Máy đang sửa của tôi</p><div class="tg2-list">{% for x in mine %}<a class="tg2-it" href="/tra-gia?model={{ x.name|urlencode }}"><b>{{ x.name }}</b><small>{{ x.ticket }}</small><span aria-hidden="true">›</span></a>{% endfor %}</div>{% endif %}
+{% endif %}
+<p class="tg2-step{{ ' off' if not m }}"><i>2</i>Lỗi của máy <small>· chọn 1 hoặc nhiều</small></p>
+{% if m %}{% if chips %}<div class="chips acc-chips tg2-chips" role="group" aria-label="Lỗi của máy">{% for n in chips %}<label class="chip"><input type="checkbox" name="ht" value="{{ n }}" {% if n|lower in ht|map('lower')|list %}checked{% endif %}><span>{{ n }}</span></label>{% endfor %}</div>
+{% else %}<p class="hint">Loại máy này chưa có lỗi nào trong bảng giá. Báo kỹ thuật trưởng.</p>{% endif %}
+{% else %}<p class="hint">Chọn model trước, app hiện các lỗi hay gặp của loại máy đó.</p>{% endif %}
+{% if error %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+<button class="btn btn-ok tg2-go" name="xem" value="1" {% if not m %}disabled{% endif %}>Tra giá</button>
+</form>
+<script src="{{ asset('tra-gia-tho.js') }}" defer></script>
+{% endif %}
+</div>{% endblock %}

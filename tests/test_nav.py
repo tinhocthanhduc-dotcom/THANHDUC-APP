@@ -92,7 +92,7 @@ def test_exact_menu_home_and_login_for_each_role(client, make_user, role):
     page = client.get(HOMES[role])
     assert page.status_code == 200
     links = Menu(page.text).links
-    expected = {'/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi','/bang-gia?tab=goi#tra-gia'} if role=='technician' else EXPECTED[role]
+    expected = {'/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi','/tra-gia'} if role=='technician' else EXPECTED[role]
     assert {a['href'] for a in links} == expected
     assert len(links) == len(expected)  # Không nhân đôi menu desktop/mobile.
     assert nav.ROLE_LABELS[role] in page.text and user.full_name in page.text
