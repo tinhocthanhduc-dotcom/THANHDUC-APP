@@ -1,0 +1,8 @@
+{# Bảng gói × cấp dùng chung cho trang chi tiết (có ô sửa giá của giám đốc) và trang khách. #}
+{% macro table(q, s, levels, level_short, level_hint, edit=false) %}
+<div class="table-scroll"><table class="list-table hd-table"><thead><tr><th>Gói sửa chữa</th>{% for lv in levels %}<th class="num">{{ level_short[lv] }}<span class="lt-sub">{{ level_hint[lv] }}</span></th>{% endfor %}<th class="num">BH</th></tr></thead><tbody>
+{% for m in s.models %}{% set mi = loop.index0 %}<tr class="hd-grp"><td colspan="{{ levels|length + 2 }}"><b>{{ loop.index }}. {{ m.name }}</b> <span class="mu">{{ m.group }} · {{ m.qty }} máy</span></td></tr>
+{% for r in m.rows %}<tr><td><b>{{ r.name }}</b>{% if r.note %}<span class="lt-sub">{{ r.note }}</span>{% endif %}</td>
+{% for lv in levels %}{% set c = r.cells.get(lv) %}<td class="num" data-label="{{ level_short[lv] }}">{% if c %}{% if edit %}<input class="hd-cell" name="o_{{ mi }}_{{ r.service_id }}_{{ lv }}" value="{{ (c.price + c.vat)|money }}" inputmode="numeric" data-money aria-label="{{ r.name }} {{ level_short[lv] }}">{% else %}<b>{{ (c.price + c.vat)|money }}</b>{% endif %}{% else %}<span class="mu">—</span>{% endif %}</td>{% endfor %}
+{% set ws = [] %}{% for lv in levels %}{% if r.cells.get(lv) %}{% do ws.append(r.cells[lv].warranty) %}{% endif %}{% endfor %}<td class="num" data-label="BH">{{ ws|max if ws else '—' }} th</td></tr>{% endfor %}{% endfor %}
+</tbody></table></div>{% endmacro %}

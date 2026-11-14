@@ -22,6 +22,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from . import audit
+from . import contract_quotes as cq
 from . import price_book as pb
 from .config import DEFAULT_VAT_RATE
 from .errors import BusinessError
@@ -350,8 +351,9 @@ def quote(session: Session, t: ServiceTicket, row: RepairInspection, choices: di
     desc = descriptions(session, row)
     for i in row.items:
         s = session.get(PriceService, i.service_id)
-        std = pb.lookup(session, i.service_id, row.model_name, i.level)
-        gen = pb.lookup(session, i.service_id, row.model_name, i.level, genuine=True)
+        # Khách có báo giá hợp đồng đã ký (còn hạn áp giá) cho model này: ô có trên hợp đồng lấy giá hợp đồng.
+        std = cq.lookup(session, t.customer_code, i.service_id, row.model_name, i.level)
+        gen = cq.lookup(session, t.customer_code, i.service_id, row.model_name, i.level, genuine=True)
         genuine = choices.get(i.service_id, i.genuine) and gen['ok']
         pick = gen if genuine else std
         ok = ok and pick['ok']
@@ -366,7 +368,8 @@ def quote(session: Session, t: ServiceTicket, row: RepairInspection, choices: di
     subtotal = sum(ln['pick']['price'] or 0 for ln in lines)
     vat = sum(pb.with_vat(ln['pick']['price']) - ln['pick']['price'] for ln in lines if ln['ok'])
     out = dict(lines=lines, ai=desc['state'], ok=ok and bool(lines), subtotal=subtotal, vat=vat, total=subtotal + vat,
-               warranty=max((ln['warranty'] or 0 for ln in lines if ln['ok']), default=None))
+               warranty=max((ln['warranty'] or 0 for ln in lines if ln['ok']), default=None),
+               contract=next((ln['pick']['contract'] for ln in lines if ln['pick'].get('source') == 'hop_dong'), None))
     if with_cost:
         out['margin'] = margin(session, t, row, out, hours)
     out['below_floor'] = _below_floor(session, t, row, out, hours)

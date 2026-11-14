@@ -18,6 +18,7 @@
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -175,7 +176,9 @@ def can_do_label(chat: ZaloChat, staff: User | None) -> str:
         return 'Không (tài khoản đã khóa)'
     c = can_do(staff)
     extra = ', '.join(zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff)))
-    return 'Hỏi tồn' + (', giá bán' if c['price'] else '') + (', lên đơn nháp' if c['draft'] else '') + ', ' + extra
+    from . import price_book
+    return ('Hỏi tồn' + (', giá bán' if c['price'] else '') + (', giá sửa theo model' if price_book.can_view(staff) else '')
+            + (', lên đơn nháp' if c['draft'] else '') + ', ' + extra)
 
 
 # ---------- Công cụ cho AI (chỉ đọc, trừ tạo đơn nháp) ----------
@@ -227,6 +230,40 @@ def tool_stock(session: Session, q: str, with_price: bool) -> dict:
             row['dang_ve'] = dict(so_luong=_num(c.qty), du_kien=c.at.strftime('%d/%m/%Y') if c.at else 'chưa hẹn ngày')
         out.append(row)
     return dict(ket_qua=out)
+
+
+def tool_repair_prices(session: Session, model: str, q: str = '', customer_code: str = '') -> dict:
+    """Giá gói sửa theo model (TUẤN 14/11/2026: thợ tra được trên Zalo). Chỉ giá bán gồm VAT, không giá vốn, không phương án."""
+    from . import contract_quotes as cq
+    from . import price_book as pb
+    from .search import fold
+    m = pb.find_model(session, str(model or '').strip()[:160])
+    if m is None or not m.active:
+        names = [x.name for x in pb.models(session, str(model or '')[:60]) if x.active][:6]
+        return dict(loi='Model chưa có trong danh mục Model máy.', model_gan_giong=names)
+    code = str(customer_code or '').strip().upper()[:16]
+    needle = fold(str(q or '')).split()
+    out = []
+    for r in pb.package_rows(session, m.group_id):
+        s = r['service']
+        if r['empty'] or not s.active or not all(w in fold(s.name + ' ' + (s.customer_name or '')) for w in needle):
+            continue
+        cells, contract = {}, None
+        for key, lv, gen in (('cap_1', 1, False), ('cap_2', 2, False), ('cap_3', 3, False), ('chinh_hang_cap_2', 2, True)):
+            x = cq.lookup(session, code, s.id, m.name, lv, genuine=gen) if code else pb.lookup(session, s.id, m.name, lv, genuine=gen)
+            if x['ok']:
+                cells[key] = x['price_vat']
+                contract = contract or (x.get('contract') or {}).get('number')
+        if not cells:
+            continue
+        row = dict(goi=pb.customer_name(s, m.name), gia_gom_vat=cells, bao_hanh_thang=r['levels'][2].warranty_months if 2 in r['levels'] else None)
+        if contract:
+            row['gia_hop_dong'] = contract
+        out.append(row)
+    if not out:
+        return dict(model=m.name, ket_qua=[], ghi_chu='Nhóm máy của model chưa có giá gói nào' + (' khớp từ khóa.' if needle else '.'))
+    return dict(model=m.name, ket_qua=out[:12], ghi_chu='Giá trọn gói công + linh kiện, đã gồm VAT. Cấp do kỹ thuật kiểm tra máy rồi chọn.',
+                link=zalo_tra_cuu._url('/bang-gia/tra-gia?' + urllib.parse.urlencode(dict(model=m.name)) + '#tra-gia'))
 
 
 def tool_customers(session: Session, q: str) -> dict:
@@ -315,6 +352,12 @@ def _fn(name, desc, props, required):
 
 T_STOCK = _fn('tra_ton', 'Tra tồn kho theo mã hoặc tên hàng (không dấu cũng được). Trả tối đa 6 mã khớp, tồn từng kho, hàng đang về.',
               dict(tu_khoa=dict(type='string')), ['tu_khoa'])
+T_REPAIR = _fn('tra_gia_sua', 'Tra giá GÓI SỬA CHỮA máy in theo model (Bảng giá chung): từng gói, giá Cấp 1 Nhẹ / Cấp 2 Trung bình / '
+               'Cấp 3 Nặng / Chính hãng, gồm VAT, bảo hành. Có mã khách thì ô nào khách có hợp đồng đã ký sẽ ra giá hợp đồng.',
+               dict(model=dict(type='string', description='Tên model máy, vd Canon LBP 2900'),
+                    tu_khoa=dict(type='string', description='Lọc tên gói, vd sấy, nguồn; trống = mọi gói'),
+                    ma_khach=dict(type='string', description='Mã KTD nếu hỏi giá cho khách cụ thể; trống nếu không')),
+               ['model', 'tu_khoa', 'ma_khach'])
 T_CUSTOMER = _fn('tim_khach', 'Tìm khách theo tên, mã KTD hoặc số điện thoại. Trả tối đa 5 khách.', dict(tu_khoa=dict(type='string')), ['tu_khoa'])
 T_HISTORY = _fn('lich_su_mua', 'Mã hàng khách đã mua gần nhất (8 mã), lọc thêm theo từ khóa nếu có.',
                 dict(ma_khach=dict(type='string'), tu_khoa=dict(type='string')), ['ma_khach', 'tu_khoa'])
@@ -793,6 +836,11 @@ def _staff(session, chat, staff, msg, log):
                     tim_khach=lambda a: tool_customers(session, a.get('tu_khoa')),
                     lich_su_mua=lambda a: tool_history(session, a.get('ma_khach'), a.get('tu_khoa')))
     tools = [T_STOCK, T_CUSTOMER, T_HISTORY]
+    from . import price_book
+    repair_ok = price_book.can_view(staff)  # TUẤN 14/11/2026: thợ (và ai xem được Bảng giá) tra giá gói sửa theo model
+    if repair_ok:
+        handlers['tra_gia_sua'] = lambda a: tool_repair_prices(session, a.get('model'), a.get('tu_khoa'), a.get('ma_khach'))
+        tools.append(T_REPAIR)
     if rights['draft']:
         handlers['tao_don_nhap'] = draft
         tools.append(T_DRAFT)
@@ -811,12 +859,14 @@ def _staff(session, chat, staff, msg, log):
     handlers.update(more)
     engine = _staff_engine(session)
     roles = ', '.join(staff.roles)
-    abilities = (['tồn kho' + (', giá bán' if rights['price'] else '')] + (['lên đơn nháp'] if rights['draft'] else [])
+    abilities = (['tồn kho' + (', giá bán' if rights['price'] else '')] + (['giá gói sửa theo model'] if repair_ok else [])
+                 + (['lên đơn nháp'] if rights['draft'] else [])
                  + (['lên phiếu dịch vụ nháp'] if ticket_ok else []) + (['soạn tin gửi khách'] if message_ok else [])
                  + zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff)))
     system = STAFF_PROMPT.format(
         today=_now().strftime('%d/%m/%Y'), name=staff.full_name, roles=roles, abilities=', '.join(abilities),
-        price_rule='Được nói giá bán danh mục (chưa VAT).' if rights['price'] else 'Không nói giá, kể cả giá bán.',
+        price_rule=('Được nói giá bán danh mục (chưa VAT).' if rights['price'] else 'Không nói giá bán hàng hóa.')
+        + (' Hỏi giá sửa máy theo model thì dùng tra_gia_sua và đọc đúng giá gồm VAT công cụ trả về.' if repair_ok else ''),
         draft_rule=DRAFT_RULE if rights['draft'] else '- Không lên đơn. Nhờ lên đơn thì bảo nhắn kinh doanh.\n',
         ticket_rule=TICKET_RULE if ticket_ok else '- Không lên phiếu dịch vụ. Nhờ lên phiếu thì bảo nhắn điều phối.\n',
         message_rule=MESSAGE_RULE if message_ok else '- Không soạn tin gửi khách.\n')

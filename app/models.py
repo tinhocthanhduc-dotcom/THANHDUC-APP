@@ -2616,3 +2616,47 @@ class RepairQuoteVersion(Base):
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContractQuote(Base):
+    """0097 Báo giá hợp đồng sửa chữa (HD-yy-nnnnn): một khách, nhiều model, gói × cấp đã chọn; ký rồi thành giá hợp đồng."""
+    __tablename__ = 'contract_quotes'
+    __table_args__ = (
+        CheckConstraint("status in ('CHO','DA_KY','NGUNG')", name='ck_contract_quotes_status'),
+        CheckConstraint('discount_pct between 0 and 50', name='ck_contract_quotes_discount'),
+        CheckConstraint('apply_months between 1 and 36', name='ck_contract_quotes_months'),
+        CheckConstraint("status <> 'DA_KY' or (signed_on is not null and apply_until is not null)", name='ck_contract_quotes_signed'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(20), unique=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'), index=True)
+    contact_name: Mapped[str] = mapped_column(String(200), default='', server_default='')
+    contact_phone: Mapped[str] = mapped_column(String(40), default='', server_default='')
+    status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
+    levels: Mapped[list] = mapped_column(JSONB)
+    discount_pct: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    valid_until: Mapped[date] = mapped_column(Date)
+    apply_months: Mapped[int] = mapped_column(Integer, default=12, server_default='12')
+    free_check: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+    payment_terms: Mapped[str] = mapped_column(Text, default='', server_default='')
+    snapshot: Mapped[dict] = mapped_column(JSONB)
+    token: Mapped[str] = mapped_column(String(40), unique=True)
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    sent_via: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    opened_count: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    signed_on: Mapped[date | None] = mapped_column(Date)
+    apply_until: Mapped[date | None] = mapped_column(Date)
+    signed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    signed_note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stopped_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    stop_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+
+    __mapper_args__ = {'version_id_col': version}

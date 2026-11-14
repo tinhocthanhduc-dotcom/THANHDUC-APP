@@ -62,6 +62,8 @@ for _role in ('sales', 'dispatcher', 'reception', 'director'):
     EXPECTED[_role].add('/hoi-gia')  # Báo giá nhanh (TUẤN duyệt mẫu B1 14/11/2026)
 for _role in ('technician', 'dispatcher', 'director'):
     EXPECTED[_role].add('/kiem-tra-may')  # Báo giá sửa chữa đợt 3: thợ kiểm tra máy (mẫu M3 14/11/2026)
+for _role in ('dispatcher', 'director'):
+    EXPECTED[_role].add('/bao-gia-hop-dong')  # Báo giá hợp đồng sửa chữa (mẫu H1–H3 14/11/2026)
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
@@ -90,7 +92,7 @@ def test_exact_menu_home_and_login_for_each_role(client, make_user, role):
     page = client.get(HOMES[role])
     assert page.status_code == 200
     links = Menu(page.text).links
-    expected = {'/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi'} if role=='technician' else EXPECTED[role]
+    expected = {'/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi','/bang-gia?tab=goi#tra-gia'} if role=='technician' else EXPECTED[role]
     assert {a['href'] for a in links} == expected
     assert len(links) == len(expected)  # Không nhân đôi menu desktop/mobile.
     assert nav.ROLE_LABELS[role] in page.text and user.full_name in page.text

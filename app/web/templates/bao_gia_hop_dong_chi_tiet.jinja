@@ -1,0 +1,57 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% import 'bao_gia_hop_dong_bang.jinja' as hd %}
+{% block title %}{{ q.number }} · Báo giá hợp đồng{% endblock %}
+{% block main %}<div class="page-wide hd-page">
+{# Mẫu H2–H3 duyệt 14/11/2026: bản khách, link, Zalo, in A4; Khách đã ký → giá hợp đồng tự áp khi máy vào xưởng. #}
+{% set tone = {'CHO': 'cho', 'DA_KY': 'xong', 'NGUNG': 'huy', 'HET_HAN': 'huy', 'HET_AP': 'huy'}[st] %}
+{% call ui.page_head(q.number ~ ' · ' ~ customer.name, sub=(q.snapshot.models|length) ~ ' model · giá gồm VAT 8%' ~ (' · giảm ' ~ q.discount_pct ~ '%' if q.discount_pct else '') ~ ' · lập ' ~ (q.created_at|vn_date) ~ ' bởi ' ~ users.get(q.created_by, ''), back='/bao-gia-hop-dong', badge_label=statuses[st], badge_tone=tone) %}<a class="btn btn-ghost" href="/bao-gia-hop-dong/{{ q.id }}/in">In A4</a>{% if q.status == 'CHO' %}<a class="btn btn-ghost" href="/bao-gia-hop-dong/{{ q.id }}/sua">Sửa</a>{% endif %}{% endcall %}
+{% if saved %}{{ ui.toast('Đã lưu ' ~ q.number) }}{% endif %}
+{% if done %}{{ ui.toast({'gia': 'Đã lưu giá từng ô.', 'da-gui': 'Đã ghi đã gửi khách.', 'gui-zalo': 'Đã gửi Zalo công ty.', 'da-ky': 'Đã ghi khách ký. Giá hợp đồng bắt đầu áp.', 'ngung': 'Đã ngừng áp giá.'}.get(done, 'Đã lưu.')) }}{% endif %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if st == 'HET_HAN' %}<p class="alert warn">Báo giá đã hết hiệu lực ngày {{ q.valid_until.strftime('%d/%m/%Y') }}. Bấm Sửa để lấy giá mới và gia hạn, rồi gửi lại khách.</p>{% endif %}
+<div class="pnz-two hd-two">
+<div class="hd-main">
+<section class="card hd-card"><h2 class="qf-h">Bản khách nhận <small class="mu">· không mã kho, linh kiện, giá vốn</small></h2>
+{% if director and q.status == 'CHO' %}<form method="post" action="/bao-gia-hop-dong/{{ q.id }}/gia" class="hd-cells" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ q.version }}">
+{{ hd.table(q, q.snapshot, q.levels, level_short, level_hint, edit=true) }}
+<p class="hint">Giám đốc sửa giá từng ô (gồm VAT) rồi bấm Lưu giá. Ô không đổi giữ nguyên.</p><button class="btn btn-ok">Lưu giá từng ô</button></form>
+{% else %}{{ hd.table(q, q.snapshot, q.levels, level_short, level_hint) }}{% endif %}
+{% if q.snapshot.extras %}<p class="group-label"><b>Dịch vụ kèm theo</b></p>{% for x in q.snapshot.extras %}<p class="rq-kv"><span>{{ x.name }}{% if x.note %} <small class="mu">· {{ x.note }}</small>{% endif %}</span><b>{{ (x.price + x.vat)|money if x.price else 'Miễn phí' }}</b></p>{% endfor %}{% endif %}
+<p class="hint">Thanh toán: {{ q.payment_terms }} · Áp giá {{ q.apply_months }} tháng kể từ ngày ký.</p>
+</section>
+</div>
+<aside class="pnz-side">
+{% if q.status == 'CHO' %}
+<section class="card hd-card" data-rq-send><h2 class="qf-h">Gửi khách</h2>
+<dl class="svn-dl"><dt>Hiệu lực</dt><dd>đến {{ q.valid_until.strftime('%d/%m/%Y') }}</dd>
+<dt>Gửi</dt><dd>{% if q.sent_at %}{{ q.sent_at|vn_time }} {{ q.sent_at|vn_date }} · {{ sent_via.get(q.sent_via, '') }}{% else %}<span class="mu">chưa gửi</span>{% endif %}</dd>
+<dt>Khách mở link</dt><dd>{% if q.opened_count %}{{ q.opened_count }} lần · lần cuối {{ q.last_opened_at|vn_time }} {{ q.last_opened_at|vn_date }}{% else %}<span class="mu">chưa mở</span>{% endif %}</dd></dl>
+<form method="post" class="rq-send-form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<p class="rq-link" data-rq-link>{{ link }}</p>
+<div class="rq-acts"><button type="button" class="btn btn-ghost" data-rq-copy-link>Sao chép link</button></div>
+<p class="group-label"><b>Tin Zalo</b></p>
+<textarea name="text" rows="9" maxlength="2000" class="rq-zl" data-rq-text>{{ text }}</textarea>
+<div class="rq-acts">{% if linked %}<button class="btn btn-ok" formaction="/bao-gia-hop-dong/{{ q.id }}/gui-zalo" data-service-confirm="Gửi tin này cho khách qua Zalo công ty?">Gửi Zalo công ty</button>{% endif %}<button type="button" class="btn btn-new" data-rq-copy-text>Sao chép tin</button><button class="btn btn-ghost" formaction="/bao-gia-hop-dong/{{ q.id }}/da-gui">Đã gửi (Zalo cá nhân, gọi điện, bản in)</button></div>
+</form></section>
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · khi khách ký</span>
+<form method="post" action="/bao-gia-hop-dong/{{ q.id }}/da-ky" class="form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ q.version }}">
+<label>Ngày khách ký<input type="date" name="signed_on" value="{{ today }}" max="{{ today }}" required></label>
+<label>Ghi chú (số hợp đồng, người ký…)<input name="note" maxlength="500"></label>
+<button class="btn btn-ok pnz-full" data-service-confirm="Ghi khách đã ký? Từ ngày ký, máy của khách có model trong bảng vào xưởng sẽ lấy giá hợp đồng {{ q.apply_months }} tháng.">Khách đã ký</button></form></section>
+{% elif q.status == 'DA_KY' %}
+<section class="card hd-card"><h2 class="qf-h">Giá hợp đồng {% if st == 'DA_KY' %}<span class="badge b-xong">Đang áp</span>{% else %}<span class="badge b-huy">Hết thời hạn</span>{% endif %}</h2>
+<dl class="svn-dl"><dt>Ký</dt><dd>{{ q.signed_on.strftime('%d/%m/%Y') }} · {{ users.get(q.signed_by, '') }}</dd><dt>Áp giá đến</dt><dd>{{ q.apply_until.strftime('%d/%m/%Y') }}</dd>{% if q.signed_note %}<dt>Ghi chú</dt><dd>{{ q.signed_note }}</dd>{% endif %}</dl>
+<p class="hint">Máy của khách có model trong bảng vào xưởng: khung Báo giá sửa chữa lấy đúng ô giá này. Cấp hoặc chính hãng không có trên bảng thì theo bảng giá chung.</p>
+<p class="rq-link" data-rq-link>{{ link }}</p></section>
+{% else %}
+<section class="card hd-card"><h2 class="qf-h">Đã ngừng áp giá</h2><p>{{ q.stop_reason }}</p><p class="hint">{{ users.get(q.stopped_by, '') }} · {{ q.stopped_at|vn_time }} {{ q.stopped_at|vn_date }}</p></section>
+{% endif %}
+{% if q.status != 'NGUNG' %}<details class="card hd-card"><summary><b>Ngừng áp giá</b></summary>
+<form method="post" action="/bao-gia-hop-dong/{{ q.id }}/ngung" class="form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ q.version }}">
+<label>Lý do<input name="reason" required minlength="3" maxlength="500" placeholder="vd: khách không ký, thanh lý hợp đồng"></label>
+<button class="btn btn-danger pnz-full" data-service-confirm="Ngừng báo giá hợp đồng này? Link khách không hiện giá nữa, máy vào xưởng theo bảng giá chung.">Ngừng áp giá</button></form></details>{% endif %}
+</aside>
+</div>
+<script src="{{ asset('bao-gia-gui.js') }}" defer></script>
+</div>{% endblock %}
