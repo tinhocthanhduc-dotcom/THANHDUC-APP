@@ -11,13 +11,13 @@ Khách hỏi giá qua Zalo/điện thoại khi chưa gửi máy. Nhân viên ch�
 """
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import audit, doc_numbers
 from . import price_book as pb
 from .errors import BusinessError
-from .models import Customer, PriceService, QuickQuote, RepairGroup, RepairSymptom, ServiceTicket, User
+from .models import Customer, PriceService, QuickQuote, RepairGroup, RepairPrice, RepairSymptom, ServiceTicket, User
 from .security import has_role
 from .service_sla import TZ
 from .text import fold
@@ -94,6 +94,10 @@ def compute(session: Session, model_name: str, symptoms: list[str], place: str) 
         s = session.get(PriceService, sid)
         if s is None or s.kind != 'GOI' or not s.active:
             continue
+        if model is not None and not session.scalar(select(RepairPrice.id).where(
+                RepairPrice.service_id == sid, or_(RepairPrice.group_id == model.group_id, RepairPrice.model_id == model.id)).limit(1)):
+            continue  # nhóm máy này không làm dịch vụ (cả 3 cấp trống, không giá riêng model): không hiện
+
         prices, levels, reason = [], [], ''
         for lv in range(lo, hi + 1):
             r = pb.lookup(session, sid, model.name if model else model_name, lv)
