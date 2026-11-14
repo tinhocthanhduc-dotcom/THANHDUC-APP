@@ -1,0 +1,19 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Báo giá hợp đồng{% endblock %}
+{% block main %}<div class="page-wide hd-page">
+{# Báo giá hợp đồng sửa chữa (mẫu H1–H3 14/11/2026): báo giá trước nhiều model để khách ký hợp đồng. #}
+{% call ui.page_head('Báo giá hợp đồng', sub='Báo giá trước mọi gói sửa cho các model của khách. Khách ký thì máy của khách vào xưởng tự lấy giá hợp đồng.') %}<a class="btn btn-new" href="/bao-gia-hop-dong/moi">+ Lập báo giá hợp đồng</a>{% endcall %}
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/bao-gia-hop-dong', q, 'Tìm số HD, khách, model…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards hd-list"><thead><tr><th>Số</th><th>Khách</th><th>Model</th><th>Hiệu lực · áp giá</th><th>Trạng thái</th></tr></thead><tbody>
+{% for r in rows %}{% set st = state(r) %}<tr data-href="/bao-gia-hop-dong/{{ r.id }}">
+<td data-label="Số"><a href="/bao-gia-hop-dong/{{ r.id }}"><b>{{ r.number }}</b></a><span class="lt-sub">{{ r.created_at|vn_date }}</span></td>
+<td data-label="Khách">{{ names.get(r.customer_code, r.customer_code) }}</td>
+<td data-label="Model">{% for m in r.snapshot.models %}{{ m.name }} × {{ m.qty }}{{ ', ' if not loop.last }}{% endfor %}{% if r.discount_pct %}<span class="lt-sub">giảm {{ r.discount_pct }}%</span>{% endif %}</td>
+<td data-label="Hiệu lực">{% if r.status == 'DA_KY' %}Ký {{ r.signed_on.strftime('%d/%m/%Y') }}<span class="lt-sub">áp đến {{ r.apply_until.strftime('%d/%m/%Y') }}</span>{% else %}đến {{ r.valid_until.strftime('%d/%m/%Y') }}{% endif %}</td>
+<td data-label="Trạng thái">{{ ui.badge(statuses[st], {'CHO': 'cho', 'DA_KY': 'xong', 'NGUNG': 'huy', 'HET_HAN': 'huy', 'HET_AP': 'huy'}[st]) }}{% if r.status == 'CHO' and not r.sent_at %}<span class="lt-sub">chưa gửi khách</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('Chưa có báo giá hợp đồng nào.' if view == 'cho' else 'Không có báo giá nào ở mục này.', '/bao-gia-hop-dong/moi', '+ Lập báo giá hợp đồng') }}{% endif %}
+{% call ui.list_foot(p, 'báo giá') %}{% endcall %}
+</div>{% endblock %}

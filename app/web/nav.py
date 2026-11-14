@@ -66,6 +66,8 @@ GROUPS = (
         {'label': 'Máy khách tại quầy', 'href': '/quay-sua', 'prefixes': ('/quay-sua',), 'roles': ('dispatcher', 'sales')},
         # Báo giá nhanh (TUẤN duyệt mẫu B1 14/11/2026): khách hỏi giá sửa khi chưa gửi máy.
         {'label': 'Hỏi giá sửa', 'href': '/hoi-gia', 'prefixes': ('/hoi-gia',), 'roles': ('dispatcher', 'reception', 'sales')},
+        # Báo giá hợp đồng sửa chữa (TUẤN duyệt mẫu H1–H3 14/11/2026): báo giá trước nhiều model để khách ký hợp đồng.
+        {'label': 'Báo giá hợp đồng', 'href': '/bao-gia-hop-dong', 'prefixes': ('/bao-gia-hop-dong',), 'roles': ('dispatcher',)},
         # Báo giá sửa chữa đợt 3 (TUẤN duyệt mẫu M3 14/11/2026): thợ kiểm tra máy ở xưởng, điều phối báo giá.
         {'label': 'Máy chờ kiểm tra', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher')},
         # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
@@ -248,6 +250,7 @@ TAB_ICONS = {
     '/hang-toi-giu': _ICON.format('<path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10"></path>'),
     '/tien-toi-giu': _ICON.format('<path d="M3 7h18v12H3zM3 11h18M16 15h2"></path>'),
     '/thiet-bi': _ICON.format('<rect x="5" y="3" width="14" height="7" rx="1"></rect><path d="M3 10h18v8h-3M6 18H3v-8M7 14h10v7H7z"></path>'),
+    '/bang-gia?tab=goi#tra-gia': _ICON.format('<path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01"></path>'),
 }
 
 
@@ -276,7 +279,8 @@ PHONE_TABS = (('/viec-cua-toi', 'Việc'), ('/tong-quan', 'Tổng quan'), ('/die
               ('/don-ban', 'Đơn bán'), ('/ton-kho', 'Tồn kho'), ('/bao-thu', 'Báo thu'), ('/cham-cong', 'Chấm công'))
 
 
-TECH_LINKS = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'))
+# TUẤN 14/11/2026: thêm Bảng giá (tra giá gói sửa theo model) vào menu màn thợ.
+TECH_LINKS = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'),('/bang-gia?tab=goi#tra-gia','Bảng giá'))
 TECH_PATHS = ('/tho', '/hang-toi-giu', '/tien-toi-giu')
 
 
@@ -297,7 +301,7 @@ def menu(user, path, query=None):
     groups = []
     shell = technician_shell(user, path, query)
     if shell:
-        groups = [dict(label='', section='Của tôi', items=[dict(href=href,label=label,active=(current is matching(href))) for href,label in TECH_LINKS], active=False)]
+        groups = [dict(label='', section='Của tôi', items=[dict(href=href,label=label,active=(current is matching(href.split('?')[0]))) for href,label in TECH_LINKS], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
         visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in DIRECTOR_HIDDEN and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:

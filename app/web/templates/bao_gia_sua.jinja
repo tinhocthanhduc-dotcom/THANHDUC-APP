@@ -31,6 +31,7 @@
 </div>
 <div class="rq-cust"><p class="group-label"><b>Bản khách nhận</b></p>
 <div class="rq-paper"><p class="rq-paper-h">BÁO GIÁ SỬA CHỮA · {{ t.number }}</p>
+{% if q.contract %}{% set c=q.contract %}<p class="alert info">Giá hợp đồng <a href="/bao-gia-hop-dong/{{ c.id }}">{{ c.number }}</a> (ký {{ c.signed_on.strftime('%d/%m/%Y') }}){% if c.discount %}, giảm {{ c.discount }}% so với bảng giá chung{% endif %}. Ô không có trên hợp đồng theo bảng giá chung.</p>{% endif %}
 {% for ln in q.lines %}<div class="rq-cline"><div class="rq-kv"><span><b>{{ ln.customer_name }}</b></span><b data-rq-price="{{ ln.item.service_id }}">{{ ln.pick.price|money if ln.ok else '—' }}</b></div>
 <label class="rq-desc"><small>Mô tả kết quả cho khách · {{ {'duyet': 'đã duyệt', 'ai': 'Codex soạn sẵn, sửa được', 'mau': 'mẫu trong bảng giá'}[ln.description_source] }}</small><textarea name="mo_ta_{{ ln.item.service_id }}" rows="2" maxlength="500">{{ ln.description }}</textarea></label></div>{% endfor %}
 <p class="rq-kv"><span>VAT 8%</span><b data-rq-vat>{{ q.vat|money }}</b></p>

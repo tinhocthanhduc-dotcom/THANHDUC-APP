@@ -1,0 +1,61 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}{{ q.number ~ ' · sửa' if q else 'Lập báo giá hợp đồng' }}{% endblock %}
+{% block main %}<div class="page-wide hd-page">
+{# Mẫu H1 bản 3 duyệt 14/11/2026: khách, nhiều model, chọn chung gói, chọn cấp chung và từng gói, giảm % chỉ giám đốc. #}
+{% call ui.page_head('Sửa ' ~ q.number if q else 'Lập báo giá hợp đồng', sub='Giá lấy từ Bảng giá chung (giá riêng model nếu có), in cho khách giá gồm VAT 8%.', back=('/bao-gia-hop-dong/' ~ q.id) if q else '/bao-gia-hop-dong') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
+<form method="post" action="{{ ('/bao-gia-hop-dong/' ~ q.id ~ '/sua') if q else '/bao-gia-hop-dong/moi' }}" class="form pnz-two hd-form" data-hd-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% if q %}<input type="hidden" name="version" value="{{ q.version }}">{% endif %}
+<input type="hidden" name="lv_seen" value="1"><input type="hidden" name="kt_seen" value="1">
+<div class="hd-main">
+<section class="card hd-card"><h2 class="qf-h">Khách hàng</h2>
+{% if q %}<input type="hidden" name="khach" value="{{ d.khach }}"><p><b>{{ customer.code }} · {{ customer.name }}</b></p>
+{% else %}<div class="hg-picker" data-hd-picker>
+<input type="hidden" name="khach" value="{{ d.khach }}" data-hd-khach>
+<p class="hg-picked" data-hd-picked {% if not customer %}hidden{% endif %}><b data-hd-picked-name>{% if customer %}{{ customer.code }} · {{ customer.name }}{% endif %}</b> <button type="button" class="btn btn-ghost bg-small" data-hd-unpick>Bỏ chọn</button></p>
+<label class="sr-only" for="hd-tim-khach">Tìm khách</label><input id="hd-tim-khach" type="search" placeholder="Tìm khách: tên, mã hoặc số điện thoại" autocomplete="off" data-hd-find="/bao-gia-hop-dong/tim-khach" {% if customer %}hidden{% endif %}>
+<div class="service-options device-options" aria-live="polite" data-hd-options></div></div>{% endif %}
+<div class="hd-row2"><label>Người liên hệ<input name="lien_he" value="{{ d.lien_he }}" maxlength="200" placeholder="vd: Anh Nam · kế toán"></label>
+<label>Điện thoại<input name="dien_thoai" value="{{ d.dien_thoai }}" maxlength="40" inputmode="tel"></label></div>
+</section>
+
+<section class="card hd-card"><h2 class="qf-h">Máy của khách <small class="mu">· {{ rows|length }} model · {{ rows|sum(attribute='qty') }} máy</small></h2>
+{% set svc_union = {} %}{% for r in rows %}{% for sv in r.services %}{% do svc_union.update({sv.service.id: sv.service.name}) %}{% endfor %}{% endfor %}
+{% if svc_union %}<div class="hd-common" data-hd-common><p class="group-label"><b>Chọn chung cho tất cả model</b> <span class="hint">bấm để bật/tắt gói ở mọi model</span></p>
+<div class="chips">{% for sid, name in svc_union.items() %}<button type="button" class="chip-btn" data-hd-all="{{ sid }}">{{ name }}</button>{% endfor %}</div></div>{% endif %}
+{% for r in rows %}<div class="hd-model" data-hd-model>
+<div class="hd-model-h"><label class="hd-mname">Model<input name="model_{{ loop.index0 }}" value="{{ r.name }}" list="hd-models" maxlength="160" placeholder="vd: Canon LBP 2900" autocomplete="off"></label>
+<label class="hd-qty">Số máy<input name="qty_{{ loop.index0 }}" value="{{ r.qty }}" inputmode="numeric" maxlength="3"></label>
+<input type="hidden" name="seen_{{ loop.index0 }}" value="{{ r.name if r.model else '' }}"></div>
+{% if r.error %}<p class="alert warn">{{ r.error }}</p>{% elif r.model %}<p class="hint">{{ r.group.name if r.group }} · {{ r.services|selectattr('picked')|list|length }}/{{ r.services|length }} gói</p>
+<div class="hd-svcs">{% set mi = loop.index0 %}{% for sv in r.services %}<div class="hd-svc" data-hd-svc="{{ sv.service.id }}"><span class="hd-svc-n">{{ sv.name }}</span>
+<span class="hd-lvls">{% for lv in levels %}{% set c = sv.cells.get(lv) %}{% if c %}<label class="hd-lv"><input type="checkbox" name="pick_{{ mi }}_{{ sv.service.id }}" value="{{ lv }}" {% if lv in sv.picked %}checked{% endif %} data-hd-lv="{{ lv }}"><span>{{ level_short[lv] }}<small>{{ with_vat(discounted(c.price, d.giam))|money }}</small></span></label>{% else %}<span class="hd-lv na">{{ level_short[lv] }}<small>—</small></span>{% endif %}{% endfor %}</span></div>{% endfor %}</div>
+{% elif r.name %}{% else %}<p class="hint">Gõ model rồi bấm Lấy gói.</p>{% endif %}
+</div>{% endfor %}
+{% if rows|length < max_models %}<div class="hd-model hd-add"><div class="hd-model-h"><label class="hd-mname">+ Thêm model<input name="model_{{ rows|length }}" list="hd-models" maxlength="160" placeholder="gõ tên model" autocomplete="off"></label>
+<label class="hd-qty">Số máy<input name="qty_{{ rows|length }}" value="1" inputmode="numeric" maxlength="3"></label></div></div>{% endif %}
+<datalist id="hd-models">{% for n in model_names %}<option value="{{ n }}">{% endfor %}</datalist>
+<button class="btn btn-ghost" name="do" value="lay-goi" formnovalidate>Lấy gói theo model</button>
+</section>
+</div>
+
+<aside class="pnz-side">
+<section class="card hd-card"><h2 class="qf-h">Điều kiện</h2>
+<div class="field-group" role="group"><p class="group-label">Cấp sửa chữa báo cho khách</p><div class="chips" data-hd-global>{% for lv in levels %}<label class="chip"><input type="checkbox" name="lv" value="{{ lv }}" {% if lv in d.levels %}checked{% endif %} data-hd-glv="{{ lv }}"><span>{{ level_labels[lv] }}</span></label>{% endfor %}</div>
+<p class="hint">Bỏ một cấp thì bỏ cột đó ở mọi gói. Từng gói chọn cấp riêng ở bên trái. Cấp không báo vẫn sửa được: kỹ thuật kiểm tra rồi báo giá riêng.</p></div>
+<label>Giảm giá hợp đồng (%) {% if not director %}<small class="mu">· chỉ giám đốc</small>{% endif %}<input name="giam" value="{{ d.giam or '' }}" inputmode="numeric" maxlength="2" placeholder="0" {% if not director %}readonly{% endif %}></label>
+<div class="field-group" role="group"><p class="group-label">Hiệu lực báo giá</p><div class="seg">{% for n in valid_choices %}<label><input type="radio" name="hieu_luc" value="{{ n }}" {% if d.hieu_luc == n %}checked{% endif %}><span>{{ n }} ngày</span></label>{% endfor %}</div></div>
+<label>Áp giá sau khi ký (tháng)<input name="ap_thang" value="{{ d.ap_thang }}" inputmode="numeric" maxlength="2"></label>
+<div class="field-group" role="group"><p class="group-label">Thêm vào bản khách</p><div class="chips">
+<label class="chip"><input type="checkbox" name="kiem_tra" value="1" {% if d.free_check %}checked{% endif %}><span>Kiểm tra máy miễn phí</span></label>
+{% for s in fees %}<label class="chip"><input type="checkbox" name="phi" value="{{ s.id }}" {% if s.id in d.phi %}checked{% endif %}><span>{{ s.name }} · {{ with_vat(s.price)|money }}</span></label>{% endfor %}</div></div>
+<label>Thanh toán<input name="thanh_toan" value="{{ d.thanh_toan }}" maxlength="500" placeholder="{{ default_payment }}"></label>
+</section>
+<section class="card next-box" aria-label="Bước tiếp"><span class="nb-who">Bước tiếp · điều phối</span>
+<button class="btn btn-new pnz-full" name="do" value="luu">{{ 'Lưu thay đổi' if q else 'Lưu báo giá hợp đồng' }}</button>
+<p class="hint">{% if q %}Giá lấy lại theo bảng giá hiện tại, hiệu lực tính lại từ hôm nay; link cũ giữ nguyên.{% else %}Lưu thành HD-…, có link xem, tin Zalo và phiếu A4 để gửi khách.{% endif %}</p></section>
+</aside>
+</form>
+<script src="{{ asset('bao-gia-hop-dong.js') }}" defer></script>
+</div>{% endblock %}
