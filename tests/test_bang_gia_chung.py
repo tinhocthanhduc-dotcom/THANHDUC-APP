@@ -4,11 +4,11 @@
 giá vốn chỉ giám đốc/kế toán; bảng giá cho khách không lộ mã kho, giá vốn; mọi lần đổi giá có lịch sử.
 """
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import price_book as pb
 from app.errors import BusinessError
-from app.models import AuditLog, PriceService, Product, RepairGroup, RepairPrice, StockBalance, Warehouse
+from app.models import AuditLog, PriceService, Product, RepairGroup, RepairModel, RepairPrice, StockBalance, Warehouse
 from test_tk_tai_khoan import web_login
 
 
@@ -214,3 +214,23 @@ def test_excel_roundtrip_preview_then_apply(client, db, make_user):
     assert any('320.000 → 330.000' in r['what'] for r in pb.history(db)[0])
     fail('BAD_FILE', pb.plan_import, db, 'muc', b'M\xe3 h\xe0ng,T\xean\n')
     fail('BAD_FILE', pb.plan_import, db, 'muc', 'sai,tieu,de\n'.encode('utf-8'))
+
+
+def test_sample_price_book_script_adds_once_and_never_overwrites(db, make_user):
+    from scripts import bang_gia_mau
+    boss = make_user('bg.mau', 'director')
+    s = fuser_package(db, boss)  # gói đã có: script không đụng giá anh đã đặt
+    assert bang_gia_mau.run(db, boss, apply=False) and db.scalar(select(func.count()).select_from(RepairModel)) == 0
+    log = bang_gia_mau.run(db, boss, apply=True)
+    assert not any('Sửa chữa cụm sấy ·' in line for line in log)
+    assert db.scalar(select(RepairPrice).where(RepairPrice.service_id == s.id, RepairPrice.level == 2,
+                                               RepairPrice.group_id == group(db, 'LASER_A4_DON').id)).price == 450_000
+    assert pb.find_model(db, 'Canon LBP 2900').group_id == group(db, 'LASER_A4_DON').id
+    nguon = db.scalar(select(PriceService).where(PriceService.name == 'Sửa chữa nguồn'))
+    assert pb.lookup(db, nguon.id, 'Canon LBP 3500', 2)['price'] == 810_000  # A3 hệ số 1,8
+    assert pb.lookup(db, nguon.id, 'Epson L3110', 1)['price'] == 300_000
+    head = db.scalar(select(PriceService).where(PriceService.name == 'Sửa chữa cụm đầu phun'))
+    assert not pb.lookup(db, head.id, 'Canon LBP 2900', 1)['ok']  # máy laser không có gói đầu phun
+    assert pb.lookup(db, head.id, 'Epson L3110', 3, genuine=True)['price'] == 1_000_000
+    assert len(pb.symptoms(db)) == len(bang_gia_mau.SYMPTOMS)
+    assert bang_gia_mau.run(db, boss, apply=True) == []
