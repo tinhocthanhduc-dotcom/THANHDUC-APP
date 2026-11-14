@@ -55,7 +55,7 @@ def test_home_brand_and_minimal_menu(client,people):
     assert r.status_code==303 and r.headers['location']=='/tho'
     assert client.get('/',follow_redirects=False).headers['location']=='/tho'
     page=client.get('/tho');links=[a['href'] for tag,a,_ in Screen(page.text).tags if tag=='a' and 'data-nav-item' in a]
-    assert links==['/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi']
+    assert links==['/tho','/hang-toi-giu','/tien-toi-giu','/thiet-bi','/bang-gia?tab=goi#tra-gia']
     # Khung thợ: tab dưới thay cho logo; tab Hôm nay đang chọn.
     assert 'class="tho-tabs"' in page.text and next(a['href'] for tag,a,_ in Screen(page.text).tags if a.get('aria-current')=='page')=='/tho'
     login(client,p,'dispatcher');assert client.get('/',follow_redirects=False).headers['location']=='/dieu-phoi'
