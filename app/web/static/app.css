@@ -4624,3 +4624,58 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .hg-tiles { display: grid; }
   .hg-two .pnz-side { order: 0; }
 }
+
+/* Báo giá sửa chữa đợt 3 (mẫu M3/M4 14/11/2026): thợ kiểm tra máy, điều phối áp báo giá. */
+.rq-page { max-width: 760px; }
+.rq-card, .rq-svc { display: grid; gap: 10px; min-width: 0; }
+.rq-h { margin: 4px 0 0; }
+.rq-check { display: flex; gap: 10px; align-items: center; min-height: 44px; }
+.rq-check input { width: 22px; height: 22px; flex: none; }
+.rq-head { font-size: 1.05rem; }
+.rq-svc:not(:has([data-rq-on]:checked)) .rq-body { display: none; }
+.rq-body { display: grid; gap: 10px; }
+.rq-body .group-label { margin: 4px 0 0; }
+.rq-opts { display: grid; gap: 6px; }
+.rq-opt { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; min-height: 44px; }
+.rq-opt input { width: 20px; height: 20px; flex: none; }
+.rq-opt:has(input:checked) { border-color: var(--accent); background: var(--info-bg); }
+.rq-main { color: var(--info-solid); font-weight: 700; }
+.rq-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rq-level { position: relative; }
+.rq-level input { position: absolute; opacity: 0; width: 1px; }
+.rq-level span { display: grid; gap: 2px; height: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.rq-level small { color: var(--muted); font-size: .8rem; }
+.rq-level input:checked + span { border-color: var(--accent); background: var(--info-bg); box-shadow: inset 0 0 0 1px var(--accent); }
+.rq-parts { display: grid; gap: 6px; }
+.rq-part { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 6px; }
+.rq-page input, .rq-page textarea { font-size: 16px; }
+.rq-others > summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.rq-others { display: grid; gap: 10px; }
+.rq-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; color: inherit; text-decoration: none; }
+.rq-row p { margin: 2px 0 0; }
+.rq-cta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px dashed var(--accent); }
+.rq-cta p { margin: 2px 0 0; }
+.rq-panel { display: grid; gap: 12px; border: 1px solid var(--accent); }
+.rq-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.rq-tech, .rq-cust { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.rq-line { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.rq-line p { margin: 0; }
+.rq-kv { display: flex; justify-content: space-between; gap: 10px; margin: 0; }
+.rq-kv span { min-width: 0; overflow-wrap: anywhere; }
+.rq-kv b { white-space: nowrap; }
+.rq-pa span small { display: block; font-weight: 400; }
+.rq-margin { display: grid; gap: 4px; padding: 10px; border-radius: 8px; background: var(--ok-bg); }
+.rq-margin.bad { background: var(--bad-bg); }
+.rq-profit { font-weight: 700; border-top: 1px solid var(--line); padding-top: 6px; }
+.rq-paper { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.rq-paper-h { margin: 0; font-weight: 700; color: var(--info-solid); }
+.rq-cline span { display: grid; gap: 2px; }
+.rq-cline small { color: var(--muted); font-weight: 400; }
+@media (max-width: 760px) {
+  .rq-two { grid-template-columns: minmax(0, 1fr); }
+  .rq-levels { grid-template-columns: minmax(0, 1fr); }
+}
+.rq-cline { display: grid; gap: 4px; }
+.rq-desc { display: grid; gap: 2px; }
+.rq-desc small { color: var(--muted); }
+.rq-desc textarea { font-size: 16px; }

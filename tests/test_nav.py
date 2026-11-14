@@ -60,6 +60,8 @@ for _role in ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'direc
     EXPECTED[_role].add('/bang-gia')  # Bảng giá chung (TUẤN duyệt 14/11/2026)
 for _role in ('sales', 'dispatcher', 'reception', 'director'):
     EXPECTED[_role].add('/hoi-gia')  # Báo giá nhanh (TUẤN duyệt mẫu B1 14/11/2026)
+for _role in ('technician', 'dispatcher', 'director'):
+    EXPECTED[_role].add('/kiem-tra-may')  # Báo giá sửa chữa đợt 3: thợ kiểm tra máy (mẫu M3 14/11/2026)
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',

@@ -66,6 +66,8 @@ GROUPS = (
         {'label': 'Máy khách tại quầy', 'href': '/quay-sua', 'prefixes': ('/quay-sua',), 'roles': ('dispatcher', 'sales')},
         # Báo giá nhanh (TUẤN duyệt mẫu B1 14/11/2026): khách hỏi giá sửa khi chưa gửi máy.
         {'label': 'Hỏi giá sửa', 'href': '/hoi-gia', 'prefixes': ('/hoi-gia',), 'roles': ('dispatcher', 'reception', 'sales')},
+        # Báo giá sửa chữa đợt 3 (TUẤN duyệt mẫu M3 14/11/2026): thợ kiểm tra máy ở xưởng, điều phối báo giá.
+        {'label': 'Máy chờ kiểm tra', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher')},
         # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
         {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',)},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},

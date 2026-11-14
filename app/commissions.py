@@ -136,6 +136,16 @@ def _draft_query(month):
     finished as (select distinct on (s.ticket_id) s.ticket_id,s.actor_id,s.assignee_id,s.at from service_steps s
          where s.to_status='HOAN_THANH' and s.at<:hi order by s.ticket_id,s.at,s.id),
     fees as (select ticket_id,sum(amount) base from service_lines where kind='PHI' group by ticket_id),
+    -- Đợt 3 báo giá sửa (TUẤN duyệt 14/11/2026): phiếu áp giá gói từ kết quả kiểm tra máy tính hoa hồng thợ trên
+    -- gói − giá vốn linh kiện nằm trong gói (dòng vật tư giá 0 đã xuất kho). Phiếu khác giữ cách tính cũ.
+    pkg_parts as (select sl.ticket_id,round(sum(dl.qty*coalesce(dl.unit_cost,(select led.unit_cost from stock_ledger led
+         where led.doc_id=dl.doc_id and led.line_no=dl.line_no and led.qty_out>0 and not led.is_reversal limit 1),0)))::bigint cost
+       from (select distinct ticket_id,stock_doc_id,product_code from service_lines
+             where kind='VAT_TU' and unit_price=0 and stock_doc_id is not null) sl
+       join repair_inspections ri on ri.ticket_id=sl.ticket_id and ri.applied_at is not null
+       join stock_docs d on d.id=sl.stock_doc_id and d.kind='PX' and d.status='DA_GHI'
+       join stock_doc_lines dl on dl.doc_id=d.id and dl.product_code=sl.product_code
+       group by sl.ticket_id),
     sources as (
       select 'DON_BAN'::text source,'KINH_DOANH'::text target,o.created_by user_id,o.id order_id,null::bigint ticket_id,null::bigint production_id,null::bigint delivery_id,1::integer units,
         o.number,(o.created_at at time zone 'Asia/Ho_Chi_Minh')::date source_day,null::text service_kind,
@@ -150,12 +160,13 @@ def _draft_query(month):
       where o.created_at>=:start_at and o.created_at<:hi and (m.order_id is not null or p.order_id is not null)
       union all
       select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.assignee_id,f.actor_id),null,t.id,null,null,1,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
-        coalesce(fee.base,0),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
+        greatest(0,coalesce(fee.base,0)-coalesce(pp.cost,0)),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
         t.status='DA_HUY' or w.number is not null or t.declined_at is not null,
         case when t.declined_at is not null then 'Khách không sửa' when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,
         coalesce(p.previous,0)
       from service_tickets t join finished f on f.ticket_id=t.id
       left join fees fee on fee.ticket_id=t.id
+      left join pkg_parts pp on pp.ticket_id=t.id
       left join (__TICKET_PAID__) paid on paid.parent_id=t.id
       left join prior p on p.ticket_id=t.id and p.source='PHIEU_DV'
       left join lateral (select w.number from service_tickets w where w.warranty_of_id=t.id and w.kind='BAO_HANH'

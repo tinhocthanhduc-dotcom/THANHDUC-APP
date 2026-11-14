@@ -325,6 +325,16 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   **custody_context(session,user,t,custody_shown),
                   **ticket_context(session,user,t,receipt_form,receipt_decision,failed_receipt_id,failed_receipt_action))
     ctx.update(service_machines.context(session,user,t,machine_form))
+    # Báo giá sửa chữa đợt 3 (mẫu M3/M4 14/11/2026): thợ kiểm tra máy, điều phối áp giá bảng giá vào phiếu.
+    from .. import repair_inspection as rinsp
+    ctx['rq_inspect']=rinsp.can_inspect(user) and rinsp.is_waiting(t) and not t.quote_approved_at
+    ctx['rq_done']=request.query_params.get('da_kiem_tra')==str(t.id)
+    ctx['rq_applied']=request.query_params.get('da_ap_gia')=='1' and not error
+    if ctx['xg_panel'] and t.hold_reason=='CHO_SUA_XUONG':
+        from .repair_inspection import panel_context
+        ctx.update(panel_context(session,user,t))
+    else:
+        ctx.update(rq=None,rq_warranty=None)
     if dispatcher:
         from .. import nhan_vien_ao
         ctx['virtual_note']=nhan_vien_ao.ticket_note(session,t)
