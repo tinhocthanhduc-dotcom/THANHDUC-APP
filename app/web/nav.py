@@ -44,7 +44,7 @@ GROUPS = (
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
         # Bảng giá chung (TUẤN duyệt 14/11/2026): mọi bộ phận xem giá; chỉ giám đốc sửa (kiểm ở app/price_book.py).
-        {'label': 'Bảng giá', 'href': '/bang-gia', 'prefixes': ('/bang-gia',), 'roles': ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'technician')},
+        {'label': 'Bảng giá', 'href': '/bang-gia', 'prefixes': ('/bang-gia', '/tra-gia'), 'roles': ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'technician')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
         # Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn nháp trợ lý lập từ tin Zalo, kinh doanh kiểm và chốt.
         # TUẤN duyệt 06/11/2026: khách quá nhịp lấy mực để kinh doanh gọi hỏi thăm.
@@ -250,7 +250,7 @@ TAB_ICONS = {
     '/hang-toi-giu': _ICON.format('<path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10"></path>'),
     '/tien-toi-giu': _ICON.format('<path d="M3 7h18v12H3zM3 11h18M16 15h2"></path>'),
     '/thiet-bi': _ICON.format('<rect x="5" y="3" width="14" height="7" rx="1"></rect><path d="M3 10h18v8h-3M6 18H3v-8M7 14h10v7H7z"></path>'),
-    '/bang-gia?tab=goi#tra-gia': _ICON.format('<path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01"></path>'),
+    '/tra-gia': _ICON.format('<path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01"></path>'),
 }
 
 
@@ -280,7 +280,7 @@ PHONE_TABS = (('/viec-cua-toi', 'Việc'), ('/tong-quan', 'Tổng quan'), ('/die
 
 
 # TUẤN 14/11/2026: thêm Bảng giá (tra giá gói sửa theo model) vào menu màn thợ.
-TECH_LINKS = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'),('/bang-gia?tab=goi#tra-gia','Bảng giá'))
+TECH_LINKS = (('/tho','Hôm nay'),('/hang-toi-giu','Hàng tôi giữ'),('/tien-toi-giu','Tiền tôi giữ'),('/thiet-bi','Thiết bị'),('/tra-gia','Bảng giá'))
 TECH_PATHS = ('/tho', '/hang-toi-giu', '/tien-toi-giu')
 
 

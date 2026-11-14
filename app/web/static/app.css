@@ -4830,3 +4830,40 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .hg-gia { width: 76px; font-size: 14px; padding: 3px 4px; }
 }
 .hg-card .hint a { overflow-wrap: anywhere; word-break: break-all; }
+/* Tra giá thợ (mẫu T1–T3 duyệt 15/11/2026). */
+.tg2 { display: grid; gap: 12px; max-width: 560px; }
+.tg2-form { display: grid; gap: 10px; }
+.tg2-step { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-weight: 800; }
+.tg2-step i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: var(--bg); display: grid; place-items: center; font-size: .8rem; }
+.tg2-step small { font-weight: 500; color: var(--muted); }
+.tg2-step.off { opacity: .5; }
+.tg2-search { font-size: 17px; min-height: 48px; border-width: 2px; }
+.tg2-list { display: grid; gap: 8px; }
+.tg2-it { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); text-decoration: none; }
+.tg2-it small { color: var(--muted); font-size: .82rem; }
+.tg2-it span { margin-left: auto; color: var(--accent); font-size: 1.2rem; font-weight: 700; }
+.tg2-sec { margin: 4px 0 -2px; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.tg2-picked { display: flex; align-items: center; gap: 10px; padding: 12px; border: 2px solid var(--accent); border-radius: 12px; background: var(--info-bg); }
+.tg2-picked b { display: block; font-size: 1.05rem; }
+.tg2-picked small { color: var(--muted); }
+.tg2-picked .btn { margin-left: auto; white-space: nowrap; flex: none; }
+.tg2-chips .chip { padding: 10px 14px; font-size: .95rem; }
+.tg2-go { position: sticky; bottom: calc(72px + env(safe-area-inset-bottom)); min-height: 54px; font-size: 1.05rem; width: 100%; }
+.tg2-go:disabled { opacity: .45; }
+.tg2-sum { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tg2-sum b { display: block; font-size: 1.05rem; }
+.tg2-sum span { color: var(--muted); font-size: .9rem; }
+.tg2-sum a { margin-left: auto; font-weight: 700; white-space: nowrap; }
+.tg2-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tg2-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.tg2-h small { color: var(--muted); white-space: nowrap; }
+.tg2-lv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.tg2-lv div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; text-align: center; }
+.tg2-lv small { display: block; color: var(--muted); font-size: .75rem; }
+.tg2-lv b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.tg2-lv div.on { border-color: var(--accent); background: var(--info-bg); }
+.tg2-lv div.na b { color: var(--muted); font-weight: 500; }
+.tg2-ch { display: flex; justify-content: space-between; margin: 0; padding-top: 8px; border-top: 1px dashed var(--line); font-size: .9rem; color: var(--muted); }
+.tg2-ch b { color: var(--text); }
+.tg2-note { text-align: center; }
+.tg2-full { width: 100%; }

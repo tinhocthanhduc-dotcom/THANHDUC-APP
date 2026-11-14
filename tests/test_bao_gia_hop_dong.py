@@ -138,7 +138,7 @@ def test_web_flow_print_public_and_permissions(client, db, priced):
     p, t, fuser, feed, opts, boss = priced
     service_login(client, p['technician'])
     assert client.get('/bao-gia-hop-dong').status_code == 403
-    assert 'href="/bang-gia?tab=goi#tra-gia"' in client.get('/tho').text
+    assert 'href="/tra-gia"' in client.get('/tho').text
     csrf = service_login(client, p['dispatcher'])
     assert client.get('/bao-gia-hop-dong/moi').status_code == 200
     data = {'csrf': csrf, 'khach': t.customer_code, 'model_0': 'Canon LBP 2900', 'qty_0': '2', 'lv_seen': '1', 'kt_seen': '1',
