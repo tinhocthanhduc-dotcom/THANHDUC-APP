@@ -5,12 +5,13 @@
 {# Khung 2 cột (TUẤN duyệt mẫu P2 06/11/2026): trái chỉ đọc, phải "Bước tiếp · Điều phối". Bot không chọn máy, không giao thợ. #}
 {% set st = {'CHO': ('Chờ duyệt', 'cho'), 'DA_TAO': ('Đã tạo phiếu', 'xong'), 'DA_BO': ('Đã bỏ', 'huy')}[row.status] %}
 {% call ui.page_head('Phiếu nháp ' ~ row.number, sub='Phiếu nháp từ Zalo', back='/phieu-nhap-zalo', badge_label=st[0], badge_tone=st[1]) %}{% endcall %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 <div class="pnz-two">
 <section class="card pnz-read">
 <div class="pnz-msg"><small class="mu">Tin gốc · {{ 'Khách nhắn' if row.source == 'KHACH' else users.get(row.sender_id, '') ~ ' nhắn Zalo' }} · {{ row.created_at|vn_time }} {{ row.created_at|vn_date }}</small>
-<p class="zl-quote">{{ row.question }}</p></div>
+<p class="zl-quote">{{ row.question }}</p>{% if row.from_triage %}<small class="mu">Trưởng nhóm AI đọc tin này và lập nháp.</small>{% endif %}</div>
 <dl class="pnz-kv">
-<dt>Khách</dt><dd>{{ customer.name if customer else '' }} · {{ row.customer_code }}{% if customer and customer.address %}<br><small class="mu">{{ customer.address }}</small>{% endif %}</dd>
+<dt>Khách</dt><dd>{% if not row.customer_sure %}{{ ui.badge('AI đoán khách · kiểm lại', 'cho') }}<br>{% endif %}{{ customer.name if customer else '' }} · {{ row.customer_code }}{% if customer and customer.address %}<br><small class="mu">{{ customer.address }}</small>{% endif %}</dd>
 <dt>Loại dịch vụ</dt><dd>{{ kinds.get(row.kind or '', 'Chưa rõ, điều phối chọn') }}</dd>
 <dt>Lỗi khách báo</dt><dd>{{ row.symptom }}</dd>
 <dt>Hẹn mong muốn</dt><dd>{{ want(row) }}</dd>
@@ -21,9 +22,18 @@
 </section>
 <aside class="pnz-side">
 {% if row.status == 'CHO' %}
+{% if pick %}
+{% call ui.next_box('Điều phối', 'Kiểm thông tin rồi bấm một lần: tạo phiếu và giao thợ gợi ý. Máy để thợ chọn khi tới.') %}
+<p class="pnz-pick"><b>Thợ gợi ý: {{ pick.name }}</b><br><small class="mu">{{ pick.why }}</small></p>
+<form method="post" action="/phieu-nhap-zalo/{{ row.id }}/tao-va-giao"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}"><input type="hidden" name="tho" value="{{ pick.id }}">
+<button class="btn btn-ok pnz-full">{% if not row.customer_sure %}Đúng {{ customer.name if customer else row.customer_code }}, tạo và giao {{ pick.name.split()|last }}{% else %}Tạo phiếu và giao {{ pick.name.split()|last }}{% endif %}</button></form>
+<a class="btn btn-ghost pnz-full" href="/dich-vu/moi?nhap={{ row.id }}">Sửa rồi tạo ›</a>
+{% endcall %}
+{% else %}
 {% call ui.next_box('Điều phối', 'Kiểm thông tin, bấm Tạo phiếu để chọn máy và lưu phiếu dịch vụ.') %}
 <a class="btn btn-ok pnz-full" href="/dich-vu/moi?nhap={{ row.id }}">Tạo phiếu ›</a>
 {% endcall %}
+{% endif %}
 <form class="card pnz-drop" method="post" action="/phieu-nhap-zalo/{{ row.id }}/bo"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ row.version }}">
 <label for="pnz-ly-do"><b>Lý do bỏ</b><select id="pnz-ly-do" name="ly_do" required><option value="">Chọn lý do</option>{% for k, v in reasons.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
 <label for="pnz-ghi-chu"><b>Ghi chú</b> <small class="mu">(bắt buộc khi chọn Lý do khác)</small><input id="pnz-ghi-chu" name="ghi_chu" maxlength="500"></label>
@@ -38,4 +48,5 @@
 {% endif %}
 </aside>
 </div>
+<style>.pnz-pick{margin:0;background:var(--ok-bg);border-radius:8px;padding:8px 10px}</style>
 </div>{% endblock %}

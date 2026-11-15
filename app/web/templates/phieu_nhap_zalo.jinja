@@ -14,7 +14,7 @@
 <div class="pnz-row pnz-head" aria-hidden="true"><span>Nháp</span><span>Khách</span><span>Việc</span><span>Hẹn</span><span></span></div>
 {% for r in rows %}{% set who = 'Khách' if r.source == 'KHACH' else (users.get(r.sender_id, '')|string).split(' ')|last %}
 <a class="pnz-row" href="/phieu-nhap-zalo/{{ r.id }}">
-<span class="pnz-no"><b>{{ r.number }}</b><small>{% if r.source == 'KHACH' %}{{ ui.badge('Khách nhắn', 'info') }} {% endif %}{{ r.created_at|vn_time }}{% if r.source != 'KHACH' %} · {{ who }}{% endif %}</small></span>
+<span class="pnz-no"><b>{{ r.number }}</b><small>{% if r.from_triage %}{{ ui.badge('AI đọc tin', 'info') }} {% elif r.source == 'KHACH' %}{{ ui.badge('Khách nhắn', 'info') }} {% endif %}{% if not r.customer_sure %}{{ ui.badge('Chưa chắc khách', 'cho') }} {% endif %}{{ r.created_at|vn_time }}{% if r.source != 'KHACH' %} · {{ who }}{% endif %}</small></span>
 <span class="pnz-ell pnz-cust">{{ custs.get(r.customer_code, r.customer_code) }}</span>
 <span class="pnz-ell pnz-job"><b>{{ kinds.get(r.kind or '', 'Chưa rõ loại') }}</b> · {{ r.symptom }}</span>
 <span class="pnz-ell pnz-want{{ ' mu' if not r.want_date }}">{{ want(r) }}</span>

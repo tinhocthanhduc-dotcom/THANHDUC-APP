@@ -52,6 +52,8 @@ GROUPS = (
         {'label': 'Đơn nháp từ Zalo', 'href': '/don-nhap-zalo', 'prefixes': ('/don-nhap-zalo',), 'roles': ('sales',)},
         # Trợ lý Zalo đợt 4 (TUẤN duyệt mẫu 06/11/2026): tin soạn sẵn gửi khách (nhắc nợ, báo giá, hỏi thăm sau sửa).
         {'label': 'Tin gửi khách', 'href': '/tin-gui-khach', 'prefixes': ('/tin-gui-khach',), 'roles': ('sales', 'finance', 'dispatcher')},
+        # Đội AI (TUẤN duyệt 15/11/2026): Trưởng nhóm AI đọc tin Zalo khách, giao hỏi giá / công nợ / tin chưa rõ khách.
+        {'label': 'Tin Zalo cần trả lời', 'href': '/tin-zalo', 'prefixes': ('/tin-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
         # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
         {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
     )},
