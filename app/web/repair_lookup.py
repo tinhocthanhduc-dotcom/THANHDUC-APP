@@ -1,7 +1,9 @@
-"""Bảng giá màn thợ (TUẤN duyệt mẫu M1–M4, 15/11/2026).
+"""Bảng giá màn thợ, 3 tab (TUẤN duyệt mẫu M1–M4 và D1–D3, 15/11/2026).
 
 Giá sửa 3 bước: B1 chọn model → B2 chọn gói sửa chữa (chọn cấp 1/2/3/chính hãng) → B3 chọn phụ phí; tổng gồm VAT.
-Giá sản phẩm: thêm hàng (−/+ số lượng) + phụ phí; tổng gồm VAT. Chỉ xem để báo khách, không ghi phiếu, không giá vốn/số tồn.
+Giá dịch vụ: B1 model → B2 dịch vụ (ô xổ xuống, −/+ số lượng; dịch vụ theo model chỉ hiện khi có giá cho máy đó) → B3 phụ phí.
+Giá mực (trước là Giá sản phẩm): chỉ hộp mực; thêm hàng (−/+) + phụ phí; tổng gồm VAT.
+Chỉ xem để báo khách, không ghi phiếu, không giá vốn/số tồn.
 Giá gói lấy pb.lookup (model ghi đè → giá nhóm), không bao giờ đoán giá: model chưa có thì gợi ý model gần giống.
 """
 from collections import Counter
@@ -21,7 +23,8 @@ from . import render, web_user
 
 router = APIRouter(include_in_schema=False)
 MAX_MINE = 6
-TAB_COOKIE = 'td_tra_gia'  # nhớ lần chọn trước: Giá sửa / Giá sản phẩm
+TAB_COOKIE = 'td_tra_gia'  # nhớ lần chọn trước: sua / dv / sp (Giá mực)
+TAB_HOME = {'sp': '/tra-gia/san-pham', 'dv': '/tra-gia/dich-vu'}
 
 
 def my_models(session: Session, user: User) -> list[dict]:
@@ -81,8 +84,9 @@ def model_services(session: Session, m) -> list[dict]:
 
 
 def fees(session: Session) -> list[dict]:
+    """Phụ phí (0099: chỉ dòng Loại = Phụ phí; dịch vụ nằm ở tab Giá dịch vụ)."""
     return [dict(id=f.id, name=f.name, price=pb.with_vat(f.price), note=' '.join((f.description or '').split())[:160])
-            for f in pb.services(session, 'PHI', active_only=True)]
+            for f in pb.fee_services(session)]
 
 
 def _ints(values) -> list[int]:
@@ -100,8 +104,8 @@ def lookup(request: Request, model: str = '', q: str = '', user: User = Depends(
            session: Session = Depends(get_session)):
     pb.require_view(user)
     qp = request.query_params
-    if not qp and request.cookies.get(TAB_COOKIE) == 'sp':
-        return RedirectResponse('/tra-gia/san-pham', status_code=303)
+    if not qp and request.cookies.get(TAB_COOKIE) in TAB_HOME:
+        return RedirectResponse(TAB_HOME[request.cookies[TAB_COOKIE]], status_code=303)
     model = ' '.join(str(model or '').split())[:160]
     m = pb.find_model(session, model) if model else None
     m = m if m and m.active else None
@@ -134,8 +138,78 @@ def find(request: Request, q: str = '', user: User = Depends(web_user), session:
                   group_names={g.id: g.name for g in pb.groups(session, active_only=False)})
 
 
-# ---------- Giá sản phẩm (TUẤN duyệt mẫu SP1–SP2 + M4 phụ phí, 15/11/2026) ----------
+# ---------- Giá dịch vụ (TUẤN duyệt mẫu D1 15/11/2026) ----------
+DV_BASE = '/tra-gia/dich-vu'
+
+
+def dv_services(session: Session, m) -> list[dict]:
+    """Dịch vụ (PHI không phải phụ phí) đang dùng: theo model chỉ khi có giá cho model/nhóm máy; một giá luôn có.
+    m=None (thợ bấm "Chỉ xem dịch vụ chung") thì chỉ dịch vụ một giá. Theo máy xếp trước, rồi dịch vụ chung."""
+    out = []
+    for s in pb.services(session, 'PHI', active_only=True):
+        if s.is_fee:
+            continue
+        r = pb.service_price(session, s, m)
+        if r is None:
+            continue
+        out.append(dict(id=s.id, name=s.name, unit=s.unit or 'lần', price=r['price_vat'], warranty=r['warranty'] or 0,
+                        by_model=s.by_model, note=' '.join((s.description or '').split())[:120]))
+    return sorted(out, key=lambda x: not x['by_model'])
+
+
+def dv_basket(values, by_id: dict) -> dict[int, int]:
+    """Dịch vụ đã chọn từ đường dẫn dv=<id>:<số lượng>: chỉ dịch vụ đang có giá, số lượng 1–99, gộp trùng."""
+    qty = {}
+    for v in list(values)[:50]:
+        sid, _, n = str(v).partition(':')
+        try:
+            sid, n = int(sid), int(n or 1)
+        except ValueError:
+            continue
+        if sid in by_id and n > 0:
+            qty[sid] = min(MAX_QTY, qty.get(sid, 0) + n)
+    return qty
+
+
+@router.get('/tra-gia/dich-vu')
+def services_lookup(request: Request, model: str = '', q: str = '', chung: str = '', user: User = Depends(web_user),
+                    session: Session = Depends(get_session)):
+    pb.require_view(user)
+    qp = request.query_params
+    model = ' '.join(str(model or '').split())[:160]
+    m = pb.find_model(session, model) if model else None
+    m = m if m and m.active else None
+    general = chung == '1' and not m
+    ctx = dict(base=DV_BASE, model=model, m=m, general=general, group=None, q=q[:60], mine=my_models(session, user),
+               matches=_matches(session, q or (model if not m else '')), services=[], fees=[], qty={}, fee_ids=set(),
+               dv_total=0, fee_total=0, money=qq.money, fee_scope='dv')
+    if m or general:
+        ctx['group'] = session.get(RepairGroup, m.group_id) if m else None
+        ctx['services'] = dv_services(session, m)
+        by_id = {x['id']: x for x in ctx['services']}
+        ctx['qty'] = dv_basket(qp.getlist('dv'), by_id)
+        ctx['picked'] = [by_id[i] for i in by_id if i in ctx['qty']]
+        ctx['fees'] = fees(session)
+        fee_by = {f['id']: f for f in ctx['fees']}
+        ctx['fee_ids'] = {i for i in _ints(qp.getlist('pp')) if i in fee_by}
+        ctx['dv_total'] = sum(by_id[i]['price'] * n for i, n in ctx['qty'].items())
+        ctx['fee_total'] = sum(fee_by[i]['price'] for i in ctx['fee_ids'])
+    ctx['group_names'] = {g.id: g.name for g in pb.groups(session, active_only=False)}
+    resp = render(request, 'tra_gia_dv.jinja', **ctx)
+    resp.set_cookie(TAB_COOKIE, 'dv', max_age=180 * 86400, httponly=True, samesite='lax')
+    return resp
+
+
+@router.get('/tra-gia/dich-vu/tim')
+def services_find(request: Request, q: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    pb.require_view(user)
+    return render(request, 'tra_gia_tho_tim.jinja', matches=_matches(session, q), q=q[:60], base=DV_BASE,
+                  group_names={g.id: g.name for g in pb.groups(session, active_only=False)})
+
+
+# ---------- Giá mực (trước là Giá sản phẩm; mẫu SP1–SP2 + M4, đổi tên D2 15/11/2026) ----------
 # Thợ chỉ xem giá bán gồm VAT và bảo hành; không giá vốn, không tồn kho (kể cả Còn/Hết hàng, TUẤN 15/11), không hàng ngừng bán.
+# TUẤN 15/11: chỉ hộp mực / mực (nhóm hàng tab "Mực & hộp mực" của Bảng giá chung); máy in, linh kiện, VPP không hiện.
 MAX_PRODUCTS = 30
 
 
@@ -143,7 +217,7 @@ def product_rows(session: Session, q: str, nhom: str = '') -> tuple[list[dict], 
     q = ' '.join(str(q or '').split())[:60]
     if len(q) < 2:
         return [], []
-    found = [p for p in product_svc.search(session, q, active_only=True, limit=200) if not p.is_test]
+    found = [p for p in product_svc.search(session, q, active_only=True, limit=200) if not p.is_test and pb.product_tab(p) == 'muc']
     groups = Counter(p.group_name for p in found if p.group_name)
     if nhom:
         found = [p for p in found if p.group_name == nhom]
@@ -172,7 +246,7 @@ def basket(session: Session, values) -> list[dict]:
         return []
     found = [p for p in session.scalars(select(Product).where(Product.code.in_(list(qty)), Product.active.is_(True),
                                                               Product.is_test.is_(False)).order_by(Product.code))]
-    rows = _cards(session, found)
+    rows = _cards(session, [p for p in found if pb.product_tab(p) == 'muc'])
     for r in rows:
         r['qty'] = qty[r['code']]
     return rows

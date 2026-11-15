@@ -4846,7 +4846,7 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tg2-note { text-align: center; }
 .tg2-full { width: 100%; }
 /* Bảng giá màn thợ: hai nút Giá sửa / Giá sản phẩm + thẻ giá sản phẩm (mẫu SP1–SP2 duyệt 15/11/2026). */
-.tg2-tab { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--tag); }
+.tg2-tab { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--tag); }
 .tg2-tab a { text-align: center; padding: 10px 4px; border-radius: 9px; font-weight: 700; color: var(--muted); text-decoration: none; }
 .tg2-tab a.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 .tg2-filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 10px; }
@@ -4918,3 +4918,28 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tgsp-on small { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }
 .tgsp-on em { font-style: normal; color: var(--accent); font-weight: 700; }
 .tgsp-opt > b { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* 0099 Dịch vụ & phụ phí: Loại + Cách tính giá (TUẤN duyệt mẫu D3 15/11/2026) */
+.bg-seg { border: 0; padding: 0; margin: 0 0 10px; min-width: 0; }
+.bg-seg legend { font-weight: 700; margin-bottom: 6px; }
+.bg-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; max-width: 520px; }
+.bg-seg legend { grid-column: 1 / -1; }
+.bg-seg label { margin: 0; display: block; }
+.bg-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.bg-seg span { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; text-align: center; cursor: pointer; }
+.bg-seg label:first-of-type span { border-radius: 8px 0 0 8px; }
+.bg-seg label:last-of-type span { border-radius: 0 8px 8px 0; border-left: 0; }
+.bg-seg input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.bg-seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bg-gen-price { display: none; }
+.bg-service-form:has(input[name="cach"][value="MODEL"]:checked) .bg-gen-price { display: inline; }
+.bg-service-form:has(input[name="cach"][value="MODEL"]:checked) .bg-one-price { display: none; }
+.bg-service-form:has(input[name="cach"][value="MOT"]:checked) .bg-by-model,
+.bg-service-form:has(input[name="loai"][value="PHI"]:checked) .bg-by-model,
+.bg-service-form:has(input[name="loai"][value="PHI"]:checked) .bg-cach { display: none; }
+.bg-service-form:has(input[name="loai"][value="PHI"]:checked) .bg-gen-price { display: none; }
+.bg-service-form:has(input[name="loai"][value="PHI"]:checked) .bg-one-price { display: inline; }
+/* Giá dịch vụ màn thợ (mẫu D1 15/11/2026) */
+.tgdv-row[hidden] { display: none; }
+.tgdv-row.on { border-color: var(--accent); background: var(--info-bg); }
+.tg2-tab3 a { padding-left: 2px; padding-right: 2px; font-size: 15px; }

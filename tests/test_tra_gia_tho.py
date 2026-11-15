@@ -118,29 +118,30 @@ def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user)
     tech = make_user('tgsp.tho', 'technician')
     web_login(client, tech)
     page = client.get('/tra-gia/san-pham', params={'q': '12'}).text
-    assert 'Giá sản phẩm' in page and 'Giá sửa' in page
+    # Mẫu D2 (TUẤN 15/11): tab đổi tên Giá mực, chỉ hộp mực; ba tab Giá sửa · Giá dịch vụ · Giá mực.
+    assert 'Giá mực' in page and 'Giá sửa' in page and 'Giá dịch vụ' in page and 'Giá sản phẩm' not in page
+    assert 'TD-9112' not in page and 'May in HP 1020' not in page  # máy in không hiện ở Giá mực
     card = page.split('data-tgsp-code="TD-9012"')[1].split('</button>')[0]
     assert '1.350.000' in card and 'BH' not in card  # 1.250.000 + 8% VAT
     card = page.split('data-tgsp-code="TD-9040"')[1].split('</button>')[0]
     assert '270.000' in card
     assert 'Còn hàng' not in page and 'Hết hàng' not in page  # TUẤN 15/11: không hiện tồn
-    assert 'BH 3 tháng' in page.split('data-tgsp-code="TD-9112"')[1].split('</button>')[0]
     assert 'TD-9099' not in page
-    for secret in ('987.654', '123.456', '900.000', '>7<'):  # giá vốn, số tồn
+    for secret in ('987.654', '123.456', '>7<'):  # giá vốn, số tồn
         assert secret not in page
     # Danh sách xổ xuống (TUẤN 15/11): mỗi dòng bấm để thêm; tìm không ra thì báo, không đoán.
     assert 'class="tgsp-drop"' in page and 'data-tgsp-add data-tgsp-code="TD-9012"' in page
-    assert 'Không thấy hàng này.' in client.get('/tra-gia/san-pham/tim', params={'q': 'zzzz'}).text
+    assert 'Không thấy hộp mực này.' in client.get('/tra-gia/san-pham/tim', params={'q': 'zzzz'}).text
     assert 'data-tgsp-code="TD-9012"' in client.get('/tra-gia/san-pham/tim', params={'q': 'hp 12a'}).text
     # M4: hàng đã chọn (sp=mã:số lượng) + phụ phí ra tổng gồm VAT; hàng ngừng bán / mã lạ bỏ qua, số lượng tối đa 99.
     fee = next(f for f in pb.services(db, 'PHI') if f.name == 'Phí giao hàng') if any(f.name == 'Phí giao hàng' for f in pb.services(db, 'PHI')) \
         else pb.save_service(db, boss, dict(kind='PHI', name='Phí giao hàng', price='30.000', active='1'))
     db.commit()
     page = client.get('/tra-gia/san-pham', params=[('q', '12'), ('sp', 'TD-9012:2'), ('sp', 'td-9040:1'), ('sp', 'TD-9099:3'), ('sp', 'TD-0000:1'),
-                                                    ('pp', fee.id)]).text
+                                                    ('sp', 'TD-9112:1'), ('pp', fee.id)]).text
     assert 'Phí giao hàng' in page and '32.400' in page  # 30.000 + 8% VAT
     # 2 × 1.350.000 + 270.000 = 2.970.000; + 32.400 = 3.002.400.
-    assert 'Hàng 2.970.000 · Phụ phí 32.400' in page and 'data-tg3-total>3.002.400<' in page
+    assert 'Mực 2.970.000 · Phụ phí 32.400' in page and 'data-code="TD-9112"' not in page  # máy in không vào giỏ Giá mực and 'data-tg3-total>3.002.400<' in page
     assert 'data-code="TD-9012"' in page and 'data-qty="2"' in page and 'data-code="TD-9099"' not in page
     assert 'Đã chọn 2' in page.split('data-tgsp-code="TD-9012"')[1].split('</button>')[0]
     assert 'data-tg3-total>133.650.000<' in client.get('/tra-gia/san-pham', params={'sp': 'TD-9012:500'}).text  # tối đa 99 × 1.350.000

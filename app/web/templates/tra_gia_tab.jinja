@@ -1,3 +1,3 @@
-{# Bảng giá màn thợ (mẫu SP1 duyệt 15/11/2026): hai nút Giá sửa / Giá sản phẩm, app nhớ lần chọn trước. #}
-{% set sp = request.url.path.startswith('/tra-gia/san-pham') %}
-<nav class="tg2-tab" aria-label="Loại giá"><a href="/tra-gia?tab=sua" {% if not sp %}class="on" aria-current="page"{% endif %}>Giá sửa</a><a href="/tra-gia/san-pham" {% if sp %}class="on" aria-current="page"{% endif %}>Giá sản phẩm</a></nav>
+{# Bảng giá màn thợ, 3 tab (mẫu D1–D2 duyệt 15/11/2026): Giá sửa · Giá dịch vụ · Giá mực; app nhớ lần chọn trước. #}
+{% set path = request.url.path %}{% set cur = 'sp' if path.startswith('/tra-gia/san-pham') else ('dv' if path.startswith('/tra-gia/dich-vu') else 'sua') %}
+<nav class="tg2-tab tg2-tab3" aria-label="Loại giá">{% for k, href, label in [('sua', '/tra-gia?tab=sua', 'Giá sửa'), ('dv', '/tra-gia/dich-vu', 'Giá dịch vụ'), ('sp', '/tra-gia/san-pham', 'Giá mực')] %}<a href="{{ href }}" {% if cur == k %}class="on" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>

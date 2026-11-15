@@ -2450,6 +2450,9 @@ class PriceService(Base):
     hours_3: Mapped[Decimal] = mapped_column(Numeric(4, 1), default=Decimal(0), server_default='0')
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
     sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    # 0099 (PHI): phụ phí hay dịch vụ; dịch vụ giá theo nhóm máy/model (repair_prices cấp 1) hay một giá.
+    is_fee: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    by_model: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
     search_text: Mapped[str] = mapped_column(Text, default='', server_default='')
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))

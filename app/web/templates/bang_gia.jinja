@@ -32,8 +32,8 @@
 {% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table">
 <thead><tr><th>Dịch vụ · phụ phí</th><th>Đơn vị</th><th class="num">Chưa VAT</th><th class="num">Gồm VAT</th><th class="num">Bảo hành</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
 {% for s in rows %}<tr data-service-row="{{ s.id }}"{% if can_edit %} data-href="/bang-gia/dich-vu/{{ s.id }}"{% endif %}>
-<td class="lt-first"><b>{{ s.name }}</b>{% if s.description %}<span class="lt-sub">{{ s.description|truncate(90) }}</span>{% endif %}{% if not s.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td>
-<td data-label="Đơn vị">{{ s.unit }}</td><td class="num" data-label="Chưa VAT"><b>{{ s.price|money }}</b></td><td class="num" data-label="Gồm VAT">{{ with_vat(s.price)|money }}</td>
+<td class="lt-first"><b>{{ s.name }}</b> <span class="badge {{ 'b-nhap' if s.is_fee else 'b-ok' }}" data-service-type>{{ 'Phụ phí' if s.is_fee else ('Theo model' if s.by_model else 'Dịch vụ') }}</span>{% if s.description %}<span class="lt-sub">{{ s.description|truncate(90) }}</span>{% endif %}{% if not s.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td>
+<td data-label="Đơn vị">{{ s.unit }}</td>{% if s.by_model %}<td class="num" data-label="Chưa VAT"><span class="lt-sub">theo nhóm máy / model</span></td><td class="num" data-label="Gồm VAT">—</td>{% else %}<td class="num" data-label="Chưa VAT"><b>{{ s.price|money }}</b></td><td class="num" data-label="Gồm VAT">{{ with_vat(s.price)|money }}</td>{% endif %}
 <td class="num" data-label="Bảo hành">{{ (s.warranty_months ~ ' th') if s.warranty_months else '—' }}</td>
 {% if can_edit %}<td><a class="btn btn-ghost bg-small" href="/bang-gia/dich-vu/{{ s.id }}">Sửa</a></td>{% endif %}
 </tr>{% endfor %}</tbody></table></div>
