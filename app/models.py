@@ -2387,6 +2387,29 @@ class VirtualAgentLog(Base):
     undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TeamTask(Base):
+    """0101 Đội AI: mỗi việc đang mở trong Việc của tôi một dòng, Trưởng nhóm AI gắn người phụ trách và hạn.
+    Chỉ là bảng theo dõi, không thay quyền hay trạng thái chứng từ. done_at = việc đã biến khỏi Việc của tôi."""
+    __tablename__ = 'team_tasks'
+    __table_args__ = (Index('ux_team_tasks_open', 'item_key', 'ref', unique=True, postgresql_where=text('done_at IS NULL')),
+                      Index('ix_team_tasks_owner', 'owner_id', 'done_at'), Index('ix_team_tasks_seen', 'first_seen_at'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    item_key: Mapped[str] = mapped_column(String(40))
+    ref: Mapped[str] = mapped_column(String(80))
+    number: Mapped[str] = mapped_column(String(80), default='', server_default='')
+    title: Mapped[str] = mapped_column(Text, default='', server_default='')
+    link: Mapped[str] = mapped_column(Text, default='', server_default='')
+    owner_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    urgent: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dispatch_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    director_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ApprovalLimit(Base):
     """0091 Hạn mức duyệt: giám đốc giao kế toán duyệt thay trong hạn mức (TUẤN duyệt 11/11/2026). 0 = không giao."""
     __tablename__ = 'approval_limits'

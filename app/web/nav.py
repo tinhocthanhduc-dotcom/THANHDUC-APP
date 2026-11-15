@@ -139,6 +139,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Ngày lễ', 'href': '/cham-cong/ngay-le', 'prefixes': ('/cham-cong/ngay-le',), 'roles': ('director',)},
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Hạn mức duyệt', 'href': '/han-muc-duyet', 'prefixes': ('/han-muc-duyet',), 'roles': ('director',)},
+        {'label': 'Đội AI', 'href': '/doi-ai', 'prefixes': ('/doi-ai',), 'roles': ('director',)},
         {'label': 'Nhân viên AI', 'href': '/nhan-vien-ao', 'prefixes': ('/nhan-vien-ao',), 'roles': ('director',)},
         {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',)},
         {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no'), 'roles': ('director',)},

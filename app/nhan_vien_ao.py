@@ -45,10 +45,13 @@ AGENTS = {
                      defaults=dict(accept_minutes=15, director_late_minutes=30)),
     'THU_KY': dict(name='Thư ký phiếu', what='Gom việc còn treo của từng người, nhắn Zalo vào cuối buổi',
                    defaults=dict(times=['11:15', '17:15'])),
+    # Đội AI đợt 1 (TUẤN duyệt 15/11/2026): xem app/truong_nhom.py. Bật thì Thư ký phiếu gộp vào tin 07:45 / 13:30.
+    'TRUONG_NHOM': dict(name='Trưởng nhóm AI', what='Chia mỗi việc cho một người kèm hạn, xếp 3 việc làm tiếp, nhắc và báo lên khi treo, đổi thợ khi quá tải',
+                        defaults=dict(overload=8, gap=3, reassign=True, undo_minutes=10, times=['07:45', '13:30'])),
 }
 MODES = {'TU_LAM': 'Tự làm', 'CHAY_THU': 'Chạy thử'}
 ACTIONS = {'GIAO': 'Đã giao', 'CHAY_THU': 'Chạy thử', 'BO_QUA': 'Bỏ qua', 'NHAC': 'Đã nhắc', 'BAO': 'Đã báo',
-           'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt'}
+           'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người'}
 # Thư ký phiếu: các nhóm Việc của tôi là "việc treo" cần làm nốt trong ngày.
 CLERK_KEYS = ('service_unreported', 'orders_unreported', 'receipts_rejected', 'receipts_pending', 'service_paused',
               'service_return_ready', 'technician_deliveries', 'zalo_ticket_drafts', 'customer_messages_waiting', 'service_goods_short')
@@ -146,6 +149,11 @@ def save(session, user, code: str, form) -> VirtualAgent:
                               director_late_minutes=_int(get('director_late_minutes'), 5, 120, 'Báo giám đốc khi trễ hẹn quá'))
             elif code == 'THU_KY':
                 config.update(times=_times(get('times')))
+            elif code == 'TRUONG_NHOM':
+                config.update(overload=_int(get('overload'), 2, 50, 'Quá tải khi có từ'),
+                              gap=_int(get('gap'), 1, 20, 'Người nhận phải ít hơn'),
+                              undo_minutes=_int(get('undo_minutes'), 0, 120, 'Điều phối được hoàn tác trong'),
+                              reassign=str(get('reassign') or '') == '1', times=_times(get('times')))
         row.config = config
         text = f"{AGENTS[code]['name']}: {'bật' if enabled else 'tắt'}" + (f" · {MODES[row.mode]}" if code == 'DIEU_PHOI' else '')
     if (row.enabled, row.mode, dict(row.config or {})) == old:
@@ -462,8 +470,8 @@ def clerk_once(session, now=None, sender=None) -> int:
     from . import my_work
     row = active(session, 'THU_KY')
     now = now or _now()
-    if row is None or not _zalo_ready():
-        return 0
+    if row is None or not _zalo_ready() or active(session, 'TRUONG_NHOM') is not None:
+        return 0   # Trưởng nhóm AI bật: việc treo gộp vào tin 07:45 / 13:30 (Q4)
     at = clerk_slot(session, now, cfg(row)['times'])
     if at is None:
         return 0
@@ -498,7 +506,8 @@ def run_once(session, now=None, sender=None) -> int:
     """Gọi mỗi phút trong vòng nền báo điều phối, trước khi báo phiếu cần giao (phiếu đã tự giao thì không báo nữa)."""
     now = now or _now()
     total = 0
-    for job in (dispatch_once, remind_once, clerk_once):
+    from . import truong_nhom
+    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once):
         try:
             total += job(session, now, sender)
         except Exception:  # noqa: BLE001 - lỗi một nhân viên AI không chặn các việc khác

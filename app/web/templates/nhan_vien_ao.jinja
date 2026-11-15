@@ -16,10 +16,11 @@
 </form>
 {% for code, a in agents.items() %}{% set r = rows[code] %}{% set c = cfgs[code] %}{% set st = stats.get(code, {}) %}
 <section class="card nva-agent{{ ' nva-off' if not (r.enabled and master.enabled) }}" id="nva-{{ code|lower }}">
-<div class="nva-h"><b>{{ a.name }}</b>{% if not r.enabled %}{{ ui.badge('Tắt', 'nhap') }}{% elif code == 'DIEU_PHOI' %}{{ ui.badge(modes[r.mode], 'xong' if r.mode == 'TU_LAM' else 'cho') }}{% elif code == 'THU_KY' %}{{ ui.badge('Chỉ báo', 'lam') }}{% else %}{{ ui.badge('Tự làm', 'xong') }}{% endif %}</div>
+<div class="nva-h"><b>{{ a.name }}</b>{% if not r.enabled %}{{ ui.badge('Tắt', 'nhap') }}{% elif code == 'DIEU_PHOI' %}{{ ui.badge(modes[r.mode], 'xong' if r.mode == 'TU_LAM' else 'cho') }}{% elif code == 'THU_KY' %}{{ ui.badge('Gộp vào Trưởng nhóm' if rows['TRUONG_NHOM'].enabled else 'Chỉ báo', 'lam') }}{% else %}{{ ui.badge('Tự làm', 'xong') }}{% endif %}</div>
 <p class="hint">{{ a.what }}.</p>
 <p class="nva-today">Hôm nay: {% if code == 'DIEU_PHOI' %}<b>{{ st.get('GIAO', 0) }}</b> phiếu đã giao{% if st.get('HOAN_TAC') %} · {{ st.get('HOAN_TAC') }} hoàn tác{% endif %}{% if st.get('CHAY_THU') %} · {{ st.get('CHAY_THU') }} chạy thử{% endif %}{% if st.get('BO_QUA') %} · {{ st.get('BO_QUA') }} bỏ qua{% endif %}
 {% elif code == 'NHAC_HEN' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc thợ{% if st.get('BAO') %} · {{ st.get('BAO') }} tin báo giám đốc{% endif %}
+{% elif code == 'TRUONG_NHOM' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc quá hạn · {{ st.get('BAO', 0) }} tin báo/gửi việc · {{ st.get('DOI_NGUOI', 0) }} lần đổi người · <a href="/doi-ai">Xem màn Đội AI ›</a>
 {% else %}<b>{{ st.get('BAO', 0) }}</b> tin gom việc treo · lúc {{ c.times|join(', ') }}{% endif %}</p>
 {% if code == 'DIEU_PHOI' %}<p class="hint">Loại: {% for k in c.kinds %}{{ kinds[k] }}{{ ', ' if not loop.last }}{% endfor %} · mức {% for k in c.priorities %}{{ priorities[k] }}{{ ', ' if not loop.last }}{% endfor %} · giao sau {{ c.wait_minutes }} phút · hoàn tác {{ c.undo_minutes }} phút · {{ 'không giới hạn số phiếu' if not c.max_per_day and not c.max_per_tech else 'tối đa ' ~ (c.max_per_day or '∞') ~ ' phiếu/ngày, ' ~ (c.max_per_tech or '∞') ~ '/thợ' }}</p>{% endif %}
 <details{% if open_code == code %} open{% endif %}><summary class="btn btn-ghost">Cài đặt ›</summary>
@@ -49,6 +50,18 @@
 <label for="nva-late"><b>Báo giám đốc khi trễ hẹn quá (phút)</b><input id="nva-late" name="director_late_minutes" inputmode="numeric" value="{{ c.director_late_minutes }}"></label>
 </div>
 <p class="hint">Nhắc sắp trễ hẹn theo đúng mốc chuông của thợ. Điều phối vẫn nhận báo "có thể trễ hẹn" như cũ. Mỗi mốc một tin.</p>
+{% elif code == 'TRUONG_NHOM' %}
+<div class="nva-nums">
+<label for="nva-over"><b>Quá tải khi có từ (việc)</b><input id="nva-over" name="overload" inputmode="numeric" value="{{ c.overload }}"></label>
+<label for="nva-gap"><b>Người nhận phải ít hơn (việc)</b><input id="nva-gap" name="gap" inputmode="numeric" value="{{ c.gap }}"></label>
+<label for="nva-tn-undo"><b>Điều phối được hoàn tác trong (phút)</b><input id="nva-tn-undo" name="undo_minutes" inputmode="numeric" value="{{ c.undo_minutes }}"></label>
+<label for="nva-tn-times"><b>Giờ gửi việc làm tiếp</b><input id="nva-tn-times" name="times" value="{{ c.times|join(', ') }}" placeholder="07:45, 13:30"></label>
+</div>
+<div class="field" role="group" aria-labelledby="nva-re"><p class="group-label" id="nva-re"><b>Tự đổi thợ khi quá tải</b></p><div class="seg">
+<label><input type="radio" name="reassign" value="1"{% if c.reassign %} checked{% endif %}><span>Có</span></label>
+<label><input type="radio" name="reassign" value="0"{% if not c.reassign %} checked{% endif %}><span>Không</span></label></div>
+<small class="mu">Chỉ phiếu dịch vụ đã giao mà thợ chưa nhận, chưa cấp hàng, không Khẩn, không bảo hành; sang thợ đã vào ca. Việc có tiền và đơn bán không bao giờ tự đổi.</small></div>
+<p class="hint">Quá hạn: nhắc người làm, 30 phút sau vẫn treo thì báo điều phối, việc gấp quá 2 giờ hoặc việc thường quá 1 ngày làm việc thì báo giám đốc. Đang bật thì Thư ký phiếu gộp vào tin này.</p>
 {% else %}
 <label for="nva-times"><b>Giờ gửi (cách nhau dấu phẩy)</b><input id="nva-times" name="times" value="{{ c.times|join(', ') }}" placeholder="11:15, 17:15"></label>
 <p class="hint">Mỗi người nhận danh sách việc còn treo của mình (đã xong chưa báo thu, báo thu bị từ chối, máy sửa xong chờ trả, đơn cần giao, phiếu nháp Zalo…). Không có việc treo thì không nhắn. Giám đốc không nhận.</p>
