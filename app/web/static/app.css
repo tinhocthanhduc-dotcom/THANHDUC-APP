@@ -5060,3 +5060,28 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .ktm-js .ktm-svc-head { cursor: default; position: relative; }
 .ktm-js .ktm-list { gap: 8px; }
 .ktm-js .ktm-svc:has([data-rq-on]:checked) { margin: 0; }
+
+/* Báo giá gộp nhiều máy một khách (TUẤN duyệt mẫu 15/11/2026). Tên riêng bgg-, không đụng rq-* của Báo thu / báo giá phiếu. */
+.bgg-group { display: grid; gap: 8px; border: 2px solid var(--accent); }
+.bgg-group .rq-row { box-shadow: none; }
+.bgg-gh { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bgg-card { display: grid; gap: 10px; min-width: 0; }
+.bgg-m { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; min-height: 48px; }
+.bgg-m input[type=checkbox] { width: 20px; height: 20px; }
+.bgg-m:has(input:checked) { border-color: var(--accent); background: var(--info-bg); }
+.bgg-m.off { opacity: .6; }
+.bgg-mt { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.bgg-mt small { color: var(--muted); }
+.bgg-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bgg-big { font-size: 1.25rem; color: var(--navy, var(--accent)); white-space: nowrap; }
+.bgg-next { display: grid; gap: 10px; border: 2px solid var(--accent); }
+.bgg-who { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); font-weight: 700; }
+.bgg-sec { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.bgg-sh { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.bgg-sub { border-top: 1px solid var(--line); padding-top: 6px; }
+.bgg-ans { flex-wrap: wrap; }
+.bgg-why { display: none; }
+.bgg-sec:has(input[value="CHUA"]:checked) .bgg-why { display: flex; }
+.bgg-tot { display: grid; gap: 2px; padding-top: 8px; border-top: 2px solid var(--line); }
+.bgg-reply { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.bgg-in-m td { background: #eef2f8; }

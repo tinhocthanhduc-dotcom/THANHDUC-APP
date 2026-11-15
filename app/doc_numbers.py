@@ -35,6 +35,7 @@ PREFIXES = {
     "MT": "Mã máy tạm (máy mất tem)",
     "HG": "Báo giá nhanh sửa chữa",
     "HD": "Báo giá hợp đồng sửa chữa",
+    "BGG": "Báo giá gộp sửa nhiều máy",
 }
 
 

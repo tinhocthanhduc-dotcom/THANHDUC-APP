@@ -82,7 +82,14 @@ def listing(request: Request, user: User = Depends(web_user), session: Session =
     ri.require_inspect(user)
     rows = ri.waiting_rows(session)
     customers = {c.code: c for c in session.scalars(select(Customer).where(Customer.code.in_({r['ticket'].customer_code for r in rows})))} if rows else {}
-    return render(request, 'kiem_tra_may_ds.jinja', rows=rows, customers=customers, todo=sum(1 for r in rows if r['todo']))
+    from .. import repair_quote_groups as rg
+    from ..service_tickets import DISPATCHERS
+    groups = rg.by_customer(rows)
+    # Báo giá gộp (mẫu duyệt 15/11/2026): khách có từ 2 máy đã áp giá, chưa đồng ý → nút Gộp báo giá cho điều phối.
+    ready = {code: sum(1 for r in g if r['inspection'] is not None and r['inspection'].applied_at and not r['ticket'].quote_approved_at)
+             for code, g in groups.items()}
+    return render(request, 'kiem_tra_may_ds.jinja', rows=rows, groups=groups, ready=ready, can_group=has_role(user, *DISPATCHERS),
+                  customers=customers, todo=sum(1 for r in rows if r['todo']))
 
 
 @router.get('/kiem-tra-may/{ticket_id}')
@@ -121,7 +128,10 @@ def panel_context(session, user, t, picks=None) -> dict:
         send = dict(v=open_v, link=rqs.link(open_v), text=text, source=source, ai=rqs.ai_text(session, open_v),
                     late=rqs.overdue(open_v), days=rqs.waiting_days(open_v),
                     stale=bool(row.applied_at and open_v.created_at < row.applied_at))
-    return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles,
+    from .. import repair_quote_groups as rg
+    group = rg.for_ticket(session, t.id)
+    siblings = sum(1 for r in rg.candidates(session, t.customer_code) if r['ready']) if has_role(user, 'dispatcher') else 0
+    return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, group=group, siblings=siblings,
                         current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1,
                         can_send=bool(row.applied_at) and (open_v is None or send['stale']),
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
