@@ -97,7 +97,7 @@
 <p class="hint">1. Tải file của tab này, mở bằng Excel, sửa cột giá. 2. Lưu dạng <b>CSV UTF-8</b>. 3. Chọn file và bấm Xem trước; app chỉ ghi khi anh bấm Áp dụng.</p>
 <div class="action-bar"><a class="btn btn-ghost" href="/bang-gia/excel?tab={{ tab }}">Tải Excel tab {{ tabs[tab] }}</a></div>
 <form method="post" action="/bang-gia/nhap-excel" enctype="multipart/form-data" class="bg-upload"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tab" value="{{ tab }}">
-<input type="file" name="file" accept=".csv,text/csv" required aria-label="File CSV"><button class="btn btn-ghost">Xem trước thay đổi</button></form>
+<input type="file" name="file" accept=".csv,.txt,.tsv,text/csv,text/plain" required aria-label="File CSV"><button class="btn btn-ghost">Xem trước thay đổi</button></form>
 </details>{% endif %}
 </section>
 </div>

@@ -287,4 +287,4 @@ async def import_preview(request: Request, form=Depends(checked_form), session: 
         if exc.status == 403:
             raise
         return _page(request, session, user, tab, error=exc, status=exc.status)
-    return render(request, 'bang_gia_nhap.jinja', tab=tab, tabs=svc.TABS, plan=plan, content=raw.decode('utf-8-sig', 'replace'))
+    return render(request, 'bang_gia_nhap.jinja', tab=tab, tabs=svc.TABS, plan=plan, content=svc.decode_text(raw))

@@ -217,6 +217,47 @@ def test_excel_roundtrip_preview_then_apply(client, db, make_user):
     fail('BAD_FILE', pb.plan_import, db, 'muc', 'sai,tieu,de\n'.encode('utf-8'))
 
 
+def test_excel_unicode_text_tab_file_imports(client, db, make_user):
+    """TUẤN 15/11: Excel "Lưu thành → Unicode Text" ra UTF-16, cách cột bằng tab, CRLF: trước báo sai tiêu đề, nay nhập được."""
+    boss = make_user('bg.u16', 'director')
+    stocked(db, boss, 'TD-9114', 'Máy in Canon LBP 6030B Black - CH', 'Máy in', 2_700_000, 2_000_000)
+    stocked(db, boss, 'TD-9146', 'Hộp mực thải Epson L8050, L18050 có chip', 'Linh kiện máy in', 180_000, 90_000)
+    body = ('Mã hàng\tTên hàng\tNhóm\tGiá chưa VAT\r\n'
+            'TD-9114\tMáy in Canon LBP 6030B Black - CH\tMáy in\t2800000\r\n'
+            'TD-9146\t"Hộp mực thải Epson L8050, L18050 có chip"\tLinh kiện máy in\t200000\r\n\r\n')
+    raw = body.encode('utf-16')  # có BOM FF FE như Excel lưu
+    plan = pb.plan_import(db, 'may-in', raw)
+    assert not plan['errors'] and sorted((c['key'], c['new']) for c in plan['changes']) == [('TD-9114', 2_800_000), ('TD-9146', 200_000)]
+    csrf = web_login(client, boss)
+    r = client.post('/bang-gia/nhap-excel', data=dict(csrf=csrf, tab='may-in'), files={'file': ('bang-gia-may-in.txt', raw, 'text/plain')})
+    assert r.status_code == 200 and 'Áp dụng 2 thay đổi' in r.text and '2.800.000' in r.text
+    # Bước Áp dụng gửi lại nội dung đã đọc đúng dấu (không vỡ chữ UTF-16).
+    assert 'Máy in Canon LBP 6030B Black - CH' in r.text
+    content = r.text.split('<textarea name="content" hidden>')[1].split('</textarea>')[0]
+    import html as _html
+    r = client.post('/bang-gia/nhap-excel', data=dict(csrf=csrf, tab='may-in', ap_dung='1', content=_html.unescape(content)), follow_redirects=False)
+    assert r.status_code == 303
+    assert db.get(Product, 'TD-9114', populate_existing=True).sale_price == 2_800_000
+    assert db.get(Product, 'TD-9146', populate_existing=True).sale_price == 200_000
+    # CSV ANSI tiếng Việt (cp1258, Excel máy Việt lưu "CSV") cũng đọc được.
+    import unicodedata
+
+    def cp1258(text):  # như Windows: chữ có sẵn thì dùng, còn lại tách dấu thanh
+        out = b''
+        for ch in text:
+            try:
+                out += ch.encode('cp1258')
+            except UnicodeEncodeError:
+                d = unicodedata.normalize('NFD', ch)
+                try:
+                    out += d.encode('cp1258')
+                except UnicodeEncodeError:
+                    out += unicodedata.normalize('NFC', d[:2]).encode('cp1258') + d[2:].encode('cp1258')
+        return out
+    ansi = cp1258('Mã hàng;Tên hàng;Nhóm;Giá chưa VAT\nTD-9114;Máy in;Máy in;2900000\n')
+    assert [c['new'] for c in pb.plan_import(db, 'may-in', ansi)['changes']] == [2_900_000]
+
+
 def test_sample_price_book_script_adds_once_and_never_overwrites(db, make_user):
     from scripts import bang_gia_mau
     boss = make_user('bg.mau', 'director')
