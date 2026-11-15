@@ -141,6 +141,20 @@ def save_service(request: Request, form=Depends(checked_form), session: Session 
     return RedirectResponse(f'/bang-gia/dich-vu/{s.id}?da_luu=1', status_code=303)
 
 
+@router.post('/bang-gia/dich-vu/{service_id}/xoa')
+def delete_service(request: Request, service_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    svc.require_edit(user)
+    try:
+        kind = svc.delete_service(session, user, service_id)
+    except BusinessError as exc:
+        session.rollback()
+        if exc.status in (403, 404):
+            raise
+        return _service_page(request, session, user, svc.load_service(session, service_id), error=exc, status=exc.status)
+    return RedirectResponse(f'/bang-gia?tab={"goi" if kind == "GOI" else "dich-vu"}&da_luu=xoa', status_code=303)
+
+
 @router.post('/bang-gia/dich-vu/{service_id}/gia-model')
 def save_model_price(request: Request, service_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
     user = request.state.user
@@ -166,7 +180,11 @@ def _models_page(request, session, user, q='', nhom='', form=None, error=None, s
     gid = int(nhom) if str(nhom).isdigit() else None
     rows = svc.models(session, q[:200], gid)
     gnames = {g.id: g.name for g in svc.groups(session, active_only=False)}
+    counts = {}
+    for m in svc.models(session):
+        counts[m.group_id] = counts.get(m.group_id, 0) + 1
     return render(request, 'bang_gia_model.jinja', rows=rows, q=q, nhom=nhom, machine_groups=svc.groups(session), group_names=gnames,
+                  all_groups=svc.groups(session, active_only=False), group_counts=counts,
                   suggestions=svc.known_model_names(session) if svc.can_edit(user) else [], can_edit=svc.can_edit(user), form=form or {},
                   saved=saved, error=error.message if error else None, error_code=error.code if error else '', status=status)
 
@@ -175,6 +193,23 @@ def _models_page(request, session, user, q='', nhom='', form=None, error=None, s
 def models_page(request: Request, q: str = '', nhom: str = '', da_luu: str = '', user: User = Depends(web_user),
                 session: Session = Depends(get_session)):
     return _models_page(request, session, user, q, nhom, saved=da_luu)
+
+
+@router.post('/bang-gia/nhom-may/luu')
+def save_group(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    svc.require_edit(user)
+    data = {k: form.get(k) for k in form.keys()}
+    gid = str(data.get('id', ''))
+    try:
+        svc.save_group(session, user, data.get('name', ''), int(gid) if gid.isdigit() else None,
+                       active=str(data.get('active', '1')) == '1')
+    except BusinessError as exc:
+        session.rollback()
+        if exc.status == 403:
+            raise
+        return _models_page(request, session, user, form={f'g_{k}': v for k, v in data.items()}, error=exc, status=exc.status)
+    return RedirectResponse('/bang-gia/model-may?da_luu=nhom#nhom-may', status_code=303)
 
 
 @router.post('/bang-gia/model-may/luu')

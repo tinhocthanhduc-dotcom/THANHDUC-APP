@@ -35,7 +35,7 @@ PRODUCT_TABS = ('may-in', 'muc', 'linh-kien')
 LEVELS = {1: 'Nhẹ', 2: 'Trung bình', 3: 'Nặng'}
 VIEWERS = ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'technician')
 MAX_PRICE = 1_000_000_000
-PRICE_ACTIONS = ('price_service.create', 'price_service.update', 'repair_price.save', 'repair_model.create',
+PRICE_ACTIONS = ('price_service.create', 'price_service.update', 'price_service.delete', 'repair_price.save', 'repair_model.create', 'repair_group.save',
                  'repair_model.update', 'repair_symptom.save', 'repair_symptom.delete', 'product.price')
 INK_WORDS = ('muc', 'drum', 'trong', 'toner', 'ribbon', 'ruy bang', 'cartridge')
 PRINTER_WORDS = ('may in', 'may photo', 'may scan', 'may da nang')
@@ -184,6 +184,39 @@ def load_group(session, group_id) -> RepairGroup:
         g = None
     if not g:
         raise BusinessError('GROUP_REQUIRED', 'Chọn nhóm máy.')
+    return g
+
+
+def save_group(session, user, name: str, group_id=None, active: bool = True) -> RepairGroup:
+    """Thêm / đổi tên / ngừng nhóm máy (TUẤN 15/11). Ngừng thì không chọn được cho model mới; giá cũ của nhóm giữ nguyên."""
+    require_edit(user)
+    name = _text(name, 100)
+    if len(name) < 3:
+        raise BusinessError('GROUP_NAME', 'Tên nhóm máy cần ít nhất 3 ký tự, ví dụ Máy in Laser màu A3.')
+    other = session.scalar(select(RepairGroup).where(func.lower(RepairGroup.name) == name.lower()))
+    g = load_group(session, group_id) if group_id else None
+    if other and (g is None or other.id != g.id):
+        raise BusinessError('DUPLICATE_GROUP', f'Đã có nhóm máy "{other.name}".', status=409)
+    if g is not None and not active and g.active:
+        used = session.scalar(select(func.count()).select_from(RepairModel).where(RepairModel.group_id == g.id,
+                                                                                  RepairModel.active.is_(True))) or 0
+        if used:
+            raise BusinessError('GROUP_IN_USE', f'Nhóm "{g.name}" còn {used} model đang dùng. Chuyển các model sang nhóm khác trước khi ngừng.',
+                                status=409)
+    before = dict(name=g.name, active=g.active) if g else None
+    if g is None:
+        n = (session.scalar(select(func.max(RepairGroup.id))) or 0) + 1
+        code = f'NHOM_{n}'
+        while session.scalar(select(RepairGroup).where(RepairGroup.code == code)):
+            n += 1
+            code = f'NHOM_{n}'
+        g = RepairGroup(code=code, name=name, sort=(session.scalar(select(func.max(RepairGroup.sort))) or 0) + 1, active=True)
+        session.add(g)
+    else:
+        g.name, g.active = name, bool(active)
+    session.flush()
+    audit.record(session, user, 'repair_group.save', 'repair_group', str(g.id), before, dict(name=g.name, active=g.active))
+    session.commit()
     return g
 
 
@@ -361,6 +394,24 @@ def save_service(session, user, form: dict) -> PriceService:
                  before, _service_snapshot(s))
     session.commit()
     return s
+
+
+def delete_service(session, user, service_id) -> str:
+    """Xóa gói sửa / dịch vụ / phụ phí (TUẤN 15/11). Xóa luôn giá nhóm, giá model, phương án, hiện tượng gắn với nó.
+    Đã dùng trên phiếu kiểm tra máy thì không xóa được (giữ lịch sử phiếu), chỉ bỏ "Đang dùng".
+    Báo giá, phiếu đã lập giữ bản chụp tên và giá nên không bị ảnh hưởng."""
+    from .models import RepairInspectionItem
+    require_edit(user)
+    s = load_service(session, service_id)
+    used = session.scalar(select(func.count()).select_from(RepairInspectionItem).where(RepairInspectionItem.service_id == s.id)) or 0
+    if used:
+        raise BusinessError('SERVICE_IN_USE', f'"{s.name}" đã dùng trên {used} phiếu kiểm tra máy nên không xóa được. '
+                                              'Bỏ tick "Đang dùng" rồi Lưu để ngừng (ẩn khỏi bảng giá và màn thợ).', status=409)
+    name, kind = s.name, s.kind
+    audit.record(session, user, 'price_service.delete', 'price_service', str(s.id), _service_snapshot(s), None)
+    session.delete(s)
+    session.commit()
+    return kind
 
 
 def _save_options(session, s: PriceService, form: dict):
@@ -643,12 +694,16 @@ def _describe(r: AuditLog, svc_names: dict) -> str:
                 parts.append(f'C{lv} {_fmt((old or {}).get("price"))} → {_fmt((new or {}).get("price"))}')
         where = a.get('label') or b.get('label') or ''
         return f'{name} · {"model " if str(a.get("target", "")).startswith("model") else ""}{where}: ' + ('; '.join(parts) or 'đổi giá chính hãng / bảo hành')
+    if r.action == 'price_service.delete':
+        return f'Xóa {"gói" if b.get("kind") == "GOI" else "dịch vụ"} "{b.get("name")}"'
     if r.action.startswith('price_service'):
         if not b:
             return f'Thêm dịch vụ "{a.get("name")}"' + (f' giá {_fmt(a.get("price"))}' if a.get('kind') == 'PHI' else '')
         if a.get('kind') == 'PHI' and b.get('price') != a.get('price'):
             return f'{a.get("name")}: giá {_fmt(b.get("price"))} → {_fmt(a.get("price"))}'
         return f'Sửa thông tin dịch vụ "{a.get("name")}"'
+    if r.action == 'repair_group.save':
+        return ('Thêm nhóm máy ' if not b else 'Sửa nhóm máy ') + str(a.get('name', '')) + ('' if a.get('active', True) else ' (ngừng)')
     if r.action.startswith('repair_model'):
         return ('Thêm model ' if not b else 'Sửa model ') + str(a.get('name', ''))
     if r.action == 'repair_symptom.delete':

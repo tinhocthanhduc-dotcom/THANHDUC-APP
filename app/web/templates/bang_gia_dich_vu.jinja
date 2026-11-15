@@ -86,6 +86,13 @@
 {% if can_edit %}<div class="action-bar bg-save"><button class="btn-ok">{{ 'Lưu gói' if kind == 'GOI' else 'Lưu dịch vụ' }}</button></div>{% endif %}
 </form>
 
+{% if can_edit and s %}
+<details class="card bg-delete" id="xoa"><summary>Xóa {{ 'gói sửa' if kind == 'GOI' else ('phụ phí' if s.is_fee else 'dịch vụ') }} này</summary>
+<p class="hint">Xóa luôn giá theo nhóm máy, giá riêng model{% if kind == 'GOI' %}, phương án kỹ thuật và hiện tượng gắn với gói{% endif %}. Báo giá, phiếu đã lập vẫn giữ nguyên. Đã dùng trên phiếu kiểm tra máy thì không xóa được, chỉ bỏ tick "Đang dùng".</p>
+<form method="post" action="/bang-gia/dich-vu/{{ s.id }}/xoa"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<button class="btn btn-danger" data-delete-service>Xóa hẳn "{{ s.name }}"</button></form>
+</details>
+{% endif %}
 {% if kind == 'PHI' and s and s.by_model %}
 <section class="card bg-grid-card" id="gia-model"><h2 class="doc-h">Giá riêng theo model <span class="hint">· {{ overrides|length }} · ghi đè giá nhóm</span></h2>
 {% if overrides %}<div class="table-scroll"><table class="list-table bg-table"><thead><tr><th>Model</th><th class="num">Giá chưa VAT</th><th class="num">Gồm VAT</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>

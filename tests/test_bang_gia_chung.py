@@ -327,3 +327,45 @@ def test_compact_package_form_level_warranty_and_genuine_toggle(client, db, make
     db.expire_all()
     assert {x.warranty_months for x in db.scalars(select(RepairPrice).where(RepairPrice.service_id == s.id, RepairPrice.level == 3,
                                                                            RepairPrice.group_id.is_not(None)))} == {6}
+
+
+def test_delete_service_and_manage_machine_groups(client, db, make_user):
+    """TUẤN 15/11: nút Xóa cho gói sửa / dịch vụ / phụ phí (đã dùng trên phiếu kiểm tra máy thì chỉ ngừng); khung Nhóm máy."""
+    from app.models import RepairGroup, RepairInspection, RepairInspectionItem, RepairModel
+    from test_bao_gia_nhanh import setup_book
+    boss, sales = make_user('bg.xoa', 'director'), make_user('bg.xoas', 'sales')
+    fuser, feed = setup_book(db, boss)
+    fee = next(s for s in pb.services(db, 'PHI') if s.name == 'Phí kiểm tra máy')
+    feed_id, fee_id = feed.id, fee.id
+    csrf = web_login(client, boss)
+    page = client.get(f'/bang-gia/dich-vu/{feed_id}').text
+    assert 'data-delete-service' in page and 'Xóa gói sửa này' in page
+    r = client.post(f'/bang-gia/dich-vu/{feed_id}/xoa', data=dict(csrf=csrf), follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == '/bang-gia?tab=goi&da_luu=xoa'
+    db.expire_all()
+    assert db.get(PriceService, feed_id) is None and not db.scalars(select(RepairPrice).where(RepairPrice.service_id == feed_id)).all()
+    hist = client.get('/bang-gia/lich-su').text
+    assert 'Xóa gói &#34;Sửa chữa bộ kéo giấy&#34;' in hist  # Jinja tự thoát dấu ngoặc kép
+    assert client.post(f'/bang-gia/dich-vu/{fee_id}/xoa', data=dict(csrf=csrf), follow_redirects=False).headers['location'].endswith('tab=dich-vu&da_luu=xoa')
+    # Khung Nhóm máy: thêm, đổi tên, trùng tên bị chặn, ngừng chỉ khi không còn model đang dùng.
+    page = client.get('/bang-gia/model-may').text
+    assert 'id="nhom-may"' in page and '+ Thêm nhóm máy' in page
+    r = client.post('/bang-gia/nhom-may/luu', data=dict(csrf=csrf, name='Máy in Laser màu A3'), follow_redirects=False)
+    assert r.status_code == 303
+    g = db.scalar(select(RepairGroup).where(RepairGroup.name == 'Máy in Laser màu A3'))
+    assert g.active and g.code.startswith('NHOM_')
+    assert 'Máy in Laser màu A3' in client.get('/bang-gia/dich-vu/moi?kind=GOI').text  # có cột giá cho nhóm mới
+    dup = client.post('/bang-gia/nhom-may/luu', data=dict(csrf=csrf, name='máy in laser màu a3'))
+    assert dup.status_code == 409 and 'Đã có nhóm máy' in dup.text
+    assert client.post('/bang-gia/nhom-may/luu', data=dict(csrf=csrf, id=str(g.id), name='Máy in Laser màu A3 (cũ)', active='0'),
+                       follow_redirects=False).status_code == 303
+    db.expire_all()
+    assert (db.get(RepairGroup, g.id).name, db.get(RepairGroup, g.id).active) == ('Máy in Laser màu A3 (cũ)', False)
+    a4 = group(db, 'LASER_A4_DON')
+    busy = client.post('/bang-gia/nhom-may/luu', data=dict(csrf=csrf, id=str(a4.id), name=a4.name, active='0'))
+    assert busy.status_code == 409 and 'còn 1 model đang dùng' in busy.text
+    assert 'Thêm nhóm máy Máy in Laser màu A3' in client.get('/bang-gia/lich-su').text
+    csrf = web_login(client, sales)
+    assert client.post('/bang-gia/nhom-may/luu', data=dict(csrf=csrf, name='Nhóm lạ')).status_code == 403
+    assert client.post(f'/bang-gia/dich-vu/{fuser.id}/xoa', data=dict(csrf=csrf)).status_code == 403
+    assert 'data-delete-service' not in client.get(f'/bang-gia/dich-vu/{fuser.id}').text

@@ -4,7 +4,7 @@
 {% block main %}<div class="page-wide list-page bg-page">
 {% call ui.page_head('Model máy', sub='Mỗi model thuộc một nhóm máy; giá gói lấy theo nhóm, trừ khi model có giá riêng', back='/bang-gia?tab=goi') %}{% endcall %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-{% if saved %}{{ ui.toast('Đã lưu model.', 'ok') }}{% endif %}
+{% if saved %}{{ ui.toast('Đã lưu nhóm máy.' if saved == 'nhom' else 'Đã lưu model.', 'ok') }}{% endif %}
 <section class="card list-frame">
 {% call ui.list_bar('/bang-gia/model-may', q, 'Tìm model (không dấu)…', active=(1 if nhom else 0)) %}<select name="nhom" aria-label="Nhóm máy"><option value="">Mọi nhóm máy</option>{% for g in machine_groups %}<option value="{{ g.id }}" {% if nhom|string == g.id|string %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>{% endcall %}
 {% if rows %}<div class="table-scroll"><table class="list-table lt-cards bg-table"><thead><tr><th>Model</th><th>Nhóm máy</th><th>Ghi chú</th>{% if can_edit %}<th>Đổi nhóm</th>{% endif %}</tr></thead><tbody>
@@ -22,4 +22,15 @@
 <label>Ghi chú<input name="note" value="{{ form.get('note', '') }}" maxlength="500" placeholder="vd: linh kiện hiếm, hay hỏng cụm sấy"></label>
 <p class="hint">Gợi ý tên lấy từ máy đang bán và máy khách đã ghi ở Thiết bị.</p>
 <div class="action-bar"><button class="btn-ok">Lưu model</button></div></form>{% endif %}
+<section class="card bg-groups" id="nhom-may" aria-label="Nhóm máy"><h2 class="doc-h">Nhóm máy <span class="hint">· {{ all_groups|length }} · giá gói và dịch vụ theo model đặt theo nhóm</span></h2>
+<div class="table-scroll"><table class="list-table bg-table"><thead><tr><th>Nhóm máy</th><th class="num">Model</th>{% if can_edit %}<th>Đổi tên · ngừng</th>{% endif %}</tr></thead><tbody>
+{% for g in all_groups %}<tr data-group-row="{{ g.id }}"><td><b>{{ g.name }}</b>{% if not g.active %}<span class="lt-sub">Ngừng dùng</span>{% endif %}</td><td class="num">{{ group_counts.get(g.id, 0) }}</td>
+{% if can_edit %}<td><form method="post" action="/bang-gia/nhom-may/luu" class="bg-inline bg-group-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="id" value="{{ g.id }}">
+<input name="name" value="{{ g.name }}" maxlength="100" aria-label="Tên nhóm {{ g.name }}" required><input type="hidden" name="active" value="0"><label class="bg-check"><input type="checkbox" name="active" value="1" {% if g.active %}checked{% endif %}> Đang dùng</label><button class="btn btn-ghost bg-small">Lưu</button></form></td>{% endif %}</tr>{% endfor %}
+</tbody></table></div>
+{% if can_edit %}<form method="post" action="/bang-gia/nhom-may/luu" class="bg-model-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<label>Tên nhóm máy mới<input name="name" value="{{ form.get('g_name', '') if not form.get('g_id') else '' }}" maxlength="100" placeholder="vd: Máy in Laser màu A3" required></label>
+<p class="hint">Nhóm mới chưa có giá: vào từng gói sửa / dịch vụ theo model để điền giá cho nhóm này. Ngừng nhóm chỉ được khi không còn model đang dùng.</p>
+<div class="action-bar"><button class="btn btn-new">+ Thêm nhóm máy</button></div></form>{% endif %}
+</section>
 </div>{% endblock %}
