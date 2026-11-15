@@ -147,7 +147,9 @@ def page(request: Request, user, session):
         ('Lập đơn mua','/don-mua/moi',('warehouse',))) if has_role(user,*roles) and nav.allowed(user,href)]
     from .. import truong_nhom
     next_up = [] if key else truong_nhom.next_for(session, user, 3)
-    return render(request, 'viec_cua_toi.jinja', next_up=next_up, groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
+    asked = [] if key else sorted((t for t in truong_nhom.open_tasks(session, user.id) if t.item_key == truong_nhom.GD_NHAC),
+                                  key=lambda t: (t.due_at is None, t.due_at, t.id))
+    return render(request, 'viec_cua_toi.jinja', next_up=next_up, asked=asked, when=truong_nhom.when, now_at=truong_nhom._now(), groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
         chips=chips, money_open=money_open, calm=CALM, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
         advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director','finance') else 0,disposal_pending=_disposal_pending(session,user),pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))

@@ -56,7 +56,15 @@
 <label for="nva-gap"><b>Người nhận phải ít hơn (việc)</b><input id="nva-gap" name="gap" inputmode="numeric" value="{{ c.gap }}"></label>
 <label for="nva-tn-undo"><b>Điều phối được hoàn tác trong (phút)</b><input id="nva-tn-undo" name="undo_minutes" inputmode="numeric" value="{{ c.undo_minutes }}"></label>
 <label for="nva-tn-times"><b>Giờ gửi việc làm tiếp</b><input id="nva-tn-times" name="times" value="{{ c.times|join(', ') }}" placeholder="07:45, 13:30"></label>
+<label for="nva-tn-sum"><b>Tóm tắt cuối ngày cho giám đốc</b><input id="nva-tn-sum" name="summary" value="{{ c.summary }}" placeholder="17:15 (để trống là tắt)"></label>
 </div>
+<div class="field" role="group" aria-labelledby="nva-chat"><p class="group-label" id="nva-chat"><b>Giám đốc chat Zalo ra lệnh</b></p><div class="seg">
+<label><input type="radio" name="chat" value="1"{% if c.chat %} checked{% endif %}><span>Bật</span></label>
+<label><input type="radio" name="chat" value="0"{% if not c.chat %} checked{% endif %}><span>Tắt</span></label></div>
+<small class="mu">Chỉ Zalo đã gắn tài khoản giám đốc, chỉ chạy bằng Claude/Codex trên Z2. Hỏi tình hình, giao hoặc đổi thợ phiếu dịch vụ, nhắc nhân viên, dời hạn thì làm ngay (hoàn tác bằng chữ "hoàn tác"). Tiền, giá, kho, nợ, nhắn khách chỉ soạn nháp.</small></div>
+<div class="field" role="group" aria-labelledby="nva-qt"><p class="group-label" id="nva-qt"><b>Báo giám đốc khi thợ quá tải mà không chuyển được</b></p><div class="seg">
+<label><input type="radio" name="alert_overload" value="1"{% if c.alert_overload %} checked{% endif %}><span>Có</span></label>
+<label><input type="radio" name="alert_overload" value="0"{% if not c.alert_overload %} checked{% endif %}><span>Không</span></label></div></div>
 <div class="field" role="group" aria-labelledby="nva-re"><p class="group-label" id="nva-re"><b>Tự đổi thợ khi quá tải</b></p><div class="seg">
 <label><input type="radio" name="reassign" value="1"{% if c.reassign %} checked{% endif %}><span>Có</span></label>
 <label><input type="radio" name="reassign" value="0"{% if not c.reassign %} checked{% endif %}><span>Không</span></label></div>

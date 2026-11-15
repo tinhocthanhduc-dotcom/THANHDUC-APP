@@ -35,6 +35,19 @@
 {% call ui.page_head('Việc của tôi', sub=('Đang xem một nhóm việc' if selected_group else '')) %}{% if selected_group %}<a class="btn btn-ghost" href="/viec-cua-toi">Tất cả nhóm việc</a>{% elif shortcuts %}<details class="work-new"><summary class="btn btn-new">+ Tạo mới</summary><div class="work-new-menu">{% for label,href in shortcuts %}<a href="{{ href }}" data-work-shortcut>{{ label }}</a>{% endfor %}</div></details>{% endif %}{% endcall %}
 {% if not selected_group %}<p class="hint work-summary"><span class="work-total" data-work-total>Cần làm · {{ total }}</span>{% if counts.now %} · <b class="work-late-n">{{ counts.now }} việc làm ngay</b>{% endif %} · Bấm vào việc để làm bước tiếp theo. Giờ Việt Nam.</p>{% endif %}
 {% if notice %}<p class="alert ok" role="status">{{ notice }}</p>{% endif %}
+{% if asked %}<section class="card work-asked" aria-label="Giám đốc nhờ">
+{# Đội AI đợt 3 (TUẤN duyệt 15/11/2026): việc giám đốc nhắn Trưởng nhóm AI nhắc, người làm bấm Xong. #}
+<p class="wn-h"><b>Giám đốc nhờ</b><small>Nhắn qua Trưởng nhóm AI, xong thì bấm Xong để giám đốc biết</small></p>
+{% for t in asked %}<div class="wa-row" id="tn-{{ t.id }}"><span class="wn-main"><span>{{ t.title }}</span><small class="{{ 'late' if t.due_at and t.due_at < now_at }}">{{ when(t, now_at) }}</small></span>
+<form method="post" action="/viec-cua-toi/giam-doc/{{ t.id }}/xong"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ok">Xong</button></form></div>{% endfor %}
+</section>
+<style>
+.work-asked{display:grid;gap:8px;margin-bottom:12px}
+.wa-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.wa-row .wn-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
+.wa-row small{color:var(--muted)}
+.wa-row small.late{color:var(--bad);font-weight:600}
+</style>{% endif %}
 {% if next_up %}<section class="card work-next" aria-label="Làm tiếp theo thứ tự">
 {# Đội AI đợt 1 (TUẤN duyệt 15/11/2026): Trưởng nhóm AI xếp 3 việc nên làm tiếp. #}
 <p class="wn-h"><b>Làm tiếp theo thứ tự</b><small>Trưởng nhóm AI xếp theo hạn và độ gấp</small></p>

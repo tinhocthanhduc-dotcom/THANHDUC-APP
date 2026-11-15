@@ -83,6 +83,14 @@ def undo(request: Request, ticket_id: int, form=Depends(checked_form), session: 
     return RedirectResponse(f'/dich-vu/{ticket_id}?hoan_tac=1', status_code=303)
 
 
+@router.post('/viec-cua-toi/giam-doc/{task_id}/xong')
+def gd_task_done(request: Request, task_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """Đội AI đợt 3: nhân viên bấm Xong việc giám đốc nhắn nhắc qua Trưởng nhóm AI."""
+    from .. import truong_nhom_chat
+    truong_nhom_chat.finish(session, request.state.user, task_id)
+    return RedirectResponse('/viec-cua-toi?xong=done', status_code=303)
+
+
 # ---------- Đội AI (TUẤN duyệt 15/11/2026, mẫu 9rRchbgXNR4sY5jurdjQMq): chỉ giám đốc ----------
 
 DOI_TABS = (('', 'Cả đội'), ('nguoi', 'Người'), ('ai', 'AI'), ('qua-han', 'Quá hạn'))

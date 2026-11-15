@@ -2410,6 +2410,8 @@ class TeamTask(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatch_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     director_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    due_override: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))   # 0103: giám đốc nhắn dời hạn
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
 
 
 class ZaloTriage(Base):

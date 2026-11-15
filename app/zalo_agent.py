@@ -453,7 +453,7 @@ def _cost(model: str, tin: int, tout: int) -> int:
 
 
 def _run(session: Session, system: str, question: str, tools: list, handlers: dict, log: ZaloAgentLog, engine: str = 'api') -> str:
-    messages = [dict(role='system', content=system), dict(role='user', content=question[:2000])]
+    messages = [dict(role='system', content=system), dict(role='user', content=question[:4000])]
     model = get_settings().zalo_ai_model
     log.engine = engine
     for _ in range(MAX_ROUNDS):
@@ -858,22 +858,29 @@ def _staff(session, chat, staff, msg, log):
     tools += more_tools
     handlers.update(more)
     engine = _staff_engine(session)
+    from . import truong_nhom_chat as tnc
+    team = tnc.enabled(session, staff, engine)  # Đội AI đợt 3 (TUẤN duyệt 15/11/2026): giám đốc chat với Trưởng nhóm AI, chỉ Z2
+    if team:
+        team_tools, team_handlers = tnc.build(session, staff, msg.text)
+        tools += team_tools
+        handlers.update(team_handlers)
     roles = ', '.join(staff.roles)
     abilities = (['tồn kho' + (', giá bán' if rights['price'] else '')] + (['giá gói sửa theo model'] if repair_ok else [])
                  + (['lên đơn nháp'] if rights['draft'] else [])
                  + (['lên phiếu dịch vụ nháp'] if ticket_ok else []) + (['soạn tin gửi khách'] if message_ok else [])
-                 + zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff)))
+                 + zalo_tra_cuu.labels(zalo_tra_cuu.rights(staff)) + (tnc.ABILITIES if team else []))
     system = STAFF_PROMPT.format(
         today=_now().strftime('%d/%m/%Y'), name=staff.full_name, roles=roles, abilities=', '.join(abilities),
         price_rule=('Được nói giá bán danh mục (chưa VAT).' if rights['price'] else 'Không nói giá bán hàng hóa.')
         + (' Hỏi giá sửa máy theo model thì dùng tra_gia_sua và đọc đúng giá gồm VAT công cụ trả về.' if repair_ok else ''),
         draft_rule=DRAFT_RULE if rights['draft'] else '- Không lên đơn. Nhờ lên đơn thì bảo nhắn kinh doanh.\n',
         ticket_rule=TICKET_RULE if ticket_ok else '- Không lên phiếu dịch vụ. Nhờ lên phiếu thì bảo nhắn điều phối.\n',
-        message_rule=MESSAGE_RULE if message_ok else '- Không soạn tin gửi khách.\n')
+        message_rule=(MESSAGE_RULE if message_ok else '- Không soạn tin gửi khách.\n')
+        + (tnc.RULE.format(today=_now().strftime('%d/%m/%Y')) if team else ''))
     if engine != 'api':  # Codex/Claude trên Z2 chậm hơn API (20–60 giây): báo trước để người hỏi khỏi tưởng bot treo
         from . import zalo_bot
         zalo_bot.send_text(session, chat, Z2_WAIT_TEXT, None, 'tro_ly')
-    answer = _run(session, system, msg.text, tools, handlers, log, engine) or FAIL_TEXT
+    answer = _run(session, system, tnc.question(session, chat, msg) if team else msg.text, tools, handlers, log, engine) or FAIL_TEXT
     if 'order' in state:
         log.order_id, log.result, log.need_pick = state['order'].id, 'DON_NHAP', '; '.join(state['picks'])
         if state['order'].number not in answer:
