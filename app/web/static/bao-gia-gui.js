@@ -14,6 +14,8 @@
   function show() {
     var on = (tabs.querySelector('input:checked') || {}).value || 'dong-y';
     box.querySelectorAll('[data-rq-pane]').forEach(function (p) { p.hidden = p.dataset.rqPane !== on; });
+    // Nút Khách đồng ý ở Bước tiếp chỉ hiện khi đang ở tab Đồng ý (TUẤN 15/11: mỗi việc một nút).
+    document.querySelectorAll('[data-next-primary][form="workshop-approve"]').forEach(function (b) { b.hidden = on !== 'dong-y'; });
   }
   if (tabs) { tabs.addEventListener('change', show); show(); }
   box.querySelectorAll('[data-xg-days] input').forEach(function (r) {

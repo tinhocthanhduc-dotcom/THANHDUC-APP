@@ -73,7 +73,7 @@ def service(session, user, t):
         if not dispatcher:return None
         from ..service_workshop import warranty_free
         approved=t.quote_approved_at is not None or warranty_free(t)
-        return block(form('Sửa xong' if approved else 'Khách đồng ý','workshop-repaired' if approved else 'workshop-approve',base+'/xuong/'+('sua-xong' if approved else 'dong-y')), [form('Khách không sửa','workshop-decline',base+'/xuong/khong-sua')])
+        return block(form('Sửa xong' if approved else 'Khách đồng ý','workshop-repaired' if approved else 'workshop-approve',base+'/xuong/'+('sua-xong' if approved else 'dong-y')))  # TUẤN 15/11: Khách không sửa chỉ một chỗ (khung xưởng / tab Không sửa), không lặp ở Bước tiếp
     if t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA':
         return block(form('Giao thợ trả máy','service-schedule-return',base+'/hen-tra-may')) if dispatcher else None
     if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))
