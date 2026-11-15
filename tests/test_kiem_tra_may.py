@@ -260,3 +260,16 @@ def test_codex_drafts_customer_description_with_safety_checks(db, workshop, make
     row.ai_job_id = job2.id
     db.commit()
     assert ri.ai_state(db, row)['status'] == 'LOI'
+
+
+def test_package_used_on_inspection_cannot_be_deleted(db, workshop, make_user):
+    """TUẤN 15/11 nút Xóa: gói đã dùng trên phiếu kiểm tra máy thì chỉ ngừng dùng, không xóa (giữ lịch sử phiếu)."""
+    p, a, b, t, eq = workshop
+    boss = make_user('rq.del', 'director')
+    fuser, feed, opts = book(db, boss)
+    ri.save(db, p['technician'], t.id, form(fuser, opts, ['Thay bao lụa sấy']))
+    e = err('SERVICE_IN_USE', pb.delete_service, db, boss, fuser.id)
+    assert e.status == 409 and '1 phiếu kiểm tra máy' in e.message
+    db.rollback()
+    assert db.get(type(fuser), fuser.id) is not None
+    assert pb.delete_service(db, boss, feed.id) == 'GOI'

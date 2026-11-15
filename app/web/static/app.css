@@ -4954,3 +4954,7 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .bg-service-form:has([data-co-ch]:checked) .bg-ch-row { display: table-row; }
 .bg-opts summary { cursor: pointer; padding: 6px 0; }
 .bg-model-ch summary { cursor: pointer; color: var(--accent); font-weight: 600; margin: 6px 0; }
+.bg-delete summary { cursor: pointer; color: var(--bad); font-weight: 700; }
+.bg-delete form { margin-top: 8px; }
+.bg-group-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bg-group-form input[name="name"] { flex: 1 1 220px; min-width: 0; }

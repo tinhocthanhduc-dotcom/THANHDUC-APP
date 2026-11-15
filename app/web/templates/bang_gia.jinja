@@ -4,7 +4,7 @@
 {% block main %}<div class="page-wide list-page bg-page" data-list-page="bang-gia">
 {% call ui.page_head('Bảng giá', sub='Giá chưa VAT và gồm VAT ' ~ default_vat_rate ~ '% cho mọi hàng hóa, dịch vụ, gói sửa' ~ (' · chỉ giám đốc sửa' if not can_edit else '')) %}<a class="btn btn-ghost" href="/bang-gia/lich-su">Lịch sử đổi giá</a>{% if tab != 'hien-tuong' %}<a class="btn btn-new" href="/bang-gia/in?tab={{ tab }}{% if nhom %}&nhom={{ nhom|urlencode }}{% elif gid is defined %}&nhom={{ gid }}{% endif %}" target="_blank" rel="noopener">Xuất bảng giá cho khách ›</a>{% endif %}{% endcall %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
-{% if saved %}{{ ui.toast('Đã cập nhật ' ~ saved[6:] ~ ' giá từ Excel.' if saved.startswith('excel-') else 'Đã lưu.', 'ok') }}{% endif %}
+{% if saved %}{{ ui.toast('Đã cập nhật ' ~ saved[6:] ~ ' giá từ Excel.' if saved.startswith('excel-') else ('Đã xóa.' if saved == 'xoa' else 'Đã lưu.'), 'ok') }}{% endif %}
 <section class="card list-frame">
 <nav class="ltabs bg-tabs" aria-label="Loại giá">{% for key, label in tabs.items() %}<a class="ltab{{ ' on' if key == tab }}" href="/bang-gia?tab={{ key }}"{% if key == tab %} aria-current="page"{% endif %}>{{ label }} <span>{{ counts.get(key, 0) }}</span></a>{% endfor %}</nav>
 
