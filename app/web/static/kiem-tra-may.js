@@ -77,43 +77,78 @@
     }
   });
 
-  // Model: dịch vụ có giá cho nhóm/model đó lên đầu, còn lại vào "Dịch vụ khác"; dịch vụ đã tick luôn ở trên.
+  // Mẫu K2 15/11/2026 (TUẤN: "làm dấu sổ xuống chọn cho dịch vụ cần làm"): chọn dịch vụ ở ô xổ xuống,
+  // dịch vụ đã chọn hiện thành hàng (theo thứ tự chọn), nút Bỏ để bỏ. Ô xổ xuống chỉ còn dịch vụ chưa chọn.
+  var pick = form.querySelector('[data-ktm-pick]'), list = form.querySelector('[data-ktm-main]');
+  var empty = form.querySelector('[data-ktm-empty]');
+  var ogMain = form.querySelector('[data-ktm-og-main]'), ogOther = form.querySelector('[data-ktm-og-other]');
+  function boxOf(id) { return form.querySelector('[data-rq-svc] [data-rq-on][value="' + id + '"]'); }
+  function refresh() {
+    var n = 0;
+    form.querySelectorAll('[data-rq-on]').forEach(function (c) {
+      var on = c.checked;
+      if (on) n++;
+      var opt = pick && pick.querySelector('option[value="' + c.value + '"]');
+      if (opt) { opt.hidden = on; opt.disabled = on; }
+    });
+    if (empty) empty.hidden = n > 0;
+    [ogMain, ogOther].forEach(function (g) {
+      if (g) g.hidden = ![].some.call(g.querySelectorAll('option'), function (o) { return !o.disabled; });
+    });
+    summary();
+  }
+  if (pick) {
+    form.classList.add('ktm-js');
+    pick.addEventListener('change', function () {
+      var c = boxOf(pick.value);
+      pick.value = '';
+      if (!c) return;
+      var box = c.closest('[data-rq-svc]');
+      c.checked = true;
+      list.appendChild(box);  // thứ tự chọn = thứ tự gửi điều phối
+      c.dispatchEvent(new Event('change', { bubbles: true }));
+      refresh();
+      try { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { box.scrollIntoView(); }
+    });
+    form.addEventListener('click', function (e) {
+      var del = e.target.closest('[data-ktm-del]');
+      if (!del) return;
+      var c = del.closest('[data-rq-svc]').querySelector('[data-rq-on]');
+      c.checked = false;
+      c.dispatchEvent(new Event('change', { bubbles: true }));
+      refresh();
+    });
+  }
+
+  // Model: dịch vụ có giá cho nhóm/model đó lên nhóm đầu của ô chọn; model không có trong bảng giá thì cảnh báo vàng.
   var model = form.querySelector('[data-ktm-model]'), group = form.querySelector('[data-ktm-group]');
-  var main = form.querySelector('[data-ktm-main]'), other = form.querySelector('[data-ktm-other-list]');
-  var others = form.querySelector('[data-ktm-others]'), empty = form.querySelector('[data-ktm-empty]');
+  var warn = form.querySelector('[data-ktm-model-warn]');
   var models = {};
   document.querySelectorAll('#ktm-models option').forEach(function (o) {
-    models[o.value.trim().toLowerCase()] = { g: o.dataset.g, m: o.dataset.m, name: o.textContent };
+    models[o.value.replace(/\s+/g, ' ').trim().toLowerCase()] = { g: o.dataset.g, m: o.dataset.m, name: o.textContent };
   });
   function regroup() {
-    var hit = models[model.value.replace(/\s+/g, ' ').trim().toLowerCase()];
-    if (sumModel) sumModel.textContent = model.value.trim() || '—';
+    var typed = model.value.replace(/\s+/g, ' ').trim();
+    var hit = models[typed.toLowerCase()];
+    if (sumModel) sumModel.textContent = typed || '—';
+    if (warn) warn.hidden = !!hit || !typed;
     if (group) {
       group.classList.toggle('none', !hit);
       group.textContent = '';
       if (hit) { group.appendChild(document.createTextNode('Nhóm: ')); group.appendChild(el('b', '', hit.name)); }
       else group.textContent = 'Chưa có trong bảng giá';
     }
-    if (!hit || !main || !other) return;
-    var boxes = [].slice.call(form.querySelectorAll('[data-rq-svc]'));
-    var top = 0;
-    boxes.forEach(function (box) {
-      var keys = (box.dataset.priced || '').split(' ');
-      var up = keys.indexOf(hit.g) >= 0 || keys.indexOf(hit.m) >= 0 || box.querySelector('[data-rq-on]').checked;
-      if (up) { main.insertBefore(box, empty); top++; } else other.appendChild(box);
+    if (!hit || !ogMain || !ogOther) return;
+    [].slice.call(pick.querySelectorAll('option[value]:not([value=""])')).forEach(function (o) {
+      var keys = (o.dataset.priced || '').split(' ');
+      (keys.indexOf(hit.g) >= 0 || keys.indexOf(hit.m) >= 0 ? ogMain : ogOther).appendChild(o);
     });
-    if (empty) empty.hidden = top > 0;
-    if (others) {
-      var n = other.children.length;
-      others.hidden = n === 0;
-      var count = others.querySelector('[data-ktm-others-n]');
-      if (count) count.textContent = n;
-      if (!top) others.open = true;
-    }
+    refresh();
   }
   if (model) {
     model.addEventListener('change', regroup);
     model.addEventListener('input', regroup);
   }
+  refresh();
   summary();
 })();

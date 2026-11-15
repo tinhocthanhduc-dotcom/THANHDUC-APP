@@ -27,12 +27,13 @@
 <span class="ktm-group{{ ' none' if not model_group }}" data-ktm-group>{% if model_group %}Nhóm: <b>{{ model_group }}</b>{% else %}Chưa có trong bảng giá{% endif %}</span>
 </div>
 <datalist id="ktm-models">{% for m in models %}<option value="{{ m.name }}" data-g="g{{ m.group_id }}" data-m="m{{ m.id }}">{{ groups.get(m.group_id, '') }}</option>{% endfor %}</datalist>
-<p class="hint">Chọn đúng model trong danh sách thì dịch vụ của nhóm máy đó lên đầu và điều phối tra được giá.</p>
+<p class="alert warn ktm-model-warn" data-ktm-model-warn{% if model_group or not v.model %} hidden{% endif %}><b>Model này chưa có trong bảng giá</b>, điều phối sẽ không ra giá. Chọn đúng model trong danh sách gợi ý; máy mới chưa có thì báo giám đốc thêm ở Bảng giá › Model máy.</p>
+<p class="hint">Gõ vài chữ (vd: M125) rồi chọn model trong danh sách gợi ý thì dịch vụ của nhóm máy đó lên đầu ô chọn dịch vụ.</p>
 </section>
 
 {% macro service(s) %}{% set g = v.item(s.id) %}{% set on = s.id in v.chosen %}
 <div class="ktm-svc" data-rq-svc data-priced="{{ priced.get(s.id, '') }}">
-<label class="ktm-svc-head"><input type="checkbox" name="dv" value="{{ s.id }}" {% if on %}checked{% endif %} data-rq-on><b>{{ s.name }}</b><span class="ktm-cap-tag" data-ktm-tag></span></label>
+<div class="ktm-svc-head"><input type="checkbox" name="dv" value="{{ s.id }}" {% if on %}checked{% endif %} data-rq-on aria-label="Làm {{ s.name }}"><b>{{ s.name }}</b><span class="ktm-cap-tag" data-ktm-tag></span><button type="button" class="btn btn-ghost ktm-del" data-ktm-del aria-label="Bỏ {{ s.name }}">Bỏ</button></div>
 <div class="ktm-svc-body">
 <div class="ktm-col">
 {% if opts[s.id] %}<p class="ktm-label"><b>Phương án kỹ thuật</b> <span class="badge b-cho">Nội bộ</span></p>
@@ -49,9 +50,15 @@
 </div>
 </div></div>{% endmacro %}
 <section class="card ktm-sec ktm-svcs">
-<h2 class="ktm-h"><span class="ktm-no">2</span>Dịch vụ cần làm <small class="hint">· tick dịch vụ, chọn phương án, app tự ra cấp</small></h2>
-<div class="ktm-list" data-ktm-main>{% for s in main %}{{ service(s) }}{% endfor %}<p class="hint ktm-empty" data-ktm-empty{% if main %} hidden{% endif %}>Bảng giá chưa có dịch vụ gói nào cho nhóm máy này, xem trong Dịch vụ khác.</p></div>
-{% if others or main %}<details class="ktm-others" data-ktm-others {% if not main %}open{% endif %}{% if not others %} hidden{% endif %}><summary>Dịch vụ khác (<span data-ktm-others-n>{{ others|length }}</span>)</summary><div class="ktm-list" data-ktm-other-list>{% for s in others %}{{ service(s) }}{% endfor %}</div></details>{% endif %}
+<h2 class="ktm-h"><span class="ktm-no">2</span>Dịch vụ cần làm <small class="hint">· chọn dịch vụ, tick phương án, app tự ra cấp</small></h2>
+<label class="ktm-pick"><span class="sr-only">Thêm dịch vụ cần làm</span><select data-ktm-pick aria-label="Thêm dịch vụ cần làm">
+<option value="">+ Chọn dịch vụ cần làm…</option>
+<optgroup label="Dịch vụ của nhóm máy này" data-ktm-og-main>{% for s in main %}<option value="{{ s.id }}" data-priced="{{ priced.get(s.id, '') }}">{{ s.name }}</option>{% endfor %}</optgroup>
+<optgroup label="Dịch vụ khác" data-ktm-og-other>{% for s in others %}<option value="{{ s.id }}" data-priced="{{ priced.get(s.id, '') }}">{{ s.name }}</option>{% endfor %}</optgroup>
+</select></label>
+<div class="ktm-list" data-ktm-main>{% for s in main + others %}{{ service(s) }}{% endfor %}</div>
+<p class="hint ktm-empty" data-ktm-empty>Chưa chọn dịch vụ nào. Chọn ở ô xổ xuống phía trên, chọn được nhiều dịch vụ.</p>
+<noscript><p class="hint">Trình duyệt tắt JavaScript: tick ô trước tên dịch vụ để chọn.</p></noscript>
 </section>
 <datalist id="ktm-part-list">{% for code, name in part_rows %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</datalist>
 

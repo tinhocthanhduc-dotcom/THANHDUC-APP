@@ -5041,3 +5041,14 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .ktm-send { width: 100%; min-height: 48px; font-size: 1rem; }
 @media (min-width: 861px) { .ktm-swipe { display: none; } }
 @media (max-width: 860px) { .ktm-send { display: none; } }
+/* Mẫu K2 15/11/2026: Dịch vụ cần làm chọn bằng ô xổ xuống, dịch vụ đã chọn thành hàng có nút Bỏ. */
+.ktm-pick select { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
+.ktm-del { min-height: 36px; padding: 0 12px; flex: none; }
+.ktm-empty[hidden] { display: none; }
+.ktm-grid:not(.ktm-js) .ktm-pick, .ktm-grid:not(.ktm-js) .ktm-del, .ktm-grid:not(.ktm-js) .ktm-empty { display: none; }
+.ktm-js .ktm-svc-head input[data-rq-on] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.ktm-js .ktm-svc:not(:has([data-rq-on]:checked)) { display: none; }
+.ktm-js .ktm-svc { border-top: 0; }
+.ktm-js .ktm-svc-head { cursor: default; position: relative; }
+.ktm-js .ktm-list { gap: 8px; }
+.ktm-js .ktm-svc:has([data-rq-on]:checked) { margin: 0; }
