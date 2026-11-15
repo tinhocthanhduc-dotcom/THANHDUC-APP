@@ -70,7 +70,8 @@ def _inspect_page(request, session, user, ticket_id, form=None, error='', error_
     for sid, gid, mid in session.execute(select(RepairPrice.service_id, RepairPrice.group_id, RepairPrice.model_id)):
         priced.setdefault(sid, set()).add(f'g{gid}' if gid else f'm{mid}')
     model = pb.find_model(session, v['model']) if v['model'] else None
-    return render(request, 'kiem_tra_may.jinja', t=t, row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
+    from .. import ghi_chu_phieu
+    return render(request, 'kiem_tra_may.jinja', t=t, ai_notes=ghi_chu_phieu.notes(session, user, ticket=t), row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
                   customer=session.get(Customer, t.customer_code), machine=ri.machine_name(session, t), hq=hq,
                   models=models, groups=groups, priced={k: ' '.join(sorted(x)) for k, x in priced.items()},
                   model_group=groups.get(model.group_id) if model else '', part_rows=parts, waiting=ri.is_waiting(t),

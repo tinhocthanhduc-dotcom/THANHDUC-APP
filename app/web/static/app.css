@@ -5106,3 +5106,24 @@ main:has(> .sbt-page) { max-width: 1240px; }
 }
 .rq-reply label.rq-opt { display: flex; flex-direction: row; align-items: center; gap: 10px; }
 .rq-reply label.rq-opt input { width: 20px; height: 20px; margin: 0; flex: none; }
+
+/* Ghi chú phiếu AI (15/11/2026): hộp tím chỉ đọc trên phiếu dịch vụ, màn thợ, kiểm tra máy, nhận đơn. */
+.gcai { background: var(--area-sv-bg); border-color: color-mix(in srgb, var(--area-sv) 35%, transparent); padding: 10px 12px; }
+.gcai > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.gcai > summary::-webkit-details-marker { display: none; }
+.gcai > summary b { color: var(--area-sv); }
+.gcai > summary small { margin-left: auto; color: var(--muted); font-size: .78rem; }
+.gcai-av { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font-size: .66rem; font-weight: 700; background: var(--area-sv); color: var(--surface); flex: none; }
+.gcai-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.gcai-list li { display: flex; gap: 8px; padding: 6px 0; border-top: 1px dashed color-mix(in srgb, var(--area-sv) 30%, transparent); font-size: .92rem; }
+.gcai-list li:first-child { border-top: 0; }
+.gcai-i { flex: none; width: 20px; text-align: center; }
+.gcai-tx { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.gcai-tx small { display: block; color: var(--muted); font-size: .78rem; }
+.gcai-ref { font-weight: 600; }
+.gcai-warn .gcai-tx { font-weight: 600; color: var(--bad); }
+.gcai-foot { margin: 6px 0 0; color: var(--muted); font-size: .78rem; }
+.gcai-m { display: none; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: var(--area-sv-bg); font-size: .84rem; }
+.gcai-m > span { display: block; }
+.gcai-m .gcai-warn { color: var(--bad); font-weight: 600; }
+.svn-m.is-on .gcai-m, .svn-m:has(input[data-sv-pick]:checked) .gcai-m { display: block; }

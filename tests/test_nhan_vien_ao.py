@@ -50,7 +50,7 @@ def link_zalo(db, user, chat_id):
 
 def test_seeded_on_and_master_switch(db, people):
     rows = nva.rows(db)
-    assert set(rows) == {'TAT_CA', 'DIEU_PHOI', 'NHAC_HEN', 'THU_KY', 'TRUONG_NHOM'}
+    assert set(rows) == {'TAT_CA', 'DIEU_PHOI', 'NHAC_HEN', 'THU_KY', 'GHI_CHU', 'TRUONG_NHOM'}
     assert all(r.enabled for r in rows.values()) and rows['DIEU_PHOI'].mode == 'TU_LAM'
     c = nva.cfg(rows['DIEU_PHOI'])
     assert c['kinds'] == ['MUC_DINH_KY', 'SUA_TAI_CHO'] and c['priorities'] == ['THUONG'] and c['undo_minutes'] == 10

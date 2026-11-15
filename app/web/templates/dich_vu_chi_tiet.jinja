@@ -37,6 +37,7 @@
 {% set normal_target=next_step.primary.form|replace('service-','') if next_step and next_step.primary.form else '' %}
 <div class="doc-grid">
 <div class="doc-main">
+{% include 'ghi_chu_ai.jinja' %}
 {% if rq_done %}<p class="alert ok">Đã lưu kết quả kiểm tra máy.</p>{% endif %}{% if rq_applied %}<p class="alert ok">Đã áp báo giá vào phiếu. Gửi khách rồi bấm Khách đồng ý khi khách duyệt.</p>{% endif %}
 {% if xg_panel and t.hold_reason=='CHO_SUA_XUONG' and not t.quote_approved_at %}{% include 'bao_gia_sua.jinja' %}{% elif rq_inspect and not xg_panel %}<section class="card rq-cta"><div><b>Máy chờ kiểm tra ở xưởng</b></div><a class="btn btn-new" href="/kiem-tra-may/{{ t.id }}">Kiểm tra máy ›</a></section>{% endif %}
 {% if xg_panel %}{% include 'xuong_khung.jinja' %}{% if custody_action %}{% include 'may_khach.jinja' %}{% endif %}{% endif %}
