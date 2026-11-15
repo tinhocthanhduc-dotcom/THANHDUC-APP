@@ -47,6 +47,9 @@
       form.querySelectorAll('[data-tg3-g]').forEach(function (card) {
         var on = card.querySelector('input[name="g"]').checked;
         card.classList.toggle('on', on);
+        card.hidden = !on;
+        var opt = form.querySelector('[data-tg3-pick] option[value="' + card.dataset.sid + '"]');
+        if (opt) opt.disabled = on;
         if (!on) return;
         var lv = card.querySelector('input[type="radio"]:checked');
         if (lv) { sum += +lv.dataset.price; n += 1; }
@@ -62,21 +65,24 @@
       setUrl('/tra-gia?' + params);
     };
     form.addEventListener('change', update);
-    var filter = form.querySelector('[data-tg3-filter]');
-    if (filter) filter.addEventListener('input', function () {
-      var words = fold(filter.value).split(/\s+/).filter(Boolean);
-      form.querySelectorAll('[data-tg3-g]').forEach(function (card) {
-        var name = fold(card.dataset.name);
-        card.hidden = !words.every(function (w) { return name.indexOf(w) >= 0; });
-      });
+    // Ô xổ xuống chọn gói (TUẤN 15/11): chọn là hiện thẻ gói với ô cấp; bỏ tick là ẩn thẻ, gói quay lại ô xổ xuống.
+    var pick = form.querySelector('[data-tg3-pick]');
+    if (pick) pick.addEventListener('change', function (e) {
+      e.stopPropagation();
+      var card = form.querySelector('[data-tg3-g][data-sid="' + pick.value + '"]');
+      pick.value = '';
+      if (!card) return;
+      card.querySelector('input[name="g"]').checked = true;
+      update();
+      card.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     });
   }
 
-  // Giá sản phẩm: gõ là hiện hàng khớp; −/+ thêm vào "Hàng đã chọn"; phụ phí; tổng gồm VAT.
+  // Giá sản phẩm (TUẤN 15/11): gõ là hiện danh sách xổ xuống; bấm dòng thêm vào "Hàng đã chọn"; −/+; phụ phí; tổng gồm VAT.
   var pInput = document.querySelector('[data-tgsp-find]'), pList = document.querySelector('[data-tgsp-list]');
   var pForm = document.querySelector('[data-tgsp-form]');
   if (!pInput || !pList || !pForm) return;
-  var basket = {}, order = [], nhom = '';
+  var basket = {}, order = [];
   pForm.querySelectorAll('.tgsp-row').forEach(function (row) {
     basket[row.dataset.code] = {name: row.dataset.name, price: +row.dataset.price, qty: +row.dataset.qty};
     order.push(row.dataset.code);
@@ -86,12 +92,10 @@
     return '<span class="tgsp-q"><button type="button" class="btn btn-ghost" data-d="-1" aria-label="Bớt một">−</button><b>' + n +
       '</b><button type="button" class="btn btn-ghost" data-d="1" aria-label="Thêm một">+</button></span>';
   };
-  function syncCards() {
-    pList.querySelectorAll('.tgsp').forEach(function (card) {
-      var n = (basket[card.dataset.tgspCode] || {}).qty || 0;
-      card.classList.toggle('on', n > 0);
-      var b = card.querySelector('[data-tgsp-n]');
-      if (b) b.textContent = n;
+  function markOptions() {
+    pList.querySelectorAll('[data-tgsp-add]').forEach(function (opt) {
+      var n = (basket[opt.dataset.tgspCode] || {}).qty || 0, em = opt.querySelector('[data-tgsp-n]');
+      if (em) em.textContent = n ? ' · Đã chọn ' + n : '';
     });
   }
   function render() {
@@ -105,42 +109,37 @@
     });
     pForm.querySelector('[data-tgsp-rows]').innerHTML = html;
     pForm.querySelector('[data-tgsp-picked]').hidden = !order.length;
+    var hint = document.querySelector('[data-tgsp-empty]');
+    if (hint) hint.hidden = !!order.length;
     var fees = feeTotal(pForm);
     pForm.querySelector('[data-tg3-sum]').textContent = 'Hàng ' + money(goods) + ' · Phụ phí ' + money(fees);
     pForm.querySelector('[data-tg3-total]').textContent = money(goods + fees);
-    syncCards();
-    var params = new URLSearchParams(), q = pInput.value.trim();
-    if (q) params.append('q', q);
-    if (nhom) params.append('nhom', nhom);
+    markOptions();
+    var params = new URLSearchParams();
     order.forEach(function (c) { params.append('sp', c + ':' + basket[c].qty); });
     pForm.querySelectorAll('input[name="pp"]:checked').forEach(function (el) { params.append('pp', el.value); });
     setUrl('/tra-gia/san-pham' + (params.toString() ? '?' + params : ''));
   }
+  function add(code, name, price, d) {
+    var it = basket[code];
+    if (!it) {
+      if (!name) return;
+      it = basket[code] = {name: name, price: price, qty: 0};
+    }
+    if (order.indexOf(code) < 0) order.push(code);
+    it.qty = Math.max(0, Math.min(99, it.qty + d));
+    render();
+  }
   document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-d]');
-    if (btn) {
-      var card = btn.closest('.tgsp'), row = btn.closest('.tgsp-row');
-      var code = card ? card.dataset.tgspCode : row && row.dataset.code;
-      if (!code) return;
-      var it = basket[code];
-      if (!it) {
-        if (!card) return;
-        it = basket[code] = {name: card.dataset.name, price: +card.dataset.price, qty: 0};
-      }
-      if (order.indexOf(code) < 0) order.push(code);
-      it.qty = Math.max(0, Math.min(99, it.qty + (+btn.dataset.d)));
-      render();
+    var opt = e.target.closest('[data-tgsp-add]');
+    if (opt) {
+      add(opt.dataset.tgspCode, opt.dataset.name, +opt.dataset.price, 1);
+      pInput.value = '';
+      pList.innerHTML = '';
       return;
     }
-    var chip = e.target.closest('.tg2-filters a');
-    if (chip && pList.contains(chip)) {
-      e.preventDefault();
-      nhom = new URL(chip.href).searchParams.get('nhom') || '';
-      fetch('/tra-gia/san-pham/tim?' + new URLSearchParams({q: pInput.value.trim(), nhom: nhom}), {credentials: 'same-origin'})
-        .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
-        .then(function (html) { pList.innerHTML = html; render(); })
-        .catch(function () { window.location.href = chip.href; });
-    }
+    var btn = e.target.closest('.tgsp-row [data-d]');
+    if (btn) add(btn.closest('.tgsp-row').dataset.code, '', 0, +btn.dataset.d);
   });
   pForm.addEventListener('change', render);
   pForm.querySelector('[data-tgsp-reset]').addEventListener('click', function () {
@@ -148,7 +147,11 @@
     pForm.querySelectorAll('input[name="pp"]').forEach(function (el) { el.checked = false; });
     render();
   });
-  pInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); pInput.blur(); } });
-  nhom = new URLSearchParams(location.search).get('nhom') || '';
-  live(pInput, pList, pInput.dataset.tgspFind, null, function () { nhom = ''; render(); });
+  pInput.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    var first = pList.querySelector('[data-tgsp-add]');
+    if (first) first.click();
+  });
+  live(pInput, pList, pInput.dataset.tgspFind, null, markOptions);
 })();

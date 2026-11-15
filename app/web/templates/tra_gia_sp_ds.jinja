@@ -1,8 +1,5 @@
-{# Giá sản phẩm màn thợ (mẫu SP2 + M4 duyệt 15/11/2026): nhóm hàng để lọc, mỗi hàng một thẻ, giá to bên phải, −/+ để thêm vào tổng. #}
-{% if q|length < 2 %}<p class="hint">Gõ ít nhất 2 ký tự, app hiện hàng khớp ngay bên dưới.</p>
-{% elif not groups %}<p class="alert warn"><b>Không thấy hàng này.</b> Thử gõ ngắn hơn (vd chỉ số mã), hoặc hỏi bán hàng. Không tự báo giá khách.</p>
-{% else %}
-<div class="tg2-filters">{% set total = groups|sum(attribute=1) %}<a href="/tra-gia/san-pham?q={{ q|urlencode }}" {% if not nhom %}class="on"{% endif %}>Tất cả <b>{{ total }}</b></a>{% for g, n in groups %}<a href="/tra-gia/san-pham?q={{ q|urlencode }}&nhom={{ g|urlencode }}" {% if nhom == g %}class="on"{% endif %}>{{ g }} <b>{{ n }}</b></a>{% endfor %}</div>
-{% for p in rows %}{% set n = qty.get(p.code, 0) %}<section class="tgsp{{ ' on' if n }}" data-tgsp-code="{{ p.code }}" data-name="{{ p.name }}" data-price="{{ p.price }}"><b class="tgsp-n">{{ p.name }}</b><div class="tgsp-pr"><b>{{ money(p.price) }}</b><small>gồm VAT</small></div><small class="tgsp-c">{{ p.code }}{% if p.group %} · {{ p.group }}{% endif %}</small><div class="tgsp-meta">{% if p.warranty > 0 %}<span class="badge b-lam">BH {{ p.warranty }} tháng</span>{% endif %}<span class="tgsp-q"><button type="button" class="btn btn-ghost" data-d="-1" aria-label="Bớt một">−</button><b data-tgsp-n>{{ n }}</b><button type="button" class="btn btn-ghost" data-d="1" aria-label="Thêm một">+</button></span></div></section>{% else %}<p class="hint">Nhóm này không có hàng khớp.</p>{% endfor %}
-<p class="hint tg2-note">Giá đã gồm VAT, là giá bán lẻ báo khách. Giá khác cho khách quen thì hỏi bán hàng.</p>
-{% endif %}
+{# Giá sản phẩm màn thợ (TUẤN 15/11/2026): gõ tên/mã là hiện danh sách xổ xuống gọn, bấm một dòng là thêm vào "Hàng đã chọn". #}
+{% if q|length >= 2 %}<div class="tgsp-drop" role="listbox" aria-label="Hàng khớp">
+{% if not rows %}<p class="alert warn"><b>Không thấy hàng này.</b> Thử gõ ngắn hơn (vd chỉ số mã), hoặc hỏi bán hàng. Không tự báo giá khách.</p>
+{% else %}{% for p in rows %}{% set n = qty.get(p.code, 0) %}<button type="button" role="option" class="tgsp-opt" data-tgsp-add data-tgsp-code="{{ p.code }}" data-name="{{ p.name }}" data-price="{{ p.price }}"><span class="tgsp-on">{{ p.name }}<small>{{ p.code }}{% if p.group %} · {{ p.group }}{% endif %}{% if p.warranty > 0 %} · BH {{ p.warranty }} tháng{% endif %}<em data-tgsp-n>{% if n %} · Đã chọn {{ n }}{% endif %}</em></small></span><b>{{ money(p.price) }}</b></button>{% endfor %}{% endif %}
+</div>{% endif %}

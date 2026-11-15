@@ -10,10 +10,12 @@
 <div class="tg3-done"><span class="tg3-ok">1</span><div><b>{{ m.name }}</b><small>{{ group.name if group else '' }}</small></div><a href="/tra-gia?tab=sua">Đổi</a></div>
 <p class="tg2-step"><i>2</i>Gói sửa chữa <small>· chọn 1 hoặc nhiều</small></p>
 {% if services %}
-{% if services|length > 6 %}<label class="sr-only" for="tg3-loc">Lọc gói sửa</label><input id="tg3-loc" type="search" class="tg3-loc" placeholder="Lọc gói, vd sấy, kéo giấy…" autocomplete="off" data-tg3-filter>{% endif %}
+{# TUẤN 15/11: danh sách gói dài → ô xổ xuống để chọn; gói đã chọn hiện thẻ với ô cấp. #}
+<label class="sr-only" for="tg3-pick">Chọn gói sửa chữa</label>
+<select id="tg3-pick" class="tg3-pick" data-tg3-pick><option value="">+ Chọn gói sửa chữa…</option>{% for x in services %}<option value="{{ x.id }}" {% if x.id in picked %}disabled{% endif %}>{{ x.name }} · {{ money(x.low) }}{% if x.high != x.low %}–{{ money(x.high) }}{% endif %}</option>{% endfor %}</select>
 <div class="tg3-list">{% for x in services %}{% set lv_on = picked.get(x.id, x.default) %}
-<div class="tg3-g{{ ' on' if x.id in picked }}" data-tg3-g data-sid="{{ x.id }}" data-name="{{ x.name|lower }}">
-<label class="tg3-h"><input type="checkbox" name="g" value="{{ x.id }}" class="tg3-chk" {% if x.id in picked %}checked{% endif %}><span class="tg3-bx" aria-hidden="true"></span><b>{{ x.name }}</b><small>{% if x.id in picked %}{% if x.warranty %}BH {{ x.warranty }} th{% endif %}{% else %}{{ money(x.low) }}{% if x.high != x.low %}–{{ money(x.high) }}{% endif %}{% endif %}</small></label>
+<div class="tg3-g{{ ' on' if x.id in picked }}" {% if x.id not in picked %}hidden{% endif %} data-tg3-g data-sid="{{ x.id }}" data-name="{{ x.name|lower }}">
+<label class="tg3-h"><input type="checkbox" name="g" value="{{ x.id }}" class="tg3-chk" {% if x.id in picked %}checked{% endif %}><span class="tg3-bx" aria-hidden="true"></span><b>{{ x.name }}</b><small>{% if x.warranty %}BH {{ x.warranty }} th{% endif %}</small></label>
 <div class="tg3-lv" role="radiogroup" aria-label="Cấp sửa {{ x.name }}">{% for k in levels %}{% set c = x.cells[k] %}{% if c %}<label><input type="radio" name="cap_{{ x.id }}" value="{{ k }}" data-price="{{ c.price }}" {% if k == lv_on %}checked{% endif %}><span>{{ level_label[k] }}<b>{{ money(c.price) }}</b></span></label>{% else %}<span class="na">{{ level_label[k] }}<b>—</b></span>{% endif %}{% endfor %}</div>
 </div>{% endfor %}</div>
 {% else %}<p class="alert warn"><b>Loại máy này chưa có gói sửa nào có giá.</b> Báo kỹ thuật trưởng để xác nhận giá, không tự báo khách.</p>{% endif %}

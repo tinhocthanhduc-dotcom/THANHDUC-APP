@@ -2,15 +2,16 @@
 {% import '_ui.jinja' as ui %}
 {% block title %}Bảng giá{% endblock %}
 {% block main %}<div class="tg2">
-{# TUẤN duyệt mẫu SP1–SP2 + M4 15/11/2026: giá bán gồm VAT, BH, Còn/Hết hàng; thêm hàng −/+ và phụ phí ra tổng; không giá vốn, không số tồn. #}
+{# TUẤN duyệt mẫu SP1–SP2 + M4 15/11/2026: giá bán gồm VAT, BH; chọn hàng từ danh sách xổ xuống, −/+ số lượng, phụ phí ra tổng; không giá vốn, không tồn kho. #}
 {% call ui.page_head('Bảng giá', sub='Gõ tên hoặc mã hàng, thêm phụ phí nếu cần') %}{% endcall %}
 {% include 'tra_gia_tab.jinja' %}
-<form method="get" action="/tra-gia/san-pham" class="tg2-form" role="search">
+<form method="get" action="/tra-gia/san-pham" class="tg2-form tgsp-find" role="search">
 <label class="sr-only" for="tgsp-q">Tên hoặc mã hàng</label>
 <input id="tgsp-q" type="search" name="q" value="{{ q }}" class="tg2-search" placeholder="Gõ tên hoặc mã hàng, vd 12A, 2900…" autocomplete="off" data-tgsp-find="/tra-gia/san-pham/tim">
 <noscript><button class="btn btn-ghost">Tìm hàng</button></noscript>
-</form>
 <div data-tgsp-list aria-live="polite">{% include 'tra_gia_sp_ds.jinja' %}</div>
+</form>
+<p class="hint" data-tgsp-empty {% if picked %}hidden{% endif %}>Gõ ít nhất 2 ký tự, bấm hàng trong danh sách để thêm. Giá đã gồm VAT, là giá bán lẻ báo khách.</p>
 <form class="tg2-form tg3" data-tgsp-form onsubmit="return false">
 <section class="tgsp-picked" data-tgsp-picked {% if not picked %}hidden{% endif %}><p class="tg2-sec">Hàng đã chọn</p>
 <div class="tg3-list" data-tgsp-rows>{% for r in picked %}<div class="tgsp-row" data-code="{{ r.code }}" data-name="{{ r.name }}" data-price="{{ r.price }}" data-qty="{{ r.qty }}"><span class="tgsp-rn">{{ r.name }}<small>{{ r.qty }} × {{ money(r.price) }}</small></span><b>{{ money(r.price * r.qty) }}</b><span class="tgsp-q"><button type="button" class="btn btn-ghost" data-d="-1" aria-label="Bớt một">−</button><b>{{ r.qty }}</b><button type="button" class="btn btn-ghost" data-d="1" aria-label="Thêm một">+</button></span></div>{% endfor %}</div></section>
