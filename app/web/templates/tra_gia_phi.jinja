@@ -1,0 +1,3 @@
+{# Phụ phí (mẫu M3/M4 duyệt 15/11/2026): bấm để cộng vào tổng, giá gồm VAT, mô tả nhỏ dưới tên. #}
+{% if fees %}<div class="tg3-list">{% for f in fees %}<label class="tg3-fee{{ ' on' if f.id in fee_ids }}"><input type="checkbox" name="pp" value="{{ f.id }}" class="tg3-chk" data-price="{{ f.price }}" {% if f.id in fee_ids %}checked{% endif %}><span class="tg3-bx" aria-hidden="true"></span><span class="tg3-fn">{{ f.name }}{% if f.note %}<small>{{ f.note }}</small>{% endif %}</span><b>{{ money(f.price) }}</b></label>{% endfor %}</div>
+{% else %}<p class="hint">Chưa có phụ phí nào trong Bảng giá chung.</p>{% endif %}

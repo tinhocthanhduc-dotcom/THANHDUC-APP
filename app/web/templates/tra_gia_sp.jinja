@@ -2,8 +2,8 @@
 {% import '_ui.jinja' as ui %}
 {% block title %}Bảng giá{% endblock %}
 {% block main %}<div class="tg2">
-{# TUẤN duyệt mẫu SP1–SP2 15/11/2026: thợ xem giá bán gồm VAT, bảo hành, Còn/Hết hàng; không giá vốn, không số tồn. #}
-{% call ui.page_head('Bảng giá', sub='Gõ tên hoặc mã hàng để xem giá bán') %}{% endcall %}
+{# TUẤN duyệt mẫu SP1–SP2 + M4 15/11/2026: giá bán gồm VAT, BH, Còn/Hết hàng; thêm hàng −/+ và phụ phí ra tổng; không giá vốn, không số tồn. #}
+{% call ui.page_head('Bảng giá', sub='Gõ tên hoặc mã hàng, thêm phụ phí nếu cần') %}{% endcall %}
 {% include 'tra_gia_tab.jinja' %}
 <form method="get" action="/tra-gia/san-pham" class="tg2-form" role="search">
 <label class="sr-only" for="tgsp-q">Tên hoặc mã hàng</label>
@@ -11,5 +11,13 @@
 <noscript><button class="btn btn-ghost">Tìm hàng</button></noscript>
 </form>
 <div data-tgsp-list aria-live="polite">{% include 'tra_gia_sp_ds.jinja' %}</div>
+<form class="tg2-form tg3" data-tgsp-form onsubmit="return false">
+<section class="tgsp-picked" data-tgsp-picked {% if not picked %}hidden{% endif %}><p class="tg2-sec">Hàng đã chọn</p>
+<div class="tg3-list" data-tgsp-rows>{% for r in picked %}<div class="tgsp-row" data-code="{{ r.code }}" data-name="{{ r.name }}" data-price="{{ r.price }}" data-qty="{{ r.qty }}"><span class="tgsp-rn">{{ r.name }}<small>{{ r.qty }} × {{ money(r.price) }}</small></span><b>{{ money(r.price * r.qty) }}</b><span class="tgsp-q"><button type="button" class="btn btn-ghost" data-d="-1" aria-label="Bớt một">−</button><b>{{ r.qty }}</b><button type="button" class="btn btn-ghost" data-d="1" aria-label="Thêm một">+</button></span></div>{% endfor %}</div></section>
+<p class="tg2-step"><i>+</i>Phụ phí <small>· không bắt buộc</small></p>
+{% include 'tra_gia_phi.jinja' %}
+<button type="button" class="btn btn-ghost tg2-full" data-tgsp-reset>Làm lại</button>
+<div class="tg3-tot" aria-live="polite"><div class="tg3-tl"><span data-tg3-sum>Hàng {{ money(goods) }} · Phụ phí {{ money(fee_total) }}</span><span>gồm VAT</span></div><div class="tg3-tt"><span>Tổng báo khách</span><b data-tg3-total>{{ money(goods + fee_total) }}</b></div></div>
+</form>
 <script src="{{ asset('tra-gia-tho.js') }}" defer></script>
 </div>{% endblock %}
