@@ -39,6 +39,7 @@ EXPECTED['director'] = set().union(*EXPECTED.values()) | {'/ui/quy-chuan','/nhan
 EXPECTED['director'].add('/toc-do')  # TD1: trang Tốc độ app
 EXPECTED['director'].add('/tro-ly-ai')  # Trợ lý AI (TUẤN 01/11/2026)
 EXPECTED['director'].add('/nhan-vien-ao')  # Nhân viên AI (TUẤN 07/11/2026)
+EXPECTED['director'].add('/doi-ai')  # Đội AI (TUẤN duyệt 15/11/2026)
 EXPECTED['director'].add('/zalo/tin-nhan')  # Tin nhắn Zalo (TUẤN 05/11/2026)
 EXPECTED['director'].update({'/zalo/tro-ly', '/don-nhap-zalo'})  # Trợ lý Zalo (TUẤN duyệt 05/11/2026)
 EXPECTED['sales'].add('/don-nhap-zalo')
