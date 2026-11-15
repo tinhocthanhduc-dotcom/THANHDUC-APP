@@ -10,7 +10,7 @@
 {% set workflow_page=true %}{% set wf_part='steps' %}{% include 'thanh_buoc.jinja' %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 {% if saved %}<p class="alert ok doc-toast" role="status" data-doc-toast>✓ {{ toast_message or "Đã lưu." }}</p>{% endif %}
-{% if q %}<p class="doc-status doc-{{ q.status|lower }}">Trạng thái: <strong class="stock-chip">{{ statuses[q.status] }}</strong></p>{% endif %}
+
 {% if q and q.cancel_reason %}<p class="alert warn">Lý do hủy: {{ q.cancel_reason }}</p>{% endif %}
 {% if replaced %}<p><a class="btn" href="/bao-gia/{{ replaced.id }}">Bản sửa: {{ replaced.number }}</a></p>{% endif %}
 {% if failed_action == 'cancel' and q.status not in ['NHAP','DA_GUI'] %}<label>Lý do vừa nhập (chưa lưu)<textarea readonly>{{ action_form.get('reason','') }}</textarea></label>{% endif %}
@@ -57,7 +57,7 @@
 </section>
 <section class="card qf-sum"><h2 class="qf-h">Tổng báo giá</h2>
 {{ gg.sum(d, q) }}
-{% if q %}<p class="saved-total">Số tiền đã lưu: Tiền hàng {{ q.subtotal|money }} · VAT {{ q.vat_total|money }} · Tổng {{ q.total|money }} đồng</p>{% endif %}
+
 <p class="hint">Đơn vị: đồng. Số có dấu * là chưa đủ dữ liệu; máy chủ tính lại khi lưu.</p>
 </section>
 {% set wf_part='action' %}{% set workflow_total=(q.total|money if q else '—') if live else '' %}{% include 'thanh_buoc.jinja' %}

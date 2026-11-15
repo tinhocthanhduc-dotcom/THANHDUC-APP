@@ -5106,3 +5106,7 @@ main:has(> .sbt-page) { max-width: 1240px; }
 }
 .rq-reply label.rq-opt { display: flex; flex-direction: row; align-items: center; gap: 10px; }
 .rq-reply label.rq-opt input { width: 20px; height: 20px; margin: 0; flex: none; }
+
+/* TUẤN 15/11/2026 đợt 2 bán hàng: máy tính đã có khung Tổng bên phải nên ẩn dòng tạm tính dưới hàng hóa; nhãn tiền không xuống dòng từng chữ. */
+@media (min-width: 1024px) { [data-line-totals] { display: none; } }
+.doc-money .receipt-balance dt { white-space: nowrap; }
