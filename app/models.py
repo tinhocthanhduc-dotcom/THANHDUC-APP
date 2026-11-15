@@ -2627,6 +2627,30 @@ class RepairQuoteVersion(Base):
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('repair_quote_groups.id', ondelete='SET NULL'), index=True)
+
+
+class RepairQuoteGroup(Base):
+    """0100 Báo giá gộp nhiều máy một khách (BGG-yy-nnnnn, mẫu duyệt 15/11/2026): một link /bgg, một tin Zalo, một A4.
+    Mỗi máy vẫn là một lần báo giá của phiếu đó (repair_quote_versions.group_id); tiền vẫn ở từng phiếu."""
+    __tablename__ = 'repair_quote_groups'
+    __table_args__ = (
+        CheckConstraint("status in ('CHO','XONG','THU_HOI')", name='ck_repair_quote_groups_status'),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    number: Mapped[str] = mapped_column(String(20), unique=True)
+    customer_code: Mapped[str] = mapped_column(ForeignKey('customers.code'), index=True)
+    token: Mapped[str] = mapped_column(String(40), unique=True)
+    status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    valid_until: Mapped[date] = mapped_column(Date)
+    sent_via: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    opened_count: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ContractQuote(Base):

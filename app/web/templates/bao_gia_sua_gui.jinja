@@ -4,6 +4,8 @@
 <div class="rq-send-h"><h3>Gửi khách</h3>{% if sd %}<span class="badge {{ 'b-huy' if sd.late else 'b-cho' }}">{{ rq.statuses['CHO'] }}{% if sd.v.sent_at %} · {{ sd.days }} ngày{% else %} · chưa gửi{% endif %}</span>{% endif %}</div>
 {% set lan=request.query_params.get('bao_gia_lan','') %}{% if lan and not error %}<p class="alert ok">Đã lưu báo giá lần {{ lan }}. Gửi tin Zalo hoặc in A4 cho khách.</p>{% endif %}
 {% set done=request.query_params.get('bao_gia_xong','') %}{% if done and not error %}<p class="alert ok">{{ {'gui-zalo': 'Đã gửi Zalo công ty.', 'da-gui': 'Đã ghi đã gửi khách.', 'thu-hoi': 'Đã thu hồi link, khách mở sẽ không thấy giá.', 'chua-dong-y': 'Đã ghi khách chưa đồng ý, báo lại kỹ thuật kiểm tra.'}.get(done, 'Đã lưu.') }}</p>{% endif %}
+{% if rq.group %}<p class="alert info">Máy này nằm trong <a href="/bao-gia-gop/{{ rq.group.id }}">báo giá gộp {{ rq.group.number }}</a>: gửi khách và ghi trả lời ở đó cho cả nhóm.</p>
+{% elif rq.siblings > 1 %}<p class="hint">Khách có {{ rq.siblings }} máy đã áp giá ở xưởng. <a href="/bao-gia-gop/moi?khach={{ t.customer_code|urlencode }}">Gộp báo giá các máy</a> để gửi một link, một bản in.</p>{% endif %}
 {% if rq.can_send %}
 <form method="post" action="/kiem-tra-may/{{ t.id }}/gui" class="rq-send-new" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
 <p class="hint">{% if sd and sd.stale %}Báo giá đã đổi sau lần {{ sd.v.no }}: lưu lần mới, link lần {{ sd.v.no }} sẽ không hiện giá nữa.{% else %}Lưu bản khách đang hiện bên trên thành <b>báo giá lần {{ rq.next_no }}</b>, có link xem và tin Zalo soạn sẵn. Hiệu lực {{ rq.valid_days }} ngày.{% endif %}</p>

@@ -1058,6 +1058,8 @@ from .quick_quotes import router as quick_quotes_router  # noqa: E402
 router.include_router(quick_quotes_router)
 from .repair_inspection import router as repair_inspection_router  # noqa: E402
 router.include_router(repair_inspection_router)
+from .bao_gia_gop import router as bao_gia_gop_router  # noqa: E402
+router.include_router(bao_gia_gop_router)  # Báo giá gộp nhiều máy một khách (mẫu duyệt 15/11/2026)
 from .contract_quotes import router as contract_quotes_router  # noqa: E402
 router.include_router(contract_quotes_router)
 from .repair_lookup import router as repair_lookup_router  # noqa: E402

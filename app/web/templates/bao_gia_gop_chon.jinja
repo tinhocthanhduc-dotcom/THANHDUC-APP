@@ -1,0 +1,25 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Báo giá gộp · {{ customer.name }}{% endblock %}
+{% block main %}<div class="page-wide bgg-page">
+{# Mẫu duyệt 15/11/2026, màn 2: tick máy cùng khách đã áp giá; Lưu và gửi tạo lần báo giá từng phiếu + link chung. #}
+{% call ui.page_head('Báo giá gộp', sub=customer.name ~ (' · ' ~ customer.address if customer.address else '') ~ ' · Zalo công ty: ' ~ ('đã gắn' if linked else 'chưa gắn'), back='/kiem-tra-may') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+<form method="post" action="/bao-gia-gop/moi" class="pnz-two" data-busy data-bgg-pick><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="khach" value="{{ customer.code }}">
+<section class="card bgg-card"><h2 class="qf-h">Chọn máy gửi chung</h2>
+{% for r in rows %}{% set t=r.ticket %}
+<label class="bgg-m{{ ' off' if not r.ready }}"><input type="checkbox" name="phieu" value="{{ t.id }}" {% if not r.ready %}disabled{% elif t.id in chosen %}checked{% endif %}{% if r.ready %} data-bgg-total="{{ r.quote.total }}"{% endif %}>
+<input type="hidden" name="v_{{ t.id }}" value="{{ t.version }}">
+<span class="bgg-mt"><b>{{ t.number }} · {{ r.machine or 'Máy chưa ghi tên' }}{% if t.serial %} · {{ t.serial }}{% endif %}</b>
+<small>{% if r.ready %}{{ r.names|join(' · ') }}{% if r.quote.warranty %} · BH {{ r.quote.warranty }} tháng{% endif %}{% if r.open %} · đang chờ báo giá lần {{ r.open.no }}{% endif %}{% else %}{{ r.why }}, gửi riêng sau{% endif %}</small></span>
+{% if r.ready %}<b class="bgg-money">{{ r.quote.total|money }}</b>{% else %}<span class="badge b-cho">{{ r.why }}</span>{% endif %}</label>
+{% else %}<p class="hint">Khách không còn máy nào chờ báo giá ở xưởng.</p>{% endfor %}
+<p class="hint">Máy đang có lần báo giá riêng chờ khách thì lần đó chuyển "Đã có lần mới", link riêng cũ hết hiệu lực. Tiền vẫn nằm trên từng phiếu.</p>
+</section>
+<aside class="pnz-side"><section class="card bgg-next"><span class="bgg-who">Bước tiếp · điều phối</span>
+<p class="rq-kv"><span><b>Tổng các máy đã chọn</b> <small class="mu">gồm VAT</small></span><b class="bgg-big" data-bgg-sum>{{ rows|selectattr('ready')|selectattr('ticket.id','in',chosen)|map(attribute='quote.total')|sum|money }}</b></p>
+<button class="btn btn-new pnz-full">Lưu và gửi báo giá gộp</button>
+<p class="hint">Hiệu lực {{ valid_days }} ngày. Sau khi lưu: Gửi Zalo công ty · Sao chép tin · In A4 · link khách xem.</p></section></aside>
+</form>
+</div>
+<script src="{{ asset('bao-gia-gop.js') }}" defer></script>{% endblock %}

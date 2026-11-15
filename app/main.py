@@ -79,6 +79,8 @@ app.include_router(supplier_debts.router)
 app.include_router(sales_returns.router)
 from .web.repair_inspection import public_router as repair_quote_public  # noqa: E402
 app.include_router(repair_quote_public)  # /bg/<mã>: link báo giá sửa cho khách, không đăng nhập
+from .web.bao_gia_gop import public_router as repair_quote_group_public  # noqa: E402
+app.include_router(repair_quote_group_public)  # /bgg/<mã>: link báo giá gộp nhiều máy, không đăng nhập
 from .web.contract_quotes import public_router as contract_quote_public  # noqa: E402
 app.include_router(contract_quote_public)  # /bgh/<mã>: link báo giá hợp đồng cho khách, không đăng nhập
 from .web.quick_quotes import public_router as quick_quote_public  # noqa: E402

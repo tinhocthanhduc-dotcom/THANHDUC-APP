@@ -147,35 +147,42 @@ def _m(n) -> str:
 
 def create(session: Session, user: User, ticket_id: int, version) -> RepairQuoteVersion:
     """Lưu bản khách thành lần mới (lần cũ đang chờ chuyển Đã có lần mới) và soạn tin Zalo."""
-    from . import service_tickets
     from .stock_docs import _transaction
     require(user)
     with _transaction(session):
-        t = ri.load_ticket(session, user, ticket_id, lock=True)
-        service_tickets._check_version(t, version)
-        if not ri.is_waiting(t):
-            raise BusinessError('BAD_STATUS', 'Phiếu không ở bước chờ sửa tại xưởng.', status=409)
-        if t.quote_approved_at:
-            raise BusinessError('ALREADY_APPROVED', 'Khách đã đồng ý báo giá này, không cần gửi lại.', status=409)
-        row = session.get(RepairInspection, t.id)
-        if row is None or row.applied_at is None:
-            raise BusinessError('NOT_APPLIED', 'Bấm Áp vào báo giá trước, rồi mới gửi khách.', status=409)
-        snap = snapshot(session, t, row)
-        if not _matches_ticket(t, row, snap):
-            raise BusinessError('STALE_QUOTE', 'Giá trên phiếu khác bảng giá hiện tại (vừa đổi giá?). Bấm Áp lại báo giá rồi gửi.', status=409)
-        for old in session.scalars(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == t.id,
-                                                                     RepairQuoteVersion.status == 'CHO').with_for_update()):
-            old.status = 'THAY_THE'
-        no = (session.scalar(select(func.max(RepairQuoteVersion.no)).where(RepairQuoteVersion.ticket_id == t.id)) or 0) + 1
-        v = RepairQuoteVersion(ticket_id=t.id, no=no, token=secrets.token_urlsafe(18), snapshot=snap, created_by=user.id,
-                               valid_until=_today() + timedelta(days=VALID_DAYS))
-        snap['valid_until'] = v.valid_until.isoformat()
-        session.add(v)
-        session.flush()
-        v.text = zalo_text(snap, v)
-        v.ai_job_id = _request_ai(session, v.text)
-        audit.record(session, user, 'repair_quote.create', 'service_ticket', str(t.id), None,
-                     dict(no=no, total=snap['chosen']['total'], pick=snap['pick'], valid_until=v.valid_until.isoformat()))
+        v = create_in_tx(session, user, ticket_id, version)
+    return v
+
+
+def create_in_tx(session: Session, user: User, ticket_id: int, version, group_id: int | None = None) -> RepairQuoteVersion:
+    """Phần việc của create() trong transaction người gọi (báo giá gộp gọi cho từng máy, cùng một transaction)."""
+    from . import service_tickets
+    require(user)
+    t = ri.load_ticket(session, user, ticket_id, lock=True)
+    service_tickets._check_version(t, version)
+    if not ri.is_waiting(t):
+        raise BusinessError('BAD_STATUS', f'{t.number}: phiếu không ở bước chờ sửa tại xưởng.', status=409)
+    if t.quote_approved_at:
+        raise BusinessError('ALREADY_APPROVED', f'{t.number}: khách đã đồng ý báo giá này, không cần gửi lại.', status=409)
+    row = session.get(RepairInspection, t.id)
+    if row is None or row.applied_at is None:
+        raise BusinessError('NOT_APPLIED', f'{t.number}: bấm Áp vào báo giá trước, rồi mới gửi khách.', status=409)
+    snap = snapshot(session, t, row)
+    if not _matches_ticket(t, row, snap):
+        raise BusinessError('STALE_QUOTE', f'{t.number}: giá trên phiếu khác bảng giá hiện tại (vừa đổi giá?). Bấm Áp lại báo giá rồi gửi.', status=409)
+    for old in session.scalars(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == t.id,
+                                                                 RepairQuoteVersion.status == 'CHO').with_for_update()):
+        old.status = 'THAY_THE'
+    no = (session.scalar(select(func.max(RepairQuoteVersion.no)).where(RepairQuoteVersion.ticket_id == t.id)) or 0) + 1
+    v = RepairQuoteVersion(ticket_id=t.id, no=no, token=secrets.token_urlsafe(18), snapshot=snap, created_by=user.id,
+                           valid_until=_today() + timedelta(days=VALID_DAYS), group_id=group_id)
+    snap['valid_until'] = v.valid_until.isoformat()
+    session.add(v)
+    session.flush()
+    v.text = zalo_text(snap, v)
+    v.ai_job_id = None if group_id else _request_ai(session, v.text)
+    audit.record(session, user, 'repair_quote.create', 'service_ticket', str(t.id), None,
+                 dict(no=no, total=snap['chosen']['total'], pick=snap['pick'], valid_until=v.valid_until.isoformat(), group=group_id))
     return v
 
 
