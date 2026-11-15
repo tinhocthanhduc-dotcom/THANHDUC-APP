@@ -259,8 +259,10 @@ def history(request: Request, trang: str = '', so: str = '', user: User = Depend
 def export(request: Request, tab: str = 'muc', user: User = Depends(web_user), session: Session = Depends(get_session)):
     svc.require_edit(user)
     tab = _tab(tab)
-    body = svc.export_csv(session, tab)
-    return Response(body.encode('utf-8'), media_type='text/csv; charset=utf-8',
+    # TUẤN 15/11: Office 2010 mở CSV UTF-8 dấu phẩy bị dồn một cột / lỗi dấu (máy đặt dấu phân cách ";").
+    # Xuất "Unicode Text": UTF-16 có BOM, cách bằng tab; Excel 2010 trở lên mở đúng cột, đúng tiếng Việt, mọi cài đặt vùng.
+    body = svc.export_csv(session, tab, delimiter='\t').lstrip('\ufeff')
+    return Response(body.encode('utf-16'), media_type='text/csv; charset=utf-16',
                     headers={'Content-Disposition': f'attachment; filename="bang-gia-{tab}.csv"', 'Cache-Control': 'private, no-store'})
 
 

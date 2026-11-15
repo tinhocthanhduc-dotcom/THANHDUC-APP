@@ -666,12 +666,12 @@ def csv_kind(tab: str) -> str:
     return 'hang' if tab in PRODUCT_TABS else tab if tab in ('dich-vu', 'goi') else ''
 
 
-def export_csv(session, tab: str) -> str:
+def export_csv(session, tab: str, delimiter: str = ',') -> str:
     kind = csv_kind(tab)
     if not kind:
         raise BusinessError('BAD_TAB', 'Tab này không xuất Excel.')
     buf = io.StringIO()
-    w = csv.writer(buf)
+    w = csv.writer(buf, delimiter=delimiter)
     w.writerow(CSV_HEAD[kind] + (['Loại'] if kind == 'dich-vu' else []))
     if kind == 'hang':
         for r in product_rows(session, tab)['rows']:
@@ -697,7 +697,7 @@ def decode_text(raw: bytes) -> str:
         try:
             return unicodedata.normalize('NFC', raw.decode('utf-16'))
         except UnicodeDecodeError:
-            raise BusinessError('BAD_FILE', 'File Unicode bị lỗi, hãy lưu lại dạng "CSV UTF-8" (Excel: Lưu thành → CSV UTF-8).')
+            raise BusinessError('BAD_FILE', 'File Unicode bị lỗi, hãy lưu lại (Excel: Lưu thành → Unicode Text hoặc CSV UTF-8).')
     try:
         return unicodedata.normalize('NFC', raw.decode('utf-8-sig'))
     except UnicodeDecodeError:
@@ -705,7 +705,7 @@ def decode_text(raw: bytes) -> str:
     try:
         return unicodedata.normalize('NFC', raw.decode('cp1258'))
     except UnicodeDecodeError:
-        raise BusinessError('BAD_FILE', 'File cần lưu dạng "CSV UTF-8" (Excel: Lưu thành → CSV UTF-8).')
+        raise BusinessError('BAD_FILE', 'File cần lưu dạng "Unicode Text" (Office 2010) hoặc "CSV UTF-8" (Excel mới).')
 
 
 def _read_csv(raw: bytes) -> list[list[str]]:
