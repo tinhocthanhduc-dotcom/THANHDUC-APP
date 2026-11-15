@@ -42,7 +42,9 @@ def test_three_steps_model_package_level_fee_total(client, db, make_user):
         assert v in card
     assert 'value="2" data-price="486000" checked' in card and 'class="tg3-g"' not in card.split('>')[0]
     feed_card = _card(page, feed.id)
-    assert '162.000–432.000' in feed_card and 'C.hãng<b>—</b>' in feed_card  # chưa có giá chính hãng: không đoán
+    assert 'C.hãng<b>—</b>' in feed_card and f'<option value="{feed.id}" >Sửa chữa bộ kéo giấy · 162.000–432.000</option>' in page
+    # TUẤN 15/11: chọn gói bằng ô xổ xuống; thẻ gói chưa chọn ẩn, gói đã chọn thì mờ trong ô xổ xuống.
+    assert 'data-tg3-pick' in page and 'hidden data-tg3-g' in page  # chưa có giá chính hãng: không đoán
     # B3: phụ phí từ Bảng giá chung, gồm VAT.
     assert 'Phí kiểm tra máy' in page and 'Miễn phí nếu khách đồng ý sửa.' in page and '108.000' in page
     fee_ids = {f.name: f.id for f in pb.services(db, 'PHI')}
@@ -52,6 +54,7 @@ def test_three_steps_model_package_level_fee_total(client, db, make_user):
     # 648.000 (sấy chính hãng) + 162.000 (kéo giấy C1) + 54.000 (tận nơi) = 864.000; id lạ bỏ qua.
     assert '2 gói · Phụ phí 54.000' in page and 'data-tg3-total>864.000<' in page
     assert 'value="CH" data-price="648000" checked' in _card(page, fuser.id)
+    assert f'<option value="{fuser.id}" disabled>' in page and 'hidden data-tg3-g' not in page
     # Cấp không có giá thì về mặc định.
     page = client.get('/tra-gia', params=[('model', 'Canon LBP 2900'), ('g', feed.id), ('cap_' + str(feed.id), 'CH')]).text
     assert 'data-tg3-total>270.000<' in page

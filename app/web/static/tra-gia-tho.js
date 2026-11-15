@@ -47,6 +47,9 @@
       form.querySelectorAll('[data-tg3-g]').forEach(function (card) {
         var on = card.querySelector('input[name="g"]').checked;
         card.classList.toggle('on', on);
+        card.hidden = !on;
+        var opt = form.querySelector('[data-tg3-pick] option[value="' + card.dataset.sid + '"]');
+        if (opt) opt.disabled = on;
         if (!on) return;
         var lv = card.querySelector('input[type="radio"]:checked');
         if (lv) { sum += +lv.dataset.price; n += 1; }
@@ -62,13 +65,16 @@
       setUrl('/tra-gia?' + params);
     };
     form.addEventListener('change', update);
-    var filter = form.querySelector('[data-tg3-filter]');
-    if (filter) filter.addEventListener('input', function () {
-      var words = fold(filter.value).split(/\s+/).filter(Boolean);
-      form.querySelectorAll('[data-tg3-g]').forEach(function (card) {
-        var name = fold(card.dataset.name);
-        card.hidden = !words.every(function (w) { return name.indexOf(w) >= 0; });
-      });
+    // Ô xổ xuống chọn gói (TUẤN 15/11): chọn là hiện thẻ gói với ô cấp; bỏ tick là ẩn thẻ, gói quay lại ô xổ xuống.
+    var pick = form.querySelector('[data-tg3-pick]');
+    if (pick) pick.addEventListener('change', function (e) {
+      e.stopPropagation();
+      var card = form.querySelector('[data-tg3-g][data-sid="' + pick.value + '"]');
+      pick.value = '';
+      if (!card) return;
+      card.querySelector('input[name="g"]').checked = true;
+      update();
+      card.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     });
   }
 

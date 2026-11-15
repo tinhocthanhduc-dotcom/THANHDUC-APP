@@ -4865,7 +4865,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tg3-done small { color: var(--muted); font-size: .82rem; }
 .tg3-done a { margin-left: auto; font-weight: 700; white-space: nowrap; padding: 6px 4px; }
 .tg3-ok { width: 24px; height: 24px; border-radius: 50%; background: var(--ok-solid); color: var(--ok-solid-text, #fff); display: grid; place-items: center; font-size: .8rem; font-weight: 800; flex: none; }
-.tg3-loc { min-height: 44px; }
+.tg3-pick { width: 100%; min-height: 48px; font-size: 16px; font-weight: 700; color: var(--accent); }
+.tg3-g[hidden] { display: none; }
 .tg3-list { display: grid; gap: 8px; }
 .tg3-g { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .tg3-g.on, .tg3-fee.on { border: 2px solid var(--accent); background: var(--info-bg); padding: 11px; }
