@@ -5085,3 +5085,24 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .bgg-tot { display: grid; gap: 2px; padding-top: 8px; border-top: 2px solid var(--line); }
 .bgg-reply { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
 .bgg-in-m td { background: #eef2f8; }
+
+/* TUẤN 15/11/2026: khung báo giá trên phiếu gọn hơn — phần đã xong gập lại, phương án khách chọn 2 cột, ngày hẹn 2 dòng. */
+.rq-fold { border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; }
+.rq-fold > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 600; }
+.rq-fold > summary b { font-weight: 700; white-space: nowrap; }
+.rq-fold[open] { padding-bottom: 12px; }
+.rq-fold[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.rq-meta { margin: 0; font-size: .9rem; line-height: 1.6; }
+.rq-meta .mu { color: var(--muted); }
+.rq-reply .rq-opts { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.rq-reply .xg-days span, .rq-reply .xg-days small { display: block; }
+.rq-reply .seg.xg-days label { flex: 1 1 0; min-width: 0; }
+.rq-reply .rq-opt { flex-direction: row; }
+.rq-reply .rq-opt span { flex: 1; min-width: 0; }
+@media (min-width: 1024px) {
+  .rq-pane[data-rq-pane="dong-y"]:not([hidden]) { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 14px; align-items: end; }
+  .rq-pane[data-rq-pane="dong-y"] > * { grid-column: 1 / -1; }
+  .rq-pane[data-rq-pane="dong-y"] > .rq-half { grid-column: auto; }
+}
+.rq-reply label.rq-opt { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.rq-reply label.rq-opt input { width: 20px; height: 20px; margin: 0; flex: none; }

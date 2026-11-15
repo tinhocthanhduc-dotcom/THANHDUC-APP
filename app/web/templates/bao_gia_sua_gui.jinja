@@ -12,11 +12,8 @@
 <button class="btn btn-new pnz-full">Lưu và gửi báo giá lần {{ rq.next_no }}</button></form>
 {% elif not rq.row.applied_at and not sd %}<p class="hint">Bấm Áp vào báo giá trước, rồi mới gửi khách.</p>{% endif %}
 {% if sd %}{% set v=sd.v %}
-<dl class="svn-dl"><dt>Lần</dt><dd><b>{{ v.no }}</b> · {{ v.snapshot.chosen.total|money }} đ gồm VAT{% if v.snapshot.alt %} · phương án khác {{ v.snapshot.alt.total|money }} đ{% endif %}</dd>
-<dt>Hiệu lực</dt><dd>đến {{ v.valid_until.strftime('%d/%m/%Y') }}</dd>
-<dt>Gửi</dt><dd>{% if v.sent_at %}{{ v.sent_at|vn_time }} {{ v.sent_at|vn_date }} · {{ rq.sent_via.get(v.sent_via, '') }}{% else %}<span class="mu">chưa gửi</span>{% endif %}</dd>
-<dt>Khách mở link</dt><dd>{% if v.opened_count %}{{ v.opened_count }} lần · lần cuối {{ v.last_opened_at|vn_time }} {{ v.last_opened_at|vn_date }}{% else %}<span class="mu">chưa mở</span>{% endif %}</dd></dl>
-<form method="post" class="rq-send-form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<p class="rq-meta">Lần <b>{{ v.no }}</b> · {{ v.snapshot.chosen.total|money }} đ gồm VAT{% if v.snapshot.alt %} · PA khác {{ v.snapshot.alt.total|money }} đ{% endif %} · hiệu lực đến {{ v.valid_until.strftime('%d/%m') }} · {% if v.sent_at %}gửi {{ v.sent_at|vn_time }} {{ v.sent_at|vn_date }} {{ rq.sent_via.get(v.sent_via, '') }}{% else %}<span class="mu">chưa gửi</span>{% endif %} · {% if v.opened_count %}khách mở {{ v.opened_count }} lần{% else %}<span class="mu">khách chưa mở</span>{% endif %}</p>
+<details class="rq-fold" {% if not v.sent_at or fx %}open{% endif %}><summary><span>Link xem báo giá và tin Zalo</span><b>{{ 'đã gửi' if v.sent_at else 'chưa gửi' }}</b></summary><form method="post" class="rq-send-form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <p class="group-label"><b>Link xem báo giá</b></p>
 <p class="rq-link" data-rq-link>{{ sd.link }}</p>
 <div class="rq-acts"><button type="button" class="btn btn-ghost" data-rq-copy-link>Sao chép link</button><a class="btn btn-ghost" href="/kiem-tra-may/bao-gia/{{ v.id }}/in">In A4</a><button class="btn btn-ghost" formaction="/kiem-tra-may/bao-gia/{{ v.id }}/thu-hoi" formnovalidate data-service-confirm="Thu hồi link? Khách mở sẽ không thấy giá nữa.">Thu hồi link</button></div>
@@ -25,15 +22,15 @@
 {% if sd.ai.status == 'DANG' %}<p class="hint">Codex trên Z2 đang viết lại tin (tối đa 3 phút). <a href="/dich-vu/{{ t.id }}#gui-khach">Tải lại</a> để lấy bản mới, hoặc gửi luôn bản mẫu.</p>{% elif sd.ai.status == 'XONG' and not sd.ai.ok %}<p class="hint">Bản Codex lệch số so với báo giá nên giữ bản mẫu.</p>{% endif %}
 <div class="rq-acts">{% if rq.linked %}<button class="btn btn-ok" formaction="/kiem-tra-may/bao-gia/{{ v.id }}/gui-zalo" data-service-confirm="Gửi tin này cho khách qua Zalo công ty?">{{ 'Gửi lại Zalo công ty' if v.sent_via == 'BOT' else 'Gửi Zalo công ty' }}</button>{% endif %}<button type="button" class="btn btn-new" data-rq-copy-text>Sao chép tin</button><button class="btn btn-ghost" formaction="/kiem-tra-may/bao-gia/{{ v.id }}/da-gui">Đã gửi (Zalo cá nhân, gọi điện, đưa bản in)</button></div>
 {% if not rq.linked %}<p class="hint">Khách chưa gắn Zalo công ty: Sao chép tin, gửi bằng Zalo cá nhân rồi bấm Đã gửi.</p>{% endif %}
-</form>
+</form></details>
 <div class="rq-reply"><p class="group-label"><b>Khách trả lời</b></p>
 <div class="seg rq-tabs" data-rq-tabs>{% for key, label in [('dong-y','Đồng ý'),('chua','Chưa đồng ý'),('khong','Không sửa')] %}<label><input type="radio" name="rq_tab" value="{{ key }}" {% if (fx.get('rq_tab') or 'dong-y')==key %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
 <form {% if not t.quote_approved_at %}id="workshop-approve" {% endif %}method="post" action="/kiem-tra-may/bao-gia/{{ v.id }}/dong-y" class="form rq-pane" data-rq-pane="dong-y" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}"><input type="hidden" name="rq_tab" value="dong-y">
 <div class="field-group" role="group"><p class="group-label">Khách chọn</p><div class="rq-opts">
 {% set s=v.snapshot %}<label class="rq-opt"><input type="radio" name="pa" value="{{ s.pick }}" {% if fx.get('pa', s.pick)==s.pick %}checked{% endif %}><span>{{ 'PA2 · Chính hãng' if s.pick=='PA2' else 'PA1 · Tiêu chuẩn' }} · <b>{{ s.chosen.total|money }} đ</b></span></label>
 {% if s.alt %}<label class="rq-opt"><input type="radio" name="pa" value="{{ s.alt_key }}" {% if fx.get('pa')==s.alt_key %}checked{% endif %}><span>{{ 'PA2 · Chính hãng' if s.alt_key=='PA2' else 'PA1 · Tiêu chuẩn' }} · <b>{{ s.alt.total|money }} đ</b></span></label>{% endif %}</div></div>
-<div class="field-group" role="group"><p class="group-label">Qua đâu</p><div class="seg">{% for key, label in rq.via.items() %}<label><input type="radio" name="via" value="{{ key }}" required {% if fx.get('via', 'ZALO')==key %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
-<label>Ai xác nhận<input name="person" required maxlength="200" value="{{ fx.get('person', '') }}" placeholder="vd: Anh Nam kế toán"></label>
+<div class="field-group rq-half" role="group"><p class="group-label">Qua đâu</p><div class="seg">{% for key, label in rq.via.items() %}<label><input type="radio" name="via" value="{{ key }}" required {% if fx.get('via', 'ZALO')==key %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label class="rq-half">Ai xác nhận<input name="person" required maxlength="200" value="{{ fx.get('person', '') }}" placeholder="vd: Anh Nam kế toán"></label>
 <div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}"><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
 <label class="xg-date">Hoặc chọn ngày<input type="date" name="promised_return_on" value="{{ fx.get('promised_return_on', '') }}" required data-xg-date></label></div>
 <label>Ghi chú (không bắt buộc)<input name="note" maxlength="500" value="{{ fx.get('note', '') }}"></label>

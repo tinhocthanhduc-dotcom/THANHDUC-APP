@@ -4,14 +4,13 @@
 {% set ready=t.hold_reason=='SUA_XONG_CHO_TRA' %}{% set approved=t.quote_approved_at or workshop_free %}
 {% set rq_reply=(rq is defined) and rq and rq.send and not rq.group %}{% set total=t.total if t.total is not none else charge_subtotal + charge_vat %}
 <section class="card form xg-panel" data-xg-panel>
-<div class="xg-head"><h2>{{ 'Giao thợ trả máy' if ready else ('Sửa xong' if approved else 'Báo giá cho khách') }}</h2>
-<p class="hint">{% if custody_machine %}{{ custody_machine.serial }} · {{ custody_locations[custody_machine.custody_location] }}{% if custody_current and custody_current.partner_name %} · {{ custody_current.partner_name }}{% endif %}{% if custody_pending %} · <b>chờ {{ custody_locations.get(custody_pending.location,'kho') }} xác nhận nhận</b>{% endif %}{% endif %}{% if t.promised_return_on %} · hẹn trả {{ t.promised_return_on.strftime('%d/%m') }}{% endif %}</p></div>
+{% if not (rq_reply and not ready and not approved) %}<div class="xg-head"><h2>{{ 'Giao thợ trả máy' if ready else ('Sửa xong' if approved else 'Báo giá cho khách') }}</h2>
+<p class="hint">{% if custody_machine %}{{ custody_machine.serial }} · {{ custody_locations[custody_machine.custody_location] }}{% if custody_current and custody_current.partner_name %} · {{ custody_current.partner_name }}{% endif %}{% if custody_pending %} · <b>chờ {{ custody_locations.get(custody_pending.location,'kho') }} xác nhận nhận</b>{% endif %}{% endif %}{% if t.promised_return_on %} · hẹn trả {{ t.promised_return_on.strftime('%d/%m') }}{% endif %}</p></div>{% endif %}
 {% if not ready %}
 <details class="xg-quote" {% if not approved and not t.lines %}open{% endif %} data-xg-quote><summary><span>Báo giá và vật tư · {{ t.lines|length }} dòng</span><b>{{ total|money }} đồng</b></summary>
 {% if t.lines %}<ul class="xg-lines">{% for line in t.lines %}<li><span>{{ line.description or charge_names.get(line.product_code, line.product_code) }}{% if line.qty!=1 %} × {{ line.qty|qty }}{% endif %}</span><b>{{ (line.amount+line.vat_amount)|money }}</b></li>{% endfor %}</ul>{% endif %}
 {% include 'dich_vu_tien.jinja' %}</details>
 {% if not approved and rq_reply %}
-<p class="hint xg-reply-hint">Khách trả lời (đồng ý, chưa đồng ý, không sửa) ghi ở khung <a href="#gui-khach">Gửi khách</a> bên trên.</p>
 {% elif not approved %}
 <form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}
 <div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}" {% if (f.get('promised_return_on') or '')==d.value %}checked{% endif %}><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
