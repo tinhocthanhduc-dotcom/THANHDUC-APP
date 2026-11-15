@@ -2,7 +2,7 @@
 {# TUẤN 24/10: sửa ở xưởng gọn một khung; mỗi lúc chỉ hiện bước đang làm, chọn nhanh bằng nút bấm. #}
 {% set f=xg_form %}{% macro fields() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ f.get('version') or t.version }}">{% endmacro %}
 {% set ready=t.hold_reason=='SUA_XONG_CHO_TRA' %}{% set approved=t.quote_approved_at or workshop_free %}
-{% set total=t.total if t.total is not none else charge_subtotal + charge_vat %}
+{% set rq_reply=(rq is defined) and rq and rq.send and not rq.group %}{% set total=t.total if t.total is not none else charge_subtotal + charge_vat %}
 <section class="card form xg-panel" data-xg-panel>
 <div class="xg-head"><h2>{{ 'Giao thợ trả máy' if ready else ('Sửa xong' if approved else 'Báo giá cho khách') }}</h2>
 <p class="hint">{% if custody_machine %}{{ custody_machine.serial }} · {{ custody_locations[custody_machine.custody_location] }}{% if custody_current and custody_current.partner_name %} · {{ custody_current.partner_name }}{% endif %}{% if custody_pending %} · <b>chờ {{ custody_locations.get(custody_pending.location,'kho') }} xác nhận nhận</b>{% endif %}{% endif %}{% if t.promised_return_on %} · hẹn trả {{ t.promised_return_on.strftime('%d/%m') }}{% endif %}</p></div>
@@ -10,12 +10,14 @@
 <details class="xg-quote" {% if not approved and not t.lines %}open{% endif %} data-xg-quote><summary><span>Báo giá và vật tư · {{ t.lines|length }} dòng</span><b>{{ total|money }} đồng</b></summary>
 {% if t.lines %}<ul class="xg-lines">{% for line in t.lines %}<li><span>{{ line.description or charge_names.get(line.product_code, line.product_code) }}{% if line.qty!=1 %} × {{ line.qty|qty }}{% endif %}</span><b>{{ (line.amount+line.vat_amount)|money }}</b></li>{% endfor %}</ul>{% endif %}
 {% include 'dich_vu_tien.jinja' %}</details>
-{% if not approved %}
+{% if not approved and rq_reply %}
+<p class="hint xg-reply-hint">Khách trả lời (đồng ý, chưa đồng ý, không sửa) ghi ở khung <a href="#gui-khach">Gửi khách</a> bên trên.</p>
+{% elif not approved %}
 <form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}
 <div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}" {% if (f.get('promised_return_on') or '')==d.value %}checked{% endif %}><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
 <label class="xg-date">Hoặc chọn ngày<input type="date" name="promised_return_on" value="{{ f.get('promised_return_on') or (t.promised_return_on.isoformat() if t.promised_return_on else '') }}" required data-xg-date></label></div>{% if error_code=='BAD_APPOINTMENT' %}<small class="field-error">{{ error }}</small>{% endif %}
 <details class="xg-more"><summary>Ghi chú xác nhận</summary><label>Ghi chú (ai đồng ý, qua đâu)<input name="note" maxlength="2000" value="{{ f.get('note','') }}"></label></details>
-<button class="btn btn-ok xg-primary">Khách đồng ý</button></form>
+{% if not next_step or next_step.primary.form!='workshop-approve' %}<button class="btn btn-ok xg-primary">Khách đồng ý</button>{% endif %}</form>
 {% else %}
 {% if t.quote_approved_at %}<details class="xg-more"><summary>Khách đã đồng ý · hẹn trả {{ t.promised_return_on.strftime('%d/%m/%Y') if t.promised_return_on else '' }} · đổi ngày</summary><form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}<label>Ngày hẹn trả mới<input type="date" name="promised_return_on" value="{{ t.promised_return_on.isoformat() if t.promised_return_on else '' }}" required></label><input type="hidden" name="note" value=""><button class="btn btn-ghost">Cập nhật ngày hẹn trả</button></form></details>{% else %}<p class="alert ok">Bảo hành miễn phí, không cần khách duyệt giá.</p>{% endif %}
 {% with f=xg_form if xg_form.get('action')=='sua-xong' else {} %}{% set has_after=files|selectattr('tag','equalto','SAU')|list %}
@@ -27,11 +29,9 @@
 <details class="xg-more" {% if f.get('warranty_scope') %}open{% endif %}><summary>Phạm vi: {{ f.get('warranty_scope','Bảo hành hạng mục và linh kiện đã sửa chữa') }}</summary><label>Phạm vi bảo hành<input name="warranty_scope" value="{{ f.get('warranty_scope','Bảo hành hạng mục và linh kiện đã sửa chữa') }}" maxlength="200"></label></details>
 <div class="field-group" role="group"><p class="group-label">Thu tiền</p><div class="seg" data-xg-mode>{% for value,label in [('FULL','Thu ' ~ (total|money) ~ ' đ'),('FREE','Miễn phí')] %}<label><input type="radio" name="mode" value="{{ value }}" required {% if f.get('mode','FREE' if t.billing=='MIEN_PHI' else 'FULL')==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
 <label data-xg-free-reason>Lý do miễn phí<input name="reason" value="{{ f.get('reason',t.free_reason or '') }}" maxlength="2000"></label>
-<button class="btn btn-ok xg-primary">Sửa xong</button></form>{% endwith %}
+{% if not next_step or next_step.primary.form!='workshop-repaired' %}<button class="btn btn-ok xg-primary">Sửa xong</button>{% endif %}</form>{% endwith %}
 {% endif %}
-{% with f=xg_form if xg_form.get('action')=='khong-sua' else {} %}<details class="xg-decline" {% if f.get('action')=='khong-sua' %}open{% endif %}><summary>Khách không sửa</summary><form id="workshop-decline" method="post" action="/dich-vu/{{ t.id }}/xuong/khong-sua" class="form" data-busy data-xg-decline>{{ fields() }}
-<div class="seg">{% for value,label in [('FULL','Thu phí kiểm tra'),('FREE','Miễn phí')] %}<label><input type="radio" name="mode" value="{{ value }}" {% if f.get('mode','FULL')==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
-<label data-xg-fee>Phí kiểm tra chưa VAT<input name="fee" inputmode="numeric" data-money value="{{ f.get('fee','') }}"></label><label data-xg-decline-reason>Lý do miễn phí<input name="reason" maxlength="2000" value="{{ f.get('reason','') }}"></label><button class="btn btn-danger">Xác nhận khách không sửa</button></form></details>{% endwith %}
+{% if not rq_reply %}{% include 'xuong_khong_sua.jinja' %}{% endif %}
 {% else %}
 <p class="xg-kv"><span>Phải thu đã chốt</span><b>{{ (t.receivable or 0)|money }} đồng</b></p><p class="xg-kv"><span>{{ 'Khách không sửa' if t.declined_at else 'Thợ sửa' }}</span><b>{{ '' if t.declined_at else users.get(t.repaired_by,'Nhân viên') }}{% if t.warranty_months is not none and not t.declined_at %} · BH {{ 'không' if t.warranty_months==0 else t.warranty_months|string ~ ' tháng' }}{% endif %}</b></p>
 {% if can_open('/quay-sua') %}<div class="xg-counter"><a class="btn btn-ok xg-primary" href="/quay-sua/{{ t.id }}#tra">Khách tới lấy tại quầy ›</a><p class="hint">Khách tới cửa hàng lấy máy: trả và thu tiền tại quầy. Hoặc giao thợ mang trả bên dưới.</p></div>{% endif %}
@@ -41,6 +41,6 @@
 {% with ap_form=form if failed_action=='schedule-return' else {}, returning=true %}{% include 'hen_khach.jinja' %}{% endwith %}
 <details class="xg-more"><summary>Ghi chú cho thợ</summary><label>Ghi chú<input name="note" maxlength="2000" value="{{ form.get('note','') if failed_action=='schedule-return' else '' }}"></label></details>
 <p class="hint">Đổi người trả thì thợ mới cần xác nhận nhận máy trước khi đến khách.</p>
-<button class="btn btn-ok xg-primary">Giao thợ trả máy</button></form>
+{% if not next_step or next_step.primary.form!='service-schedule-return' %}<button class="btn btn-ok xg-primary">Giao thợ trả máy</button>{% endif %}</form>
 {% endif %}
 </section>

@@ -17,7 +17,7 @@
 <dt class="charge-need">Cần thu khách</dt><dd class="charge-need"><output data-charge-receivable>{% if t.receivable is not none %}{{ t.receivable|money }}{% elif saved_billing == 'MIEN_PHI' %}0{% elif saved_billing %}{{ saved_total|money }}{% else %}—{% endif %}{% if t.receivable is not none or saved_billing %} đồng{% endif %}</output></dd>
 </dl>
 <p class="hint" data-charge-temp hidden>Số chính thức do hệ thống tính lại khi bấm Lưu tiền.</p>
-{% if can_charge and charge_editable %}<button class="btn-ok btn-block" data-charge-save>Lưu tiền</button>{% endif %}
+{% if can_charge and charge_editable and not (next_step and next_step.primary.form=='service-charges') %}<button class="btn-ok btn-block" data-charge-save>Lưu tiền</button>{% endif %}
 </div>
 </form>
 {% if charge_docs %}<h3>Phiếu xuất vật tư</h3><ul>{% for doc_id, number in charge_docs %}<li><a href="/phieu-kho/{{ doc_id }}">{{ number }}</a></li>{% endfor %}</ul>{% endif %}

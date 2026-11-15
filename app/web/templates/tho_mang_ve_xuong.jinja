@@ -1,4 +1,5 @@
-<details {% if not bring_open %}name="tech-other" {% endif %}class="{{ 'card tho-bring-form' if bring_open }}" {% if failed_action=='workshop' or bring_open %}open{% endif %}><summary>Mang máy về xưởng <span>›</span></summary>
+{# TUẤN 15/11/2026: lúc nhận máy mang về chỉ một khung, một tiêu đề; nút duy nhất là thanh vuốt dưới đáy. #}
+{% if bring_open %}<section class="card tho-bring-form"><h2>Nhận máy mang về xưởng</h2><p class="hint">Chụp ảnh máy, chọn phụ kiện, ghi tình trạng rồi vuốt Mang máy về xưởng. Báo cáo sửa và thu tiền làm sau khi sửa xong.</p>{% else %}<details name="tech-other" {% if failed_action=='workshop' %}open{% endif %}><summary>Mang máy về xưởng <span>›</span></summary>{% endif %}
 {% if not t.serial %}<p id="workshop-machine-needed" class="alert warn">Chọn máy trước khi mang về</p>{% include 'dich_vu_may.jinja' %}{% else %}
 {% if trip_machines %}<p class="alert ok tho-trip-note">Còn {{ trip_machines|length }} máy cùng chỗ ở khách. Tick máy nào mang về cùng chuyến (máy đã sửa xong tại chỗ thì bỏ tick), chụp ảnh và ghi tình trạng từng máy, rồi vuốt một lần.</p><h3 class="tho-trip-title">Máy 1 · {{ t.serial }}{% if machine_name %} · {{ machine_name }}{% endif %}</h3>{% endif %}
 {% with photo_tag='NHAN_MAY' %}{% include 'tho_anh.jinja' %}{% endwith %}
@@ -19,4 +20,4 @@
 <label>Tình trạng máy lúc nhận<textarea name="{{ pre }}condition_note" required maxlength="2000">{{ (raw.get(pre ~ 'condition_note') or [''])[0] }}</textarea></label></div></div>
 {% endfor %}
 {% include 'tho_workshop_materials.jinja' %}{% if not bring_open %}<button class="btn btn-ok">Mang máy về xưởng</button>{% endif %}
-</form>{% endif %}</details>
+</form>{% endif %}{% if bring_open %}</section>{% else %}</details>{% endif %}
