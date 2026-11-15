@@ -3,7 +3,7 @@
 {% block title %}Kiểm tra máy · {{ t.number }}{% endblock %}
 {% block main %}<div class="page-wide ktm-page">
 {# TUẤN duyệt mẫu M3 14/11/2026: thợ chọn dịch vụ, tick phương án; app tự ra cấp. Chọn cấp khác ghi lý do. Thợ không thấy giá.
-   Mẫu K1 15/11/2026 (làm lại trên máy tính theo quy trình): 2 cột, dịch vụ là hàng gọn trong một khung, tóm tắt + bước tiếp bên phải. #}
+   Mẫu K1 15/11/2026 (làm lại trên máy tính theo quy trình): 2 cột, dịch vụ là hàng gọn trong một khung, tóm tắt + bước tiếp bên phải. TUẤN 15/11: máy tính bấm nút, điện thoại giữ vuốt. #}
 {% call ui.page_head('Kiểm tra máy', sub=t.number ~ ' · ' ~ (customer.name if customer else t.customer_code), back='/kiem-tra-may') %}{% endcall %}
 {{ ui.steps([('Nhận máy', 'done'), ('Thợ kiểm tra', 'cur'), ('Điều phối báo giá', ''), ('Khách duyệt', ''), ('Sửa & trả máy', '')]) }}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}"><b>Chưa lưu được.</b> {{ error }}</p>{% endif %}
@@ -68,7 +68,7 @@
 <ul class="ktm-sum-list" data-ktm-sum><li class="mu">Chưa chọn dịch vụ</li></ul>
 <p class="hint">Thợ không thấy giá. Gửi xong, điều phối tra giá theo model + cấp, mô tả cho khách được soạn sẵn.</p>
 </section>
-{% if waiting %}{% call ui.next_box('điều phối báo giá', 'Gửi kết quả kiểm tra') %}<div class="swipe" data-swipe data-tone="ok"><button type="submit" class="btn-ok">Vuốt để gửi điều phối</button></div>{% endcall %}{% endif %}
+{% if waiting %}{% call ui.next_box('điều phối báo giá', 'Gửi kết quả kiểm tra') %}<button type="submit" class="btn-ok ktm-send">Gửi kết quả kiểm tra</button><div class="swipe ktm-swipe" data-swipe data-tone="ok"><button type="submit" class="btn-ok">Vuốt để gửi điều phối</button></div>{% endcall %}{% endif %}
 </aside>
 </form>
 <script src="{{ asset('kiem-tra-may.js') }}" defer></script>
