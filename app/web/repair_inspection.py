@@ -63,9 +63,17 @@ def _inspect_page(request, session, user, ticket_id, form=None, error='', error_
     opts = {s.id: pb.options(session, s.id) for s in main + others}
     hq = session.scalars(select(QuickQuote).where(QuickQuote.ticket_id == t.id).order_by(QuickQuote.id.desc()).limit(1)).first()
     parts = list(session.execute(select(Product.code, Product.name).where(Product.active.is_(True)).order_by(Product.name)).all())
+    # Mẫu K1 15/11/2026: đổi model là dịch vụ của nhóm máy lên trước ngay (không phải lưu), nên gửi kèm nhóm/model có giá của từng dịch vụ.
+    groups = {g.id: g.name for g in pb.groups(session, active_only=False)}
+    models = [m for m in pb.models(session) if m.active]
+    priced = {}
+    for sid, gid, mid in session.execute(select(RepairPrice.service_id, RepairPrice.group_id, RepairPrice.model_id)):
+        priced.setdefault(sid, set()).add(f'g{gid}' if gid else f'm{mid}')
+    model = pb.find_model(session, v['model']) if v['model'] else None
     return render(request, 'kiem_tra_may.jinja', t=t, row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
                   customer=session.get(Customer, t.customer_code), machine=ri.machine_name(session, t), hq=hq,
-                  model_names=[m.name for m in pb.models(session) if m.active], part_rows=parts, waiting=ri.is_waiting(t),
+                  models=models, groups=groups, priced={k: ' '.join(sorted(x)) for k, x in priced.items()},
+                  model_group=groups.get(model.group_id) if model else '', part_rows=parts, waiting=ri.is_waiting(t),
                   users={u.id: u.full_name for u in session.scalars(select(User))}, error=error, error_code=error_code, status=status)
 
 
