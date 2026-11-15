@@ -47,11 +47,12 @@ AGENTS = {
                    defaults=dict(times=['11:15', '17:15'])),
     # Đội AI đợt 1 (TUẤN duyệt 15/11/2026): xem app/truong_nhom.py. Bật thì Thư ký phiếu gộp vào tin 07:45 / 13:30.
     'TRUONG_NHOM': dict(name='Trưởng nhóm AI', what='Chia mỗi việc cho một người kèm hạn, xếp 3 việc làm tiếp, nhắc và báo lên khi treo, đổi thợ khi quá tải',
-                        defaults=dict(overload=8, gap=3, reassign=True, undo_minutes=10, times=['07:45', '13:30'])),
+                        defaults=dict(overload=8, gap=3, reassign=True, undo_minutes=10, times=['07:45', '13:30'],
+                                      chat=True, summary='17:15', alert_overload=True)),
 }
 MODES = {'TU_LAM': 'Tự làm', 'CHAY_THU': 'Chạy thử'}
 ACTIONS = {'GIAO': 'Đã giao', 'CHAY_THU': 'Chạy thử', 'BO_QUA': 'Bỏ qua', 'NHAC': 'Đã nhắc', 'BAO': 'Đã báo',
-           'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người', 'DOC_TIN': 'Đọc tin Zalo'}
+           'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người', 'DOC_TIN': 'Đọc tin Zalo', 'LENH': 'Lệnh giám đốc'}
 # Thư ký phiếu: các nhóm Việc của tôi là "việc treo" cần làm nốt trong ngày.
 CLERK_KEYS = ('service_unreported', 'orders_unreported', 'receipts_rejected', 'receipts_pending', 'service_paused',
               'service_return_ready', 'technician_deliveries', 'zalo_ticket_drafts', 'customer_messages_waiting', 'service_goods_short', 'zalo_inbox')
@@ -153,7 +154,9 @@ def save(session, user, code: str, form) -> VirtualAgent:
                 config.update(overload=_int(get('overload'), 2, 50, 'Quá tải khi có từ'),
                               gap=_int(get('gap'), 1, 20, 'Người nhận phải ít hơn'),
                               undo_minutes=_int(get('undo_minutes'), 0, 120, 'Điều phối được hoàn tác trong'),
-                              reassign=str(get('reassign') or '') == '1', times=_times(get('times')))
+                              reassign=str(get('reassign') or '') == '1', times=_times(get('times')),
+                              chat=str(get('chat') or '') == '1', alert_overload=str(get('alert_overload') or '') == '1',
+                              summary=(_times(get('summary')) or [''])[0] if str(get('summary') or '').strip() else '')
         row.config = config
         text = f"{AGENTS[code]['name']}: {'bật' if enabled else 'tắt'}" + (f" · {MODES[row.mode]}" if code == 'DIEU_PHOI' else '')
     if (row.enabled, row.mode, dict(row.config or {})) == old:

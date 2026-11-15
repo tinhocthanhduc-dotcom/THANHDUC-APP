@@ -11,6 +11,9 @@ Chạy bằng quy tắc trong app (không gọi API), mỗi 5 phút:
    hẳn và phiếu chưa cấp hàng thì chuyển sang thợ đó; điều phối hoàn tác được trong undo_minutes phút.
    Việc có tiền, đơn bán (có hàng đi theo) không bao giờ tự đổi.
 5. Tin Zalo 07:45 và 13:30 (Q4): mỗi người 3 việc làm tiếp + việc còn treo, gộp thay Thư ký phiếu.
+6. Đợt 3 (TUẤN duyệt 15/11/2026, mẫu FWswiMz2fUiAB5e32mighf): giám đốc chat Zalo ra lệnh (truong_nhom_chat.py);
+   việc giám đốc nhắc (GD_NHAC) và hạn giám đốc dời (due_override) giữ nguyên khi gom lại. Tự báo giám đốc khi
+   thợ quá tải mà không chuyển được, tin khách chờ quá lâu, và tóm tắt cuối ngày (Q10).
 
 Ranh giới cứng như nhân viên AI: không đụng tiền, kho, công nợ, giá; không hủy, không đóng; không nhắn khách.
 team_tasks chỉ là bảng theo dõi, không đổi quyền hay trạng thái chứng từ.
@@ -45,6 +48,8 @@ DISPATCH_TRACK = ('service_', 'delivery_', 'technician_deliveries', 'orders_wait
 URGENT = ('zalo_inbox', 'zalo_ticket_drafts', 'service_appointment_overdue', 'service_goods_short', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
           'orders_pickup_late', 'orders_cancel_requested', 'technician_deliveries', 'delivery_handover', 'delivery_unclaimed', 'orders_waiting',
           'parts_pending', 'machines_pending', 'machines_warehouse')
+GD_NHAC = 'gd_nhac'          # việc giám đốc nhắn "nhắc X làm Y" (không có trong Việc của tôi, người làm tự bấm Xong)
+ZALO_KEYS = ('zalo_inbox', 'zalo_ticket_drafts')
 AI_KEYS = ('zalo_ticket_drafts', 'customer_messages_waiting', 'zalo_inbox')   # AI đã soạn sẵn, chờ người bấm
 ROLE_LABELS = {'director': 'Giám đốc', 'dispatcher': 'Điều phối', 'technician': 'Kỹ thuật', 'warehouse': 'Kho', 'sales': 'Bán hàng',
                'finance': 'Kế toán', 'reception': 'Lễ tân', 'admin': 'Quản trị'}
@@ -137,6 +142,10 @@ def sync(session, now=None) -> dict:
             load[t.owner_id] = load.get(t.owner_id, 0) + 1
     new = done = 0
     for (key, ref), t in open_tasks.items():
+        if key == GD_NHAC:
+            if t.owner_id is not None:
+                load[t.owner_id] = load.get(t.owner_id, 0) + 1
+            continue
         if (key, ref) not in items:
             t.done_at = now
             done += 1
@@ -162,7 +171,7 @@ def sync(session, now=None) -> dict:
         t.number = str(row.get('number') or '')[:80]
         t.title, t.link = title, str(row.get('link') or '')
         t.urgent = key in URGENT or bool(row.get('overdue') and key not in NO_DUE)
-        t.due_at = _due(session, key, row, t.first_seen_at or now)
+        t.due_at = t.due_override or _due(session, key, row, t.first_seen_at or now)
         t.last_seen_at = now
     session.commit()
     return dict(new=new, done=done, open=len(items))
@@ -188,8 +197,8 @@ def next_for(session, user, limit=3, now=None) -> list[dict]:
         return []
     now = now or _now()
     tasks = sorted((t for t in open_tasks(session, user.id) if t.item_key not in NO_DUE), key=lambda t: _rank(t, now))[:limit]
-    return [dict(id=t.id, number=t.number, title=t.title, link=t.link, when=when(t, now), late=t.due_at is not None and t.due_at < now)
-            for t in tasks]
+    return [dict(id=t.id, number=t.number, title=t.title, link=t.link, when=when(t, now), late=t.due_at is not None and t.due_at < now,
+                 mine=t.item_key == GD_NHAC) for t in tasks]
 
 
 def when(t: TeamTask, now) -> str:
@@ -211,6 +220,10 @@ def _past(t, now, hours=None):
 def _director_due(session, t, now):
     if t.due_at is None:
         return False
+    if t.item_key == GD_NHAC:          # việc giám đốc nhắc: tới hạn chưa xong là báo
+        return _past(t, now)
+    if t.item_key in ZALO_KEYS:         # Q10: tin khách đã nhắc người phụ trách mà 30 phút sau vẫn chưa ai trả lời
+        return t.reminded_at is not None and now - t.reminded_at >= DISPATCH_AFTER
     if t.urgent:
         return _past(t, now, URGENT_HOURS)
     return now >= _add_workdays(session, t.due_at)
@@ -491,6 +504,83 @@ def brief_once(session, now=None, sender=None) -> int:
     return count
 
 
+# ---------- tự báo giám đốc (đợt 3, Q10) ----------
+
+def _directors(session):
+    users = {u.id: u for u in _people(session) if _is_director(u)}
+    return [(users[uid], chat) for uid, chat in nva.chats(session).items() if uid in users]
+
+
+def overload_alert(session, now=None, sender=None) -> int:
+    """Thợ quá tải mà không chuyển được cho ai: báo giám đốc một lần mỗi người mỗi ngày."""
+    row = active(session)
+    now = now or _now()
+    if row is None or not nva._working(session, now) or not nva._zalo_ready():
+        return 0
+    c = nva.cfg(row)
+    if not c.get('alert_overload', True):
+        return 0
+    over = int(c['overload'])
+    load = _load(session)
+    names = dict(session.execute(select(User.id, User.full_name)).all())
+    day = now.astimezone(TZ).date().isoformat()
+    send, base, count = nva._sender(sender), nva._base(), 0
+    for uid, n in sorted(load.items(), key=lambda x: -x[1]):
+        if n < over or uid not in names:
+            continue
+        free = sorted(((names.get(k, ''), v) for k, v in load.items() if k != uid and v <= n - int(c['gap'])), key=lambda x: x[1])
+        body = (f'Trưởng nhóm AI báo giám đốc: {names[uid]} đang {n} việc (quá tải từ {over}), em không chuyển bớt được '
+                f'(phiếu đã nhận, đang cầm hàng hoặc không có thợ rảnh đã vào ca).'
+                + (f' Người ít việc: {", ".join(f"{a} {b}" for a, b in free[:3])}.' if free else '')
+                + f' Anh nhắn "chuyển phiếu … qua …" là em làm.\nXem: {base}/doi-ai')
+        for boss, chat in _directors(session):
+            if nva._send(session, chat, boss.id, f'tn-qt:{day}:{uid}', body, send):
+                session.add(VirtualAgentLog(agent=CODE, action='BAO', target_id=uid, text=f'Báo giám đốc {names[uid]} quá tải {n} việc'))
+                session.commit()
+                count += 1
+    return count
+
+
+def summary_text(session, now, base) -> str:
+    start = nva._day_start(now)
+    done = session.scalar(select(func.count()).select_from(TeamTask).where(TeamTask.done_at >= start)) or 0
+    names = dict(session.execute(select(User.id, User.full_name)).all())
+    late = {}
+    for t in open_tasks(session):
+        if t.item_key not in NO_DUE and t.due_at is not None and t.due_at < now:
+            late[t.owner_id] = late.get(t.owner_id, 0) + 1
+    from .models import ZaloTriage
+    waiting = session.scalar(select(func.count()).select_from(ZaloTriage).where(ZaloTriage.done_at.is_(None),
+                                                                              ZaloTriage.status.in_(('XONG', 'LOI')), ZaloTriage.owner_id.is_not(None))) or 0
+    moved = list(session.scalars(select(VirtualAgentLog).where(VirtualAgentLog.agent == CODE, VirtualAgentLog.action == 'DOI_NGUOI',
+                                                              VirtualAgentLog.at >= start)))
+    undone = sum(1 for e in moved if e.undone_at is not None)
+    late_txt = ', '.join(f'{names.get(uid, "")} {n}' for uid, n in sorted(late.items(), key=lambda x: -x[1])[:5])
+    lines = [f'Cuối ngày (Trưởng nhóm AI): xong {done} việc, còn {sum(late.values())} việc trễ' + (f' ({late_txt})' if late_txt else ''),
+             f'Tin khách chưa trả lời: {waiting}. Đổi thợ {len(moved)} lần' + (f', anh hoàn tác {undone}' if undone else '') + '.',
+             f'Xem: {base}/doi-ai']
+    return '\n'.join(lines)
+
+
+def summary_once(session, now=None, sender=None) -> int:
+    row = active(session)
+    now = now or _now()
+    if row is None or not nva._zalo_ready():
+        return 0
+    at = str(nva.cfg(row).get('summary') or '')
+    if not at or nva.clerk_slot(session, now, [at]) is None:
+        return 0
+    mark = f"tn-cuoi:{now.astimezone(TZ).date().isoformat()}"
+    body, count = None, 0
+    for boss, chat in _directors(session):
+        if session.get(DispatchZaloSent, (mark, boss.id)) is not None:
+            continue
+        body = body or summary_text(session, now, nva._base())
+        if nva._send(session, chat, boss.id, mark, body, nva._sender(sender)):
+            count += 1
+    return count
+
+
 # ---------- vòng nền ----------
 
 def run_once(session, now=None, sender=None) -> int:
@@ -506,11 +596,13 @@ def run_once(session, now=None, sender=None) -> int:
         session.rollback()
         log.exception('truong nhom doc tin zalo')
     total += brief_once(session, now, sender)
+    total += summary_once(session, now, sender)
     if _last['sync'] is not None and now - _last['sync'] < EVERY:
         return total
     sync(session, now)
     _last['sync'] = now
-    total += rebalance(session, now, sender)
+    moved = rebalance(session, now, sender)
+    total += moved or overload_alert(session, now, sender)
     total += escalate(session, now, sender)
     return total
 
