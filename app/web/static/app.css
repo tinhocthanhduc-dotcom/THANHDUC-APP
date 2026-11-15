@@ -236,8 +236,12 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 /* Xếp hàng theo bề rộng thật của khung (không theo màn hình): khung hẹp thì vẫn là thẻ, không đè chữ. */
 .charge-lines { container-type: inline-size; }
 @container (min-width: 730px) {
-  .charge-line:not(.charge-line-issued) { grid-template-columns: 52px minmax(150px, 1fr) 64px 104px auto 110px; grid-template-areas: "head name qty price vat total" ". extra extra extra extra ." ". core core core core ."; align-items: start; }
-  .charge-line .charge-head { grid-area: head; flex-direction: column; align-items: flex-start; }
+  /* TUẤN 15/11/2026: mô tả một hàng riêng đủ rộng; hàng dưới SL · Đơn giá · VAT · Thành tiền nhãn một dòng, ô thẳng đáy. */
+  .charge-line:not(.charge-line-issued) { grid-template-columns: 52px 88px 140px auto minmax(110px, 1fr); grid-template-areas: "head name name name name" "head qty price vat total" ". extra extra extra extra" ". core core core core"; align-items: end; }
+  .charge-line .charge-head { grid-area: head; flex-direction: column; align-items: flex-start; align-self: start; }
+  .charge-line .charge-qty, .charge-line .charge-price, .charge-line .charge-vat legend, .charge-line .charge-row-total .hint { white-space: nowrap; }
+  .charge-line .charge-qty input { text-align: center; }
+  .charge-line .charge-row-total { min-height: 40px; justify-content: flex-end; padding-bottom: 8px; }
   .charge-line .charge-name { grid-area: name; min-width: 0; }
   .charge-line .charge-qty { grid-area: qty; } .charge-line .charge-price { grid-area: price; }
   .charge-line .charge-vat { grid-area: vat; margin: 0; }
@@ -4655,7 +4659,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .rq-row p { margin: 2px 0 0; }
 .rq-cta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px dashed var(--accent); }
 .rq-cta p { margin: 2px 0 0; }
-.rq-panel { display: grid; gap: 12px; border: 1px solid var(--accent); }
+/* Báo giá sửa (TUẤN 15/11/2026): tên riêng, không dùng .rq-panel của trang Báo thu (padding 0 + overflow hidden làm mất cột phải). */
+.rqs-panel { display: grid; gap: 12px; border: 1px solid var(--accent); min-width: 0; }
 .rq-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .rq-tech, .rq-cust { display: grid; gap: 10px; align-content: start; min-width: 0; }
 .rq-line { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
