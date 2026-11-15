@@ -4843,28 +4843,6 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tg2-it small { color: var(--muted); font-size: .82rem; }
 .tg2-it span { margin-left: auto; color: var(--accent); font-size: 1.2rem; font-weight: 700; }
 .tg2-sec { margin: 4px 0 -2px; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-.tg2-picked { display: flex; align-items: center; gap: 10px; padding: 12px; border: 2px solid var(--accent); border-radius: 12px; background: var(--info-bg); }
-.tg2-picked b { display: block; font-size: 1.05rem; }
-.tg2-picked small { color: var(--muted); }
-.tg2-picked .btn { margin-left: auto; white-space: nowrap; flex: none; }
-.tg2-chips .chip { padding: 10px 14px; font-size: .95rem; }
-.tg2-go { position: sticky; bottom: calc(72px + env(safe-area-inset-bottom)); min-height: 54px; font-size: 1.05rem; width: 100%; }
-.tg2-go:disabled { opacity: .45; }
-.tg2-sum { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.tg2-sum b { display: block; font-size: 1.05rem; }
-.tg2-sum span { color: var(--muted); font-size: .9rem; }
-.tg2-sum a { margin-left: auto; font-weight: 700; white-space: nowrap; }
-.tg2-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.tg2-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.tg2-h small { color: var(--muted); white-space: nowrap; }
-.tg2-lv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.tg2-lv div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; text-align: center; }
-.tg2-lv small { display: block; color: var(--muted); font-size: .75rem; }
-.tg2-lv b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
-.tg2-lv div.on { border-color: var(--accent); background: var(--info-bg); }
-.tg2-lv div.na b { color: var(--muted); font-weight: 500; }
-.tg2-ch { display: flex; justify-content: space-between; margin: 0; padding-top: 8px; border-top: 1px dashed var(--line); font-size: .9rem; color: var(--muted); }
-.tg2-ch b { color: var(--text); }
 .tg2-note { text-align: center; }
 .tg2-full { width: 100%; }
 /* Bảng giá màn thợ: hai nút Giá sửa / Giá sản phẩm + thẻ giá sản phẩm (mẫu SP1–SP2 duyệt 15/11/2026). */
@@ -4881,3 +4859,50 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tgsp-pr b { display: block; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .tgsp-pr small, .tgsp-c { color: var(--muted); font-size: .8rem; }
 .tgsp-meta { grid-column: 1 / 3; display: flex; gap: 6px; flex-wrap: wrap; }
+/* Giá sửa 3 bước + phụ phí + tổng (mẫu M1–M4 duyệt 15/11/2026). */
+.tg3-done { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tg3-done b { display: block; }
+.tg3-done small { color: var(--muted); font-size: .82rem; }
+.tg3-done a { margin-left: auto; font-weight: 700; white-space: nowrap; padding: 6px 4px; }
+.tg3-ok { width: 24px; height: 24px; border-radius: 50%; background: var(--ok-solid); color: var(--ok-solid-text, #fff); display: grid; place-items: center; font-size: .8rem; font-weight: 800; flex: none; }
+.tg3-loc { min-height: 44px; }
+.tg3-list { display: grid; gap: 8px; }
+.tg3-g { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tg3-g.on, .tg3-fee.on { border: 2px solid var(--accent); background: var(--info-bg); padding: 11px; }
+.tg3-h, .tg3-fee { position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.tg3-h b { font-size: .98rem; line-height: 1.3; }
+.tg3-h small { margin-left: auto; color: var(--muted); font-size: .85rem; white-space: nowrap; text-align: right; }
+.tg3-chk { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.tg3-bx { width: 24px; height: 24px; border: 2px solid var(--line); border-radius: 7px; flex: none; display: grid; place-items: center; background: var(--surface); }
+.tg3-chk:checked + .tg3-bx { background: var(--accent); border-color: var(--accent); }
+.tg3-chk:checked + .tg3-bx::after { content: '✓'; color: #fff; font-weight: 800; font-size: .85rem; }
+.tg3-chk:focus-visible + .tg3-bx { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tg3-g:not(.on) .tg3-lv { display: none; }
+.tg3-lv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tg3-lv label { display: block; cursor: pointer; }
+.tg3-lv input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.tg3-lv label span, .tg3-lv > span { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 7px 2px; text-align: center; background: var(--surface); font-size: .74rem; color: var(--muted); }
+.tg3-lv b { display: block; font-size: .92rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.tg3-lv input:checked + span { background: var(--info-solid); border-color: var(--info-solid); color: var(--info-solid-text); }
+.tg3-lv input:checked + span b { color: var(--info-solid-text); }
+.tg3-lv input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tg3-lv > span.na { opacity: .45; }
+.tg3-fee { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tg3-fn small { display: block; color: var(--muted); font-size: .8rem; }
+.tg3-fee > b { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tg3-tot { position: sticky; bottom: calc(66px + env(safe-area-inset-bottom)); display: grid; gap: 4px; margin: 4px -12px 0; padding: 10px 12px; background: var(--surface); border-top: 2px solid var(--line); z-index: 5; }
+.tg3-tl { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: .85rem; }
+.tg3-tt { display: flex; justify-content: space-between; align-items: baseline; }
+.tg3-tt b { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.tgsp-q { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.tgsp-q .btn { min-width: 40px; min-height: 40px; padding: 0; font-size: 1.15rem; }
+.tgsp-q b { min-width: 22px; text-align: center; }
+.tgsp:not(.on) .tgsp-q [data-d="-1"], .tgsp:not(.on) .tgsp-q b { display: none; }
+.tgsp.on { border: 2px solid var(--accent); background: var(--info-bg); padding: 11px; }
+.tgsp-meta { align-items: center; }
+.tgsp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tgsp-rn { overflow-wrap: anywhere; }
+.tgsp-rn small { display: block; color: var(--muted); font-size: .8rem; }
+.tgsp-row > b { font-variant-numeric: tabular-nums; }
+.tgsp-row .tgsp-q { grid-column: 1 / 3; justify-self: end; }
+.tgsp-picked { display: grid; gap: 8px; }
