@@ -20,6 +20,7 @@
 <p class="hint">{{ a.what }}.</p>
 <p class="nva-today">Hôm nay: {% if code == 'DIEU_PHOI' %}<b>{{ st.get('GIAO', 0) }}</b> phiếu đã giao{% if st.get('HOAN_TAC') %} · {{ st.get('HOAN_TAC') }} hoàn tác{% endif %}{% if st.get('CHAY_THU') %} · {{ st.get('CHAY_THU') }} chạy thử{% endif %}{% if st.get('BO_QUA') %} · {{ st.get('BO_QUA') }} bỏ qua{% endif %}
 {% elif code == 'NHAC_HEN' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc thợ{% if st.get('BAO') %} · {{ st.get('BAO') }} tin báo giám đốc{% endif %}
+{% elif code == 'NHAN_SU' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc vào ca · {{ st.get('BAO', 0) }} tin báo/gửi KPI · <a href="/luong">Xem soát bảng lương ›</a>
 {% elif code == 'TRUONG_NHOM' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc quá hạn · {{ st.get('BAO', 0) }} tin báo/gửi việc · {{ st.get('DOI_NGUOI', 0) }} lần đổi người · <a href="/doi-ai">Xem màn Đội AI ›</a>
 {% else %}<b>{{ st.get('BAO', 0) }}</b> tin gom việc treo · lúc {{ c.times|join(', ') }}{% endif %}</p>
 {% if code == 'DIEU_PHOI' %}<p class="hint">Loại: {% for k in c.kinds %}{{ kinds[k] }}{{ ', ' if not loop.last }}{% endfor %} · mức {% for k in c.priorities %}{{ priorities[k] }}{{ ', ' if not loop.last }}{% endfor %} · giao sau {{ c.wait_minutes }} phút · hoàn tác {{ c.undo_minutes }} phút · {{ 'không giới hạn số phiếu' if not c.max_per_day and not c.max_per_tech else 'tối đa ' ~ (c.max_per_day or '∞') ~ ' phiếu/ngày, ' ~ (c.max_per_tech or '∞') ~ '/thợ' }}</p>{% endif %}
@@ -70,6 +71,20 @@
 <label><input type="radio" name="reassign" value="0"{% if not c.reassign %} checked{% endif %}><span>Không</span></label></div>
 <small class="mu">Chỉ phiếu dịch vụ đã giao mà thợ chưa nhận, chưa cấp hàng, không Khẩn, không bảo hành; sang thợ đã vào ca. Việc có tiền và đơn bán không bao giờ tự đổi.</small></div>
 <p class="hint">Quá hạn: nhắc người làm, 30 phút sau vẫn treo thì báo điều phối, việc gấp quá 2 giờ hoặc việc thường quá 1 ngày làm việc thì báo giám đốc. Đang bật thì Thư ký phiếu gộp vào tin này.</p>
+{% elif code == 'NHAN_SU' %}
+<div class="nva-nums">
+<label for="nsa-remind"><b>Nhắc chưa vào ca lúc</b><input id="nsa-remind" name="remind_at" value="{{ c.remind_at }}" placeholder="07:45"><small class="mu">Để trống là không nhắc</small></label>
+<label for="nsa-report"><b>Báo giám đốc chấm công lúc</b><input id="nsa-report" name="report_times" value="{{ c.report_times|join(', ') }}" placeholder="08:30, 17:45"><small class="mu">Trước giờ tan ca: đi trễ, chưa vào ca. Sau: về sớm, tự chốt ra ca</small></label>
+<label for="nsa-wday"><b>Tin tuần gửi vào</b><select id="nsa-wday" name="weekly_day">{% for d in ['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','Chủ nhật'] %}<option value="{{ loop.index0 }}"{% if c.weekly_day == loop.index0 %} selected{% endif %}>{{ d }}</option>{% endfor %}</select></label>
+<label for="nsa-wtime"><b>Giờ gửi tin tuần</b><input id="nsa-wtime" name="weekly_time" value="{{ c.weekly_time }}" placeholder="17:00"></label>
+<label for="nsa-pday"><b>Soát bảng lương ngày</b><input id="nsa-pday" name="payroll_day" inputmode="numeric" value="{{ c.payroll_day }}"><small class="mu">1 đến 28 hằng tháng</small></label>
+<label for="nsa-ptime"><b>Giờ soát bảng lương</b><input id="nsa-ptime" name="payroll_time" value="{{ c.payroll_time }}" placeholder="08:30"></label>
+<label for="nsa-pct"><b>Báo khi thu nhập đổi so tháng trước quá (%)</b><input id="nsa-pct" name="change_pct" inputmode="numeric" value="{{ c.change_pct }}"></label>
+</div>
+<div class="field" role="group" aria-labelledby="nsa-dir"><p class="group-label" id="nsa-dir"><b>Gửi giám đốc bảng KPI và hoa hồng cả đội cùng tin tuần</b></p><div class="seg">
+<label><input type="radio" name="weekly_director" value="1"{% if c.weekly_director %} checked{% endif %}><span>Có</span></label>
+<label><input type="radio" name="weekly_director" value="0"{% if not c.weekly_director %} checked{% endif %}><span>Không</span></label></div></div>
+<p class="hint">Chỉ đọc và nhắn, không sửa công, hoa hồng, lương. Mỗi nhân viên chỉ nhận số của mình, không có lãi gộp. Giám đốc không bị nhắc chấm công. Kết quả soát lương cũng hiện trên trang Bảng lương.</p>
 {% else %}
 <label for="nva-times"><b>Giờ gửi (cách nhau dấu phẩy)</b><input id="nva-times" name="times" value="{{ c.times|join(', ') }}" placeholder="11:15, 17:15"></label>
 <p class="hint">Mỗi người nhận danh sách việc còn treo của mình (đã xong chưa báo thu, báo thu bị từ chối, máy sửa xong chờ trả, đơn cần giao, phiếu nháp Zalo…). Không có việc treo thì không nhắn. Giám đốc không nhận.</p>

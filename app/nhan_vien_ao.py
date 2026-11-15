@@ -49,6 +49,10 @@ AGENTS = {
     'TRUONG_NHOM': dict(name='Trưởng nhóm AI', what='Chia mỗi việc cho một người kèm hạn, xếp 3 việc làm tiếp, nhắc và báo lên khi treo, đổi thợ khi quá tải',
                         defaults=dict(overload=8, gap=3, reassign=True, undo_minutes=10, times=['07:45', '13:30'],
                                       chat=True, summary='17:15', alert_overload=True)),
+    # Nhân sự AI (TUẤN duyệt 15/11/2026): xem app/nhan_su_ai.py. Chỉ đọc chấm công, KPI, hoa hồng, lương rồi nhắn; không sửa số.
+    'NHAN_SU': dict(name='Nhân sự AI', what='Nhắc quên vào ca, báo giám đốc đi trễ về sớm, gửi KPI và hoa hồng tạm tính mỗi tuần, soát bảng lương trước kỳ',
+                    defaults=dict(remind_at='07:45', report_times=['08:30', '17:45'], weekly_day=5, weekly_time='17:00',
+                                  weekly_director=True, payroll_day=28, payroll_time='08:30', change_pct=30)),
 }
 MODES = {'TU_LAM': 'Tự làm', 'CHAY_THU': 'Chạy thử'}
 ACTIONS = {'GIAO': 'Đã giao', 'CHAY_THU': 'Chạy thử', 'BO_QUA': 'Bỏ qua', 'NHAC': 'Đã nhắc', 'BAO': 'Đã báo',
@@ -157,6 +161,14 @@ def save(session, user, code: str, form) -> VirtualAgent:
                               reassign=str(get('reassign') or '') == '1', times=_times(get('times')),
                               chat=str(get('chat') or '') == '1', alert_overload=str(get('alert_overload') or '') == '1',
                               summary=(_times(get('summary')) or [''])[0] if str(get('summary') or '').strip() else '')
+            elif code == 'NHAN_SU':
+                one = lambda key: _times(get(key))[0]  # noqa: E731
+                config.update(remind_at=one('remind_at') if str(get('remind_at') or '').strip() else '',
+                              report_times=_times(get('report_times')) if str(get('report_times') or '').strip() else [],
+                              weekly_day=_int(get('weekly_day'), 0, 6, 'Ngày gửi tin tuần'), weekly_time=one('weekly_time'),
+                              weekly_director=str(get('weekly_director') or '') == '1',
+                              payroll_day=_int(get('payroll_day'), 1, 28, 'Ngày soát bảng lương'), payroll_time=one('payroll_time'),
+                              change_pct=_int(get('change_pct'), 5, 200, 'Báo khi thu nhập đổi quá'))
         row.config = config
         text = f"{AGENTS[code]['name']}: {'bật' if enabled else 'tắt'}" + (f" · {MODES[row.mode]}" if code == 'DIEU_PHOI' else '')
     if (row.enabled, row.mode, dict(row.config or {})) == old:
@@ -509,8 +521,8 @@ def run_once(session, now=None, sender=None) -> int:
     """Gọi mỗi phút trong vòng nền báo điều phối, trước khi báo phiếu cần giao (phiếu đã tự giao thì không báo nữa)."""
     now = now or _now()
     total = 0
-    from . import truong_nhom
-    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once):
+    from . import nhan_su_ai, truong_nhom
+    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once, nhan_su_ai.run_once):
         try:
             total += job(session, now, sender)
         except Exception:  # noqa: BLE001 - lỗi một nhân viên AI không chặn các việc khác
