@@ -93,6 +93,55 @@
     });
   }
 
+  // Giá dịch vụ (mẫu D1 TUẤN duyệt 15/11): chọn dịch vụ ở ô xổ xuống, −/+ số lượng (về 0 là bỏ), phụ phí; tổng gồm VAT.
+  var dForm = document.querySelector('[data-tgdv]');
+  if (dForm) {
+    var dUpdate = function () {
+      var sum = 0, params = new URLSearchParams();
+      var model = dForm.querySelector('input[name="model"]'), chung = dForm.querySelector('input[name="chung"]');
+      if (model) params.append('model', model.value);
+      if (chung) params.append('chung', '1');
+      dForm.querySelectorAll('[data-tgdv-row]').forEach(function (row) {
+        var n = +row.dataset.qty || 0, price = +row.dataset.price;
+        row.hidden = !n;
+        row.classList.toggle('on', !!n);
+        row.querySelector('[data-tgdv-n]').textContent = n;
+        row.querySelector('[data-tgdv-line]').textContent = money(price * n);
+        var opt = dForm.querySelector('[data-tgdv-pick] option[value="' + row.dataset.sid + '"]');
+        if (opt) opt.disabled = !!n;
+        if (n) { sum += price * n; params.append('dv', row.dataset.sid + ':' + n); }
+      });
+      var fees = feeTotal(dForm);
+      dForm.querySelectorAll('input[name="pp"]:checked').forEach(function (el) { params.append('pp', el.value); });
+      dForm.querySelector('[data-tg3-sum]').textContent = 'Dịch vụ ' + money(sum) + ' · Phụ phí ' + money(fees);
+      dForm.querySelector('[data-tg3-total]').textContent = money(sum + fees);
+      setUrl('/tra-gia/dich-vu?' + params);
+    };
+    var dPick = dForm.querySelector('[data-tgdv-pick]');
+    if (dPick) dPick.addEventListener('change', function (e) {
+      e.stopPropagation();
+      var row = dForm.querySelector('[data-tgdv-row][data-sid="' + dPick.value + '"]');
+      dPick.value = '';
+      if (!row) return;
+      row.dataset.qty = Math.max(1, +row.dataset.qty || 0);
+      dUpdate();
+      row.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    });
+    dForm.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-tgdv-row] [data-d]');
+      if (!btn) return;
+      var row = btn.closest('[data-tgdv-row]');
+      row.dataset.qty = Math.max(0, Math.min(99, (+row.dataset.qty || 0) + +btn.dataset.d));
+      dUpdate();
+    });
+    dForm.addEventListener('change', dUpdate);
+    dForm.querySelector('[data-tgdv-reset]').addEventListener('click', function () {
+      dForm.querySelectorAll('[data-tgdv-row]').forEach(function (row) { row.dataset.qty = 0; });
+      dForm.querySelectorAll('input[name="pp"]').forEach(function (el) { el.checked = false; });
+      dUpdate();
+    });
+  }
+
   // Giá sản phẩm (TUẤN 15/11): gõ là hiện danh sách xổ xuống; bấm dòng thêm vào "Hàng đã chọn"; −/+; phụ phí; tổng gồm VAT.
   var pInput = document.querySelector('[data-tgsp-find]'), pList = document.querySelector('[data-tgsp-list]');
   var pForm = document.querySelector('[data-tgsp-form]');
@@ -127,7 +176,7 @@
     var hint = document.querySelector('[data-tgsp-empty]');
     if (hint) hint.hidden = !!order.length;
     var fees = feeTotal(pForm);
-    pForm.querySelector('[data-tg3-sum]').textContent = 'Hàng ' + money(goods) + ' · Phụ phí ' + money(fees);
+    pForm.querySelector('[data-tg3-sum]').textContent = 'Mực ' + money(goods) + ' · Phụ phí ' + money(fees);
     pForm.querySelector('[data-tg3-total]').textContent = money(goods + fees);
     markOptions();
     var params = new URLSearchParams();

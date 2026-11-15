@@ -2,7 +2,8 @@
 
 Một trang cho mọi giá:
 - 3 tab hàng hóa (Máy in, Mực & hộp mực, Linh kiện & VPP) đọc thẳng products.sale_price, không nhập lại.
-- Dịch vụ & phụ phí (PHI): một giá, ví dụ phí kiểm tra, phụ phí tận nơi.
+- Dịch vụ & phụ phí (PHI): một giá, ví dụ phí kiểm tra, phụ phí tận nơi. Từ 0099 (TUẤN duyệt 15/11): mỗi dòng là Dịch vụ
+  hoặc Phụ phí (is_fee); dịch vụ có thể tính giá theo nhóm máy/model (by_model, repair_prices cấp 1, model ghi đè nhóm).
 - Gói sửa chữa (GOI): giá trọn gói theo nhóm máy × dịch vụ × cấp 1 Nhẹ / 2 TB / 3 Nặng, model khác nhóm thì ghi đè.
 - Hiện tượng: khách tả lỗi → dịch vụ + khoảng cấp có thể cần (Báo giá nhanh dùng ở đợt 2).
 
@@ -248,6 +249,33 @@ def services(session, kind: str, active_only: bool = False) -> list[PriceService
     return list(session.scalars(stmt))
 
 
+FEE_PREFIXES = ('phu phi', 'phi ')
+
+
+def looks_like_fee(name: str) -> bool:
+    """Tên bắt đầu "Phụ phí" / "Phí …" thì mặc định là phụ phí (như migration 0099); giám đốc đổi được ở ô Loại."""
+    return fold(name).strip().startswith(FEE_PREFIXES)
+
+
+def fee_services(session) -> list[PriceService]:
+    """Phụ phí đang dùng (ô "Chọn phụ phí" màn thợ)."""
+    return [s for s in services(session, 'PHI', active_only=True) if s.is_fee]
+
+
+def service_price(session, s: PriceService, m: RepairModel | None) -> dict | None:
+    """Giá dịch vụ PHI cho model: một giá → cột price; theo model → giá riêng model, rồi giá nhóm của model (cấp 1).
+    Không có giá thì None (không đoán). Trả dict(price, price_vat, warranty, source)."""
+    if not s.by_model:
+        return dict(price=s.price, price_vat=with_vat(s.price), warranty=s.warranty_months, source='chung')
+    if m is None:
+        return None
+    for source, cond in (('model', RepairPrice.model_id == m.id), ('nhom', RepairPrice.group_id == m.group_id)):
+        row = session.scalar(select(RepairPrice).where(RepairPrice.service_id == s.id, cond, RepairPrice.level == 1))
+        if row is not None:
+            return dict(price=row.price, price_vat=with_vat(row.price), warranty=row.warranty_months, source=source)
+    return None
+
+
 def load_service(session, service_id) -> PriceService:
     try:
         s = session.get(PriceService, int(service_id))
@@ -268,7 +296,8 @@ def customer_name(service: PriceService, model: str = '') -> str:
 def _service_snapshot(s: PriceService) -> dict:
     return dict(kind=s.kind, name=s.name, customer_name=s.customer_name, description=s.description, unit=s.unit, price=s.price,
                 warranty_months=s.warranty_months, scope=[s.scope_1, s.scope_2, s.scope_3],
-                hours=[str(s.hours_1), str(s.hours_2), str(s.hours_3)], active=s.active)
+                hours=[str(s.hours_1), str(s.hours_2), str(s.hours_3)], active=s.active, is_fee=bool(s.is_fee),
+                by_model=bool(s.by_model))
 
 
 def _price_snapshot(rows) -> dict:
@@ -300,8 +329,12 @@ def save_service(session, user, form: dict) -> PriceService:
     s.active = str(form.get('active', '1')) == '1'
     s.sort = int(str(form.get('sort', '0')).strip() or 0) if str(form.get('sort', '0')).strip().lstrip('-').isdigit() else 0
     if kind == 'PHI':
+        # 0099: Loại Dịch vụ / Phụ phí; dịch vụ tính giá Một giá hoặc Theo nhóm máy / model (phụ phí luôn một giá).
+        default = ('PHI' if s.is_fee else 'DV') if s.id else ('PHI' if looks_like_fee(name) else 'DV')
+        s.is_fee = str(form.get('loai') or default).upper() == 'PHI'
+        s.by_model = not s.is_fee and str(form.get('cach', 'MODEL' if s.by_model else 'MOT')).upper() == 'MODEL'
         s.unit = _text(form.get('unit'), 32) or 'lần'
-        s.price = parse_money(form.get('price'), 'Giá', required=True)
+        s.price = parse_money(form.get('price'), 'Giá chung' if s.by_model else 'Giá', required=not s.by_model) or 0
         s.warranty_months = parse_months(form.get('warranty_months'), 'Bảo hành')
     else:
         for lv in LEVELS:
@@ -322,6 +355,8 @@ def save_service(session, user, form: dict) -> PriceService:
     if kind == 'GOI':
         _save_options(session, s, form)
         _save_group_prices(session, user, s, form)
+    elif s.by_model:
+        _save_flat_group_prices(session, user, s, form)
     audit.record(session, user, 'price_service.update' if before else 'price_service.create', 'price_service', str(s.id),
                  before, _service_snapshot(s))
     session.commit()
@@ -392,15 +427,28 @@ def _save_group_prices(session, user, s: PriceService, form: dict):
         _apply_levels(session, user, s, _level_inputs(form, f'g{g.id}', g.name), group_id=g.id, label=g.name)
 
 
+def _save_flat_group_prices(session, user, s: PriceService, form: dict):
+    """Dịch vụ theo nhóm máy (0099): một giá mỗi nhóm (cấp 1), để trống = nhóm đó không làm; bảo hành theo dịch vụ."""
+    for g in groups(session, active_only=False):
+        if f'g{g.id}_p1' not in form:
+            continue
+        price = parse_money(form.get(f'g{g.id}_p1'), g.name)
+        _apply_levels(session, user, s, {1: (price, None, s.warranty_months)} if price else {}, group_id=g.id, label=g.name)
+
+
 def save_model_price(session, user, service_id, model_name: str, form: dict) -> RepairModel:
     require_edit(user)
     s = load_service(session, service_id)
-    if s.kind != 'GOI':
-        raise BusinessError('BAD_KIND', 'Giá riêng theo model chỉ dùng cho gói sửa chữa.')
+    if s.kind != 'GOI' and not (s.kind == 'PHI' and s.by_model):
+        raise BusinessError('BAD_KIND', 'Giá riêng theo model chỉ dùng cho gói sửa chữa và dịch vụ tính giá theo model.')
     m = find_model(session, model_name)
     if not m:
         raise BusinessError('MODEL_NOT_FOUND', f'Model "{_text(model_name, 160)}" chưa có trong danh mục Model máy, thêm model trước.')
-    levels = _level_inputs(form, 'm', m.name)
+    if s.kind == 'PHI':
+        price = parse_money(form.get('m_p1'), m.name)
+        levels = {1: (price, None, s.warranty_months)} if price else {}
+    else:
+        levels = _level_inputs(form, 'm', m.name)
     if not levels:
         raise BusinessError('BAD_PRICE', 'Nhập giá ít nhất một cấp cho model.')
     _apply_levels(session, user, s, levels, model_id=m.id, label=m.name)
@@ -587,9 +635,29 @@ def _describe(r: AuditLog, svc_names: dict) -> str:
 
 # ---------- Excel (CSV UTF-8) ----------
 
+TYPE_LABELS = {'phu phi': 'PHI', 'dich vu': 'DV', 'dich vu theo model': 'MODEL'}
+
+
+def service_type_label(s: PriceService) -> str:
+    return 'Phụ phí' if s.is_fee else 'Dịch vụ theo model' if s.by_model else 'Dịch vụ'
+
+
+def _service_type(raw: str) -> str | None:
+    """Cột "Loại" file dịch vụ: Phụ phí / Dịch vụ / Dịch vụ theo model; trống = giữ như cũ (mới thì Dịch vụ)."""
+    text = ' '.join(fold(raw).split())
+    if not text:
+        return None
+    if text not in TYPE_LABELS:
+        raise BusinessError('BAD_TYPE', 'cột Loại ghi Phụ phí, Dịch vụ hoặc Dịch vụ theo model.')
+    return TYPE_LABELS[text]
+
+
+def _type_of(s: PriceService | None) -> str:
+    return 'DV' if s is None else 'PHI' if s.is_fee else 'MODEL' if s.by_model else 'DV'
+
 CSV_HEAD = {
     'hang': ['Mã hàng', 'Tên hàng', 'Nhóm', 'Giá chưa VAT'],
-    'dich-vu': ['Dịch vụ', 'Đơn vị', 'Giá chưa VAT', 'Bảo hành (tháng)'],
+    'dich-vu': ['Dịch vụ', 'Đơn vị', 'Giá chưa VAT', 'Bảo hành (tháng)'],  # + cột tùy chọn "Loại" (0099)
     'goi': ['Dịch vụ', 'Nhóm máy hoặc Model', 'Cấp', 'Giá chưa VAT', 'Giá chính hãng', 'Bảo hành (tháng)'],
 }
 
@@ -604,17 +672,17 @@ def export_csv(session, tab: str) -> str:
         raise BusinessError('BAD_TAB', 'Tab này không xuất Excel.')
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(CSV_HEAD[kind])
+    w.writerow(CSV_HEAD[kind] + (['Loại'] if kind == 'dich-vu' else []))
     if kind == 'hang':
         for r in product_rows(session, tab)['rows']:
             w.writerow([r['code'], r['name'], r['group'], r['price']])
     elif kind == 'dich-vu':
         for s in services(session, 'PHI'):
-            w.writerow([s.name, s.unit, s.price, s.warranty_months])
+            w.writerow([s.name, s.unit, s.price, s.warranty_months, service_type_label(s)])
     else:
         gnames = {g.id: g.name for g in groups(session, active_only=False)}
         mnames = dict(session.execute(select(RepairModel.id, RepairModel.name)).all())
-        for s in services(session, 'GOI'):
+        for s in services(session, 'GOI') + [x for x in services(session, 'PHI') if x.by_model]:
             table = price_table(session, s.id)
             for key, names in (('group', gnames), ('model', mnames)):
                 for ref, levels in sorted(table[key].items(), key=lambda kv: names.get(kv[0], '')):
@@ -681,14 +749,20 @@ def _plan_row(session, kind: str, row: list[str]) -> dict | None:
         return None if price == p.sale_price else dict(key=p.code, label=f'{p.code} {p.name}', old=p.sale_price, new=price)
     if kind == 'dich-vu':
         s = session.scalar(select(PriceService).where(PriceService.kind == 'PHI', func.lower(PriceService.name) == row[0].lower()))
-        price = parse_money(row[2], 'Giá', required=True)
+        typ = _service_type(row[4] if len(row) > 4 else '') or (_type_of(s) if s else 'PHI' if looks_like_fee(row[0]) else 'DV')
+        price = parse_money(row[2], 'Giá', required=typ != 'MODEL') or 0
         months = parse_months(row[3], 'Bảo hành')
-        old = (s.price, s.warranty_months) if s else None
-        return None if old == (price, months) else dict(key=row[0], label=row[0] + ('' if s else ' (mới)'), old=s.price if s else None,
-                                                        new=price, unit=row[1] or 'lần', months=months)
-    s = session.scalar(select(PriceService).where(PriceService.kind == 'GOI', func.lower(PriceService.name) == row[0].lower()))
+        old = (s.price, s.warranty_months, _type_of(s)) if s else None
+        label = row[0] + ('' if s else ' (mới)') + ('' if s and _type_of(s) == typ else f' · {dict(PHI="Phụ phí", DV="Dịch vụ", MODEL="Dịch vụ theo model")[typ]}')
+        return None if old == (price, months, typ) else dict(key=row[0], label=label, old=s.price if s else None,
+                                                             new=price, unit=row[1] or 'lần', months=months, type=typ)
+    s = session.scalar(select(PriceService).where(PriceService.kind == 'GOI', func.lower(PriceService.name) == row[0].lower())) or \
+        session.scalar(select(PriceService).where(PriceService.kind == 'PHI', PriceService.by_model.is_(True),
+                                                  func.lower(PriceService.name) == row[0].lower()))
     if not s:
-        raise BusinessError('NOT_FOUND', f'chưa có gói "{row[0]}", thêm dịch vụ trên app trước.')
+        raise BusinessError('NOT_FOUND', f'chưa có gói hay dịch vụ theo model "{row[0]}", thêm dịch vụ trên app trước.')
+    if s.kind == 'PHI' and (row[2] != '1' or row[4].strip()):
+        raise BusinessError('BAD_LEVEL', f'"{s.name}" là dịch vụ theo model: chỉ ghi cấp 1, không có giá chính hãng.')
     g = session.scalar(select(RepairGroup).where(func.lower(RepairGroup.name) == row[1].lower()))
     m = None if g else find_model(session, row[1])
     if not g and not m:
@@ -727,6 +801,7 @@ def apply_import(session, user, tab: str, raw: bytes) -> int:
                 s = PriceService(kind='PHI', name=_text(c['key'], 160), search_text=fold(c['key']))
                 session.add(s)
             s.price, s.unit, s.warranty_months = c['new'], _text(c['unit'], 32) or 'lần', c['months']
+            s.is_fee, s.by_model = c['type'] == 'PHI', c['type'] == 'MODEL'
             s.updated_by, s.updated_at = user.id, datetime.now(UTC)
             session.flush()
             audit.record(session, user, 'price_service.update' if before else 'price_service.create', 'price_service', str(s.id),

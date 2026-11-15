@@ -1,0 +1,51 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Bảng giá{% endblock %}
+{% block main %}<div class="tg2">
+{# TUẤN duyệt mẫu D1 15/11/2026: B1 model → B2 dịch vụ (ô xổ xuống, −/+ số lượng) → B3 phụ phí; tổng gồm VAT cập nhật ngay.
+   Dịch vụ theo model chưa khai giá cho máy này thì không hiện (không đoán giá). #}
+{% call ui.page_head('Bảng giá', sub='Chọn model, dịch vụ và phụ phí') %}{% endcall %}
+{% include 'tra_gia_tab.jinja' %}
+{% if m or general %}
+<form class="tg2-form tg3" data-tgdv onsubmit="return false">
+{% if m %}<input type="hidden" name="model" value="{{ m.name }}">
+<div class="tg3-done"><span class="tg3-ok">1</span><div><b>{{ m.name }}</b><small>{{ group.name if group else '' }}</small></div><a href="{{ base }}?tab=dv">Đổi</a></div>
+{% else %}<input type="hidden" name="chung" value="1">
+<div class="tg3-done"><span class="tg3-ok">1</span><div><b>Chỉ dịch vụ chung</b><small>Chưa chọn model, dịch vụ theo máy không hiện</small></div><a href="{{ base }}?tab=dv">Chọn model</a></div>{% endif %}
+<p class="tg2-step"><i>2</i>Dịch vụ <small>· chọn 1 hoặc nhiều</small></p>
+{% if services %}{% set theo = services|selectattr('by_model')|list %}{% set chung = services|rejectattr('by_model')|list %}
+<label class="sr-only" for="tgdv-pick">Chọn dịch vụ</label>
+<select id="tgdv-pick" class="tg3-pick" data-tgdv-pick><option value="">+ Chọn dịch vụ…</option>
+{% if theo %}<optgroup label="Theo máy {{ m.name }}">{% for x in theo %}<option value="{{ x.id }}" {% if x.id in qty %}disabled{% endif %}>{{ x.name }} · {{ money(x.price) }}</option>{% endfor %}</optgroup>{% endif %}
+{% if chung %}<optgroup label="Dịch vụ chung">{% for x in chung %}<option value="{{ x.id }}" {% if x.id in qty %}disabled{% endif %}>{{ x.name }} · {{ money(x.price) }}</option>{% endfor %}</optgroup>{% endif %}
+</select>
+<div class="tg3-list">{% for x in services %}{% set n = qty.get(x.id, 0) %}
+<div class="tgsp-row tgdv-row{{ ' on' if n }}" {% if not n %}hidden{% endif %} data-tgdv-row data-sid="{{ x.id }}" data-price="{{ x.price }}" data-qty="{{ n }}">
+<span class="tgsp-rn">{{ x.name }}<small>{{ 'Theo model' if x.by_model else 'Một giá' }} · {{ money(x.price) }} / {{ x.unit }}{% if x.warranty %} · BH {{ x.warranty }} th{% endif %}</small></span>
+<b data-tgdv-line>{{ money(x.price * n) }}</b>
+<span class="tgsp-q"><button type="button" class="btn btn-ghost" data-d="-1" aria-label="Bớt một">−</button><b data-tgdv-n>{{ n }}</b><button type="button" class="btn btn-ghost" data-d="1" aria-label="Thêm một">+</button></span>
+</div>{% endfor %}</div>
+<p class="hint">Dịch vụ chưa khai giá cho máy này thì không hiện, thợ báo kỹ thuật trưởng.</p>
+{% else %}<p class="alert warn"><b>Chưa có dịch vụ nào có giá{{ ' cho máy này' if m }}.</b> Báo kỹ thuật trưởng để xác nhận giá, không tự báo khách.</p>{% endif %}
+<p class="tg2-step"><i>3</i>Phụ phí <small>· không bắt buộc</small></p>
+{% include 'tra_gia_phi.jinja' %}
+<p class="hint tg2-note">Giá đã gồm VAT, là giá báo khách.</p>
+<button type="button" class="btn btn-ghost tg2-full" data-tgdv-reset>Làm lại</button>
+<div class="tg3-tot" aria-live="polite"><div class="tg3-tl"><span data-tg3-sum>Dịch vụ {{ money(dv_total) }} · Phụ phí {{ money(fee_total) }}</span><span>gồm VAT</span></div><div class="tg3-tt"><span>Tổng báo khách</span><b data-tg3-total>{{ money(dv_total + fee_total) }}</b></div></div>
+</form>
+{% else %}
+<form method="get" action="{{ base }}" class="tg2-form tg3">
+<p class="tg2-step"><i>1</i>Model máy</p>
+<label class="sr-only" for="tg2-q">Model máy</label>
+<input id="tg2-q" type="search" name="q" value="{{ q or model }}" class="tg2-search" placeholder="Gõ model, vd 2900, M402…" autocomplete="off" data-tg2-find="{{ base }}/tim">
+{% if model %}<p class="alert warn"><b>Chưa có model “{{ model }}” trong bảng giá.</b> Giá theo máy cần kỹ thuật trưởng xác nhận, không tự báo khách.{% if matches %} Có phải máy dưới đây?{% endif %}</p>{% endif %}
+<div data-tg2-list aria-live="polite">{% include 'tra_gia_tho_tim.jinja' %}</div>
+<noscript><button class="btn btn-ghost">Tìm model</button></noscript>
+{% if mine %}<p class="tg2-sec">Máy đang sửa của tôi</p><div class="tg2-list">{% for x in mine %}<a class="tg2-it" href="{{ base }}?model={{ x.name|urlencode }}"><b>{{ x.name }}</b><small>{{ x.ticket }}</small><span aria-hidden="true">›</span></a>{% endfor %}</div>{% endif %}
+<a class="btn btn-ghost tg2-full" href="{{ base }}?chung=1" data-tgdv-chung>Không cần model · chỉ xem dịch vụ chung</a>
+<p class="tg2-step off"><i>2</i>Dịch vụ</p>
+<p class="tg2-step off"><i>3</i>Phụ phí</p>
+</form>
+{% endif %}
+<script src="{{ asset('tra-gia-tho.js') }}" defer></script>
+</div>{% endblock %}
