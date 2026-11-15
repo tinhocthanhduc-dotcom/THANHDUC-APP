@@ -4668,6 +4668,9 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .rq-kv { display: flex; justify-content: space-between; gap: 10px; margin: 0; }
 .rq-kv span { min-width: 0; overflow-wrap: anywhere; }
 .rq-kv b { white-space: nowrap; }
+/* Tên dịch vụ dài (tên in đậm trong <span>) phải xuống dòng, không đẩy khung Bản khách nhận tràn sang cột Bước tiếp. */
+.rq-kv span b { white-space: normal; }
+.rq-tech > *, .rq-cust > *, .rq-paper > * { min-width: 0; }
 .rq-pa span small { display: block; font-weight: 400; }
 .rq-margin { display: grid; gap: 4px; padding: 10px; border-radius: 8px; background: var(--ok-bg); }
 .rq-margin.bad { background: var(--bad-bg); }
