@@ -53,6 +53,10 @@ def test_three_steps_model_package_level_fee_total(client, db, make_user):
                                            ('g', 999999), ('pp', 999999)]).text
     # 648.000 (sấy chính hãng) + 162.000 (kéo giấy C1) + 54.000 (tận nơi) = 864.000; id lạ bỏ qua.
     assert '2 gói · Phụ phí 54.000' in page and 'data-tg3-total>864.000<' in page
+    # TUẤN 15/11: phụ phí cũng chọn bằng ô xổ xuống; phí đã chọn hiện dòng, mờ trong ô xổ xuống, phí chưa chọn ẩn.
+    tn = fee_ids['Phụ phí sửa tận nơi nội thành']
+    assert 'data-tg3-feepick' in page and f'<option value="{tn}" disabled>' in page
+    assert f'class="tg3-fee on"  data-tg3-fee="{tn}"' in page and f'hidden data-tg3-fee="{fee_ids["Phí kiểm tra máy"]}"' in page
     assert 'value="CH" data-price="648000" checked' in _card(page, fuser.id)
     assert f'<option value="{fuser.id}" disabled>' in page and 'hidden data-tg3-g' not in page
     # Cấp không có giá thì về mặc định.

@@ -30,14 +30,29 @@
   }
 
   // Phụ phí dùng chung hai tab: ô đã chọn sáng lên.
+  // Phụ phí chọn bằng ô xổ xuống (TUẤN 15/11): chọn là hiện dòng phí, bỏ tick là ẩn, phí quay lại ô xổ xuống.
   function feeTotal(form) {
     var sum = 0;
     form.querySelectorAll('input[name="pp"]').forEach(function (el) {
-      el.closest('.tg3-fee').classList.toggle('on', el.checked);
+      var row = el.closest('.tg3-fee');
+      row.classList.toggle('on', el.checked);
+      row.hidden = !el.checked;
+      var opt = form.querySelector('[data-tg3-feepick] option[value="' + el.value + '"]');
+      if (opt) opt.disabled = el.checked;
       if (el.checked) sum += +el.dataset.price;
     });
     return sum;
   }
+  document.querySelectorAll('[data-tg3-feepick]').forEach(function (pick) {
+    pick.addEventListener('change', function (e) {
+      e.stopPropagation();
+      var box = pick.form && pick.form.querySelector('input[name="pp"][value="' + pick.value + '"]');
+      pick.value = '';
+      if (!box) return;
+      box.checked = true;
+      box.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+  });
 
   // B2 + B3 Giá sửa: bấm gói để chọn, chọn cấp; tổng gồm VAT cập nhật ngay, đường dẫn giữ lựa chọn.
   var form = document.querySelector('[data-tg3]');
