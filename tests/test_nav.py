@@ -57,6 +57,7 @@ for _role in ('dispatcher','sales','director'):
     EXPECTED[_role].add('/quay-sua')  # TUẤN 26/10: máy khách mang tới quầy
 for _role in ('sales', 'finance', 'dispatcher', 'director'):
     EXPECTED[_role].add('/tin-gui-khach')  # Trợ lý Zalo đợt 4: tin soạn sẵn gửi khách
+    EXPECTED[_role].add('/tin-zalo')  # Đội AI: tin Zalo khách cần trả lời
 for _role in ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'director'):
     EXPECTED[_role].add('/bang-gia')  # Bảng giá chung (TUẤN duyệt 14/11/2026)
 for _role in ('sales', 'dispatcher', 'reception', 'director'):

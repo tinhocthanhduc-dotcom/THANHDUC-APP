@@ -42,10 +42,10 @@ NUDGED_ELSEWHERE = ('service_assigned', 'service_accepted', 'service_today', 'se
 # Treo lâu thì báo điều phối (việc liên quan thợ, giao hàng, kho).
 DISPATCH_TRACK = ('service_', 'delivery_', 'technician_deliveries', 'orders_waiting', 'orders_pickup_late', 'parts_pending', 'machines_')
 # Việc gấp (cùng danh sách khung "Làm ngay" của Việc của tôi).
-URGENT = ('service_appointment_overdue', 'service_goods_short', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
+URGENT = ('zalo_inbox', 'zalo_ticket_drafts', 'service_appointment_overdue', 'service_goods_short', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
           'orders_pickup_late', 'orders_cancel_requested', 'technician_deliveries', 'delivery_handover', 'delivery_unclaimed', 'orders_waiting',
           'parts_pending', 'machines_pending', 'machines_warehouse')
-AI_KEYS = ('zalo_ticket_drafts', 'customer_messages_waiting')   # AI đã soạn sẵn, chờ người bấm
+AI_KEYS = ('zalo_ticket_drafts', 'customer_messages_waiting', 'zalo_inbox')   # AI đã soạn sẵn, chờ người bấm
 ROLE_LABELS = {'director': 'Giám đốc', 'dispatcher': 'Điều phối', 'technician': 'Kỹ thuật', 'warehouse': 'Kho', 'sales': 'Bán hàng',
                'finance': 'Kế toán', 'reception': 'Lễ tân', 'admin': 'Quản trị'}
 _last = {'sync': None}
@@ -88,6 +88,9 @@ def _add_workdays(session, at, days=1):
 def _due(session, key, row, first_seen):
     if key in NO_DUE:
         return None
+    if key == 'zalo_ticket_drafts' and row.get('received_at') is not None:   # Q6: tin Zalo 30 phút trong giờ làm
+        from .zalo_doc_tin import due_after
+        return due_after(session, row['received_at'])
     for field in ('appointment_at', 'due_at'):
         value = row.get(field)
         if value is not None and key != 'service_appointment_overdue':
@@ -495,7 +498,14 @@ def run_once(session, now=None, sender=None) -> int:
     if active(session) is None:
         return 0
     now = now or _now()
-    total = brief_once(session, now, sender)
+    total = 0
+    try:   # Đọc tin Zalo mỗi phút (chỉ Z2, Q7); lỗi không chặn phần chia việc.
+        from . import zalo_doc_tin
+        total += zalo_doc_tin.run_once(session, now)
+    except Exception:  # noqa: BLE001
+        session.rollback()
+        log.exception('truong nhom doc tin zalo')
+    total += brief_once(session, now, sender)
     if _last['sync'] is not None and now - _last['sync'] < EVERY:
         return total
     sync(session, now)
@@ -525,7 +535,7 @@ def board(session, now=None) -> dict:
                           director=_is_director(u)))
     lanes.sort(key=lambda x: (x['director'], -x['count'], x['user'].full_name))
     stats = nva.today_stats(session, now)
-    done_by_ai = sum(n for agent in stats.values() for a, n in agent.items() if a in ('GIAO', 'NHAC', 'BAO', 'DOI_NGUOI'))
+    done_by_ai = sum(n for agent in stats.values() for a, n in agent.items() if a in ('GIAO', 'NHAC', 'BAO', 'DOI_NGUOI', 'DOC_TIN'))
     feed = list(session.scalars(select(VirtualAgentLog).where(VirtualAgentLog.at >= start, VirtualAgentLog.action != 'CAI_DAT')
                                 .order_by(VirtualAgentLog.id.desc()).limit(20)))
     late_tasks = sorted((t for t in tasks if t.item_key not in NO_DUE and _past(t, now)), key=lambda t: _rank(t, now))

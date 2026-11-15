@@ -179,3 +179,56 @@ def _tell_sender(session: Session, row: ZaloTicketDraft, text: str) -> None:
         zalo_bot.send_text(session, chat, text, None, 'tro_ly')
     except Exception:  # noqa: BLE001 - chưa cấu hình bot hay Zalo lỗi: việc trên app vẫn xong
         session.rollback()
+
+
+# ---------- Đội AI (TUẤN chọn 15/11/2026): thợ gợi ý + "Tạo phiếu và giao" một lần bấm ----------
+
+def suggest(session: Session, row: ZaloTicketDraft, now=None) -> dict | None:
+    """Thợ đứng đầu gợi ý cho phiếu nháp (đã vào ca, không nghỉ). Không có thì None, điều phối chọn ở Sửa rồi tạo."""
+    from . import service_suggest
+    if row.status != 'CHO':
+        return None
+    now = now or _now()
+    try:
+        fake = ServiceTicket(id=-row.id, customer_code=row.customer_code, kind=row.kind, priority=row.priority, status='MOI',
+                             symptom=row.symptom, site_id=None, assignee_id=None, appointment_at=_appointment(row, now)[0],
+                             appointment_slot=_appointment(row, now)[1], counter_intake=False, warranty_of_id=None)
+        techs = service_suggest.load_techs(session, now)
+        by_id = {x.user.id: x for x in techs}
+        ranks = service_suggest.rank_many(session, [fake], now, techs).get(fake.id, [])
+    except Exception:  # noqa: BLE001 - gợi ý lỗi thì để điều phối tự chọn
+        session.rollback()
+        return None
+    for r in ranks:
+        x = by_id.get(r['id'])
+        if x is not None and not r['blocked'] and not x.on_leave and x.clocked_in:
+            return dict(id=r['id'], name=r['name'], why=', '.join(r['why']) or 'điểm gợi ý cao nhất')
+    return None
+
+
+def _appointment(row: ZaloTicketDraft, now):
+    from . import service_appointments
+    if not (row.want_date and row.slot):
+        return None, None
+    try:
+        value, slot = service_appointments.parse({'appointment_choice': f'{row.slot}:{row.want_date.isoformat()}'}, now)
+    except BusinessError:
+        return None, None
+    return value, slot
+
+
+def create_and_assign(session: Session, user: User, draft_id: int, version: int, tech_id: int) -> ServiceTicket:
+    """Một lần bấm: tạo phiếu dịch vụ từ nháp (không chọn máy, như Tạo phiếu) rồi giao thợ. Chỉ điều phối."""
+    from . import service_tickets
+    from .schemas import ServiceTicketIn
+    if not has_role(user, 'dispatcher'):
+        raise BusinessError('FORBIDDEN', 'Chỉ điều phối được tạo phiếu từ nháp.', status=403)
+    row = check_open(session, user, draft_id)
+    if row.version != version:
+        raise BusinessError('STALE', 'Nháp vừa được người khác sửa, tải lại trang.', status=409)
+    at, slot = _appointment(row, _now())
+    body = ServiceTicketIn(customer_code=row.customer_code, kind=row.kind, priority=row.priority, symptom=row.symptom,
+                           appointment_at=at, appointment_slot=slot)
+    ticket = service_tickets.create_and_assign(session, user, body, tech_id)
+    mark_created(session, user, row.id, ticket)
+    return ticket

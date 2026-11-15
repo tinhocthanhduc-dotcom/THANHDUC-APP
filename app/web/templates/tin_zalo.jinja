@@ -1,0 +1,32 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Tin Zalo cần trả lời{% endblock %}
+{% block main %}<div class="page-wide tz-page">
+{# Đội AI (TUẤN duyệt mẫu MBakJ8u4e77Fszx9hrtz7w 15/11/2026): Trưởng nhóm AI đọc tin khách, giao người trả lời trong 30 phút. AI không tự trả lời khách. #}
+{% call ui.page_head('Tin Zalo cần trả lời', sub='Trưởng nhóm AI đọc tin khách nhắn Zalo công ty và giao cho bạn. Nhắn khách xong thì bấm Đã trả lời.') %}{% if can_all %}<a class="btn btn-ghost" href="/tin-zalo{{ '' if see_all else '?tat_ca=1' }}">{{ 'Chỉ việc của tôi' if see_all else 'Xem cả đội' }}</a>{% endif %}{% endcall %}
+{% if xong %}{{ ui.toast('Đã đánh dấu đã trả lời') }}{% endif %}
+{% if items %}<div class="tz-list">
+{% for it in items %}{% set r = it.row %}<section class="card tz-item{{ ' tz-late' if r.due_at and r.due_at < now }}" id="tz-{{ r.id }}">
+<div class="tz-h"><b>{{ it.customer.name if it.customer else (it.msg.sender_name or it.chat.display_name or 'Khách chưa gắn') }}</b>{{ ui.badge(it.label, 'cho' if r.status == 'LOI' or not r.customer_code else 'info') }}{% if see_all %}<small class="mu">{{ it.owner }}</small>{% endif %}<span class="tz-due{{ ' late' if r.due_at and r.due_at < now }}">{% if r.due_at %}{{ 'Trễ · hạn ' if r.due_at < now else 'Hạn ' }}{{ r.due_at|vn_time }}{% endif %}</span></div>
+<p class="zl-quote tz-msg"><small class="mu">{{ it.msg.sender_name or it.chat.display_name }}{% if it.chat.chat_type == 'GROUP' %} · nhóm {{ it.chat.display_name }}{% endif %} · {{ it.msg.created_at|vn_time }} {{ it.msg.created_at|vn_date }}</small><br>{{ it.msg.text }}</p>
+{% if r.summary %}<p class="tz-ai"><b>AI hiểu:</b> {{ r.summary }}{% if it.customer and not r.customer_sure %} · <span class="late">khách do AI đoán, kiểm lại</span>{% endif %}</p>{% endif %}
+<div class="tz-acts">
+{% if r.intent == 'HOI_GIA' %}<a class="btn btn-new" href="/bao-gia/moi{{ '?customer_code=' ~ r.customer_code if r.customer_code }}">Tạo báo giá</a>
+{% elif r.intent == 'CONG_NO' %}<a class="btn btn-new" href="/cong-no-khach-hang{{ '?q=' ~ r.customer_code if r.customer_code }}">Mở công nợ khách</a>
+{% elif r.intent in ('SUA', 'MUC') %}<a class="btn btn-new" href="/dich-vu/moi">Nhận đơn dịch vụ</a>{% endif %}
+<form method="post" action="/tin-zalo/{{ r.id }}/xong"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn btn-ok">Đã trả lời</button></form>
+</div>
+</section>{% endfor %}
+</div>{% else %}{{ ui.empty('Không có tin Zalo nào chờ bạn trả lời.') }}{% endif %}
+<style>
+.tz-list{display:grid;gap:10px}
+.tz-item{display:grid;gap:6px}
+.tz-late{border-color:var(--bad)}
+.tz-h{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.tz-due{margin-left:auto;font-size:.85rem;color:var(--muted);white-space:nowrap}
+.tz-due.late,.late{color:var(--bad);font-weight:600}
+.tz-msg{margin:0;overflow-wrap:anywhere}
+.tz-ai{margin:0;font-size:.92rem}
+.tz-acts{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</div>{% endblock %}

@@ -128,13 +128,49 @@ def _draft_names(session, rows):
 
 @router.get('/phieu-nhap-zalo/{draft_id}')
 def ticket_draft(request: Request, draft_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _draft_page(request, session, user, draft_id)
+
+
+def _draft_page(request, session, user, draft_id, error='', status=200):
     row = pn.load(session, user, draft_id)
     customer = session.get(Customer, row.customer_code)
-    return render(request, 'phieu_nhap_zalo_xem.jinja', row=row, customer=customer, **_draft_names(session, [row]),
-                  kinds=pn.KINDS, priorities=pn.PRIORITIES, sources=pn.SOURCES, want=pn.want_label, reasons=pn.DROP_REASONS)
+    pick = pn.suggest(session, row) if row.status == 'CHO' and 'dispatcher' in user.roles else None
+    return render(request, 'phieu_nhap_zalo_xem.jinja', row=row, customer=customer, **_draft_names(session, [row]), pick=pick,
+                  kinds=pn.KINDS, priorities=pn.PRIORITIES, sources=pn.SOURCES, want=pn.want_label, reasons=pn.DROP_REASONS,
+                  error=error, status=status)
 
 
 @router.post('/phieu-nhap-zalo/{draft_id}/bo')
 def ticket_draft_drop(draft_id: int, form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
     pn.drop(session, user, draft_id, _int(form.get('version')) or 0, str(form.get('ly_do') or ''), str(form.get('ghi_chu') or ''))
     return RedirectResponse('/phieu-nhap-zalo?bo=1', status_code=303)
+
+
+# ---- Đội AI (TUẤN chọn 15/11/2026): Tạo phiếu và giao thợ gợi ý một lần bấm; Tin Zalo cần trả lời ----
+
+@router.post('/phieu-nhap-zalo/{draft_id}/tao-va-giao')
+def ticket_draft_create_assign(request: Request, draft_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    try:
+        ticket = pn.create_and_assign(session, user, draft_id, _int(form.get('version')) or 0, _int(form.get('tho')) or 0)
+    except BusinessError as exc:
+        if exc.status == 403:
+            raise
+        session.rollback()
+        return _draft_page(request, session, user, draft_id, error=exc.message, status=exc.status)
+    return RedirectResponse(f'/dich-vu/{ticket.id}?tao=1', status_code=303)
+
+
+@router.get('/tin-zalo')
+def zalo_inbox(request: Request, tat_ca: str = '', xong: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import zalo_doc_tin as dt
+    see_all = bool(tat_ca) and ('director' in user.roles or 'dispatcher' in user.roles)
+    return render(request, 'tin_zalo.jinja', items=dt.mine(session, user, see_all), see_all=see_all, intents=dt.INTENTS,
+                  can_all='director' in user.roles or 'dispatcher' in user.roles, xong=xong, now=dt._now())
+
+
+@router.post('/tin-zalo/{triage_id}/xong')
+def zalo_inbox_done(request: Request, triage_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .. import zalo_doc_tin as dt
+    dt.mark_done(session, request.state.user, triage_id)
+    return RedirectResponse('/tin-zalo?xong=1', status_code=303)

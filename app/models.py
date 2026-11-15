@@ -2270,6 +2270,8 @@ class ZaloTicketDraft(Base):
     question: Mapped[str] = mapped_column(Text, default='', server_default='')
     status: Mapped[str] = mapped_column(String(8), default='CHO', server_default='CHO')
     ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'))
+    customer_sure: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))  # 0102: AI đoán khách, điều phối xác nhận
+    from_triage: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))   # 0102: Trưởng nhóm AI đọc tin tạo
     drop_reason: Mapped[str] = mapped_column(String(10), default='', server_default='')
     drop_note: Mapped[str] = mapped_column(Text, default='', server_default='')
     decided_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
@@ -2408,6 +2410,29 @@ class TeamTask(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatch_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     director_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ZaloTriage(Base):
+    """0102 Trưởng nhóm AI đọc tin Zalo: mỗi tin khách một dòng, Z2 chia loại, app giao người (TUẤN duyệt 15/11/2026)."""
+    __tablename__ = 'zalo_triage'
+    __table_args__ = (CheckConstraint("status in ('CHO_AI','XONG','BO_QUA','LOI')", name='ck_zalo_triage_status'),
+                      CheckConstraint("intent in ('','SUA','MUC','HOI_GIA','CONG_NO','KHAC')", name='ck_zalo_triage_intent'),
+                      Index('ix_zalo_triage_open', 'owner_id', 'done_at'), Index('ix_zalo_triage_status', 'status', 'id'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey('zalo_messages.id'), unique=True)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id'))
+    status: Mapped[str] = mapped_column(String(8), default='CHO_AI', server_default='CHO_AI')
+    intent: Mapped[str] = mapped_column(String(8), default='', server_default='')
+    customer_code: Mapped[str | None] = mapped_column(ForeignKey('customers.code'))
+    customer_sure: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
+    summary: Mapped[str] = mapped_column(Text, default='', server_default='')
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
+    draft_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ticket_drafts.id'))
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    done_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ApprovalLimit(Base):

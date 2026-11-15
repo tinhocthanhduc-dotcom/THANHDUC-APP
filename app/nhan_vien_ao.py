@@ -51,10 +51,10 @@ AGENTS = {
 }
 MODES = {'TU_LAM': 'Tự làm', 'CHAY_THU': 'Chạy thử'}
 ACTIONS = {'GIAO': 'Đã giao', 'CHAY_THU': 'Chạy thử', 'BO_QUA': 'Bỏ qua', 'NHAC': 'Đã nhắc', 'BAO': 'Đã báo',
-           'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người'}
+           'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người', 'DOC_TIN': 'Đọc tin Zalo'}
 # Thư ký phiếu: các nhóm Việc của tôi là "việc treo" cần làm nốt trong ngày.
 CLERK_KEYS = ('service_unreported', 'orders_unreported', 'receipts_rejected', 'receipts_pending', 'service_paused',
-              'service_return_ready', 'technician_deliveries', 'zalo_ticket_drafts', 'customer_messages_waiting', 'service_goods_short')
+              'service_return_ready', 'technician_deliveries', 'zalo_ticket_drafts', 'customer_messages_waiting', 'service_goods_short', 'zalo_inbox')
 FRESH = timedelta(hours=4)       # nhắc chưa nhận: chỉ xét việc giao trong 4 giờ gần nhất, không dồn việc cũ khi mới bật
 CATCH_UP = timedelta(hours=2)    # thư ký: app khởi động lại trễ quá 2 giờ sau mốc thì bỏ mốc đó
 MAX_TEXT = 1800

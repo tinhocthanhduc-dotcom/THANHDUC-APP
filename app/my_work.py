@@ -10,7 +10,7 @@ from .errors import BusinessError
 from .models import AuditLog, PendingDisposition, PendingItem, StockBalance, StockMinLevel, Product, Attachment, Equipment, EquipmentCustody, Customer, CustomerOpeningDebt, PartRequest, PurchaseOrder, PurchaseOrderLine, PurchaseReceipt, Quote, SalesDeliveryAttempt, SalesOrder, SalesOrderLine, SalesReceipt, SalesRefund, ServiceTicket, ServiceExpense, ServiceRecoveredPart, StockReservation, Warehouse, Supplier, SupplierOpeningDebt, TechnicianReturn, TechnicianReturnLine, ServiceStep, User
 from sqlalchemy import String
 from . import production
-from .models import CustomerMessage, EquipmentReport, ProductionOrder, StockDoc, ZaloMessage, ZaloTicketDraft
+from .models import CustomerMessage, EquipmentReport, ProductionOrder, StockDoc, ZaloMessage, ZaloTicketDraft, ZaloTriage
 from .security import has_role
 
 LIMIT = 20
@@ -119,7 +119,7 @@ def _specs(user, today, now):
         add('device_reports','Thợ báo sai thông tin máy',reports,'device_report','/thiet-bi')
         # Trợ lý Zalo đợt 2: phiếu nháp bot ghi từ tin Zalo, chờ điều phối Tạo phiếu hoặc Bỏ nháp.
         zd=ZaloTicketDraft
-        drafts=select(zd.id,zd.number,zd.status,Customer.name.label('customer'),literal(0).label('amount'),literal(False).label('overdue')).join(
+        drafts=select(zd.id,zd.number,zd.status,Customer.name.label('customer'),literal(0).label('amount'),literal(False).label('overdue'),zd.created_at.label('received_at')).join(
             Customer,Customer.code==zd.customer_code).where(zd.status=='CHO').order_by(zd.created_at,zd.id)
         add('zalo_ticket_drafts','Phiếu nháp từ Zalo chờ duyệt',drafts,'zalo_draft','/phieu-nhap-zalo')
         recovered_count=select(func.count()).where(ServiceRecoveredPart.ticket_id==t.id,
@@ -309,6 +309,15 @@ def _specs(user, today, now):
             (literal('Nhận thành phẩm ') + sx.number).label('customer'),literal(0).label('amount'),literal(False).label('overdue')).where(sx.status=='HOAN_THANH')
         if user.warehouse_codes and not director: waiting=waiting.where(sx.to_warehouse_code.in_(user.warehouse_codes))
         add('production_receive','Nhận thành phẩm',waiting.order_by(sx.id),'production','/san-xuat?status=HOAN_THANH')
+    # Đội AI (TUẤN duyệt 15/11/2026): Trưởng nhóm AI đọc tin Zalo, giao hỏi giá / công nợ / tin chưa rõ khách.
+    if has_role(user, 'sales', 'finance', 'dispatcher', 'director'):
+        zt,zm=ZaloTriage,ZaloMessage
+        inbox=select(zt.id,(literal('TZ-')+func.cast(zt.id,String)).label('number'),zt.status,
+            func.coalesce(Customer.name,zm.sender_name,'Khách chưa gắn').label('customer'),literal(0).label('amount'),
+            (zt.due_at<now).label('overdue'),zt.due_at.label('due_at'),zt.intent.label('intent'),zm.text.label('reason')).join(
+            zm,zm.id==zt.message_id).outerjoin(Customer,Customer.code==zt.customer_code).where(
+            zt.owner_id==user.id,zt.done_at.is_(None),zt.status.in_(('XONG','LOI'))).order_by(zt.due_at,zt.id)
+        add('zalo_inbox','Tin Zalo cần trả lời',inbox,'zalo_inbox','/tin-zalo')
     return specs
 
 
@@ -332,7 +341,7 @@ def _group(session, spec, page=1):
                 # Đợt 4: mở Sắp hết lọc đúng mã để thấy Đang về, Nên đặt rồi bấm Lập đơn mua.
                 link='/ton-kho?'+urlencode({'canh-bao':'1','kho':row['warehouse_code'],'q':row['product_code']}))
         else:
-            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-', 'device_report':'/thiet-bi', 'zalo_draft':'/phieu-nhap-zalo', 'customer_message':'/tin-gui-khach'}[kind]
+            prefix = {'production':'/san-xuat', 'supplier_debt':'/cong-no-ncc', 'pending_supplier_return':'/cho-xu-ly/duyet-tra-ncc#xl-', 'pending_disposition':'/cho-xu-ly/duyet-huy#xl-', 'service':'/dich-vu', 'quote':'/bao-gia', 'order':'/don-ban', 'warehouse_order':'/kho/giao', 'purchase':'/don-mua', 'receipt':'/bao-thu', 'part':'/yeu-cau-linh-kien', 'custody':'/giu-may', 'delivery':'/giao-don', 'refund':'/hoan-tien', 'technician_return':'/tho-tra-hang', 'stock_doc':'/phieu-kho', 'expense':'/chi-phi-tho#cp-', 'device_report':'/thiet-bi', 'zalo_draft':'/phieu-nhap-zalo', 'customer_message':'/tin-gui-khach', 'zalo_inbox':'/tin-zalo#tz-'}[kind]
             row['link'] = f"{prefix}/{row['id']}"
             if kind=='production': row['link']='/san-xuat/'+row['number']
             if kind=='device_report': row['link']='/thiet-bi/'+quote(row['number'],safe='')+'#bao-sai'
@@ -349,6 +358,7 @@ def _group(session, spec, page=1):
                 row['link'] = (f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else
                                '/cong-no-khach-hang/dau-ky/'+quote(row['opening_customer'],safe='')+'#thu-tien' if row.get('opening_customer') else f"/dich-vu/{row['ticket_id']}#thu-tien")
             if kind == 'part':row['link'] = f"/yeu-cau-linh-kien#yc-{row['id']}"
+            if kind == 'zalo_inbox':row['link'] = f"/tin-zalo#tz-{row['id']}";row['reason']=str(row.get('reason') or '')[:160]
             if kind == 'expense':row['link'] = ('/chi-phi-tho?tab=cho-hoan#cp-' if row['status']=='DA_DUYET' else '/chi-phi-tho#cp-')+str(row['id'])
             row['amount'] = int(row['amount'] or 0)
         row['kind'] = 'order' if kind=='warehouse_order' else kind
