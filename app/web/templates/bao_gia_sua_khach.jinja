@@ -16,19 +16,27 @@
 .tag{display:inline-block;background:#e8f5ee;color:var(--ok);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600}
 .state{text-align:center;padding:28px 16px}.state .h{color:var(--warn)}
 .call{display:block;text-align:center;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:600;margin-top:12px}
+.hd{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px}.hd .h{font-size:19px;margin:0 0 2px;color:#fff}.hd p{margin:0;opacity:.85;font-size:14px}
+.total{background:var(--card);border:2px solid var(--navy);border-radius:12px;padding:14px 16px;margin-bottom:12px;display:grid;gap:2px}.total .big{font-size:28px;font-weight:800;color:var(--navy);line-height:1.2}.total small,.total span{color:var(--muted);font-size:14px}
+.list{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.mc{padding:12px 16px;border-top:1px solid var(--line);display:grid;gap:4px}.mc:first-child{border-top:0}
+.mc .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.mc .top b:last-child{white-space:nowrap}
+.meta{color:var(--muted);font-size:14px}
+.it{display:flex;justify-content:space-between;gap:10px;font-size:15px;padding-left:10px;border-left:3px solid var(--line)}.it span:last-child{color:var(--muted);white-space:nowrap}
+details{font-size:14px;color:var(--muted)}summary{cursor:pointer;color:#1f5fbf}
+.alt{font-size:14px;color:var(--navy);background:#eef4fb;border-radius:8px;padding:6px 10px}
+.co b{min-width:0;font-size:15px;line-height:1.3}.co small{white-space:nowrap}
 .foot{color:var(--muted);font-size:13px;text-align:center}
 </style></head><body><main class="wrap">
 <div class="co"><b>{{ co.name or 'Thành Đức' }}</b>{% if co.hotline or co.phone %}<small>{{ co.hotline or co.phone }}</small>{% endif %}</div>
 {% if state == 'ok' %}{% set c = s.chosen %}
-<section class="card"><h2 class="h">Báo giá sửa máy {{ s.model }}</h2>
-<p class="sub">{{ s.number }} · lần {{ v.no }} · gửi {{ s.customer }}{% if s.serial %} · serial {{ s.serial }}{% endif %}</p>
-{% for ln in s.lines %}{% set p = ln[ln.pick] %}<div class="ln"><div class="kv"><span><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</span><b>{{ p.price|money }}đ</b></div>{% if ln.description %}<p>{{ ln.description }}</p>{% endif %}</div>{% endfor %}
-<div class="kv"><span>VAT 8%</span><b>{{ c.vat|money }}đ</b></div>
-<div class="kv tot"><span><b>Tổng cộng</b></span><b>{{ c.total|money }}đ</b></div>
-{% if c.warranty %}<p class="sub">Bảo hành {{ c.warranty }} tháng cho hạng mục đã sửa.</p>{% endif %}
-{% if s.alt %}<div class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}. Anh/chị muốn chọn phương án này thì báo lại giúp em.</div>{% endif %}
-</section>
-<section class="card"><p class="sub" style="margin:0">Báo giá có hiệu lực đến hết ngày <b>{{ v.valid_until|vn_date }}</b>. Anh/chị đồng ý thì nhắn Zalo hoặc gọi lại, bên em sửa và hẹn ngày trả máy.</p>
+{# Bản gọn (TUẤN duyệt 15/11/2026): tổng gồm VAT lên đầu, một hạng mục thì không lặp giá. #}
+<div class="hd"><h2 class="h">Báo giá sửa máy {{ s.model }}</h2><p>{{ s.number }} · lần {{ v.no }} · hiệu lực đến {{ v.valid_until|vn_date }}</p><p>{{ s.customer }}{% if s.serial %} · Serial {{ s.serial }}{% endif %}</p></div>
+<section class="total"><span>Tổng cộng · đã gồm VAT 8%</span><b class="big">{{ c.total|money }}đ</b><small>Chưa VAT {{ c.subtotal|money }}đ · VAT {{ c.vat|money }}đ{% if c.warranty %} · Bảo hành {{ c.warranty }} tháng{% endif %}</small>
+{% if s.alt %}<span class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}</span>{% endif %}</section>
+<section class="list">{% set many = s.lines|length > 1 %}{% for ln in s.lines %}{% set p = ln[ln.pick] %}
+<div class="mc"><div class="top"><b>{{ ln.name }}{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</b>{% if many %}<b>{{ (p.price + p.vat)|money }}đ</b>{% endif %}</div>{% if ln.description %}<span class="meta">{{ ln.description }}</span>{% endif %}</div>{% endfor %}</section>
+<section class="card"><p class="sub" style="margin:0">Anh/chị đồng ý thì nhắn Zalo hoặc gọi lại, bên em sửa và hẹn ngày trả máy.</p>
 {% if co.hotline or co.phone %}<a class="call" href="tel:{{ (co.hotline or co.phone)|replace(' ', '')|replace('.', '') }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}</section>
 {% else %}
 <section class="card state">{% set msg = {'het_han': ('Báo giá đã hết hạn', 'Báo giá này đã quá ngày hiệu lực. Anh/chị liên hệ để nhận báo giá mới.'),

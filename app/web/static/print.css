@@ -117,3 +117,6 @@ table.in-sg{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6p
 .in-qr svg{display:block;width:34mm;height:34mm;margin:0 auto}
 .in-qr small{display:block;font-size:9px;line-height:1.35;color:#333;margin-top:3px;overflow-wrap:anywhere}
 .in-qr small b{color:var(--in-ink)}
+
+/* Báo giá gộp A4 bản gọn (TUẤN duyệt 15/11/2026): hạng mục và giá trên một hàng. */
+.bgg-in-l { display: flex; justify-content: space-between; gap: 8px; }

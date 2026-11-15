@@ -10,11 +10,13 @@
 {% block body %}
 <div class="in-cards">{{ f.card('Khách hàng', customer.name if customer else g.customer_code, [('Mã khách', customer.code if customer else ''), ('Địa chỉ', customer.address if customer else ''), ('Điện thoại', (customer|customer_phones('')) if customer else '')]) }}
 {{ f.card('Báo giá', rows|length ~ ' máy', [('Người lập', maker.full_name if maker else ''), ('Giá', 'trọn gói, gồm VAT 8%')]) }}</div>
-<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:30mm"></colgroup>
-<thead><tr><th class="c">STT</th><th>Máy · hạng mục sửa chữa (trọn gói)</th><th class="m">Thành tiền<small>gồm VAT</small></th></tr></thead><tbody>
-{% for v in rows %}{% set s = v.snapshot %}<tr class="bgg-in-m"><td class="c"><b>{{ loop.index }}</b></td><td class="n" colspan="2"><b>{{ s.model }}{% if s.serial %} · Serial {{ s.serial }}{% endif %} · {{ s.number }}</b></td></tr>
-{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c"></td><td class="n">{{ ln.name }}{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<br><small>{{ ln.description }}</small>{% endif %}</td><td class="m">{{ (p.price + p.vat)|money }}</td></tr>{% endfor %}
-<tr><td class="c"></td><td class="n" style="text-align:right"><i>Cộng máy {{ loop.index }}{% if s.chosen.warranty %} · bảo hành {{ s.chosen.warranty }} tháng{% endif %}{% if s.alt %} · {{ 'PA2 chính hãng' if s.alt_key == 'PA2' else 'PA1 tiêu chuẩn' }}: {{ s.alt.total|money }}{% endif %}</i></td><td class="m"><b>{{ s.chosen.total|money }}</b></td></tr>
+<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:14mm"><col style="width:30mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Máy · hạng mục sửa chữa (trọn gói)</th><th class="c">BH</th><th class="m">Thành tiền<small>gồm VAT</small></th></tr></thead><tbody>
+{# Bản gọn (TUẤN duyệt 15/11/2026): mỗi máy một hàng một giá; máy từ 2 hạng mục mới ghi giá từng hạng mục. #}
+{% for v in rows %}{% set s = v.snapshot %}{% set many = s.lines|length > 1 %}<tr><td class="c">{{ loop.index }}</td><td class="n"><b>{{ s.model }}{% if s.serial %} · {{ s.serial }}{% endif %}</b> <small>{{ s.number }}</small>
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<div class="bgg-in-l"><span>{% if many %}· {% endif %}{{ ln.name }}{% if ln.pick == 'PA2' %} (chính hãng){% endif %}</span>{% if many %}<span>{{ (p.price + p.vat)|money }}</span>{% endif %}</div>{% endfor %}
+{% if s.alt %}<small>{{ 'Phương án chính hãng' if s.alt_key == 'PA2' else 'Phương án tiêu chuẩn' }}: {{ s.alt.total|money }}</small>{% endif %}</td>
+<td class="c">{{ s.chosen.warranty ~ ' th' if s.chosen.warranty else '' }}</td><td class="m"><b>{{ s.chosen.total|money }}</b></td></tr>
 {% endfor %}
 </tbody></table>
 <div class="in-sum"><div class="left">
