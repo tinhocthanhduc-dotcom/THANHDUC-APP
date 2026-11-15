@@ -7,7 +7,7 @@
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:600px;margin:0 auto;padding:16px}
 .co{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}.co b{color:var(--navy);font-size:18px}.co small{color:var(--muted)}
-.hd{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px}.hd h1{font-size:20px;margin:0 0 2px}.hd p{margin:0;opacity:.85;font-size:14px}
+.hd{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px}.hd .h{font-size:20px;margin:0 0 2px}.hd p{margin:0;opacity:.85;font-size:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
 .mh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}.mh small{color:var(--muted)}
 .sub{color:var(--muted);margin:0 0 8px;font-size:14px}
@@ -23,7 +23,7 @@
 </style></head><body><main class="wrap">
 <div class="co"><b>{{ co.name or 'Thành Đức' }}</b>{% if co.hotline or co.phone %}<small>{{ co.hotline or co.phone }}</small>{% endif %}</div>
 {% if state == 'ok' %}
-<div class="hd"><h1>Báo giá sửa chữa {{ rows|length }} máy</h1><p>{{ g.number }} · hiệu lực đến {{ g.valid_until.strftime('%d/%m/%Y') }}</p><p>{{ customer.name if customer else '' }}</p></div>
+<div class="hd"><h2 class="h">Báo giá sửa chữa {{ rows|length }} máy</h2><p>{{ g.number }} · hiệu lực đến {{ g.valid_until.strftime('%d/%m/%Y') }}</p><p>{{ customer.name if customer else '' }}</p></div>
 {% for v in rows %}{% set s = v.snapshot %}
 <section class="card"><div class="mh"><b>{{ loop.index }}. {{ s.model }}</b><small>{% if s.serial %}Serial {{ s.serial }} · {% endif %}{{ s.number }}</small></div>
 {% if v.status == 'DONG_Y' %}<p class="sub"><span class="tag">Đã đồng ý</span></p>{% endif %}
