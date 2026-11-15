@@ -101,7 +101,12 @@ def _service_page(request, session, user, service=None, kind='GOI', form=None, e
     models = {m.id: m for m in svc.models(session)}
     overrides = sorted(((models[mid], lv) for mid, lv in table['model'].items() if mid in models), key=lambda x: x[0].name.lower())
     opts = svc.options(session, s.id) if s else []
+    known = svc.level_warranties(session, s.id) if s else {}
+    level_warranty = {lv: max(v) for lv, v in known.items()}
+    mixed = '; '.join(f'cấp {lv}: ' + '–'.join(str(x) for x in sorted(v)) + ' tháng' for lv, v in sorted(known.items()) if len(v) > 1)
+    has_genuine = any(r.price_genuine for key in ('group', 'model') for lvls in table[key].values() for r in lvls.values())
     return render(request, 'bang_gia_dich_vu.jinja', s=s, kind=kind, form=form, machine_groups=svc.groups(session, active_only=False),
+                  level_warranty=level_warranty, warranty_mixed=mixed, has_genuine=has_genuine,
                   table=table, overrides=overrides, options=opts, levels=svc.LEVELS, can_edit=svc.can_edit(user),
                   model_names=[m.name for m in models.values() if m.active], with_vat=svc.with_vat,
                   sample_name=svc.customer_name(s, 'Canon LBP 2900') if s else '', saved=saved,

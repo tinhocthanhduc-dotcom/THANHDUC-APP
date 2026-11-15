@@ -4943,3 +4943,14 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tgdv-row[hidden] { display: none; }
 .tgdv-row.on { border-color: var(--accent); background: var(--info-bg); }
 .tg2-tab3 a { padding-left: 2px; padding-right: 2px; font-size: 15px; }
+/* Sửa gói gọn (TUẤN duyệt mẫu 15/11/2026) */
+.bg-lv3 { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bg-lv { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; background: var(--bg); }
+@media (max-width: 760px) { .bg-lv3 { grid-template-columns: minmax(0, 1fr); } }
+.bg-goi-table td input { width: 100%; min-width: 110px; text-align: right; }
+.bg-vat { display: block; min-height: 1.2em; margin-top: 2px; color: var(--muted); font-size: .78rem; text-align: right; }
+.bg-ch-row { display: none; }
+.bg-ch-row th { color: var(--muted); font-weight: 500; padding-left: 22px; }
+.bg-service-form:has([data-co-ch]:checked) .bg-ch-row { display: table-row; }
+.bg-opts summary { cursor: pointer; padding: 6px 0; }
+.bg-model-ch summary { cursor: pointer; color: var(--accent); font-weight: 600; margin: 6px 0; }

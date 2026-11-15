@@ -284,3 +284,46 @@ def test_sample_price_book_script_adds_once_and_never_overwrites(db, make_user):
     assert pb.lookup(db, head.id, 'Epson L3110', 3, genuine=True)['price'] == 1_000_000
     assert len(pb.symptoms(db)) == len(bang_gia_mau.SYMPTOMS)
     assert bang_gia_mau.run(db, boss, apply=True) == []
+
+
+def test_compact_package_form_level_warranty_and_genuine_toggle(client, db, make_user):
+    """TUẤN duyệt mẫu gọn 15/11: bảo hành nhập một lần mỗi cấp (áp mọi nhóm máy); mỗi nhóm 3 ô giá + gồm VAT; chính hãng ẩn sau ô tick."""
+    boss = make_user('bg.gon', 'director')
+    a4, a3 = group(db, 'LASER_A4_DON'), group(db, 'LASER_A3')
+    csrf = web_login(client, boss)
+    r = client.post('/bang-gia/dich-vu/luu', data=dict(csrf=csrf, kind='GOI', name='Sửa cụm quang', active='1', option_rows='0',
+                                                       bh_1='1', bh_2='3', bh_3='6', co_ch='1',
+                                                       **{f'g{a4.id}_p1': '250.000', f'g{a4.id}_p2': '450.000', f'g{a4.id}_ch2': '600.000',
+                                                          f'g{a4.id}_p3': '650.000', f'g{a3.id}_p3': '1.300.000'}), follow_redirects=False)
+    assert r.status_code == 303
+    s = db.scalar(select(PriceService).where(PriceService.name == 'Sửa cụm quang'))
+    rows = {(x.group_id, x.level): x for x in db.scalars(select(RepairPrice).where(RepairPrice.service_id == s.id))}
+    assert (rows[(a4.id, 1)].warranty_months, rows[(a4.id, 2)].warranty_months, rows[(a3.id, 3)].warranty_months) == (1, 3, 6)
+    assert rows[(a4.id, 2)].price_genuine == 600_000
+    page = client.get(f'/bang-gia/dich-vu/{s.id}').text
+    assert 'name="bh_3" value="6"' in page and 'gồm VAT 486.000' in page and 'gồm VAT 648.000' in page
+    assert 'data-co-ch checked' in page and 'class="bg-ch-row"' in page and 'khác nhau giữa các nhóm máy' not in page
+    assert 'BH th' not in page and 'placeholder="CH"' not in page  # hết các ô không nhãn của bản cũ
+    # Giá riêng model không nhập bảo hành: lấy bảo hành của cấp đó.
+    pb.save_model(db, boss, 'Canon LBP 2900', a4.id)
+    assert client.post(f'/bang-gia/dich-vu/{s.id}/gia-model', data=dict(csrf=csrf, model='Canon LBP 2900', m_p2='500.000'),
+                       follow_redirects=False).status_code == 303
+    assert pb.lookup(db, s.id, 'Canon LBP 2900', 2)['warranty'] == 3
+    # Bảo hành khác nhau giữa các nhóm (dữ liệu cũ): báo, ô lấy số lớn nhất.
+    rows[(a3.id, 3)].warranty_months = 2
+    db.commit()
+    page = client.get(f'/bang-gia/dich-vu/{s.id}').text
+    assert 'bảo hành khác nhau giữa các nhóm máy (cấp 3: 2–6 tháng)' in page and 'name="bh_3" value="6"' in page
+    db.refresh(s)
+    # Bỏ tick chính hãng thì bỏ giá chính hãng.
+    r = client.post('/bang-gia/dich-vu/luu', data=dict(csrf=csrf, id=str(s.id), version=str(s.version), kind='GOI', name='Sửa cụm quang',
+                                                       active='1', option_rows='0', bh_1='1', bh_2='3', bh_3='6',
+                                                       **{f'g{a4.id}_p1': '250.000', f'g{a4.id}_p2': '450.000', f'g{a4.id}_ch2': '600.000',
+                                                          f'g{a4.id}_p3': '650.000', f'g{a3.id}_p3': '1.300.000'}), follow_redirects=False)
+    assert r.status_code == 303
+    row = db.scalar(select(RepairPrice).where(RepairPrice.service_id == s.id, RepairPrice.group_id == a4.id, RepairPrice.level == 2))
+    db.refresh(row)
+    assert row.price_genuine is None and row.warranty_months == 3
+    db.expire_all()
+    assert {x.warranty_months for x in db.scalars(select(RepairPrice).where(RepairPrice.service_id == s.id, RepairPrice.level == 3,
+                                                                           RepairPrice.group_id.is_not(None)))} == {6}
