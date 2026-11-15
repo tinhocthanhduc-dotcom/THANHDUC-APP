@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app import my_work, nhan_vien_ao as nva, service_suggest, service_tickets, truong_nhom as tn
-from app.models import Customer, ServiceTicket, TeamTask, VirtualAgentLog
+from app.models import AttendancePunch, Customer, ServiceTicket, TeamTask, VirtualAgentLog
 from app.schemas import ServiceTicketIn
 from test_nhan_vien_ao import clock_in, link_zalo
 from test_web import csrf_of, service_login
@@ -147,13 +147,15 @@ def test_rebalance_moves_unaccepted_ticket_and_undo(db, team, monkeypatch, zalo_
     for i in range(8):
         db.add(TeamTask(item_key='orders_draft', ref=f'r{i}', owner_id=p['a'].id, title='x'))
     db.commit()
-    clock_in(db, p['phong'])
+    later = service_tickets._now() + timedelta(minutes=40)
+    # Chấm công vào đúng ngày của mốc chạy: chạy test lúc gần nửa đêm giờ VN thì "later" đã sang ngày mới.
+    db.add(AttendancePunch(user_id=p['phong'].id, kind='IN', at=later - timedelta(minutes=1), source='APP', off_hours=False))
+    db.commit()
     monkeypatch.setattr(service_suggest, 'rank_many', lambda session, tickets, now=None, techs=None: {
         tickets[0].id: [dict(id=p['a'].id, name='A', why=[], blocked=''), dict(id=p['phong'].id, name='Phong', why=['rảnh'], blocked='')]})
     link_zalo(db, p['thanh3'], 'z-dp')
     link_zalo(db, p['a'], 'z-a')
     sent = []
-    later = service_tickets._now() + timedelta(minutes=40)
     assert tn.rebalance(db, later, sender=lambda *a: sent.append(a)) == 1
     db.expire_all()
     t = db.get(ServiceTicket, t.id)
