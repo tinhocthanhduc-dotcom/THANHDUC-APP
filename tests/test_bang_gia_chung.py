@@ -213,6 +213,14 @@ def test_excel_roundtrip_preview_then_apply(client, db, make_user):
     log = db.scalar(select(AuditLog).where(AuditLog.action == 'product.price'))
     assert log.before['sale_price'] == 320_000 and log.after['sale_price'] == 330_000 and log.reason == 'Nhập Excel bảng giá'
     assert any('320.000 → 330.000' in r['what'] for r in pb.history(db)[0])
+    # TUẤN 15/11: Office 2010 mở file tải về đúng cột, đúng dấu: UTF-16 có BOM, cách bằng tab; tải về rồi nhập lại được ngay.
+    dl = client.get('/bang-gia/excel?tab=muc')
+    assert dl.content[:2] == b'\xff\xfe' and 'charset=utf-16' in dl.headers['content-type']
+    text = dl.content.decode('utf-16')
+    assert text.startswith('Mã hàng\tTên hàng\tNhóm\tGiá chưa VAT') and 'TD-9101\tHộp mực 26A\tHộp mực\t330000' in text
+    edited = dl.content.decode('utf-16').replace('\t330000', '\t340000').encode('utf-16')
+    r = client.post('/bang-gia/nhap-excel', data=dict(csrf=csrf, tab='muc'), files={'file': ('gia.csv', edited, 'text/csv')})
+    assert r.status_code == 200 and '340.000' in r.text and 'Áp dụng 1 thay đổi' in r.text
     fail('BAD_FILE', pb.plan_import, db, 'muc', b'M\xe3 h\xe0ng,T\xean\n')
     fail('BAD_FILE', pb.plan_import, db, 'muc', 'sai,tieu,de\n'.encode('utf-8'))
 
