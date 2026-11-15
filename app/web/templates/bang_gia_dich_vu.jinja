@@ -33,10 +33,6 @@
 <div class="bg-two"><label><span class="bg-one-price">Giá chưa VAT (đồng)</span><span class="bg-gen-price">Giá chung chưa VAT <span class="hint">(không bắt buộc, dùng ở báo giá chưa chọn máy)</span></span><input name="price" value="{{ money_val('price', s.price if s else 0) }}" inputmode="numeric" data-money></label>
 <label>Đơn vị<input name="unit" value="{{ val('unit', s.unit if s else 'lần') }}" maxlength="32"></label></div>
 <label>Bảo hành (tháng)<input name="warranty_months" value="{{ val('warranty_months', s.warranty_months if s else 0) }}" inputmode="numeric"></label>
-{% else %}
-{% for lv, label in levels.items() %}<div class="bg-level"><b>Cấp {{ lv }} · {{ label }}</b>
-<label>Phạm vi cấp này<input name="scope_{{ lv }}" value="{{ val('scope_' ~ lv, s['scope_' ~ lv] if s else '') }}" placeholder="{{ ['vd: Vệ sinh, chỉnh; không thay linh kiện chính', 'vd: Thay 1 linh kiện chính + phụ kiện nhỏ', 'vd: Thay từ 2 linh kiện chính hoặc cả cụm'][lv - 1] }}"></label>
-<label>Giờ công chuẩn <span class="hint">(nội bộ, để tính lãi ở đợt sau)</span><input name="hours_{{ lv }}" value="{{ val('hours_' ~ lv, (s['hours_' ~ lv]|string).replace('.', ',') if s and s['hours_' ~ lv] else '') }}" inputmode="decimal" placeholder="vd: 1,5"></label></div>{% endfor %}
 {% endif %}
 <input type="hidden" name="active" value="0"><label class="bg-check"><input type="checkbox" name="active" value="1" {% if val('active', '1' if not s or s.active else '')|string == '1' %}checked{% endif %}> Đang dùng (bỏ chọn = ngừng, ẩn khỏi bảng giá cho khách)</label>
 </section>
@@ -45,13 +41,14 @@
 <section class="card doc-card"><h2 class="doc-h">Ghi chú kỹ thuật <span class="badge b-nhap">Nội bộ</span></h2>
 <label>Nội dung kỹ thuật<textarea name="technical_note" rows="3" placeholder="Không in ra tài liệu gửi khách">{{ val('technical_note', s.technical_note if s else '') }}</textarea></label>
 {% if kind == 'GOI' %}
-<h3 class="doc-h">Phương án kỹ thuật</h3>
-<p class="hint">Phương án "chính" quyết định cấp: không chọn phương án chính → cấp 1, một → cấp 2, từ hai → cấp 3.</p>
+<details class="bg-opts" {% if not options %}open{% endif %}><summary><b>Phương án kỹ thuật · {{ options|length }}</b>{% if options %} <span class="hint">({{ options|map(attribute='name')|join(', ')|truncate(70) }})</span>{% endif %}</summary>
+<p class="hint">Thợ tick ở màn Kiểm tra máy. Phương án "Chính" (thay linh kiện chính) quyết định cấp: không có → cấp 1, một → cấp 2, từ hai → cấp 3.</p>
 {% set n = [options|length + 3, 6]|max %}<input type="hidden" name="option_rows" value="{{ n }}">
 {% for i in range(n) %}{% set o = options[i] if i < options|length else none %}<div class="bg-option">
 <input name="opt_name_{{ i }}" value="{{ val('opt_name_' ~ i, o.name if o else '') }}" placeholder="Phương án, vd: Thay bao lụa sấy" aria-label="Phương án {{ i + 1 }}">
 <input name="opt_hint_{{ i }}" value="{{ val('opt_hint_' ~ i, o.part_hint if o else '') }}" placeholder="Linh kiện hay dùng" aria-label="Linh kiện phương án {{ i + 1 }}">
 <label class="bg-check"><input type="checkbox" name="opt_main_{{ i }}" value="1" {% if val('opt_main_' ~ i, '1' if o and o.is_main else '')|string == '1' %}checked{% endif %}> Chính</label></div>{% endfor %}
+</details>
 {% endif %}
 </section>
 </div>
@@ -66,20 +63,27 @@
 </section>
 {% endif %}
 {% if kind == 'GOI' %}
-<section class="card bg-grid-card"><h2 class="doc-h">Giá gói theo nhóm máy <span class="hint">chưa VAT · để trống = cấp không áp dụng · CH = linh kiện chính hãng</span></h2>
-<div class="table-scroll"><table class="list-table bg-price-grid"><thead><tr><th>Nhóm máy</th>{% for lv, label in levels.items() %}<th>Cấp {{ lv }} · {{ label }}</th>{% endfor %}</tr></thead><tbody>
+{# TUẤN duyệt mẫu gọn 15/11/2026: bảo hành nhập một lần mỗi cấp (áp mọi nhóm máy), mỗi nhóm 3 ô giá + gồm VAT, chính hãng ẩn sau ô tick. #}
+<section class="card bg-grid-card"><h2 class="doc-h">Từng cấp gồm gì · bảo hành <span class="hint">· nhập một lần, áp cho mọi nhóm máy</span></h2>
+{% if warranty_mixed %}<p class="alert warn">Gói này đang có bảo hành khác nhau giữa các nhóm máy ({{ warranty_mixed }}). Ô dưới lấy số lớn nhất; bấm Lưu thì mọi nhóm dùng chung số này.</p>{% endif %}
+<div class="bg-lv3">{% for lv, label in levels.items() %}<div class="bg-lv"><b>Cấp {{ lv }} · {{ label }}</b>
+<label>Phạm vi<input name="scope_{{ lv }}" value="{{ val('scope_' ~ lv, s['scope_' ~ lv] if s else '') }}" placeholder="{{ ['vd: Vệ sinh, chỉnh; không thay linh kiện chính', 'vd: Thay 1 linh kiện chính + phụ kiện nhỏ', 'vd: Thay từ 2 linh kiện chính hoặc cả cụm'][lv - 1] }}"></label>
+<div class="bg-two"><label>Bảo hành (tháng)<input name="bh_{{ lv }}" value="{{ val('bh_' ~ lv, level_warranty.get(lv, '')) }}" inputmode="numeric" placeholder="0"></label>
+<label>Giờ chuẩn <span class="hint">(nội bộ)</span><input name="hours_{{ lv }}" value="{{ val('hours_' ~ lv, (s['hours_' ~ lv]|string).replace('.', ',') if s and s['hours_' ~ lv] else '') }}" inputmode="decimal" placeholder="vd: 1,5"></label></div>
+</div>{% endfor %}</div>
+</section>
+<section class="card bg-grid-card bg-goi-grid"><h2 class="doc-h">Giá theo nhóm máy <span class="hint">· chưa VAT · để trống = nhóm đó không làm cấp này</span></h2>
+<div class="table-scroll"><table class="list-table bg-price-grid bg-goi-table"><thead><tr><th>Nhóm máy</th>{% for lv, label in levels.items() %}<th class="num">Cấp {{ lv }} · {{ label }}</th>{% endfor %}</tr></thead><tbody>
 {% for g in machine_groups %}{% set cur = table.group.get(g.id, {}) %}<tr data-group="{{ g.id }}"><th scope="row">{{ g.name }}</th>
-{% for lv in levels %}{% set p = cur.get(lv) %}<td><div class="bg-cell">
-<input name="g{{ g.id }}_p{{ lv }}" value="{{ money_val('g' ~ g.id ~ '_p' ~ lv, p.price if p else 0) }}" inputmode="numeric" data-money placeholder="Giá" aria-label="{{ g.name }} cấp {{ lv }} giá">
-<input name="g{{ g.id }}_ch{{ lv }}" value="{{ money_val('g' ~ g.id ~ '_ch' ~ lv, p.price_genuine if p else 0) }}" inputmode="numeric" data-money placeholder="CH" aria-label="{{ g.name }} cấp {{ lv }} chính hãng">
-<input name="g{{ g.id }}_bh{{ lv }}" value="{{ val('g' ~ g.id ~ '_bh' ~ lv, p.warranty_months if p else '') }}" inputmode="numeric" placeholder="BH th" aria-label="{{ g.name }} cấp {{ lv }} bảo hành tháng">
-</div></td>{% endfor %}</tr>{% endfor %}
+{% for lv in levels %}{% set p = cur.get(lv) %}<td class="num"><input name="g{{ g.id }}_p{{ lv }}" value="{{ money_val('g' ~ g.id ~ '_p' ~ lv, p.price if p else 0) }}" inputmode="numeric" data-money data-vat-src placeholder="—" aria-label="{{ g.name }} cấp {{ lv }} giá"><span class="bg-vat" data-vat>{% if p %}gồm VAT {{ with_vat(p.price)|money }}{% endif %}</span></td>{% endfor %}</tr>
+<tr class="bg-ch-row" data-group-ch="{{ g.id }}"><th scope="row">↳ Chính hãng</th>{% for lv in levels %}{% set p = cur.get(lv) %}<td class="num"><input name="g{{ g.id }}_ch{{ lv }}" value="{{ money_val('g' ~ g.id ~ '_ch' ~ lv, p.price_genuine if p else 0) }}" inputmode="numeric" data-money data-vat-src placeholder="—" aria-label="{{ g.name }} cấp {{ lv }} chính hãng"><span class="bg-vat" data-vat>{% if p and p.price_genuine %}gồm VAT {{ with_vat(p.price_genuine)|money }}{% endif %}</span></td>{% endfor %}</tr>{% endfor %}
 </tbody></table></div>
-<p class="hint">Giá cấp sau phải từ giá cấp trước trở lên. Nhóm máy không làm dịch vụ này thì để trống cả 3 cấp.</p>
+<label class="bg-check"><input type="checkbox" name="co_ch" value="1" data-co-ch {% if val('co_ch', '1' if has_genuine else '')|string == '1' %}checked{% endif %}> Có giá linh kiện chính hãng <span class="hint">· tick thì mỗi nhóm máy hiện thêm dòng "Chính hãng"; giá chính hãng không thấp hơn giá thường</span></label>
+<p class="hint">Giá cấp sau phải từ giá cấp trước trở lên.</p>
 </section>
 {% endif %}
 </fieldset>
-{% if can_edit %}<div class="action-bar bg-save"><button class="btn-ok">Lưu dịch vụ</button></div>{% endif %}
+{% if can_edit %}<div class="action-bar bg-save"><button class="btn-ok">{{ 'Lưu gói' if kind == 'GOI' else 'Lưu dịch vụ' }}</button></div>{% endif %}
 </form>
 
 {% if kind == 'PHI' and s and s.by_model %}
@@ -100,19 +104,18 @@
 {% if kind == 'GOI' and s %}
 <section class="card bg-grid-card" id="gia-model"><h2 class="doc-h">Giá riêng theo model <span class="hint">· {{ overrides|length }} · ưu tiên hơn giá nhóm</span></h2>
 {% if overrides %}<div class="table-scroll"><table class="list-table bg-table"><thead><tr><th>Model</th>{% for lv in levels %}<th class="num">Cấp {{ lv }}</th>{% endfor %}{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
-{% for m, lvls in overrides %}<tr data-override="{{ m.name }}"><td><b>{{ m.name }}</b></td>{% for lv in levels %}{% set p = lvls.get(lv) %}<td class="num">{% if p %}{{ p.price|money }}{% if p.price_genuine %}<span class="lt-sub">CH {{ p.price_genuine|money }}</span>{% endif %}<span class="lt-sub">BH {{ p.warranty_months }} th</span>{% else %}<span class="lt-sub">theo nhóm</span>{% endif %}</td>{% endfor %}
+{% for m, lvls in overrides %}<tr data-override="{{ m.name }}"><td><b>{{ m.name }}</b></td>{% for lv in levels %}{% set p = lvls.get(lv) %}<td class="num">{% if p %}<b>{{ p.price|money }}</b>{% if p.price_genuine %}<span class="lt-sub">Chính hãng {{ p.price_genuine|money }}</span>{% endif %}{% else %}<span class="lt-sub">theo nhóm</span>{% endif %}</td>{% endfor %}
 {% if can_edit %}<td><form method="post" action="/bang-gia/dich-vu/{{ s.id }}/gia-model" class="bg-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="xoa_model" value="{{ m.id }}"><button class="btn btn-ghost bg-small">Bỏ giá riêng</button></form></td>{% endif %}</tr>{% endfor %}
 </tbody></table></div>{% endif %}
 {% if can_edit %}<form method="post" action="/bang-gia/dich-vu/{{ s.id }}/gia-model" class="bg-model-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <label>Model<input name="model" list="bg-models" value="{{ f.get('model', '') }}" placeholder="Gõ tên model đã có ở Model máy" required autocomplete="off"></label>
 <datalist id="bg-models">{% for n in model_names %}<option value="{{ n }}">{% endfor %}</datalist>
-<div class="bg-model-levels">{% for lv in levels %}<div class="bg-cell"><b>Cấp {{ lv }}</b>
-<input name="m_p{{ lv }}" value="{{ f.get('m_p' ~ lv, '') }}" inputmode="numeric" data-money placeholder="Giá" aria-label="Model cấp {{ lv }} giá">
-<input name="m_ch{{ lv }}" value="{{ f.get('m_ch' ~ lv, '') }}" inputmode="numeric" data-money placeholder="CH" aria-label="Model cấp {{ lv }} chính hãng">
-<input name="m_bh{{ lv }}" value="{{ f.get('m_bh' ~ lv, '') }}" inputmode="numeric" placeholder="BH th" aria-label="Model cấp {{ lv }} bảo hành"></div>{% endfor %}</div>
-<p class="hint">Cấp để trống thì model dùng giá nhóm. Chưa có model? <a href="/bang-gia/model-may">Thêm ở Model máy</a>.</p>
+<div class="bg-model-levels">{% for lv, label in levels.items() %}<label>Cấp {{ lv }} · {{ label }}<input name="m_p{{ lv }}" value="{{ f.get('m_p' ~ lv, '') }}" inputmode="numeric" data-money placeholder="theo nhóm" aria-label="Model cấp {{ lv }} giá"></label>{% endfor %}</div>
+<details class="bg-model-ch"><summary>Giá chính hãng cho model</summary><div class="bg-model-levels">{% for lv in levels %}<label>Cấp {{ lv }} chính hãng<input name="m_ch{{ lv }}" value="{{ f.get('m_ch' ~ lv, '') }}" inputmode="numeric" data-money placeholder="—" aria-label="Model cấp {{ lv }} chính hãng"></label>{% endfor %}</div></details>
+<p class="hint">Cấp để trống thì model dùng giá nhóm. Bảo hành theo ô bảo hành từng cấp ở trên. Chưa có model? <a href="/bang-gia/model-may">Thêm ở Model máy</a>.</p>
 <div class="action-bar"><button class="btn btn-new">+ Lưu giá riêng cho model</button></div>
 </form>{% endif %}
 </section>
 {% endif %}
+<script src="{{ asset('bang-gia-goi.js') }}" defer></script>
 </div>{% endblock %}

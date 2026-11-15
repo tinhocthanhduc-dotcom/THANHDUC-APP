@@ -354,7 +354,7 @@ def save_service(session, user, form: dict) -> PriceService:
         raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa dịch vụ này, hãy tải lại trang.', status=409)
     if kind == 'GOI':
         _save_options(session, s, form)
-        _save_group_prices(session, user, s, form)
+        _save_group_prices(session, user, s, _with_level_warranty(session, form))
     elif s.by_model:
         _save_flat_group_prices(session, user, s, form)
     audit.record(session, user, 'price_service.update' if before else 'price_service.create', 'price_service', str(s.id),
@@ -420,6 +420,28 @@ def _apply_levels(session, user, s: PriceService, levels: dict, group_id=None, m
                      dict(target=target, label=label, levels=after))
 
 
+def level_warranties(session, service_id) -> dict[int, set[int]]:
+    """Bảo hành đang có của từng cấp trên các nhóm máy: {cấp: {số tháng}} (mẫu gọn 15/11: nhập một lần mỗi cấp)."""
+    out = {}
+    for lv, months in session.execute(select(RepairPrice.level, RepairPrice.warranty_months)
+                                      .where(RepairPrice.service_id == service_id, RepairPrice.group_id.is_not(None))):
+        out.setdefault(lv, set()).add(months)
+    return out
+
+
+def _with_level_warranty(session, form: dict) -> dict:
+    """Form gọn gửi bh_<cấp> một lần: chép xuống mọi nhóm máy (g<id>_bh<cấp>) để lưu như trước. Form cũ không có bh_ thì giữ nguyên."""
+    if not any(f'bh_{lv}' in form for lv in LEVELS):
+        return form
+    form = dict(form)
+    for g in groups(session, active_only=False):
+        for lv in LEVELS:
+            form[f'g{g.id}_bh{lv}'] = form.get(f'bh_{lv}', '')
+            if str(form.get('co_ch', '')) != '1':  # bỏ tick "Có giá linh kiện chính hãng" = bỏ giá chính hãng
+                form[f'g{g.id}_ch{lv}'] = ''
+    return form
+
+
 def _save_group_prices(session, user, s: PriceService, form: dict):
     for g in groups(session, active_only=False):
         if f'g{g.id}_p1' not in form and f'g{g.id}_p2' not in form and f'g{g.id}_p3' not in form:
@@ -448,6 +470,9 @@ def save_model_price(session, user, service_id, model_name: str, form: dict) -> 
         price = parse_money(form.get('m_p1'), m.name)
         levels = {1: (price, None, s.warranty_months)} if price else {}
     else:
+        if not any(f'm_bh{lv}' in form for lv in LEVELS):  # mẫu gọn: bảo hành model theo bảo hành từng cấp của gói
+            known = level_warranties(session, s.id)
+            form = {**form, **{f'm_bh{lv}': str(max(known[lv])) for lv in LEVELS if known.get(lv)}}
         levels = _level_inputs(form, 'm', m.name)
     if not levels:
         raise BusinessError('BAD_PRICE', 'Nhập giá ít nhất một cấp cho model.')
