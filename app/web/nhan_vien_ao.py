@@ -81,3 +81,45 @@ def undo(request: Request, ticket_id: int, form=Depends(checked_form), session: 
         return _detail(request, session, user, ticket_id, failed_action='hoan-tac-ao', error=exc.message, error_code=exc.code,
                        status=exc.status)
     return RedirectResponse(f'/dich-vu/{ticket_id}?hoan_tac=1', status_code=303)
+
+
+# ---------- Đội AI (TUẤN duyệt 15/11/2026, mẫu 9rRchbgXNR4sY5jurdjQMq): chỉ giám đốc ----------
+
+DOI_TABS = (('', 'Cả đội'), ('nguoi', 'Người'), ('ai', 'AI'), ('qua-han', 'Quá hạn'))
+
+
+def _doi(request, session, user, tab='', error='', done='', status=200):
+    from .. import truong_nhom as tn
+    nva._director(user)
+    tab = tab if tab in dict(DOI_TABS) else ''
+    rows = nva.rows(session)
+    b = tn.board(session)
+    counts = {'': len(b['lanes']) + len(nva.AGENTS), 'nguoi': len(b['lanes']), 'ai': len(nva.AGENTS), 'qua-han': b['tiles']['late']}
+    tabs = [dict(label=label, n=counts[code], href='/doi-ai' + (f'?xem={code}' if code else ''), on=tab == code) for code, label in DOI_TABS]
+    tiles = [dict(label='Việc đang mở', n=b['tiles']['open'], sub=f"{b['tiles']['new_today']} việc mới hôm nay"),
+             dict(label='AI đã tự làm hôm nay', n=b['tiles']['ai'], sub='Giao, nhắc, báo, đổi người', tone='area-sv'),
+             dict(label='AI soạn sẵn · chờ người bấm', n=b['tiles']['waiting'], sub='Phiếu nháp Zalo, tin gửi khách', tone='area-sa'),
+             dict(label='Quá hạn', n=b['tiles']['late'], sub='Đã nhắc người làm', href='/doi-ai?xem=qua-han', on=tab == 'qua-han',
+                  tone='hot' if b['tiles']['late'] else ''),
+             dict(label='Báo giám đốc', n=b['tiles']['boss'], sub='Treo lâu sau khi nhắc', tone='hot' if b['tiles']['boss'] else '')]
+    return render(request, 'doi_ai.jinja', b=b, rows=rows, master=rows[nva.MASTER], agents=nva.AGENTS, cfgs={c: nva.cfg(rows[c]) for c in nva.AGENTS},
+                  actions=nva.ACTIONS, tabs=tabs, tiles=tiles, tab=tab, error=error, done=done, status=status)
+
+
+@router.get('/doi-ai')
+def doi_ai(request: Request, xem: str = '', xong: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _doi(request, session, user, xem, done=xong)
+
+
+@router.post('/doi-ai/hoan-tac/{log_id}')
+def doi_ai_undo(request: Request, log_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .. import truong_nhom as tn
+    user = request.state.user
+    try:
+        tn.undo(session, user, log_id)
+    except BusinessError as exc:
+        if exc.status == 403:
+            raise
+        session.rollback()
+        return _doi(request, session, user, error=exc.message, status=exc.status)
+    return RedirectResponse('/doi-ai?xong=1', status_code=303)

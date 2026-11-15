@@ -50,7 +50,7 @@ def link_zalo(db, user, chat_id):
 
 def test_seeded_on_and_master_switch(db, people):
     rows = nva.rows(db)
-    assert set(rows) == {'TAT_CA', 'DIEU_PHOI', 'NHAC_HEN', 'THU_KY'}
+    assert set(rows) == {'TAT_CA', 'DIEU_PHOI', 'NHAC_HEN', 'THU_KY', 'TRUONG_NHOM'}
     assert all(r.enabled for r in rows.values()) and rows['DIEU_PHOI'].mode == 'TU_LAM'
     c = nva.cfg(rows['DIEU_PHOI'])
     assert c['kinds'] == ['MUC_DINH_KY', 'SUA_TAI_CHO'] and c['priorities'] == ['THUONG'] and c['undo_minutes'] == 10
@@ -210,6 +210,9 @@ def test_clerk_digest_once_per_slot(db, people, zalo_on, monkeypatch, make_user)
     monkeypatch.setattr(my_work, 'collect', lambda session, user, keys=None: groups)
     monkeypatch.setattr(nva, 'clerk_slot', lambda session, now, times: '11:15')
     sent = []
+    assert nva.clerk_once(db, sender=lambda *a: sent.append(a)) == 0   # Trưởng nhóm AI bật: gộp vào tin 07:45 / 13:30
+    nva.rows(db)['TRUONG_NHOM'].enabled = False
+    db.commit()
     assert nva.clerk_once(db, sender=lambda *a: sent.append(a)) == 1
     assert sent[0][1].chat_id == 'z-thanh' and 'DB-26-00001' in sent[0][2] and '/viec-cua-toi' in sent[0][2]
     assert nva.clerk_once(db, sender=lambda *a: sent.append(a)) == 0
