@@ -12,6 +12,7 @@ không bao giờ đoán. Phiếu đã lập giữ giá đã ghi trên phiếu (b
 """
 import csv
 import io
+import unicodedata
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -622,13 +623,28 @@ def export_csv(session, tab: str) -> str:
     return '﻿' + buf.getvalue()
 
 
-def _read_csv(raw: bytes) -> list[list[str]]:
+def decode_text(raw: bytes) -> str:
+    """Đọc file Excel lưu ra: CSV UTF-8, "Unicode Text" (UTF-16, cách bằng tab, TUẤN 15/11) hoặc CSV ANSI tiếng Việt (cp1258)."""
+    if raw[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        try:
+            return unicodedata.normalize('NFC', raw.decode('utf-16'))
+        except UnicodeDecodeError:
+            raise BusinessError('BAD_FILE', 'File Unicode bị lỗi, hãy lưu lại dạng "CSV UTF-8" (Excel: Lưu thành → CSV UTF-8).')
     try:
-        text = raw.decode('utf-8-sig')
+        return unicodedata.normalize('NFC', raw.decode('utf-8-sig'))
+    except UnicodeDecodeError:
+        pass
+    try:
+        return unicodedata.normalize('NFC', raw.decode('cp1258'))
     except UnicodeDecodeError:
         raise BusinessError('BAD_FILE', 'File cần lưu dạng "CSV UTF-8" (Excel: Lưu thành → CSV UTF-8).')
+
+
+def _read_csv(raw: bytes) -> list[list[str]]:
+    text = decode_text(raw)
     first = text.split('\n', 1)[0]
-    delim = ';' if first.count(';') > first.count(',') else ','
+    # Dấu phân cột: tab (Excel "Unicode Text" / dán từ Excel), chấm phẩy (Excel máy Việt) hoặc phẩy.
+    delim = max(('\t', ';', ','), key=first.count) if any(d in first for d in '\t;,') else ','
     rows = [[c.strip() for c in row] for row in csv.reader(io.StringIO(text), delimiter=delim)]
     return [r for r in rows if any(r)]
 
