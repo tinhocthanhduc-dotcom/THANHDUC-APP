@@ -102,7 +102,7 @@ def test_my_open_tickets_listed_and_permissions(client, db, make_user):
 
 
 def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user):
-    """Mẫu SP1–SP2: giá bán gồm VAT, BH, Còn/Hết hàng; không giá vốn, không số tồn, không hàng ngừng bán; nhớ tab đã chọn."""
+    """Mẫu SP1–SP2 + M4: giá bán gồm VAT, BH; chọn từ danh sách xổ xuống; không giá vốn, không tồn kho, không hàng ngừng bán; nhớ tab."""
     from test_bang_gia_chung import stocked
     boss = make_user('tgsp.boss', 'director')
     stocked(db, boss, 'TD-9012', 'Hop muc HP 12A chinh hang', 'Muc', 1_250_000, 987_654, qty=7)
@@ -115,18 +115,17 @@ def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user)
     web_login(client, tech)
     page = client.get('/tra-gia/san-pham', params={'q': '12'}).text
     assert 'Giá sản phẩm' in page and 'Giá sửa' in page
-    card = page.split('data-tgsp-code="TD-9012"')[1].split('</section>')[0]
+    card = page.split('data-tgsp-code="TD-9012"')[1].split('</button>')[0]
     assert '1.350.000' in card and 'BH' not in card  # 1.250.000 + 8% VAT
-    card = page.split('data-tgsp-code="TD-9040"')[1].split('</section>')[0]
+    card = page.split('data-tgsp-code="TD-9040"')[1].split('</button>')[0]
     assert '270.000' in card
     assert 'Còn hàng' not in page and 'Hết hàng' not in page  # TUẤN 15/11: không hiện tồn
-    assert 'BH 3 tháng' in page.split('data-tgsp-code="TD-9112"')[1].split('</section>')[0]
+    assert 'BH 3 tháng' in page.split('data-tgsp-code="TD-9112"')[1].split('</button>')[0]
     assert 'TD-9099' not in page
     for secret in ('987.654', '123.456', '900.000', '>7<'):  # giá vốn, số tồn
         assert secret not in page
-    # Lọc nhóm hàng; tìm không ra thì báo, không đoán.
-    page = client.get('/tra-gia/san-pham', params={'q': '12', 'nhom': 'May in cu'}).text
-    assert 'TD-9112' in page and 'TD-9012' not in page
+    # Danh sách xổ xuống (TUẤN 15/11): mỗi dòng bấm để thêm; tìm không ra thì báo, không đoán.
+    assert 'class="tgsp-drop"' in page and 'data-tgsp-add data-tgsp-code="TD-9012"' in page
     assert 'Không thấy hàng này.' in client.get('/tra-gia/san-pham/tim', params={'q': 'zzzz'}).text
     assert 'data-tgsp-code="TD-9012"' in client.get('/tra-gia/san-pham/tim', params={'q': 'hp 12a'}).text
     # M4: hàng đã chọn (sp=mã:số lượng) + phụ phí ra tổng gồm VAT; hàng ngừng bán / mã lạ bỏ qua, số lượng tối đa 99.
@@ -139,7 +138,7 @@ def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user)
     # 2 × 1.350.000 + 270.000 = 2.970.000; + 32.400 = 3.002.400.
     assert 'Hàng 2.970.000 · Phụ phí 32.400' in page and 'data-tg3-total>3.002.400<' in page
     assert 'data-code="TD-9012"' in page and 'data-qty="2"' in page and 'data-code="TD-9099"' not in page
-    assert 'class="tgsp on" data-tgsp-code="TD-9012"' in page
+    assert 'Đã chọn 2' in page.split('data-tgsp-code="TD-9012"')[1].split('</button>')[0]
     assert 'data-tg3-total>133.650.000<' in client.get('/tra-gia/san-pham', params={'sp': 'TD-9012:500'}).text  # tối đa 99 × 1.350.000
     # Nhớ tab: đã mở Giá sản phẩm thì bấm tab Bảng giá về lại Giá sản phẩm; bấm Giá sửa thì ở Giá sửa.
     r = client.get('/tra-gia', follow_redirects=False)
