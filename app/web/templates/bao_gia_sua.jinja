@@ -1,5 +1,5 @@
 {# TUẤN duyệt mẫu M4 14/11/2026: trái phần kỹ thuật nội bộ (lãi chỉ GĐ, kế toán thấy), phải đúng bản khách nhận: mỗi dịch vụ một dòng trọn gói, không tên linh kiện. #}
-<section class="card rq-panel" aria-label="Báo giá sửa chữa" data-rq-panel>
+<section class="card rqs-panel" aria-label="Báo giá sửa chữa" data-rq-panel>
 <div class="xg-head"><h2>Báo giá sửa chữa</h2>
 {% if rq %}<p class="hint">Thợ {{ users.get(rq.row.inspected_by, '') }} kiểm tra {{ rq.row.inspected_at|vn_time }} {{ rq.row.inspected_at|vn_date }} · model {{ rq.row.model_name }}{% if rq.current %} · <b>đã áp vào phiếu</b>{% endif %}</p>{% endif %}</div>
 {% if not rq %}
