@@ -5127,3 +5127,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .gcai-m > span { display: block; }
 .gcai-m .gcai-warn { color: var(--bad); font-weight: 600; }
 .svn-m.is-on .gcai-m, .svn-m:has(input[data-sv-pick]:checked) .gcai-m { display: block; }
+/* TUẤN 16/11: ô ảnh pick có trạng thái + nút Xóa ảnh */
+.photo-pick-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.photo-pick-row small[data-photo-state="busy"] { color: var(--warn, var(--muted)); font-weight: 700; }
+.photo-pick-row small[data-photo-state="ready"] { color: var(--ok, inherit); font-weight: 700; }
+.photo-pick-row .photo-del { min-height: 40px; padding: .35rem .8rem; color: var(--bad, inherit); }

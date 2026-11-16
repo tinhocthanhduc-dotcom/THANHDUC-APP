@@ -112,8 +112,18 @@
       box.classList.toggle('swipe-busy', on);
       if (on) {
         label = button.textContent; button.textContent = 'Đang gửi…';
-        // Mạng treo quá lâu: trả thanh để thợ vuốt lại (máy chủ chặn trùng bằng số phiên bản).
-        busyTimer = setTimeout(function () { busy(false); window.tdToast('Mạng chậm, chưa thấy trả lời. Kiểm tra mạng rồi vuốt lại.', 'bad'); }, 20000);
+        // TUẤN 16/11: gửi kèm ảnh qua 4G có khi quá 20 giây. Trước đây 20 giây là trả thanh về nhưng nút vẫn bị khóa
+        // "chống bấm lại" (base.jinja) nên vuốt lại không được mà không báo gì. Nay 20 giây chỉ báo đang chờ;
+        // 60 giây vẫn chưa có trả lời mới mở khóa hẳn cho vuốt lại (máy chủ chặn trùng bằng form_key + số phiên bản).
+        busyTimer = setTimeout(function () {
+          window.tdToast('Mạng chậm, vẫn đang gửi… đừng tắt màn hình');
+          busyTimer = setTimeout(function () {
+            busy(false);
+            button.disabled = false;
+            if (button.form) delete button.form.dataset.submitting;
+            window.tdToast('Chưa gửi được. Kiểm tra mạng rồi vuốt lại.', 'bad');
+          }, 40000);
+        }, 20000);
       } else {
         if (label !== null) button.textContent = label;
         label = null; setX(0);
@@ -124,7 +134,12 @@
       if (box.dataset.swipeDemo !== undefined) { setX(0); window.tdToast(box.dataset.swipeDemo || 'Đã ghi nhận'); return; }
       setX(maxX());
       busy(true);
-      if (!submit()) busy(false);
+      var form = button.form, wasSubmitting = form && form.dataset.submitting;
+      if (!submit()) {
+        busy(false);
+        // Vuốt hết mà không gửi, cũng không có ô nào báo thiếu: nói rõ thay vì để nút tròn lặng lẽ bật về.
+        if (wasSubmitting) { delete form.dataset.submitting; button.disabled = false; window.tdToast('Lần gửi trước chưa xong. Vuốt lại lần nữa.', 'bad'); }
+      }
     }
     // Lỗi TUẤN 07/11 "sau khi tải ảnh thì không vuốt được, phải về Hôm nay vào lại": mở máy ảnh/chọn ảnh xong,
     // điện thoại có khi không gửi lại lúc nhấc ngón đã bấm nút Chụp ảnh, nên coi như vẫn còn một ngón đang chạm.
@@ -332,9 +347,11 @@
   // Máy không nén được thì gửi ảnh gốc, server vẫn tự thu nhỏ. Ô chụp màn thợ (data-tech-camera) tự nén riêng.
   // Một đoạn nén chung cho cả màn thợ (technician-photos.js gọi window.tdShrinkPhoto).
   // Máy thiếu createImageBitmap (iOS cũ) vẫn nén qua <img>, để không gửi ảnh gốc vài MB (TUẤN 27/10: tải ảnh chậm).
-  var PHOTO_SIDE = 1280, PHOTO_QUALITY = 0.72;
+  // Lỗi TUẤN 16/11 (giao DB-26-00163, iPhone): ảnh sau nén có mảng đen phía dưới và nén lâu. createImageBitmap(...,
+  // { imageOrientation }) trên iOS trả kích thước lệch với hình vẽ ra. Nay giải mã bằng <img> (trình duyệt tự xoay theo EXIF,
+  // vẽ đúng naturalWidth/Height), và nén quá 8 giây thì gửi ảnh gốc (máy chủ tự thu nhỏ) chứ không treo thanh vuốt.
+  var PHOTO_SIDE = 1280, PHOTO_QUALITY = 0.72, PHOTO_TIMEOUT = 8000;
   function decodePhoto(file) {
-    if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () { return createImageBitmap(file); });
     return new Promise(function (resolve, reject) {
       var img = new Image(), url = URL.createObjectURL(file);
       img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
@@ -342,19 +359,26 @@
       img.src = url;
     });
   }
-  function shrinkPhoto(file) {
-    if (!/^image\//.test(file.type)) return Promise.resolve(file);
-    return decodePhoto(file).then(function (bmp) {
-      var scale = Math.min(1, PHOTO_SIDE / Math.max(bmp.width, bmp.height)), canvas = document.createElement('canvas');
-      canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
-      canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
-      if (bmp.close) bmp.close();
+  function shrinkNow(file) {
+    return decodePhoto(file).then(function (img) {
+      var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      if (!w || !h) return file;
+      var scale = Math.min(1, PHOTO_SIDE / Math.max(w, h)), canvas = document.createElement('canvas');
+      canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       return new Promise(function (resolve) {
         canvas.toBlob(function (blob) {
           resolve(blob && blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' }) : file);
         }, 'image/jpeg', PHOTO_QUALITY);
       });
-    }).catch(function () { return file; });
+    });
+  }
+  function shrinkPhoto(file) {
+    if (!/^image\//.test(file.type)) return Promise.resolve(file);
+    return Promise.race([
+      shrinkNow(file),
+      new Promise(function (resolve) { setTimeout(function () { resolve(file); }, PHOTO_TIMEOUT); }),
+    ]).catch(function () { return file; });
   }
   window.tdShrinkPhoto = shrinkPhoto;
   document.addEventListener('change', function (event) {
@@ -367,6 +391,7 @@
     // vẫn mở trong lúc nén, vuốt nhanh là gửi ảnh gốc vài MB qua 4G (TUẤN 13/11 "Giao xong chậm"). Chỉ mở lại nút do mình khóa.
     var buttons = input.form ? Array.prototype.filter.call(input.form.elements, function (b) { return b.tagName === 'BUTTON' && !b.disabled; }) : [];
     buttons.forEach(function (b) { b.disabled = true; b.dataset.photoBusy = '1'; });
+    if (input.matches('[data-photo-pick]')) renderPicked(input, files, true);
     Promise.all(files.map(shrinkPhoto)).then(function (out) {
       try { var dt = new DataTransfer(); out.forEach(function (f) { dt.items.add(f); }); input.files = dt.files; } catch (e) { /* giữ ảnh gốc */ }
     }).then(function () {
@@ -399,24 +424,47 @@
   });
 
   // ---- Ô ảnh chuẩn (o_anh.jinja pick): xem trước ảnh đã chụp, tối đa 2 ảnh; ảnh lưu cùng nút của form ----
+  // TUẤN 16/11: "không biết ảnh đã lưu hay chưa, không có nút xóa ảnh". Ảnh hiện ngay khi chọn với dòng "Đang xử lý ảnh…",
+  // xong thì "Ảnh sẵn sàng · lưu khi vuốt/bấm nút bên dưới"; mỗi ảnh có nút Xóa ảnh để chụp lại.
+  function renderPicked(input, files, busy) {
+    var box = input.closest('[data-photo-pick-box]'); if (!box) return;
+    var list = box.querySelector('[data-photo-picked]'), note = box.querySelector('[data-photo-pick-note]');
+    list.innerHTML = '';
+    files.forEach(function (file, i) {
+      var tile = document.createElement('article'); tile.className = 'tech-photo';
+      var img = document.createElement('img'); img.alt = 'Ảnh đã chụp'; img.src = URL.createObjectURL(file);
+      img.onload = function () { URL.revokeObjectURL(img.src); };
+      var row = document.createElement('div'); row.className = 'photo-pick-row';
+      var small = document.createElement('small'); small.dataset.photoState = busy ? 'busy' : 'ready';
+      small.textContent = busy ? '⏳ Đang xử lý ảnh… chờ chút rồi vuốt' : '✓ Ảnh sẵn sàng · lưu khi vuốt/bấm nút bên dưới';
+      var del = document.createElement('button'); del.type = 'button'; del.className = 'btn btn-ghost photo-del'; del.textContent = '✕ Xóa ảnh';
+      del.disabled = !!busy; del.dataset.photoDel = String(i);
+      row.appendChild(small); row.appendChild(del);
+      tile.appendChild(img); tile.appendChild(row); list.appendChild(tile);
+    });
+    if (note) note.hidden = files.length > 0;
+  }
   document.addEventListener('change', function (event) {
     var input = event.target;
     if (!input.matches || !input.matches('[data-photo-pick]')) return;
-    var box = input.closest('[data-photo-pick-box]'), list = box.querySelector('[data-photo-picked]'), note = box.querySelector('[data-photo-pick-note]');
     var files = Array.prototype.slice.call(input.files || []);
     if (files.length > 2) {
       try { var dt = new DataTransfer(); files.slice(0, 2).forEach(function (f) { dt.items.add(f); }); input.files = dt.files; } catch (e) { /* trình duyệt cũ */ }
       files = files.slice(0, 2);
       if (window.tdToast) window.tdToast('Mỗi ô tối đa 2 ảnh, đã giữ 2 ảnh đầu', 'warn');
     }
-    list.innerHTML = '';
-    files.forEach(function (file) {
-      var tile = document.createElement('article'); tile.className = 'tech-photo';
-      var img = document.createElement('img'); img.alt = 'Ảnh đã chụp'; img.src = URL.createObjectURL(file);
-      var small = document.createElement('small'); small.textContent = 'Lưu khi bấm nút bên dưới';
-      tile.appendChild(img); tile.appendChild(small); list.appendChild(tile);
-    });
-    if (note) note.hidden = files.length > 0;
+    renderPicked(input, files, false);
+  });
+  document.addEventListener('click', function (event) {
+    var del = event.target.closest && event.target.closest('[data-photo-del]');
+    if (!del) return;
+    var box = del.closest('[data-photo-pick-box]'), input = box && box.querySelector('input[data-photo-pick]');
+    if (!input) return;
+    var keep = Array.prototype.slice.call(input.files || []).filter(function (f, i) { return String(i) !== del.dataset.photoDel; });
+    try { var dt = new DataTransfer(); keep.forEach(function (f) { dt.items.add(f); }); input.files = dt.files; }
+    catch (e) { input.value = ''; keep = []; }
+    renderPicked(input, keep, false);
+    if (window.tdToast) window.tdToast(keep.length ? 'Đã xóa ảnh' : 'Đã xóa ảnh. Bấm 📷 Chụp ảnh để chụp lại');
   });
   // Nút chính bên ngoài trỏ vào ô ảnh (vd. "Tải ảnh sau sửa") khi chưa chọn ảnh: mở máy ảnh luôn.
   document.addEventListener('click', function (event) {
