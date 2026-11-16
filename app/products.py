@@ -16,6 +16,8 @@ from .security import has_role
 
 # Danh mục hàng do Kho quản lý, giống quy tắc "Kho là nơi ghi duy nhất".
 WRITERS = ("warehouse",)
+# TUẤN 16/11/2026: chỉ giám đốc sửa giá bán; Kho tạo/sửa mã hàng nhưng giá để giám đốc đặt (Bảng giá).
+PRICE_DIRECTOR_ONLY = "Chỉ giám đốc được đặt hoặc sửa giá bán."
 
 
 def _search_text(p: Product) -> str:
@@ -131,6 +133,8 @@ def suggest_code(session: Session) -> str:
 def create(session: Session, user: User, body: ProductIn) -> Product:
     if (body.warranty_months or body.track_serial or body.code=='MAY-CU-CARE') and not has_role(user,'director'):
         raise BusinessError('FORBIDDEN','Chỉ giám đốc được cấu hình bảo hành máy.',status=403)
+    if body.sale_price and not has_role(user,'director'):
+        raise BusinessError('FORBIDDEN',PRICE_DIRECTOR_ONLY,status=403)
     p = Product(**body.model_dump())
     p.code = p.code.upper()
     p.name = p.name.strip()
@@ -157,6 +161,8 @@ def update(session: Session, user: User, code: str, body: ProductPatch) -> Produ
     changes = body.model_dump(exclude_unset=True, exclude={"version"})
     if any(k in changes and changes[k]!=getattr(p,k) for k in ('warranty_months','track_serial')) and not has_role(user,'director'):
         raise BusinessError('FORBIDDEN','Chỉ giám đốc được cấu hình bảo hành máy.',status=403)
+    if 'sale_price' in changes and changes['sale_price']!=p.sale_price and not has_role(user,'director'):
+        raise BusinessError('FORBIDDEN',PRICE_DIRECTOR_ONLY,status=403)
     if changes.get("group_name") is not None and changes["group_name"].strip() != before["group_name"]:
         _check_group(session, changes["group_name"].strip())
     for k, v in changes.items():

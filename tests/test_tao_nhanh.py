@@ -59,9 +59,10 @@ def test_kho_tao_ma_hang_va_ncc(client, web_login, db):
     client.post("/nhom-hang/moi", data={"csrf": csrf, "name": "Hộp mực Renew"})
     html = client.get("/tao-nhanh/hang", params={"q": "Brother TN-2385"}).text
     assert 'name="code" value="TD-0001"' in html and 'name="name" value="Brother TN-2385"' in html
-    assert 'data-money' in html and 'name="warranty_months"' not in html  # bảo hành chỉ giám đốc
+    assert 'name="warranty_months"' not in html  # bảo hành chỉ giám đốc
+    assert 'name="sale_price"' not in html  # giá bán chỉ giám đốc (TUẤN 16/11/2026)
     r = client.post("/tao-nhanh/hang", data={"csrf": csrf, "code": "td-0001", "name": "Brother TN-2385 Renew", "group_name": "Hộp mực Renew", "unit": "hộp", "sale_price": "350.000"})
-    assert r.json()["code"] == "TD-0001" and r.json()["sale_price"] == 350_000
+    assert r.json()["code"] == "TD-0001" and r.json()["sale_price"] == 0  # Kho gửi giá cũng không ghi
     assert db.get(Product, "TD-0001").group_name == "Hộp mực Renew"
     bad = client.post("/tao-nhanh/hang", data={"csrf": csrf, "code": "TD-0001", "name": "Trùng", "unit": "cái"})
     assert bad.status_code >= 400 and "Mã hàng đã có" in bad.text and "<html" not in bad.text
@@ -74,9 +75,9 @@ def test_kho_tao_ma_hang_va_ncc(client, web_login, db):
 def test_giam_doc_dat_bao_hanh_va_serial(client, web_login, db):
     csrf = web_login("giam.doc", "director")
     html = client.get("/tao-nhanh/hang").text
-    assert 'name="warranty_months"' in html and 'name="track_serial"' in html
-    r = client.post("/tao-nhanh/hang", data={"csrf": csrf, "code": "TD-0002", "name": "Máy in HP M211dw", "unit": "cái", "warranty_months": "12", "track_serial": "1"})
-    assert r.json()["warranty_months"] == 12 and r.json()["track_serial"] is True
+    assert 'name="warranty_months"' in html and 'name="track_serial"' in html and 'name="sale_price"' in html
+    r = client.post("/tao-nhanh/hang", data={"csrf": csrf, "code": "TD-0002", "name": "Máy in HP M211dw", "unit": "cái", "warranty_months": "12", "track_serial": "1", "sale_price": "4.500.000"})
+    assert r.json()["warranty_months"] == 12 and r.json()["track_serial"] is True and r.json()["sale_price"] == 4_500_000
     p = db.get(Product, "TD-0002")
     assert p.warranty_months == 12 and p.track_serial
 

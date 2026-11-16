@@ -139,7 +139,7 @@ def _create_product(request, session, user, form):
         "name": str(form.get("name", "")),
         "group_name": str(form.get("group_name", "")),
         "unit": str(form.get("unit", "")).strip() or "cái",
-        "sale_price": _digits(form.get("sale_price")),
+        "sale_price": _digits(form.get("sale_price")) if director else 0,
     }
     if director:
         data["warranty_months"] = int(warranty) if warranty.isdigit() else 0

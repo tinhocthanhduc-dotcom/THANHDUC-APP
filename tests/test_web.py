@@ -159,8 +159,9 @@ def test_hang_hoa_chi_kho_tao(client, web_login, db):
     data = {"csrf": csrf, "code": "td-0124", "name": "Mực HP 107A", "group_name": "Mực", "unit": "hộp", "sale_price": "350.000"}
     r = client.post("/hang-hoa/moi", data=data, follow_redirects=False)
     assert r.headers["location"] == "/hang-hoa/TD-0124?da_luu=1"
-    assert db.get(Product, "TD-0124").sale_price == 350_000
-    assert 'value="TD-0125"' in client.get("/hang-hoa/moi").text
+    assert db.get(Product, "TD-0124").sale_price == 0  # giá bán chỉ giám đốc đặt (TUẤN 16/11/2026)
+    page = client.get("/hang-hoa/moi").text
+    assert 'value="TD-0125"' in page and 'name="sale_price"' not in page
     assert "Mã hàng đã có" in client.post("/hang-hoa/moi", data=data).text
     assert "dạng TD-0001" in client.post("/hang-hoa/moi", data={**data, "code": "MUC-1"}).text
 
@@ -169,11 +170,17 @@ def test_hang_hoa_sua_va_ngung_ban(client, web_login, db):
     csrf = web_login("thu.kho", "warehouse")
     client.post("/hang-hoa/moi", data={"csrf": csrf, "code": "TD-0001", "name": "Drum Brother", "unit": "cái", "sale_price": "0"})
     r = client.post("/hang-hoa/TD-0001", data={"csrf": csrf, "version": "1", "name": "Drum Brother DR-2385", "unit": "cái", "sale_price": "1.250.000", "active": "1"})
-    assert "Đã lưu." in r.text and "1.250.000" in r.text
-    assert "TD-0001" in client.get("/hang-hoa?q=dr-2385&phan=1").text
-    client.post("/hang-hoa/TD-0001", data={"csrf": csrf, "version": "2", "name": "Drum Brother DR-2385", "unit": "cái", "sale_price": "1.250.000"})
+    assert "Đã lưu." in r.text and "1.250.000" not in r.text and 'name="sale_price"' not in r.text
     db.expire_all()
-    assert db.get(Product, "TD-0001").active is False
+    assert db.get(Product, "TD-0001").sale_price == 0  # Kho gửi giá cũng không đổi
+    gd = web_login("giam.doc", "director")
+    r = client.post("/hang-hoa/TD-0001", data={"csrf": gd, "version": "2", "name": "Drum Brother DR-2385", "unit": "cái", "sale_price": "1.250.000", "active": "1"})
+    assert "Đã lưu." in r.text and "1.250.000" in r.text
+    csrf = web_login("kho.hai", "warehouse")
+    assert "TD-0001" in client.get("/hang-hoa?q=dr-2385&phan=1").text
+    client.post("/hang-hoa/TD-0001", data={"csrf": csrf, "version": "3", "name": "Drum Brother DR-2385", "unit": "cái", "sale_price": "1.250.000"})
+    db.expire_all()
+    assert db.get(Product, "TD-0001").active is False and db.get(Product, "TD-0001").sale_price == 1_250_000
     assert "TD-0001" not in client.get("/hang-hoa?phan=1").text
     assert "TD-0001" in client.get("/hang-hoa?tat_ca=1&phan=1").text
 
