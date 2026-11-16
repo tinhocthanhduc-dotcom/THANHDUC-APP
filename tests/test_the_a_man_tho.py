@@ -257,5 +257,5 @@ def test_swipe_shows_sending_and_blocks_second_swipe():
     swipe = js[js.index('function bindSwipe'):js.index("window.bindSwipe = bindSwipe")]
     assert "'Đang gửi…'" in swipe and "swipe-busy" in swipe
     assert "box.classList.contains('swipe-busy')) return" in swipe  # đang gửi thì không nhận vuốt mới
-    assert "if (!submit()) busy(false)" in swipe  # không gửi được thì trả thanh
+    assert "if (!submit()) {\n        busy(false);" in swipe  # không gửi được thì trả thanh
     assert '.swipe.swipe-busy' in (root / 'app.css').read_text()
