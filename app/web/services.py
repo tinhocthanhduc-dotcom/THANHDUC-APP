@@ -261,6 +261,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
         targets = [x for x in targets if x != 'DA_HEN'] + ['DANG_LAM']
     labels = dict(TRANSITIONS)
     labels["DA_HUY"] = "Hủy đơn"
+    labels["CHO_LINH_KIEN"] = "Chờ linh kiện ngoài"  # Đợt 5: khác "Xin linh kiện từ kho" (yêu cầu kho cấp)
     if t.status in ("CHO_LINH_KIEN", "TAM_DUNG"):
         labels["DANG_LAM"] = "Tiếp tục làm"
     if t.status in ('HOAN_THANH','DA_DONG'):

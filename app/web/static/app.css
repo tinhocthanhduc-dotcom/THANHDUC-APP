@@ -5254,3 +5254,11 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .nav-more[open] > summary::after{transform:rotate(45deg)}
 .nav-more > summary:hover{background:var(--tag)}
 @media (min-width: 901px){html.nav-mini .nav-more > summary{display:none}html.nav-mini .nav-more{border-top:0}}
+/* Đợt 5 rà soát: việc phụ của phiếu dịch vụ là một hàng chữ trong Bước tiếp; bấm mở ô cần điền ngay dưới. */
+.svc-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.svc-act > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: 40px; }
+.svc-act > summary::-webkit-details-marker { display: none; }
+.svc-act[open] { flex-basis: 100%; }
+.svc-act[open] > summary { border-color: var(--info-solid); color: var(--info-solid); font-weight: 700; }
+.svc-act-body { margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.svc-act-body .form { gap: .6rem; }

@@ -198,12 +198,4 @@
   });
   new MutationObserver(syncLines).observe(lines,{childList:true});
   syncLines();
-  var send=document.querySelector('[data-quote-send]');
-  if (send) send.addEventListener('submit',function(event) {
-    if (!dirty) return;
-    event.preventDefault();
-    var warning=form.querySelector('[data-quote-warning]'); warning.hidden=false;
-    warning.textContent='Có thay đổi chưa lưu. Bấm Lưu báo giá trước khi Gửi.';
-    warning.scrollIntoView({block:'center'});
-  });
 })();

@@ -134,7 +134,10 @@ def test_service_scheduled_has_only_current_form(client,db,service_people):
     service_login(client,p['dispatcher']);html=client.get(f'/dich-vu/{t.id}').text
     assert html.count('data-next-primary')==1
     assert 'id="service-HOAN_THANH"' not in html and 'id="service-charges"' not in html and 'id="part-create"' not in html
-    assert 'data-other-work' in html
+    # Đợt 5: không còn khung Việc khác; việc phụ là hàng chữ trong Bước tiếp, mỗi việc một lần.
+    assert 'data-other-work' not in html and 'data-more-actions' in html
+    assert html.count('>Không gặp khách</summary>')==1 and html.count('>Dời hẹn</summary>')==1
+    assert '>Không gặp khách</button>' not in html and '>Dời hẹn</button>' not in html
 
 
 def test_service_check_custody_blocks_then_allows_close(client,db,service_people):
@@ -179,10 +182,12 @@ def test_exception_forms_inside_details_and_error_opens(client,db,stocked):
             if tag=='details':self.stack.pop()
     assert Details(html).forms[f'/don-ban/{order.id}/release']
     csrf=service_login(client,stocked['sales']);html=client.get(f'/don-ban/{order.id}').text
-    for action in ['options','promise','cancel']:
-        assert Details(html).forms[f'/don-ban/{order.id}/{action}']
-    r=client.post(f'/don-ban/{order.id}/options',data=dict(csrf=csrf,version=order.version,fulfillment='WRONG'))
-    assert r.status_code==400 and 'data-other-work open' in r.text
+    assert Details(html).forms[f'/don-ban/{order.id}/cancel']
+    # Đợt 5: ngày hẹn + cách nhận hàng + thông tin giao gộp một khung Giao hàng (không còn 3 form riêng).
+    assert f'/don-ban/{order.id}/options"' not in html and f'/don-ban/{order.id}/promise"' not in html
+    assert html.count(f'action="/don-ban/{order.id}/giao-hang"')==1
+    r=client.post(f'/don-ban/{order.id}/giao-hang',data=dict(csrf=csrf,version=order.version,fulfillment='WRONG'))
+    assert r.status_code==400 and 'data-delivery-info open' in r.text
 
 
 def test_inactive_assignee_creates_no_ticket(client,db,service_people):

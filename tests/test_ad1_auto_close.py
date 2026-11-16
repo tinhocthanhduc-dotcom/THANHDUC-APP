@@ -109,7 +109,7 @@ def test_dispatcher_can_reopen_or_cancel_closed_and_restore_stock(client,db,job,
     with pytest.raises(BusinessError) as e:svc.transition(db,p['dispatcher'],t.id,target,t.version)
     assert e.value.code=='REASON_REQUIRED' and snapshot(db,t)==before
     service_login(client,p['dispatcher']);html=client.get(f'/dich-vu/{t.id}').text
-    assert 'Đã đóng' in html and '>Mở lại</button>' in html and 'service-DA_DONG' not in html
+    assert 'Đã đóng' in html and '>Xác nhận mở lại</button>' in html and 'service-DA_DONG' not in html
     svc.transition(db,p['dispatcher'],t.id,target,t.version,'Sửa lại vật tư')
     assert t.status==target and t.priced_at is None and t.receivable is None
     assert db.get(StockDoc,doc_id).status=='DA_HUY' and balance(db,own.code)==3
