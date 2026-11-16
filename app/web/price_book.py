@@ -173,6 +173,63 @@ def save_model_price(request: Request, service_id: int, form=Depends(checked_for
     return RedirectResponse(f'/bang-gia/dich-vu/{service_id}?da_luu=model#gia-model', status_code=303)
 
 
+# ---------- giá theo model (TUẤN duyệt mẫu 16/11/2026) ----------
+
+def _sheet_page(request, session, user, model='', q='', loc='', trang='', so='', saved='', form=None, error=None, status=200):
+    svc.require_view(user)
+    m = svc.find_model(session, model)
+    loc = loc if loc in svc.SHEET_FILTERS else ''
+    q = q[:200]
+    query = dict(model=m.name if m else '', q=q, loc=loc)
+    link = paging.linker('/bang-gia/gia-model', query)
+    ctx = dict(m=m, model=model[:160], q=q, loc=loc, filters=svc.SHEET_FILTERS, link=link, can_edit=svc.can_edit(user),
+               levels=svc.LEVELS, with_vat=svc.with_vat, form=form, saved=saved, query=query,
+               error=error.message if error else None, error_code=error.code if error else '', status=status,
+               all_models=[(x.name, x.search_text, x.group_id) for x in svc.models(session) if x.active],
+               group_names={g.id: g.name for g in svc.groups(session, active_only=False)})
+    if m:
+        sheet = svc.model_sheet(session, m)
+        needle = svc.fold(q).split()
+        rows = [r for r in sheet['packages'] + sheet['services']
+                if (not loc or r['status'] == loc) and all(w in r['service'].search_text for w in needle)]
+        page, shown = paging.slice_rows(rows, trang, so, query)
+        ctx.update(counts=sheet['counts'], page=page, packages=[r for r in shown if r['service'].kind == 'GOI'],
+                   services=[r for r in shown if r['service'].kind == 'PHI'],
+                   has_genuine=any(x.price_genuine for r in rows for x in r['own'].values()))
+    return render(request, 'bang_gia_theo_model.jinja', **ctx)
+
+
+@router.get('/bang-gia/gia-model')
+def model_sheet(request: Request, model: str = '', q: str = '', loc: str = '', trang: str = '', so: str = '', da_luu: str = '',
+                user: User = Depends(web_user), session: Session = Depends(get_session)):
+    return _sheet_page(request, session, user, model, q, loc, trang, so, saved=da_luu)
+
+
+@router.post('/bang-gia/gia-model/luu')
+def save_model_sheet(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    user = request.state.user
+    svc.require_edit(user)
+    data = {k: form.get(k) for k in form.keys()}
+    back = dict(q=str(data.get('q', ''))[:200], loc=str(data.get('loc', '')), trang=str(data.get('trang', '')))
+    try:
+        m = svc.load_model(session, data.get('model_id'))
+        reset = str(data.get('ve_nhom', ''))
+        if reset.isdigit():  # nút "Về giá nhóm" của một dòng: xóa trắng ô giá dòng đó rồi lưu cùng các ô khác
+            for lv in svc.LEVELS:
+                for key in (f's{reset}_p{lv}', f's{reset}_ch{lv}'):
+                    if key in data:
+                        data[key] = ''
+        changed = svc.save_model_sheet(session, user, m.id, data)
+    except BusinessError as exc:
+        session.rollback()
+        if exc.status in (403, 404):
+            raise
+        m = svc.load_model(session, data.get('model_id'))
+        return _sheet_page(request, session, user, m.name, back['q'], back['loc'], back['trang'], form=data, error=exc, status=exc.status)
+    query = {k: v for k, v in dict(model=m.name, **back, da_luu=str(changed)).items() if v}
+    return RedirectResponse('/bang-gia/gia-model?' + urlencode(query), status_code=303)
+
+
 # ---------- model máy ----------
 
 def _models_page(request, session, user, q='', nhom='', form=None, error=None, status=200, saved=''):
@@ -190,9 +247,9 @@ def _models_page(request, session, user, q='', nhom='', form=None, error=None, s
 
 
 @router.get('/bang-gia/model-may')
-def models_page(request: Request, q: str = '', nhom: str = '', da_luu: str = '', user: User = Depends(web_user),
+def models_page(request: Request, q: str = '', nhom: str = '', da_luu: str = '', ten: str = '', user: User = Depends(web_user),
                 session: Session = Depends(get_session)):
-    return _models_page(request, session, user, q, nhom, saved=da_luu)
+    return _models_page(request, session, user, q, nhom, saved=da_luu, form={'name': ten[:160]} if ten else None)
 
 
 @router.post('/bang-gia/nhom-may/luu')

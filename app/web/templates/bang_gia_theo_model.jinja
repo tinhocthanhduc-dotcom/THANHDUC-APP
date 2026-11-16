@@ -1,0 +1,67 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Giá theo model{% endblock %}
+{# TUẤN duyệt mẫu 16/11/2026: chọn model trước → mọi gói sửa (3 cấp) + dịch vụ theo model trên một trang.
+   Ô trống chữ xám = giá nhóm; ô có giá = giá riêng của model; xóa trắng = về giá nhóm. Chỉ giám đốc sửa. #}
+{% set f = form or {} %}
+{% macro money_val(name, current) %}{% if name in f %}{{ f[name] }}{% elif current %}{{ current|money }}{% endif %}{% endmacro %}
+{% macro cell(r, lv, kind='p') %}{% set s = r.service %}{% set o = r.own.get(lv) %}{% set g = r.group.get(lv) %}
+{% set mine = (o.price if kind == 'p' else o.price_genuine) if o else none %}{% set base = (g.price if kind == 'p' else g.price_genuine) if g else none %}
+<div class="gm-cell" data-label="{{ ('Cấp ' ~ lv) if s.kind == 'GOI' else 'Giá' }}{{ ' chính hãng' if kind == 'ch' }}">
+{% if can_edit %}<input name="s{{ s.id }}_{{ kind }}{{ lv }}" value="{{ money_val('s' ~ s.id ~ '_' ~ kind ~ lv, mine) }}" inputmode="numeric" data-money data-gm-in
+ class="{{ 'gm-own' if mine }}" placeholder="{{ base|money if base else '—' }}" aria-label="{{ s.name }} {{ ('cấp ' ~ lv) if s.kind == 'GOI' else '' }}{{ ' chính hãng' if kind == 'ch' }}" data-base="{{ base or '' }}">
+{% else %}<b class="gm-ro{{ ' gm-own' if mine }}">{{ (mine or base)|money if (mine or base) else '—' }}</b>{% endif %}
+<span class="gm-sub{{ ' own' if mine }}" data-gm-sub>{% if mine %}riêng · {{ ('nhóm ' ~ base|money) if base else 'nhóm chưa có' }}{% elif base %}theo nhóm · {{ with_vat(base)|money }} gồm VAT{% elif kind == 'ch' %}không có giá chính hãng{% elif r.group %}nhóm không làm cấp này{% else %}nhóm chưa có giá{% endif %}</span>
+</div>{% endmacro %}
+{% block main %}<div class="page-wide list-page bg-page gm-page" data-vat-rate="{{ default_vat_rate }}">
+{% call ui.page_head('Giá theo model', sub='Chọn model, sửa giá mọi gói sửa và dịch vụ của model đó trên một trang' ~ ('' if can_edit else ' · chỉ giám đốc sửa'), back='/bang-gia?tab=goi') %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if saved %}{{ ui.toast(('Đã lưu giá cho ' ~ m.name ~ ' · ' ~ saved ~ ' dòng đổi.') if saved != '0' else 'Không có ô nào thay đổi.', 'ok') }}{% endif %}
+
+<section class="card gm-pick">
+<form method="get" action="/bang-gia/gia-model" class="gm-find" role="search">
+<label>Model máy<input type="search" name="model" value="{{ m.name if m else model }}" placeholder="Gõ model, vd lbp6030, M402…" autocomplete="off" data-gm-find required></label>
+<noscript><button class="btn btn-ghost">Xem</button></noscript>
+<div class="gm-list" data-gm-list hidden>{% for name, st, gid in all_models %}<a href="/bang-gia/gia-model?model={{ name|urlencode }}" data-s="{{ st }}" hidden><b>{{ name }}</b><small>{{ group_names.get(gid, '') }}</small></a>{% endfor %}
+{% if can_edit %}<a class="gm-new" href="/bang-gia/model-may" data-gm-new>+ Tạo mới model</a>{% endif %}</div>
+</form>
+{% if m %}<div class="gm-info"><span class="badge b-nhap">Nhóm máy: {{ group_names.get(m.group_id, '') }}</span><span class="badge b-lam">{{ counts.rieng }} giá riêng</span><span class="badge b-nhap">{{ counts.nhom }} theo nhóm</span>{% if counts.chua %}<span class="badge b-cho">{{ counts.chua }} chưa có giá</span>{% endif %}</div>
+{% elif model %}<p class="alert warn">Chưa có model “{{ model }}” trong danh mục.{% if can_edit %} <a href="/bang-gia/model-may">Thêm ở Model máy</a> rồi quay lại.{% endif %}</p>
+{% else %}<p class="hint">Gõ không dấu cũng tìm được. Model chưa có thì thêm ở <a href="/bang-gia/model-may">Model máy</a>.</p>{% endif %}
+</section>
+
+{% if m %}
+<form method="post" action="/bang-gia/gia-model/luu" class="card gm-sheet" data-gm-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<input type="hidden" name="model_id" value="{{ m.id }}"><input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="loc" value="{{ loc }}"><input type="hidden" name="trang" value="{{ page.page if page.page > 1 else '' }}">
+<div class="gm-tools">
+<div class="chips bg-chips"><a class="chip-btn{{ ' on' if not loc }}" href="{{ link(loc='') }}">Tất cả {{ counts['tat-ca'] }}</a>{% for key, label in filters.items() %}<a class="chip-btn{{ ' on' if loc == key }}" href="{{ link(loc=key) }}">{{ label }} {{ counts[key] }}</a>{% endfor %}</div>
+<div class="gm-tools-r"><input type="search" value="{{ q }}" placeholder="Tìm gói…" aria-label="Tìm gói" data-gm-q data-href="{{ link(q='') }}">
+{% if can_edit %}<label class="bg-check"><input type="checkbox" name="co_ch" value="1" {% if f.get('co_ch') == '1' or (not f and has_genuine) %}checked{% endif %}> Hiện giá chính hãng</label>{% endif %}</div>
+</div>
+<p class="gm-legend"><span><i></i>Lấy giá nhóm</span><span><i class="own"></i>Giá riêng model</span>{% if can_edit %}<span><i class="chg"></i>Vừa sửa, chưa lưu</span>{% endif %}</p>
+
+{% if packages %}<h2 class="doc-h">Gói sửa chữa <span class="hint">· giá chưa VAT, cấp 1 Nhẹ · 2 Trung bình · 3 Nặng</span></h2>
+<div class="gm-head" aria-hidden="true"><span>Gói</span>{% for lv, label in levels.items() %}<span>Cấp {{ lv }} · {{ label }}</span>{% endfor %}<span></span></div>
+{% for r in packages %}{% set s = r.service %}<div class="gm-row" data-gm-row="{{ s.id }}" data-status="{{ r.status }}">
+<div class="gm-name"><b>{{ s.name }}</b>{% if r.status == 'rieng' %} <span class="badge b-lam">Giá riêng</span>{% endif %}<small>BH {% for lv in levels %}{{ r.warranty.get(lv) if r.warranty.get(lv) is not none else '—' }}{{ ' · ' if not loop.last }}{% endfor %} tháng</small></div>
+{% for lv in levels %}{{ cell(r, lv) }}{% endfor %}
+<div class="gm-act">{% if can_edit and r.own %}<button class="btn btn-ghost bg-small" name="ve_nhom" value="{{ s.id }}" formnovalidate>Về giá nhóm</button>{% endif %}</div>
+{% if can_edit %}<div class="gm-ch"><span class="gm-ch-l">↳ Chính hãng</span>{% for lv in levels %}{{ cell(r, lv, 'ch') }}{% endfor %}<span></span></div>{% endif %}
+</div>{% endfor %}{% endif %}
+
+{% if services %}<h2 class="doc-h">Dịch vụ theo model <span class="hint">· một giá, chưa VAT</span></h2>
+{% for r in services %}{% set s = r.service %}<div class="gm-row gm-one" data-gm-row="{{ s.id }}" data-status="{{ r.status }}">
+<div class="gm-name"><b>{{ s.name }}</b>{% if r.status == 'rieng' %} <span class="badge b-lam">Giá riêng</span>{% endif %}<small>{{ s.unit }} · BH {{ s.warranty_months }} tháng</small></div>
+{{ cell(r, 1) }}
+<div class="gm-act">{% if can_edit and r.own %}<button class="btn btn-ghost bg-small" name="ve_nhom" value="{{ s.id }}" formnovalidate>Về giá nhóm</button>{% endif %}</div>
+</div>{% endfor %}{% endif %}
+
+{% if not packages and not services %}{{ ui.empty('Không có gói nào khớp.' if q or loc else 'Chưa có gói sửa hay dịch vụ theo model nào.', link(q='', loc='') if q or loc else '', 'Xóa lọc') }}{% endif %}
+{{ ui.list_foot(page, 'gói') }}
+{% if can_edit %}<div class="bg-save gm-bar"><span class="hint"><b data-gm-count>0</b> ô đã sửa · giá cấp sau không thấp hơn cấp trước</span><button class="btn-ok" data-gm-save>Lưu giá cho {{ m.name }}</button></div>{% endif %}
+<p class="hint">Báo giá, tra giá màn thợ và Zalo lấy giá riêng của model trước, không có thì lấy giá nhóm. Mỗi lần lưu ghi vào <a href="/bang-gia/lich-su">Lịch sử đổi giá</a>.</p>
+</form>
+{% endif %}
+<script src="{{ asset('gia-theo-model.js') }}" defer></script>
+</div>{% endblock %}
