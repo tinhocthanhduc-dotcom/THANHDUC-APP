@@ -14,6 +14,8 @@ SECTIONS = ('Của tôi', 'Nghiệp vụ', 'Quản lý', 'Thiết lập')
 GROUPS = (
     {'label': '', 'section': 'Của tôi', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
+        # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): mọi việc chờ giám đốc duyệt ở một trang (app/director_approvals.py).
+        {'label': 'Chờ anh duyệt', 'href': '/cho-anh-duyet', 'prefixes': ('/cho-anh-duyet',), 'roles': ('director',)},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
         # Đợt 2 rà soát (TUẤN duyệt 16/11/2026): 4 hộp tin Zalo gom thành một mục, tab theo quyền (app/web/hubs.py).
         {'label': 'Hộp Zalo', 'href': '/hop-zalo', 'prefixes': ('/hop-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
@@ -280,12 +282,25 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/viec-cua-toi': 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     '/tong-quan': 'M3 12l9-8 9 8M5 10v10h14V10',
     '/cac-bao-gia': 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7',
+    '/cho-anh-duyet': 'M9 11l3 3 8-8M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9',
     '/hop-zalo': 'M21 12a8 8 0 01-11.5 7.2L4 21l1.8-5.5A8 8 0 1121 12zM8 12h.01M12 12h.01M16 12h.01',
     '/cham-cong': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
     '/kpi': 'M4 20V10M10 20V4M16 20v-7',
     '/hoa-hong': 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     '/tho': 'M3 5h18v15H3zM3 10h18M8 3v4M16 3v4',
 }.items()}
+# Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): 8 mục "Hằng ngày" trên đầu menu, theo vai trò ghi rõ trên tài khoản
+# (không dùng quyền suy ra của giám đốc); các mục khác gập trong "Khác". Chỉ đổi chỗ hiện, không đổi quyền.
+DAILY = (('/tong-quan', ('director',)), ('/cho-anh-duyet', ('director',)),
+         ('/viec-cua-toi', ('sales', 'finance', 'dispatcher', 'warehouse', 'reception')),
+         ('/dieu-phoi', ('dispatcher', 'director')), ('/dich-vu', ('dispatcher', 'reception')), ('/kiem-tra-may', ('dispatcher',)),
+         ('/ton-kho', ('warehouse',)), ('/phieu-kho', ('warehouse',)), ('/hop-zalo', ('sales', 'dispatcher')),
+         ('/cac-bao-gia', ('sales', 'dispatcher', 'reception')), ('/don-ban', ('sales', 'director')), ('/khach-hang', ('sales', 'reception')),
+         ('/bao-thu', ('finance',)), ('/thu-chi', ('finance',)), ('/cong-no-khach-hang', ('finance', 'director')),
+         ('/bao-cao/lai-rong', ('director',)), ('/doi-ai', ('director',)), ('/luong', ('director',)))
+DAILY_MAX = 8
+
+
 # Thanh dưới trên điện thoại: tối đa 3 lối tắt theo thứ tự này, ô thứ tư là Menu.
 PHONE_TABS = (('/viec-cua-toi', 'Việc'), ('/tong-quan', 'Tổng quan'), ('/dieu-phoi', 'Điều phối'), ('/dich-vu', 'Dịch vụ'),
               ('/don-ban', 'Đơn bán'), ('/ton-kho', 'Tồn kho'), ('/bao-thu', 'Báo thu'), ('/cham-cong', 'Chấm công'))
@@ -322,9 +337,21 @@ def menu(user, path, query=None):
             groups.append(dict(label=group['label'], section=group['section'], items=visible, active=any(item['active'] for item in visible), icon=NAV_ICONS.get(group['label'], '')))
     groups.sort(key=lambda g: SECTIONS.index(g['section']))
     shown = {item['href']: item for group in groups for item in group['items']}
+    daily = []
+    if not shell:
+        for href, roles in DAILY:
+            if len(daily) < DAILY_MAX and href in shown and any(r in user.roles for r in roles):
+                daily.append(shown[href])
+        picked = {item['href'] for item in daily}
+        for group in groups:
+            group['items'] = [item for item in group['items'] if item['href'] not in picked]
+            group['active'] = any(item['active'] for item in group['items'])
+        groups = [group for group in groups if group['items']]
     tabs = [dict(href=href, label=label, icon=shown[href]['icon'], active=shown[href]['active']) for href, label in PHONE_TABS if href in shown][:3]
-    crumb = next(((group['label'] or 'Của tôi', item['label']) for group in groups for item in group['items'] if item['active']), None)
+    crumb = next(((group['label'] or 'Của tôi', item['label']) for group in groups for item in group['items'] if item['active']), None) \
+        or next((('Hằng ngày', item['label']) for item in daily if item['active']), None)
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
     # Người nhiều vai trong khung thợ: tab dưới là nhóm đầu, menu đầy đủ mở từ nút tài khoản.
     personal = [dict(href=h, label=l, hint=t) for h, l, t in PERSONAL if allowed(user, h)] if shell else []
-    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal)
+    more = sum(len(group['items']) for group in groups) if daily else 0
+    return dict(groups=groups, daily=daily, more=more, more_open=any(group['active'] for group in groups), tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal)

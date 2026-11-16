@@ -157,7 +157,11 @@ def test_supplier_alert_sent_date_and_director_work_queue(db,lot,monkeypatch):
     found=alerts.pending_notices(db,p['warehouse'],now=now);assert found.counts['CHO_NCC_QUA_HAN']==1 and any(r['kind']=='CHO_NCC_QUA_HAN' for r in found)
     assert not alerts.pending_notices(db,p['technician'],now=now)
     request=make(db,p,item,'HUY',1,reason='Không sửa được')
-    groups={g['key']:g for g in my_work.collect(db,p['director'])};assert groups['pending_destruction']['rows'][0]['id']==request.id;assert_pending_invariant(db)
+    # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): hủy hàng chờ duyệt của giám đốc nằm ở trang Chờ anh duyệt, không lặp ở Việc của tôi.
+    from app import director_approvals
+    groups={g['key']:g for g in my_work.collect(db,p['director'])};assert 'pending_destruction' not in groups
+    rows=[r for r in director_approvals.rows(db) if r['kind']=='HUY_HANG'];assert [r['number'] for r in rows]==[request.number]
+    assert rows[0]['link'].endswith(f'#xl-{request.id}');assert_pending_invariant(db)
 
 
 def test_stale_item_and_disposition_versions_no_changes(db,lot):
