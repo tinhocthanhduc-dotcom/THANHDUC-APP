@@ -10,7 +10,7 @@ def test_shrink_never_hangs_and_uses_img_decode():
 
 
 def test_pick_slot_shows_state_and_delete():
-    assert 'data-photo-state' in UI and 'Đang xử lý ảnh' in UI and 'Ảnh sẵn sàng' in UI
+    assert 'photoState' in UI and 'Đang xử lý ảnh' in UI and 'Ảnh sẵn sàng' in UI
     assert 'data-photo-del' in UI and '✕ Xóa ảnh' in UI
 
 
