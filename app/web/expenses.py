@@ -1,4 +1,5 @@
-"""Chi phí thợ ứng (TUẤN 30/10/2026, mẫu DuHangChiPhi 2c): kế toán duyệt từng khoản, gộp theo thợ lập phiếu chi hoàn tiền."""
+"""Chi phí phát sinh (TUẤN 30/10/2026 mẫu DuHangChiPhi 2c; 16/11/2026 mọi đơn): kế toán duyệt từng khoản trong hạn mức,
+gộp theo người nhận (người ứng hoặc đối tác) lập một phiếu chi."""
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -12,7 +13,7 @@ from . import checked_form, render, web_user
 from .lists import _today
 
 router = APIRouter()
-TABS = {'cho-duyet': ('CHO_DUYET', 'Chờ duyệt'), 'cho-hoan': ('DA_DUYET', 'Chờ hoàn tiền'), 'da-hoan': ('DA_HOAN', 'Đã hoàn'), 'tu-choi': ('TU_CHOI', 'Từ chối')}
+TABS = {'cho-duyet': ('CHO_DUYET', 'Chờ duyệt'), 'cho-hoan': ('DA_DUYET', 'Chờ chi'), 'da-hoan': ('DA_HOAN', 'Đã chi'), 'tu-choi': ('TU_CHOI', 'Từ chối')}
 
 
 def finance_user(user: User = Depends(web_user)):
@@ -28,15 +29,18 @@ def page(request, session, user, tab='cho-duyet', error=None, code='', status=20
                                                       Attachment.hidden.is_(False)).order_by(Attachment.id)):
         photos.setdefault(int(a.entity_id), a.id)
     groups = []
-    if tab == 'cho-hoan':  # gộp theo thợ: một phiếu chi cho nhiều khoản
+    if tab == 'cho-hoan':  # gộp theo người nhận (người ứng hoặc đối tác): một phiếu chi cho nhiều khoản
+        index = {}
         for r in rows:
-            if not groups or groups[-1]['technician_id'] != r['row'].technician_id:
-                groups.append(dict(technician_id=r['row'].technician_id, technician=r['technician'], rows=[]))
-            groups[-1]['rows'].append(r)
+            key = svc._payee(r['row'])
+            if key not in index:
+                index[key] = dict(technician_id=f'{key[0]}-{key[1]}', technician=r['payee'], partner=key[0] == 'DOI_TAC', rows=[])
+                groups.append(index[key])
+            index[key]['rows'].append(r)
     counts = svc.counts(session)
     funds = list(session.scalars(select(Fund).where(Fund.active.is_(True)).order_by(Fund.code)))
     return render(request, 'chi_phi_tho.jinja', tab=tab, tabs=[dict(label=v[1], n=counts.get(v[0], 0), href='/chi-phi-tho?tab=' + k, on=k == tab) for k, v in TABS.items()],
-                  rows=rows, groups=groups, photos=photos, kinds=svc.KINDS, funds=funds, pay_day=_today().isoformat(),
+                  rows=rows, groups=groups, photos=photos, kinds=svc.KINDS, payers=svc.PAYERS, funds=funds, pay_day=_today().isoformat(),
                   total=sum(r['row'].amount for r in rows), error=error, error_code=code, status=status, d=form or {})
 
 

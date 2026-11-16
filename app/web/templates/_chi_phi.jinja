@@ -1,0 +1,15 @@
+{# Chi phí phát sinh trên đơn (TUẤN duyệt 16/11/2026, mẫu 3jpHcVYJarVVHsxfm461sD). Dùng chung: màn thợ, màn giao đơn, trang phiếu / đơn. #}
+{% macro fields(v, kinds, payers, vat_rates, deliveries=[], need_note=false, tech=false) %}
+<div class="field-group" role="group"><p class="group-label">Loại chi phí</p><div class="chips">{% for code,label in kinds.items() %}<label class="chip"><input type="radio" name="kind" value="{{ code }}" required {% if v.get('kind', 'LINH_KIEN')==code %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label>Mua gì / chi cho việc gì<input name="description" maxlength="500" value="{{ v.get('description','') }}" placeholder="Ví dụ: Cảm biến giấy Canon 2900"></label>
+<label>Nơi mua / đối tác<input name="place" maxlength="300" value="{{ v.get('place','') }}" placeholder="Bắt buộc khi công ty trả đối tác sau"></label>
+<label>Số tiền đã trả (gồm VAT nếu có)<input name="amount" inputmode="numeric" data-money required value="{{ v.get('amount','') }}"></label>
+<div class="field-group" role="group"><p class="group-label">Hóa đơn VAT</p><div class="chips">{% for r in vat_rates %}<label class="chip"><input type="radio" name="hd_vat" value="{{ r }}" {% if v.get('vat_rate','0')|string==r|string %}checked{% endif %}><span>{{ 'Không có' if r==0 else r ~ '%' }}</span></label>{% endfor %}</div></div>
+<div class="field-group" role="group"><p class="group-label">Ai trả</p><div class="chips">{% for code,label in payers.items() %}<label class="chip"><input type="radio" name="payer" value="{{ code }}" {% if v.get('payer','NV_UNG')==code %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div></div>
+{% if deliveries|length > 1 %}<label>Tính vào lần giao<select name="delivery_id">{% for d in deliveries|reverse %}<option value="{{ d.id }}" {% if v.get('delivery_id','')|string==d.id|string %}selected{% endif %}>{{ d.number }} · {{ d.delivered_at|service_short }}</option>{% endfor %}</select></label>{% endif %}
+{% if need_note %}<label>Lý do ghi muộn (đơn đã hoàn thành quá 7 ngày)<input name="note" maxlength="500" required minlength="3" value="{{ v.get('note','') }}"></label>{% endif %}
+<label>Ảnh hóa đơn / biên nhận (nên có)<input type="file" name="photo" accept="image/*" capture="environment"></label>
+<p class="hint">{% if tech %}Tôi ứng tiền: kế toán duyệt xong sẽ hoàn lại cho bạn. Giá báo khách không đổi.{% else %}Có hóa đơn VAT thì giá vốn tính chưa VAT. Giá báo khách không đổi.{% endif %}</p>
+{% endmacro %}
+
+{% macro amount_cell(e) %}<b>{{ e.amount|money }}</b>{% if e.vat_rate %}<small class="hint">vốn {{ e.cost|money }} · HĐ {{ e.vat_rate }}%</small>{% endif %}{% endmacro %}

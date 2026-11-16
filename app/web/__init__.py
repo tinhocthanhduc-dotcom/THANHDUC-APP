@@ -975,6 +975,8 @@ router.include_router(supplier_debts_router)
 router.include_router(customer_debts_router)
 from .expenses import router as expenses_router
 router.include_router(expenses_router)
+from .chi_phi import router as chi_phi_router
+router.include_router(chi_phi_router)
 
 from .purchase_returns import router as purchase_returns_router
 

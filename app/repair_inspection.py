@@ -385,10 +385,11 @@ def margin(session: Session, t: ServiceTicket, row: RepairInspection, q: dict, h
     rate = hourly_rate(session, row.inspected_by)
     labour = int((Decimal(hours) * (rate or 0)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     rule = tech_rule(session, t.kind, row.inspected_by, _now().date())
-    base = max(0, revenue - parts)  # hoa hồng thợ tính trên gói − giá vốn linh kiện (TUẤN duyệt 14/11)
-    commission = int((Decimal(rule.fixed_amount) + Decimal(rule.pct) / 100 * base).quantize(Decimal(1), rounding=ROUND_HALF_UP)) if rule else 0
-    expenses = int(session.scalar(select(func.coalesce(func.sum(ServiceExpense.amount), 0)).where(
+    expenses = int(session.scalar(select(func.coalesce(func.sum(ServiceExpense.cost), 0)).where(
         ServiceExpense.ticket_id == t.id, ServiceExpense.status.in_(COUNTED))) or 0)
+    # Hoa hồng thợ tính trên gói − giá vốn linh kiện (TUẤN duyệt 14/11) − chi phí phát sinh đã duyệt (16/11).
+    base = max(0, revenue - parts - expenses)
+    commission = int((Decimal(rule.fixed_amount) + Decimal(rule.pct) / 100 * base).quantize(Decimal(1), rounding=ROUND_HALF_UP)) if rule else 0
     profit = revenue - parts - labour - commission - expenses
     pct = round(profit * 100 / revenue, 1) if revenue else None
     return dict(revenue=revenue, parts=parts, hours=hours, rate=rate, labour=labour, rule=rule, commission=commission,

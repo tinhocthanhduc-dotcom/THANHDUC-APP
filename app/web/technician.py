@@ -491,15 +491,10 @@ def add_expense(request:Request,ticket_id:int,form=Depends(checked_form),user:Us
     from .. import service_expenses
     from .services import _detail,_message
     owned(session,user,ticket_id);request.state.technician_return=True
+    from .chi_phi import fields,read_photo
     try:
-        upload=form.get('photo');photo=None
-        if upload is not None and getattr(upload,'filename',''):
-            data=upload.file.read(get_settings().max_upload_mb*1024*1024+1)
-            if data:
-                if len(data)>get_settings().max_upload_mb*1024*1024:raise BusinessError('FILE_TOO_LARGE','Ảnh quá lớn.')
-                if not attachments._prepare(data)[1].startswith('image/'):raise BusinessError('BAD_FILE_TYPE','Ảnh hóa đơn phải là ảnh JPEG, PNG hoặc WEBP.')
-                photo=(upload.filename,data)
-        row=service_expenses.create(session,user,ticket_id,str(form.get('kind','')),str(form.get('description','')),str(form.get('place','')),str(form.get('amount','')),photo)
+        f=fields(form)
+        row=service_expenses.create(session,user,ticket_id,f['kind'],f['description'],f['place'],f['amount'],read_photo(form),payer=f['payer'],vat_rate=f['vat_rate'])
     except BusinessError as exc:
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,form=form,failed_action='expense',error=message,error_code=code,status=status,technician_view=True)

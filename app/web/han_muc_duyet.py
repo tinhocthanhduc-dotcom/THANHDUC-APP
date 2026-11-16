@@ -27,11 +27,11 @@ def page(request: Request, luu: str = '', user: User = Depends(web_user), sessio
 @router.post('/han-muc-duyet')
 def save(request: Request, form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
     try:
-        svc.save(session, user, {k: form.get(k, '') for k in svc.KEYS})
+        svc.save(session, user, {k: form.get(k) if k == 'CHI_PHI' else form.get(k, '') for k in svc.KEYS})
     except BusinessError as exc:
         session.rollback()
         if exc.status == 403:
             raise
-        values = {k: str(form.get(k, '')) for k in svc.KEYS}
+        values = {**svc.limits(session), **{k: str(form.get(k, '')) for k in svc.KEYS if form.get(k) is not None}}
         return _page(request, session, user, values, exc, status=exc.status)
     return RedirectResponse('/han-muc-duyet?luu=1', status_code=303)

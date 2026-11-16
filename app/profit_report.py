@@ -8,7 +8,7 @@ giám đốc mục tiêu → còn lại. Không ghi sổ; chỉ bảng chi phí 
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import Date, Numeric, cast, func, select
+from sqlalchemy import Date, Numeric, cast, func, or_, select
 
 from . import finance_reports, purchase_reports
 from .errors import BusinessError
@@ -110,7 +110,9 @@ def _expense_rows(session, start, end, pl_kind):
     stmt = (select(CashCategory.code, CashCategory.name, CashCategory.pl_group, func.count(func.distinct(FundLedger.doc_id)).label('documents'),
                    func.coalesce(func.sum(-FundLedger.amount), 0).label('amount'))
             .select_from(FundLedger).join(CashDoc, CashDoc.id == FundLedger.doc_id).join(CashCategory, CashCategory.code == CashDoc.category_code)
-            .where(FundLedger.entry_date.between(start, end), CashDoc.kind == 'PC', CashDoc.is_opening.is_(False), CashCategory.pl_kind == pl_kind)
+            .where(FundLedger.entry_date.between(start, end), CashDoc.kind == 'PC', CashDoc.is_opening.is_(False), CashCategory.pl_kind == pl_kind,
+                   # Phiếu chi hoàn/trả chi phí phát sinh: khoản đó đã nằm trong giá vốn đơn (lãi gộp), không trừ lần hai.
+                   or_(CashDoc.source_type.is_(None), CashDoc.source_type != 'SERVICE_EXPENSE'))
             .group_by(CashCategory.code, CashCategory.name, CashCategory.pl_group).order_by(CashCategory.pl_group, CashCategory.code))
     with session.no_autoflush:
         return [dict(code=code, name=name, group=group, documents=int(docs), amount=_int(amount))

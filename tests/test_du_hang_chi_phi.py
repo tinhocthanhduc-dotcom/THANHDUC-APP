@@ -160,7 +160,7 @@ def test_technician_records_expense_with_photo_and_history(db, working):
     assert step.note == 'Mua linh kiện ngoài: Bánh răng sấy M402 · 150.000 đồng'
 
 
-@pytest.mark.parametrize('who,status,code', [('other_tech', 'DANG_LAM', 'FORBIDDEN'), ('technician', 'DA_HEN', 'BAD_STATUS')])
+@pytest.mark.parametrize('who,status,code', [('other_tech', 'DANG_LAM', 'FORBIDDEN'), ('technician', 'DA_GIAO', 'BAD_STATUS')])
 def test_only_assigned_technician_after_arrival(db, held, who, status, code):
     p, a, b = held
     t = ticket(db, p, status)
@@ -267,4 +267,4 @@ def test_expense_screens(client, db, working, fund):
     assert r.status_code == 303 and r.headers['location'].startswith('/thu-chi/')
     assert db.scalar(select(CashDoc).where(CashDoc.source_type == 'SERVICE_EXPENSE')).amount == 150000
     service_login(client, p['dispatcher'])
-    assert 'Chi phí phát sinh thợ đã trả' in client.get(f'/dich-vu/{t.id}').text
+    assert 'Chi phí phát sinh nội bộ' in client.get(f'/dich-vu/{t.id}').text

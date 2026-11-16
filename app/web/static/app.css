@@ -5144,6 +5144,18 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .bq-kind a + a { border-left: 1px solid var(--line); }
 .bq-kind a.on { background: var(--accent); color: var(--accent-text); }
 
+/* Chi phí phát sinh nội bộ trên phiếu / đơn (TUẤN duyệt 16/11/2026) */
+.cp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cp-list li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.cp-list li > div:first-child { min-width: 0; }
+.cp-list small { display: block; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.cp-amt { display: grid; justify-items: end; gap: 4px; text-align: right; flex: none; }
+.cp-amt small { display: block; font-size: 12px; }
+.cp-del { min-height: 34px; padding: 0 10px; }
+.cp-add > summary { list-style: none; display: inline-flex; margin-top: 8px; }
+.cp-add > summary::-webkit-details-marker { display: none; }
+.cp-add .form { margin-top: 10px; }
+.cp-row-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; }
 /* Giá theo model (TUẤN duyệt mẫu 16/11/2026), tiền tố gm- */
 .gm-pick { display: grid; gap: 10px; }
 .gm-find { position: relative; display: grid; gap: 6px; max-width: 520px; }
