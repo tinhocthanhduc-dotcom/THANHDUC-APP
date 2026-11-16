@@ -17,7 +17,8 @@ from .paging import build
 router = APIRouter()
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
 NOTE_COOKIE = 'td_zalo_webhook_note'
-STATUS = {'DANG_GUI': ('Đang gửi', 'cho'), 'DA_GUI': ('Đã gửi', 'xong'), 'LOI': ('Gửi lỗi', 'huy')}
+STATUS = {'DANG_GUI': ('Đang gửi', 'cho'), 'DA_GUI': ('Đã gửi', 'xong'), 'LOI': ('Gửi lỗi', 'huy'),
+          'CHO_GOP': ('Chờ gửi gộp', 'cho'), 'DA_GOP': ('Đã gửi trong tin gộp', 'xong')}
 
 
 def _when(value) -> str:

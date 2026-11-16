@@ -154,8 +154,11 @@ def receive_event_full(payload: dict) -> tuple[int | None, int | None]:
         return receive_full(session, payload)
 
 
-def send_text(session: Session, chat: ZaloChat, text: str, user: User | None = None, kind: str = 'text') -> ZaloMessage:
+def send_text(session: Session, chat: ZaloChat, text: str, user: User | None = None, kind: str = 'text', hold: bool = True) -> ZaloMessage:
     """Ghi tin trước rồi mới gửi, để gửi lỗi vẫn thấy trên màn. Không tự gửi lại vì có thể làm người nhận nhận 2 tin."""
+    from . import tin_gop
+    if hold and tin_gop.should_hold(session, chat, kind, user):  # Tin gộp giám đốc: giữ lại, gửi gộp ở mốc (app/tin_gop.py)
+        return tin_gop.hold(session, chat, text, kind)
     row = ZaloMessage(chat_pk=chat.id, direction='OUT', kind=kind, text=text, sent_by=user.id if user else None,
                       sender_name=user.full_name if user else 'Tự động', status='DANG_GUI', raw={},
                       message_at=datetime.now(timezone.utc))
