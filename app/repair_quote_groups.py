@@ -150,6 +150,55 @@ def for_ticket(session: Session, ticket_id: int) -> RepairQuoteGroup | None:
     return session.get(RepairQuoteGroup, v.group_id) if v is not None and v.group_id else None
 
 
+VIEWS = {'cho': 'Chờ khách trả lời', 'xong': 'Đã trả lời hết', 'khac': 'Thu hồi · hết hạn'}
+STATE_LABELS = {'CHO': 'Chờ khách trả lời', 'XONG': 'Đã trả lời hết', 'THU_HOI': 'Đã thu hồi', 'HET_HAN': 'Hết hiệu lực'}
+
+
+def state(session: Session, g: RepairQuoteGroup, rows: list[RepairQuoteVersion] | None = None) -> str:
+    """CHO | XONG | THU_HOI | HET_HAN (còn máy chờ nhưng quá hiệu lực)."""
+    if g.status == 'THU_HOI':
+        return 'THU_HOI'
+    rows = members(session, g) if rows is None else rows
+    if not any(v.status == 'CHO' for v in rows):
+        return 'XONG'
+    return 'HET_HAN' if g.valid_until < rqs._today() else 'CHO'
+
+
+def listing(session: Session, view: str, q: str = '', customer_code: str = '') -> tuple[list[dict], dict]:
+    """Danh sách báo giá gộp (mới trước) + đếm theo tab. q tìm số BGG, tên khách, số phiếu."""
+    from .text import fold
+    stmt = select(RepairQuoteGroup).order_by(RepairQuoteGroup.id.desc())
+    if customer_code:
+        stmt = stmt.where(RepairQuoteGroup.customer_code == customer_code)
+    groups = list(session.scalars(stmt))
+    names = {c.code: c.name for c in session.scalars(select(Customer).where(Customer.code.in_({g.customer_code for g in groups})))} if groups else {}
+    out, counts = [], dict.fromkeys(VIEWS, 0)
+    needle = fold(q or '').strip()
+    for g in groups:
+        rows = members(session, g)
+        st = state(session, g, rows)
+        tab = 'cho' if st == 'CHO' else 'xong' if st == 'XONG' else 'khac'
+        item = dict(g=g, state=st, tab=tab, customer=names.get(g.customer_code, g.customer_code), members=rows,
+                    total=_totals([v.snapshot for v in rows])['chosen']['total'] if rows else 0,
+                    agreed=sum(1 for v in rows if v.status == 'DONG_Y'))
+        hay = fold(' '.join([g.number, item['customer']] + [v.snapshot.get('number', '') for v in rows]))
+        if needle and needle not in hay:
+            continue
+        counts[tab] += 1
+        if tab == view:
+            out.append(item)
+    return out, counts
+
+
+def open_for_customer(session: Session, customer_code: str) -> RepairQuoteGroup | None:
+    """Báo giá gộp mới nhất của khách còn máy chờ khách trả lời (kể cả đã quá hiệu lực, để điều phối thấy mà gửi lại)."""
+    for g in session.scalars(select(RepairQuoteGroup).where(RepairQuoteGroup.customer_code == customer_code,
+                                                            RepairQuoteGroup.status != 'THU_HOI').order_by(RepairQuoteGroup.id.desc())):
+        if state(session, g) in ('CHO', 'HET_HAN'):
+            return g
+    return None
+
+
 # ---------- gửi ----------
 
 def _clean_text(g: RepairQuoteGroup, text) -> str:

@@ -190,3 +190,24 @@ def test_web_pick_create_public_print_and_reply(client, db, pair):
     assert all(db.get(ServiceTicket, x).quote_approved_at for x in (t1.id, t2.id))
     client.cookies.clear()
     assert client.get(f'/bgg/{g.token}').status_code == 200  # máy đã đồng ý vẫn xem lại được
+
+
+def test_old_groups_listed_and_reopened(client, db, pair):
+    """TUẤN 16/11/2026: xem lại báo giá gộp cũ ở danh sách, Máy chờ kiểm tra và trang lập mới (không phải tạo lại)."""
+    from test_web import service_login
+    p, t1, t2, fuser = pair
+    g = rg.create(db, p['dispatcher'], t1.customer_code, picks(t1, t2))
+    assert rg.open_for_customer(db, t1.customer_code).id == g.id
+    rows, counts = rg.listing(db, 'cho')
+    assert [r['g'].id for r in rows] == [g.id] and counts == dict(cho=1, xong=0, khac=0)
+    assert rg.listing(db, 'cho', q=t2.number)[0] and not rg.listing(db, 'cho', q='khong-co')[0]
+    service_login(client, p['dispatcher'])
+    assert g.number in client.get('/bao-gia-gop').text
+    page = client.get('/kiem-tra-may').text
+    assert f'/bao-gia-gop/{g.id}' in page and 'Gộp lại bản mới' in page
+    assert f'/bao-gia-gop/{g.id}' in client.get(f'/bao-gia-gop/moi?khach={t1.customer_code}').text
+    rg.revoke(db, p['dispatcher'], g.id)
+    assert rg.open_for_customer(db, t1.customer_code) is None and rg.listing(db, 'khac')[1]['khac'] == 1
+    client.cookies.clear()
+    service_login(client, p['technician'])
+    assert client.get('/bao-gia-gop').status_code == 403

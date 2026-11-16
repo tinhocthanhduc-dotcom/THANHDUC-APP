@@ -66,6 +66,7 @@ for _role in ('technician', 'dispatcher', 'director'):
     EXPECTED[_role].add('/kiem-tra-may')  # Báo giá sửa chữa đợt 3: thợ kiểm tra máy (mẫu M3 14/11/2026)
 for _role in ('dispatcher', 'director'):
     EXPECTED[_role].add('/bao-gia-hop-dong')  # Báo giá hợp đồng sửa chữa (mẫu H1–H3 14/11/2026)
+    EXPECTED[_role].add('/bao-gia-gop')  # Báo giá gộp: xem lại báo giá cũ (TUẤN 16/11/2026)
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',

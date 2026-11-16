@@ -12,7 +12,7 @@ from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, User
-from . import checked_form, render, web_user
+from . import checked_form, paging, render, web_user
 
 router = APIRouter(include_in_schema=False)
 public_router = APIRouter(include_in_schema=False)
@@ -33,8 +33,25 @@ def _pick_page(request, session, user, code, form=None, error='', error_code='',
     rows = rg.candidates(session, code)
     chosen = {int(x) for x in form.getlist('phieu') if str(x).isdigit()} if form is not None else {r['ticket'].id for r in rows if r['ready']}
     from ..tin_gui_khach import linked_chat
+    old, _ = rg.listing(session, 'cho', customer_code=code)
+    done, _ = rg.listing(session, 'xong', customer_code=code)
     return render(request, 'bao_gia_gop_chon.jinja', customer=customer, rows=rows, chosen=chosen, linked=bool(linked_chat(session, code)),
+                  existing=(old + done)[:5], labels=rg.STATE_LABELS,
                   valid_days=rqs.VALID_DAYS, error=error, error_code=error_code, status=status)
+
+
+@router.get('/bao-gia-gop')
+def listing(request: Request, view: str = 'cho', q: str = '', trang: str = '', so: str = '', user: User = Depends(web_user),
+            session: Session = Depends(get_session)):
+    """Danh sách báo giá gộp (TUẤN 16/11/2026: xem lại báo giá cũ, không phải tạo mới)."""
+    rqs.require(user)
+    view = view if view in rg.VIEWS else 'cho'
+    rows, counts = rg.listing(session, view, q[:200])
+    query = dict(view=view, q=q[:200])
+    page, shown = paging.slice_rows(rows, trang, so, query)
+    link = paging.linker('/bao-gia-gop', query)
+    return render(request, 'bao_gia_gop_ds.jinja', rows=shown, p=page, q=q[:200], view=view, labels=rg.STATE_LABELS,
+                  tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in rg.VIEWS.items()])
 
 
 @router.get('/bao-gia-gop/moi')

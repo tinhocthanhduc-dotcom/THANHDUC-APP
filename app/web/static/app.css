@@ -5135,3 +5135,4 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .photo-pick-row small[data-photo-state="busy"] { color: var(--warn, var(--muted)); font-weight: 700; }
 .photo-pick-row small[data-photo-state="ready"] { color: var(--ok, inherit); font-weight: 700; }
 .photo-pick-row .photo-del { min-height: 40px; padding: .35rem .8rem; color: var(--bad, inherit); }
+.bgg-old { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }

@@ -4,6 +4,9 @@
 {% block main %}<div class="page-wide bgg-page">
 {# Mẫu duyệt 15/11/2026, màn 2: tick máy cùng khách đã áp giá; Lưu và gửi tạo lần báo giá từng phiếu + link chung. #}
 {% call ui.page_head('Báo giá gộp', sub=customer.name ~ (' · ' ~ customer.address if customer.address else '') ~ ' · Zalo công ty: ' ~ ('đã gắn' if linked else 'chưa gắn'), back='/kiem-tra-may') %}{% endcall %}
+{% if existing %}<section class="card bgg-card"><h2 class="qf-h">Báo giá gộp đã lập cho khách này</h2>
+{% for r in existing %}<a class="rq-row bgg-old" href="/bao-gia-gop/{{ r.g.id }}"><span><b>{{ r.g.number }}</b> · {{ r.members|length }} máy · {{ r.total|money }}đ<br><small class="mu">lập {{ r.g.created_at|vn_date }}{% if r.g.sent_at %} · đã gửi{% else %} · chưa gửi{% endif %}{% if r.agreed %} · {{ r.agreed }} máy đồng ý{% endif %}</small></span><span class="badge {{ 'b-cho' if r.state == 'CHO' else 'b-xong' }}">{{ labels[r.state] }}</span></a>{% endfor %}
+<p class="hint">Bấm vào để xem, gửi lại, in hoặc ghi khách trả lời. Chỉ lập bản mới khi giá đã đổi hoặc có thêm máy.</p></section>{% endif %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
 <form method="post" action="/bao-gia-gop/moi" class="pnz-two" data-busy data-bgg-pick><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="khach" value="{{ customer.code }}">
 <section class="card bgg-card"><h2 class="qf-h">Chọn máy gửi chung</h2>
