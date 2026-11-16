@@ -273,3 +273,25 @@ def test_package_used_on_inspection_cannot_be_deleted(db, workshop, make_user):
     db.rollback()
     assert db.get(type(fuser), fuser.id) is not None
     assert pb.delete_service(db, boss, feed.id) == 'GOI'
+
+
+def test_internal_inspection_print_has_details_no_prices(client, db, workshop, make_user):
+    """TUẤN 16/11/2026: nút In kết quả kiểm tra nội bộ: gói, cấp, lý do đổi cấp, việc cần làm, linh kiện; không giá, không lãi."""
+    p, a, b, t, eq = workshop
+    boss = make_user('rq.print.boss', 'director')
+    fuser, feed, opts = book(db, boss)
+    ri.save(db, p['technician'], t.id, form(fuser, opts, picks=['Thay bao lụa sấy'], level='3', reason='Rulo ép mòn nặng',
+                                           parts=[('TD-0001', 1)], extra=[('note', 'Máy kẹt giấy ở cụm sấy')]))
+    service_login(client, boss)
+    page = client.get(f'/dich-vu/{t.id}')
+    assert page.status_code == 200 and f'href="/kiem-tra-may/{t.id}/in"' in page.text and 'In kết quả kiểm tra' in page.text
+    r = client.get(f'/kiem-tra-may/{t.id}/in')
+    assert r.status_code == 200
+    for text in ('KẾT QUẢ KIỂM TRA MÁY', t.number, 'Sửa chữa cụm sấy', 'Cấp 3', 'Rulo ép mòn nặng', 'Thay bao lụa sấy',
+                 'TD-0001', 'Máy kẹt giấy ở cụm sấy', 'PA1 · Tiêu chuẩn'):
+        assert text in r.text, text
+    for text in ('650.000', 'Lãi trực tiếp', 'vốn'):
+        assert text not in r.text, text
+    client.cookies.clear()
+    service_login(client, p['sales'])
+    assert client.get(f'/kiem-tra-may/{t.id}/in').status_code == 403

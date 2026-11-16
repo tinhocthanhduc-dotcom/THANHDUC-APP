@@ -4677,6 +4677,9 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .rq-profit { font-weight: 700; border-top: 1px solid var(--line); padding-top: 6px; }
 .rq-paper { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .rq-paper-h { margin: 0; font-weight: 700; color: var(--info-solid); }
+/* TUẤN 16/11/2026: Sửa kết quả kiểm tra + In kết quả kiểm tra (nội bộ) cùng một hàng, nút phụ viền xám. */
+.rqs-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rqs-acts .btn { width: 100%; }
 .rq-cline span { display: grid; gap: 2px; }
 .rq-cline small { color: var(--muted); font-weight: 400; }
 @media (max-width: 760px) {
