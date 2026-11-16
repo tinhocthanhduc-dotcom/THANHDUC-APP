@@ -54,6 +54,20 @@ def listing(request: Request, view: str = 'cho', q: str = '', trang: str = '', s
                   tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in rg.VIEWS.items()])
 
 
+@router.get('/bao-gia-sua')
+def single_listing(request: Request, view: str = 'cho', q: str = '', trang: str = '', so: str = '', user: User = Depends(web_user),
+                   session: Session = Depends(get_session)):
+    """Báo giá sửa một máy đã lập (TUẤN 16/11/2026: "chưa có báo giá loại không gộp?"). Mở lại ở phiếu dịch vụ."""
+    rqs.require(user)
+    view = view if view in rqs.LIST_VIEWS else 'cho'
+    rows, counts = rqs.listing(session, view, q[:200])
+    query = dict(view=view, q=q[:200])
+    page, shown = paging.slice_rows(rows, trang, so, query)
+    link = paging.linker('/bao-gia-sua', query)
+    return render(request, 'bao_gia_sua_ds.jinja', rows=shown, p=page, q=q[:200], view=view, statuses=rqs.STATUSES,
+                  tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in rqs.LIST_VIEWS.items()])
+
+
 @router.get('/bao-gia-gop/moi')
 def pick(request: Request, khach: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
     return _pick_page(request, session, user, khach[:16])

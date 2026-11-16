@@ -211,3 +211,28 @@ def test_old_groups_listed_and_reopened(client, db, pair):
     client.cookies.clear()
     service_login(client, p['technician'])
     assert client.get('/bao-gia-gop').status_code == 403
+
+
+def test_single_quotes_listed(client, db, pair):
+    """TUẤN 16/11/2026: "chưa có báo giá loại không gộp?" → /bao-gia-sua liệt kê báo giá một máy, máy trong báo giá gộp không lặp."""
+    from test_web import service_login
+    from app import repair_quotes as rqs
+    p, t1, t2, fuser = pair
+    v = rqs.create(db, p['dispatcher'], t1.id, t1.version)
+    rows, counts = rqs.listing(db, 'chua-gui')
+    assert [r['v'].id for r in rows] == [v.id] and counts == {'chua-gui': 1, 'cho': 0, 'xong': 0, 'khac': 0}
+    assert rqs.listing(db, 'chua-gui', q=t1.number)[0] and not rqs.listing(db, 'chua-gui', q='khong-co')[0]
+    rqs.mark_sent(db, p['dispatcher'], v.id, 'COPY')
+    assert rqs.listing(db, 'cho')[1]['cho'] == 1
+    service_login(client, p['dispatcher'])
+    page = client.get('/bao-gia-sua?view=cho').text
+    assert t1.number in page and f'/dich-vu/{t1.id}#gui-khach' in page and 'Gộp nhiều máy' in page
+    assert 'href="/bao-gia-sua"' in client.get('/kiem-tra-may').text
+    rqs.revoke(db, p['dispatcher'], v.id)
+    db.refresh(t1); db.refresh(t2)
+    rg.create(db, p['dispatcher'], t1.customer_code, picks(t1, t2))
+    rows, counts = rqs.listing(db, 'cho')
+    assert not rows and counts['khac'] == 1 and sum(counts.values()) == 1  # máy trong báo giá gộp chỉ ở tab Gộp
+    client.cookies.clear()
+    service_login(client, p['technician'])
+    assert client.get('/bao-gia-sua').status_code == 403

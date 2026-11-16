@@ -72,8 +72,8 @@ GROUPS = (
         {'label': 'Báo giá hợp đồng', 'href': '/bao-gia-hop-dong', 'prefixes': ('/bao-gia-hop-dong',), 'roles': ('dispatcher',)},
         # Báo giá sửa chữa đợt 3 (TUẤN duyệt mẫu M3 14/11/2026): thợ kiểm tra máy ở xưởng, điều phối báo giá.
         {'label': 'Máy chờ kiểm tra', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher')},
-        # Báo giá gộp nhiều máy một khách (TUẤN duyệt mẫu 15/11/2026); 16/11 lên menu để xem lại báo giá cũ.
-        {'label': 'Báo giá gộp', 'href': '/bao-gia-gop', 'prefixes': ('/bao-gia-gop',), 'roles': ('dispatcher',)},
+        # Báo giá sửa đã lập (TUẤN 16/11/2026): xem lại báo giá cũ, tab Một máy / Gộp nhiều máy (báo giá gộp mẫu duyệt 15/11).
+        {'label': 'Báo giá đã lập', 'href': '/bao-gia-sua', 'prefixes': ('/bao-gia-sua', '/bao-gia-gop'), 'roles': ('dispatcher',)},
         # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
         {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',)},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
