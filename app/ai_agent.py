@@ -66,6 +66,8 @@ AGENTS = {
                         hint='Trả lời nhân viên hỏi tồn kho, lên đơn nháp qua Zalo bằng gói thuê bao trên máy chủ. Chỉ nhận câu lệnh, trả chữ; app tự tra và lập nháp.'),
     'n8n': dict(name='n8n · Nhắn việc chờ duyệt', scopes=('n8n',), ready=True,
                 hint='Chỉ đọc: đếm sản phẩm Đăng web chờ anh xem trước, có thể trùng, bị lỗi, kèm link để nhắn Zalo 8:00 và 16:00. Không duyệt, không đăng, không đụng tiền hay kho.'),
+    'growth-os': dict(name='Growth OS · Marketing (chỉ đọc)', scopes=('marketing_read',), ready=True,
+                      hint='Chỉ đọc: danh mục hàng + giá bán, tồn khả dụng kho bán, nhóm biên lãi (CAO/VỪA/THẤP/ÂM). Không có giá vốn, khách, SĐT, đơn. Mỗi lần đọc ghi nhật ký.'),
 }
 
 
@@ -449,7 +451,7 @@ def listing(session, tab, offset, size):
 
 LOG_LABELS = {'ai.key_create': 'Tạo khóa mới', 'ai.key_revoke': 'Khóa truy cập', 'ai.pause': 'Tạm dừng trợ lý',
               'ai.resume': 'Cho trợ lý chạy tiếp', 'ai_action.approve': 'Duyệt đề xuất', 'ai_action.reject': 'Từ chối đề xuất',
-              'ai_action.failed': 'Duyệt nhưng không chạy được', 'ai.expire': 'Đề xuất hết hạn'}
+              'ai_action.failed': 'Duyệt nhưng không chạy được', 'ai.expire': 'Đề xuất hết hạn', 'ai.marketing_read': 'Growth OS đọc dữ liệu'}
 
 
 def pending_brief(session, limit=10):
