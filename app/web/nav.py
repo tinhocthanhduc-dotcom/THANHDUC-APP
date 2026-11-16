@@ -277,6 +277,7 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     'Quản trị': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     '/viec-cua-toi': 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     '/tong-quan': 'M3 12l9-8 9 8M5 10v10h14V10',
+    '/hop-zalo': 'M21 12a8 8 0 01-11.5 7.2L4 21l1.8-5.5A8 8 0 1121 12zM8 12h.01M12 12h.01M16 12h.01',
     '/cham-cong': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
     '/kpi': 'M4 20V10M10 20V4M16 20v-7',
     '/hoa-hong': 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
