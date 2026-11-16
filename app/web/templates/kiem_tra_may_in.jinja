@@ -1,0 +1,26 @@
+{# TUẤN 16/11/2026: phiếu A4 kết quả kiểm tra máy NỘI BỘ cho xưởng/thợ. Không in giá bán, giá vốn, lãi. #}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% block title %}Kết quả kiểm tra {{ t.number }}{% endblock %}
+{% block tools_sub %}{{ customer.name if customer else '' }} · {{ row.model_name or machine }}{% endblock %}
+{% block doc_title %}KẾT QUẢ KIỂM TRA MÁY{% endblock %}
+{% block doc_sub %}Bản nội bộ · dùng trong xưởng, không gửi khách{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', t.number) }}{{ f.meta('Ngày kiểm tra', row.inspected_at|vn_date) }}{{ f.meta('Giờ', row.inspected_at|vn_time) }}{{ f.meta('Thợ kiểm tra', inspector) }}{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name if customer else t.customer_code, [('Mã khách', customer.code if customer else ''), ('Điện thoại', (customer|customer_phones('')) if customer else '')]) }}
+{{ f.card('Máy kiểm tra', row.model_name or machine, [('Tên máy', machine if machine and machine != row.model_name else ''), ('Serial', t.serial), ('Áp giá', (row.applied_at|vn_date ~ (' · ' ~ applier if applier else '')) if row.applied_at else 'Chưa áp vào phiếu')]) }}</div>
+<div class="in-secs">{% if t.symptom %}<div class="in-sec"><h4>Lỗi khách báo</h4>{{ t.symptom }}</div>{% endif %}
+{% if row.note %}<div class="in-sec"><h4>Thợ ghi</h4>{{ row.note }}</div>{% endif %}
+{% if row.recheck_reason %}<div class="in-sec"><h4>Khách chưa đồng ý · kiểm tra lại</h4>{{ row.recheck_reason }}</div>{% endif %}</div>
+<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:62mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Gói sửa · cấp · việc cần làm</th><th>Linh kiện dự kiến</th></tr></thead><tbody>
+{% for ln in q.lines %}{% set i = ln.item %}<tr><td class="c">{{ loop.index }}</td><td class="n"><b>{{ ln.service.name }} · {{ levels.get(i.level, 'Cấp ' ~ i.level) }}</b>
+<br><small>Phương án: {{ 'PA2 · Chính hãng' if ln.genuine else 'PA1 · Tiêu chuẩn' }}</small>
+{% if i.options %}<br>Việc cần làm: {{ i.options|join(' · ') }}{% endif %}
+{% if i.level != i.level_auto %}<br><small><b>Thợ đổi từ cấp {{ i.level_auto }}.</b> Lý do: {{ i.level_reason }}</small>{% endif %}</td>
+<td>{% for p in ln.parts %}{{ p.name }}{% if p.name != p.code %} · {{ p.code }}{% endif %} × {{ p.qty|qty }}{% if not loop.last %}<br>{% endif %}{% else %}<small>Không cần linh kiện</small>{% endfor %}</td></tr>{% endfor %}
+</tbody></table>
+<div class="in-sum"><div class="left"><div class="in-note"><h4>Ghi chú</h4><ul><li>Bản nội bộ cho xưởng: không gửi khách, không ghi giá.</li><li>Đổi linh kiện thực dùng không đổi giá báo khách; đổi cấp thì phải báo giá lại.</li></ul></div></div></div>
+{% endblock %}
+{% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ row.inspected_at|vn_long_date }}</div>
+{{ f.signatures([('Thợ kiểm tra', '(Ký, họ tên)'), ('Điều phối · kỹ thuật trưởng', '(Ký, họ tên)')]) }}{% endblock %}

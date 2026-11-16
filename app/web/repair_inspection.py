@@ -235,6 +235,20 @@ def quote_print(request: Request, vid: int, user: User = Depends(web_user), sess
                   words=money_words(v.snapshot['chosen']['total']), company=get_settings(), maker=session.get(User, v.created_by), back=f'/dich-vu/{t.id}#gui-khach')
 
 
+@router.get('/kiem-tra-may/{ticket_id:int}/in')
+def inspection_print(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """TUẤN 16/11/2026: in kết quả kiểm tra NỘI BỘ (A4 cho xưởng/thợ): gói, cấp, lý do đổi cấp, việc cần làm, linh kiện. Không in giá."""
+    t = ri.load_ticket(session, user, ticket_id)
+    row = ri.inspection(session, t.id)
+    if row is None or not row.items:
+        raise BusinessError('NO_INSPECTION', 'Thợ chưa ghi kết quả kiểm tra máy.', status=404)
+    q = ri.quote(session, t, row)
+    names = {u.id: u.full_name for u in session.scalars(select(User).where(User.id.in_({row.inspected_by, row.applied_by} - {None})))}
+    return render(request, 'kiem_tra_may_in.jinja', t=t, row=row, q=q, customer=session.get(Customer, t.customer_code),
+                  machine=ri.machine_name(session, t), inspector=names.get(row.inspected_by, ''), applier=names.get(row.applied_by, ''),
+                  levels=LEVELS, company=get_settings(), back=f'/dich-vu/{t.id}')
+
+
 public_router = APIRouter(include_in_schema=False)
 
 

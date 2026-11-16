@@ -41,7 +41,7 @@
 {% if q.ai.status == 'DANG' %}<p class="hint" data-rq-ai-wait>Codex trên Z2 đang soạn mô tả cho khách (tối đa 3 phút). <a href="/dich-vu/{{ t.id }}">Tải lại</a> để lấy bản soạn; chưa có thì dùng mẫu bảng giá.</p>{% elif q.ai.status == 'LOI' %}<p class="hint">Codex chưa soạn được ({{ q.ai.error }}), đang dùng mẫu trong bảng giá.</p>{% endif %}
 <p class="hint">Áp vào báo giá: mỗi dịch vụ thành một dòng phí trọn gói trên phiếu, dòng vật tư khác giữ nguyên. Đổi giá sau khi khách đồng ý thì phải xin khách đồng ý lại.</p>
 {% if q.ok %}<button class="btn btn-ok pnz-full">{{ 'Áp lại báo giá' if rq.row.applied_at else 'Áp vào báo giá' }}</button>{% else %}<p class="alert warn">Còn dịch vụ chưa có giá: giám đốc thêm giá trong Bảng giá rồi áp.</p>{% endif %}
-<a class="btn btn-ghost pnz-full" href="/kiem-tra-may/{{ t.id }}">Sửa kết quả kiểm tra</a>
+<div class="rqs-acts"><a class="btn btn-ghost" href="/kiem-tra-may/{{ t.id }}">Sửa kết quả kiểm tra</a><a class="btn btn-ghost" href="/kiem-tra-may/{{ t.id }}/in" data-rq-print>In kết quả kiểm tra</a></div>
 </div>
 </form>{% if rq_fold %}</details>{% endif %}
 {% include 'bao_gia_sua_gui.jinja' %}
