@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import nhan_vien_ao as nva
+from . import hubs
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import User, VirtualAgentLog
@@ -39,7 +40,7 @@ def _page(request, session, user, ngay='', loai='', trang='', so='', luu='', err
     tabs = [dict(label='Tất cả', n=sum(counts.values()), href='/nhan-vien-ao' + ('?' + q[1:] if q else ''), on=not loai)]
     tabs += [dict(label=a['name'], n=counts.get(code, 0), href=f'/nhan-vien-ao?loai={code}{q}', on=loai == code) for code, a in nva.AGENTS.items()]
     from ..ghi_chu_phieu import RULES as gc_rules
-    return render(request, 'nhan_vien_ao.jinja', rows=rows, gc_rules=gc_rules, master=rows[nva.MASTER], agents=nva.AGENTS, cfgs={c: nva.cfg(rows[c]) for c in nva.AGENTS},
+    return render(request, 'nhan_vien_ao.jinja', hub=hubs.ai(session, user, '/nhan-vien-ao'), rows=rows, gc_rules=gc_rules, master=rows[nva.MASTER], agents=nva.AGENTS, cfgs={c: nva.cfg(rows[c]) for c in nva.AGENTS},
                   modes=nva.MODES, actions=nva.ACTIONS, kinds=nva.KIND_LABELS, dispatch_kinds=nva.DISPATCH_KINDS,
                   priorities=nva.PRIORITY_LABELS, stats=nva.today_stats(session), counts=counts, total=total, entries=entries,
                   trial=nva.trial_results(session, entries), names=names, p=p, tabs=tabs, day=day, ngay=ngay, loai=loai, luu=luu,
@@ -111,7 +112,7 @@ def _doi(request, session, user, tab='', error='', done='', status=200):
              dict(label='Quá hạn', n=b['tiles']['late'], sub='Đã nhắc người làm', href='/doi-ai?xem=qua-han', on=tab == 'qua-han',
                   tone='hot' if b['tiles']['late'] else ''),
              dict(label='Báo giám đốc', n=b['tiles']['boss'], sub='Treo lâu sau khi nhắc', tone='hot' if b['tiles']['boss'] else '')]
-    return render(request, 'doi_ai.jinja', b=b, rows=rows, master=rows[nva.MASTER], agents=nva.AGENTS, cfgs={c: nva.cfg(rows[c]) for c in nva.AGENTS},
+    return render(request, 'doi_ai.jinja', hub=hubs.ai(session, user, '/doi-ai'), b=b, rows=rows, master=rows[nva.MASTER], agents=nva.AGENTS, cfgs={c: nva.cfg(rows[c]) for c in nva.AGENTS},
                   actions=nva.ACTIONS, tabs=tabs, tiles=tiles, tab=tab, error=error, done=done, status=status)
 
 

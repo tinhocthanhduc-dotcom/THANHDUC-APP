@@ -57,7 +57,12 @@ AGENTS = {
     'NHAN_SU': dict(name='Nhân sự AI', what='Nhắc quên vào ca, báo giám đốc đi trễ về sớm, gửi KPI và hoa hồng tạm tính mỗi tuần, soát bảng lương trước kỳ',
                     defaults=dict(remind_at='07:45', report_times=['08:30', '17:45'], weekly_day=5, weekly_time='17:00',
                                   weekly_director=True, payroll_day=28, payroll_time='08:30', change_pct=30)),
+    # Tin gộp giám đốc (đợt 2 rà soát, TUẤN duyệt 16/11/2026): xem app/tin_gop.py.
+    'TIN_GOP': dict(name='Tin gộp giám đốc', what='Gom tin tự động gửi giám đốc (báo cáo sáng, chấm công, sản xuất treo, tóm tắt cuối ngày) thành 3 tin mỗi ngày; tin gấp vẫn gửi ngay',
+                    defaults=dict(times=['08:30', '13:45', '17:45'])),
 }
+# Mốc tin của nhân viên AI gửi giám đốc theo giờ: gắn loại để Tin gộp giám đốc giữ lại (tin gấp không có ở đây).
+MARK_KINDS = (('nsa-cc:', 'nhan_su_bao'), ('tn-cuoi:', 'tom_tat_doi'))
 MODES = {'TU_LAM': 'Tự làm', 'CHAY_THU': 'Chạy thử'}
 ACTIONS = {'GIAO': 'Đã giao', 'CHAY_THU': 'Chạy thử', 'BO_QUA': 'Bỏ qua', 'NHAC': 'Đã nhắc', 'BAO': 'Đã báo',
            'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người', 'DOC_TIN': 'Đọc tin Zalo', 'LENH': 'Lệnh giám đốc'}
@@ -156,7 +161,7 @@ def save(session, user, code: str, form) -> VirtualAgent:
             elif code == 'NHAC_HEN':
                 config.update(accept_minutes=_int(get('accept_minutes'), 5, 240, 'Nhắc thợ chưa nhận sau'),
                               director_late_minutes=_int(get('director_late_minutes'), 5, 120, 'Báo giám đốc khi trễ hẹn quá'))
-            elif code == 'THU_KY':
+            elif code in ('THU_KY', 'TIN_GOP'):
                 config.update(times=_times(get('times')))
             elif code == 'GHI_CHU':
                 from .ghi_chu_phieu import RULES
@@ -225,7 +230,8 @@ def _send(session, chat, user_id: int, mark: str, body: str, sender) -> bool:
     row = DispatchZaloSent(mark=mark, user_id=user_id)
     session.add(row)
     session.commit()
-    msg = sender(session, chat, body, None, 'nhan_vien_ao')
+    kind = next((k for prefix, k in MARK_KINDS if mark.startswith(prefix)), 'nhan_vien_ao')
+    msg = sender(session, chat, body, None, kind)
     row.message_id = getattr(msg, 'id', None)
     session.commit()
     return True
@@ -543,8 +549,8 @@ def run_once(session, now=None, sender=None) -> int:
     """Gọi mỗi phút trong vòng nền báo điều phối, trước khi báo phiếu cần giao (phiếu đã tự giao thì không báo nữa)."""
     now = now or _now()
     total = 0
-    from . import nhan_su_ai, truong_nhom
-    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once, nhan_su_ai.run_once):
+    from . import nhan_su_ai, tin_gop, truong_nhom
+    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once, nhan_su_ai.run_once, tin_gop.run_once):
         try:
             total += job(session, now, sender)
         except Exception:  # noqa: BLE001 - lỗi một nhân viên AI không chặn các việc khác

@@ -5,6 +5,7 @@
 {% block main %}<div class="page-wide zl-page">
 {# Trợ lý Zalo (TUẤN duyệt 05/11/2026): chỉ giám đốc. Trợ lý chỉ đọc tồn kho và lập đơn nháp, không chốt đơn, không đụng tiền/kho/nợ. #}
 {% call ui.page_head('Trợ lý Zalo', sub='Nhân viên hỏi tồn kho qua bot Zalo; kinh doanh và khách đã gắn nhắn đặt hàng thì trợ lý lập đơn nháp để kinh doanh kiểm và chốt.', badge_label='Đang bật' if cfg.enabled else 'Đang tắt', badge_tone='xong' if cfg.enabled else 'nhap') %}<a class="btn btn-ghost" href="/zalo/tin-nhan">Tin nhắn Zalo</a>{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 {% if luu %}{{ ui.toast('Đã lưu cấu hình') }}{% endif %}
 {% if not has_key %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa có khóa OpenAI.</b> {% if cfg.staff_engine == 'api' %}Trợ lý cần OPENAI_API_KEY trong deploy/.env (khóa dùng chung với Đăng web) rồi cập nhật app, hoặc chọn Codex/Claude trên Z2 cho nhân viên.{% else %}Nhân viên vẫn được {{ engines[cfg.staff_engine] }} trả lời; tin đặt hàng của khách cần OPENAI_API_KEY mới lập được đơn nháp.{% endif %}</section>{% endif %}
 

@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide nva-page">
 {# Nhân viên AI đợt 1 (TUẤN duyệt phương án 07/11/2026, mẫu W5k8GWdrq5tEad2QUSFsKN): chỉ giám đốc. Không đụng tiền, kho, công nợ; không nhắn khách. #}
 {% call ui.page_head('Nhân viên AI', sub='App tự làm một phần việc theo quy tắc anh đặt. Mọi việc ghi vào nhật ký kèm lý do. Không đụng tiền, kho, công nợ, không hủy phiếu, không nhắn khách.', badge_label='Đang chạy' if master.enabled else 'Đã tắt tất cả', badge_tone='xong' if master.enabled else 'huy') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 {% if luu %}{{ ui.toast('Đã lưu cài đặt') }}{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 {% if not zalo %}<section class="card zalo-note" role="note"><b>Bot Zalo chưa cấu hình.</b> Điều phối AI vẫn giao phiếu; Nhắc hẹn AI và Thư ký phiếu cần bot Zalo và nhân viên đã được gắn Zalo riêng (Tin nhắn Zalo › Gắn nhân viên).</section>{% endif %}
@@ -23,6 +24,7 @@
 {% elif code == 'GHI_CHU' %}Chạy khi mở phiếu, không gửi tin, không ghi nhật ký · {{ c.rules|length }} loại dòng{{ ' · kèm tin nhắc thợ' if c.zalo }}
 {% elif code == 'NHAN_SU' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc vào ca · {{ st.get('BAO', 0) }} tin báo/gửi KPI · <a href="/luong">Xem soát bảng lương ›</a>
 {% elif code == 'TRUONG_NHOM' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc quá hạn · {{ st.get('BAO', 0) }} tin báo/gửi việc · {{ st.get('DOI_NGUOI', 0) }} lần đổi người · <a href="/doi-ai">Xem màn Đội AI ›</a>
+{% elif code == 'TIN_GOP' %}Gửi giám đốc lúc {{ c.times|join(', ') }} · tin gấp vẫn gửi ngay
 {% else %}<b>{{ st.get('BAO', 0) }}</b> tin gom việc treo · lúc {{ c.times|join(', ') }}{% endif %}</p>
 {% if code == 'DIEU_PHOI' %}<p class="hint">Loại: {% for k in c.kinds %}{{ kinds[k] }}{{ ', ' if not loop.last }}{% endfor %} · mức {% for k in c.priorities %}{{ priorities[k] }}{{ ', ' if not loop.last }}{% endfor %} · giao sau {{ c.wait_minutes }} phút · hoàn tác {{ c.undo_minutes }} phút · {{ 'không giới hạn số phiếu' if not c.max_per_day and not c.max_per_tech else 'tối đa ' ~ (c.max_per_day or '∞') ~ ' phiếu/ngày, ' ~ (c.max_per_tech or '∞') ~ '/thợ' }}</p>{% endif %}
 <details{% if open_code == code %} open{% endif %}><summary class="btn btn-ghost">Cài đặt ›</summary>
@@ -98,6 +100,9 @@
 <label><input type="radio" name="weekly_director" value="1"{% if c.weekly_director %} checked{% endif %}><span>Có</span></label>
 <label><input type="radio" name="weekly_director" value="0"{% if not c.weekly_director %} checked{% endif %}><span>Không</span></label></div></div>
 <p class="hint">Chỉ đọc và nhắn, không sửa công, hoa hồng, lương. Mỗi nhân viên chỉ nhận số của mình, không có lãi gộp. Giám đốc không bị nhắc chấm công. Kết quả soát lương cũng hiện trên trang Bảng lương.</p>
+{% elif code == 'TIN_GOP' %}
+<label for="nva-gop-times"><b>Giờ gửi tin gộp (cách nhau dấu phẩy)</b><input id="nva-gop-times" name="times" value="{{ c.times|join(', ') }}" placeholder="08:30, 13:45, 17:45"></label>
+<p class="hint">Giữ lại báo cáo sáng, sản xuất treo, chấm công và tóm tắt cuối ngày, gửi gộp một tin ở mỗi mốc. Tin gấp (trễ hẹn lâu, quá tải, việc treo báo lên) vẫn gửi ngay. Tắt mục này thì tin đang giữ gửi ngay và các tin lại gửi riêng như cũ.</p>
 {% else %}
 <label for="nva-times"><b>Giờ gửi (cách nhau dấu phẩy)</b><input id="nva-times" name="times" value="{{ c.times|join(', ') }}" placeholder="11:15, 17:15"></label>
 <p class="hint">Mỗi người nhận danh sách việc còn treo của mình (đã xong chưa báo thu, báo thu bị từ chối, máy sửa xong chờ trả, đơn cần giao, phiếu nháp Zalo…). Không có việc treo thì không nhắn. Giám đốc không nhận.</p>

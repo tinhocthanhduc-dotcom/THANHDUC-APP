@@ -5,6 +5,7 @@
 {% block main %}<div class="page-wide zalo-page">
 {# Tin nhắn Zalo (TUẤN 05/11/2026): chỉ giám đốc. Lưu từ lúc cài webhook, không lấy lại được tin cũ. #}
 {% call ui.page_head('Tin nhắn Zalo', sub='Tin gửi tới bot được lưu từ lúc cài webhook, giữ 12 tháng. Tin n8n gửi trực tiếp chưa hiện ở đây.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 
 {% if webhook == 'ok' %}<section class="card zalo-note" aria-live="polite"><b>Đã cài webhook.</b> Kết quả kiểm tra của Zalo: <code>{{ note }}</code></section>
 {% elif webhook == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Chưa cài được webhook.</b> {{ note }}</section>{% endif %}

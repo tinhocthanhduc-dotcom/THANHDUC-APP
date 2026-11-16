@@ -6,6 +6,7 @@
 {# Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn NHAP do trợ lý lập. Danh sách dòng gọn (TUẤN duyệt 05/11/2026 16:17):
    mỗi đơn một dòng, bấm dòng mở chi tiết; Bỏ đơn nháp chỉ trong chi tiết để không bấm nhầm. #}
 {% call ui.page_head('Đơn nháp từ Zalo', sub='Trợ lý lập đơn nháp từ tin Zalo. Giá điền theo danh mục, chưa kiểm. Đơn nháp không giữ hàng, không tính nợ cho tới khi chốt.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Hộp Zalo') }}
 {% if bo %}{{ ui.toast('Đã bỏ đơn nháp') }}{% endif %}
 {{ ui.tiles([
   dict(label=views['cho'][0], n=counts['cho'], href='/don-nhap-zalo?view=cho', on=view=='cho', tone='warn' if counts['cho'] else ''),

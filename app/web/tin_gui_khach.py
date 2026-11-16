@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from .. import tin_gui_khach as tg
+from . import hubs
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, User
@@ -29,7 +30,7 @@ def listing(request: Request, view: str = 'cho', loai: str = '', trang: str = ''
     p = build(trang, so, tg.total(session, user, view, loai), {'view': view, 'loai': loai})
     rows = tg.rows(session, user, view, loai, p['offset'], p['size'])
     linked = {r.customer_code for r in rows if r.status == 'CHO' and tg.linked_chat(session, r.customer_code)}
-    return render(request, 'tin_gui_khach_ds.jinja', view=view, views=tg.VIEWS, loai=loai, kinds=tg.KINDS, short=tg.SHORT, counts=counts,
+    return render(request, 'tin_gui_khach_ds.jinja', hub=hubs.zalo(session, user, '/tin-gui-khach'), view=view, views=tg.VIEWS, loai=loai, kinds=tg.KINDS, short=tg.SHORT, counts=counts,
                   kind_counts=tg.kind_counts(session, user, view), rows=rows, p=p, bo=bo, via=tg.VIA, linked=linked,
                   everyone=tg.is_director(user), **tg.names(session, rows))
 

@@ -332,7 +332,7 @@ def send_test(session, user, now=None):
     if chat is None:
         return None
     body = render_text(build(session, user, now.astimezone(TZ).date(), now), dispatch_alerts.base_url())
-    return zalo_bot.send_text(session, chat, body, None, 'bao_cao_sang')
+    return zalo_bot.send_text(session, chat, body, None, 'bao_cao_sang', hold=False)  # gửi thử luôn gửi ngay, không vào tin gộp
 
 
 def _loop():

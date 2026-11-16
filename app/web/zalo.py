@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import zalo_bot as svc
 from ..config import get_settings
+from . import hubs
 from ..db import get_session
 from ..models import User, ZaloChat
 from . import checked_form, render, web_user
@@ -16,7 +17,8 @@ from .paging import build
 router = APIRouter()
 TZ = ZoneInfo('Asia/Ho_Chi_Minh')
 NOTE_COOKIE = 'td_zalo_webhook_note'
-STATUS = {'DANG_GUI': ('Đang gửi', 'cho'), 'DA_GUI': ('Đã gửi', 'xong'), 'LOI': ('Gửi lỗi', 'huy')}
+STATUS = {'DANG_GUI': ('Đang gửi', 'cho'), 'DA_GUI': ('Đã gửi', 'xong'), 'LOI': ('Gửi lỗi', 'huy'),
+          'CHO_GOP': ('Chờ gửi gộp', 'cho'), 'DA_GOP': ('Đã gửi trong tin gộp', 'xong')}
 
 
 def _when(value) -> str:
@@ -53,7 +55,7 @@ def page(request: Request, q: str = '', chat: str = '', trang: str = '', so: str
         if kq:
             found = [c for c in customers.search(session, kq, include_test=False) if c.status == 'DANG_DUNG'][:8]
     note = unquote(request.cookies.get(NOTE_COOKIE, '')) if webhook else ''
-    resp = render(request, 'zalo_tin_nhan.jinja', q=q, chats=chats, p=p, current=current, messages=messages, pm=pm, when=_when,
+    resp = render(request, 'zalo_tin_nhan.jinja', hub=hubs.ai(session, user, '/zalo/tin-nhan'), q=q, chats=chats, p=p, current=current, messages=messages, pm=pm, when=_when,
                   send_states=STATUS, kind_labels=svc.KIND_LABELS, max_text=svc.MAX_TEXT, gui=gui, webhook=webhook, note=note,
                   staff_list=staff_list, found=found, kq=kq, gan=gan, linked_user=linked_user, linked_customer=linked_customer,
                   has_token=bool(cfg.zalo_bot_token.strip()), has_secret=bool(cfg.zalo_webhook_secret), webhook_url=cfg.zalo_webhook_url)
@@ -87,7 +89,7 @@ def morning(request: Request, gui: str = '', user: User = Depends(web_user), ses
     body = morning_report.render_text(morning_report.build(session, user, now.astimezone(TZ).date(), now), dispatch_alerts.base_url())
     cfg = get_settings()
     linked = any(u.id == user.id for u, _ in morning_report.recipients(session))
-    return render(request, 'zalo_bao_cao_sang.jinja', body=body, gui=gui, linked=linked, enabled=cfg.morning_report,
+    return render(request, 'zalo_bao_cao_sang.jinja', hub=hubs.ai(session, user, '/zalo/bao-cao-sang'), body=body, gui=gui, linked=linked, enabled=cfg.morning_report,
                   has_token=bool(cfg.zalo_bot_token.strip()), at=cfg.morning_report_time.strftime('%H:%M'))
 
 
@@ -108,7 +110,7 @@ def debt_reminder_page(request: Request, gui: str = '', user: User = Depends(web
     people = debt_reminder.recipients(session)
     body = debt_reminder.preview(session, people[0][0] if people else user)
     cfg = get_settings()
-    return render(request, 'zalo_nhac_no.jinja', body=body, gui=gui, people=people, enabled=cfg.debt_reminder,
+    return render(request, 'zalo_nhac_no.jinja', hub=hubs.ai(session, user, '/zalo/nhac-no'), body=body, gui=gui, people=people, enabled=cfg.debt_reminder,
                   has_token=bool(cfg.zalo_bot_token.strip()), at=cfg.debt_reminder_time.strftime('%H:%M'))
 
 

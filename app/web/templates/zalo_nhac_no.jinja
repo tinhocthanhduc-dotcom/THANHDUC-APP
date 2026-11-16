@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide">
 {# Nhắc nợ quá hạn qua Zalo (TUẤN duyệt 06/11/2026): chỉ giám đốc xem trang này. #}
 {% call ui.page_head('Nhắc nợ quá hạn qua Zalo', sub='App tự gửi lúc ' ~ at ~ ' sáng thứ Hai (thứ Hai nghỉ lễ thì ngày làm việc đầu tuần) cho kế toán đã gắn Zalo.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 
 {% if gui == 'ok' %}<section class="card zalo-note" aria-live="polite"><b>Đã gửi thử.</b></section>
 {% elif gui == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Tin chưa gửi được.</b> Xem lý do ở <a href="/zalo/tin-nhan">Tin nhắn Zalo</a>.</section>

@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide zl-page">
 {# Trợ lý Zalo đợt 2 (TUẤN duyệt mẫu 06/11/2026): danh sách gọn, mỗi nháp một dòng; bấm dòng mở nháp để Tạo phiếu / Bỏ nháp. #}
 {% call ui.page_head('Phiếu nháp từ Zalo', sub='Bot lập từ tin Zalo. Nháp không vào hàng điều phối cho tới khi bấm Tạo phiếu.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Hộp Zalo') }}
 {% if bo %}{{ ui.toast('Đã bỏ phiếu nháp') }}{% endif %}
 {{ ui.tiles([
   dict(label=views['cho'][0], n=counts['cho'], href='/phieu-nhap-zalo?view=cho', on=view=='cho', tone='warn' if counts['cho'] else ''),
