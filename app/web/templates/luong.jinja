@@ -9,6 +9,18 @@
   dict(label='Hoa hồng', n=('Đã khóa' if commission_locked else 'Chưa khóa') if commission_required else 'Chưa áp dụng', tone=('xong' if commission_locked else 'cho') if commission_required else '', href='/hoa-hong/thang?thang=' ~ thang if commission_required else ''),
   dict(label='Tạm ứng trừ', n=rows|sum(attribute='advance')|money),
   dict(label='Cảnh báo', n=n_warn, tone='cho' if n_warn else '')]) }}
+{% if ai_check %}<section class="card nsa-check" aria-label="Nhân sự AI soát trước">
+<div class="nsa-h"><b>Nhân sự AI soát trước · {{ ai_check['items']|length ~ ' điểm cần xem' if ai_check['items'] else 'không thấy điểm nào cần xem' }}</b><span><span class="hint">Soát lúc {{ ai_check.at|vn_time }} </span><a class="btn btn-ghost" href="/luong?thang={{ thang }}">Soát lại</a></span></div>
+<p class="hint">AI chỉ đọc và báo, không sửa số. Sửa ở đúng màn ghi bên phải rồi bấm Soát lại.</p>
+<div class="nsa-list">{% for i in ai_check['items'] %}<div class="nsa-it"><span class="nsa-ic nsa-{{ i.level }}">{{ '!' if i.level == 'hot' else '?' }}</span><div><b>{{ i.title }}</b><p>{{ i.detail }}</p></div><span class="nsa-who">{{ i.who }}{% if i.href %} · <a href="{{ i.href }}">Mở ›</a>{% endif %}</span></div>{% endfor %}
+{% if ai_check.ok %}<div class="nsa-it"><span class="nsa-ic nsa-ok">✓</span><div><b>Đã soát, không thấy vấn đề</b><p>{{ ai_check.ok|join(' · ')|capitalize }}.</p></div><span></span></div>{% endif %}</div>
+</section>
+<style>.nsa-check{display:grid;gap:8px;margin-bottom:12px}.nsa-check p{margin:0}.nsa-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.nsa-list{display:grid;gap:8px}.nsa-it{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.nsa-it p{color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}.nsa-ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:.8rem}
+.nsa-hot{background:#fde9e1;color:#c2410c}.nsa-cho{background:#fdf2e1;color:#b45309}.nsa-ok{background:#e6f4ea;color:#15803d}
+.nsa-who{font-size:.85rem;color:var(--muted);text-align:right}
+@media (max-width:600px){.nsa-it{grid-template-columns:28px minmax(0,1fr)}.nsa-who{grid-column:2;text-align:left}}</style>{% endif %}
 <section class="card frame">
 {% call ui.month_bar('/luong', month) %}{{ 'Bấm tên để xem phiếu lương' if approved else 'Ô trắng nhập tay · tiền có dấu chấm nghìn · Lưu trước khi duyệt' }}{% endcall %}
 {% if approved %}{{ summary_table(rows,labels) }}

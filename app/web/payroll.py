@@ -47,7 +47,9 @@ def _render(request,template,**ctx):
 
 def _board(request,session,user,error=None,data=None):
     month=_month(request);rows=svc.draft(session,user,month)
-    return _render(request,'luong.jinja',month=month,rows=rows,total=sum(r['net'] for r in rows),
+    from .. import nhan_su_ai
+    check=None if session.get(PayrollMonth,month) else nhan_su_ai.payroll_check(session,month)
+    return _render(request,'luong.jinja',month=month,rows=rows,ai_check=check,total=sum(r['net'] for r in rows),
         approved=session.get(PayrollMonth,month),attendance_locked=attendance.is_locked(session.get(AttendanceMonthLock,month)),
         commission_required=month>=attendance.month_day(get_settings().commission_start),commission_locked=session.get(CommissionMonth,month),
         d=data or {},error=error.message if error else None,error_code=error.code if error else '',status=error.status if error else 200)
