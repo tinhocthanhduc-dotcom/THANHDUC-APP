@@ -356,7 +356,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     if technician_view:expenses=[e for e in expenses if e.technician_id==user.id]  # thợ chỉ thấy khoản mình ghi
     ctx.update(expenses=expenses,expense_photos=photos_for(session,expenses),expense_kinds=service_expenses.KINDS,expense_statuses=service_expenses.STATUSES,
         expense_payers=service_expenses.PAYERS,expense_vat_rates=service_expenses.VAT_RATES,
-        can_add_expense=technician_view and t.assignee_id==user.id and t.status in service_expenses.TECH_OPEN)
+        can_add_expense=technician_view and t.assignee_id==user.id and t.status in service_expenses.OPEN_WORK)
     if not technician_view:  # TUẤN duyệt 16/11/2026: văn phòng ghi chi phí phát sinh nội bộ + Lãi phiếu (GĐ/KT)
         ctx['exp']=expense_context(session,user,ticket=t,values=form if failed_action=='expense' else None,
             error=error if failed_action=='expense' else None,error_code=error_code if failed_action=='expense' else '')

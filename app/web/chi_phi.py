@@ -33,7 +33,7 @@ def read_photo(form):
 
 def fields(form):
     return dict(kind=str(form.get('kind', '')), description=str(form.get('description', '')), place=str(form.get('place', '')),
-                amount=str(form.get('amount', '')), payer=str(form.get('payer', 'NV_UNG') or 'NV_UNG'), vat_rate=str(form.get('vat_rate', '0') or '0'),
+                amount=str(form.get('amount', '')), payer=str(form.get('payer', 'NV_UNG') or 'NV_UNG'), vat_rate=str(form.get('hd_vat', '0') or '0'),
                 note=str(form.get('note', '')), delivery_id=str(form.get('delivery_id', '')))
 
 

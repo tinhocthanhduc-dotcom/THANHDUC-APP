@@ -183,7 +183,7 @@ def test_order_page_shows_internal_box_and_profit_only_to_finance(client, db, pe
     assert 'Chi phí phát sinh nội bộ' in html and 'khách không thấy' in html and 'data-order-profit' not in html
     r = client.post(f'/don-ban/{o.id}/chi-phi/them', data=dict(csrf=csrf_of(html), kind='GUI_HANG', description='Gửi hàng', amount=''), follow_redirects=False)
     assert r.status_code == 400 and 'Nhập số tiền' in r.text and 'value="Gửi hàng"' in r.text
-    r = client.post(f'/don-ban/{o.id}/chi-phi/them', data=dict(csrf=csrf_of(html), kind='GUI_HANG', description='Gửi hàng', amount='66.000', vat_rate='10',
+    r = client.post(f'/don-ban/{o.id}/chi-phi/them', data=dict(csrf=csrf_of(html), kind='GUI_HANG', description='Gửi hàng', amount='66.000', hd_vat='10',
                                                          payer='NV_UNG'), files={'photo': ('hd.png', d5_image(), 'image/png')}, follow_redirects=False)
     assert r.status_code == 303
     row = db.scalar(select(ServiceExpense))
