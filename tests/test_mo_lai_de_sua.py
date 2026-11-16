@@ -132,3 +132,22 @@ def test_a4_copy_cancelled_purchase(db,purchase_people):
     purchase_orders.cancel(db,u,row.id,'Không mua nữa',row.version)
     new=purchase_orders.copy_cancelled(db,u,row.id)
     assert new.status=='NHAP' and new.id!=row.id and new.total==row.total and new.lines[0].qty==row.lines[0].qty
+
+
+def test_dot5_one_delivery_card_saves_only_changed_fields(client,db,stocked):
+    """Đợt 5 rà soát: một khung Giao hàng (cách nhận, ngày hẹn, người nhận, địa chỉ, ghi chú), một nút Lưu; ô không đổi không ghi nhật ký."""
+    from datetime import date
+    s=stocked['sales'];o=sales_orders.create(db,s,body());sales_orders.confirm(db,s,o.id,o.version);v0=o.version
+    service_login(client,s);html=client.get(f'/don-ban/{o.id}').text
+    assert 'Lưu giao hàng' in html and 'Lưu ngày hẹn' not in html and 'Lưu cách nhận hàng' not in html and 'Lưu thông tin giao' not in html
+    r=client.post(f'/don-ban/{o.id}/giao-hang',data={'csrf':csrf_of(html),'version':o.version,'fulfillment':o.fulfillment,'promised_date':'2026-12-01',
+        'contact_name':o.contact_name or '','delivery_address':o.delivery_address or '','note':o.note or ''},follow_redirects=False)
+    assert r.status_code==303
+    db.expire_all();o2=db.get(SalesOrder,o.id)
+    assert o2.promised_date==date(2026,12,1) and o2.version==v0+1
+    assert db.scalar(select(AuditLog).where(AuditLog.action=='sales_order.delivery_info')) is None
+    # Người khác vừa sửa: báo xung đột, không lưu gì.
+    r=client.post(f'/don-ban/{o.id}/giao-hang',data={'csrf':csrf_of(html),'version':v0,'fulfillment':o.fulfillment,'promised_date':'',
+        'contact_name':'X','delivery_address':'Y','note':''},follow_redirects=False)
+    assert r.status_code==409
+    db.expire_all();assert db.get(SalesOrder,o.id).promised_date==date(2026,12,1)

@@ -69,7 +69,7 @@
 
 {% if q and can_write %}
 <div class="quote-actions">
-{% if q.status == 'NHAP' %}<form id="quote-send" hidden method="post" action="/bao-gia/{{ q.id }}/send" data-quote-send>{{ token('send') }}<button class="primary">Gửi</button></form>{% endif %}
+
 {% if q.status == 'DA_GUI' %}{% for action,label in [('accept','Khách đồng ý'),('reject','Khách từ chối'),('revise','Tạo bản sửa')] %}<form id="quote-{{ action }}" method="post" action="/bao-gia/{{ q.id }}/{{ action }}">{{ token(action) }}</form>{% endfor %}{% endif %}
 </div>
 {% call other.group(open=failed_action=='cancel') %}{% if q.status in ['NHAP','DA_GUI'] %}<form method="post" action="/bao-gia/{{ q.id }}/cancel" class="card form service-action">{{ token('cancel') }}<label>Lý do hủy<textarea name="reason" required maxlength="2000">{{ action_form.get('reason','') if failed_action == 'cancel' else '' }}</textarea></label><button>Hủy báo giá</button></form>{% endif %}{% endcall %}

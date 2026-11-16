@@ -91,7 +91,7 @@ def service(session, user, t):
         return block(form('Giao thợ trả máy','service-schedule-return',base+'/hen-tra-may'),ready_message_links(session,user,t))
     if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))
     if t.status=='DANG_LAM' and can_step:
-        secondary=[transition('Hẹn quay lại','DA_HEN'),form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]
+        secondary=[transition('Hẹn quay lại','DA_HEN'),form('Xin linh kiện từ kho','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]
         if t.billing is None:
             return block(form('Lưu tiền','service-charges',base+'/tien/luu',
                 'Chọn Có thu tiền hoặc Miễn phí; giá sẽ được khóa khi hoàn thành.'),secondary)

@@ -143,7 +143,9 @@ def test_web_counter_double_click_same_key_creates_one_set_and_csrf_checked(db,c
     p=people;stock(db,p,5);o=draft(db,p)
     csrf=service_login(client,p['sales']);path=f'/don-ban/{o.id}/counter-sale'
     page=client.get(f'/don-ban/{o.id}')
-    assert 'Bán tại quầy' in page.text and 'name="amount" value="500.000"' in page.text
+    # Đợt 5: chỉ một chỗ bán tại quầy là Bước tiếp (ô Cách thu, số tiền = tổng đơn 500.000); route /counter-sale giữ nguyên.
+    assert 'Bán tại quầy' in page.text and 'data-counter-sale' in page.text and 'name="counter_method"' in page.text
+    assert 'data-line-sum="total">500.000<' in page.text and 'id="order-counter"' not in page.text
     assert client.post(path,data=dict(version=o.version,method='TIEN_MAT',amount='500.000')).status_code==403
     data=dict(csrf=csrf,form_key=key_for(client,path),version=o.version,method='TIEN_MAT',amount='500.000',note='Tại cửa hàng')
     a=client.post(path,data=data,follow_redirects=False);b=client.post(path,data=data,follow_redirects=False)

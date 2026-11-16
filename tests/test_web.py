@@ -1228,7 +1228,7 @@ def test_d3_transfer_request_reject_and_cancel(client, db, service_people):
     db.refresh(ticket)
     assert ticket.transfer_request == 'Đang ở xa khách'
     csrf = service_login(client, service_people['dispatcher'])
-    assert '>Từ chối chuyển</button>' in client.get(f'/dich-vu/{ticket.id}').text
+    assert '>Xác nhận từ chối chuyển</button>' in client.get(f'/dich-vu/{ticket.id}').text
     response = service_action(client, ticket, csrf, 'transfer-reject', reason='Chưa có người thay')
     assert response.status_code == 200 and 'Chưa có người thay' in response.text
     db.refresh(ticket)
@@ -1542,7 +1542,7 @@ def test_d6_ui_complete_shows_generated_px_and_reopen_returns_stock(client, db, 
     assert 'value="999.000"' in response.text
     csrf = service_login(client, service_people['dispatcher'])
     page = client.get(f'/dich-vu/{charge_work.id}').text
-    assert '>Mở lại</button>' in page and '>Đóng phiếu</button>' not in page
+    assert '>Xác nhận mở lại</button>' in page and '>Đóng phiếu</button>' not in page
     response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='')
     assert response.status_code == 400 and 'Phải ghi lý do' in response.text
     response = service_action(client, charge_work, csrf, to_status='DANG_LAM', note='Khách yêu cầu kiểm tra thêm')
@@ -1639,7 +1639,7 @@ def test_d6_ui_dispatcher_closes_completed_ticket(client, db, service_people, ch
     assert response.status_code == 200, response.text
     db.refresh(charge_work)
     assert charge_work.status == 'DA_DONG' and '>Lưu tiền</button>' not in response.text
-    assert 'service-DA_DONG' not in response.text and '>Mở lại</button>' in response.text
+    assert 'service-DA_DONG' not in response.text and '>Xác nhận mở lại</button>' in response.text
 
 
 def test_d6_ui_mixed_lines_keep_per_row_vat_and_warehouse(client, db, service_people, charge_work, charge_stock):

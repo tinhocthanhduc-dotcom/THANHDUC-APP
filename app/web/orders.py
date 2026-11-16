@@ -519,6 +519,18 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             svc.change_customer(session,user,order_id,version,str(form.get('customer_code','')))
         elif action=='delivery-info':
             svc.change_delivery_info(session,user,order_id,version,str(form.get('contact_name','')),str(form.get('delivery_address','')),str(form.get('note','')))
+        elif action=='giao-hang':
+            # Đợt 5 rà soát (TUẤN duyệt 16/11/2026): một khung Giao hàng, một nút Lưu; chỉ lưu ô có thay đổi,
+            # mỗi phần gọi đúng hàm cũ (đổi cách nhận, ngày hẹn, thông tin giao) nên quyền, nhật ký giữ nguyên.
+            order=svc.load(session,user,order_id)
+            svc._version(order,version)
+            fulfillment=str(form.get('fulfillment','') or order.fulfillment)
+            if fulfillment!=order.fulfillment:
+                order=svc.change_options(session,user,order_id,SalesOrderOptions(version=order.version,fulfillment=fulfillment))
+            promise=SalesOrderPromise(version=order.version,promised_date=form.get('promised_date') or None)
+            if promise.promised_date!=order.promised_date:
+                order=svc.set_promised_date(session,user,order_id,promise.promised_date,order.version)
+            svc.change_delivery_info(session,user,order_id,order.version,str(form.get('contact_name','')),str(form.get('delivery_address','')),str(form.get('note','')))
         elif action=='lead':
             svc.change_lead(session,user,order_id,version,OrderLeadIn(**lead.raw(form,order=True)))
         elif action=='reopen':
