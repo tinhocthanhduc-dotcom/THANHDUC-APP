@@ -183,3 +183,20 @@ def test_two_technicians_tapping_at_once_only_one_wins(db, people):
     db.expire_all()
     assert db.scalar(select(ServiceStep.id).where(ServiceStep.ticket_id == t.id, ServiceStep.action == 'assign')) is not None
     assert len(list(db.scalars(select(ServiceStep).where(ServiceStep.ticket_id == t.id, ServiceStep.action == 'assign')))) == 1
+
+
+def test_machines_at_workshop_do_not_block_claim(db, people, client):
+    """16/11/2026: màn thợ ghi 0 việc đang mở mà vẫn báo 'từ 2 việc mở' vì đếm cả máy đã mang về xưởng."""
+    p = people
+    for _ in range(2):
+        busy = new_ticket(db, p, self_claim=False)
+        service_tickets.assign(db, p['dispatcher'], busy.id, p['technician'].id, busy.version)
+        db.execute(text("UPDATE service_tickets SET status='TAM_DUNG', hold_reason='CHO_SUA_XUONG' WHERE id=:id"), dict(id=busy.id))
+    db.commit(); db.expire_all()
+    assert service_self_claim.open_jobs(db, p['technician'].id) == 0
+    t = new_ticket(db, p)
+    service_login(client, p['technician'])
+    page = client.get('/tho').text
+    assert '0 việc đang mở' in page and 'data-claim-busy' not in page
+    service_self_claim.claim(db, p['technician'], t.id)
+    assert db.get(ServiceTicket, t.id).assignee_id == p['technician'].id

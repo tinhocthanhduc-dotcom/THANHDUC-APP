@@ -57,15 +57,21 @@ def max_open() -> int:
     return get_settings().self_claim_max_open
 
 
+def at_workshop():
+    """Phiếu máy đã mang về xưởng, chờ sửa ở xưởng: xưởng làm, không còn là việc thợ đang cầm,
+    nên ẩn khỏi màn thợ Hôm nay và không tính vào giới hạn tự nhận (16/11/2026: màn ghi 0 việc mà vẫn bị chặn)."""
+    return (ServiceTicket.status == 'TAM_DUNG') & (ServiceTicket.hold_reason == 'CHO_SUA_XUONG')
+
+
 def open_jobs(session, user_id: int) -> int:
-    """Việc đang mở của thợ: phiếu dịch vụ + đơn Thợ giao (TUẤN 07/11/2026).
+    """Việc đang mở của thợ: phiếu dịch vụ + đơn Thợ giao (TUẤN 07/11/2026), đếm đúng như màn thợ Hôm nay.
     Đơn đi cùng một phiếu đang mở của chính thợ là cùng chuyến, không tính thêm."""
     from .models import SalesOrder
     from .service_tickets import OPEN
     tickets = session.scalar(select(func.count()).select_from(ServiceTicket).where(
-        ServiceTicket.assignee_id == user_id, ServiceTicket.status.in_(OPEN))) or 0
+        ServiceTicket.assignee_id == user_id, ServiceTicket.status.in_(OPEN), ~at_workshop())) or 0
     same_trip = exists().where(ServiceTicket.id == SalesOrder.service_ticket_id, ServiceTicket.assignee_id == user_id,
-                               ServiceTicket.status.in_(OPEN))
+                               ServiceTicket.status.in_(OPEN), ~at_workshop())
     orders = session.scalar(select(func.count()).select_from(SalesOrder).where(
         SalesOrder.delivery_assignee_id == user_id, SalesOrder.fulfillment == 'THO_GIAO',
         SalesOrder.status.in_(('DA_CHOT', 'GIAO_MOT_PHAN')), ~same_trip)) or 0
