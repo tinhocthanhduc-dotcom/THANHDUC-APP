@@ -539,6 +539,109 @@ def delete_model_price(session, user, service_id, model_id) -> None:
     session.commit()
 
 
+# ---------- giá theo model (TUẤN duyệt mẫu 16/11/2026: chọn model trước, sửa mọi gói một trang) ----------
+
+SHEET_FILTERS = {'rieng': 'Giá riêng', 'nhom': 'Theo nhóm', 'chua': 'Chưa có giá'}
+
+
+def load_model(session, model_id) -> RepairModel:
+    try:
+        m = session.get(RepairModel, int(model_id))
+    except (TypeError, ValueError):
+        m = None
+    if not m:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy model.', status=404)
+    return m
+
+
+def model_sheet(session, m: RepairModel) -> dict:
+    """Mọi gói sửa đang dùng + dịch vụ theo model của một model: giá nhóm, giá riêng từng cấp, trạng thái.
+
+    Trả dict(packages=[row], services=[row], counts={tat-ca, rieng, nhom, chua}); row = dict(service, group={cấp: RepairPrice},
+    own={cấp: RepairPrice}, status 'rieng'|'nhom'|'chua', warranty={cấp: tháng}).
+    """
+    pkgs = services(session, 'GOI', active_only=True)
+    dvs = [s for s in services(session, 'PHI', active_only=True) if s.by_model and not s.is_fee]
+    ids = [s.id for s in pkgs + dvs]
+    group, own = {}, {}
+    if ids:
+        for r in session.scalars(select(RepairPrice).where(RepairPrice.service_id.in_(ids),
+                                                           (RepairPrice.group_id == m.group_id) | (RepairPrice.model_id == m.id))):
+            (own if r.model_id else group).setdefault(r.service_id, {})[r.level] = r
+    warranties = {}
+    if pkgs:
+        for sid, lv, months in session.execute(select(RepairPrice.service_id, RepairPrice.level, func.max(RepairPrice.warranty_months))
+                                               .where(RepairPrice.service_id.in_([s.id for s in pkgs]), RepairPrice.group_id.is_not(None))
+                                               .group_by(RepairPrice.service_id, RepairPrice.level)):
+            warranties.setdefault(sid, {})[lv] = months
+
+    def row(s, warranty):
+        g, o = group.get(s.id, {}), own.get(s.id, {})
+        return dict(service=s, group=g, own=o, status='rieng' if o else 'nhom' if g else 'chua', warranty=warranty)
+
+    packages = [row(s, {lv: (warranties.get(s.id, {}).get(lv)) for lv in LEVELS}) for s in pkgs]
+    svc_rows = [row(s, {1: s.warranty_months}) for s in dvs]
+    counts = {'tat-ca': len(packages) + len(svc_rows)}
+    for key in SHEET_FILTERS:
+        counts[key] = sum(1 for r in packages + svc_rows if r['status'] == key)
+    return dict(packages=packages, services=svc_rows, counts=counts)
+
+
+def _sheet_levels(form: dict, prefix: str, label: str, group: dict, genuine_on: bool) -> dict:
+    """Ô giá riêng một gói: {cấp: (giá, chính hãng)}; ô giá trống = dùng giá nhóm (bỏ giá riêng cấp đó, kể cả chính hãng)."""
+    out = {}
+    for lv in LEVELS:
+        price = parse_money(form.get(f'{prefix}_p{lv}'), f'{label} cấp {lv}')
+        genuine = parse_money(form.get(f'{prefix}_ch{lv}'), f'{label} cấp {lv} chính hãng') if genuine_on else None
+        if not price:
+            continue
+        if genuine and genuine < price:
+            raise BusinessError('BAD_PRICE', f'{label} cấp {lv}: giá chính hãng không thấp hơn giá thường.')
+        out[lv] = (price, genuine or None)
+    effective = [out[lv][0] if lv in out else group[lv].price for lv in LEVELS if lv in out or lv in group]
+    if effective != sorted(effective):
+        raise BusinessError('BAD_PRICE', f'{label}: giá cấp sau không thấp hơn cấp trước (tính cả giá nhóm).')
+    return out
+
+
+def save_model_sheet(session, user, model_id, form: dict) -> int:
+    """Lưu cả trang Giá theo model: chỉ dòng có trên form (s<id>_p<cấp>); ô có giá = giá riêng, ô trống = về giá nhóm.
+    Trả số gói/dịch vụ đã đổi. Lỗi ở một dòng thì không lưu dòng nào."""
+    require_edit(user)
+    m = load_model(session, model_id)
+    sheet = model_sheet(session, m)
+    genuine_on = str(form.get('co_ch', '')) == '1'
+    changed = 0
+    for r in sheet['packages'] + sheet['services']:
+        s = r['service']
+        prefix = f's{s.id}'
+        if not any(f'{prefix}_p{lv}' in form for lv in LEVELS):
+            continue
+        label = f'{s.name} ({m.name})'
+        if s.kind == 'PHI':
+            price = parse_money(form.get(f'{prefix}_p1'), label)
+            levels = {1: (price, None, s.warranty_months)} if price else {}
+        else:
+            # Không mở ô chính hãng thì giữ nguyên giá chính hãng riêng đang có.
+            keep = {lv: x.price_genuine for lv, x in r['own'].items()}
+            raw = _sheet_levels(form, prefix, label, r['group'], genuine_on)
+            levels = {}
+            for lv, (price, genuine) in raw.items():
+                months = r['own'][lv].warranty_months if lv in r['own'] else (r['warranty'].get(lv) or 0)
+                genuine = genuine if genuine_on else keep.get(lv)
+                if genuine and genuine < price:
+                    raise BusinessError('BAD_PRICE', f'{label} cấp {lv}: giá chính hãng riêng {genuine:,} thấp hơn giá thường, '
+                                        'tick "Hiện giá chính hãng" để sửa.'.replace(',', '.'))
+                levels[lv] = (price, genuine, months)
+        current = {lv: (x.price, x.price_genuine, x.warranty_months) for lv, x in r['own'].items()}
+        if current == levels:
+            continue
+        _apply_levels(session, user, s, levels, model_id=m.id, label=m.name)
+        changed += 1
+    session.commit()
+    return changed
+
+
 def options(session, service_id) -> list[RepairOption]:
     return list(session.scalars(select(RepairOption).where(RepairOption.service_id == service_id).order_by(RepairOption.sort, RepairOption.id)))
 

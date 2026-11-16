@@ -2292,7 +2292,7 @@ class ZaloTicketDraft(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-CUSTOMER_MESSAGE_KINDS = ('NHAC_NO', 'BAO_GIA', 'HOI_THAM')
+CUSTOMER_MESSAGE_KINDS = ('NHAC_NO', 'BAO_GIA', 'HOI_THAM', 'SUA_XONG')
 
 
 class CustomerMessage(Base):

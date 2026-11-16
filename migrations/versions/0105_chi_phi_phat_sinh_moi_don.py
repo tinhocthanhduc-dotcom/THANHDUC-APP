@@ -4,14 +4,14 @@ Mở rộng service_expenses: ghi trên phiếu dịch vụ HOẶC đơn bán (k
 đối tác sau), hóa đơn VAT 0/8/10 → giá vốn tính chưa VAT (cost). Thêm 2 loại: trả đối tác sửa, phí gửi hàng.
 Hạn mức duyệt thêm khóa CHI_PHI (kế toán duyệt tới mức này, mặc định 500.000).
 
-Revision ID: 0104
-Revises: 0103
+Revision ID: 0105
+Revises: 0104
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = '0104'
-down_revision = '0103'
+revision = '0105'
+down_revision = '0104'
 branch_labels = None
 depends_on = None
 

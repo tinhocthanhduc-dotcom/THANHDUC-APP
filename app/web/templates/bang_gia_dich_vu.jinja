@@ -96,7 +96,7 @@
 {% if kind == 'PHI' and s and s.by_model %}
 <section class="card bg-grid-card" id="gia-model"><h2 class="doc-h">Giá riêng theo model <span class="hint">· {{ overrides|length }} · ghi đè giá nhóm</span></h2>
 {% if overrides %}<div class="table-scroll"><table class="list-table bg-table"><thead><tr><th>Model</th><th class="num">Giá chưa VAT</th><th class="num">Gồm VAT</th>{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
-{% for m, lvls in overrides %}{% set p = lvls.get(1) %}<tr data-override="{{ m.name }}"><td><b>{{ m.name }}</b></td><td class="num">{{ p.price|money if p else '—' }}</td><td class="num">{{ with_vat(p.price)|money if p else '—' }}</td>
+{% for m, lvls in overrides %}{% set p = lvls.get(1) %}<tr data-override="{{ m.name }}"><td><a href="/bang-gia/gia-model?model={{ m.name|urlencode }}"><b>{{ m.name }}</b></a></td><td class="num">{{ p.price|money if p else '—' }}</td><td class="num">{{ with_vat(p.price)|money if p else '—' }}</td>
 {% if can_edit %}<td><form method="post" action="/bang-gia/dich-vu/{{ s.id }}/gia-model" class="bg-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="xoa_model" value="{{ m.id }}"><button class="btn btn-ghost bg-small">Xóa</button></form></td>{% endif %}</tr>{% endfor %}
 </tbody></table></div>{% endif %}
 {% if can_edit %}<form method="post" action="/bang-gia/dich-vu/{{ s.id }}/gia-model" class="bg-model-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
@@ -111,7 +111,7 @@
 {% if kind == 'GOI' and s %}
 <section class="card bg-grid-card" id="gia-model"><h2 class="doc-h">Giá riêng theo model <span class="hint">· {{ overrides|length }} · ưu tiên hơn giá nhóm</span></h2>
 {% if overrides %}<div class="table-scroll"><table class="list-table bg-table"><thead><tr><th>Model</th>{% for lv in levels %}<th class="num">Cấp {{ lv }}</th>{% endfor %}{% if can_edit %}<th></th>{% endif %}</tr></thead><tbody>
-{% for m, lvls in overrides %}<tr data-override="{{ m.name }}"><td><b>{{ m.name }}</b></td>{% for lv in levels %}{% set p = lvls.get(lv) %}<td class="num">{% if p %}<b>{{ p.price|money }}</b>{% if p.price_genuine %}<span class="lt-sub">Chính hãng {{ p.price_genuine|money }}</span>{% endif %}{% else %}<span class="lt-sub">theo nhóm</span>{% endif %}</td>{% endfor %}
+{% for m, lvls in overrides %}<tr data-override="{{ m.name }}"><td><a href="/bang-gia/gia-model?model={{ m.name|urlencode }}"><b>{{ m.name }}</b></a></td>{% for lv in levels %}{% set p = lvls.get(lv) %}<td class="num">{% if p %}<b>{{ p.price|money }}</b>{% if p.price_genuine %}<span class="lt-sub">Chính hãng {{ p.price_genuine|money }}</span>{% endif %}{% else %}<span class="lt-sub">theo nhóm</span>{% endif %}</td>{% endfor %}
 {% if can_edit %}<td><form method="post" action="/bang-gia/dich-vu/{{ s.id }}/gia-model" class="bg-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="xoa_model" value="{{ m.id }}"><button class="btn btn-ghost bg-small">Bỏ giá riêng</button></form></td>{% endif %}</tr>{% endfor %}
 </tbody></table></div>{% endif %}
 {% if can_edit %}<form method="post" action="/bang-gia/dich-vu/{{ s.id }}/gia-model" class="bg-model-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">

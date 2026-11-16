@@ -274,8 +274,8 @@ def test_migration_down_up_retains_accounts_and_restores_guards(db,engine,p,empl
     payroll_migration=importlib.util.module_from_spec(payroll_spec);payroll_spec.loader.exec_module(payroll_migration)
     cp_spec=importlib.util.spec_from_file_location('cp_dependency',path.parent/'0068_service_expenses.py')
     cp=importlib.util.module_from_spec(cp_spec);cp_spec.loader.exec_module(cp)  # 0068 thêm khóa ghép mà NS5 hạ không biết
-    cpm_spec=importlib.util.spec_from_file_location('cpm_dependency',path.parent/'0104_chi_phi_phat_sinh_moi_don.py')
-    cpm=importlib.util.module_from_spec(cpm_spec);cpm_spec.loader.exec_module(cpm)  # 0104 mở rộng bảng 0068
+    cpm_spec=importlib.util.spec_from_file_location('cpm_dependency',path.parent/'0105_chi_phi_phat_sinh_moi_don.py')
+    cpm=importlib.util.module_from_spec(cpm_spec);cpm_spec.loader.exec_module(cpm)  # 0105 mở rộng bảng 0068
     account_id=p['technician'].id;db.rollback();db.expunge(employee)
     with engine.begin() as conn:
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
