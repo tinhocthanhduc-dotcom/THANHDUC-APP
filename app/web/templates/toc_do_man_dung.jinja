@@ -1,0 +1,28 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Màn được dùng{% endblock %}
+{% block main %}<div class="page-wide list-page" data-screen-usage>
+{% call ui.page_head('Màn được dùng', sub='Mỗi mục menu được mở bao nhiêu lần, bao nhiêu ngày, ai mở. Dùng để ẩn bớt màn không ai dùng.', back='/toc-do') %}{% endcall %}
+{% if not enabled %}<p class="card hint">Đang tắt ghi số đo (TD_PERF_LOG=false).</p>{% endif %}
+<nav class="ltabs" aria-label="Khoảng thời gian">{% for key, (label, days) in periods.items() %}<a class="ltab{{ ' on' if key == ky }}" href="/toc-do/man-dung?ky={{ key }}"{% if key == ky %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{{ ui.tiles([
+  dict(label='Lượt mở màn', n=total, sub='Không tính hỏi nền 15 giây, tìm nhanh trong ô, lưu/gửi'),
+  dict(label='Mục menu có người mở', n=used|length),
+  dict(label='Mục menu không ai mở', n=unused|length, tone='cho' if unused else ''),
+], keep_phone=true) }}
+<p class="card hint">Lượt trước bản cập nhật 16/11/2026 chưa ghi ai mở (hiện "chưa ghi người"); từ đó app ghi thêm người mở, cột "Ai mở" đầy dần.</p>
+
+<section class="card list-frame">
+<h2>Không ai mở trong kỳ · nên cân nhắc ẩn</h2>
+{% if unused %}<div class="table-scroll"><table class="list-table"><thead><tr><th>Nhóm</th><th>Mục menu</th><th>Đường dẫn</th></tr></thead>
+<tbody>{% for e in unused %}<tr data-unused><td>{{ e.group }}</td><td><b>{{ e.label }}</b></td><td><code>{{ e.href }}</code></td></tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Mục menu nào cũng có người mở trong kỳ này.') }}{% endif %}
+</section>
+
+<section class="card list-frame">
+<h2>Có người mở · nhiều nhất lên đầu</h2>
+{% if used %}<div class="table-scroll"><table class="list-table"><thead><tr><th>Nhóm</th><th>Mục menu</th><th class="num">Lượt</th><th class="num">Số ngày</th><th>Ai mở</th></tr></thead>
+<tbody>{% for e in used %}<tr data-used="{{ e.href }}"><td>{{ e.group }}</td><td><b>{{ e.label }}</b></td><td class="num">{{ e.n }}</td><td class="num">{{ e.days }}</td><td>{% for name, n in e.who %}{{ name }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}{% if e.unknown %}{% if e.who %} · {% endif %}<span class="hint">chưa ghi người {{ e.unknown }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Chưa có lượt mở màn trong khoảng này.') }}{% endif %}
+</section>
+</div>{% endblock %}

@@ -121,6 +121,10 @@ class Middleware:
             route = _route(scope)
             row = dict(k='s', m=scope.get('method', ''), r=route, st=rec['st'], ms=round((time.perf_counter() - start) * 1000, 1),
                        q=rec['q'], db=round(rec['db'], 1), b=rec['b'])
+            # Ai mở (chỉ mã người dùng, 16/11/2026): để giám đốc xem màn nào ai dùng, ẩn màn không ai mở.
+            user_id = getattr((scope.get('state') or {}).get('user'), 'id', None)
+            if user_id is not None:
+                row['u'] = user_id
             write([row] + [dict(k='q', r=route, **s) for s in rec['slow']])
 
 
