@@ -114,6 +114,7 @@ def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user)
     p = stocked(db, boss, 'TD-9112', 'May in HP 1020 cu 12', 'May in cu', 1_500_000, 900_000, qty=1)
     p.warranty_months = 3
     stocked(db, boss, 'TD-9099', 'Hop muc 12A ngung ban', 'Muc', 200_000, 100_000, qty=4).active = False
+    stocked(db, boss, 'TD-9077', 'Hop muc 12A tai che', 'Hộp mực renew', 150_000, 80_000, qty=3)  # TUẤN 16/11: bỏ nhóm renew
     db.commit()
     tech = make_user('tgsp.tho', 'technician')
     web_login(client, tech)
@@ -127,6 +128,7 @@ def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user)
     assert '270.000' in card
     assert 'Còn hàng' not in page and 'Hết hàng' not in page  # TUẤN 15/11: không hiện tồn
     assert 'TD-9099' not in page
+    assert 'TD-9077' not in page  # nhóm Hộp mực renew không hiện ở Giá mực (lọc theo nhóm, tên không có chữ renew)
     for secret in ('987.654', '123.456', '>7<'):  # giá vốn, số tồn
         assert secret not in page
     # Danh sách xổ xuống (TUẤN 15/11): mỗi dòng bấm để thêm; tìm không ra thì báo, không đoán.
@@ -138,11 +140,12 @@ def test_technician_sees_product_sale_price_with_vat_only(client, db, make_user)
         else pb.save_service(db, boss, dict(kind='PHI', name='Phí giao hàng', price='30.000', active='1'))
     db.commit()
     page = client.get('/tra-gia/san-pham', params=[('q', '12'), ('sp', 'TD-9012:2'), ('sp', 'td-9040:1'), ('sp', 'TD-9099:3'), ('sp', 'TD-0000:1'),
-                                                    ('sp', 'TD-9112:1'), ('pp', fee.id)]).text
+                                                    ('sp', 'TD-9112:1'), ('sp', 'TD-9077:1'), ('pp', fee.id)]).text
     assert 'Phí giao hàng' in page and '32.400' in page  # 30.000 + 8% VAT
     # 2 × 1.350.000 + 270.000 = 2.970.000; + 32.400 = 3.002.400.
     assert 'Mực 2.970.000 · Phụ phí 32.400' in page and 'data-code="TD-9112"' not in page  # máy in không vào giỏ Giá mực and 'data-tg3-total>3.002.400<' in page
     assert 'data-code="TD-9012"' in page and 'data-qty="2"' in page and 'data-code="TD-9099"' not in page
+    assert 'data-code="TD-9077"' not in page  # renew không vào giỏ
     assert 'Đã chọn 2' in page.split('data-tgsp-code="TD-9012"')[1].split('</button>')[0]
     assert 'data-tg3-total>133.650.000<' in client.get('/tra-gia/san-pham', params={'sp': 'TD-9012:500'}).text  # tối đa 99 × 1.350.000
     # Nhớ tab: đã mở Giá sản phẩm thì bấm tab Bảng giá về lại Giá sản phẩm; bấm Giá sửa thì ở Giá sửa.

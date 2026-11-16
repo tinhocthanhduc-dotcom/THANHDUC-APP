@@ -213,11 +213,17 @@ def services_find(request: Request, q: str = '', user: User = Depends(web_user),
 MAX_PRODUCTS = 30
 
 
+def _for_tech(p: Product) -> bool:
+    """Hàng hiện ở tab Giá mực: nhóm mực (tab "Mực & hộp mực"), bỏ nhóm hàng renew (TUẤN 16/11: chỉ mực in, bỏ renew).
+    Lọc theo nhóm hàng (group_name), không theo tên mã hàng."""
+    return not p.is_test and pb.product_tab(p) == 'muc' and 'renew' not in pb.fold(p.group_name)
+
+
 def product_rows(session: Session, q: str, nhom: str = '') -> tuple[list[dict], list[tuple[str, int]]]:
     q = ' '.join(str(q or '').split())[:60]
     if len(q) < 2:
         return [], []
-    found = [p for p in product_svc.search(session, q, active_only=True, limit=200) if not p.is_test and pb.product_tab(p) == 'muc']
+    found = [p for p in product_svc.search(session, q, active_only=True, limit=200) if _for_tech(p)]
     groups = Counter(p.group_name for p in found if p.group_name)
     if nhom:
         found = [p for p in found if p.group_name == nhom]
@@ -246,7 +252,7 @@ def basket(session: Session, values) -> list[dict]:
         return []
     found = [p for p in session.scalars(select(Product).where(Product.code.in_(list(qty)), Product.active.is_(True),
                                                               Product.is_test.is_(False)).order_by(Product.code))]
-    rows = _cards(session, [p for p in found if pb.product_tab(p) == 'muc'])
+    rows = _cards(session, [p for p in found if _for_tech(p)])
     for r in rows:
         r['qty'] = qty[r['code']]
     return rows
