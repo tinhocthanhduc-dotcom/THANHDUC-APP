@@ -14,7 +14,7 @@ KEYS = {
     'DANH_MUC_DICH_VU':'Danh mục dịch vụ',
     'DANH_MUC_HOAN_TIEN_BAN':'Hoàn tiền bán hàng (Chi)',
     'DANH_MUC_MUA_HANG':'Danh mục mua hàng (Chi)',
-    'DANH_MUC_CHI_PHI_THO':'Hoàn chi phí phát sinh cho thợ (Chi)',
+    'DANH_MUC_CHI_PHI_THO':'Trả lại nhân viên chi phí phát sinh (Chi)',
 }
 
 

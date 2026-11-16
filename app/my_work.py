@@ -284,7 +284,7 @@ def _specs(user, today, now):
             ServiceExpense.amount,literal(False).label('overdue')).outerjoin(t,t.id==ServiceExpense.ticket_id).outerjoin(
             SalesOrder,SalesOrder.id==ServiceExpense.order_id).join(User,User.id==ServiceExpense.technician_id)
         add('expenses_pending','Chi phí phát sinh chờ duyệt',expense.where(ServiceExpense.status=='CHO_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho')
-        add('expenses_unpaid','Chi phí phát sinh chờ chi',expense.where(ServiceExpense.status=='DA_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho?tab=cho-hoan')
+        add('expenses_unpaid','Chi phí phát sinh · chờ trả tiền',expense.where(ServiceExpense.status=='DA_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho?tab=cho-hoan')
     if director:
         requests=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),
             (PendingDisposition.qty*func.coalesce(StockBalance.avg_cost,0)).label('amount'),literal(False).label('overdue')).join(

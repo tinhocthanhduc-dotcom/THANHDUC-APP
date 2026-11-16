@@ -13,7 +13,7 @@ from . import checked_form, render, web_user
 from .lists import _today
 
 router = APIRouter()
-TABS = {'cho-duyet': ('CHO_DUYET', 'Chờ duyệt'), 'cho-hoan': ('DA_DUYET', 'Chờ chi'), 'da-hoan': ('DA_HOAN', 'Đã chi'), 'tu-choi': ('TU_CHOI', 'Từ chối')}
+TABS = {'cho-duyet': ('CHO_DUYET', 'Chờ duyệt'), 'cho-hoan': ('DA_DUYET', 'Chờ trả tiền'), 'da-hoan': ('DA_HOAN', 'Đã trả tiền'), 'tu-choi': ('TU_CHOI', 'Từ chối')}
 
 
 def finance_user(user: User = Depends(web_user)):

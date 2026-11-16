@@ -262,7 +262,7 @@ def test_expense_screens(client, db, working, fund):
     row = db.scalar(select(ServiceExpense))
     assert client.post(f'/chi-phi-tho/{row.id}/duyet', data=dict(csrf=csrf_of(html), version=row.version), follow_redirects=False).status_code == 303
     html = client.get('/chi-phi-tho?tab=cho-hoan').text
-    assert 'Hoàn tiền · lập phiếu chi' in html
+    assert 'Trả lại ' in html and ' · lập phiếu chi' in html and 'Hoàn tiền' not in html
     r = client.post('/chi-phi-tho/hoan-tien', data=dict(csrf=csrf_of(html), expense_ids=str(row.id), fund_code='TM', pay_date=DAY.isoformat()), follow_redirects=False)
     assert r.status_code == 303 and r.headers['location'].startswith('/thu-chi/')
     assert db.scalar(select(CashDoc).where(CashDoc.source_type == 'SERVICE_EXPENSE')).amount == 150000

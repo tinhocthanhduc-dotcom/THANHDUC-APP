@@ -20,9 +20,9 @@ from .stock_docs import _transaction
 
 KINDS = {'LINH_KIEN': 'Mua linh kiện ngoài', 'DOI_TAC': 'Trả đối tác sửa', 'GUI_HANG': 'Phí gửi hàng', 'CHO_MAY': 'Xe chở máy',
          'GUI_XE': 'Gửi xe', 'KHAC': 'Khác'}
-PAYERS = {'NV_UNG': 'Tôi ứng tiền', 'DOI_TAC': 'Công ty trả đối tác sau'}
+PAYERS = {'NV_UNG': 'Tôi trả bằng tiền riêng', 'DOI_TAC': 'Công ty trả đối tác sau'}
 VAT_RATES = (0, 8, 10)
-STATUSES = {'CHO_DUYET': 'Chờ duyệt', 'DA_DUYET': 'Đã duyệt · chờ chi', 'DA_HOAN': 'Đã chi', 'TU_CHOI': 'Từ chối', 'DA_HUY': 'Đã xóa'}
+STATUSES = {'CHO_DUYET': 'Chờ duyệt', 'DA_DUYET': 'Đã duyệt · chờ trả tiền', 'DA_HOAN': 'Đã trả tiền', 'TU_CHOI': 'Từ chối', 'DA_HUY': 'Đã xóa'}
 COUNTED = ('DA_DUYET', 'DA_HOAN')  # tính vào giá vốn đơn
 TECH_OPEN = ('DA_NHAN', 'DA_HEN', 'DANG_LAM', 'CHO_LINH_KIEN', 'TAM_DUNG')  # thợ: từ lúc nhận việc
 OPEN_WORK = ('DANG_LAM', 'CHO_LINH_KIEN', 'TAM_DUNG')  # màn thợ hiện form sau khi đã đến khách (màn hẹn/trả máy giữ gọn)
@@ -326,7 +326,7 @@ def pay(session, user, ids, fund_code, pay_date):
             name, head = rows[0].place, f'Trả đối tác {rows[0].place} (chi phí phát sinh): '
         else:
             name = session.scalar(select(User.full_name).where(User.id == rows[0].technician_id))
-            head = 'Hoàn chi phí phát sinh cho ' + ('thợ: ' if rows[0].ticket_id else f'{name}: ')
+            head = f'Trả lại {name} tiền tự trả chi phí phát sinh: '
         doc = cash_docs.insert(session, user, CashDocIn(kind='PC', doc_date=pay_date, fund_code=fund_code, category_code=category,
             partner_name=name, description=(head + detail)[:2000], amount=sum(r.amount for r in rows),
             source_type='SERVICE_EXPENSE', source_id=str(rows[0].id)))
