@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide zl-page">
 {# Trợ lý Zalo đợt 4 (TUẤN duyệt mẫu T4 06/11/2026): mỗi người thấy tin mình soạn, giám đốc thấy tất cả. #}
 {% call ui.page_head('Tin gửi khách', sub=('Tin của mọi người' if everyone else 'Tin anh/chị đã soạn') ~ '. Soạn bằng nút Soạn tin trên báo giá, phiếu dịch vụ, công nợ khách, hoặc nhắn bot Zalo.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Hộp Zalo') }}
 {% if bo %}{{ ui.toast('Đã bỏ tin') }}{% endif %}
 {{ ui.tiles([
   dict(label=views['cho'][0], n=counts['cho'], href='/tin-gui-khach?view=cho', on=view=='cho', tone='warn' if counts['cho'] else ''),

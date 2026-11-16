@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide tz-page">
 {# Đội AI (TUẤN duyệt mẫu MBakJ8u4e77Fszx9hrtz7w 15/11/2026): Trưởng nhóm AI đọc tin khách, giao người trả lời trong 30 phút. AI không tự trả lời khách. #}
 {% call ui.page_head('Tin Zalo cần trả lời', sub='Trưởng nhóm AI đọc tin khách nhắn Zalo công ty và giao cho bạn. Nhắn khách xong thì bấm Đã trả lời.') %}{% if can_all %}<a class="btn btn-ghost" href="/tin-zalo{{ '' if see_all else '?tat_ca=1' }}">{{ 'Chỉ việc của tôi' if see_all else 'Xem cả đội' }}</a>{% endif %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Hộp Zalo') }}
 {% if xong %}{{ ui.toast('Đã đánh dấu đã trả lời') }}{% endif %}
 {% if items %}<div class="tz-list">
 {% for it in items %}{% set r = it.row %}<section class="card tz-item{{ ' tz-late' if r.due_at and r.due_at < now }}" id="tz-{{ r.id }}">

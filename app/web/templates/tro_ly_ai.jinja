@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide list-page ai-page">
 {# Trợ lý AI (bản mẫu TUẤN duyệt 01/11/2026): Claude trên máy chủ Z2 vào app bằng khóa riêng. Tự nhắc việc, còn giao thợ / đổi hẹn / nhập hàng phải chờ giám đốc Duyệt. Không đụng tiền, kho, lương. #}
 {% call ui.page_head('Trợ lý AI', sub='AI trên máy chủ đọc việc của mọi người, tự nhắc việc, và đề xuất giao thợ hoặc đổi hẹn để anh duyệt. Không được đụng tiền, kho, lương, không nhắn khách.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 
 {% if new_key %}<section class="card ai-newkey" aria-live="polite"><b>Khóa mới của Trợ lý AI · chỉ hiện một lần</b>
 <p>Chép khóa này vào máy chủ Z2 theo hướng dẫn. Tải lại trang là khóa không hiện nữa; nếu làm mất thì tạo khóa mới.</p>

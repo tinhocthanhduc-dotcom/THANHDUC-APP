@@ -1,4 +1,5 @@
 """U1: cùng cấu hình cho menu và bộ chặn quyền; API/lõi giữ quyền cũ."""
+import re
 from html.parser import HTMLParser
 from urllib.parse import parse_qsl, urlsplit
 
@@ -67,6 +68,12 @@ for _role in ('technician', 'dispatcher', 'director'):
 for _role in ('dispatcher', 'director'):
     EXPECTED[_role].add('/bao-gia-hop-dong')  # Báo giá hợp đồng sửa chữa (mẫu H1–H3 14/11/2026)
     EXPECTED[_role].add('/bao-gia-sua')  # Báo giá đã lập: một máy + gộp (TUẤN 16/11/2026)
+# Đợt 2 rà soát (TUẤN duyệt 16/11/2026): 4 hộp Zalo thành mục Hộp Zalo; 4 trang AI/Zalo thành tab của Đội AI.
+for _role in EXPECTED:
+    EXPECTED[_role].difference_update(('/tin-zalo', '/tin-gui-khach', '/don-nhap-zalo', '/phieu-nhap-zalo',
+                                       '/nhan-vien-ao', '/tro-ly-ai', '/zalo/tin-nhan', '/zalo/tro-ly'))
+for _role in ('sales', 'finance', 'dispatcher', 'director'):
+    EXPECTED[_role].add('/hop-zalo')
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
@@ -247,3 +254,36 @@ def test_login_returns_to_allowed_next_page_else_role_home(client, make_user):
     client.cookies.clear()
     page = client.post("/dang-nhap", data={"username": "seller_next", "password": PASSWORD, "next": "/thu-chi"}, follow_redirects=False)
     assert page.headers["location"] == "/viec-cua-toi"
+
+
+@pytest.mark.parametrize('roles,first,tabs', [
+    (('sales',), '/tin-zalo', ['/tin-zalo', '/don-nhap-zalo', '/tin-gui-khach']),
+    (('dispatcher',), '/tin-zalo', ['/tin-zalo', '/phieu-nhap-zalo', '/tin-gui-khach']),
+    (('finance',), '/tin-zalo', ['/tin-zalo', '/tin-gui-khach']),
+])
+def test_hop_zalo_tabs_follow_role(client, make_user, roles, first, tabs):
+    """Đợt 2 rà soát: Hộp Zalo mở tab đầu có quyền; mỗi người chỉ thấy tab việc của mình; mục menu sáng."""
+    user = make_user('hz.' + '.'.join(roles), *roles)
+    client.post('/dang-nhap', data={'username': user.username, 'password': PASSWORD, 'next': '/'})
+    r = client.get('/hop-zalo', follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == first
+    html = client.get(first).text
+    hub = html.split('class="hub-tabs"', 1)[1].split('</nav>', 1)[0]
+    assert re.findall(r'href="([^"]+)"', hub) == tabs
+    assert 'aria-current="page"' in hub
+    active = [a for a in Menu(html).links if 'aria-current' in a]
+    assert active and active[0]['href'] == '/hop-zalo'
+
+
+def test_doi_ai_tabs_for_director(client, make_user):
+    """Đợt 2 rà soát: 5 tab Đội AI trên mọi trang AI/Zalo cũ; menu sáng Đội AI."""
+    user = make_user('hz.gd', 'director')
+    client.post('/dang-nhap', data={'username': user.username, 'password': PASSWORD, 'next': '/'})
+    for path, on in (('/doi-ai', '/doi-ai'), ('/nhan-vien-ao', '/nhan-vien-ao'), ('/tro-ly-ai', '/tro-ly-ai'),
+                     ('/tro-ly-ai?tab=nhat-ky', '/tro-ly-ai?tab=nhat-ky'), ('/zalo/tro-ly', '/zalo/tro-ly'), ('/zalo/tin-nhan', '/zalo/tro-ly')):
+        html = client.get(path).text
+        hub = html.split('class="hub-tabs"', 1)[1].split('</nav>', 1)[0]
+        assert re.findall(r'href="([^"]+)"', hub) == ['/doi-ai', '/tro-ly-ai', '/nhan-vien-ao', '/tro-ly-ai?tab=nhat-ky', '/zalo/tro-ly'], path
+        assert re.search(r'href="%s" aria-current="page"' % re.escape(on), hub), path
+        active = [a for a in Menu(html).links if 'aria-current' in a]
+        assert active and active[0]['href'] == '/doi-ai', path

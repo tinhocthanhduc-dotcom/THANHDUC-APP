@@ -4,6 +4,7 @@
 {% block main %}<div class="page-wide nva-page">
 {# Nhân viên AI đợt 1 (TUẤN duyệt phương án 07/11/2026, mẫu W5k8GWdrq5tEad2QUSFsKN): chỉ giám đốc. Không đụng tiền, kho, công nợ; không nhắn khách. #}
 {% call ui.page_head('Nhân viên AI', sub='App tự làm một phần việc theo quy tắc anh đặt. Mọi việc ghi vào nhật ký kèm lý do. Không đụng tiền, kho, công nợ, không hủy phiếu, không nhắn khách.', badge_label='Đang chạy' if master.enabled else 'Đã tắt tất cả', badge_tone='xong' if master.enabled else 'huy') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 {% if luu %}{{ ui.toast('Đã lưu cài đặt') }}{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 {% if not zalo %}<section class="card zalo-note" role="note"><b>Bot Zalo chưa cấu hình.</b> Điều phối AI vẫn giao phiếu; Nhắc hẹn AI và Thư ký phiếu cần bot Zalo và nhân viên đã được gắn Zalo riêng (Tin nhắn Zalo › Gắn nhân viên).</section>{% endif %}

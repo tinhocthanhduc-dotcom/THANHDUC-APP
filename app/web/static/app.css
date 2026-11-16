@@ -5209,3 +5209,11 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .gm-tools-r { width: 100%; }
   .gm-bar .btn-ok { width: 100%; min-width: 0; }
 }
+
+/* Đợt 2 rà soát (16/11/2026): tab gom trang Đội AI / Hộp Zalo, dạng nút viên dưới tiêu đề, khác thanh tab trạng thái (.ltabs). */
+.hub-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.hub-tab { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.hub-tab span { font-size: .75rem; padding: 0 7px; border-radius: 999px; background: var(--tag); color: var(--muted); font-variant-numeric: tabular-nums; }
+.hub-tab.on { background: var(--info-solid); border-color: var(--info-solid); color: var(--info-solid-text); }
+.hub-tab.on span { background: var(--surface); color: var(--text); }
+@media (max-width: 640px) { .hub-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -4px; padding-inline: 4px; } }

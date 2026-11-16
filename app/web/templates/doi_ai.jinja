@@ -5,6 +5,7 @@
 {# Đội AI đợt 1 (TUẤN duyệt 15/11/2026, mẫu 9rRchbgXNR4sY5jurdjQMq): chỉ giám đốc. Trưởng nhóm AI chia người + hạn cho từng việc. #}
 {% set tn_on = master.enabled and rows['TRUONG_NHOM'].enabled %}
 {% call ui.page_head('Đội AI', sub='Trưởng nhóm AI chia mỗi việc cho một người kèm hạn, nhắc khi quá hạn và báo lên khi treo lâu. Không đụng tiền, kho, công nợ, không nhắn khách.', badge_label='Cả đội đang chạy' if tn_on else 'Trưởng nhóm AI đang tắt', badge_tone='xong' if tn_on else 'huy') %}<a class="btn btn-ghost" href="/nhan-vien-ao#nva-truong_nhom">Cài đặt từng thành viên</a><a class="btn btn-ghost" href="/nhan-vien-ao">Nhật ký</a>{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Đội AI') }}
 {% if done %}{{ ui.toast('Đã trả phiếu về thợ cũ') }}{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 {% if not tn_on %}<section class="card" role="note"><b>Trưởng nhóm AI đang tắt.</b> Bảng dưới là lần chia việc gần nhất. Bật lại ở <a href="/nhan-vien-ao#nva-truong_nhom">Nhân viên AI</a>.</section>{% endif %}

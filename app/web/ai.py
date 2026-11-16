@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from .. import ai_agent as svc
+from . import hubs
 from ..db import get_session
 from ..models import User
 from .. import form_keys
@@ -31,7 +32,7 @@ def page(request: Request, tab: str = 'cho-duyet', trang: str = '', so: str = ''
     tabs.append(dict(label='Nhật ký', n=counts['nhat-ky'], href='/tro-ly-ai?tab=nhat-ky', on=tab == 'nhat-ky'))
     # Khóa mới chỉ hiện một lần ngay sau khi tạo (giữ trong phiên, không đưa lên địa chỉ).
     new_key = request.cookies.get('td_ai_key_once', '') if khoa_moi else ''
-    resp = render(request, 'tro_ly_ai.jinja', tab=tab, tabs=tabs, rows=rows, p=p, keys=svc.active_keys(session), agents={k: v for k, v in svc.AGENTS.items() if v['ready']},
+    resp = render(request, 'tro_ly_ai.jinja', hub=hubs.ai(session, user, '/tro-ly-ai', tab), tab=tab, tabs=tabs, rows=rows, p=p, keys=svc.active_keys(session), agents={k: v for k, v in svc.AGENTS.items() if v['ready']},
                   new_key=new_key, status_labels=svc.STATUS_LABELS)
     if khoa_moi:
         resp.delete_cookie('td_ai_key_once', path='/tro-ly-ai')

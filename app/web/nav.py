@@ -15,6 +15,8 @@ GROUPS = (
     {'label': '', 'section': 'Của tôi', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
+        # Đợt 2 rà soát (TUẤN duyệt 16/11/2026): 4 hộp tin Zalo gom thành một mục, tab theo quyền (app/web/hubs.py).
+        {'label': 'Hộp Zalo', 'href': '/hop-zalo', 'prefixes': ('/hop-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
         # Màn giao hàng mở từ Việc của tôi hoặc từ đơn: thủ kho và kinh doanh (Đợt 1b), menu sáng Việc của tôi (không sáng Danh mục › Kho).
         {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse', 'sales'), 'hidden': True, 'highlight': '/viec-cua-toi'},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
@@ -49,11 +51,11 @@ GROUPS = (
         # Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn nháp trợ lý lập từ tin Zalo, kinh doanh kiểm và chốt.
         # TUẤN duyệt 06/11/2026: khách quá nhịp lấy mực để kinh doanh gọi hỏi thăm.
         {'label': 'Khách lâu chưa gọi mực', 'href': '/khach-hang/nhac-muc', 'prefixes': ('/khach-hang/nhac-muc',), 'roles': ('sales', 'finance')},
-        {'label': 'Đơn nháp từ Zalo', 'href': '/don-nhap-zalo', 'prefixes': ('/don-nhap-zalo',), 'roles': ('sales',)},
+        {'label': 'Đơn nháp từ Zalo', 'href': '/don-nhap-zalo', 'prefixes': ('/don-nhap-zalo',), 'roles': ('sales',), 'hidden': True, 'highlight': '/hop-zalo'},
         # Trợ lý Zalo đợt 4 (TUẤN duyệt mẫu 06/11/2026): tin soạn sẵn gửi khách (nhắc nợ, báo giá, hỏi thăm sau sửa).
-        {'label': 'Tin gửi khách', 'href': '/tin-gui-khach', 'prefixes': ('/tin-gui-khach',), 'roles': ('sales', 'finance', 'dispatcher')},
+        {'label': 'Tin gửi khách', 'href': '/tin-gui-khach', 'prefixes': ('/tin-gui-khach',), 'roles': ('sales', 'finance', 'dispatcher'), 'hidden': True, 'highlight': '/hop-zalo'},
         # Đội AI (TUẤN duyệt 15/11/2026): Trưởng nhóm AI đọc tin Zalo khách, giao hỏi giá / công nợ / tin chưa rõ khách.
-        {'label': 'Tin Zalo cần trả lời', 'href': '/tin-zalo', 'prefixes': ('/tin-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
+        {'label': 'Tin Zalo cần trả lời', 'href': '/tin-zalo', 'prefixes': ('/tin-zalo',), 'roles': ('sales', 'finance', 'dispatcher'), 'hidden': True, 'highlight': '/hop-zalo'},
         # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
         {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
     )},
@@ -75,7 +77,7 @@ GROUPS = (
         # Báo giá sửa đã lập (TUẤN 16/11/2026): xem lại báo giá cũ, tab Một máy / Gộp nhiều máy (báo giá gộp mẫu duyệt 15/11).
         {'label': 'Báo giá đã lập', 'href': '/bao-gia-sua', 'prefixes': ('/bao-gia-sua', '/bao-gia-gop'), 'roles': ('dispatcher',)},
         # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
-        {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',)},
+        {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/hop-zalo'},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
     )},
@@ -142,10 +144,11 @@ ACCOUNT_GROUPS = (
         {'label': 'Tài khoản nhân viên', 'href': '/tai-khoan', 'prefixes': ('/tai-khoan',), 'roles': ('admin',)},
         {'label': 'Hạn mức duyệt', 'href': '/han-muc-duyet', 'prefixes': ('/han-muc-duyet',), 'roles': ('director',)},
         {'label': 'Đội AI', 'href': '/doi-ai', 'prefixes': ('/doi-ai',), 'roles': ('director',)},
-        {'label': 'Nhân viên AI', 'href': '/nhan-vien-ao', 'prefixes': ('/nhan-vien-ao',), 'roles': ('director',)},
-        {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',)},
-        {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no'), 'roles': ('director',)},
-        {'label': 'Trợ lý Zalo', 'href': '/zalo/tro-ly', 'prefixes': ('/zalo/tro-ly',), 'roles': ('director',)},
+        # Đợt 2 rà soát (TUẤN duyệt 16/11/2026): 4 trang AI/Zalo thành tab của Đội AI (app/web/hubs.py), đường dẫn cũ giữ nguyên.
+        {'label': 'Nhân viên AI', 'href': '/nhan-vien-ao', 'prefixes': ('/nhan-vien-ao',), 'roles': ('director',), 'hidden': True, 'highlight': '/doi-ai'},
+        {'label': 'Trợ lý AI', 'href': '/tro-ly-ai', 'prefixes': ('/tro-ly-ai',), 'roles': ('director',), 'hidden': True, 'highlight': '/doi-ai'},
+        {'label': 'Tin nhắn Zalo', 'href': '/zalo/tin-nhan', 'prefixes': ('/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no'), 'roles': ('director',), 'hidden': True, 'highlight': '/doi-ai'},
+        {'label': 'Trợ lý Zalo', 'href': '/zalo/tro-ly', 'prefixes': ('/zalo/tro-ly',), 'roles': ('director',), 'hidden': True, 'highlight': '/doi-ai'},
         {'label': 'Tốc độ app', 'href': '/toc-do', 'prefixes': ('/toc-do',), 'roles': ('director','admin')},
         {'label': 'Quy chuẩn giao diện', 'href': '/ui/quy-chuan', 'prefixes': ('/ui/quy-chuan',), 'roles': ('director',)},
         {'label': 'Phiếu lương', 'href': '/phieu-luong', 'prefixes': ('/phieu-luong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director'), 'account_page': True, 'payroll_page': True},

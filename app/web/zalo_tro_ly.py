@@ -10,6 +10,7 @@ from .. import zalo_agent as agent
 from .. import zalo_bot
 from .. import zalo_doc_anh as doc_anh
 from .. import zalo_phieu_nhap as pn
+from . import hubs
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, User, ZaloAgentLog, ZaloChat
@@ -42,7 +43,7 @@ def page(request: Request, tab: str = 'gan', ngay: str = '', trang: str = '', so
     p = build(trang, so, total, {'tab': tab, 'ngay': ngay})
     rows = agent.logs(session, day, p['offset'], p['size'])[2] if tab == 'nhat-ky' else []
     used = {c.id: agent._used_today(session, c.id) for c in chats}
-    return render(request, 'zalo_tro_ly.jinja', tab=tab, tabs=TABS, cfg=cfg, chats=chats, staff=staff, custs=custs, used=used,
+    return render(request, 'zalo_tro_ly.jinja', hub=hubs.ai(session, user, '/zalo/tro-ly'), tab=tab, tabs=TABS, cfg=cfg, chats=chats, staff=staff, custs=custs, used=used,
                   label=agent.can_do_label, total=total, stats=stats, rows=rows, p=p, day=day, ngay=ngay,
                   names=agent.sender_names(session, rows), results=agent.RESULTS, askers=agent.ASKERS,
                   draft_users=agent.draft_users(session), luu=luu, has_key=bool(agent.get_settings().openai_api_key.strip()),
@@ -91,7 +92,7 @@ def drafts(request: Request, view: str = 'cho', trang: str = '', so: str = '', b
     p = build(trang, so, counts[view], {'view': view})
     orders, log_rows = agent.drafts(session, user, view, p['offset'], p['size'])
     custs = {c.code: c for c in session.scalars(select(Customer).where(Customer.code.in_({o.customer_code for o in orders})))}
-    return render(request, 'don_nhap_zalo.jinja', view=view, views=agent.DRAFT_VIEWS, counts=counts, orders=orders, logs=log_rows,
+    return render(request, 'don_nhap_zalo.jinja', hub=hubs.zalo(session, user, '/don-nhap-zalo'), view=view, views=agent.DRAFT_VIEWS, counts=counts, orders=orders, logs=log_rows,
                   custs=custs, p=p, bo=bo, askers=agent.ASKERS,
                   view_total=agent.draft_total(session, view))
 
@@ -112,7 +113,7 @@ def ticket_drafts(request: Request, view: str = 'cho', trang: str = '', so: str 
     counts = pn.counts(session)
     p = build(trang, so, counts[view], {'view': view})
     rows = pn.rows(session, view, p['offset'], p['size'])
-    return render(request, 'phieu_nhap_zalo.jinja', view=view, views=pn.VIEWS, counts=counts, rows=rows, p=p, bo=bo,
+    return render(request, 'phieu_nhap_zalo.jinja', hub=hubs.zalo(session, user, '/phieu-nhap-zalo'), view=view, views=pn.VIEWS, counts=counts, rows=rows, p=p, bo=bo,
                   **_draft_names(session, rows), kinds=pn.KINDS, want=pn.want_label, reasons=pn.DROP_REASONS)
 
 
@@ -165,7 +166,7 @@ def ticket_draft_create_assign(request: Request, draft_id: int, form=Depends(che
 def zalo_inbox(request: Request, tat_ca: str = '', xong: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
     from .. import zalo_doc_tin as dt
     see_all = bool(tat_ca) and ('director' in user.roles or 'dispatcher' in user.roles)
-    return render(request, 'tin_zalo.jinja', items=dt.mine(session, user, see_all), see_all=see_all, intents=dt.INTENTS,
+    return render(request, 'tin_zalo.jinja', hub=hubs.zalo(session, user, '/tin-zalo'), items=dt.mine(session, user, see_all), see_all=see_all, intents=dt.INTENTS,
                   can_all='director' in user.roles or 'dispatcher' in user.roles, xong=xong, now=dt._now())
 
 
