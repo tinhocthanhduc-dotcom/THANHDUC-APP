@@ -126,3 +126,23 @@ def quote_new(request: Request, user: User = Depends(web_user)):
     if len(choices) == 1:
         return RedirectResponse(choices[0]['href'], status_code=303)
     return render(request, 'bao_gia_tao.jinja', choices=choices)
+
+
+@router.get('/cho-anh-duyet')
+def approvals_page(request: Request, nhom: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): mọi việc chờ giám đốc duyệt ở một trang; bấm dòng mở phiếu cũ."""
+    from datetime import datetime
+
+    from .. import director_approvals as da
+    from ..service_sla import TZ
+    from . import render
+    nav.check_access(user, '/cho-anh-duyet')
+    items = da.rows(session)
+    now = datetime.now(TZ)
+    counts = {k: sum(1 for r in items if r['group'] == k) for k in da.GROUPS}
+    nhom = nhom if nhom in da.GROUPS else ''
+    shown = [dict(r, age=da.age(r['since'], now)) for r in items if not nhom or r['group'] == nhom]
+    tiles = [dict(label='Tất cả', n=len(items), href='/cho-anh-duyet', on=not nhom)] + [
+        dict(label=label, n=counts[k], href=f'/cho-anh-duyet?nhom={k}', on=nhom == k) for k, label in da.GROUPS.items()]
+    return render(request, 'cho_anh_duyet.jinja', rows=shown, tiles=tiles, total=len(items),
+                  cash=sum(r['amount'] or 0 for r in items if r['kind'] in da.CASH_OUT))

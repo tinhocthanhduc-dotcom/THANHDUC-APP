@@ -268,8 +268,10 @@ def test_kiem_ke_web_kho_gui_giam_doc_duyet(client, web_login, stock_catalog, db
     assert 'data-stock-form' in page.text and 'Gửi giám đốc duyệt</button>' in page.text and 'data-kk-approve="1"' in page.text
     director_csrf = web_login('giam.doc', 'director')
     boss = db.scalars(select(User).where(User.username == 'giam.doc')).one()
-    groups = {g['key']: g for g in my_work.collect(db, boss)}
-    assert groups['stock_counts_pending']['rows'][0]['link'] == f'/phieu-kho/{doc_id}'
+    # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): kiểm kê chờ duyệt ở trang Chờ anh duyệt, không lặp ở Việc của tôi giám đốc.
+    from app import director_approvals
+    assert 'stock_counts_pending' not in {g['key'] for g in my_work.collect(db, boss)}
+    assert [r['link'] for r in director_approvals.rows(db) if r['kind'] == 'KIEM_KE'] == [f'/phieu-kho/{doc_id}']
     page = client.get(f'/phieu-kho/{doc_id}')
     assert 'Duyệt · ghi sổ</button>' in page.text and 'data-kk-approve-form' in page.text and 'data-stock-view' in page.text
     doc = db.get(StockDoc, doc_id)

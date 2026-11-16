@@ -119,7 +119,8 @@ def test_filter_bar_autosubmits_selects_not_search():
 def test_kho_giao_lights_my_work_and_keeps_warehouse_only(make_user):
     sales, warehouse = make_user('dot0.sales', 'sales'), make_user('dot0.kho', 'warehouse')
     finance = make_user('dot0.ketoan', 'finance')
-    groups = nav.menu(warehouse, '/kho/giao/5')['groups']
+    menu = nav.menu(warehouse, '/kho/giao/5')
+    groups = menu['groups'] + [dict(items=menu['daily'])]  # Đợt 4 rà soát: Việc của tôi nằm ở Hằng ngày
     active = [item['label'] for group in groups for item in group['items'] if item['active']]
     assert active == ['Việc của tôi']
     assert all(item['label'] != 'Giao hàng' for group in groups for item in group['items'])
