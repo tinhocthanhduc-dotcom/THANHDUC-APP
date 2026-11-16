@@ -12,7 +12,7 @@ from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, User
-from . import checked_form, paging, render, web_user
+from . import checked_form, hubs, paging, render, web_user
 
 router = APIRouter(include_in_schema=False)
 public_router = APIRouter(include_in_schema=False)
@@ -51,6 +51,7 @@ def listing(request: Request, view: str = 'cho', q: str = '', trang: str = '', s
     page, shown = paging.slice_rows(rows, trang, so, query)
     link = paging.linker('/bao-gia-gop', query)
     return render(request, 'bao_gia_gop_ds.jinja', rows=shown, p=page, q=q[:200], view=view, labels=rg.STATE_LABELS,
+                  hub=hubs.quotes(session, user, '/bao-gia-gop'),
                   tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in rg.VIEWS.items()])
 
 
@@ -65,6 +66,7 @@ def single_listing(request: Request, view: str = 'cho', q: str = '', trang: str 
     page, shown = paging.slice_rows(rows, trang, so, query)
     link = paging.linker('/bao-gia-sua', query)
     return render(request, 'bao_gia_sua_ds.jinja', rows=shown, p=page, q=q[:200], view=view, statuses=rqs.STATUSES,
+                  hub=hubs.quotes(session, user, '/bao-gia-sua'),
                   tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in rqs.LIST_VIEWS.items()])
 
 

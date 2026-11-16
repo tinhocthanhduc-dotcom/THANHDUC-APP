@@ -3,7 +3,8 @@
 {% block title %}Hỏi giá sửa{% endblock %}
 {% block main %}<div class="page-wide hg-page">
 {# Báo giá nhanh (mẫu B1 14/11/2026): khách hỏi giá sửa khi chưa gửi máy. #}
-{% call ui.page_head('Hỏi giá sửa', sub='Báo giá nhanh khi khách chưa gửi máy. Giá tham khảo gồm VAT lấy từ Bảng giá.') %}<a class="btn btn-new" href="/hoi-gia/moi">+ Báo giá nhanh</a>{% endcall %}
+{% call ui.page_head('Hỏi giá sửa', sub='Báo giá nhanh khi khách chưa gửi máy. Giá tham khảo gồm VAT lấy từ Bảng giá.') %}<a class="btn btn-new" href="/cac-bao-gia/tao">+ Tạo báo giá</a>{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Báo giá') }}
 {{ ui.list_tabs(tabs) }}
 {% call ui.list_bar('/hoi-gia', q, 'Tìm số HG, model, khách, hiện tượng…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}
 {% if rows %}<div class="table-scroll"><table class="list-table lt-cards hg-list"><thead><tr><th>Số</th><th>Model · hiện tượng</th><th>Khách</th><th class="num">Giá tham khảo</th><th>Trạng thái</th></tr></thead><tbody>

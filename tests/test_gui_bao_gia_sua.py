@@ -219,3 +219,23 @@ def test_web_agree_sets_return_date(client, db, quoted):
     assert r.status_code == 303
     db.expire_all()
     assert db.get(RepairQuoteVersion, v.id).status == 'DONG_Y' and db.get(service_tickets.ServiceTicket, t.id).quote_approved_at
+
+
+def test_hoi_gia_warns_open_repair_quote(client, db, quoted):
+    """Đợt 3 rà soát (TUẤN duyệt 16/11/2026): lập Hỏi giá sửa cho khách đang có báo giá sửa chờ trả lời thì nhắc, không chặn."""
+    from app import quick_quotes as qq
+    from conftest import PASSWORD
+    p, t, fuser, boss = quoted
+    v = rq.create(db, p['dispatcher'], t.id, t.version)
+    assert qq.open_repair_quotes(db, t.customer_code) == []  # chưa gửi khách thì chưa nhắc
+    rq.mark_sent(db, p['dispatcher'], v.id, 'COPY', v.text)
+    rows = qq.open_repair_quotes(db, t.customer_code)
+    assert len(rows) == 1 and rows[0]['number'] == v.snapshot['number'] and rows[0]['no'] == v.no
+    client.post('/dang-nhap', data={'username': p['dispatcher'].username, 'password': PASSWORD, 'next': '/'})
+    html = client.get('/hoi-gia/bao-gia-dang-cho', params={'khach': t.customer_code}).text
+    assert 'đang có báo giá sửa chờ trả lời' in html and v.snapshot['number'] in html
+    assert 'đang có báo giá sửa' in client.get('/hoi-gia/moi', params={'khach': t.customer_code}).text
+    v.valid_until = rq._today() - timedelta(days=1)
+    db.commit()
+    assert qq.open_repair_quotes(db, t.customer_code) == []
+    assert 'đang có báo giá sửa' not in client.get('/hoi-gia/bao-gia-dang-cho', params={'khach': t.customer_code}).text

@@ -1,9 +1,10 @@
 {% extends "base.jinja" %}
 {% import '_ui.jinja' as ui %}
-{% block title %}Báo giá sửa đã lập{% endblock %}
+{% block title %}Báo giá sửa máy{% endblock %}
 {% block main %}<div class="page-wide bgg-page">
 {# TUẤN 16/11/2026: "chưa có báo giá loại không gộp?" Báo giá một máy đã lập; bấm mở phiếu (khung Gửi khách). #}
-{% call ui.page_head('Báo giá sửa đã lập', sub='Báo giá từng máy. Mở phiếu để gửi lại, ghi khách trả lời hoặc in A4.') %}<a class="btn btn-ghost" href="/kiem-tra-may">Máy chờ kiểm tra</a>{% endcall %}
+{% call ui.page_head('Báo giá sửa máy', sub='Báo giá từng máy. Mở phiếu để gửi lại, ghi khách trả lời hoặc in A4.') %}<a class="btn btn-new" href="/cac-bao-gia/tao">+ Tạo báo giá</a>{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Báo giá') }}
 {% with kind='mot' %}{% include '_bao_gia_loai.jinja' %}{% endwith %}
 {{ ui.list_tabs(tabs) }}
 {% call ui.list_bar('/bao-gia-sua', q, 'Tìm số phiếu, khách, model, serial…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}

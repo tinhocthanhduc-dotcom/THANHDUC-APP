@@ -10,7 +10,7 @@ from ..config import get_settings
 from ..db import get_session
 from ..errors import BusinessError
 from ..models import Customer, User
-from . import checked_form, paging, picked, render, web_user
+from . import checked_form, hubs, paging, picked, render, web_user
 
 router = APIRouter(include_in_schema=False)
 public_router = APIRouter(include_in_schema=False)
@@ -39,7 +39,7 @@ def listing(request: Request, view: str = 'cho', q: str = '', trang: str = '', s
     link = paging.linker('/bao-gia-hop-dong', query)
     names = {c.code: c.name for c in session.query(Customer).filter(Customer.code.in_({r.customer_code for r in shown}))} if shown else {}
     return render(request, 'bao_gia_hop_dong_ds.jinja', rows=shown, p=page, q=q[:200], view=view, names=names, state=cq.state,
-                  statuses=cq.STATUSES, tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in cq.VIEWS.items()])
+                  statuses=cq.STATUSES, hub=hubs.quotes(session, user, '/bao-gia-hop-dong'), tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, label in cq.VIEWS.items()])
 
 
 @router.get('/bao-gia-hop-dong/tim-khach')

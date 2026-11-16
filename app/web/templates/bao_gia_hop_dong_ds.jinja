@@ -3,7 +3,8 @@
 {% block title %}Báo giá hợp đồng{% endblock %}
 {% block main %}<div class="page-wide hd-page">
 {# Báo giá hợp đồng sửa chữa (mẫu H1–H3 14/11/2026): báo giá trước nhiều model để khách ký hợp đồng. #}
-{% call ui.page_head('Báo giá hợp đồng', sub='Báo giá trước mọi gói sửa cho các model của khách. Khách ký thì máy của khách vào xưởng tự lấy giá hợp đồng.') %}<a class="btn btn-new" href="/bao-gia-hop-dong/moi">+ Lập báo giá hợp đồng</a>{% endcall %}
+{% call ui.page_head('Báo giá hợp đồng', sub='Báo giá trước mọi gói sửa cho các model của khách. Khách ký thì máy của khách vào xưởng tự lấy giá hợp đồng.') %}<a class="btn btn-new" href="/cac-bao-gia/tao">+ Tạo báo giá</a>{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Báo giá') }}
 {{ ui.list_tabs(tabs) }}
 {% call ui.list_bar('/bao-gia-hop-dong', q, 'Tìm số HD, khách, model…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}
 {% if rows %}<div class="table-scroll"><table class="list-table lt-cards hd-list"><thead><tr><th>Số</th><th>Khách</th><th>Model</th><th>Hiệu lực · áp giá</th><th>Trạng thái</th></tr></thead><tbody>

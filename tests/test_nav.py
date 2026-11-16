@@ -74,6 +74,11 @@ for _role in EXPECTED:
                                        '/nhan-vien-ao', '/tro-ly-ai', '/zalo/tin-nhan', '/zalo/tro-ly'))
 for _role in ('sales', 'finance', 'dispatcher', 'director'):
     EXPECTED[_role].add('/hop-zalo')
+# Đợt 3 rà soát (TUẤN duyệt 16/11/2026): 4 chỗ báo giá thành mục Báo giá có tab.
+for _role in EXPECTED:
+    EXPECTED[_role].difference_update(('/bao-gia', '/hoi-gia', '/bao-gia-hop-dong', '/bao-gia-sua'))
+for _role in ('sales', 'finance', 'dispatcher', 'reception', 'director'):
+    EXPECTED[_role].add('/cac-bao-gia')
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
@@ -287,3 +292,40 @@ def test_doi_ai_tabs_for_director(client, make_user):
         assert re.search(r'href="%s" aria-current="page"' % re.escape(on), hub), path
         active = [a for a in Menu(html).links if 'aria-current' in a]
         assert active and active[0]['href'] == '/doi-ai', path
+
+
+@pytest.mark.parametrize('roles,first,tabs,choices', [
+    (('sales', 'finance'), '/bao-gia', ['/bao-gia', '/hoi-gia'], ['/bao-gia/moi', '/hoi-gia/moi']),
+    (('technician', 'warehouse', 'dispatcher'), '/hoi-gia', ['/hoi-gia', '/bao-gia-sua', '/bao-gia-hop-dong'],
+     ['/hoi-gia/moi', '/kiem-tra-may', '/bao-gia-hop-dong/moi']),
+    (('director',), '/bao-gia', ['/bao-gia', '/hoi-gia', '/bao-gia-sua', '/bao-gia-hop-dong'],
+     ['/bao-gia/moi', '/hoi-gia/moi', '/kiem-tra-may', '/bao-gia-hop-dong/moi']),
+])
+def test_bao_gia_tabs_follow_role(client, make_user, roles, first, tabs, choices):
+    """Đợt 3 rà soát: Báo giá mở tab đầu có quyền; tab và lựa chọn Tạo báo giá theo quyền; mục menu sáng."""
+    user = make_user('bq.' + '.'.join(roles), *roles)
+    client.post('/dang-nhap', data={'username': user.username, 'password': PASSWORD, 'next': '/'})
+    r = client.get('/cac-bao-gia', follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == first
+    for path in tabs + (['/bao-gia-gop'] if '/bao-gia-sua' in tabs else []):
+        html = client.get(path).text
+        hub = html.split('class="hub-tabs"', 1)[1].split('</nav>', 1)[0]
+        assert re.findall(r'href="([^"]+)"', hub) == tabs, path
+        on = '/bao-gia-sua' if path == '/bao-gia-gop' else path
+        assert re.search(r'href="%s" aria-current="page"' % re.escape(on), hub), path
+        active = [a for a in Menu(html).links if 'aria-current' in a]
+        assert active and active[0]['href'] == '/cac-bao-gia', path
+        assert 'href="/cac-bao-gia/tao"' in html, path
+    page = client.get('/cac-bao-gia/tao').text
+    assert re.findall(r'class="bq-choice" href="([^"]+)"', page) == choices
+
+
+def test_bao_gia_tao_one_choice_opens_directly(client, make_user):
+    """Lễ tân chỉ lập được Hỏi giá sửa: bấm Tạo báo giá mở thẳng trang lập."""
+    user = make_user('bq.reception', 'reception')
+    client.post('/dang-nhap', data={'username': user.username, 'password': PASSWORD, 'next': '/'})
+    r = client.get('/cac-bao-gia/tao', follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == '/hoi-gia/moi'
+    tech = make_user('bq.tech', 'technician')
+    client.post('/dang-nhap', data={'username': tech.username, 'password': PASSWORD, 'next': '/'})
+    assert client.get('/cac-bao-gia', follow_redirects=False).status_code == 403
