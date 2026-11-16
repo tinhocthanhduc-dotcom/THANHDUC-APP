@@ -5,6 +5,7 @@
 {% import 'gia_giam.jinja' as gg %}
 {% import 'viec_khac.jinja' as other %}
 {% import '_gia_von.jinja' as gv %}
+{% import '_nguon_khach.jinja' as nk %}
 {% block main %}<div class="doc-detail{{ ' quote-form-page' if not o or o.status=='NHAP' }}">
 <div class="recv-head doc-head-bar"><a class="btn" href="/don-ban" aria-label="Quay lại Đơn bán">←</a><div><h1>{{ o.number if o else 'Tạo đơn bán' }}</h1><p class="hint">Đơn bán{% if o %} · {{ customer_name or o.customer_code }}{% endif %}</p></div>{% if o and o.status=='DA_GIAO' %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/in-giao">In phiếu giao</a>{% endif %}{% if o and o.status not in ['NHAP','DA_HUY'] %}<a class="btn btn-ghost doc-print" href="/don-ban/{{ o.id }}/xuat-kho/in">In phiếu xuất kho</a>{% endif %}</div>
 {% set workflow_page=true %}{% set order_live = not o or o.status=='NHAP' %}{% set wf_part='steps' if order_live else '' %}{% include 'thanh_buoc.jinja' %}
@@ -27,6 +28,7 @@
 {% call picked.block(text=picked.card(customer_card), invalid=error_code=='BAD_CUSTOMER' or (error_code=='BAD_FORM' and 'Khách hàng' in error), locked=('Cố định sau khi tạo đơn' if o else ('Không sửa được ở trạng thái này' if not can_write or not editable else ''))) %}<div data-picker><label>Khách hàng{% if not o %} (tìm và chọn){% endif %}<input name="customer_code" value="{{ d.customer_code }}" required {% if o %}readonly{% else %}autocomplete="off" data-live=".order-customer-options" data-source="/don-ban/tim-khach"{% endif %}></label><span class="hint" data-order-customer-name>{{ customer_name }}</span>{% if o %}<p class="hint">{% if o.status=='NHAP' and can_write and not o.quote_id %}Chọn nhầm khách? <a href="#doi-khach" data-open-change-customer>Đổi khách</a> ở dưới form.{% else %}Khách hàng cố định sau khi tạo đơn.{% endif %}</p>{% else %}<div class="order-customer-options product-options" aria-live="polite"></div>{% if can_write %}<a href="/khach-hang/moi?quay_ve=/don-ban/moi" class="btn" data-new-customer>+ Tạo mới khách hàng</a>{% endif %}{% endif %}</div>{% endcall %}
 {% include 'don_ban_dieu_kien.jinja' %}
 <label>Người liên hệ<input name="contact_name" value="{{ d.contact_name }}" maxlength="200"></label>
+{{ nk.fields(d, order=true, inherited=source is not none) }}
 <label>Địa chỉ giao<textarea name="delivery_address" maxlength="2000">{{ d.delivery_address }}</textarea></label>
 <label>Ngày hẹn giao/lấy<input type="date" name="promised_date" value="{{ d.promised_date or '' }}"></label>
 <label>Ghi chú<textarea name="note" maxlength="4000">{{ d.note }}</textarea></label>

@@ -199,6 +199,21 @@ def _totals(row):
     row.total = _money_limit(row.subtotal + row.vat_total)
 
 
+LEAD_FIELDS = ('lead_source', 'campaign_code', 'lead_ref')
+
+
+def lead_values(source, fields=LEAD_FIELDS) -> dict:
+    """Ô nguồn khách (Growth OS) từ body hoặc bản ghi; None = chưa rõ."""
+    return {f: getattr(source, f, None) for f in fields}
+
+
+def apply_lead(row, body, fields=LEAD_FIELDS):
+    """Sửa nháp: chỉ đổi ô người gửi lên (form luôn gửi đủ; API bỏ ô nào thì giữ nguyên ô đó)."""
+    for f in fields:
+        if f in body.model_fields_set:
+            setattr(row, f, getattr(body, f))
+
+
 def _record(session, user, row, action, before, reason=''):
     session.flush()
     audit.record(session, user, 'quote.' + action, 'quote', str(row.id), before, snapshot(row), reason)
@@ -210,7 +225,8 @@ def _new(session, user, body):
     row = Quote(number=next_number(session, 'BG', _today()), customer_code=body.customer_code,
                 contact_name=body.contact_name, valid_until=body.valid_until or _today() + timedelta(days=7),
                 note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines,
-                price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount)
+                price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount,
+                **lead_values(body))
     _totals(row)
     session.add(row)
     _record(session, user, row, 'create', None)
@@ -249,6 +265,7 @@ def update_in_tx(session: Session, user, quote_id, body: QuoteUpdate):
         value = getattr(body, field)
         if value is not None:
             setattr(row, field, value)
+    apply_lead(row, body)
     row.version += 1
     _totals(row)
     _record(session, user, row, 'update_lines', before)
@@ -306,7 +323,7 @@ def revise(session: Session, user, quote_id, version):
         before = snapshot(old)
         new = _new(session, user, QuoteIn(customer_code=old.customer_code, contact_name=old.contact_name,
                    price_includes_vat=old.price_includes_vat,discount_amount=old.discount_amount,
-                   note=old.note, lines=[QuoteLineIn.model_validate(line, from_attributes=True) for line in old.lines]))
+                   note=old.note, **lead_values(old), lines=[QuoteLineIn.model_validate(line, from_attributes=True) for line in old.lines]))
         old.status, old.replaced_by_id = 'DA_HUY', new.id
         old.cancel_reason = 'Thay bằng ' + new.number
         _record(session, user, old, 'revise', before, old.cancel_reason)

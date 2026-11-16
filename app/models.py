@@ -678,6 +678,9 @@ class Quote(Base):
         CheckConstraint('subtotal >= 0 and vat_total >= 0 and total = subtotal + vat_total', name='ck_quotes_money'),
         CheckConstraint('discount_amount >= 0', name='ck_quotes_discount'),
         Index('ix_quotes_status_valid', 'status', 'valid_until'),
+        CheckConstraint("lead_source is null or lead_source in ('WEB','GOOGLE_MAPS','FACEBOOK','ZALO','SHOPEE','TIKTOK_SHOP','KHACH_CU','GIOI_THIEU','KHAC')", name='ck_quotes_lead_source'),
+        Index('ix_quotes_campaign_code', 'campaign_code', postgresql_where=text('campaign_code is not null')),
+        Index('ix_quotes_updated_at', 'updated_at', 'id'),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -696,6 +699,11 @@ class Quote(Base):
     total: Mapped[int] = mapped_column(BigInteger, default=0)
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # 0106 Nguồn khách cho Growth OS (không bắt buộc) + giờ sửa cuối để Growth OS đọc lại.
+    lead_source: Mapped[str | None] = mapped_column(String(16))
+    campaign_code: Mapped[str | None] = mapped_column(String(40))
+    lead_ref: Mapped[str | None] = mapped_column(String(40))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     lines: Mapped[list['QuoteLine']] = relationship(back_populates='quote', cascade='all, delete-orphan', order_by='QuoteLine.line_no')
@@ -745,6 +753,10 @@ class SalesOrder(Base):
         Index('uq_sales_orders_active_quote', 'quote_id', unique=True,
               postgresql_where=text("quote_id is not null and status <> 'DA_HUY'")),
         Index('ix_sales_orders_status_created', 'status', 'created_at'),
+        CheckConstraint("lead_source is null or lead_source in ('WEB','GOOGLE_MAPS','FACEBOOK','ZALO','SHOPEE','TIKTOK_SHOP','KHACH_CU','GIOI_THIEU','KHAC')", name='ck_sales_orders_lead_source'),
+        Index('ix_sales_orders_campaign_code', 'campaign_code', postgresql_where=text('campaign_code is not null')),
+        Index('ix_sales_orders_updated_at', 'updated_at', 'id'),
+        Index('ix_sales_orders_web_order_ref', 'web_order_ref', postgresql_where=text('web_order_ref is not null')),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -778,6 +790,12 @@ class SalesOrder(Base):
     delivered_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # 0106 Nguồn khách cho Growth OS (không bắt buộc) + giờ sửa cuối để Growth OS đọc lại.
+    lead_source: Mapped[str | None] = mapped_column(String(16))
+    campaign_code: Mapped[str | None] = mapped_column(String(40))
+    lead_ref: Mapped[str | None] = mapped_column(String(40))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    web_order_ref: Mapped[str | None] = mapped_column(String(60))
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     lines: Mapped[list['SalesOrderLine']] = relationship(back_populates='order', cascade='all, delete-orphan',

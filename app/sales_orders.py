@@ -163,6 +163,19 @@ def _record(session, user, order, action, before, reason=''):
     audit.record(session, user, 'sales_order.' + action, 'sales_order', str(order.id), before, snapshot(order), reason)
 
 
+ORDER_LEAD_FIELDS = quotes.LEAD_FIELDS + ('web_order_ref',)
+
+
+def _lead_from_quote(quote, body):
+    """Đơn từ báo giá kế thừa 3 ô nguồn khách; ô người lập đơn gửi lên (kể cả để trống) thắng."""
+    out = quotes.lead_values(quote)
+    out['web_order_ref'] = None
+    for f in ORDER_LEAD_FIELDS:
+        if f in body.model_fields_set:
+            out[f] = getattr(body, f)
+    return out
+
+
 def _new(session, user, body, quote_id=None, action='create'):
     from .pending_liquidation import check_fulfillment
     check_fulfillment(session,body)
@@ -174,7 +187,8 @@ def _new(session, user, body, quote_id=None, action='create'):
                        quote_id=quote_id, contact_name=body.contact_name, promised_date=body.promised_date,
                        delivery_address=customer.address if body.delivery_address is None else body.delivery_address,
                        note=body.note, status='NHAP', cancel_reason='', created_by=user.id, lines=lines,
-                       price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount)
+                       price_includes_vat=body.price_includes_vat,discount_amount=body.discount_amount,
+                       **quotes.lead_values(body, ORDER_LEAD_FIELDS))
     quotes._totals(order)
     _apply_terms(order,body)
     from .pending_liquidation import check_fulfillment
@@ -218,7 +232,8 @@ def create_from_quote(session: Session, user, quote_id, body: SalesOrderFromQuot
                      price_includes_vat=quote.price_includes_vat,discount_amount=quote.discount_amount,
                      contact_name=quote.contact_name if body.contact_name is None else body.contact_name,
                      delivery_address=body.delivery_address, note=quote.note if body.note is None else body.note,
-                     lines=lines, promised_date=body.promised_date, **{k:getattr(body,k) for k in TERM_FIELDS}), quote_id, 'create_from_quote')
+                     lines=lines, promised_date=body.promised_date, **{k:getattr(body,k) for k in TERM_FIELDS},
+                     **_lead_from_quote(quote, body)), quote_id, 'create_from_quote')
     return order
 
 
@@ -248,6 +263,7 @@ def update_in_tx(session: Session, user, order_id, body: SalesOrderUpdate):
             setattr(order, field, value)
     if 'promised_date' in body.model_fields_set:
         order.promised_date = body.promised_date
+    quotes.apply_lead(order, body, ORDER_LEAD_FIELDS)
     order.version += 1
     quotes._totals(order)
     _apply_terms(order,body,partial=True)
@@ -655,6 +671,7 @@ def copy_cancelled(session, user, order_id):
                             note=old.note, fulfillment=old.fulfillment, payment_term=old.payment_term, due_days=old.due_days,
                             deposit_amount=old.deposit_amount if old.payment_term == 'DAT_COC' else None,
                             price_includes_vat=old.price_includes_vat, discount_amount=old.discount_amount,
+                            **quotes.lead_values(old, ORDER_LEAD_FIELDS),
                             lines=[SalesOrderLineIn.model_validate(line, from_attributes=True) for line in old.lines])
         order = _new(session, user, body, action='copy')
         audit.record(session, user, 'sales_order.copy_from', 'sales_order', str(order.id), None, snapshot(order), 'Lập lại từ ' + old.number)
@@ -716,6 +733,26 @@ def change_delivery_info(session, user, order_id, version, contact_name, deliver
             setattr(order, k, v)
         order.version += 1
         _record(session, user, order, 'delivery_info', before)
+    return order
+
+
+def change_lead(session, user, order_id, version, body):
+    """Giám đốc sửa nguồn khách sau khi chốt (TUẤN duyệt 16/11/2026). Không đụng hàng, giá, tiền, kho; có nhật ký."""
+    if 'director' not in user.roles:
+        raise BusinessError('FORBIDDEN', 'Chỉ giám đốc sửa nguồn khách sau khi chốt.', status=403)
+    with _transaction(session):
+        order = _load(session, order_id, lock=True)
+        _version(order, version)
+        if order.status == 'NHAP':
+            raise BusinessError('BAD_STATUS', 'Đơn còn nháp: sửa ngay trên đơn.', status=409)
+        values = {f: getattr(body, f) for f in ORDER_LEAD_FIELDS}
+        if all(getattr(order, k) == v for k, v in values.items()):
+            return order
+        before = snapshot(order)
+        for k, v in values.items():
+            setattr(order, k, v)
+        order.version += 1
+        _record(session, user, order, 'lead', before)
     return order
 
 

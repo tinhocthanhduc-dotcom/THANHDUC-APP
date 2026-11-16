@@ -1,0 +1,12 @@
+{# Ô nguồn khách cho Growth OS (TUẤN duyệt 16/11/2026). d: dict form; order: có ô mã đơn web/sàn; inherited: đơn lấy từ báo giá. #}
+{% macro fields(d, order=false, inherited=false) %}<div class="lead-box" data-lead data-lead-market="{{ lead_market|join(',') }}">
+<div class="lead-head"><b>Khách biết mình từ đâu?</b>{% if inherited %}<span class="lead-tag">Lấy từ báo giá</span>{% else %}<span class="hint">Không bắt buộc. Dùng để tính hiệu quả quảng cáo.</span>{% endif %}</div>
+<div class="lead-row"><label>Nguồn khách<select name="lead_source"><option value="">— Chưa rõ —</option>{% for code,name in lead_sources %}<option value="{{ code }}"{{ ' selected' if d.get('lead_source')==code }}>{{ name }}</option>{% endfor %}</select></label>
+<label>Mã chiến dịch / mã giới thiệu<input name="campaign_code" value="{{ d.get('campaign_code') or '' }}" maxlength="40" autocapitalize="characters" autocomplete="off" placeholder="vd. TD136X"></label>
+<label>Mã khách hỏi<input name="lead_ref" value="{{ d.get('lead_ref') or '' }}" maxlength="40" autocomplete="off" placeholder="vd. L-2612-0031"></label></div>
+{% if order %}<label data-lead-web{% if d.get('lead_source') not in lead_market %} hidden{% endif %}>Mã đơn trên web / sàn<input name="web_order_ref" value="{{ d.get('web_order_ref') or '' }}" maxlength="60" autocomplete="off" placeholder="Mã đơn WooCommerce / Shopee / TikTok Shop"{% if d.get('lead_source') not in lead_market %} disabled{% endif %}></label>{% endif %}
+<p class="hint">Khách đọc mã trên quảng cáo (vd. TD136X) thì gõ vào ô giữa. App tự viết hoa.</p>
+</div><script src="{{ asset('nguon-khach.js') }}" defer></script>{% endmacro %}
+
+{# Dòng chỉ đọc trong <dl class="doc-kv">; không có gì thì không hiện. #}
+{% macro kv(row) %}{% if row.lead_source or row.campaign_code or row.lead_ref or row.web_order_ref %}<dt>Nguồn khách</dt><dd>{{ [lead_label(row.lead_source), row.campaign_code, row.lead_ref and ('khách hỏi ' ~ row.lead_ref), row.web_order_ref and ('đơn web/sàn ' ~ row.web_order_ref)]|select|join(' · ') }}</dd>{% endif %}{% endmacro %}

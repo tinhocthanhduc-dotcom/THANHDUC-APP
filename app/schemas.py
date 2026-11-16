@@ -819,7 +819,51 @@ class OrderPricing(BaseModel):
     discount_amount: int = Field(default=0, strict=True, ge=0, le=9_223_372_036_854_775_807)
 
 
-class QuoteIn(OrderPricing):
+# Nguồn khách cho Growth OS (TUẤN duyệt 16/11/2026): không bắt buộc; chuỗi rỗng = chưa rõ (None).
+LEAD_SOURCES = ('WEB', 'GOOGLE_MAPS', 'FACEBOOK', 'ZALO', 'SHOPEE', 'TIKTOK_SHOP', 'KHACH_CU', 'GIOI_THIEU', 'KHAC')
+
+
+def _lead_text(value, upper=False):
+    if value is None:
+        return None
+    text = ' '.join(str(value).split())
+    return (text.upper() if upper else text) or None
+
+
+class LeadIn(BaseModel):
+    lead_source: str | None = None
+    campaign_code: str | None = Field(default=None, max_length=40)
+    lead_ref: str | None = Field(default=None, max_length=40)
+
+    @field_validator('lead_source', mode='before')
+    @classmethod
+    def known_source(cls, value):
+        value = _lead_text(value, upper=True)
+        if value is not None and value not in LEAD_SOURCES:
+            raise ValueError('Nguồn khách chưa đúng.')
+        return value
+
+    @field_validator('campaign_code', mode='before')
+    @classmethod
+    def upper_campaign(cls, value):
+        return _lead_text(value, upper=True)
+
+    @field_validator('lead_ref', mode='before')
+    @classmethod
+    def clean_ref(cls, value):
+        return _lead_text(value)
+
+
+class OrderLeadIn(LeadIn):
+    web_order_ref: str | None = Field(default=None, max_length=60)
+
+    @field_validator('web_order_ref', mode='before')
+    @classmethod
+    def clean_web_ref(cls, value):
+        return _lead_text(value)
+
+
+class QuoteIn(LeadIn, OrderPricing):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     customer_code: str = Field(min_length=1, max_length=16)
     contact_name: str = Field(default='', max_length=200)
@@ -833,7 +877,7 @@ class QuoteVersion(BaseModel):
     version: int = Field(strict=True, ge=1)
 
 
-class QuoteUpdate(QuoteVersion, OrderPricing):
+class QuoteUpdate(LeadIn, QuoteVersion, OrderPricing):
     customer_code: str | None = Field(default=None, min_length=1, max_length=16)
     contact_name: str | None = Field(default=None, max_length=200)
     valid_until: date | None = None
@@ -853,7 +897,7 @@ class QuoteLineOut(QuoteLineIn):
     vat_amount: int
 
 
-class QuoteOut(OrderPricing):
+class QuoteOut(LeadIn, OrderPricing):
     model_config = ConfigDict(from_attributes=True)
     id: int
     number: str
@@ -890,7 +934,7 @@ class SalesOrderTerms(BaseModel):
     deposit_amount: int | None = Field(default=None, strict=True, ge=0, le=9_223_372_036_854_775_807)
 
 
-class SalesOrderIn(SalesOrderTerms, OrderPricing):
+class SalesOrderIn(OrderLeadIn, SalesOrderTerms, OrderPricing):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
     customer_code: str = Field(min_length=1, max_length=16)
     promised_date: date | None = None
@@ -914,7 +958,7 @@ class SalesOrderCancel(SalesOrderVersion):
     reason: str = Field(default='', max_length=2000)
 
 
-class SalesOrderFromQuote(SalesOrderTerms, QuoteVersion):
+class SalesOrderFromQuote(OrderLeadIn, SalesOrderTerms, QuoteVersion):
     """version là phiên bản báo giá; warehouses ánh xạ line_no sang kho xuất."""
     warehouses: dict[Annotated[int, Field(ge=1)], Annotated[str, Field(max_length=16)]] = Field(default_factory=dict, max_length=200)
     promised_date: date | None = None
@@ -937,7 +981,7 @@ class SalesOrderConfirm(SalesOrderVersion):
     below_cost_reason: str = Field(default='', max_length=500)
 
 
-class SalesOrderUpdate(SalesOrderOptions, OrderPricing):
+class SalesOrderUpdate(OrderLeadIn, SalesOrderOptions, OrderPricing):
     promised_date: date | None = None
     contact_name: str | None = Field(default=None, max_length=200)
     delivery_address: str | None = Field(default=None, max_length=2000)
@@ -955,7 +999,7 @@ class SalesOrderLineOut(SalesOrderLineIn):
     stock_doc_id: int | None
 
 
-class SalesOrderOut(SalesOrderTerms, OrderPricing):
+class SalesOrderOut(OrderLeadIn, SalesOrderTerms, OrderPricing):
     delivery_assignee_id: int | None = None
     delivery_assigned_at: datetime | None = None
     service_ticket_id: int | None = None

@@ -180,6 +180,10 @@ templates.env.globals["web_navigation"] = nav.menu
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key
 templates.env.globals["asset"] = asset
+from . import lead as _lead  # noqa: E402
+templates.env.globals["lead_sources"] = _lead.SOURCES
+templates.env.globals["lead_market"] = _lead.MARKET
+templates.env.globals["lead_label"] = _lead.label
 
 
 # Người đang xem trang, đặt trong render(): macro import từ _ui.jinja (không `with context`) không thấy biến user.

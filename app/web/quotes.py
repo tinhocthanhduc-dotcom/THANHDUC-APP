@@ -20,7 +20,7 @@ from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
 from . import doc_frame, checked_form, hubs, money, render, web_user
 
-from . import next_steps, picked, steps
+from . import lead, next_steps, picked, steps
 
 router = APIRouter()
 STATUSES = {'NHAP':'Nháp', 'DA_GUI':'Đã gửi', 'CHAP_NHAN':'Chấp nhận', 'TU_CHOI':'Từ chối', 'DA_HUY':'Đã hủy'}
@@ -42,7 +42,8 @@ def _expired(q):
 
 def _blank():
     return dict(customer_code='', contact_name='', valid_until=(svc._today()+timedelta(days=7)).isoformat(),
-                note='', version=0, lines=[], price_includes_vat=False, discount_amount=0)
+                note='', version=0, lines=[], price_includes_vat=False, discount_amount=0,
+                lead_source='', campaign_code='', lead_ref='')
 
 
 def _form(request, session, data=None, quote=None, error=None, code='', status=200, action_form=None, action=''):
@@ -97,7 +98,7 @@ def _raw(form):
         lines.append(row)
     return dict(customer_code=str(form.get('customer_code','')), contact_name=str(form.get('contact_name','')),
                 valid_until=str(form.get('valid_until','')), note=str(form.get('note','')),
-                version=str(form.get('version','')), lines=lines, **_pricing_raw(form))
+                version=str(form.get('version','')), lines=lines, **_pricing_raw(form), **lead.raw(form))
 
 
 def _pricing_raw(form):
@@ -130,7 +131,8 @@ def _body(data):
         lines.append({**line, 'unit_price':int(price.replace('.','')) if price else None,
                       'qty':line['qty'].replace(',','.'), 'vat_rate':vat})
     return dict(customer_code=data['customer_code'], contact_name=data['contact_name'],
-                valid_until=data['valid_until'] or None, note=data['note'], lines=lines, **_pricing_body(data))
+                valid_until=data['valid_until'] or None, note=data['note'], lines=lines, **_pricing_body(data),
+                **{k: data[k] for k in lead.QUOTE_FIELDS if k in data})
 
 
 def _error(exc):

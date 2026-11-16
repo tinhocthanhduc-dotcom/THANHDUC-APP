@@ -4,6 +4,7 @@
 {% import '_ui.jinja' as ui %}
 {% import 'viec_khac.jinja' as other %}
 {% import '_gia_von.jinja' as gv %}
+{% import '_nguon_khach.jinja' as nk %}
 {% block title %}{{ q.number }}{% endblock %}
 {% block main %}<div class="page-wide doc-view" data-doc-view="quote">
 {% set tones={'DA_GUI':'cho','CHAP_NHAN':'xong','TU_CHOI':'huy','DA_HUY':'huy'} %}
@@ -20,7 +21,7 @@
 <dl class="doc-kv"><dt>Khách</dt><dd><b>{{ q.customer_code }} · {{ customer_name }}</b></dd>
 <dt>Liên hệ</dt><dd>{{ [q.contact_name or (customer_card.contact if customer_card else ''), customer_card.phone if customer_card else '']|select|join(' · ') or '—' }}</dd>
 <dt>Hiệu lực</dt><dd>đến hết {{ q.valid_until.strftime('%d/%m/%Y') }}</dd>
-<dt>Đơn giá trên báo giá</dt><dd>{{ "Đã gồm VAT" if q.price_includes_vat else "Chưa VAT" }}</dd></dl>
+<dt>Đơn giá trên báo giá</dt><dd>{{ "Đã gồm VAT" if q.price_includes_vat else "Chưa VAT" }}</dd>{{ nk.kv(q) }}</dl>
 </section>
 
 <section class="card doc-card doc-lines-card"><div class="doc-card-head"><h2 class="doc-h">Hàng hóa / dịch vụ</h2>{{ ui.badge(q.lines|length ~ ' dòng') }}</div>
