@@ -2,7 +2,7 @@
 {% import '_ui.jinja' as ui %}
 {% block title %}Tốc độ app{% endblock %}
 {% block main %}<div class="page-wide list-page">
-{{ ui.page_head('Tốc độ app', sub='Mỗi lần mở màn được bấm giờ ở máy chủ và trên máy người dùng. Dùng để biết màn nào chậm nhất trước khi sửa.') }}
+{% call ui.page_head('Tốc độ app', sub='Mỗi lần mở màn được bấm giờ ở máy chủ và trên máy người dùng. Dùng để biết màn nào chậm nhất trước khi sửa.') %}<a class="btn btn-ghost" href="/toc-do/man-dung">Màn được dùng ›</a>{% endcall %}
 {% if not enabled %}<p class="card hint">Đang tắt ghi số đo (TD_PERF_LOG=false).</p>{% endif %}
 <nav class="ltabs" aria-label="Khoảng thời gian">{% for key, (label, days) in periods.items() %}<a class="ltab{{ ' on' if key == ky }}" href="/toc-do?ky={{ key }}"{% if key == ky %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
 {{ ui.tiles([

@@ -82,3 +82,21 @@ def test_old_files_removed_and_logging_can_be_turned_off(client, make_user, monk
     before = len(lines())
     client.get('/viec-cua-toi')
     assert len(lines()) == before
+
+
+def test_screen_usage_counts_menu_items_and_who_opened(client, make_user):
+    fresh()
+    sales = make_user('banhang.dung', 'sales')
+    web_login(client, sales)
+    client.get('/don-ban'); client.get('/don-ban'); client.get('/ca-nhan/thong-bao')
+    assert [x for x in lines() if x['k'] == 's' and x['r'] == '/don-ban'][-1]['u'] == sales.id
+    assert client.get('/toc-do/man-dung').status_code == 403
+    director = make_user('giamdoc.dung', 'director')
+    web_login(client, director)
+    page = client.get('/toc-do/man-dung')
+    assert page.status_code == 200 and 'Màn được dùng' in page.text
+    row = page.text.split('data-used="/don-ban"')[1].split('</tr>')[0]
+    assert '>2<' in row and sales.full_name + ' 2' in row
+    # Hỏi nền không tính là mở màn; mục menu chưa ai mở nằm ở bảng "không ai mở".
+    assert 'data-used="/ca-nhan' not in page.text and 'data-unused' in page.text
+    assert 'href="/toc-do/man-dung"' in client.get('/toc-do').text
