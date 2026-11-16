@@ -4,7 +4,7 @@
 {% block main %}<div class="page-mid rq-page">
 {# Báo giá sửa chữa đợt 3 (mẫu M3 14/11/2026): máy đang ở xưởng chờ sửa; chưa kiểm tra lên đầu.
    Báo giá gộp (mẫu duyệt 15/11/2026): máy cùng khách gom một khung, đủ 2 máy đã áp giá thì điều phối bấm Gộp báo giá. #}
-{% call ui.page_head('Máy chờ kiểm tra', sub=(todo ~ ' máy chưa kiểm tra · ' ~ rows|length ~ ' máy ở xưởng chờ sửa')) %}{% if can_group %}<a class="btn btn-ghost" href="/bao-gia-gop">Báo giá gộp đã lập</a>{% endif %}{% endcall %}
+{% call ui.page_head('Máy chờ kiểm tra', sub=(todo ~ ' máy chưa kiểm tra · ' ~ rows|length ~ ' máy ở xưởng chờ sửa')) %}{% if can_group %}<a class="btn btn-ghost" href="/bao-gia-sua">Báo giá đã lập</a>{% endif %}{% endcall %}
 {% set done=request.query_params.get('da_kiem_tra','') %}{% if done %}{{ ui.toast('Đã gửi kết quả kiểm tra, điều phối báo giá cho khách.') }}{% endif %}
 {% macro row(r, in_group=false) %}{% set t=r.ticket %}{% set c=customers.get(t.customer_code) %}
 <a class="card rq-row" href="/kiem-tra-may/{{ t.id }}"><div><b>{{ t.number }} · {{ r.machine or 'Máy chưa ghi tên' }}</b>

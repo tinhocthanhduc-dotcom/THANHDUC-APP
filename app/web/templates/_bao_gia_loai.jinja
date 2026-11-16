@@ -1,0 +1,2 @@
+{# Chuyển giữa báo giá sửa một máy và báo giá gộp nhiều máy (TUẤN 16/11/2026). #}
+<nav class="bq-kind" aria-label="Loại báo giá"><a class="{{ 'on' if kind == 'mot' }}" href="/bao-gia-sua"{% if kind == 'mot' %} aria-current="page"{% endif %}>Một máy</a><a class="{{ 'on' if kind == 'gop' }}" href="/bao-gia-gop"{% if kind == 'gop' %} aria-current="page"{% endif %}>Gộp nhiều máy</a></nav>

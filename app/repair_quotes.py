@@ -403,3 +403,35 @@ def link_settings() -> dict:
     s = get_settings()
     return dict(name=s.company_name, phone=s.company_phone, hotline=s.company_hotline, address=s.company_address,
                 website=s.company_website)
+
+
+# ---------- Danh sách báo giá một máy đã lập (TUẤN 16/11/2026: "chưa có báo giá loại không gộp?") ----------
+
+LIST_VIEWS = {'chua-gui': 'Chưa gửi khách', 'cho': 'Chờ khách trả lời', 'xong': 'Khách đã trả lời', 'khac': 'Thu hồi · hết hạn'}
+
+
+def list_state(v: RepairQuoteVersion) -> str:
+    """Tab của một lần báo giá: chua-gui | cho | xong | khac."""
+    if v.status in ('DONG_Y', 'CHUA_DONG_Y', 'KHONG_SUA'):
+        return 'xong'
+    if v.status != 'CHO' or v.valid_until < _today():
+        return 'khac'
+    return 'cho' if v.sent_at else 'chua-gui'
+
+
+def listing(session: Session, view: str, q: str = '') -> tuple[list[dict], dict]:
+    """Báo giá một máy (không thuộc báo giá gộp), mới trước; bỏ lần đã bị lần sau thay thế. q tìm số phiếu, khách, model, serial."""
+    from .text import fold
+    stmt = (select(RepairQuoteVersion).where(RepairQuoteVersion.group_id.is_(None), RepairQuoteVersion.status != 'THAY_THE')
+            .order_by(RepairQuoteVersion.id.desc()))
+    out, counts = [], dict.fromkeys(LIST_VIEWS, 0)
+    needle = fold(q or '').strip()
+    for v in session.scalars(stmt):
+        s = v.snapshot or {}
+        if needle and needle not in fold(' '.join(str(s.get(k, '') or '') for k in ('number', 'customer', 'model', 'serial'))):
+            continue
+        tab = list_state(v)
+        counts[tab] += 1
+        if tab == view:
+            out.append(dict(v=v, s=s, tab=tab, total=(s.get('chosen') or {}).get('total', 0)))
+    return out, counts

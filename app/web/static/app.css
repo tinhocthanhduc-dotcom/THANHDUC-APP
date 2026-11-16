@@ -5136,3 +5136,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .photo-pick-row small[data-photo-state="ready"] { color: var(--ok, inherit); font-weight: 700; }
 .photo-pick-row .photo-del { min-height: 40px; padding: .35rem .8rem; color: var(--bad, inherit); }
 .bgg-old { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+/* Báo giá đã lập: chuyển Một máy / Gộp nhiều máy (TUẤN 16/11/2026) */
+.bq-kind { display: inline-flex; gap: 0; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.bq-kind a { padding: 9px 16px; color: var(--text); font-weight: 600; text-decoration: none; }
+.bq-kind a + a { border-left: 1px solid var(--line); }
+.bq-kind a.on { background: var(--accent); color: var(--accent-text); }
