@@ -2,6 +2,7 @@
 from calendar import monthrange
 
 from sqlalchemy import Date, Numeric, String, case, cast, func, literal, select, union, union_all
+from sqlalchemy.orm import aliased
 
 from . import finance_reports, supplier_debts
 from .errors import BusinessError
@@ -167,10 +168,21 @@ def _margin_sources(start, end):
         .where(StockDoc.kind.in_(('PX','PN')),StockDoc.status=='DA_GHI',StockLedger.is_reversal.is_(False))
         .group_by(documents.c.kind,documents.c.id,StockLedger.product_code))
     # TUẤN 30/10/2026: chi phí phát sinh thợ tự trả (đã duyệt) tính vào giá vốn phiếu dịch vụ; không gắn mã hàng.
-    expenses = (select(documents.c.kind,documents.c.id,cast(literal(None),String).label('product_code'),func.sum(ServiceExpense.amount))
+    # TUẤN 16/11/2026: dùng giá vốn tính (cost, chưa VAT khi có hóa đơn). Đơn bán: tính vào lần giao đã chọn; lần giao đó
+    # bị hủy hoặc khoản ghi khi đơn chưa giao thì tính vào lần giao đầu tiên còn hiệu lực của đơn.
+    expenses = (select(documents.c.kind,documents.c.id,cast(literal(None),String).label('product_code'),func.sum(ServiceExpense.cost))
         .select_from(documents).join(ServiceExpense,(documents.c.kind=='DV')&(ServiceExpense.ticket_id==documents.c.id))
         .where(ServiceExpense.status.in_(('DA_DUYET','DA_HOAN'))).group_by(documents.c.kind,documents.c.id))
-    cost = union_all(cost,expenses).cte('margin_costs')
+    chosen = aliased(SalesDelivery); first = aliased(SalesDelivery)
+    target = func.coalesce(
+        select(chosen.id).where(chosen.id==ServiceExpense.delivery_id,chosen.status=='DA_GIAO').scalar_subquery(),
+        select(func.min(first.id)).where(first.order_id==ServiceExpense.order_id,first.status=='DA_GIAO').scalar_subquery())
+    order_expenses = select(target.label('delivery_id'),ServiceExpense.cost.label('cost')).where(
+        ServiceExpense.order_id.is_not(None),ServiceExpense.status.in_(('DA_DUYET','DA_HOAN'))).subquery()
+    sale_expenses = (select(documents.c.kind,documents.c.id,cast(literal(None),String),func.sum(order_expenses.c.cost))
+        .select_from(documents).join(order_expenses,(documents.c.kind=='GH')&(order_expenses.c.delivery_id==documents.c.id))
+        .group_by(documents.c.kind,documents.c.id))
+    cost = union_all(cost,expenses,sale_expenses).cte('margin_costs')
     return documents,cost
 
 

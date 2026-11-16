@@ -621,14 +621,20 @@ class ServiceLine(Base):
     ticket: Mapped["ServiceTicket"] = relationship(back_populates="lines")
 
 
-SERVICE_EXPENSE_KINDS = ('LINH_KIEN', 'GUI_XE', 'CHO_MAY', 'KHAC')
+SERVICE_EXPENSE_KINDS = ('LINH_KIEN', 'DOI_TAC', 'GUI_HANG', 'GUI_XE', 'CHO_MAY', 'KHAC')
 SERVICE_EXPENSE_STATUSES = ('CHO_DUYET', 'DA_DUYET', 'TU_CHOI', 'DA_HUY', 'DA_HOAN')
 
 
 class ServiceExpense(Base):
-    """Chi phí phát sinh thợ tự trả theo phiếu (TUẤN 30/10/2026): không qua kho; kế toán duyệt rồi hoàn bằng phiếu chi."""
+    """Chi phí phát sinh nội bộ theo phiếu dịch vụ hoặc đơn bán (TUẤN 30/10 + 16/11/2026): không qua kho, không đổi giá báo
+    khách. Duyệt rồi tính vào giá vốn đơn (cost = chưa VAT); kế toán chi bằng phiếu chi cho người ứng hoặc đối tác."""
     __tablename__ = 'service_expenses'
     __table_args__ = (
+        CheckConstraint('(ticket_id is null) <> (order_id is null) and (delivery_id is null or order_id is not null)', name='ck_service_expenses_target'),
+        CheckConstraint("payer in ('NV_UNG','DOI_TAC')", name='ck_service_expenses_payer'),
+        CheckConstraint("payer <> 'DOI_TAC' or btrim(place) <> ''", name='ck_service_expenses_partner'),
+        CheckConstraint('vat_rate in (0,8,10)', name='ck_service_expenses_vat'),
+        CheckConstraint('cost > 0 and cost <= amount', name='ck_service_expenses_cost'),
         CheckConstraint(_in('kind', SERVICE_EXPENSE_KINDS), name='ck_service_expenses_kind'),
         CheckConstraint(_in('status', SERVICE_EXPENSE_STATUSES), name='ck_service_expenses_status'),
         CheckConstraint('amount > 0', name='ck_service_expenses_amount'),
@@ -638,8 +644,14 @@ class ServiceExpense(Base):
         Index('ix_service_expenses_status_tech', 'status', 'technician_id'),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id'), index=True)
-    technician_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id'), index=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey('sales_orders.id'), index=True)
+    delivery_id: Mapped[int | None] = mapped_column(ForeignKey('sales_deliveries.id'))
+    technician_id: Mapped[int] = mapped_column(ForeignKey('users.id'))  # người ghi (người ứng khi payer=NV_UNG)
+    payer: Mapped[str] = mapped_column(String(8), default='NV_UNG', server_default='NV_UNG')
+    vat_rate: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    cost: Mapped[int] = mapped_column(BigInteger)  # giá vốn tính vào đơn, chưa VAT
+    note: Mapped[str] = mapped_column(Text, default='', server_default='')
     kind: Mapped[str] = mapped_column(String(16))
     description: Mapped[str] = mapped_column(Text)
     place: Mapped[str] = mapped_column(Text, default='', server_default='')
@@ -2440,7 +2452,7 @@ class ZaloTriage(Base):
 class ApprovalLimit(Base):
     """0091 Hạn mức duyệt: giám đốc giao kế toán duyệt thay trong hạn mức (TUẤN duyệt 11/11/2026). 0 = không giao."""
     __tablename__ = 'approval_limits'
-    __table_args__ = (CheckConstraint("key in ('BO_SUNG','NGHI','TAM_UNG','HUY_HANG')", name='ck_approval_limits_key'),
+    __table_args__ = (CheckConstraint("key in ('BO_SUNG','NGHI','TAM_UNG','HUY_HANG','CHI_PHI')", name='ck_approval_limits_key'),
                       CheckConstraint('value >= 0', name='ck_approval_limits_value'))
     key: Mapped[str] = mapped_column(String(16), primary_key=True)
     value: Mapped[int] = mapped_column(BigInteger)

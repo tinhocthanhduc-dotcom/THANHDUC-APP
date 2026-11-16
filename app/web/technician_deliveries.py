@@ -70,7 +70,11 @@ def page(request,session,user,order,raw=None,error=None,code='',status=200):
         st=ctx['service_ticket']
         trip_ticket=st if st is not None and st.assignee_id==user.id and st.status in ('DA_GIAO','DA_NHAN','DA_HEN','DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else None
         qr_url=f'/qr/don-ban/{order.id}' if available>0 and vietqr.company_account(session) else ''
-        return render(request,'tho_giao_don.jinja',technician_view=True,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,trip_ticket=trip_ticket,qr_url=qr_url,
+        from .chi_phi import context as expense_context
+        exp=expense_context(session,user,order=order)
+        exp['rows']=[e for e in exp['rows'] if e.technician_id==user.id]
+        exp['profit']=None
+        return render(request,'tho_giao_don.jinja',technician_view=True,exp=exp,**ctx,shipments=shipments,photos=photos,lines=lines,suggested_amount=suggested,trip_ticket=trip_ticket,qr_url=qr_url,
             raw=raw or {},error=error,error_code=code,status=status,**contact(ctx['customer'],address=order.delivery_address))
     from .. import service_tickets, stock_reservations
     return render(request,'giao_don.jinja',technician_view=technician_view,**ctx,shipments=shipments,photos=photos,

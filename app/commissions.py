@@ -146,6 +146,9 @@ def _draft_query(month):
        join stock_docs d on d.id=sl.stock_doc_id and d.kind='PX' and d.status='DA_GHI'
        join stock_doc_lines dl on dl.doc_id=d.id and dl.product_code=sl.product_code
        group by sl.ticket_id),
+    -- TUẤN duyệt 16/11/2026: chi phí phát sinh đã duyệt (giá vốn chưa VAT) trừ vào nền hoa hồng thợ.
+    texp as (select ticket_id,sum(cost)::bigint cost from service_expenses where ticket_id is not null
+         and status in ('DA_DUYET','DA_HOAN') and decided_at<:hi group by ticket_id),
     sources as (
       select 'DON_BAN'::text source,'KINH_DOANH'::text target,o.created_by user_id,o.id order_id,null::bigint ticket_id,null::bigint production_id,null::bigint delivery_id,1::integer units,
         o.number,(o.created_at at time zone 'Asia/Ho_Chi_Minh')::date source_day,null::text service_kind,
@@ -160,13 +163,14 @@ def _draft_query(month):
       where o.created_at>=:start_at and o.created_at<:hi and (m.order_id is not null or p.order_id is not null)
       union all
       select 'PHIEU_DV','THO',coalesce(t.repaired_by,f.assignee_id,f.actor_id),null,t.id,null,null,1,t.number,(f.at at time zone 'Asia/Ho_Chi_Minh')::date,t.kind,
-        greatest(0,coalesce(fee.base,0)-coalesce(pp.cost,0)),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
+        greatest(0,coalesce(fee.base,0)-coalesce(pp.cost,0)-coalesce(tx.cost,0)),coalesce(t.total,0),coalesce(paid.paid,0),(t.billing='MIEN_PHI' or (t.kind='BAO_HANH' and t.warranty_basis='PHIEU_TRUOC')),
         t.status='DA_HUY' or w.number is not null or t.declined_at is not null,
         case when t.declined_at is not null then 'Khách không sửa' when w.number is not null then 'Bảo hành lại '||w.number when t.status='DA_HUY' then 'Phiếu đã hủy' else '' end,
         coalesce(p.previous,0)
       from service_tickets t join finished f on f.ticket_id=t.id
       left join fees fee on fee.ticket_id=t.id
       left join pkg_parts pp on pp.ticket_id=t.id
+      left join texp tx on tx.ticket_id=t.id
       left join (__TICKET_PAID__) paid on paid.parent_id=t.id
       left join prior p on p.ticket_id=t.id and p.source='PHIEU_DV'
       left join lateral (select w.number from service_tickets w where w.warranty_of_id=t.id and w.kind='BAO_HANH'

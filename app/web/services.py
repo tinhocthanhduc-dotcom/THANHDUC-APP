@@ -351,12 +351,15 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     ctx.update(goods=service_goods.state(session,t),goods_last=service_goods.last_step(session,t),goods_reasons=service_goods.SHORT_REASONS)
     from .. import service_expenses
     from ..models import Attachment
+    from .chi_phi import context as expense_context,photos_for
     expenses=service_expenses.for_ticket(session,t.id)
-    photos={}
-    for a in session.scalars(select(Attachment).where(Attachment.entity=='service_expense',Attachment.entity_id.in_([str(e.id) for e in expenses]),Attachment.hidden.is_(False)).order_by(Attachment.id)):
-        photos.setdefault(int(a.entity_id),a.id)
-    ctx.update(expenses=expenses,expense_photos=photos,expense_kinds=service_expenses.KINDS,expense_statuses=service_expenses.STATUSES,
-        can_add_expense=technician_view and t.assignee_id==user.id and t.status in service_expenses.OPEN_WORK)
+    if technician_view:expenses=[e for e in expenses if e.technician_id==user.id]  # thợ chỉ thấy khoản mình ghi
+    ctx.update(expenses=expenses,expense_photos=photos_for(session,expenses),expense_kinds=service_expenses.KINDS,expense_statuses=service_expenses.STATUSES,
+        expense_payers=service_expenses.PAYERS,expense_vat_rates=service_expenses.VAT_RATES,
+        can_add_expense=technician_view and t.assignee_id==user.id and t.status in service_expenses.TECH_OPEN)
+    if not technician_view:  # TUẤN duyệt 16/11/2026: văn phòng ghi chi phí phát sinh nội bộ + Lãi phiếu (GĐ/KT)
+        ctx['exp']=expense_context(session,user,ticket=t,values=form if failed_action=='expense' else None,
+            error=error if failed_action=='expense' else None,error_code=error_code if failed_action=='expense' else '')
     if technician_view:
         from .technician import detail_context as technician_context
         ctx.update(technician_context(session,user,t,ctx))

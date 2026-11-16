@@ -217,7 +217,10 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     gd=importlib.util.module_from_spec(gd_spec);gd_spec.loader.exec_module(gd)
     cp_spec=importlib.util.spec_from_file_location('cp_migration',file.parent/'0068_service_expenses.py')
     cp=importlib.util.module_from_spec(cp_spec);cp_spec.loader.exec_module(cp)
+    cpm_spec=importlib.util.spec_from_file_location('cpm_migration',file.parent/'0104_chi_phi_phat_sinh_moi_don.py')
+    cpm=importlib.util.module_from_spec(cpm_spec);cpm_spec.loader.exec_module(cpm)  # 0104 mở rộng bảng 0068 (đơn bán, lần giao)
     with engine.begin() as conn:
+        monkeypatch.setattr(cpm,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(bh1,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(gd,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(cp,'op',Operations(MigrationContext.configure(conn)))
@@ -228,6 +231,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         monkeypatch.setattr(ns5,'op',Operations(MigrationContext.configure(conn)))
         # Hạ các lớp phụ thuộc GH trước khi tái hiện schema S1/S2.
         # NS5 mở rộng ràng buộc khóa ghép tài chính mà S5 dựng lại khi hạ.
+        cpm.downgrade()
         cp.downgrade()  # 0068 thêm khóa ghép DANH_MUC_CHI_PHI_THO mà NS5 hạ không biết
         gd.downgrade()
         bh1.downgrade()
@@ -253,6 +257,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         bh1.upgrade()
         gd.upgrade()
         cp.upgrade()
+        cpm.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

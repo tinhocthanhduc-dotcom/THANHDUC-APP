@@ -92,6 +92,12 @@ def _active_order(session, quote_id):
                            SalesOrder.status!='DA_HUY')).first()
 
 
+def _expense_ctx(session,user,order,values,error,code):
+    # Chi phí phát sinh nội bộ + Lãi đơn (TUẤN duyệt 16/11/2026): khách không thấy, không in.
+    from .chi_phi import context
+    return context(session,user,order=order,values=values,error=error,error_code=code if error else '')
+
+
 def _form(request,session,data=None,order=None,error=None,code='',status=200,action_form=None,action='',receipt_form=None,receipt_decision=None,failed_receipt_id=None,failed_receipt_action='',refund_form=None,customer_code=''):
     if data is None:
         data=SalesOrderOut.model_validate(order).model_dump(mode='json') if order else dict(
@@ -150,6 +156,7 @@ def _form(request,session,data=None,order=None,error=None,code='',status=200,act
     from .. import below_cost
     below=below_cost.summary(session,order) if order is not None and order.status!='DA_HUY' else None
     return render(request,'don_ban_xem.jinja' if viewing else 'don_ban_form.jinja',**frame,trip_ticket=trip_ticket,credit_warning=credit_warning,below=below,workflow=steps.order(order),primary_checks=steps.order_checks(session,request.state.user,data,stock_values,customer) if order is None or order.status=='NHAP' else [],receipt_error=receipt_form is not None,returns_ctx=return_context(session,request.state.user,order,refund_form) if order else None,tech_delivery=tech_delivery,fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+                  exp=_expense_ctx(session,request.state.user,order,action_form if action=='expense' else None,error if action=='expense' else None,code) if viewing else None,
                   order_summary=svc.summaries(session,[order]).get(order.id) if order else None,deliveries=shipments,delivery_state=delivery_state,
                   can_void_delivery=has_role(request.state.user,'director'),
                   can_close=bool(order and (has_role(request.state.user,'director') or (has_role(request.state.user,'sales') and order.created_by==request.state.user.id))),o=order,d=data,statuses=STATUSES,vat_rates=VAT_RATES,

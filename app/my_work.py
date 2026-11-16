@@ -279,10 +279,12 @@ def _specs(user, today, now):
                     SalesReceipt.status=='CHO_XAC_NHAN').order_by(SalesReceipt.reported_at, SalesReceipt.id)
         add('receipts_pending', 'Báo thu chờ xác nhận', pending, 'receipt', '/bao-thu')
         # TUẤN 30/10/2026: chi phí phát sinh thợ tự trả, kế toán duyệt rồi hoàn bằng phiếu chi.
-        expense=select(ServiceExpense.id,t.number,ServiceExpense.status,(User.full_name+literal(' · ')+ServiceExpense.description).label('customer'),
-            ServiceExpense.amount,literal(False).label('overdue')).join(t,t.id==ServiceExpense.ticket_id).join(User,User.id==ServiceExpense.technician_id)
-        add('expenses_pending','Chi phí thợ ứng chờ duyệt',expense.where(ServiceExpense.status=='CHO_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho')
-        add('expenses_unpaid','Chi phí thợ ứng chờ hoàn tiền',expense.where(ServiceExpense.status=='DA_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho?tab=cho-hoan')
+        # 16/11/2026: cả khoản ghi trên đơn bán (không có phiếu dịch vụ).
+        expense=select(ServiceExpense.id,func.coalesce(t.number,SalesOrder.number).label('number'),ServiceExpense.status,(User.full_name+literal(' · ')+ServiceExpense.description).label('customer'),
+            ServiceExpense.amount,literal(False).label('overdue')).outerjoin(t,t.id==ServiceExpense.ticket_id).outerjoin(
+            SalesOrder,SalesOrder.id==ServiceExpense.order_id).join(User,User.id==ServiceExpense.technician_id)
+        add('expenses_pending','Chi phí phát sinh chờ duyệt',expense.where(ServiceExpense.status=='CHO_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho')
+        add('expenses_unpaid','Chi phí phát sinh chờ chi',expense.where(ServiceExpense.status=='DA_DUYET').order_by(ServiceExpense.id),'expense','/chi-phi-tho?tab=cho-hoan')
     if director:
         requests=select(PendingDisposition.id,PendingDisposition.number,PendingDisposition.status,Product.name.label('customer'),
             (PendingDisposition.qty*func.coalesce(StockBalance.avg_cost,0)).label('amount'),literal(False).label('overdue')).join(
