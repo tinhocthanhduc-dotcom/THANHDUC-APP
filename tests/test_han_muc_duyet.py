@@ -30,7 +30,7 @@ def test_defaults_save_audit_and_director_only(client, db, make_user):
     fail('FORBIDDEN', limits_svc.save, db, kt, dict(BO_SUNG=1, NGHI=5, TAM_UNG=9_000_000, HUY_HANG=0))
     fail('BAD_LIMIT', limits_svc.save, db, boss, dict(BO_SUNG=1, NGHI=2, TAM_UNG='-5', HUY_HANG=0))
     limits_svc.save(db, boss, dict(BO_SUNG='0', NGHI='1', TAM_UNG='3.000.000', HUY_HANG='0'))
-    assert limits_svc.limits(db) == {'BO_SUNG': 0, 'NGHI': 1, 'TAM_UNG': 3_000_000, 'HUY_HANG': 0}
+    assert limits_svc.limits(db) == {'BO_SUNG': 0, 'NGHI': 1, 'TAM_UNG': 3_000_000, 'HUY_HANG': 0, 'CHI_PHI': 500_000}
     log = db.scalar(select(AuditLog).where(AuditLog.action == 'approval_limits.save'))
     assert log.user_id == boss.id and log.after['TAM_UNG'] == 3_000_000 and log.before['TAM_UNG'] == 2_000_000
     csrf = web_login(client, kt)
