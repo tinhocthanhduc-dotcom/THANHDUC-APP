@@ -76,3 +76,30 @@ TUẤN duyệt mẫu 16/11/2026. Không bắt buộc nhập; trống = `null`.
 - Đơn lập từ báo giá kế thừa 3 ô đầu; người lập đơn vẫn đổi được khi đơn còn nháp.
 - Sau khi chốt: chỉ giám đốc sửa ("Sửa nguồn khách" trong Thao tác khác), không đổi tiền, ghi nhật ký `sales_order.lead`.
 - Thêm `updated_at` cho quotes và sales_orders (chuẩn bị Phần C).
+
+## Phần C: GET /marketing/v1/orders
+
+Tham số: `changed_since` (ISO), `limit` (1–500, mặc định 200), `cursor` (từ `next_cursor`). Trả cả đơn bán (`kind: DON`) và báo giá (`kind: BAO_GIA`), sắp theo giờ đổi.
+Không trả đơn/báo giá của khách chạy thử.
+
+Mỗi bản ghi: `id`, `kind`, `number`, `status`, `date` (ngày lập), `customer_hash`, `net_amount`, `vat_amount`, `discount_amount`,
+`lines[]` (`product_code` — null với dòng dịch vụ/khác, `qty`, `net_amount`), `lead_source`, `campaign_code`, `lead_ref`, `web_order_ref`,
+`quote_id`, `confirmed`, `confirmed_at`, `delivered_net`, `returned_net`, `net_revenue`, `returns[]`, `refunds[]`, `cancelled_at`, `version`, `updated_at`
+(báo giá có thêm `valid_until`).
+
+Không trả: tên khách, mã khách, số điện thoại, địa chỉ, người liên hệ, ghi chú, mô tả dòng, giá vốn.
+
+**`customer_hash`**: HMAC-SHA256 của mã khách với khóa bí mật của app (20 ký tự đầu). Cùng khách thì cùng mã băm, kể cả giữa đơn và báo giá;
+khách đã gộp dùng mã khách được gộp vào. Đổi `SECRET_KEY` của app thì mã băm đổi.
+
+Trả lời 4 câu hỏi của phiếu:
+
+1. **Đã xác nhận:** đơn ở `DA_CHOT`, `GIAO_MOT_PHAN`, `DA_GIAO` (`confirmed: true`). Nhưng app **ghi doanh thu lúc giao**:
+   `net_revenue` = tiền hàng các lần giao còn hiệu lực − hàng khách trả (`DA_NHAN`). Đơn chốt chưa giao: `net_revenue = 0`.
+   Báo giá luôn `net_revenue = 0`. Trạng thái báo giá: `NHAP`, `DA_GUI`, `CHAP_NHAN`, `TU_CHOI`, `DA_HUY`.
+2. **Mọi số tiền `net_*` là sau giảm giá, trước VAT.** Giảm giá toàn đơn đã chia vào từng dòng; đơn nhập giá gồm VAT đã tách VAT.
+3. **Trả hàng:** `returns[]` (`number`, `status` DA_NHAN/DA_HUY, `date`, `net_amount`, `voided_at`, `lines[]`). Chỉ trả `DA_NHAN` mới trừ doanh thu.
+   **Hoàn tiền:** `refunds[]` chỉ gồm lần đã chi (`amount_incl_vat`, gồm VAT); đây là tiền trả lại khách, không đổi doanh thu.
+4. **Đổi/hủy:** `version` tăng mỗi lần sửa, chốt, hủy, mở lại. `updated_at` = muộn nhất trong giờ sửa đơn, giờ giao/hủy lần giao,
+   giờ trả/hủy trả hàng, giờ chi hoàn tiền. Đọc tăng dần bằng `changed_since` = `updated_at` lớn nhất đã thấy **trừ lùi 5 phút**
+   (giao dịch dài có thể ghi giờ sớm hơn lúc lưu xong), bỏ trùng theo (`kind`, `id`, `version`, `updated_at`).

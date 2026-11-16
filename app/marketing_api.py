@@ -189,3 +189,128 @@ def product_margin_band(code: str, key: AiKey = Depends(marketing_key), session:
     out = margin_band(session, code)
     _log(session, key, f'/products/{out["code"]}/margin-band', {}, 1)
     return out
+
+
+# ---------- orders (Phần C) ----------
+# Đơn bán + báo giá theo giờ đổi. Mã khách băm (HMAC, khóa bí mật của app), không tên, không SĐT, không địa chỉ, không ghi chú.
+# Giờ đổi = muộn nhất trong: giờ sửa đơn/báo giá, lần giao (và lúc hủy lần giao), lần trả hàng (và lúc hủy), lần hoàn tiền đã chi.
+
+ORDER_KIND, QUOTE_KIND = 'DON', 'BAO_GIA'
+CONFIRMED = ('DA_CHOT', 'GIAO_MOT_PHAN', 'DA_GIAO')
+
+
+def customer_hash(code: str | None) -> str | None:
+    import hashlib
+    import hmac
+    from .config import get_settings
+
+    if not code:
+        return None
+    key = ('growth-os:' + get_settings().secret_key).encode()
+    return hmac.new(key, code.encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def _changed_columns():
+    from sqlalchemy import literal
+    from .models import Customer, Quote, SalesDelivery, SalesOrder, SalesRefund, SalesReturn
+
+    def latest(model, *cols):
+        return (select(func.max(func.greatest(*[func.coalesce(c, SalesOrder.updated_at) for c in cols])))
+                .where(model.order_id == SalesOrder.id).correlate(SalesOrder).scalar_subquery())
+
+    changed = func.greatest(SalesOrder.updated_at,
+                            func.coalesce(latest(SalesDelivery, SalesDelivery.delivered_at, SalesDelivery.voided_at), SalesOrder.updated_at),
+                            func.coalesce(latest(SalesReturn, SalesReturn.returned_at, SalesReturn.voided_at), SalesOrder.updated_at),
+                            func.coalesce(latest(SalesRefund, SalesRefund.decided_at), SalesOrder.updated_at))
+    real_order = SalesOrder.customer_code.in_(select(Customer.code).where(Customer.is_test.is_(False)))
+    real_quote = Quote.customer_code.in_(select(Customer.code).where(Customer.is_test.is_(False)))
+    orders = select(literal(ORDER_KIND).label('kind'), SalesOrder.id.label('id'), changed.label('changed_at')).where(real_order)
+    quotes_ = select(literal(QUOTE_KIND).label('kind'), Quote.id.label('id'), Quote.updated_at.label('changed_at')).where(real_quote)
+    from sqlalchemy import union_all
+    return union_all(orders, quotes_).subquery()
+
+
+def _order_cursor(raw: str | None):
+    if not raw:
+        return None
+    parts = raw.split('|')
+    if len(parts) != 3 or parts[1] not in (ORDER_KIND, QUOTE_KIND) or not parts[2].isdigit():
+        raise BusinessError('BAD_CURSOR', 'cursor không đúng; dùng nguyên giá trị next_cursor đã nhận.', status=422)
+    return _parse_since(parts[0]), parts[1], int(parts[2])
+
+
+def _day(value):
+    return value.astimezone(ai_agent.TZ).date().isoformat() if value else None
+
+
+def _lead(row):
+    return dict(lead_source=row.lead_source, campaign_code=row.campaign_code, lead_ref=row.lead_ref,
+                web_order_ref=getattr(row, 'web_order_ref', None))
+
+
+def order_rows(session: Session, since: datetime | None = None, cursor=None, limit=200):
+    from .models import Customer, Quote, SalesDelivery, SalesOrder, SalesOrderLine, SalesRefund, SalesReturn, SalesReturnLine
+
+    ch = _changed_columns()
+    stmt = select(ch.c.kind, ch.c.id, ch.c.changed_at)
+    if since is not None:
+        stmt = stmt.where(ch.c.changed_at >= since)
+    if cursor is not None:
+        at, kind, rid = cursor
+        stmt = stmt.where(or_(ch.c.changed_at > at, and_(ch.c.changed_at == at, or_(ch.c.kind > kind, and_(ch.c.kind == kind, ch.c.id > rid)))))
+    keys = list(session.execute(stmt.order_by(ch.c.changed_at, ch.c.kind, ch.c.id).limit(limit + 1)))
+    more = len(keys) > limit
+    keys = keys[:limit]
+    order_ids = [k.id for k in keys if k.kind == ORDER_KIND]
+    quote_ids = [k.id for k in keys if k.kind == QUOTE_KIND]
+    orders = {o.id: o for o in session.scalars(select(SalesOrder).where(SalesOrder.id.in_(order_ids)))} if order_ids else {}
+    quotes_ = {q.id: q for q in session.scalars(select(Quote).where(Quote.id.in_(quote_ids)))} if quote_ids else {}
+    codes = {r.customer_code for r in [*orders.values(), *quotes_.values()]}
+    merged = dict(session.execute(select(Customer.code, Customer.merged_into).where(Customer.code.in_(codes))).all()) if codes else {}
+    delivered, returns, refunds = {}, {}, {}
+    if order_ids:
+        for d in session.scalars(select(SalesDelivery).where(SalesDelivery.order_id.in_(order_ids), SalesDelivery.status == 'DA_GIAO')):
+            delivered[d.order_id] = delivered.get(d.order_id, 0) + int(d.subtotal or 0)
+        line_codes = dict(((l.order_id, l.line_no), l.product_code) for l in session.scalars(
+            select(SalesOrderLine).where(SalesOrderLine.order_id.in_(order_ids))))
+        for r in session.scalars(select(SalesReturn).where(SalesReturn.order_id.in_(order_ids)).order_by(SalesReturn.id)):
+            rl = list(session.scalars(select(SalesReturnLine).where(SalesReturnLine.return_id == r.id).order_by(SalesReturnLine.line_no)))
+            returns.setdefault(r.order_id, []).append(dict(
+                number=r.number, status=r.status, date=_day(r.returned_at), net_amount=int(r.subtotal or 0),
+                voided_at=_iso(r.voided_at),
+                lines=[dict(product_code=line_codes.get((l.order_id, l.order_line_no)), qty=_num(l.qty), net_amount=int(l.amount or 0)) for l in rl]))
+        for f in session.scalars(select(SalesRefund).where(SalesRefund.order_id.in_(order_ids), SalesRefund.status == 'DA_CHI').order_by(SalesRefund.id)):
+            refunds.setdefault(f.order_id, []).append(dict(number=f.number, date=_day(f.decided_at), amount_incl_vat=int(f.amount)))
+    items = []
+    for k in keys:
+        row = orders.get(k.id) if k.kind == ORDER_KIND else quotes_.get(k.id)
+        if row is None:
+            continue
+        cust = merged.get(row.customer_code) or row.customer_code
+        base = dict(id=row.id, kind=k.kind, number=row.number, status=row.status, date=_day(row.created_at),
+                    customer_hash=customer_hash(cust), net_amount=int(row.subtotal or 0), vat_amount=int(row.vat_total or 0),
+                    discount_amount=int(row.discount_amount or 0),
+                    lines=[dict(product_code=l.product_code, qty=_num(l.qty), net_amount=int(l.amount or 0)) for l in row.lines],
+                    **_lead(row), version=row.version, updated_at=_iso(k.changed_at),
+                    cancelled_at=_iso(row.updated_at) if row.status == 'DA_HUY' else None)
+        if k.kind == ORDER_KIND:
+            got = returns.get(row.id, [])
+            back = sum(r['net_amount'] for r in got if r['status'] == 'DA_NHAN')
+            base.update(quote_id=row.quote_id, confirmed=row.status in CONFIRMED, confirmed_at=_iso(row.confirmed_at),
+                        delivered_net=delivered.get(row.id, 0), returned_net=back,
+                        net_revenue=delivered.get(row.id, 0) - back, returns=got, refunds=refunds.get(row.id, []))
+        else:
+            base.update(quote_id=None, confirmed=False, confirmed_at=None, delivered_net=0, returned_net=0, net_revenue=0,
+                        returns=[], refunds=[], valid_until=row.valid_until.isoformat() if row.valid_until else None)
+        items.append(base)
+    nxt = f'{keys[-1].changed_at.isoformat()}|{keys[-1].kind}|{keys[-1].id}' if more and keys else None
+    return items, nxt
+
+
+@router.get('/orders')
+def orders(changed_since: str | None = None, cursor: str | None = None, limit: int = Query(200, ge=1, le=500),
+           key: AiKey = Depends(marketing_key), session: Session = Depends(get_session)):
+    items, nxt = order_rows(session, _parse_since(changed_since), _order_cursor(cursor), limit)
+    out = dict(as_of=_iso(_now()), items=items, next_cursor=nxt)
+    _log(session, key, '/orders', dict(changed_since=changed_since, cursor=cursor, limit=limit), len(items))
+    return out
