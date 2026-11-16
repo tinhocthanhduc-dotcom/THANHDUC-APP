@@ -138,3 +138,79 @@ def test_doc_theo_moc_va_phan_trang(client, db, make_user):
     assert client.get('/marketing/v1/stock', headers=h).status_code == 422
     many = ','.join(f'TD-{i:04d}' for i in range(201))
     assert client.get('/marketing/v1/stock', headers=h, params={'codes': many}).status_code == 422
+
+
+# ---------- Phần C: đọc đơn và báo giá ----------
+from app import quotes as quote_svc, sales_orders, sales_returns  # noqa: E402
+from app.schemas import QuoteIn, SalesOrderFromQuote, SalesReturnIn  # noqa: E402
+from test_sales_orders import people, stocked  # noqa: E402,F401
+
+
+def _orders(client, h, **params):
+    r = client.get('/marketing/v1/orders', headers=h, params=params)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_doc_don_va_bao_gia(client, db, stocked):
+    p = stocked
+    director = p['director']
+    h = {'Authorization': 'Bearer ' + ai_agent.create_key(db, director, 'growth-os')}
+    q = quote_svc.create(db, p['sales'], QuoteIn(customer_code='KTD-000001', contact_name='Chị Lan', note='SĐT 0903123456',
+                         lead_source='FACEBOOK', campaign_code='TD136X', discount_amount=20000,
+                         lines=[dict(product_code='TD-0001', qty='3', unit_price=150000, vat_rate=8)]))
+    quote_svc.send(db, p['sales'], q.id, q.version)
+    db.refresh(q)
+    q = quote_svc.accept(db, p['sales'], q.id, q.version)
+    o = sales_orders.create_from_quote(db, p['sales'], q.id, SalesOrderFromQuote(version=q.version, warehouses={1: 'K58'}))
+    o = sales_orders.confirm(db, p['sales'], o.id, o.version)
+    o = sales_orders.deliver(db, p['warehouse'], o.id, o.version)
+    gh = sales_orders.deliveries(db, o.id)[0]
+    body = _orders(client, h)
+    rows = {(r['kind'], r['id']): r for r in body['items']}
+    qr, dr = rows[('BAO_GIA', q.id)], rows[('DON', o.id)]
+    assert qr['status'] == 'CHAP_NHAN' and qr['lead_source'] == 'FACEBOOK' and qr['net_revenue'] == 0 and qr['confirmed'] is False
+    assert dr['quote_id'] == q.id and dr['campaign_code'] == 'TD136X' and dr['status'] == 'DA_GIAO' and dr['confirmed'] is True
+    # Doanh thu: sau giảm giá, trước VAT, tính theo hàng đã giao
+    assert dr['net_amount'] == 430000 and dr['delivered_net'] == 430000 and dr['net_revenue'] == 430000
+    assert dr['lines'] == [dict(product_code='TD-0001', qty=3, net_amount=430000)]
+    # Không lộ khách
+    text = str(body)
+    for secret in ('KTD-000001', 'Minh Phát', 'Chị Lan', '0903123456', '58 Mã Lò', 'unit_cost', 'avg_cost'):
+        assert secret not in text, secret
+    assert dr['customer_hash'] == qr['customer_hash'] == marketing_api.customer_hash('KTD-000001') and len(dr['customer_hash']) == 20
+
+    # Trả hàng: đơn hiện lại khi đọc từ mốc, doanh thu trừ phần trả
+    mark = dr['updated_at']
+    db.refresh(o)
+    sales_returns.create(db, p['warehouse'], o.id, SalesReturnIn(version=o.version, reason='Khách trả 1 hộp',
+                         lines=[dict(delivery_id=gh['id'] if isinstance(gh, dict) else gh.id, order_line_no=1, qty=1, condition='TOT')]))
+    again = _orders(client, h, changed_since=mark)['items']
+    dr2 = [r for r in again if r['kind'] == 'DON' and r['id'] == o.id][0]
+    assert dr2['returned_net'] > 0 and dr2['net_revenue'] == 430000 - dr2['returned_net']
+    assert dr2['returns'][0]['status'] == 'DA_NHAN' and dr2['returns'][0]['lines'][0]['product_code'] == 'TD-0001'
+    assert dr2['updated_at'] >= mark
+    # Báo giá không đổi thì không ra lại sau mốc mới
+    assert all(r['kind'] == 'DON' for r in _orders(client, h, changed_since=dr2['updated_at'])['items'])
+
+    # Phân trang
+    first = _orders(client, h, limit=1)
+    assert len(first['items']) == 1 and first['next_cursor']
+    second = _orders(client, h, limit=5, cursor=first['next_cursor'])
+    assert {(r['kind'], r['id']) for r in first['items'] + second['items']} == {('BAO_GIA', q.id), ('DON', o.id)}
+    assert client.get('/marketing/v1/orders', headers=h, params={'cursor': 'x'}).status_code == 422
+    logs = [l.after['path'] for l in db.scalars(select(AuditLog).where(AuditLog.action == 'ai.marketing_read'))]
+    assert logs.count('/orders') == 5
+
+
+def test_doc_don_huy_va_khach_thu(client, db, stocked):
+    p = stocked
+    h = {'Authorization': 'Bearer ' + ai_agent.create_key(db, p['director'], 'growth-os')}
+    from app.schemas import SalesOrderIn
+    o = sales_orders.create(db, p['sales'], SalesOrderIn(customer_code='KTD-000001', lines=[dict(description='Công', qty='1', unit='lần', unit_price=50000, vat_rate=8, kind='KHAC')]))
+    o = sales_orders.cancel(db, p['sales'], o.id, 'Khách thôi', o.version)
+    row = [r for r in _orders(client, h)['items'] if r['id'] == o.id][0]
+    assert row['status'] == 'DA_HUY' and row['cancelled_at'] and row['net_revenue'] == 0 and row['confirmed'] is False
+    db.get(Customer, 'KTD-000001').is_test = True
+    db.commit()
+    assert _orders(client, h)['items'] == []
