@@ -89,7 +89,9 @@ def listing(request: Request, user: User = Depends(web_user), session: Session =
     # Báo giá gộp (mẫu duyệt 15/11/2026): khách có từ 2 máy đã áp giá, chưa đồng ý → nút Gộp báo giá cho điều phối.
     ready = {code: sum(1 for r in g if r['inspection'] is not None and r['inspection'].applied_at and not r['ticket'].quote_approved_at)
              for code, g in groups.items()}
-    return render(request, 'kiem_tra_may_ds.jinja', rows=rows, groups=groups, ready=ready, can_group=has_role(user, *DISPATCHERS),
+    can_group = has_role(user, *DISPATCHERS)
+    opened = {code: rg.open_for_customer(session, code) for code, g in groups.items() if len(g) > 1} if can_group else {}
+    return render(request, 'kiem_tra_may_ds.jinja', rows=rows, groups=groups, ready=ready, can_group=can_group, opened=opened,
                   customers=customers, todo=sum(1 for r in rows if r['todo']))
 
 

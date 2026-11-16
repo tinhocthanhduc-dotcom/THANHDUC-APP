@@ -1,0 +1,19 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Báo giá gộp{% endblock %}
+{% block main %}<div class="page-wide bgg-page">
+{# TUẤN 16/11/2026: xem lại báo giá gộp cũ (không phải lần nào cũng tạo mới). Lập mới từ Máy chờ kiểm tra. #}
+{% call ui.page_head('Báo giá gộp', sub='Báo giá nhiều máy của một khách. Lập mới ở Máy chờ kiểm tra (khách có từ 2 máy đã áp giá).') %}<a class="btn btn-ghost" href="/kiem-tra-may">Máy chờ kiểm tra</a>{% endcall %}
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/bao-gia-gop', q, 'Tìm số BGG, khách, số phiếu…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards"><thead><tr><th>Số</th><th>Khách</th><th>Máy</th><th class="num">Tổng gồm VAT</th><th>Trạng thái</th></tr></thead><tbody>
+{% for r in rows %}<tr data-href="/bao-gia-gop/{{ r.g.id }}">
+<td data-label="Số"><a href="/bao-gia-gop/{{ r.g.id }}"><b>{{ r.g.number }}</b></a><span class="lt-sub">{{ r.g.created_at|vn_date }}</span></td>
+<td data-label="Khách">{{ r.customer }}</td>
+<td data-label="Máy">{{ r.members|length }} máy{% if r.agreed %}<span class="lt-sub">{{ r.agreed }} đồng ý</span>{% endif %}</td>
+<td data-label="Tổng" class="num"><b>{{ r.total|money }}</b></td>
+<td data-label="Trạng thái">{{ ui.badge(labels[r.state], {'CHO': 'cho', 'XONG': 'xong', 'THU_HOI': 'huy', 'HET_HAN': 'huy'}[r.state]) }}{% if r.state == 'CHO' and not r.g.sent_at %}<span class="lt-sub">chưa gửi khách</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>{% else %}{{ ui.empty('Chưa có báo giá gộp nào đang chờ khách.' if view == 'cho' else 'Không có báo giá nào ở mục này.', '/kiem-tra-may', 'Máy chờ kiểm tra') }}{% endif %}
+{% call ui.list_foot(p, 'báo giá') %}{% endcall %}
+</div>{% endblock %}

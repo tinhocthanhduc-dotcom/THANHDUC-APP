@@ -4,7 +4,7 @@
 {% block main %}<div class="page-mid rq-page">
 {# Báo giá sửa chữa đợt 3 (mẫu M3 14/11/2026): máy đang ở xưởng chờ sửa; chưa kiểm tra lên đầu.
    Báo giá gộp (mẫu duyệt 15/11/2026): máy cùng khách gom một khung, đủ 2 máy đã áp giá thì điều phối bấm Gộp báo giá. #}
-{% call ui.page_head('Máy chờ kiểm tra', sub=(todo ~ ' máy chưa kiểm tra · ' ~ rows|length ~ ' máy ở xưởng chờ sửa')) %}{% endcall %}
+{% call ui.page_head('Máy chờ kiểm tra', sub=(todo ~ ' máy chưa kiểm tra · ' ~ rows|length ~ ' máy ở xưởng chờ sửa')) %}{% if can_group %}<a class="btn btn-ghost" href="/bao-gia-gop">Báo giá gộp đã lập</a>{% endif %}{% endcall %}
 {% set done=request.query_params.get('da_kiem_tra','') %}{% if done %}{{ ui.toast('Đã gửi kết quả kiểm tra, điều phối báo giá cho khách.') }}{% endif %}
 {% macro row(r, in_group=false) %}{% set t=r.ticket %}{% set c=customers.get(t.customer_code) %}
 <a class="card rq-row" href="/kiem-tra-may/{{ t.id }}"><div><b>{{ t.number }} · {{ r.machine or 'Máy chưa ghi tên' }}</b>
@@ -13,7 +13,8 @@
 {% for code, g in groups.items() %}{% if g|length > 1 %}{% set c=customers.get(code) %}
 <section class="card bgg-group" data-bgg-group><div class="bgg-gh"><b>{{ c.name if c else code }}</b><span class="badge b-lam">{{ g|length }} máy cùng khách</span></div>
 {% for r in g %}{{ row(r, true) }}{% endfor %}
-{% if can_group and ready[code] > 1 %}<a class="btn btn-new pnz-full" href="/bao-gia-gop/moi?khach={{ code|urlencode }}">Gộp báo giá {{ ready[code] }} máy</a>
+{% set og = opened.get(code) %}{% if og %}<a class="btn btn-ok pnz-full" href="/bao-gia-gop/{{ og.id }}">Mở báo giá gộp {{ og.number }} (đang chờ khách)</a>{% endif %}
+{% if can_group and ready[code] > 1 %}<a class="btn {{ 'btn-ghost' if og else 'btn-new' }} pnz-full" href="/bao-gia-gop/moi?khach={{ code|urlencode }}">{{ 'Gộp lại bản mới' if og else 'Gộp báo giá ' ~ ready[code] ~ ' máy' }}</a>
 {% elif can_group %}<p class="hint">Đủ 2 máy đã áp giá thì gộp được một báo giá chung.</p>{% endif %}
 </section>
 {% else %}{{ row(g[0]) }}{% endif %}
