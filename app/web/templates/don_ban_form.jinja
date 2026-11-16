@@ -89,7 +89,7 @@
 {{ gg.sum(d, o) }}
 <p class="hint">Đơn vị: đồng. Số có dấu * là chưa đủ dữ liệu; máy chủ tính lại khi lưu.</p>
 </section>
-{% if live %}<label class="card qf-override" data-credit-note hidden>Ghi chú khi chốt vượt hạn mức (không bắt buộc)<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
+{% if live and credit_warning %}<p class="alert warn" data-credit-warning>{{ credit_warning }}</p>{% endif %}{% if live %}<label class="card qf-override" data-credit-note {% if not credit_warning %}hidden{% endif %}>Ghi chú khi chốt vượt hạn mức (không bắt buộc)<textarea name="credit_override_reason" maxlength="2000">{{ d.get('credit_override_reason','') }}</textarea></label>{% endif %}
 {% if live %}<label class="card qf-override below-note" data-below-note {% if not d.get('below_cost_reason') %}hidden{% endif %}><b>Lý do bán dưới giá vốn (bắt buộc)</b><span class="hint">Nhân viên không thấy giá vốn; giám đốc xem lại trong báo cáo sáng.</span><textarea name="below_cost_reason" maxlength="500">{{ d.get('below_cost_reason','') }}</textarea></label>{% endif %}
 {% set wf_part='action' %}{% set workflow_total=(o.total|money if o else '—') if live else '' %}{% include 'thanh_buoc.jinja' %}
 </aside>
