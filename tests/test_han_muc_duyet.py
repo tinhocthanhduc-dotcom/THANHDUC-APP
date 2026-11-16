@@ -26,7 +26,7 @@ def fail(code, fn, *args, **kwargs):
 
 def test_defaults_save_audit_and_director_only(client, db, make_user):
     boss, kt = make_user('hm.boss', 'director'), make_user('hm.kt', 'finance')
-    assert limits_svc.limits(db) == {'BO_SUNG': 1, 'NGHI': 2, 'TAM_UNG': 2_000_000, 'HUY_HANG': 500_000}
+    assert limits_svc.limits(db) == {'BO_SUNG': 1, 'NGHI': 2, 'TAM_UNG': 2_000_000, 'HUY_HANG': 500_000, 'CHI_PHI': 500_000}
     fail('FORBIDDEN', limits_svc.save, db, kt, dict(BO_SUNG=1, NGHI=5, TAM_UNG=9_000_000, HUY_HANG=0))
     fail('BAD_LIMIT', limits_svc.save, db, boss, dict(BO_SUNG=1, NGHI=2, TAM_UNG='-5', HUY_HANG=0))
     limits_svc.save(db, boss, dict(BO_SUNG='0', NGHI='1', TAM_UNG='3.000.000', HUY_HANG='0'))
