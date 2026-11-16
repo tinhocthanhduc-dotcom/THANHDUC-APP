@@ -5141,3 +5141,57 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .bq-kind a { padding: 9px 16px; color: var(--text); font-weight: 600; text-decoration: none; }
 .bq-kind a + a { border-left: 1px solid var(--line); }
 .bq-kind a.on { background: var(--accent); color: var(--accent-text); }
+
+/* Giá theo model (TUẤN duyệt mẫu 16/11/2026), tiền tố gm- */
+.gm-pick { display: grid; gap: 10px; }
+.gm-find { position: relative; display: grid; gap: 6px; max-width: 520px; }
+.gm-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 320px; overflow-y: auto; }
+.gm-list a { display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.gm-list a small { color: var(--muted); }
+.gm-list a.on, .gm-list a:hover { background: var(--info-bg); }
+.gm-list .gm-new { color: var(--accent); font-weight: 700; }
+.gm-info { display: flex; flex-wrap: wrap; gap: 6px; }
+.gm-sheet { margin-top: 16px; display: grid; gap: 10px; }
+.gm-tools { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.gm-tools .bg-chips { margin: 0; }
+.gm-tools-r { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.gm-tools-r input[type=search] { width: 220px; }
+.gm-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0; color: var(--muted); font-size: .8rem; }
+.gm-legend i { display: inline-block; width: 22px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); background: var(--surface); }
+.gm-legend i.own, .gm-cell input.gm-own { border: 2px solid var(--accent); background: var(--info-bg); font-weight: 700; }
+.gm-legend i.chg, .gm-cell input.gm-chg { border: 2px solid var(--ok-solid); background: var(--ok-bg); font-weight: 700; }
+.gm-head, .gm-row { display: grid; gap: 8px 10px; grid-template-columns: minmax(0,1.4fr) repeat(3, minmax(0,1fr)) 130px; align-items: start; }
+.gm-head { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--line); padding: 4px 0 8px; }
+.gm-head span:not(:first-child) { text-align: right; }
+.gm-row { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.gm-row.gm-one { grid-template-columns: minmax(0,1.4fr) minmax(0,1fr) minmax(0,2fr) 130px; }
+.gm-name { padding-top: 6px; min-width: 0; }
+.gm-name small { display: block; color: var(--muted); font-size: .78rem; }
+.gm-cell { display: grid; gap: 3px; min-width: 0; }
+.gm-cell input { width: 100%; text-align: right; min-height: 38px; }
+.gm-ro { text-align: right; padding-top: 6px; }
+.gm-ro.gm-own { color: var(--accent); }
+.gm-sub { display: block; text-align: right; color: var(--muted); font-size: .74rem; }
+.gm-sub.own { color: var(--accent); font-weight: 600; }
+.gm-sub.chg { color: var(--ok); font-weight: 600; }
+.gm-act { padding-top: 2px; }
+.gm-act .btn { white-space: nowrap; }
+.gm-ch { display: none; grid-column: 1 / -1; grid-template-columns: inherit; gap: inherit; }
+.gm-ch-l { padding-top: 8px; color: var(--muted); font-size: .85rem; }
+.gm-sheet:has(input[name="co_ch"]:checked) .gm-ch { display: grid; grid-template-columns: minmax(0,1.4fr) repeat(3, minmax(0,1fr)) 130px; }
+.gm-bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); }
+.gm-bar .btn-ok { min-width: 240px; }
+@media (max-width: 760px) {
+  .gm-head { display: none; }
+  .gm-row, .gm-row.gm-one, .gm-sheet:has(input[name="co_ch"]:checked) .gm-ch { grid-template-columns: repeat(3, minmax(0,1fr)); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+  .gm-sheet:has(input[name="co_ch"]:checked) .gm-ch { border: 0; padding: 0; margin: 0; }
+  .gm-name, .gm-act, .gm-ch-l { grid-column: 1 / -1; padding-top: 0; }
+  .gm-row.gm-one .gm-cell { grid-column: 1 / -1; }
+  .gm-ch > span:last-child { display: none; }
+  .gm-cell::before { content: attr(data-label); font-size: .7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+  .gm-cell input { font-size: 16px; padding: 6px; }
+  .gm-sub { text-align: left; font-size: .7rem; }
+  .gm-tools-r input[type=search] { width: 100%; }
+  .gm-tools-r { width: 100%; }
+  .gm-bar .btn-ok { width: 100%; min-width: 0; }
+}
