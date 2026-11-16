@@ -56,6 +56,18 @@ def order(user, o, available=0, deposit_remaining=0):
     return None
 
 
+def ready_message_links(session, user, t):
+    """TUẤN duyệt 16/11/2026: nút phụ Soạn tin báo khách nhận máy; đã có tin chờ gửi thì mở lại, đã gửi thì ghi giờ gửi."""
+    from .. import tin_gui_khach
+    if not tin_gui_khach.can_write(user,'SUA_XONG') or t.priced_at is None:return []
+    row=tin_gui_khach.ready_message(session,t.id)
+    href=f'/tin-gui-khach/{row.id}' if row is not None else f'/tin-gui-khach/moi?loai=SUA_XONG&phieu={t.id}'
+    if row is None:return [link('Soạn tin báo khách',href)]
+    if row.status=='CHO':return [link('Mở tin báo khách (chờ gửi)',href)]
+    when=row.decided_at.astimezone(tin_gui_khach.TZ).strftime('%H:%M %d/%m') if row.decided_at else ''
+    return [link(f'Đã báo khách {when} · {tin_gui_khach.VIA.get(row.sent_via,"")}',href)]
+
+
 def service(session, user, t):
     dispatcher=has_role(user,*service_tickets.DISPATCHERS)
     own='technician' in user.roles and t.assignee_id==user.id
@@ -75,7 +87,8 @@ def service(session, user, t):
         approved=t.quote_approved_at is not None or warranty_free(t)
         return block(form('Sửa xong' if approved else 'Khách đồng ý','workshop-repaired' if approved else 'workshop-approve',base+'/xuong/'+('sua-xong' if approved else 'dong-y')))  # TUẤN 15/11: Khách không sửa chỉ một chỗ (khung xưởng / tab Không sửa), không lặp ở Bước tiếp
     if t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA':
-        return block(form('Giao thợ trả máy','service-schedule-return',base+'/hen-tra-may')) if dispatcher else None
+        if not dispatcher:return None
+        return block(form('Giao thợ trả máy','service-schedule-return',base+'/hen-tra-may'),ready_message_links(session,user,t))
     if t.status in ('CHO_LINH_KIEN','TAM_DUNG') and can_step:return block(transition('Tiếp tục làm','DANG_LAM'))
     if t.status=='DANG_LAM' and can_step:
         secondary=[transition('Hẹn quay lại','DA_HEN'),form('Cần linh kiện','part-create',base+'/yeu-cau-linh-kien'),transition('Tạm dừng','TAM_DUNG')]

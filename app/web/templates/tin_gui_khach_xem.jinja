@@ -51,6 +51,14 @@
   <div class="tg-r"><span>VAT</span><span>{{ f.get('vat', 0)|money }}</span></div>
   {% if f.get('discount') %}<div class="tg-r"><span>Giảm giá</span><span>−{{ f['discount']|money }}</span></div>{% endif %}
   <div class="tg-r tg-tot"><span>Tổng cộng</span><span>{{ f.get('total', 0)|money }}</span></div>
+{% elif row.kind == 'SUA_XONG' %}
+  <div class="tg-r"><span>Phiếu</span><span>{{ f.get('number') }}</span></div>
+  {% if f.get('machine') %}<div class="tg-r"><span>Máy</span><span>{{ f['machine'] }}</span></div>{% endif %}
+  {% if f.get('serial') %}<div class="tg-r"><span>Serial</span><span>{{ f['serial'] }}</span></div>{% endif %}
+  {% for w in f.get('work', []) %}<div class="tg-r"><span>Đã làm</span><span>{{ w }}</span></div>{% endfor %}
+  <div class="tg-r"><span>Bảo hành</span><span>{{ f['warranty'] ~ ' tháng' if f.get('warranty') else '—' }}</span></div>
+  <div class="tg-r mu"><span>Cách trả máy</span><span>{{ 'Khách tới cửa hàng lấy' if f.get('counter') else 'Thợ mang trả' }}</span></div>
+  <div class="tg-r tg-tot"><span>{{ 'Phí kiểm tra' if f.get('declined') else 'Phải thu' }} (gồm VAT)</span><span>{{ f.get('amount', 0)|money }}</span></div>
 {% else %}
   <div class="tg-r"><span>Phiếu</span><span>{{ f.get('number') }}</span></div>
   {% if f.get('machine') %}<div class="tg-r"><span>Máy</span><span>{{ f['machine'] }}</span></div>{% endif %}
@@ -60,6 +68,10 @@
   <div class="tg-r"><span>BH sửa chữa đến</span><span>{% if f.get('warranty_end') %}{{ f['warranty_end'][8:10] }}/{{ f['warranty_end'][5:7] }}/{{ f['warranty_end'][:4] }}{% else %}—{% endif %}</span></div>
 {% endif %}
 </section>
+{% if qr %}<section class="card tg-facts tg-qr" data-tg-qr><span class="tg-h">QR chuyển khoản</span>
+<div class="tg-qr-img" aria-label="Mã QR chuyển khoản">{{ qr.svg|safe }}</div>
+<p class="mu">{{ qr.amount|money }} đ · Nội dung {{ qr.content }}. Zalo công ty chỉ gửi chữ; gửi bằng Zalo cá nhân thì mở QR, chụp hoặc lưu ảnh gửi kèm tin.</p>
+{% if row.ref_id %}<a class="btn btn-ghost pnz-full" href="/qr/dich-vu/{{ row.ref_id }}">Mở QR để lưu ảnh</a>{% endif %}</section>{% endif %}
 {% if row.status == 'CHO' and can_edit %}
 {% call ui.next_box(users.get(row.created_by, '').split(' ')|last ~ ' gửi', 'Xem lại tin rồi gửi cho khách') %}
 {% if chat %}<button class="btn btn-ok pnz-full" formaction="/tin-gui-khach/{{ row.id }}/gui-zalo" data-tg-confirm="Gửi tin này cho khách qua Zalo công ty?">Gửi qua Zalo công ty</button>

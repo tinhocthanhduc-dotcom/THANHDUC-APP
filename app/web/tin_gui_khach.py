@@ -59,7 +59,7 @@ def _page(request, session, user, row, error='', status=200, text=None):
     return render(request, 'tin_gui_khach_xem.jinja', row=row, customer=customer, chat=chat, link=link, phones=phones,
                   kinds=tg.KINDS, via=tg.VIA, ai=tg.rewrite_state(session, row), replies=tg.replies(session, row),
                   text=row.text if text is None else text, error=error, status=status, max_text=tg.MAX_TEXT,
-                  can_edit=row.status == 'CHO' and tg.can_write(user, row.kind), doc_kinds=tg.DOC_KINDS, **tg.names(session, [row]))
+                  can_edit=row.status == 'CHO' and tg.can_write(user, row.kind), qr=tg.ready_qr(session, row), doc_kinds=tg.DOC_KINDS, **tg.names(session, [row]))
 
 
 @router.get('/tin-gui-khach/{msg_id}')

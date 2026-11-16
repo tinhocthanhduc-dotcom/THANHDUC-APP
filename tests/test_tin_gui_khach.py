@@ -256,3 +256,68 @@ def test_tin_nhac_no_thu_hai_co_link_soan_tin(db, shop):
     d = debt_reminder.build(db, shop['finance'], tg._now().date())
     text = debt_reminder.render_text(d, 'https://vd.test')
     assert 'Soạn tin: https://vd.test/tin-gui-khach/moi?loai=NHAC_NO&khach=KTD-000001' in text
+
+
+def ready_ticket(db, user, tech, **kw):
+    """Phiếu mang về xưởng đã bấm Sửa xong: TAM_DUNG + SUA_XONG_CHO_TRA, tiền đã chốt."""
+    from app.models import ServiceLine
+    db.add(Equipment(serial='VNB3K99999', customer_code='KTD-000002', model_name='Canon LBP 2900', created_by=user.id))
+    db.flush()
+    now = datetime.now(timezone.utc)
+    t = ServiceTicket(number='DV-26-00123', customer_code='KTD-000002', serial='VNB3K99999', kind='SUA_TAI_CHO', symptom='Kẹt giấy',
+                      status='TAM_DUNG', hold_reason='SUA_XONG_CHO_TRA', assignee_id=tech.id, repaired_by=tech.id, warranty_months=1,
+                      billing='THU_TIEN', total=790_000, receivable=790_000, priced_at=now, created_by=user.id, **kw)
+    db.add(t)
+    db.flush()
+    db.add_all([ServiceLine(ticket_id=t.id, line_no=1, kind='PHI', description='Thay bao lụa sấy', qty=Decimal('1'), unit_price=500_000,
+                            vat_rate=8, amount=500_000, vat_amount=40_000),
+                ServiceLine(ticket_id=t.id, line_no=2, kind='PHI', description='Vệ sinh, bảo dưỡng máy', qty=Decimal('1'), unit_price=231_482,
+                            vat_rate=8, amount=231_482, vat_amount=18_518)])
+    db.commit()
+    return t
+
+
+def test_bao_sua_xong_tu_buoc_tiep_phieu_cho_tra_may(client, db, shop, zalo):
+    t = ready_ticket(db, shop['dispatcher'], shop['technician'])
+    csrf = service_login(client, shop['dispatcher'])
+    html = client.get(f'/dich-vu/{t.id}').text
+    assert f'/tin-gui-khach/moi?loai=SUA_XONG&amp;phieu={t.id}' in html and 'Soạn tin báo khách' in html
+    client.get(f'/tin-gui-khach/moi?loai=SUA_XONG&phieu={t.id}')
+    row = db.scalars(select(CustomerMessage)).one()
+    assert (row.kind, row.ref_type, row.ref_id, row.status) == ('SUA_XONG', 'service_ticket', t.id, 'CHO')
+    assert 'DV-26-00123 đã sửa xong' in row.text and 'Canon LBP 2900' in row.text and 'VNB3K99999' in row.text
+    assert 'thay bao lụa sấy; vệ sinh, bảo dưỡng máy' in row.text and 'Bảo hành sửa chữa 1 tháng' in row.text
+    assert '790.000 đ (đã gồm VAT)' in row.text and BANK in row.text and 'nội dung TD DV2600123' in row.text
+    assert 'thợ mang máy tới trả' in row.text and texts(zalo) == []  # soạn không tự gửi
+    # nút trên phiếu đổi thành mở lại tin chờ gửi, không soạn trùng
+    assert 'Mở tin báo khách (chờ gửi)' in client.get(f'/dich-vu/{t.id}').text
+    assert client.get(f'/tin-gui-khach/moi?loai=SUA_XONG&phieu={t.id}', follow_redirects=False).headers['location'] == f'/tin-gui-khach/{row.id}'
+    assert 'Báo sửa xong' in client.get(f'/tin-gui-khach/{row.id}').text
+    r = client.post(f'/tin-gui-khach/{row.id}/da-gui', data=form(csrf, 1, row, noi_dung=row.text), follow_redirects=False)
+    assert r.status_code == 303 and fresh(db, row.id).status == 'DA_GUI'
+    assert 'Đã báo khách' in client.get(f'/dich-vu/{t.id}').text
+    # thợ không soạn; phiếu chưa sửa xong thì không soạn
+    service_login(client, shop['technician'])
+    assert client.get(f'/tin-gui-khach/moi?loai=SUA_XONG&phieu={t.id}').status_code == 403
+    service_login(client, shop['dispatcher'])
+    db.delete(fresh(db, row.id))
+    t.status, t.hold_reason = 'DANG_LAM', ''
+    db.commit()
+    assert client.get(f'/tin-gui-khach/moi?loai=SUA_XONG&phieu={t.id}').status_code == 409
+
+
+def test_bao_sua_xong_khach_mang_toi_mien_phi_va_khong_sua(db, shop):
+    t = ready_ticket(db, shop['dispatcher'], shop['technician'], counter_intake=True)
+    _, f = tg.ready_facts(db, shop['dispatcher'], t.id)
+    text = tg.ready_text(f, BANK)
+    assert 'Mời anh/chị ghé cửa hàng' in text and agent.get_settings().company_hotline in text and 'thợ mang máy' not in text
+    t.billing, t.free_reason, t.receivable, t.total = 'MIEN_PHI', 'Bảo hành', 0, 0
+    db.commit()
+    _, f = tg.ready_facts(db, shop['dispatcher'], t.id)
+    text = tg.ready_text(f, BANK)
+    assert 'sửa miễn phí theo bảo hành' in text and BANK not in text and 'Tổng thanh toán' not in text
+    t.billing, t.receivable, t.total, t.declined_at = 'THU_TIEN', 100_000, 100_000, datetime.now(timezone.utc)
+    db.commit()
+    _, f = tg.ready_facts(db, shop['dispatcher'], t.id)
+    text = tg.ready_text(f, BANK)
+    assert 'không sửa' in text and 'Phí kiểm tra: 100.000 đ (đã gồm VAT)' in text and 'Bảo hành' not in text and 'Đã làm' not in text
