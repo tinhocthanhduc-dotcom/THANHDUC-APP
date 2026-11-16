@@ -737,6 +737,8 @@ def product_create(request: Request, form=Depends(checked_form), session: Sessio
     if not has_role(user, *product_svc.WRITERS):
         raise BusinessError("FORBIDDEN", "Chỉ Kho được tạo mã hàng.", status=403)
     data = {"code": str(form.get("code", "")).strip().upper(), **_product_from_form(form)}
+    if not has_role(user, "director"):
+        data["sale_price"] = 0  # giá bán do giám đốc đặt
     try:
         p = product_svc.create(session, user, ProductIn(**data))
     except ValidationError as exc:
@@ -758,6 +760,8 @@ def product_update(request: Request, code: str, form=Depends(checked_form), sess
     if not has_role(user, *product_svc.WRITERS):
         raise BusinessError("FORBIDDEN", "Chỉ Kho được sửa mã hàng.", status=403)
     data = {**_product_from_form(form), "active": form.get("active") == "1"}
+    if not has_role(user, "director"):
+        data.pop("sale_price")  # ô giá chỉ đọc, giám đốc sửa
     shown = {**product_svc.snapshot(product_svc.load(session, code)), **data, "version": _digits(form.get("version"))}
     try:
         p = product_svc.update(session, user, code, ProductPatch(version=_digits(form.get("version")), **data))

@@ -30,7 +30,8 @@
   <label>Tên hàng<input name="name" value="{{ d.name }}" required maxlength="300" autocomplete="off"></label>
   <div class="qn-row2">
     <label>Đơn vị tính<input name="unit" value="{{ d.unit }}" required maxlength="32" autocomplete="off"></label>
-    <label>Giá bán (đồng)<input name="sale_price" value="{{ d.sale_price | money }}" inputmode="numeric" data-money class="qn-money" autocomplete="off"></label>
+    {% if 'director' in user.roles %}<label>Giá bán (đồng)<input name="sale_price" value="{{ d.sale_price | money }}" inputmode="numeric" data-money class="qn-money" autocomplete="off"></label>
+    {% else %}<p class="hint">Giá bán: giám đốc đặt sau ở trang Bảng giá.</p>{% endif %}
   </div>
   {% if 'director' in user.roles %}
   <div class="field-group"><p class="group-label">Bảo hành (tháng)</p><div class="seg stock-seg qn-seg" data-qn-warranty>{% for m in warranty_choices %}<label><input type="radio" name="warranty_months" value="{{ m }}"{% if (d.warranty_months or 0) == m %} checked{% endif %}><span>{{ m }}</span></label>{% endfor %}</div></div>

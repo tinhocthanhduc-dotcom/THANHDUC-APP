@@ -1,5 +1,5 @@
 def item(code="TD-0001", **kw):
-    return {"code": code, "name": "Mực HP 12A", "group_name": "Mực in", "unit": "hộp", "sale_price": 350000, **kw}
+    return {"code": code, "name": "Mực HP 12A", "group_name": "Mực in", "unit": "hộp", "sale_price": 0, **kw}
 
 
 import pytest
@@ -15,13 +15,35 @@ def nhom(db):
 def test_warehouse_manages_products(client, login):
     kho = login("kho58", "warehouse")
     sales = login("banhang", "sales")
+    gd = login("giamdoc", "director")
     assert client.post("/products", json=item(), headers=sales).status_code == 403
     r = client.post("/products", json=item(), headers=kho)
     assert r.status_code == 201, r.text
     assert client.post("/products", json=item(), headers=kho).json()["error"] == "DUPLICATE_CODE"
-    r = client.patch("/products/TD-0001", json={"version": 1, "sale_price": 360000}, headers=kho)
+    r = client.patch("/products/TD-0001", json={"version": 1, "sale_price": 360000}, headers=gd)
     assert r.json()["sale_price"] == 360000
-    assert client.patch("/products/TD-0001", json={"version": 1, "sale_price": 1}, headers=kho).status_code == 409
+    assert client.patch("/products/TD-0001", json={"version": 1, "sale_price": 1}, headers=gd).status_code == 409
+    r = client.patch("/products/TD-0001", json={"version": 2, "name": "Mực HP 12A chính hãng", "sale_price": 360000}, headers=kho)
+    assert r.status_code == 200 and r.json()["sale_price"] == 360000  # Kho sửa tên, giữ nguyên giá vẫn được
+
+
+def test_only_director_sets_sale_price(client, login, db):
+    """TUẤN 16/11/2026: Điều phối và Kho không sửa giá, chỉ giám đốc."""
+    from app.models import Product
+    kho = login("kho58", "warehouse")
+    dp = login("dieuphoi", "dispatcher", "warehouse", "technician")
+    gd = login("giamdoc", "director")
+    for h in (kho, dp):
+        r = client.post("/products", json=item(code="TD-0009", sale_price=350000), headers=h)
+        assert r.status_code == 403 and r.json()["error"] == "FORBIDDEN"
+    assert db.get(Product, "TD-0009") is None
+    assert client.post("/products", json=item(), headers=kho).status_code == 201
+    for h in (kho, dp):
+        r = client.patch("/products/TD-0001", json={"version": 1, "sale_price": 360000}, headers=h)
+        assert r.status_code == 403 and r.json()["error"] == "FORBIDDEN"
+    db.expire_all()
+    assert db.get(Product, "TD-0001").sale_price == 0
+    assert client.post("/products", json=item(code="TD-0002", sale_price=500000), headers=gd).status_code == 201
 
 
 def test_product_code_format(client, login):
