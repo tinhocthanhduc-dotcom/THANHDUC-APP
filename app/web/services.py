@@ -360,6 +360,9 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     if technician_view:
         from .technician import detail_context as technician_context
         ctx.update(technician_context(session,user,t,ctx))
+    # Ghi chú phiếu AI (15/11/2026): lưu ý từ lịch sử máy, khách; chỉ đọc.
+    from .. import ghi_chu_phieu
+    ctx['ai_notes']=ghi_chu_phieu.notes(session,user,ticket=t) if t.status!='DA_HUY' else []
     if not ctx.get('qr_url'):
         # QR chuyển khoản (08/11/2026): thợ đưa khách quét ngay khi đang làm, trước cả bước hoàn thành.
         from .. import vietqr
@@ -370,7 +373,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
 # Đường dẫn /moi và các ô tìm/chọn được đăng ký trước /{ticket_id} ở cuối module.
 
 
-def _intake_info(session, customer_code, machines):
+def _intake_info(session, customer_code, machines, user=None):
     """Màn Nhận đơn mới: mỗi máy có hạn bảo hành, lần sửa cuối, phiếu đang mở/đang giữ máy; kèm các phiếu chưa xong của khách."""
     if not customer_code:
         return dict(machine_info={}, open_tickets=[])
@@ -392,7 +395,13 @@ def _intake_info(session, customer_code, machines):
                                warranty=None if eq.warranty_until is None else eq.warranty_until >= today)
     open_rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code == customer_code, ServiceTicket.status.in_(svc.OPEN))
                                      .order_by(ServiceTicket.id.desc()).limit(4)))
-    return dict(machine_info=info, open_tickets=open_rows)
+    # Ghi chú phiếu AI (15/11/2026): lưu ý theo khách hiện ngay, lưu ý từng máy hiện khi tick máy đó.
+    from .. import ghi_chu_phieu
+    cfg = ghi_chu_phieu.settings(session)
+    ai_notes = ghi_chu_phieu.notes(session, user, customer_code=customer_code, cfg=cfg, part='customer') if cfg is not None else []
+    machine_notes = {eq.serial: ghi_chu_phieu.notes(session, user, customer_code=customer_code, serial=eq.serial, cfg=cfg, part='machine')
+                     for eq, _ in machines[:40]} if cfg is not None else {}
+    return dict(machine_info=info, open_tickets=open_rows, ai_notes=ai_notes, machine_notes={k: v for k, v in machine_notes.items() if v})
 
 
 def _choices(session, customer_code):
@@ -423,7 +432,7 @@ def _new_form(request, session, data=None, error=None, error_code="", status=200
     if ink_only: data['kind']='MUC_DINH_KY'
     repeat = service_repeat.last_ink(session, customer.code) if customer and can_create else []
     data.setdefault('site_keep', '1')
-    return render(request, "dich_vu_moi.jinja", **_intake_info(session, customer.code if customer else '', machines), draft=draft, repeat=repeat, ink_only=ink_only, appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
+    return render(request, "dich_vu_moi.jinja", **_intake_info(session, customer.code if customer else '', machines, request.state.user), draft=draft, repeat=repeat, ink_only=ink_only, appointment_choices=service_appointments.choices(svc._now()), next_step=next_steps.block(next_steps.form("Nhận đơn","service-create","/dich-vu/moi")) if can_create else None,d=data, customer_card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None, customer_name=customer.name if customer else "",
                   sites=sites, sites_main_address=customer.address if customer else '', machines=machines, warranty_selected=session.get(ServiceTicket,int(data['warranty_of_id'])) if str(data.get('warranty_of_id','')).isdigit() else None, error=error, error_code=error_code, status=status,
                   can_create_machine=service_machines.can_create(request.state.user),can_create=can_create,can_assign_new=has_role(request.state.user,*svc.DISPATCHERS),self_claim_minutes=service_self_claim.minutes(),technicians=_technicians(session) if has_role(request.state.user,*svc.DISPATCHERS) else [])
 
@@ -439,7 +448,7 @@ def pick_choices(request: Request, customer_code: str = "", user: User = Depends
     sites, machines = _choices(session, customer_code)
     customer = session.get(Customer, customer_code[:50]) if customer_code else None
     repeat = service_repeat.last_ink(session, customer.code) if customer and has_role(user, *svc.CREATORS) else []
-    return render(request, "dich_vu_chon_may.jinja", **_intake_info(session, customer.code if customer else '', machines), repeat=repeat, can_create_machine=service_machines.can_create(user),sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial='', site_keep='1'))
+    return render(request, "dich_vu_chon_may.jinja", **_intake_info(session, customer.code if customer else '', machines, user), repeat=repeat, can_create_machine=service_machines.can_create(user),sites=sites, machines=machines, sites_main_address=customer.address if customer else '', d=dict(site_id=str(sites[0].id) if len(sites)==1 else '', serial='', site_keep='1'))
 
 
 @router.get("/dich-vu/moi")

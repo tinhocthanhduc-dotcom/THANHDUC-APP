@@ -20,6 +20,7 @@
 <p class="hint">{{ a.what }}.</p>
 <p class="nva-today">Hôm nay: {% if code == 'DIEU_PHOI' %}<b>{{ st.get('GIAO', 0) }}</b> phiếu đã giao{% if st.get('HOAN_TAC') %} · {{ st.get('HOAN_TAC') }} hoàn tác{% endif %}{% if st.get('CHAY_THU') %} · {{ st.get('CHAY_THU') }} chạy thử{% endif %}{% if st.get('BO_QUA') %} · {{ st.get('BO_QUA') }} bỏ qua{% endif %}
 {% elif code == 'NHAC_HEN' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc thợ{% if st.get('BAO') %} · {{ st.get('BAO') }} tin báo giám đốc{% endif %}
+{% elif code == 'GHI_CHU' %}Chạy khi mở phiếu, không gửi tin, không ghi nhật ký · {{ c.rules|length }} loại dòng{{ ' · kèm tin nhắc thợ' if c.zalo }}
 {% elif code == 'NHAN_SU' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc vào ca · {{ st.get('BAO', 0) }} tin báo/gửi KPI · <a href="/luong">Xem soát bảng lương ›</a>
 {% elif code == 'TRUONG_NHOM' %}<b>{{ st.get('NHAC', 0) }}</b> tin nhắc quá hạn · {{ st.get('BAO', 0) }} tin báo/gửi việc · {{ st.get('DOI_NGUOI', 0) }} lần đổi người · <a href="/doi-ai">Xem màn Đội AI ›</a>
 {% else %}<b>{{ st.get('BAO', 0) }}</b> tin gom việc treo · lúc {{ c.times|join(', ') }}{% endif %}</p>
@@ -51,6 +52,18 @@
 <label for="nva-late"><b>Báo giám đốc khi trễ hẹn quá (phút)</b><input id="nva-late" name="director_late_minutes" inputmode="numeric" value="{{ c.director_late_minutes }}"></label>
 </div>
 <p class="hint">Nhắc sắp trễ hẹn theo đúng mốc chuông của thợ. Điều phối vẫn nhận báo "có thể trễ hẹn" như cũ. Mỗi mốc một tin.</p>
+{% elif code == 'GHI_CHU' %}
+<div class="field" role="group" aria-labelledby="nva-gc-rules"><p class="group-label" id="nva-gc-rules"><b>Ghi những dòng nào</b></p><div class="nva-checks">
+{% for k, label in gc_rules.items() %}<label class="check"><input type="checkbox" name="rules" value="{{ k }}"{% if k in c.rules %} checked{% endif %}> {{ label }}{% if k == 'no' %} <small class="mu">(văn phòng thấy số tiền; thợ chỉ thấy "có nợ cũ quá hạn")</small>{% endif %}</label>{% endfor %}</div></div>
+<div class="nva-nums">
+<label for="nva-gc-recent"><b>Máy mới sửa trong (ngày)</b><input id="nva-gc-recent" name="recent_days" inputmode="numeric" value="{{ c.recent_days }}"></label>
+<label for="nva-gc-count"><b>Báo quay lại nhiều lần từ (lần)</b><input id="nva-gc-count" name="repeat_count" inputmode="numeric" value="{{ c.repeat_count }}"></label>
+<label for="nva-gc-days"><b>Trong (ngày)</b><input id="nva-gc-days" name="repeat_days" inputmode="numeric" value="{{ c.repeat_days }}"></label>
+</div>
+<div class="field" role="group" aria-labelledby="nva-gc-zalo"><p class="group-label" id="nva-gc-zalo"><b>Thêm 2 dòng lưu ý vào tin Zalo nhắc thợ</b></p><div class="seg">
+<label><input type="radio" name="zalo" value="1"{% if c.zalo %} checked{% endif %}><span>Có</span></label>
+<label><input type="radio" name="zalo" value="0"{% if not c.zalo %} checked{% endif %}><span>Không</span></label></div></div>
+<p class="hint">Chạy bằng quy tắc trên máy chủ, không gọi API. Chỉ đọc lịch sử, không sửa phiếu, tiền, kho, công nợ. Không in ra giấy đưa khách. Thợ không bao giờ thấy giá vốn, lãi.</p>
 {% elif code == 'TRUONG_NHOM' %}
 <div class="nva-nums">
 <label for="nva-over"><b>Quá tải khi có từ (việc)</b><input id="nva-over" name="overload" inputmode="numeric" value="{{ c.overload }}"></label>

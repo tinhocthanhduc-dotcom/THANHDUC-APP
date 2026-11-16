@@ -46,6 +46,10 @@ AGENTS = {
     'THU_KY': dict(name='Thư ký phiếu', what='Gom việc còn treo của từng người, nhắn Zalo vào cuối buổi',
                    defaults=dict(times=['11:15', '17:15'])),
     # Đội AI đợt 1 (TUẤN duyệt 15/11/2026): xem app/truong_nhom.py. Bật thì Thư ký phiếu gộp vào tin 07:45 / 13:30.
+    # Ghi chú phiếu AI (TUẤN duyệt 15/11/2026): xem app/ghi_chu_phieu.py. Chỉ đọc, tính khi mở phiếu, không ghi nhật ký.
+    'GHI_CHU': dict(name='Ghi chú phiếu AI', what='Mở phiếu là có sẵn vài dòng lưu ý từ lịch sử máy và khách: mới sửa, còn bảo hành, lần trước thay gì, khách hợp đồng, nợ quá hạn',
+                    defaults=dict(rules=['bao_hanh', 'moi_sua', 'quay_lai', 'bao_gia', 'muc', 'hop_dong', 'khach_moi', 'cung_cho', 'ghi_chu', 'no'],
+                                  recent_days=90, repeat_count=3, repeat_days=60, zalo=True)),
     'TRUONG_NHOM': dict(name='Trưởng nhóm AI', what='Chia mỗi việc cho một người kèm hạn, xếp 3 việc làm tiếp, nhắc và báo lên khi treo, đổi thợ khi quá tải',
                         defaults=dict(overload=8, gap=3, reassign=True, undo_minutes=10, times=['07:45', '13:30'],
                                       chat=True, summary='17:15', alert_overload=True)),
@@ -154,6 +158,13 @@ def save(session, user, code: str, form) -> VirtualAgent:
                               director_late_minutes=_int(get('director_late_minutes'), 5, 120, 'Báo giám đốc khi trễ hẹn quá'))
             elif code == 'THU_KY':
                 config.update(times=_times(get('times')))
+            elif code == 'GHI_CHU':
+                from .ghi_chu_phieu import RULES
+                config.update(rules=[r for r in form.getlist('rules') if r in RULES],
+                              recent_days=_int(get('recent_days'), 7, 730, 'Máy mới sửa trong'),
+                              repeat_count=_int(get('repeat_count'), 2, 20, 'Quay lại từ'),
+                              repeat_days=_int(get('repeat_days'), 7, 365, 'Quay lại trong'),
+                              zalo=str(get('zalo') or '') == '1')
             elif code == 'TRUONG_NHOM':
                 config.update(overload=_int(get('overload'), 2, 50, 'Quá tải khi có từ'),
                               gap=_int(get('gap'), 1, 20, 'Người nhận phải ít hơn'),
@@ -387,6 +398,17 @@ def undo(session, user, log_id: int) -> ServiceTicket:
 
 # ---------- Nhắc hẹn AI ----------
 
+def _ai_lines(session, ticket) -> str:
+    """Ghi chú phiếu AI (TUẤN 15/11/2026): gắn 2 dòng lưu ý quan trọng nhất vào tin nhắc thợ. Lỗi thì bỏ qua, tin vẫn gửi."""
+    try:
+        from . import ghi_chu_phieu
+        tech = session.get(User, ticket.assignee_id) if ticket.assignee_id else None
+        return ghi_chu_phieu.zalo_lines(session, tech, ticket) if tech is not None else ''
+    except Exception:
+        log.exception('ghi chu phieu zalo')
+        return ''
+
+
 def remind_once(session, now=None, sender=None) -> int:
     row = active(session, 'NHAC_HEN')
     now = now or _now()
@@ -410,7 +432,7 @@ def remind_once(session, now=None, sender=None) -> int:
         if chat is None:
             continue
         mins = int((now - step.at).total_seconds() // 60)
-        body = f"Nhắc việc: phiếu {ticket.number} giao cho bạn {mins} phút rồi, bạn chưa bấm Nhận.\nMở app: {base}/tho/phieu/{ticket.id}"
+        body = f"Nhắc việc: phiếu {ticket.number} giao cho bạn {mins} phút rồi, bạn chưa bấm Nhận.{_ai_lines(session, ticket)}\nMở app: {base}/tho/phieu/{ticket.id}"
         if _send(session, chat, ticket.assignee_id, f'nva-nhan:{ticket.id}:{step.id}', body, send):
             session.add(VirtualAgentLog(agent='NHAC_HEN', action='NHAC', ticket_id=ticket.id, target_id=ticket.assignee_id,
                                         text=f'Nhắc thợ: {ticket.number} giao {mins} phút chưa nhận'))
@@ -423,7 +445,7 @@ def remind_once(session, now=None, sender=None) -> int:
         if chat is None:
             continue
         label = service_suggest.risk_label(item)
-        body = f"Nhắc hẹn: {ticket.number} {label.lower()}, bạn chưa bấm Đi. Nếu trễ, bấm Báo trễ trong app.\nMở app: {base}/tho/phieu/{ticket.id}"
+        body = f"Nhắc hẹn: {ticket.number} {label.lower()}, bạn chưa bấm Đi. Nếu trễ, bấm Báo trễ trong app.{_ai_lines(session, ticket)}\nMở app: {base}/tho/phieu/{ticket.id}"
         if _send(session, chat, ticket.assignee_id, f"nva-hen:{item['mark']}", body, send):
             session.add(VirtualAgentLog(agent='NHAC_HEN', action='NHAC', ticket_id=ticket.id, target_id=ticket.assignee_id,
                                         text=f'Nhắc thợ: {ticket.number} {label.lower()}'))
