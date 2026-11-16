@@ -5223,3 +5223,22 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .bq-choice b{font-size:1rem}.bq-choice span{color:var(--muted,#5d6676);font-size:.88rem}
 .bq-choice:hover,.bq-choice:focus-visible{border-color:var(--accent,#1f5fbf)}
 .hg-warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:.9rem;margin:6px 0}
+/* Đợt 4 rà soát: Chờ anh duyệt (TUẤN duyệt 16/11/2026) */
+.ap-list{display:grid}
+.ap-row{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+.ap-row:hover{background:var(--tag)}
+.ap-main{display:grid;gap:2px;min-width:0}.ap-main b{overflow-wrap:anywhere}.ap-main small{color:var(--muted)}
+.ap-money{font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ap-kt{color:var(--ok);font-weight:700}
+.ap-box{margin-bottom:14px}
+.ap-next{display:grid;gap:6px;border:2px solid var(--ok-solid);border-radius:12px;padding:12px 14px;background:var(--surface);color:inherit;text-decoration:none;max-width:560px}
+.ap-next small{font-size:.75rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ok);font-weight:800}
+.ap-next strong{font-size:1.25rem}.ap-next span:not(.btn){color:var(--muted);font-size:.88rem}.ap-next .btn{justify-self:start}
+/* Đợt 4 rà soát: menu Hằng ngày + Khác */
+.nav-more{margin-top:6px;border-top:1px solid var(--line);padding-top:4px}
+.nav-more > summary{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 10px;border-radius:8px;list-style:none;cursor:pointer;font-weight:700;color:var(--muted)}
+.nav-more > summary::-webkit-details-marker{display:none}
+.nav-more > summary::after{content:'';margin-left:auto;width:7px;height:7px;flex:none;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+.nav-more[open] > summary::after{transform:rotate(45deg)}
+.nav-more > summary:hover{background:var(--tag)}
+@media (min-width: 901px){html.nav-mini .nav-more > summary{display:none}html.nav-mini .nav-more{border-top:0}}

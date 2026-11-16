@@ -48,7 +48,10 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
     orders=_day_orders(request,session,user,data['today'])
     # 5 số chính (TUẤN duyệt 11/11/2026): cùng số với tin Zalo sáng, chỉ giám đốc thấy.
     five=morning_report.build(session,user,data['today']) if has_role(user,'director') else None
-    return render(request,'tong_quan.jinja',s=data,five=five,five_when=morning_report.period_label(five) if five else '',five_pct=morning_report.month_change(five) if five else None,orders=orders,order_statuses=ORDER_STATUSES,fulfillments=FULFILLMENTS,bars=bars,board=board,live=live,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
+    # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): ô Chờ anh duyệt trên đầu Tổng quan, chỉ giám đốc.
+    from .. import director_approvals
+    approvals=director_approvals.summary(session) if has_role(user,'director') else None
+    return render(request,'tong_quan.jinja',s=data,five=five,approvals=approvals,five_when=morning_report.period_label(five) if five else '',five_pct=morning_report.month_change(five) if five else None,orders=orders,order_statuses=ORDER_STATUSES,fulfillments=FULFILLMENTS,bars=bars,board=board,live=live,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
         service_labels=SERVICE_STATUSES,advance_pending=advance_pending,attendance_pending=attendance_pending,can_save=has_role(user,'director'),alert_groups=groups,alert_counts=notices.counts,alert_labels=alerts.LABELS,
         today_query=period(data['today'],data['today']),month_query=period(data['month_start'],data['today']),
         last_query=period(data['last_month_start'],data['last_month_end']))

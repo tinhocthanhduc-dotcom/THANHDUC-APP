@@ -1,0 +1,12 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Chờ anh duyệt{% endblock %}
+{% block main %}<div class="page-wide ap-page">
+{# Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): chỉ đọc; nút duyệt vẫn ở từng phiếu. #}
+{% call ui.page_head('Chờ anh duyệt', sub=(total ~ ' việc' ~ ((' · ' ~ (cash|money) ~ ' đ tiền ra') if cash else '') ~ '. Bấm một dòng để mở phiếu và duyệt như cũ.')) %}{% endcall %}
+<div class="list-tiles ap-tiles">{% for t in tiles %}<a class="list-tile{{ ' on' if t.on }}" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}><small>{{ t.label }}</small><strong>{{ t.n }}</strong></a>{% endfor %}</div>
+<section class="card list-card">
+{% if rows %}<div class="ap-list">{% for r in rows %}<a class="ap-row" href="{{ r.link }}"><span class="ap-main"><b>{{ r.label }}{% if r.number %} · {{ r.number }}{% endif %}{% if r.title %} · {{ r.title }}{% endif %}</b><small>{{ r.who }}{% if r.age %} · {{ r.age }}{% endif %}{% if r.kt %} · <span class="ap-kt">Kế toán duyệt được</span>{% endif %}</small></span><span class="ap-money">{% if r.amount is not none %}{{ r.amount|money }} đ{% else %}–{% endif %}</span></a>{% endfor %}</div>
+{% else %}{{ ui.empty('Không có việc nào chờ anh duyệt.') }}{% endif %}
+</section>
+</div>{% endblock %}

@@ -63,6 +63,10 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
       <input type="search" class="nav-search" data-nav-search placeholder="Tìm trang…" aria-label="Tìm trang trong menu" autocomplete="off">
       <nav aria-label="Menu chính" class="role-nav">
       {% set ns = namespace(section='') %}
+      {# Đợt 4 rà soát (TUẤN duyệt 16/11/2026): 8 mục Hằng ngày luôn hiện; các nhóm còn lại gập trong Khác. #}
+      {% if navigation.daily %}<div class="nav-head">Hằng ngày</div>
+      {% for item in navigation.daily %}<a href="{{ item.href }}" data-nav-item class="nav-top{% if item.active %} on{% endif %}"{% if item.active %} aria-current="page"{% endif %} title="{{ item.label }}">{{ item.icon|safe }}{{ item.label }}</a>{% endfor %}
+      {% if navigation.groups %}<details class="nav-more" data-nav-more{% if navigation.more_open %} open data-nav-more-active{% endif %}><summary title="Khác"><span>Khác ({{ navigation.more }} mục)</span></summary>{% endif %}{% endif %}
       {% for group in navigation.groups %}
         {% if group.section != ns.section %}{% set ns.section = group.section %}<div class="nav-head">{{ group.section }}</div>{% endif %}
         {% if not group.label or group['items']|length == 1 %}
@@ -74,6 +78,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
           </details>
         {% endif %}
       {% endfor %}
+      {% if navigation.daily and navigation.groups %}</details>{% endif %}
       <p class="nav-empty" data-nav-empty hidden>Không có trang nào khớp.</p>
       </nav>
     </div>

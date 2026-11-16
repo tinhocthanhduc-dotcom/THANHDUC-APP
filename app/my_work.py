@@ -58,6 +58,9 @@ def _supplier_debt_dates(deductions):
         unpaid.c.position == 1).subquery()
 
 
+DIRECTOR_APPROVALS = ('refunds_pending', 'expenses_pending', 'pending_destruction', 'stock_counts_pending', 'pending_supplier_returns')
+
+
 def _specs(user, today, now):
     director = has_role(user, 'director')
     # Kho phụ trách chỉ lọc hàng đợi của thủ kho; quyền thao tác không đổi.
@@ -320,6 +323,10 @@ def _specs(user, today, now):
             zm,zm.id==zt.message_id).outerjoin(Customer,Customer.code==zt.customer_code).where(
             zt.owner_id==user.id,zt.done_at.is_(None),zt.status.in_(('XONG','LOI'))).order_by(zt.due_at,zt.id)
         add('zalo_inbox','Tin Zalo cần trả lời',inbox,'zalo_inbox','/tin-zalo')
+    # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): việc chờ duyệt của giám đốc ở trang Chờ anh duyệt, không lặp ở đây.
+    if 'director' in user.roles and 'finance' not in user.roles:
+        for key in DIRECTOR_APPROVALS:
+            specs.pop(key, None)
     return specs
 
 

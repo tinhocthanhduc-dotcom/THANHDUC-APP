@@ -268,3 +268,25 @@ def test_expense_screens(client, db, working, fund):
     assert db.scalar(select(CashDoc).where(CashDoc.source_type == 'SERVICE_EXPENSE')).amount == 150000
     service_login(client, p['dispatcher'])
     assert 'Chi phí phát sinh nội bộ' in client.get(f'/dich-vu/{t.id}').text
+
+
+def test_cho_anh_duyet_gathers_waiting_items(client, db, working):
+    """Đợt 4 rà soát (TUẤN duyệt 16/11/2026): trang Chờ anh duyệt gom chi phí phát sinh, tạm ứng, hủy hàng...; Việc của tôi giám đốc không lặp."""
+    from app import director_approvals
+    p, t = working
+    row = spend(db, p, t, amount='620.000', description='Dây nguồn')
+    db.commit()
+    items = director_approvals.rows(db)
+    kinds = {r['kind']: r for r in items}
+    assert kinds['CHI_PHI']['amount'] == 620000 and kinds['CHI_PHI']['link'].endswith(f'#cp-{row.id}')
+    assert kinds['CHI_PHI']['kt'] is False  # trên hạn mức 500.000 của kế toán
+    s = director_approvals.summary(db)
+    assert s['n'] == len(items) and s['cash'] == 620000
+    assert not any(g['key'] == 'expenses_pending' for g in my_work.collect(db, p['director']))
+    service_login(client, p['director'])
+    html = client.get('/cho-anh-duyet').text
+    assert 'Chi phí phát sinh' in html and '620.000' in html and 'Dây nguồn' in html
+    assert 'Chờ anh duyệt' in client.get('/tong-quan').text and 'href="/cho-anh-duyet"' in client.get('/tong-quan').text
+    assert client.get('/cho-anh-duyet?nhom=kho').text.count('class="ap-row"') == 0
+    service_login(client, p['technician'])
+    assert client.get('/cho-anh-duyet', follow_redirects=False).status_code == 403
