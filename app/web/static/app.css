@@ -5223,3 +5223,15 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .bq-choice b{font-size:1rem}.bq-choice span{color:var(--muted,#5d6676);font-size:.88rem}
 .bq-choice:hover,.bq-choice:focus-visible{border-color:var(--accent,#1f5fbf)}
 .hg-warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:.9rem;margin:6px 0}
+/* Nguồn khách cho Growth OS (TUẤN duyệt 16/11/2026) */
+.lead-box{border-top:1px dashed var(--line);margin-top:12px;padding-top:12px;display:grid;gap:8px}
+.lead-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}
+.lead-head .hint{margin:0}
+.lead-tag{font-size:.78rem;font-weight:700;background:var(--ok-bg);color:var(--ok);padding:2px 8px;border-radius:999px}
+.lead-row{display:grid;gap:8px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.lead-row>label:first-child{grid-column:1/-1}
+.lead-row input,.lead-row select{min-width:0}
+.lead-box select{min-height:44px}
+.lead-box>.hint{margin:0}
+@media (min-width:900px){.lead-row{grid-template-columns:repeat(3,minmax(0,1fr))}.lead-row>label:first-child{grid-column:auto}}
+.lead-box label{display:grid;gap:4px;font-weight:700;color:var(--text)}

@@ -19,13 +19,13 @@ from ..errors import BusinessError
 from ..models import Customer, CustomerPhone, Product, Quote, ServiceTicket, SalesOrder, SalesDelivery, StockDoc, User, VAT_RATES, Warehouse
 from ..money_words import money_words
 from ..sales_warranty import parse_serials, for_order as serials_for_order
-from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm
+from ..schemas import SalesOrderFromQuote, SalesOrderIn, SalesOrderOut, SalesOrderUpdate, SalesOrderPromise, SalesDeliveryIn, SalesOrderOptions, SalesCounterSale, SalesOrderConfirm, OrderLeadIn
 from ..security import has_role
 from . import doc_frame, checked_form, money, render, web_user
 from .quotes import _quantity, _pricing_raw, _pricing_body
 from .receipts import order_context, _report_body
 
-from . import next_steps, picked, steps
+from . import lead, next_steps, picked, steps
 
 router = APIRouter()
 FULFILLMENTS = {'TAI_QUAY':'Tại quầy','KHACH_LAY_SAU':'Khách lấy sau','THO_GIAO':'Thợ giao','VAN_CHUYEN':'Gửi vận chuyển'}
@@ -188,7 +188,7 @@ def _raw(form):
     return dict(customer_code=str(form.get('customer_code','')),contact_name=str(form.get('contact_name','')),
                 delivery_address=str(form.get('delivery_address','')),note=str(form.get('note','')),promised_date=str(form.get('promised_date','')),
                 version=str(form.get('version','')),lines=lines,fulfillment=str(form.get('fulfillment','TAI_QUAY')),
-                payment_term=str(form.get('payment_term','TRA_NGAY')),due_days=str(form.get('due_days','30')),deposit_amount=str(form.get('deposit_amount','')),**_pricing_raw(form))
+                payment_term=str(form.get('payment_term','TRA_NGAY')),due_days=str(form.get('due_days','30')),deposit_amount=str(form.get('deposit_amount','')),**_pricing_raw(form),**lead.raw(form,order=True))
 
 
 def _body(data):
@@ -207,7 +207,8 @@ def _body(data):
     return dict(contact_name=data['contact_name'],delivery_address=data['delivery_address'],note=data['note'],lines=lines,
                 promised_date=data.get('promised_date') or None,fulfillment=data.get('fulfillment','TAI_QUAY'),
                 payment_term=data.get('payment_term','TRA_NGAY'),due_days=data.get('due_days','30'),
-                deposit_amount=_deposit(data.get('deposit_amount','')),**_pricing_body(data))
+                deposit_amount=_deposit(data.get('deposit_amount','')),**_pricing_body(data),
+                **{k:data[k] for k in lead.ORDER_FIELDS if k in data})
 
 
 def _deposit(value):
@@ -396,7 +397,8 @@ def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
     customer=session.get(Customer,quote.customer_code)
     data=data if data is not None else dict(version=quote.version,contact_name=quote.contact_name,
         delivery_address=customer.address,note=quote.note,promised_date='',warehouses={},
-        fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days='30',deposit_amount='')
+        fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days='30',deposit_amount='',
+        lead_source=quote.lead_source or '',campaign_code=quote.campaign_code or '',lead_ref=quote.lead_ref or '',web_order_ref='')
     warehouses=_warehouses(session)
     codes={l.product_code for l in quote.lines if l.product_code}
     active=[w.code for w in warehouses if w.active]
@@ -429,7 +431,7 @@ def from_quote(request: Request,quote_id: int,form=Depends(checked_form),session
     raw=dict(version=str(form.get('version','')),contact_name=str(form.get('contact_name',source.contact_name)),
              delivery_address=str(form.get('delivery_address',customer.address)),note=str(form.get('note',source.note)),promised_date=str(form.get('promised_date','')),
              warehouses={int(k[10:]):str(v) for k,v in form.items() if re.fullmatch(r'warehouse_[0-9]+',k)},
-             **{k:str(form[k]) for k in svc.TERM_FIELDS if k in form},credit_override_reason=str(form.get('credit_override_reason','')),below_cost_reason=str(form.get('below_cost_reason',''))[:500])
+             **{k:str(form[k]) for k in svc.TERM_FIELDS if k in form},**lead.raw(form,order=True),credit_override_reason=str(form.get('credit_override_reason','')),below_cost_reason=str(form.get('below_cost_reason',''))[:500])
     try:
         # Trường để trống thì dùng mặc định của đơn (Tại quầy, Trả ngay, 30 ngày, không cọc).
         terms={k:raw[k] for k in svc.TERM_FIELDS if raw.get(k,'').strip()}
@@ -517,6 +519,8 @@ def action(request: Request,order_id: int,action: str,form=Depends(checked_form)
             svc.change_customer(session,user,order_id,version,str(form.get('customer_code','')))
         elif action=='delivery-info':
             svc.change_delivery_info(session,user,order_id,version,str(form.get('contact_name','')),str(form.get('delivery_address','')),str(form.get('note','')))
+        elif action=='lead':
+            svc.change_lead(session,user,order_id,version,OrderLeadIn(**lead.raw(form,order=True)))
         elif action=='reopen':
             svc.reopen(session,user,order_id,str(form.get('reason','')),version)
         elif action=='options':

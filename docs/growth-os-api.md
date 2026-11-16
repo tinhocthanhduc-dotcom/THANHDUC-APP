@@ -61,3 +61,18 @@ Tối đa 200 mã/lần.
 - `CAO` ≥ 30% · `VUA` 15–30% · `THAP` 0–15% · `AM` < 0. Ngưỡng ở `BANDS` trong `app/marketing_api.py`.
 - `band: null` khi chưa tính được: `reason` = `CHUA_CO_GIA_VON` hoặc `CHUA_CO_GIA_BAN`.
 - Không bao giờ trả con số giá vốn hay phần trăm.
+
+## Phần B: nguồn khách trên báo giá và đơn bán (migration 0106)
+
+TUẤN duyệt mẫu 16/11/2026. Không bắt buộc nhập; trống = `null`.
+
+| Ô | Ở đâu | Giá trị |
+|---|---|---|
+| `lead_source` | quotes, sales_orders | `WEB`, `GOOGLE_MAPS`, `FACEBOOK`, `ZALO`, `SHOPEE`, `TIKTOK_SHOP`, `KHACH_CU`, `GIOI_THIEU`, `KHAC` |
+| `campaign_code` | quotes, sales_orders | chữ tự do ≤ 40, app viết hoa (vd. `C-2612-136X`, `TD136X`); đối chiếu với Growth OS sau |
+| `lead_ref` | quotes, sales_orders | mã khách hỏi ≤ 40 |
+| `web_order_ref` | sales_orders | mã đơn WooCommerce/Shopee/TikTok ≤ 60; màn hình chỉ cho nhập khi nguồn là Web/Shopee/TikTok Shop |
+
+- Đơn lập từ báo giá kế thừa 3 ô đầu; người lập đơn vẫn đổi được khi đơn còn nháp.
+- Sau khi chốt: chỉ giám đốc sửa ("Sửa nguồn khách" trong Thao tác khác), không đổi tiền, ghi nhật ký `sales_order.lead`.
+- Thêm `updated_at` cho quotes và sales_orders (chuẩn bị Phần C).

@@ -1,6 +1,7 @@
 {% extends 'base.jinja' %}
 {% block title %}Tạo đơn từ {{ q.number }}{% endblock %}
 {% import 'da_chon.jinja' as picked %}
+{% import '_nguon_khach.jinja' as nk %}
 {% block main %}<div class="doc-detail quote-form-page">
 {% set live = not linked and q.status=='CHAP_NHAN' %}{% set ful = d.get('fulfillment') or 'TAI_QUAY' %}{% set pay = d.get('payment_term') or 'TRA_NGAY' %}
 <div class="bar quote-heading oq-bar"><h1>Tạo đơn bán</h1><a class="qf-src-chip" href="/bao-gia/{{ q.id }}">Từ báo giá {{ q.number }} ↗</a>{% if q.status=='CHAP_NHAN' %}<span class="tag oq-ok">Khách đã chấp nhận</span>{% endif %}<span class="oq-flow">Báo giá → <b>Đơn bán</b> → Giao hàng → Thu tiền → Xong</span></div>
@@ -16,6 +17,7 @@
 <div class="oq-cust">{{ picked.card(customer_card) }}<small>Theo báo giá</small></div>
 <div class="qf-pair"><label>Người nhận<input name="contact_name" value="{{ d.contact_name }}" maxlength="200" placeholder="Người nhận hàng"></label>
 <label>Điện thoại<input readonly value="{{ customer_card.phone if customer_card else '' }}" placeholder="Theo khách hàng"></label></div>
+{{ nk.fields(d, order=true, inherited=true) }}
 </section>
 <section class="card qf-card qf-ship"><h2 class="qf-h">Giao nhận</h2>
 <div class="seg stock-seg qf-seg4" role="group" aria-label="Nhận hàng">{% for value,label in fulfillments.items() %}<label><input type="radio" name="fulfillment" value="{{ value }}" {% if ful==value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}</div>
