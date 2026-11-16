@@ -3,7 +3,8 @@
 {% block title %}Báo giá gộp{% endblock %}
 {% block main %}<div class="page-wide bgg-page">
 {# TUẤN 16/11/2026: xem lại báo giá gộp cũ (không phải lần nào cũng tạo mới). Lập mới từ Máy chờ kiểm tra. #}
-{% call ui.page_head('Báo giá gộp', sub='Báo giá nhiều máy của một khách. Lập mới ở Máy chờ kiểm tra (khách có từ 2 máy đã áp giá).') %}<a class="btn btn-ghost" href="/kiem-tra-may">Máy chờ kiểm tra</a>{% endcall %}
+{% call ui.page_head('Báo giá gộp', sub='Báo giá nhiều máy của một khách. Lập mới ở Máy chờ kiểm tra (khách có từ 2 máy đã áp giá).') %}<a class="btn btn-new" href="/cac-bao-gia/tao">+ Tạo báo giá</a>{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Báo giá') }}
 {% with kind='gop' %}{% include '_bao_gia_loai.jinja' %}{% endwith %}
 {{ ui.list_tabs(tabs) }}
 {% call ui.list_bar('/bao-gia-gop', q, 'Tìm số BGG, khách, số phiếu…') %}<input type="hidden" name="view" value="{{ view }}">{% endcall %}

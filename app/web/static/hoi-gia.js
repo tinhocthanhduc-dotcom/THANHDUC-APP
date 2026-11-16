@@ -92,6 +92,7 @@
   // Khách (không bắt buộc): gõ tìm, bấm chọn.
   var find = form.querySelector('[data-hg-find]'), options = form.querySelector('[data-hg-options]');
   var khach = form.querySelector('[data-hg-khach]'), picked = form.querySelector('[data-hg-picked]');
+  var warn = form.querySelector('[data-hg-warn]');
   var findSeq = 0, findTimer = null;
   find.addEventListener('input', function () {
     clearTimeout(findTimer);
@@ -112,8 +113,17 @@
     khach.value = btn.dataset.serviceCustomer;
     form.querySelector('[data-hg-picked-name]').textContent = btn.dataset.serviceCustomer + ' · ' + btn.dataset.label;
     picked.hidden = false; find.hidden = true; find.value = ''; options.replaceChildren();
+    // Đợt 3 rà soát: nhắc nếu khách đang có báo giá sửa chờ trả lời (không chặn).
+    if (warn) {
+      var code = khach.value;
+      fetch(warn.dataset.hgWarn + '?' + new URLSearchParams({khach: code}), {credentials: 'same-origin'})
+        .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
+        .then(function (html) { if (khach.value === code) warn.innerHTML = html; })
+        .catch(function () {});
+    }
   });
   form.querySelector('[data-hg-unpick]').addEventListener('click', function () {
     khach.value = ''; picked.hidden = true; find.hidden = false; find.focus();
+    if (warn) warn.replaceChildren();
   });
 })();

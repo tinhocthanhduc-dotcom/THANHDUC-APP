@@ -11,7 +11,7 @@ from ..models import Customer, ServiceTicket, User
 from ..security import has_role
 from ..service_counter import ROLES as COUNTER_ROLES
 from ..service_tickets import CREATORS
-from . import checked_form, nav, paging, picked, render, web_user
+from . import checked_form, hubs, nav, paging, picked, render, web_user
 
 router = APIRouter(include_in_schema=False)
 public_router = APIRouter(include_in_schema=False)
@@ -58,6 +58,7 @@ def _compose(request, session, user, d, error='', error_code='', status=200, row
         ctx['text'] = d['text']
     linked = bool(customer and qq.linked_chat(session, customer.code))
     return render(request, 'hoi_gia_moi.jinja', d=d, customer=customer, linked=linked, places=qq.PLACES,
+                  open_quotes=qq.open_repair_quotes(session, customer.code) if customer and not row else [],
                   model_names=[m.name for m in pb.models(session) if m.active], conv=_can_convert(user),
                   row=row, error=error, error_code=error_code, status=status, **ctx)
 
@@ -75,7 +76,7 @@ def listing(request: Request, view: str = 'cho', q: str = '', trang: str = '', s
     tickets = {t.id: t for t in session.query(ServiceTicket).filter(ServiceTicket.id.in_([r.ticket_id for r in shown if r.ticket_id]))} \
         if any(r.ticket_id for r in shown) else {}
     return render(request, 'hoi_gia_ds.jinja', rows=shown, p=page, q=q[:200], view=view, names=qq.customer_names(session, shown),
-                  statuses=qq.STATUSES, tickets=tickets, range_text=qq.range_text,
+                  statuses=qq.STATUSES, tickets=tickets, range_text=qq.range_text, hub=hubs.quotes(session, user, '/hoi-gia'),
                   tabs=[dict(label=label, n=counts[k], on=k == view, href=link(view=k)) for k, (label, _) in qq.VIEWS.items()])
 
 
@@ -98,6 +99,13 @@ def pick_customer(request: Request, q: str = '', user: User = Depends(web_user),
     qq.require(user)
     rows = [c for c in customer_svc.search(session, q[:200]) if c.status == 'DANG_DUNG'] if q.strip() else []
     return render(request, 'dich_vu_chon_khach.jinja', rows=rows, customer_cards=picked.customer_cards(session, user, rows))
+
+
+@router.get('/hoi-gia/bao-gia-dang-cho')
+def open_quotes(request: Request, khach: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Đợt 3 rà soát: chọn khách xong thì nhắc nếu khách đang có báo giá sửa chờ trả lời."""
+    qq.require(user)
+    return render(request, '_hoi_gia_dang_cho.jinja', open_quotes=qq.open_repair_quotes(session, khach[:16]))
 
 
 def _next(row, nxt):

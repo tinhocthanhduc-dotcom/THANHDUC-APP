@@ -18,7 +18,7 @@ from ..models import Customer, CustomerPhone, Product, Quote, SalesOrder, User, 
 from ..money_words import money_words
 from ..schemas import QuoteIn, QuoteOut, QuoteUpdate
 from ..security import has_role
-from . import doc_frame, checked_form, money, render, web_user
+from . import doc_frame, checked_form, hubs, money, render, web_user
 
 from . import next_steps, picked, steps
 
@@ -198,7 +198,7 @@ def listing(request: Request,q: str='',status: str='',han: int=0,phan: int=0,ngu
                  rate=round(100*recent.get('CHAP_NHAN',0)/decided) if decided else None,accepted=recent.get('CHAP_NHAN',0),decided=decided)
     staff = session.execute(select(User.id,User.full_name).where(User.id.in_(select(Quote.created_by).distinct()))
                             .order_by(User.full_name)).all()
-    return render(request,'bao_gia_ds.jinja',stats=stats,staff=staff,**extra)
+    return render(request,'bao_gia_ds.jinja',stats=stats,staff=staff,hub=hubs.quotes(session,user,'/bao-gia'),**extra)
 
 
 @router.get('/bao-gia/tim-khach')

@@ -25,6 +25,7 @@
 <p class="hg-picked" data-hg-picked {% if not customer %}hidden{% endif %}><b data-hg-picked-name>{% if customer %}{{ customer.code }} · {{ customer.name }}{% endif %}</b> <button type="button" class="btn btn-ghost bg-small" data-hg-unpick>Bỏ chọn</button></p>
 <label class="sr-only" for="hg-tim-khach">Tìm khách</label><input id="hg-tim-khach" type="search" placeholder="Tìm khách: tên, mã hoặc số điện thoại" autocomplete="off" data-hg-find="/hoi-gia/tim-khach" {% if customer %}hidden{% endif %}>
 <div class="service-options device-options" aria-live="polite" data-hg-options></div>
+<div data-hg-warn="/hoi-gia/bao-gia-dang-cho" aria-live="polite">{% include '_hoi_gia_dang_cho.jinja' %}</div>
 </div>
 <label>Hoặc ghi tên, số điện thoại người hỏi<input name="lien_he" value="{{ d.lien_he }}" maxlength="200" placeholder="vd: Anh Nam 0909…"></label>
 <label>Ghi chú thêm<input name="ghi_chu" value="{{ d.ghi_chu }}" maxlength="2000" placeholder="vd: máy dùng 3 năm, đã thay mực"></label>

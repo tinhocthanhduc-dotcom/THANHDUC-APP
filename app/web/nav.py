@@ -44,7 +44,9 @@ GROUPS = (
         {'label': 'Tạo mới nhanh', 'href': '/tao-nhanh/khach', 'prefixes': ('/tao-nhanh',), 'roles': ('dispatcher', 'reception', 'sales', 'finance', 'warehouse'), 'hidden': True},
     )},
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
-        {'label': 'Báo giá', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance')},
+        # Đợt 3 rà soát (TUẤN duyệt 16/11/2026): mọi báo giá ở một mục, tab theo quyền (app/web/hubs.py).
+        {'label': 'Báo giá', 'href': '/cac-bao-gia', 'prefixes': ('/cac-bao-gia',), 'roles': ('sales', 'finance', 'dispatcher', 'reception')},
+        {'label': 'Báo giá hàng hóa', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance'), 'hidden': True, 'highlight': '/cac-bao-gia'},
         # Bảng giá chung (TUẤN duyệt 14/11/2026): mọi bộ phận xem giá; chỉ giám đốc sửa (kiểm ở app/price_book.py).
         {'label': 'Bảng giá', 'href': '/bang-gia', 'prefixes': ('/bang-gia', '/tra-gia'), 'roles': ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'technician')},
         {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
@@ -69,13 +71,13 @@ GROUPS = (
         # TUẤN 26/10: khách mang máy tới cửa hàng; kinh doanh (Thanh) nhận, trả máy và thu tiền tại quầy.
         {'label': 'Máy khách tại quầy', 'href': '/quay-sua', 'prefixes': ('/quay-sua',), 'roles': ('dispatcher', 'sales')},
         # Báo giá nhanh (TUẤN duyệt mẫu B1 14/11/2026): khách hỏi giá sửa khi chưa gửi máy.
-        {'label': 'Hỏi giá sửa', 'href': '/hoi-gia', 'prefixes': ('/hoi-gia',), 'roles': ('dispatcher', 'reception', 'sales')},
+        {'label': 'Hỏi giá sửa', 'href': '/hoi-gia', 'prefixes': ('/hoi-gia',), 'roles': ('dispatcher', 'reception', 'sales'), 'hidden': True, 'highlight': '/cac-bao-gia'},
         # Báo giá hợp đồng sửa chữa (TUẤN duyệt mẫu H1–H3 14/11/2026): báo giá trước nhiều model để khách ký hợp đồng.
-        {'label': 'Báo giá hợp đồng', 'href': '/bao-gia-hop-dong', 'prefixes': ('/bao-gia-hop-dong',), 'roles': ('dispatcher',)},
+        {'label': 'Báo giá hợp đồng', 'href': '/bao-gia-hop-dong', 'prefixes': ('/bao-gia-hop-dong',), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/cac-bao-gia'},
         # Báo giá sửa chữa đợt 3 (TUẤN duyệt mẫu M3 14/11/2026): thợ kiểm tra máy ở xưởng, điều phối báo giá.
         {'label': 'Máy chờ kiểm tra', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher')},
         # Báo giá sửa đã lập (TUẤN 16/11/2026): xem lại báo giá cũ, tab Một máy / Gộp nhiều máy (báo giá gộp mẫu duyệt 15/11).
-        {'label': 'Báo giá đã lập', 'href': '/bao-gia-sua', 'prefixes': ('/bao-gia-sua', '/bao-gia-gop'), 'roles': ('dispatcher',)},
+        {'label': 'Báo giá sửa máy', 'href': '/bao-gia-sua', 'prefixes': ('/bao-gia-sua', '/bao-gia-gop'), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/cac-bao-gia'},
         # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
         {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/hop-zalo'},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
@@ -277,6 +279,7 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     'Quản trị': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     '/viec-cua-toi': 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     '/tong-quan': 'M3 12l9-8 9 8M5 10v10h14V10',
+    '/cac-bao-gia': 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7',
     '/hop-zalo': 'M21 12a8 8 0 01-11.5 7.2L4 21l1.8-5.5A8 8 0 1121 12zM8 12h.01M12 12h.01M16 12h.01',
     '/cham-cong': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
     '/kpi': 'M4 20V10M10 20V4M16 20v-7',

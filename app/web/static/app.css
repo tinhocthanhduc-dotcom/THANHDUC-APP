@@ -5217,3 +5217,9 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .hub-tab.on { background: var(--info-solid); border-color: var(--info-solid); color: var(--info-solid-text); }
 .hub-tab.on span { background: var(--surface); color: var(--text); }
 @media (max-width: 640px) { .hub-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -4px; padding-inline: 4px; } }
+/* Đợt 3 rà soát: Tạo báo giá · khách hỏi gì (TUẤN duyệt 16/11/2026) */
+.bq-choose{display:grid;gap:10px;max-width:640px}
+.bq-choice{display:grid;gap:4px;padding:14px 16px;border:1px solid var(--line,#dfe3ea);border-radius:12px;background:var(--surface,#fff);color:inherit;text-decoration:none}
+.bq-choice b{font-size:1rem}.bq-choice span{color:var(--muted,#5d6676);font-size:.88rem}
+.bq-choice:hover,.bq-choice:focus-visible{border-color:var(--accent,#1f5fbf)}
+.hg-warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:.9rem;margin:6px 0}

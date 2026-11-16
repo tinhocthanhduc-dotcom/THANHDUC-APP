@@ -59,3 +59,70 @@ def zalo_home(request: Request, user: User = Depends(web_user)):
     first = next((href for href, _ in ZALO_TABS if nav.allowed(user, href)), None)
     nav.check_access(user, first or '/hop-zalo')
     return RedirectResponse(first, status_code=303)
+
+
+# Đợt 3 rà soát (TUẤN duyệt mẫu 16/11/2026): 4 chỗ báo giá gom thành mục "Báo giá", tab theo quyền.
+QUOTE_TABS = (('/bao-gia', 'Hàng hóa'), ('/hoi-gia', 'Hỏi giá sửa'), ('/bao-gia-sua', 'Sửa máy'), ('/bao-gia-hop-dong', 'Hợp đồng'))
+QUOTE_HOME = '/cac-bao-gia'
+
+
+def _quote_count(session, href):
+    """Số đang chờ khách ở mỗi tab (chỉ đọc)."""
+    if href == '/bao-gia':
+        from ..models import Quote
+        return int(session.scalar(select(func.count()).select_from(Quote).where(Quote.status == 'DA_GUI')) or 0)
+    if href == '/hoi-gia':
+        from .. import quick_quotes as qq
+        return int(qq.counts(session).get('cho', 0))
+    if href == '/bao-gia-sua':
+        from .. import repair_quotes as rqs
+        from ..models import RepairQuoteVersion
+        return int(session.scalar(select(func.count()).select_from(RepairQuoteVersion).where(
+            RepairQuoteVersion.status == 'CHO', RepairQuoteVersion.valid_until >= rqs._today())) or 0)
+    from .. import contract_quotes as cq
+    return int(cq.counts(session).get('cho', 0))
+
+
+def quotes(session, user, active):
+    """Tab Báo giá theo quyền người xem. Báo giá gộp (/bao-gia-gop) sáng tab Sửa máy."""
+    active = '/bao-gia-sua' if active == '/bao-gia-gop' else active
+    return [dict(label=label, n=_quote_count(session, href), href=href, on=href == active)
+            for href, label in QUOTE_TABS if nav.allowed(user, href)]
+
+
+def quote_choices(user):
+    """Nút "+ Tạo báo giá": khách hỏi gì → trang lập. Chỉ dòng người xem lập được."""
+    from .. import quick_quotes as qq
+    from ..quotes import WRITERS
+    from ..security import has_role
+    from ..service_tickets import DISPATCHERS
+    rows = (
+        ('/bao-gia/moi', 'Mua máy, mực, linh kiện', 'Báo giá hàng hóa · Bán hàng làm', has_role(user, *WRITERS)),
+        ('/hoi-gia/moi', 'Hỏi giá sửa, chưa thấy máy', 'Giá theo model và gói sửa, ghi "giá dự kiến" · Bán hàng, Điều phối',
+         qq.can_use(user)),
+        ('/kiem-tra-may', 'Máy đã kiểm tra, cần báo giá chính thức', 'Mở Máy chờ kiểm tra, chọn phiếu · Điều phối',
+         has_role(user, *DISPATCHERS)),
+        ('/bao-gia-hop-dong/moi', 'Hợp đồng, nhiều model một bảng', 'Báo giá hợp đồng · Điều phối', has_role(user, *DISPATCHERS)),
+    )
+    return [dict(href=h, title=t, hint=s) for h, t, s, ok in rows if ok and nav.allowed(user, h)]
+
+
+@router.get(QUOTE_HOME)
+def quote_home(request: Request, user: User = Depends(web_user)):
+    """Mục menu Báo giá: mở tab đầu tiên người xem có quyền."""
+    first = next((href for href, _ in QUOTE_TABS if nav.allowed(user, href)), None)
+    nav.check_access(user, first or QUOTE_HOME)
+    return RedirectResponse(first, status_code=303)
+
+
+@router.get(QUOTE_HOME + '/tao')
+def quote_new(request: Request, user: User = Depends(web_user)):
+    """Khách hỏi gì? Một lựa chọn thì mở thẳng trang lập."""
+    from . import render
+    nav.check_access(user, QUOTE_HOME)
+    choices = quote_choices(user)
+    if not choices:
+        nav.check_access(user, '/bao-gia/moi')
+    if len(choices) == 1:
+        return RedirectResponse(choices[0]['href'], status_code=303)
+    return render(request, 'bao_gia_tao.jinja', choices=choices)

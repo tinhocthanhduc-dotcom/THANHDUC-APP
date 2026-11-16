@@ -542,3 +542,17 @@ def counts(session: Session) -> dict:
 def customer_names(session: Session, rows_) -> dict:
     codes = {r.customer_code for r in rows_ if r.customer_code}
     return dict(session.execute(select(Customer.code, Customer.name).where(Customer.code.in_(codes))).all()) if codes else {}
+
+
+def open_repair_quotes(session: Session, customer_code: str) -> list[dict]:
+    """Đợt 3 rà soát (TUẤN duyệt 16/11/2026): báo giá sửa chính thức đã gửi khách, còn hạn, chưa trả lời.
+    Chỉ để nhắc khi lập Hỏi giá sửa (không chặn)."""
+    if not customer_code:
+        return []
+    from .models import RepairQuoteVersion
+    from .repair_quotes import _today
+    rows = session.scalars(select(RepairQuoteVersion).join(ServiceTicket, ServiceTicket.id == RepairQuoteVersion.ticket_id).where(
+        ServiceTicket.customer_code == customer_code, RepairQuoteVersion.status == 'CHO', RepairQuoteVersion.sent_at.is_not(None),
+        RepairQuoteVersion.valid_until >= _today()).order_by(RepairQuoteVersion.id.desc()).limit(5)).all()
+    return [dict(number=(v.snapshot or {}).get('number', ''), model=(v.snapshot or {}).get('model', ''), no=v.no,
+                 sent=v.sent_at.astimezone(TZ).strftime('%d/%m') if v.sent_at else '') for v in rows]
