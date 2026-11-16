@@ -9,7 +9,7 @@
 {% if deliveries|length > 1 %}<label>Tính vào lần giao<select name="delivery_id">{% for d in deliveries|reverse %}<option value="{{ d.id }}" {% if v.get('delivery_id','')|string==d.id|string %}selected{% endif %}>{{ d.number }} · {{ d.delivered_at|service_short }}</option>{% endfor %}</select></label>{% endif %}
 {% if need_note %}<label>Lý do ghi muộn (đơn đã hoàn thành quá 7 ngày)<input name="note" maxlength="500" required minlength="3" value="{{ v.get('note','') }}"></label>{% endif %}
 <label>Ảnh hóa đơn / biên nhận (nên có)<input type="file" name="photo" accept="image/*" capture="environment"></label>
-<p class="hint">{% if tech %}Tôi ứng tiền: kế toán duyệt xong sẽ hoàn lại cho bạn. Giá báo khách không đổi.{% else %}Có hóa đơn VAT thì giá vốn tính chưa VAT. Giá báo khách không đổi.{% endif %}</p>
+<p class="hint">{% if tech %}Tôi trả bằng tiền riêng: kế toán duyệt xong công ty trả lại cho bạn. Giá báo khách không đổi.{% else %}Có hóa đơn VAT thì giá vốn tính chưa VAT. Giá báo khách không đổi.{% endif %}</p>
 {% endmacro %}
 
 {% macro amount_cell(e) %}<b>{{ e.amount|money }}</b>{% if e.vat_rate %}<small class="hint">vốn {{ e.cost|money }} · HĐ {{ e.vat_rate }}%</small>{% endif %}{% endmacro %}
