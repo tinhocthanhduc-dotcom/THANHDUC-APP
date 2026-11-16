@@ -1,10 +1,10 @@
 """Tin gửi khách (Trợ lý Zalo đợt 4, TUẤN duyệt mẫu 06/11/2026).
 
-- Ba loại tin: nhắc nợ, báo giá, hỏi thăm sau sửa. App soạn sẵn từ SỐ LIỆU THẬT (công nợ, báo giá, phiếu dịch vụ);
+- Bốn loại tin: nhắc nợ, báo giá, hỏi thăm sau sửa, báo sửa xong (TUẤN duyệt mẫu 16/11/2026: báo khách nhận máy). App soạn sẵn từ SỐ LIỆU THẬT (công nợ, báo giá, phiếu dịch vụ);
   AI không đặt giá hay số nợ. Người làm xem lại, sửa chữ rồi tự bấm gửi. Không bao giờ tự gửi.
 - Khách đã gắn chat bot Zalo công ty: Gửi qua Zalo công ty. Chưa gắn: Sao chép, gửi bằng Zalo cá nhân, rồi bấm Đã gửi.
 - "Viết lại tự nhiên hơn": nhờ Codex/Claude trên Z2. App so số trong bản mới với bản cũ; lệch số thì không cho dùng.
-- Quyền (Q8): nhắc nợ giám đốc + kế toán; báo giá kinh doanh + giám đốc; hỏi thăm điều phối, kinh doanh + giám đốc.
+- Quyền (Q8): nhắc nợ giám đốc + kế toán; báo giá kinh doanh + giám đốc; hỏi thăm và báo sửa xong điều phối, kinh doanh + giám đốc.
 - Q9: mỗi khách tối đa 1 tin nhắc nợ đã gửi trong 7 ngày (giám đốc vẫn soạn được, có cảnh báo).
 - Mọi tin ghi lại: ai soạn, ai sửa, ai gửi, lúc nào, gửi bằng gì, nội dung cuối (bảng customer_messages + audit).
 """
@@ -22,9 +22,9 @@ from .models import (Customer, CustomerMessage, Equipment, Product, Quote, Servi
 from .security import has_role
 from .service_sla import TZ
 
-KINDS = {'NHAC_NO': 'Nhắc nợ', 'BAO_GIA': 'Báo giá', 'HOI_THAM': 'Hỏi thăm sau sửa'}
-SHORT = {'NHAC_NO': 'Nhắc nợ', 'BAO_GIA': 'Báo giá', 'HOI_THAM': 'Hỏi thăm'}
-WRITERS = {'NHAC_NO': ('finance',), 'BAO_GIA': ('sales',), 'HOI_THAM': ('dispatcher', 'sales')}
+KINDS = {'NHAC_NO': 'Nhắc nợ', 'BAO_GIA': 'Báo giá', 'HOI_THAM': 'Hỏi thăm sau sửa', 'SUA_XONG': 'Báo sửa xong'}
+SHORT = {'NHAC_NO': 'Nhắc nợ', 'BAO_GIA': 'Báo giá', 'HOI_THAM': 'Hỏi thăm', 'SUA_XONG': 'Sửa xong'}
+WRITERS = {'NHAC_NO': ('finance',), 'BAO_GIA': ('sales',), 'HOI_THAM': ('dispatcher', 'sales'), 'SUA_XONG': ('dispatcher', 'sales')}
 VIEWS = {'cho': ('Chờ gửi', 'CHO'), 'da-gui': ('Đã gửi', 'DA_GUI'), 'da-bo': ('Đã bỏ', 'DA_BO')}
 VIA = {'BOT': 'Zalo công ty', 'CA_NHAN': 'Zalo cá nhân'}
 DEBT_GAP_DAYS = 7
@@ -73,7 +73,8 @@ def check_kind(user: User, kind: str) -> None:
     if kind not in KINDS:
         raise BusinessError('BAD_KIND', 'Không có loại tin này.')
     if not can_write(user, kind):
-        who = {'NHAC_NO': 'giám đốc và kế toán', 'BAO_GIA': 'kinh doanh và giám đốc', 'HOI_THAM': 'điều phối, kinh doanh và giám đốc'}[kind]
+        who = {'NHAC_NO': 'giám đốc và kế toán', 'BAO_GIA': 'kinh doanh và giám đốc', 'HOI_THAM': 'điều phối, kinh doanh và giám đốc',
+               'SUA_XONG': 'điều phối, kinh doanh và giám đốc'}[kind]
         raise BusinessError('FORBIDDEN', f'Tin {KINDS[kind].lower()} chỉ {who} soạn được.', status=403)
 
 
@@ -191,6 +192,85 @@ def ticket_text(f: dict) -> str:
     return '\n'.join(lines)
 
 
+READY_HOLD = 'SUA_XONG_CHO_TRA'
+
+
+def _machine(session: Session, t: ServiceTicket) -> str:
+    if not t.serial:
+        return ''
+    eq = session.get(Equipment, t.serial)
+    product = session.get(Product, eq.product_code) if eq is not None and eq.product_code else None
+    return (product.name if product else (eq.model_name if eq is not None else '')) or ''
+
+
+def ready_facts(session: Session, user: User, ticket_id: int) -> tuple[ServiceTicket, dict]:
+    """Báo sửa xong (TUẤN duyệt 16/11/2026): phiếu đang "Sửa xong, chờ trả máy", tiền lấy đúng phải thu đã chốt (gồm VAT)."""
+    from . import vietqr
+    t = session.get(ServiceTicket, ticket_id)
+    if t is None:
+        raise BusinessError('NOT_FOUND', 'Không có phiếu dịch vụ này.', status=404)
+    if t.status != 'TAM_DUNG' or t.hold_reason != READY_HOLD or t.priced_at is None:
+        raise BusinessError('BAD_STATUS', 'Phiếu chưa ở bước Sửa xong, chờ trả máy nên chưa báo khách nhận máy được.', status=409)
+    names = dict(session.execute(select(Product.code, Product.name).where(
+        Product.code.in_([ln.product_code for ln in t.lines if ln.product_code]))).all()) if t.lines else {}
+    work = []
+    for ln in sorted(t.lines, key=lambda x: x.line_no):
+        label = (ln.description or names.get(ln.product_code, ln.product_code or '')).strip()
+        if label and label not in work:
+            work.append(label)
+    amount = int(t.receivable or 0)
+    content = vietqr.content_code(t.number) if amount > 0 else ''
+    return t, dict(number=t.number, machine=_machine(session, t), serial=t.serial or '', work=work[:8], amount=amount,
+                   free=t.billing == 'MIEN_PHI', declined=t.declined_at is not None, counter=bool(t.counter_intake),
+                   warranty=None if t.declined_at is not None or t.kind == 'MUC_DINH_KY' else t.warranty_months, content=content)
+
+
+def ready_text(f: dict, bank: str) -> str:
+    s = get_settings()
+    machine = f"máy {f['machine']}" if f['machine'] else 'máy'
+    if f['serial']:
+        machine += f" (serial {f['serial']})"
+    if f['declined']:
+        lines = [f"Chào anh/chị, {machine}, phiếu {f['number']} Thành Đức đã kiểm tra xong, theo ý anh/chị không sửa ạ."]
+    else:
+        lines = [f"Chào anh/chị, Thành Đức báo {machine}, phiếu {f['number']} đã sửa xong ạ."]
+        if f['work']:
+            lines.append('Đã làm: ' + '; '.join(w[:1].lower() + w[1:] for w in f['work']) + '.')
+        if f['warranty']:
+            lines.append(f"Bảo hành sửa chữa {f['warranty']} tháng.")
+    if f['amount'] > 0:
+        label = 'Phí kiểm tra' if f['declined'] else 'Tổng thanh toán'
+        lines.append(f"{label}: {_money(f['amount'])} (đã gồm VAT).")
+        if bank:
+            lines.append(f"Chuyển khoản: {bank}, nội dung {f['content']}.")
+    elif f['free'] and not f['declined']:
+        lines.append('Máy được sửa miễn phí theo bảo hành, anh/chị không phải thanh toán.')
+    elif f['declined']:
+        lines.append('Anh/chị không phải thanh toán phí kiểm tra.')
+    if f['counter']:
+        address = s.company_address.replace('Thành phố Hồ Chí Minh', '').rstrip(' ,')
+        lines.append(f'Mời anh/chị ghé cửa hàng {address} nhận máy (T2–T7, 7:30–11:30, 13:30–17:30). '
+                     f'Anh/chị báo trước giờ ghé giúp em ạ. Có gì anh/chị gọi {s.company_hotline}.')
+    else:
+        lines.append(f'Anh/chị cho em xin giờ thuận tiện để thợ mang máy tới trả ạ. Có gì anh/chị gọi {s.company_hotline}.')
+    return '\n'.join(lines)
+
+
+def ready_message(session: Session, ticket_id: int) -> CustomerMessage | None:
+    """Tin báo sửa xong mới nhất của phiếu (chờ gửi hoặc đã gửi) cho nút trên phiếu dịch vụ."""
+    return session.scalars(select(CustomerMessage).where(CustomerMessage.kind == 'SUA_XONG', CustomerMessage.ref_type == 'service_ticket',
+                                                         CustomerMessage.ref_id == ticket_id, CustomerMessage.status != 'DA_BO')
+                           .order_by(CustomerMessage.id.desc()).limit(1)).first()
+
+
+def ready_qr(session: Session, row: CustomerMessage) -> dict | None:
+    """QR VietQR cho tin báo sửa xong (Zalo công ty chỉ gửi chữ; gửi Zalo cá nhân thì lưu ảnh QR gửi kèm)."""
+    if row.kind != 'SUA_XONG' or int(row.facts.get('amount') or 0) <= 0:
+        return None
+    from . import vietqr
+    return vietqr.for_document(session, row.facts.get('number', ''), int(row.facts['amount']))
+
+
 def last_debt_sent(session: Session, code: str) -> datetime | None:
     return session.scalar(select(func.max(CustomerMessage.decided_at)).where(
         CustomerMessage.customer_code == code, CustomerMessage.kind == 'NHAC_NO', CustomerMessage.status == 'DA_GUI'))
@@ -216,6 +296,10 @@ def create(session: Session, user: User, kind: str, *, customer_code: str = '', 
         q, facts = quote_facts(session, user, int(ref_id or 0))
         customer, ref_type, ref_id = _customer(session, q.customer_code), 'quote', q.id
         text = quote_text(facts)
+    elif kind == 'SUA_XONG':
+        t, facts = ready_facts(session, user, int(ref_id or 0))
+        customer, ref_type, ref_id = _customer(session, t.customer_code), 'service_ticket', t.id
+        text = ready_text(facts, bank_line(session))
     else:
         t, facts = ticket_facts(session, user, int(ref_id or 0))
         customer, ref_type, ref_id = _customer(session, t.customer_code), 'service_ticket', t.id

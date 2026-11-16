@@ -4088,6 +4088,8 @@ a.tg-row:hover { background: var(--tag); }
 .tg-facts { padding: 12px 14px; display: grid; gap: 6px; }
 .tg-h { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tg-r { display: flex; justify-content: space-between; gap: 10px; }
+.tg-qr-img { width: 160px; max-width: 100%; margin: 0 auto; background: #fff; padding: 6px; border-radius: 8px; }
+.tg-qr-img svg { display: block; width: 100%; height: auto; }
 .tg-r span:last-child { font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
 .tg-tot { border-top: 1px solid var(--line); padding-top: 6px; font-weight: 700; }
 .tg-two .next-box .ph-actions { display: grid; gap: 8px; }
