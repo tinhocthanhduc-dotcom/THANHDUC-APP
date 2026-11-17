@@ -29,19 +29,12 @@ if (webMenu) {
     });
   });
 
-  // Đợt 4 rà soát: "Khác" gập các nhóm ít dùng; nhớ lần mở/gập, tự mở khi trang đang xem nằm trong đó.
-  const more = webMenu.querySelector('[data-nav-more]');
-  if (more && !more.hasAttribute('data-nav-more-active') && store.get('td-nav-more') === '1') more.open = true;
-  if (more) more.addEventListener('toggle', () => { if (!searching) store.set('td-nav-more', more.open ? '1' : '0'); });
-
   // Thu gọn thành cột biểu tượng (máy tính); bấm nhóm khi đang thu gọn thì mở rộng lại.
   const root = document.documentElement;
   if (store.get('td-nav-mini') === '1') root.classList.add('nav-mini');
-  if (more && root.classList.contains('nav-mini') && wideMenu.matches) more.open = true;
   const mini = document.querySelector('[data-nav-mini]');
   if (mini) mini.addEventListener('click', () => {
     root.classList.toggle('nav-mini');
-    if (more && root.classList.contains('nav-mini')) more.open = true;
     store.set('td-nav-mini', root.classList.contains('nav-mini') ? '1' : '0');
   });
   groups.forEach((group) => group.querySelector('summary').addEventListener('click', (event) => {
@@ -58,7 +51,7 @@ if (webMenu) {
   const empty = webMenu.querySelector('[data-nav-empty]');
   if (search) search.addEventListener('input', () => {
     const q = fold(search.value.trim());
-    if (q && !searching) { before = groups.map((g) => g.open); if (more) more.dataset.before = more.open ? '1' : ''; }
+    if (q && !searching) before = groups.map((g) => g.open);
     searching = !!q;
     let hits = 0;
     webMenu.querySelectorAll('[data-nav-item]').forEach((link) => {
@@ -74,7 +67,6 @@ if (webMenu) {
       group.open = q ? !!any : (before ? before[i] : group.open);
     });
     webMenu.querySelectorAll('.nav-head').forEach((head) => { head.hidden = !!q; });
-    if (more) { more.open = q ? true : more.dataset.before === '1'; more.querySelector('summary').hidden = !!q; }
     if (empty) empty.hidden = !q || hits > 0;
     if (!q) before = null;
   });

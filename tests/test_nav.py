@@ -80,6 +80,9 @@ for _role in EXPECTED:
 for _role in ('sales', 'finance', 'dispatcher', 'reception', 'director'):
     EXPECTED[_role].add('/cac-bao-gia')
 EXPECTED['director'].add('/cho-anh-duyet')  # Đợt 4 rà soát: Chờ anh duyệt (TUẤN duyệt 16/11/2026)
+# Menu gọn (TUẤN duyệt mẫu 17/11/2026): báo cáo hàng chờ xử lý mở từ trang Hàng chờ xử lý, Tồn đầu kỳ từ Danh sách kho.
+for _role in EXPECTED:
+    EXPECTED[_role].difference_update(('/bao-cao/cho-xu-ly', '/ton-dau-ky'))
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
@@ -231,10 +234,8 @@ def test_exact_active_item_group_and_single_item_not_dropdown(client, make_user)
     # TUẤN 28/10: Hàng sắp hết không còn trên menu; mở từ link thì sáng mục Tồn kho.
     assert [a['href'] for a in links if a.get('aria-current') == 'page'] == ['/ton-kho']
     assert all(a['href'] != '/ton-kho?canh-bao=1' for a in links)
-    # Đợt 4 rà soát: Tồn kho ở Hằng ngày của thủ kho; trang trong "Khác" thì nhóm của nó và Khác cùng mở.
-    assert 'class="nav-top on"' in page.text and 'data-nav-more-active' not in page.text
-    other = client.get('/yeu-cau-linh-kien').text
-    assert 'class="nav-group on"' in other and 'data-nav-more-active' in other
+    # Menu gọn 17/11/2026: không còn Hằng ngày/Khác; trang trong nhóm thì nhóm đó mở.
+    assert 'data-nav-more' not in page.text and 'class="nav-group on"' in page.text
     # Mua hàng chỉ có Đơn mua: link trực tiếp, không summary xổ thêm một tầng.
     assert '<summary>Mua hàng</summary>' not in page.text
     assert any(a['href'] == '/don-mua' for a in links)
@@ -338,21 +339,23 @@ def test_bao_gia_tao_one_choice_opens_directly(client, make_user):
     assert client.get('/cac-bao-gia', follow_redirects=False).status_code == 403
 
 
-@pytest.mark.parametrize('roles,daily', [
-    (('sales', 'finance'), ['/viec-cua-toi', '/hop-zalo', '/cac-bao-gia', '/don-ban', '/khach-hang', '/bao-thu', '/thu-chi',
-                            '/cong-no-khach-hang']),
-    (('technician', 'warehouse', 'dispatcher'), ['/viec-cua-toi', '/dieu-phoi', '/dich-vu', '/kiem-tra-may', '/ton-kho', '/phieu-kho',
-                                                 '/hop-zalo', '/cac-bao-gia']),
-    (('director',), ['/tong-quan', '/cho-anh-duyet', '/dieu-phoi', '/don-ban', '/cong-no-khach-hang', '/bao-cao/lai-rong', '/doi-ai',
-                     '/luong']),
+@pytest.mark.parametrize('roles,top,first,tabs', [
+    (('sales', 'finance'), ['/tong-quan', '/viec-cua-toi', '/hop-zalo', '/khach-hang'], 'Bán hàng', ['/viec-cua-toi', '/don-ban', '/bao-thu']),
+    (('finance',), ['/tong-quan', '/viec-cua-toi', '/hop-zalo', '/khach-hang'], 'Tài chính', ['/viec-cua-toi', '/bao-thu', '/thu-chi']),
+    (('technician', 'warehouse', 'dispatcher'), ['/viec-cua-toi', '/hop-zalo', '/khach-hang', '/tho'], 'Dịch vụ', ['/viec-cua-toi', '/dieu-phoi', '/dich-vu']),
+    (('director',), ['/tong-quan', '/cho-anh-duyet', '/viec-cua-toi', '/hop-zalo', '/khach-hang'], 'Bán hàng', ['/cho-anh-duyet', '/tong-quan', '/dieu-phoi']),
 ])
-def test_daily_menu_then_more(client, make_user, roles, daily):
-    """Đợt 4 rà soát (TUẤN duyệt 16/11/2026): 8 mục Hằng ngày theo vai trò, phần còn lại trong Khác, không mục nào lặp."""
-    user = make_user('daily.' + '.'.join(roles), *roles)
+def test_grouped_menu_no_duplicates(client, make_user, roles, top, first, tabs):
+    """Menu gọn (TUẤN duyệt mẫu 17/11/2026): nhóm gập như cũ, mục đầu ít, không trang nào hai chỗ, không hai mục cùng tên."""
+    user = make_user('gon.' + '.'.join(roles), *roles)
     service_login(client, user)
     html = client.get(nav.home_url(user)).text
-    head, rest = html.split('data-nav-more', 1)
-    assert [a['href'] for a in Menu(head).links] == daily
-    others = [a['href'] for a in Menu(rest).links]
-    assert others and not set(others) & set(daily)
-    assert f'Khác ({len(others)} mục)' in html
+    assert 'Hằng ngày' not in html and 'data-nav-more' not in html
+    menu = nav.menu(user, '/khong-co')
+    assert [i['href'] for i in menu['groups'][0]['items']] == top and menu['groups'][0]['label'] == ''
+    assert next(g['label'] for g in menu['groups'] if g['label']) == first
+    hrefs = [i['href'] for g in menu['groups'] for i in g['items']]
+    labels = [i['label'] for g in menu['groups'] for i in g['items']] + [g['label'] for g in menu['groups'] if g['label'] and len(g['items']) > 1]
+    assert len(hrefs) == len(set(hrefs)) and len(labels) == len(set(labels))
+    assert all(g['label'] != 'Báo cáo' for g in menu['groups'])
+    assert [t['href'] for t in menu['tabs']] == tabs

@@ -10,9 +10,10 @@ from ..errors import BusinessError
 from ..security import has_role
 
 # Thứ tự menu: Của tôi → Nghiệp vụ (theo dòng việc hằng ngày) → Quản lý (xem số, chốt tháng) → Thiết lập (ít dùng).
-SECTIONS = ('Của tôi', 'Nghiệp vụ', 'Quản lý', 'Thiết lập')
+# TUẤN duyệt mẫu 17/11/2026 (menu gọn theo nhóm): bỏ Hằng ngày + Khác, quay lại nhóm gập; mục đầu không tiêu đề.
+SECTIONS = ('', 'Nghiệp vụ', 'Quản lý & thiết lập')
 GROUPS = (
-    {'label': '', 'section': 'Của tôi', 'items': (
+    {'label': '', 'section': '', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
         # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): mọi việc chờ giám đốc duyệt ở một trang (app/director_approvals.py).
         {'label': 'Chờ anh duyệt', 'href': '/cho-anh-duyet', 'prefixes': ('/cho-anh-duyet',), 'roles': ('director',)},
@@ -21,9 +22,11 @@ GROUPS = (
         {'label': 'Hộp Zalo', 'href': '/hop-zalo', 'prefixes': ('/hop-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
         # Màn giao hàng mở từ Việc của tôi hoặc từ đơn: thủ kho và kinh doanh (Đợt 1b), menu sáng Việc của tôi (không sáng Danh mục › Kho).
         {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse', 'sales'), 'hidden': True, 'highlight': '/viec-cua-toi'},
+        # Menu gọn 17/11/2026: nhóm Khách hàng chỉ có một mục nên thành mục đầu menu.
+        {'label': 'Khách hàng', 'href': '/khach-hang', 'prefixes': ('/khach-hang',), 'roles': ('dispatcher', 'reception', 'sales', 'finance')},
+        # Tạo mới nhanh trong cửa sổ: quyền thật theo từng loại kiểm ở quick_create (như form đầy đủ).
+        {'label': 'Tạo mới nhanh', 'href': '/tao-nhanh/khach', 'prefixes': ('/tao-nhanh',), 'roles': ('dispatcher', 'reception', 'sales', 'finance', 'warehouse'), 'hidden': True},
         {'label': 'Hôm nay', 'href': '/tho', 'prefixes': ('/tho',), 'roles': ('technician',), 'technician_page': True},
-        {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),
-         'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'menu_roles': ('technician',)},
         # Đổi hình thức báo thu (07/11/2026): quyền thật theo trạng thái BT kiểm ở sales_receipts.check_switch.
         {'label': 'Đổi hình thức báo thu', 'href': '/doi-hinh-thuc-bao-thu', 'prefixes': ('/doi-hinh-thuc-bao-thu',),
          'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'hidden': True},
@@ -35,23 +38,14 @@ GROUPS = (
         # Hộp xem nhanh phiếu (07/11/2026): quyền thật theo trang đầy đủ của từng phiếu, kiểm trong quick_view.
         {'label': 'Xem nhanh phiếu', 'href': '/xem-nhanh', 'prefixes': ('/xem-nhanh',),
          'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'hidden': True},
-        {'label': 'Hàng tôi giữ', 'href': '/hang-toi-giu', 'prefixes': ('/hang-toi-giu',), 'roles': ('technician','warehouse'), 'menu_roles': ('technician',)},
-        {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
-        {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},
-        {'label': 'Hoa hồng của tôi', 'href': '/hoa-hong', 'prefixes': ('/hoa-hong',), 'roles': ('sales','technician')},
-    )},
-    {'label': 'Khách hàng', 'section': 'Nghiệp vụ', 'items': (
-        {'label': 'Khách hàng', 'href': '/khach-hang', 'prefixes': ('/khach-hang',), 'roles': ('dispatcher', 'reception', 'sales', 'finance')},
-        # Tạo mới nhanh trong cửa sổ: quyền thật theo từng loại kiểm ở quick_create (như form đầy đủ).
-        {'label': 'Tạo mới nhanh', 'href': '/tao-nhanh/khach', 'prefixes': ('/tao-nhanh',), 'roles': ('dispatcher', 'reception', 'sales', 'finance', 'warehouse'), 'hidden': True},
     )},
     {'label': 'Bán hàng', 'section': 'Nghiệp vụ', 'items': (
         # Đợt 3 rà soát (TUẤN duyệt 16/11/2026): mọi báo giá ở một mục, tab theo quyền (app/web/hubs.py).
         {'label': 'Báo giá', 'href': '/cac-bao-gia', 'prefixes': ('/cac-bao-gia',), 'roles': ('sales', 'finance', 'dispatcher', 'reception')},
         {'label': 'Báo giá hàng hóa', 'href': '/bao-gia', 'prefixes': ('/bao-gia',), 'roles': ('sales', 'finance'), 'hidden': True, 'highlight': '/cac-bao-gia'},
+        {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
         # Bảng giá chung (TUẤN duyệt 14/11/2026): mọi bộ phận xem giá; chỉ giám đốc sửa (kiểm ở app/price_book.py).
         {'label': 'Bảng giá', 'href': '/bang-gia', 'prefixes': ('/bang-gia', '/tra-gia'), 'roles': ('sales', 'dispatcher', 'reception', 'finance', 'warehouse', 'technician')},
-        {'label': 'Đơn bán', 'href': '/don-ban', 'prefixes': ('/don-ban','/tra-hang'), 'roles': ('sales', 'warehouse', 'finance')},
         # Trợ lý Zalo (TUẤN duyệt 05/11/2026): đơn nháp trợ lý lập từ tin Zalo, kinh doanh kiểm và chốt.
         # TUẤN duyệt 06/11/2026: khách quá nhịp lấy mực để kinh doanh gọi hỏi thăm.
         {'label': 'Khách lâu chưa gọi mực', 'href': '/khach-hang/nhac-muc', 'prefixes': ('/khach-hang/nhac-muc',), 'roles': ('sales', 'finance')},
@@ -62,10 +56,14 @@ GROUPS = (
         {'label': 'Tin Zalo cần trả lời', 'href': '/tin-zalo', 'prefixes': ('/tin-zalo',), 'roles': ('sales', 'finance', 'dispatcher'), 'hidden': True, 'highlight': '/hop-zalo'},
         # TUẤN 01/11/2026: Đăng web vào nhóm Bán hàng, Kinh doanh dùng được (bật tự soạn vẫn chỉ Giám đốc).
         {'label': 'Đăng web', 'href': '/dang-web', 'prefixes': ('/dang-web',), 'roles': ('sales',)},
+        # Menu gọn 17/11/2026: bỏ nhóm Báo cáo, mỗi báo cáo về nhóm nghiệp vụ của nó.
+        {'label': 'Báo cáo bán hàng', 'href': '/bao-cao/ban-hang', 'prefixes': ('/bao-cao/ban-hang',), 'roles': ('sales', 'finance')},
     )},
     {'label': 'Dịch vụ', 'section': 'Nghiệp vụ', 'items': (
-        {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
         {'label': 'Phiếu dịch vụ', 'href': '/dich-vu', 'prefixes': ('/dich-vu',), 'roles': ('dispatcher', 'reception', 'technician')},
+        {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
+        # Bảng xưởng (TUẤN duyệt mẫu 17/11/2026) thay "Máy chờ kiểm tra": mọi máy ở xưởng, việc cần làm + ai làm.
+        {'label': 'Bảng xưởng', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher', 'sales')},
         # TUẤN 06/11/2026: kinh doanh (Thanh) được tự nhận đơn Mực định kỳ khi khách gọi; chỉ màn nhận đơn, không vào phiếu dịch vụ.
         {'label': 'Nhận đơn dịch vụ', 'href': '/dich-vu/moi', 'prefixes': ('/dich-vu/moi', '/dich-vu/chon-khach', '/dich-vu/tim-khach'), 'roles': ('dispatcher', 'reception', 'technician', 'sales'), 'hidden': True, 'highlight': '/dich-vu'},
         # F2: bản xem chỉ đọc phiếu dịch vụ cho kế toán (đối chiếu báo thu) và kho (linh kiện, máy đang giữ); không giá vốn, không thao tác.
@@ -76,8 +74,6 @@ GROUPS = (
         {'label': 'Hỏi giá sửa', 'href': '/hoi-gia', 'prefixes': ('/hoi-gia',), 'roles': ('dispatcher', 'reception', 'sales'), 'hidden': True, 'highlight': '/cac-bao-gia'},
         # Báo giá hợp đồng sửa chữa (TUẤN duyệt mẫu H1–H3 14/11/2026): báo giá trước nhiều model để khách ký hợp đồng.
         {'label': 'Báo giá hợp đồng', 'href': '/bao-gia-hop-dong', 'prefixes': ('/bao-gia-hop-dong',), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/cac-bao-gia'},
-        # Bảng xưởng (TUẤN duyệt mẫu 17/11/2026) thay "Máy chờ kiểm tra": mọi máy ở xưởng, việc cần làm + ai làm.
-        {'label': 'Bảng xưởng', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher', 'sales')},
         # Báo giá sửa đã lập (TUẤN 16/11/2026): xem lại báo giá cũ, tab Một máy / Gộp nhiều máy (báo giá gộp mẫu duyệt 15/11).
         {'label': 'Báo giá sửa máy', 'href': '/bao-gia-sua', 'prefixes': ('/bao-gia-sua', '/bao-gia-gop'), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/cac-bao-gia'},
         # Trợ lý Zalo đợt 2 (TUẤN 06/11/2026): phiếu nháp bot ghi từ tin Zalo, điều phối duyệt Tạo phiếu / Bỏ nháp.
@@ -98,12 +94,15 @@ GROUPS = (
         {'label': 'Báo cáo sản xuất', 'href': '/san-xuat/bao-cao', 'prefixes': ('/san-xuat/bao-cao',), 'roles': ('warehouse','finance'), 'hidden': True, 'highlight': '/san-xuat'},
         {'label': 'Yêu cầu linh kiện', 'href': '/yeu-cau-linh-kien', 'prefixes': ('/yeu-cau-linh-kien',), 'roles': ('warehouse',)},
         {'label':'Hàng chờ xử lý','href':'/cho-xu-ly','prefixes':('/cho-xu-ly',),'roles':('warehouse','finance','dispatcher')},
+        # Menu gọn 17/11/2026: báo cáo hàng chờ xử lý mở bằng nút trên trang Hàng chờ xử lý.
+        {'label': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',), 'hidden': True, 'highlight': '/cho-xu-ly'},
         {'label': 'Linh kiện thu hồi', 'href': '/linh-kien-thu-hoi', 'prefixes': ('/linh-kien-thu-hoi',), 'roles': ('technician','warehouse','dispatcher','finance')},
         {'label': 'Hàng hóa', 'href': '/hang-hoa', 'prefixes': ('/hang-hoa',), 'roles': ('sales', 'warehouse', 'finance')},
     )},
     {'label': 'Mua hàng', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Đơn mua', 'href': '/don-mua', 'prefixes': ('/don-mua',), 'roles': ('warehouse', 'finance')},
         {'label': 'Nhà cung cấp', 'href': '/nha-cung-cap', 'prefixes': ('/nha-cung-cap',), 'roles': ('warehouse', 'finance')},
+        {'label': 'Báo cáo mua hàng', 'href': '/bao-cao-mua-hang', 'prefixes': ('/bao-cao-mua-hang',), 'roles': ('warehouse', 'finance')},
     )},
     {'label': 'Tài chính', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Báo thu', 'href': '/bao-thu', 'prefixes': ('/bao-thu', '/hoan-tien', '/dich-vu/can-thu'), 'roles': ('finance',)},
@@ -113,26 +112,21 @@ GROUPS = (
         {'label': 'Chi phí phát sinh', 'href': '/chi-phi-tho', 'prefixes': ('/chi-phi-tho',), 'roles': ('finance',)},
         {'label': 'Điều chỉnh sổ', 'href': '/dieu-chinh', 'prefixes': ('/dieu-chinh',), 'roles': ('finance',)},
         {'label': 'Chốt sổ', 'href': '/chot-so', 'prefixes': ('/chot-so',), 'roles': ('finance',)},
+        {'label': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
+        {'label': 'Lãi ròng', 'href': '/bao-cao/lai-rong', 'prefixes': ('/bao-cao/lai-rong',), 'roles': ('director',)},
     )},
-    # Nhóm Báo cáo đã nói "báo cáo", tên mục chỉ còn phần riêng.
-    {'label': 'Báo cáo', 'section': 'Quản lý', 'items': (
-        {'label': 'Bán hàng', 'solo': 'Báo cáo bán hàng', 'href': '/bao-cao/ban-hang', 'prefixes': ('/bao-cao/ban-hang',), 'roles': ('sales', 'finance')},
-        {'label': 'Mua hàng', 'solo': 'Báo cáo mua hàng', 'href': '/bao-cao-mua-hang', 'prefixes': ('/bao-cao-mua-hang',), 'roles': ('warehouse', 'finance')},
-        {'label': 'Hàng chờ xử lý', 'solo': 'Báo cáo hàng chờ xử lý', 'href': '/bao-cao/cho-xu-ly', 'prefixes': ('/bao-cao/cho-xu-ly',), 'roles': ('finance',)},
-        {'label': 'Tài chính', 'solo': 'Báo cáo tài chính', 'href': '/bao-cao/tai-chinh', 'prefixes': ('/bao-cao/tai-chinh',), 'roles': ('finance',)},
-        {'label': 'Lãi ròng', 'solo': 'Lãi ròng tháng', 'href': '/bao-cao/lai-rong', 'prefixes': ('/bao-cao/lai-rong',), 'roles': ('director',)},
-    )},
-    {'label': 'Danh mục', 'section': 'Thiết lập', 'items': (
+    {'label': 'Danh mục', 'section': 'Quản lý & thiết lập', 'items': (
         {'label': 'Nhóm hàng', 'href': '/nhom-hang', 'prefixes': ('/nhom-hang',), 'roles': ('warehouse',)},
         {'label': 'Danh sách kho', 'href': '/kho', 'prefixes': ('/kho',), 'roles': ('warehouse',)},
-        {'label': 'Tồn đầu kỳ', 'href': '/ton-dau-ky', 'prefixes': ('/ton-dau-ky',), 'roles': ('warehouse',)},
+        # Menu gọn 17/11/2026: dùng một lần, mở từ trang Danh sách kho.
+        {'label': 'Tồn đầu kỳ', 'href': '/ton-dau-ky', 'prefixes': ('/ton-dau-ky',), 'roles': ('warehouse',), 'hidden': True, 'highlight': '/kho'},
         {'label': 'Thiết lập tài chính', 'href': '/ghep-tai-chinh', 'prefixes': ('/quy', '/danh-muc-thu-chi', '/ghep-tai-chinh'), 'roles': ('finance',)},
     )},
 )
 # Tài khoản có phạm vi riêng: quyền giám đốc ở menu nghiệp vụ không bao gồm quản trị.
 ACCOUNT_GROUPS = (
     # Xếp theo vòng tháng: duyệt công → bảng công → KPI → hoa hồng → lương → chi lương.
-    {'label': 'Nhân sự & lương', 'section': 'Quản lý', 'items': (
+    {'label': 'Nhân sự & lương', 'section': 'Quản lý & thiết lập', 'items': (
         {'label': 'Duyệt chấm công', 'href': '/cham-cong/duyet', 'prefixes': ('/cham-cong/duyet',), 'roles': ('director','finance')},
         {'label': 'Bảng công', 'href': '/cham-cong/bang', 'prefixes': ('/cham-cong/bang',), 'roles': ('finance',)},
         {'label': 'KPI tổng', 'href': '/kpi/tong', 'prefixes': ('/kpi/tong',), 'roles': ('director',)},
@@ -140,7 +134,7 @@ ACCOUNT_GROUPS = (
         {'label': 'Bảng lương', 'href': '/luong', 'prefixes': ('/luong',), 'roles': ('director',), 'payroll_page': True},
         {'label': 'Chi lương', 'href': '/luong/chi', 'prefixes': ('/luong/chi',), 'roles': ('finance',), 'payroll_page': True},
     )},
-    {'label': 'Quản trị', 'section': 'Thiết lập', 'items': (
+    {'label': 'Quản trị', 'section': 'Quản lý & thiết lập', 'items': (
         {'label': 'Hồ sơ nhân viên', 'href': '/nhan-su', 'prefixes': ('/nhan-su',), 'roles': ('admin','director')},
         {'label': 'Mục tiêu KPI', 'href': '/kpi/muc-tieu', 'prefixes': ('/kpi/muc-tieu',), 'roles': ('director',)},
         {'label': 'Quy tắc hoa hồng', 'href': '/hoa-hong/quy-tac', 'prefixes': ('/hoa-hong/quy-tac',), 'roles': ('director',)},
@@ -160,6 +154,15 @@ ACCOUNT_GROUPS = (
         {'label': 'Cá nhân', 'href': '/ca-nhan', 'prefixes': ('/ca-nhan',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
         {'label': 'Hồ sơ của tôi', 'href': '/ho-so-cua-toi', 'prefixes': ('/ho-so-cua-toi',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
         {'label': 'Đổi mật khẩu', 'href': '/doi-mat-khau', 'prefixes': ('/doi-mat-khau',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin'), 'account_page': True},
+    )},
+    # Menu gọn 17/11/2026: việc riêng của mỗi người gom cuối menu.
+    {'label': 'Cá nhân', 'section': 'Quản lý & thiết lập', 'items': (
+        {'label': 'Chấm công', 'href': '/cham-cong', 'prefixes': ('/cham-cong',), 'roles': ('sales','reception','dispatcher','warehouse','technician','finance','director','admin')},
+        {'label': 'Tiền tôi giữ', 'href': '/tien-toi-giu', 'prefixes': ('/tien-toi-giu',),
+         'roles': ('technician','dispatcher','reception','sales','warehouse','finance','director','admin'), 'menu_roles': ('technician',)},
+        {'label': 'Hàng tôi giữ', 'href': '/hang-toi-giu', 'prefixes': ('/hang-toi-giu',), 'roles': ('technician','warehouse'), 'menu_roles': ('technician',)},
+        {'label': 'KPI của tôi', 'href': '/kpi', 'prefixes': ('/kpi',), 'roles': ('technician','sales','dispatcher','warehouse','finance')},
+        {'label': 'Hoa hồng của tôi', 'href': '/hoa-hong', 'prefixes': ('/hoa-hong',), 'roles': ('sales','technician')},
     )},
 )
 _BOOL_QUERY = TypeAdapter(bool)
@@ -274,7 +277,7 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     'Kho': 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
     'Mua hàng': 'M6 2l-3 4v14h18V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0',
     'Tài chính': 'M3 6h18v12H3zM3 10h18M7 15h3',
-    'Báo cáo': 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+    'Cá nhân': 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z',
     'Danh mục': 'M4 5h16v14H4zM8 9h8M8 13h8M8 17h5',
     'Khách hàng': 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z',
     'Nhân sự & lương': 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8',
@@ -282,6 +285,7 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/viec-cua-toi': 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     '/tong-quan': 'M3 12l9-8 9 8M5 10v10h14V10',
     '/cac-bao-gia': 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7',
+    '/khach-hang': 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z',
     '/cho-anh-duyet': 'M9 11l3 3 8-8M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9',
     '/hop-zalo': 'M21 12a8 8 0 01-11.5 7.2L4 21l1.8-5.5A8 8 0 1121 12zM8 12h.01M12 12h.01M16 12h.01',
     '/cham-cong': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
@@ -289,18 +293,19 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/hoa-hong': 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     '/tho': 'M3 5h18v15H3zM3 10h18M8 3v4M16 3v4',
 }.items()}
-# Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): 8 mục "Hằng ngày" trên đầu menu, theo vai trò ghi rõ trên tài khoản
-# (không dùng quyền suy ra của giám đốc); các mục khác gập trong "Khác". Chỉ đổi chỗ hiện, không đổi quyền.
-DAILY = (('/tong-quan', ('director',)), ('/cho-anh-duyet', ('director',)),
-         ('/viec-cua-toi', ('sales', 'finance', 'dispatcher', 'warehouse', 'reception')),
-         ('/dieu-phoi', ('dispatcher', 'director')), ('/dich-vu', ('dispatcher', 'reception')), ('/kiem-tra-may', ('dispatcher',)),
-         ('/ton-kho', ('warehouse',)), ('/phieu-kho', ('warehouse',)), ('/hop-zalo', ('sales', 'dispatcher')),
-         ('/cac-bao-gia', ('sales', 'dispatcher', 'reception')), ('/don-ban', ('sales', 'director')), ('/khach-hang', ('sales', 'reception')),
-         ('/bao-thu', ('finance',)), ('/thu-chi', ('finance',)), ('/cong-no-khach-hang', ('finance', 'director')),
-         ('/bao-cao/lai-rong', ('director',)), ('/doi-ai', ('director',)), ('/luong', ('director',)))
-DAILY_MAX = 8
+# Menu gọn (TUẤN duyệt mẫu 17/11/2026): thứ tự nhóm nghiệp vụ theo việc chính của người dùng (vai ghi trên tài khoản),
+# nhóm của việc chính lên trước; giám đốc giữ thứ tự gốc. Chỉ đổi chỗ hiện, không đổi quyền.
+GROUP_ORDER = (('sales', ('Bán hàng', 'Tài chính', 'Dịch vụ', 'Kho', 'Mua hàng')),
+               ('finance', ('Tài chính', 'Bán hàng', 'Kho', 'Mua hàng', 'Dịch vụ')),
+               ('dispatcher', ('Dịch vụ', 'Kho', 'Bán hàng', 'Mua hàng', 'Tài chính')),
+               ('warehouse', ('Kho', 'Mua hàng', 'Dịch vụ', 'Bán hàng', 'Tài chính')))
 
 
+# Menu gọn 17/11/2026: 3 tab dưới điện thoại theo việc chính (vai ghi trên tài khoản, vai đầu khớp thắng);
+# thiếu quyền mục nào thì lấp bằng PHONE_TABS. Ô thứ tư là Menu.
+ROLE_TABS = (('director', (('/cho-anh-duyet', 'Duyệt'), ('/tong-quan', 'Tổng quan'), ('/dieu-phoi', 'Điều phối'))),
+             ('sales', (('/viec-cua-toi', 'Việc'), ('/don-ban', 'Đơn bán'), ('/bao-thu', 'Báo thu'))),
+             ('finance', (('/viec-cua-toi', 'Việc'), ('/bao-thu', 'Báo thu'), ('/thu-chi', 'Thu chi'))))
 # Thanh dưới trên điện thoại: tối đa 3 lối tắt theo thứ tự này, ô thứ tư là Menu.
 PHONE_TABS = (('/viec-cua-toi', 'Việc'), ('/tong-quan', 'Tổng quan'), ('/dieu-phoi', 'Điều phối'), ('/dich-vu', 'Dịch vụ'),
               ('/don-ban', 'Đơn bán'), ('/ton-kho', 'Tồn kho'), ('/bao-thu', 'Báo thu'), ('/cham-cong', 'Chấm công'))
@@ -328,30 +333,24 @@ def menu(user, path, query=None):
     groups = []
     shell = technician_shell(user, path, query)
     if shell:
-        groups = [dict(label='', section='Của tôi', items=[dict(href=href,label=label,active=(current is matching(href.split('?')[0]))) for href,label in TECH_LINKS], active=False)]
+        groups = [dict(label='', section='', items=[dict(href=href,label=label,active=(current is matching(href.split('?')[0]))) for href,label in TECH_LINKS], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
         visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in DIRECTOR_HIDDEN and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             if len(visible) == 1 and visible[0].get('solo'): visible[0]['label'] = visible[0]['solo']  # Mục lẻ đứng riêng phải tự đủ nghĩa.
             for item in visible: item['icon'] = NAV_ICONS.get(item['href'], NAV_ICONS.get(group['label'], ''))
             groups.append(dict(label=group['label'], section=group['section'], items=visible, active=any(item['active'] for item in visible), icon=NAV_ICONS.get(group['label'], '')))
-    groups.sort(key=lambda g: SECTIONS.index(g['section']))
+    order = next((o for role, o in GROUP_ORDER if role in user.roles), ())
+    rank = {label: i for i, label in enumerate(order)}
+    groups.sort(key=lambda g: (SECTIONS.index(g['section']), rank.get(g['label'], len(rank))))
     shown = {item['href']: item for group in groups for item in group['items']}
-    daily = []
-    if not shell:
-        for href, roles in DAILY:
-            if len(daily) < DAILY_MAX and href in shown and any(r in user.roles for r in roles):
-                daily.append(shown[href])
-        picked = {item['href'] for item in daily}
-        for group in groups:
-            group['items'] = [item for item in group['items'] if item['href'] not in picked]
-            group['active'] = any(item['active'] for item in group['items'])
-        groups = [group for group in groups if group['items']]
-    tabs = [dict(href=href, label=label, icon=shown[href]['icon'], active=shown[href]['active']) for href, label in PHONE_TABS if href in shown][:3]
-    crumb = next(((group['label'] or 'Của tôi', item['label']) for group in groups for item in group['items'] if item['active']), None) \
-        or next((('Hằng ngày', item['label']) for item in daily if item['active']), None)
+    wanted = next((t for role, t in ROLE_TABS if role in user.roles), ())
+    picks = [(h, l) for h, l in wanted if h in shown]
+    picks += [(h, l) for h, l in PHONE_TABS if h in shown and h not in {x for x, _ in picks}]
+    tabs = [dict(href=href, label=label, icon=shown[href]['icon'], active=shown[href]['active']) for href, label in picks][:3]
+    # Mục đầu menu (không nhóm) không có đường dẫn nhóm: thanh trên chỉ hiện tên trang.
+    crumb = next(((group['label'], item['label']) for group in groups for item in group['items'] if item['active'] and group['label']), None)
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
     # Người nhiều vai trong khung thợ: tab dưới là nhóm đầu, menu đầy đủ mở từ nút tài khoản.
     personal = [dict(href=h, label=l, hint=t) for h, l, t in PERSONAL if allowed(user, h)] if shell else []
-    more = sum(len(group['items']) for group in groups) if daily else 0
-    return dict(groups=groups, daily=daily, more=more, more_open=any(group['active'] for group in groups), tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal)
+    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal)

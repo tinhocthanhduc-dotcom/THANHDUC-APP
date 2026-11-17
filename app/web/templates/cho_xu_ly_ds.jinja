@@ -1,6 +1,6 @@
 {% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}{% block title %}Kho Chờ Xử lý{% endblock %}
 {% block main %}<div class="page-wide list-page" data-list-page="cho-xu-ly">
-{% call ui.page_head('Kho Chờ Xử lý', sub='Hàng lỗi, chờ bảo hành NCC, thanh lý, thu hồi. Mỗi hồ sơ một hướng xử lý.') %}{% if can_approve_returns %}<a class="btn btn-ghost" href="/cho-xu-ly/duyet-tra-ncc">Duyệt trả NCC</a>{% endif %}{% if can_edit %}<a class="btn btn-new" href="/cho-xu-ly/chuyen">+ Chuyển vào Chờ xử lý</a>{% endif %}{% endcall %}
+{% call ui.page_head('Kho Chờ Xử lý', sub='Hàng lỗi, chờ bảo hành NCC, thanh lý, thu hồi. Mỗi hồ sơ một hướng xử lý.') %}{# Menu gọn 17/11/2026: báo cáo mở từ đây, không còn mục riêng trên menu. #}{% if can_open('/bao-cao/cho-xu-ly') %}<a class="btn btn-ghost" href="/bao-cao/cho-xu-ly">Báo cáo</a>{% endif %}{% if can_approve_returns %}<a class="btn btn-ghost" href="/cho-xu-ly/duyet-tra-ncc">Duyệt trả NCC</a>{% endif %}{% if can_edit %}<a class="btn btn-new" href="/cho-xu-ly/chuyen">+ Chuyển vào Chờ xử lý</a>{% endif %}{% endcall %}
 {% for notice in notices %}<p class="alert bad"><a href="{{ notice.link }}">{{ 'Hàng gửi NCC quá hạn' if notice.kind=='CHO_NCC_QUA_HAN' else 'Hàng chờ xử lý quá hạn' }} · {{ notice.title }}</a></p>{% endfor %}
 {{ ui.tiles(tiles) }}
 <section class="card list-frame">
