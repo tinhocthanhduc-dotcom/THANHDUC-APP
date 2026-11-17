@@ -2,8 +2,7 @@
 {% block title %}Báo thu tự xác nhận{% endblock %}
 {# Tab Tự xác nhận (TUẤN duyệt mẫu 17/11/2026): báo thu kế toán tự xác nhận trong hạn mức, để giám đốc soát. Chỉ đọc. #}
 {% block main %}<div class="rq-page">
-<div class="rq-top"><h1>Báo thu</h1>
-<nav class="stock-tags rq-tabs" aria-label="Loại việc"><a class="btn" href="/bao-thu">Chờ xác nhận</a><a class="btn" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a><a class="btn on" href="/bao-thu?tab=tu-xac-nhan" aria-current="page">Tự xác nhận <i>{{ totals.n }}</i></a></nav></div>
+{% call ui.page_head('Báo thu') %}<nav class="stock-tags rq-tabs" aria-label="Loại việc"><a class="btn" href="/bao-thu">Chờ xác nhận</a><a class="btn" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a><a class="btn on" href="/bao-thu?tab=tu-xac-nhan" aria-current="page">Tự xác nhận <i>{{ totals.n }}</i></a></nav>{% endcall %}
 <form class="rq-filters" action="/bao-thu"><input type="hidden" name="tab" value="tu-xac-nhan"><label><b>Ngày xác nhận</b> <input type="date" name="ngay" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}"></label><button class="btn btn-ghost">Xem</button></form>
 <p class="hint">{% if limit > 0 %}Kế toán tự xác nhận báo thu do mình lập tới {{ limit|money }} đ mỗi phiếu.{% else %}Tự xác nhận đang tắt (hạn mức 0).{% endif %}{% if is_director %} <a href="/han-muc-duyet">Đổi hạn mức</a>{% endif %}</p>
 <section class="card" data-self-confirmed-list>
