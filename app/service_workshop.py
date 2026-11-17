@@ -62,6 +62,7 @@ def quote_approve(session,user,ident,version,promised_return_on,note='',repairer
         if not warranty_free(t) and not any(x.amount+x.vat_amount>0 for x in t.lines):
             raise BusinessError('EMPTY_CHARGES','Báo giá chưa có dòng phí hoặc vật tư có giá.')
         before=tickets.snapshot(t)
+        again=t.quote_approved_at is not None  # chỉ đổi ngày hẹn trả: không làm mới bước thợ đã báo
         t.quote_approved_at,t.quote_approved_by=tickets._now(),user.id
         t.promised_return_on=promised_return_on
         if repairer_id:  # giao thợ sửa luôn: thợ thấy phiếu trên màn của mình
@@ -70,7 +71,7 @@ def quote_approve(session,user,ident,version,promised_return_on,note='',repairer
             note=(note+' · ' if note else '')+'Giao thợ sửa: '+tech.full_name
         from .repair_quotes import close_open
         close_open(session,t.id,'DONG_Y')  # đợt 4: lần báo giá đang chờ khách đóng theo
-        tickets._record(session,user,t,'quote_approve',before,t.status,note)
+        tickets._record(session,user,t,'quote_reschedule' if again else 'quote_approve',before,t.status,note)
     return t
 
 
@@ -106,16 +107,32 @@ def quote_decline(session,user,ident,version,mode,fee,reason):
     return t
 
 
-def reported(session,ids):
-    """{ticket_id: ServiceStep} lần thợ báo sửa xong còn hiệu lực: chưa có bước sửa xong nào sau đó (đợt 2, TUẤN 17/11/2026)."""
+# Thợ sửa ở xưởng có 3 nút (TUẤN duyệt 17/11/2026): sửa xong (kèm vật tư phát sinh không tính khách), phát sinh cần báo lại khách,
+# không sửa được. Bước khách đồng ý (lần mới) hoặc sửa xong làm mới lại.
+WORK_STEPS=('repair_reported','repair_failed','repair_extra','repair_done','quote_approve')
+FAIL_REASONS=('Hỏng nặng, không đáng sửa','Không có linh kiện','Ngoài khả năng','Khác')
+
+
+def tech_state(session,ids):
+    """{ticket_id: ServiceStep} lần thợ báo gần nhất còn hiệu lực (sửa xong / không sửa được / phát sinh)."""
     from sqlalchemy import select
     from .models import ServiceStep
     if not ids:return {}
     last={}
     for x in session.scalars(select(ServiceStep).where(ServiceStep.ticket_id.in_(list(ids)),
-            ServiceStep.action.in_(('repair_reported','repair_done'))).order_by(ServiceStep.id)):
+            ServiceStep.action.in_(WORK_STEPS)).order_by(ServiceStep.id)):
         last[x.ticket_id]=x
-    return {k:v for k,v in last.items() if v.action=='repair_reported'}
+    return {k:v for k,v in last.items() if v.action in ('repair_reported','repair_failed','repair_extra')}
+
+
+def reported(session,ids):
+    """{ticket_id: ServiceStep} thợ báo sửa xong, chờ kho chốt (đợt 2, TUẤN 17/11/2026)."""
+    return {k:v for k,v in tech_state(session,ids).items() if v.action=='repair_reported'}
+
+
+def failed(session,ids):
+    """{ticket_id: ServiceStep} thợ báo không sửa được, chờ kinh doanh báo khách."""
+    return {k:v for k,v in tech_state(session,ids).items() if v.action=='repair_failed'}
 
 
 def can_report(user,t):
@@ -123,25 +140,96 @@ def can_report(user,t):
             and t.declined_at is None and (t.quote_approved_at is not None or warranty_free(t)))
 
 
-def report_repaired(session,user,ident,version,note):
-    """Thợ sửa ở xưởng báo sửa xong: ảnh sau sửa + đã sửa gì. Không đổi trạng thái, không đụng tiền/kho;
-    kho chốt Sửa xong (vật tư, thu tiền, bảo hành) rồi giao thợ trả."""
+def _repairing(session,user,ident,version):
+    t=part_requests._ticket(session,ident)
+    tickets._check_version(t,version)
+    if tickets.TECHNICIAN not in user.roles or t.assignee_id!=user.id:
+        raise BusinessError('FORBIDDEN','Chỉ thợ được giao sửa máy này báo kết quả.',status=403)
+    if not can_report(user,t):
+        raise BusinessError('BAD_STATUS','Máy chưa ở bước sửa (khách chưa đồng ý hoặc đã chốt).',status=409)
+    state=tech_state(session,[t.id]).get(t.id)
+    if state is not None and state.action in ('repair_reported','repair_failed'):
+        raise BusinessError('ALREADY_REPORTED','Đã báo kết quả sửa, chờ xử lý tiếp.',status=409)
+    return t
+
+
+def extra_materials(session,user,t,extras):
+    """Vật tư phát sinh không tính khách: dòng VAT_TU giá 0 trên phiếu; kho trừ khi chốt Sửa xong, giá vốn vào lãi phiếu,
+    giá khách không đổi nên khách không phải đồng ý lại."""
+    from .config import DEFAULT_VAT_RATE
+    from .models import Product, Warehouse
+    from sqlalchemy import select
+    rows=[]
+    for code,wh,qty in extras:
+        code,wh=str(code or '').strip().upper(),str(wh or '').strip()
+        if not code:continue
+        try:qty=int(qty)
+        except (TypeError,ValueError):qty=0
+        if qty<=0:raise BusinessError('BAD_QTY',f'{code}: số lượng phải lớn hơn 0.')
+        p=session.get(Product,code)
+        if p is None or not p.active:raise BusinessError('BAD_PRODUCT',f'Không có mã hàng {code}.')
+        w=session.get(Warehouse,wh)
+        own=session.scalar(select(Warehouse).where(Warehouse.kind=='THO',Warehouse.holder_id==user.id,Warehouse.active.is_(True)))
+        if w is None or not w.active or not (w.kind=='KHO' or (own is not None and w.code==own.code)):
+            raise BusinessError('BAD_WAREHOUSE','Chọn kho công ty hoặc kho của bạn.')
+        rows.append((p,w.code,qty))
+    if not rows:return []
+    start=max((x.line_no for x in t.lines),default=0)+1
+    added=[ServiceLine(line_no=start+i,kind='VAT_TU',product_code=p.code,warehouse_code=wh,
+                       description=f'{p.name} · phát sinh, không tính khách'[:500],qty=qty,unit_price=0,
+                       vat_rate=DEFAULT_VAT_RATE,amount=0,vat_amount=0) for i,(p,wh,qty) in enumerate(rows)]
+    t.lines.extend(added)
+    t.version+=1
+    return added
+
+
+def report_repaired(session,user,ident,version,note,extras=()):
+    """Thợ sửa ở xưởng báo sửa xong: ảnh sau sửa + đã sửa gì (+ vật tư phát sinh không tính khách).
+    Không đổi trạng thái, không thu tiền; kho chốt Sửa xong (trừ kho, bảo hành) rồi giao thợ trả."""
     from .attachments import has_visible
     note=' '.join(str(note or '').split())[:2000]
     with _transaction(session):
-        t=part_requests._ticket(session,ident)
-        tickets._check_version(t,version)
-        if tickets.TECHNICIAN not in user.roles or t.assignee_id!=user.id:
-            raise BusinessError('FORBIDDEN','Chỉ thợ được giao sửa máy này báo sửa xong.',status=403)
-        if not can_report(user,t):
-            raise BusinessError('BAD_STATUS','Máy chưa ở bước sửa (khách chưa đồng ý hoặc đã chốt).',status=409)
-        if reported(session,[t.id]):
-            raise BusinessError('ALREADY_REPORTED','Đã báo sửa xong, chờ kho chốt.',status=409)
+        t=_repairing(session,user,ident,version)
         if len(note)<3:raise BusinessError('FIX_REQUIRED','Ghi đã sửa gì.')
         if not has_visible(session,'service_ticket',t.id,'SAU'):
             raise BusinessError('PHOTO_REQUIRED','Cần chụp ảnh máy sau sửa.')
         before=tickets.snapshot(t)
-        tickets._record(session,user,t,'repair_reported',before,t.status,note)
+        added=extra_materials(session,user,t,extras)
+        if added:
+            note+=' · Vật tư phát sinh: '+', '.join(f'{x.product_code} × {x.qty}' for x in added)
+        tickets._record(session,user,t,'repair_reported',before,t.status,note[:2000])
+    return t
+
+
+def report_extra(session,user,ident,version,note):
+    """Phát sinh, cần báo lại khách: bỏ khách đồng ý, máy về kho kiểm tra lại (thêm gói/linh kiện), kinh doanh gửi báo giá lần sau."""
+    from .models import RepairInspection
+    note=' '.join(str(note or '').split())[:1000]
+    with _transaction(session):
+        t=_repairing(session,user,ident,version)
+        if len(note)<3:raise BusinessError('NOTE_REQUIRED','Ghi cần thêm gì, vì sao.')
+        if t.quote_approved_at is None:
+            raise BusinessError('WARRANTY_FREE','Máy bảo hành miễn phí: báo kho xử lý phần phát sinh.',status=409)
+        row=session.get(RepairInspection,t.id,with_for_update=True)
+        if row is None:raise BusinessError('NO_INSPECTION','Máy chưa có kết quả kiểm tra.',status=409)
+        before=tickets.snapshot(t)
+        t.quote_approved_at=t.quote_approved_by=None
+        t.version+=1
+        row.recheck_reason=('Phát sinh khi sửa: '+note)[:1000]
+        row.applied_at=row.applied_by=None
+        tickets._record(session,user,t,'repair_extra',before,t.status,note)
+    return t
+
+
+def report_failed(session,user,ident,version,reason,note=''):
+    """Không sửa được: ghi lý do; kinh doanh/giám đốc báo khách rồi bấm Khách không sửa (phí kiểm tra hoặc miễn phí)."""
+    note=' '.join(str(note or '').split())[:1000]
+    with _transaction(session):
+        t=_repairing(session,user,ident,version)
+        if reason not in FAIL_REASONS:raise BusinessError('REASON_REQUIRED','Chọn lý do không sửa được.')
+        if reason=='Khác' and len(note)<3:raise BusinessError('REASON_REQUIRED','Lý do Khác: ghi rõ vì sao.')
+        before=tickets.snapshot(t)
+        tickets._record(session,user,t,'repair_failed',before,t.status,reason+(' · '+note if note else ''))
     return t
 
 

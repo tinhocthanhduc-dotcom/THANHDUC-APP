@@ -83,10 +83,11 @@ def _since(session, ids):
 
 def waiting(session) -> dict:
     """{ticket_id: (bước, hạn, thợ được giao)} cho các bước có người phải làm: s1 kho kiểm tra (4 giờ), s2 duyệt giá gửi khách
-    (2 giờ), s3 gọi lại khách (2 ngày), s4 thợ sửa (trước ngày hẹn trả 1 ngày), s5 kho chốt (4 giờ).
+    (2 giờ), s3 gọi lại khách (2 ngày), s3f thợ báo không sửa được → báo khách (2 giờ), s4 thợ sửa (trước ngày hẹn trả 1 ngày), s5 kho chốt (4 giờ).
     Việc của tôi + chuông + Trưởng nhóm AI dùng (đợt 1d, đợt 2)."""
     from datetime import datetime, time as dtime
-    from .service_workshop import reported, warranty_free
+    from . import repair_inspection as ri
+    from .service_workshop import failed, reported, warranty_free
     t = ServiceTicket
     items = list(session.scalars(select(t).where(t.status == 'TAM_DUNG', t.hold_reason == 'CHO_SUA_XUONG',
                                                  t.declined_at.is_(None)).order_by(t.id)))
@@ -95,11 +96,14 @@ def waiting(session) -> dict:
     ids = [x.id for x in items]
     since = _since(session, ids)
     done = reported(session, ids)
+    fails = failed(session, ids)
     inspections = {r.ticket_id: r for r in session.scalars(select(RepairInspection).where(RepairInspection.ticket_id.in_(ids)))}
     out = {}
     for x in items:
         if x.quote_approved_at is not None or warranty_free(x):
-            if x.id in done:
+            if x.id in fails:
+                out[x.id] = ('s3f', (fails[x.id].at or x.created_at) + timedelta(hours=PRICE_HOURS), x.assignee_id)
+            elif x.id in done:
                 out[x.id] = ('s5', (done[x.id].at or x.created_at) + timedelta(hours=INSPECT_HOURS), x.assignee_id)
             else:
                 day = (x.promised_return_on - timedelta(days=1)) if x.promised_return_on else None
@@ -109,7 +113,7 @@ def waiting(session) -> dict:
         r = inspections.get(x.id)
         if sent is not None and sent.sent_at:
             out[x.id] = ('s3', sent.sent_at + timedelta(days=2), x.assignee_id)
-        elif r is not None and r.items and (r.applied_at is not None or not r.recheck_reason):
+        elif r is not None and r.items and not ri.needs_recheck(r):
             out[x.id] = ('s2', (r.inspected_at or x.created_at) + timedelta(hours=PRICE_HOURS), x.assignee_id)
         else:
             out[x.id] = ('s1', (since.get(x.id) or x.created_at) + timedelta(hours=INSPECT_HOURS), x.assignee_id)
@@ -131,8 +135,9 @@ def build(session, user) -> dict:
     machines = {e.serial: e for e in session.scalars(select(Equipment).where(Equipment.serial.in_({t.serial for t in items if t.serial})))} if items else {}
     pending = {r.serial: r for r in session.scalars(select(EquipmentCustody).where(
         EquipmentCustody.serial.in_(list(machines)), EquipmentCustody.status == 'CHO_NHAN'))} if machines else {}
-    from .service_workshop import reported
+    from .service_workshop import failed, reported
     done_map = reported(session, ids)
+    fail_map = failed(session, ids)
     quoter = can_quote(user)
     dispatcher = has_role(user, *DISPATCHERS)
     inspector = ri.can_inspect(user)
@@ -147,6 +152,7 @@ def build(session, user) -> dict:
         sub_bits, step_note, chips = [t.number], '', []
         late, time_label, time_sub, tone = False, '', '', ''
         todo, who, action, mine = '', '', None, False
+        label = ''
         href = f'/dich-vu/{t.id}'
         if r and r.items:
             from .models import PriceService
@@ -157,7 +163,20 @@ def build(session, user) -> dict:
         wait = pending.get(t.serial) if t.serial else None
         if t.status == 'TAM_DUNG' and t.hold_reason == 'CHO_SUA_XUONG' and t.declined_at is None:
             sent = rq.open_version(session, t.id)
-            if (t.quote_approved_at or warranty_free(t)) and t.id in done_map:
+            if (t.quote_approved_at or warranty_free(t)) and t.id in fail_map:
+                rep = fail_map[t.id]
+                stage, label = 's3', 'Không sửa được'
+                at = rep.at.astimezone(TZ) if rep.at else None
+                gone = now - at if at else timedelta(0)
+                late = gone > timedelta(hours=PRICE_HOURS)
+                time_label, tone = f'Thợ báo {at.strftime("%H:%M") if at and at.date() == today else _day(at)}' if at else '', 'bad' if late else 'warn'
+                time_sub = 'Quá hạn báo khách' if late else f'Chờ {_ago(gone)}'
+                chips.append(('Không sửa được', 'bad'))
+                step_note = (rep.note or '')[:80]
+                todo, who = 'Báo khách, ghi khách không sửa', 'Kinh doanh hoặc giám đốc'
+                if quoter:
+                    action, mine = dict(label='Báo khách · không sửa', href=f'{href}#workshop-decline', tone='ok'), True
+            elif (t.quote_approved_at or warranty_free(t)) and t.id in done_map:
                 rep = done_map[t.id]
                 stage = 's5'
                 time_label, tone = _left(today, t.promised_return_on)
@@ -194,7 +213,7 @@ def build(session, user) -> dict:
                 who = (names.get(sent.sent_by) or names.get(sent.created_by) or '') + ' đã gửi'
                 if quoter:
                     action, mine = dict(label='Ghi trả lời', href=f'{href}#gui-khach', tone='ok' if late else ''), True
-            elif r is not None and r.items and (r.applied_at is not None or not r.recheck_reason):
+            elif r is not None and r.items and not ri.needs_recheck(r):
                 stage = 's2'
                 done = r.inspected_at
                 gone = now - done if done else timedelta(0)
@@ -207,6 +226,8 @@ def build(session, user) -> dict:
                     chips.append((f'Thiếu {len(pl["missing"])} LK', 'warn'))
                 if pl:
                     step_note = f'Công {pl["hours_text"]} · xong dự kiến {_day(pl["eta"])}'
+                if r.recheck_reason:  # lần sau: khách chưa đồng ý / thợ báo phát sinh
+                    step_note = r.recheck_reason.replace(ri.RECHECKED, '')[:80] + (' · ' + step_note if step_note else '')
                 who = 'Kinh doanh hoặc giám đốc'
                 if quoter:
                     action, mine = dict(label='Duyệt · gửi', href=f'{href}#gui-khach', tone='ok'), True
@@ -256,7 +277,7 @@ def build(session, user) -> dict:
                 mine = t.assignee_id == user.id
                 if mine:
                     action = dict(label='Mở màn thợ', href=f'/tho/phieu/{t.id}', tone='')
-        rows.append(dict(t=t, stage=stage, stage_label=STAGES[stage], machine=machine, sub=' · '.join(b for b in sub_bits if b),
+        rows.append(dict(t=t, stage=stage, stage_label=label or STAGES[stage], machine=machine, sub=' · '.join(b for b in sub_bits if b),
                          customer=c.name if c else t.customer_code, contact=(c.address or '')[:60] if c else '',
                          note=step_note, chips=chips, late=late, time=time_label, time_sub=time_sub, tone=tone,
                          todo=todo, who=who, action=action, mine=mine, href=href,
