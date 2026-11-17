@@ -449,8 +449,11 @@ def decide_in_tx(session,user,receipt_id,version,target,reason=''):
     if receipt.status != expected:
         raise BusinessError('BAD_STATUS', 'Không thực hiện được ở trạng thái báo thu hiện tại.',
                             {'status': receipt.status}, status=409)
+    self_confirm = False
     if target == 'DA_XAC_NHAN' and receipt.reported_by == user.id and not has_role(user, 'director'):
-        raise BusinessError('SELF_CONFIRM', 'Không được tự xác nhận báo thu do mình lập.', status=403)
+        if not can_self_confirm(session, user, receipt):
+            raise BusinessError('SELF_CONFIRM', self_confirm_message(session, user, receipt), status=403)
+        self_confirm = True
     reason = (reason or '').strip()
     if target in ('TU_CHOI', 'DA_HUY') and not reason:
         raise BusinessError('REASON_REQUIRED', 'Phải nhập lý do từ chối hoặc hủy báo thu.')
@@ -464,8 +467,53 @@ def decide_in_tx(session,user,receipt_id,version,target,reason=''):
         cash_posting.void_in_tx(session,user,doc.id,reason,doc.version)
     receipt.status, receipt.reason = target, reason
     receipt.decided_by, receipt.decided_at = user.id, datetime.now(UTC)
-    _record(session, user, receipt, {'DA_XAC_NHAN':'confirm', 'TU_CHOI':'reject', 'DA_HUY':'void'}[target], before, reason)
+    _record(session, user, receipt, {'DA_XAC_NHAN':'confirm', 'TU_CHOI':'reject', 'DA_HUY':'void'}[target], before,
+            SELF_CONFIRM_NOTE if self_confirm else reason)
     return receipt
+
+
+# ---- Kế toán tự xác nhận báo thu do mình lập, giám đốc soát sau (TUẤN duyệt mẫu 17/11/2026) ----
+# Chỉ người có vai trò kế toán và KHÔNG có vai trò thợ, phiếu do chính mình lập, số tiền <= hạn mức TU_XAC_NHAN (0 = tắt).
+# Ghi quỹ, trừ nợ y như xác nhận thường. Xác nhận nhóm tiền mặt của chính mình vẫn bị chặn (đếm tiền phải là người khác).
+SELF_CONFIRM_NOTE = 'Tự xác nhận trong hạn mức'
+
+
+def self_confirm_limit(session) -> int:
+    from . import approval_limits
+    return int(approval_limits.limits(session)['TU_XAC_NHAN'])
+
+
+def can_self_confirm(session, user, receipt) -> bool:
+    if session is None or not user.active or not has_role(user, 'finance') or has_role(user, 'technician'):
+        return False
+    if receipt.reported_by != user.id or receipt.status != 'CHO_XAC_NHAN':
+        return False
+    limit = self_confirm_limit(session)
+    return 0 < receipt.amount <= limit
+
+
+def self_confirm_message(session, user, receipt) -> str:
+    limit = self_confirm_limit(session) if session is not None else 0
+    if limit > 0 and has_role(user, 'finance') and not has_role(user, 'technician') and receipt.amount > limit:
+        return f'Báo thu trên hạn mức tự xác nhận {limit:,} đ; chờ giám đốc xác nhận.'.replace(',', '.')
+    return 'Không được tự xác nhận báo thu do mình lập.'
+
+
+def self_confirmed(session, start, end):
+    """Báo thu người lập tự xác nhận (không phải giám đốc) có decided_at trong [start, end), cũ trước."""
+    directors = [u.id for u in session.scalars(select(User)) if 'director' in u.roles]
+    stmt = select(SalesReceipt).where(SalesReceipt.status == 'DA_XAC_NHAN', SalesReceipt.decided_by == SalesReceipt.reported_by,
+                                      SalesReceipt.decided_at >= start, SalesReceipt.decided_at < end)
+    if directors:
+        stmt = stmt.where(SalesReceipt.decided_by.notin_(directors))
+    return list(session.scalars(stmt.order_by(SalesReceipt.decided_at, SalesReceipt.id)))
+
+
+def is_self_confirmed(session, receipt) -> bool:
+    if receipt.status != 'DA_XAC_NHAN' or receipt.decided_by is None or receipt.decided_by != receipt.reported_by:
+        return False
+    decider = session.get(User, receipt.decided_by) if session is not None else None
+    return decider is not None and 'director' not in decider.roles
 
 
 def confirm(session, user, receipt_id, version):
@@ -504,10 +552,10 @@ def can_switch(user, receipt):
     return receipt.replaced_by_id is None
 
 
-def can_confirm_now(user, receipt):
-    """Kế toán đổi BT đang chờ có thể xác nhận luôn; giữ luật không tự xác nhận BT do mình lập."""
+def can_confirm_now(user, receipt, session=None):
+    """Kế toán đổi BT đang chờ có thể xác nhận luôn; BT do mình lập chỉ khi trong hạn mức tự xác nhận (17/11/2026)."""
     return (receipt.status == 'CHO_XAC_NHAN' and has_role(user, 'finance')
-            and (receipt.reported_by != user.id or has_role(user, 'director')))
+            and (receipt.reported_by != user.id or has_role(user, 'director') or can_self_confirm(session, user, receipt)))
 
 
 def switch_method(session, user, receipt_id, version, method, reason, confirm_now=False):
@@ -526,7 +574,7 @@ def switch_method_in_tx(session, user, receipt_id, version, method, reason, conf
     _version(old, version)
     if old.method == method:
         raise BusinessError('SAME_METHOD', 'Báo thu đã là hình thức này.', status=409)
-    if confirm_now and not can_confirm_now(user, old):
+    if confirm_now and not can_confirm_now(user, old, session):
         raise BusinessError('SELF_CONFIRM', 'Không được tự xác nhận báo thu do mình lập.', status=403)
     labels = {'TIEN_MAT': 'Tiền mặt', 'CHUYEN_KHOAN': 'Chuyển khoản'}
     was_confirmed = old.status == 'DA_XAC_NHAN'

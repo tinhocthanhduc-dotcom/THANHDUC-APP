@@ -14,7 +14,8 @@ from sqlalchemy import select
 
 from .models import DispatchZaloSent, User, ZaloChat, ZaloMessage
 
-HELD = {'bao_cao_sang': 'Báo cáo sáng', 'san_xuat': 'Sản xuất treo', 'nhan_su_bao': 'Chấm công', 'tom_tat_doi': 'Tóm tắt Đội AI'}
+HELD = {'bao_cao_sang': 'Báo cáo sáng', 'san_xuat': 'Sản xuất treo', 'nhan_su_bao': 'Chấm công', 'tom_tat_doi': 'Tóm tắt Đội AI',
+        'tu_xac_nhan': 'Kế toán tự xác nhận báo thu'}
 CODE = 'TIN_GOP'
 GRACE = timedelta(minutes=2)     # chờ 2 phút sau mốc để tin cùng giờ (vd chấm công 17:45) kịp vào tin gộp
 CATCH_UP = timedelta(hours=2)    # máy chủ khởi động lại trễ quá 2 giờ thì đợi mốc sau

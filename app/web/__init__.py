@@ -256,13 +256,33 @@ def _receipt_switch(ctx, receipt):
     replaces = session.scalar(select(SalesReceipt.number).where(SalesReceipt.replaced_by_id == receipt.id)) if session else None
     from .. import receipt_corrections
     return dict(can=bool(user) and sales_receipts.can_switch(user, receipt),
-                confirm_now=bool(user) and sales_receipts.can_confirm_now(user, receipt),
+                confirm_now=bool(user) and sales_receipts.can_confirm_now(user, receipt, session),
                 replaced_by=replaced_by, replaces=replaces or '',
                 # Sửa báo thu (12/11/2026): giám đốc sửa BT đã xác nhận một bước; phân biệt nhãn với Đổi hình thức.
                 can_correct=receipt_corrections.can_correct(user, receipt), corrected=receipt_corrections.is_correction(receipt))
 
 
 templates.env.globals["receipt_switch"] = _receipt_switch
+
+
+@jinja2.pass_context
+def _receipt_self(ctx, receipt):
+    """Tự xác nhận báo thu (17/11/2026): can = người xem tự xác nhận được phiếu này; done = phiếu đã tự xác nhận;
+    over = phiếu của mình nhưng trên hạn mức (để ghi rõ lý do chờ giám đốc)."""
+    from sqlalchemy.orm import object_session
+    from .. import sales_receipts
+    user = _viewer(ctx)
+    session = object_session(receipt)
+    if session is None:
+        return dict(can=False, done=False, over=False, limit=0)
+    limit = sales_receipts.self_confirm_limit(session)
+    can = bool(user) and sales_receipts.can_self_confirm(session, user, receipt)
+    over = (bool(user) and not can and limit > 0 and receipt.status == 'CHO_XAC_NHAN' and receipt.reported_by == user.id
+            and receipt.amount > limit)
+    return dict(can=can, done=sales_receipts.is_self_confirmed(session, receipt), over=over, limit=limit)
+
+
+templates.env.globals["receipt_self"] = _receipt_self
 templates.env.globals["is_collected"] = sales_receipts_svc.is_collected
 templates.env.globals.update(KIND_LABELS=KIND_LABELS, STATUS_LABELS=STATUS_LABELS, WARNING_LABELS=WARNING_LABELS)
 

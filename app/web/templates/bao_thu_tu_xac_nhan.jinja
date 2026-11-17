@@ -1,0 +1,15 @@
+{% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}
+{% block title %}Báo thu tự xác nhận{% endblock %}
+{# Tab Tự xác nhận (TUẤN duyệt mẫu 17/11/2026): báo thu kế toán tự xác nhận trong hạn mức, để giám đốc soát. Chỉ đọc. #}
+{% block main %}<div class="rq-page">
+<div class="rq-top"><h1>Báo thu</h1>
+<nav class="stock-tags rq-tabs" aria-label="Loại việc"><a class="btn" href="/bao-thu">Chờ xác nhận</a><a class="btn" href="/bao-thu?tab=hoan-tien">Hoàn tiền chờ duyệt</a><a class="btn on" href="/bao-thu?tab=tu-xac-nhan" aria-current="page">Tự xác nhận <i>{{ totals.n }}</i></a></nav></div>
+<form class="rq-filters" action="/bao-thu"><input type="hidden" name="tab" value="tu-xac-nhan"><label><b>Ngày xác nhận</b> <input type="date" name="ngay" value="{{ day.isoformat() }}" max="{{ today.isoformat() }}"></label><button class="btn btn-ghost">Xem</button></form>
+<p class="hint">{% if limit > 0 %}Kế toán tự xác nhận báo thu do mình lập tới {{ limit|money }} đ mỗi phiếu.{% else %}Tự xác nhận đang tắt (hạn mức 0).{% endif %}{% if is_director %} <a href="/han-muc-duyet">Đổi hạn mức</a>{% endif %}</p>
+<section class="card" data-self-confirmed-list>
+{% if rows %}<div class="table-scroll"><table class="list-table"><thead><tr><th>Báo thu</th><th>Nguồn</th><th>Khách</th><th>Người lập</th><th>Lập</th><th>Xác nhận</th><th>Hình thức</th><th class="num">Số tiền</th></tr></thead><tbody>
+{% for x in rows %}{% set r=x.receipt %}<tr data-self-row><td><a href="/bao-thu/{{ r.id }}"><b>{{ r.number }}</b></a></td><td>{{ x.source }}</td><td>{{ x.customer }}</td><td>{{ x.who }}</td><td>{{ r.reported_at|vn_time }}</td><td>{{ r.decided_at|vn_time }}</td><td>{{ 'Tiền mặt' if r.method=='TIEN_MAT' else 'Chuyển khoản' }}</td><td class="num"><b>{{ r.amount|money }}</b></td></tr>{% endfor %}
+</tbody><tfoot><tr><td colspan="7"><b>Tổng {{ totals.n }} phiếu</b> · Tiền mặt {{ totals.cash|money }} · Chuyển khoản {{ totals.bank|money }}</td><td class="num"><b>{{ totals.total|money }}</b></td></tr></tfoot></table></div>
+<p class="hint">Bấm số báo thu để mở phiếu. Phiếu sai: giám đốc bấm Sửa báo thu hoặc Hủy báo thu trên phiếu.</p>
+{% else %}{{ ui.empty('Không có báo thu tự xác nhận trong ngày ' ~ day.strftime('%d/%m/%Y') ~ '.') }}{% endif %}
+</section></div>{% endblock %}
