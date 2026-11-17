@@ -85,6 +85,8 @@ def service(session, user, t):
         if not dispatcher:return None
         from ..service_workshop import warranty_free
         approved=t.quote_approved_at is not None or warranty_free(t)
+        from ..service_tickets import can_quote
+        if not approved and not can_quote(user):return None  # kho/điều phối không duyệt giá: kinh doanh hoặc giám đốc làm
         return block(form('Sửa xong' if approved else 'Khách đồng ý','workshop-repaired' if approved else 'workshop-approve',base+'/xuong/'+('sua-xong' if approved else 'dong-y')))  # TUẤN 15/11: Khách không sửa chỉ một chỗ (khung xưởng / tab Không sửa), không lặp ở Bước tiếp
     if t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA':
         if not dispatcher:return None

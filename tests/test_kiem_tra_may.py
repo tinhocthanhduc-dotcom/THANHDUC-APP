@@ -157,7 +157,7 @@ def test_web_technician_inspects_dispatcher_applies_margin_hidden(client, db, wo
     fuser, feed, opts = book(db, boss)
     csrf = service_login(client, p['technician'])
     page = client.get('/kiem-tra-may')
-    assert page.status_code == 200 and t.number in page.text and 'Chờ kiểm tra' in page.text
+    assert page.status_code == 200 and t.number in page.text and 'Mới về' in page.text and 'Kiểm tra máy' in page.text  # Bảng xưởng 17/11
     page = client.get(f'/kiem-tra-may/{t.id}')
     assert page.status_code == 200 and 'Sửa chữa cụm sấy' in page.text and 'Thay bao lụa sấy' in page.text
     assert '450.000' not in page.text  # thợ không thấy giá
@@ -172,7 +172,7 @@ def test_web_technician_inspects_dispatcher_applies_margin_hidden(client, db, wo
     client.cookies.clear()
     csrf = service_login(client, p['dispatcher'])
     page = client.get(f'/dich-vu/{t.id}')
-    assert page.status_code == 200 and 'Báo giá sửa chữa' in page.text and 'Áp vào báo giá' in page.text
+    assert page.status_code == 200 and 'Báo giá sửa chữa' in page.text and 'Duyệt giá' in page.text
     assert 'Sửa chữa cụm sấy máy Canon LBP 2900' in page.text and 'Lãi trực tiếp' not in page.text
     db.refresh(t)
     r = client.post(f'/kiem-tra-may/{t.id}/ap-gia', data={'csrf': csrf, 'version': str(t.version), f'pa_{fuser.id}': '1'}, follow_redirects=False)
@@ -187,7 +187,8 @@ def test_web_technician_inspects_dispatcher_applies_margin_hidden(client, db, wo
     assert 'Lãi trực tiếp' in page.text and 'vốn' in page.text
     client.cookies.clear()
     service_login(client, p['sales'])
-    assert client.get('/kiem-tra-may').status_code == 403
+    assert client.get('/kiem-tra-may').status_code == 200  # Bảng xưởng 17/11: kinh doanh xem để duyệt báo giá
+    assert client.get(f'/kiem-tra-may/{t.id}').status_code == 403  # kinh doanh không ghi kết quả kiểm tra
 
 
 def test_commission_base_is_package_minus_part_cost(db, workshop, make_user, monkeypatch):

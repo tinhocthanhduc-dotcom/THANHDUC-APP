@@ -3,7 +3,7 @@
 <div class="xg-head"><h2>Báo giá sửa chữa</h2>
 {% if rq %}<p class="hint">Thợ {{ users.get(rq.row.inspected_by, '') }} kiểm tra {{ rq.row.inspected_at|vn_time }} {{ rq.row.inspected_at|vn_date }} · model {{ rq.row.model_name }}{% if rq.current %} · <b>đã áp vào phiếu</b>{% endif %}</p>{% endif %}</div>
 {% if not rq %}
-<p class="hint">Thợ chưa ghi kết quả kiểm tra máy. Thợ mở <b>Máy chờ kiểm tra</b> trên điện thoại, hoặc điều phối ghi thay.</p>
+<p class="hint">Thợ chưa ghi kết quả kiểm tra máy. Kho mở <b>Bảng xưởng</b> › Kiểm tra máy để ghi.</p>
 <a class="btn btn-new" href="/kiem-tra-may/{{ t.id }}">Kiểm tra máy ›</a>
 {% else %}{% set q=rq.q %}{% if rq.row.recheck_reason %}<p class="alert warn"><b>Khách chưa đồng ý.</b> {{ rq.row.recheck_reason }}. Thợ kiểm tra lại rồi áp giá, gửi lần mới.</p>{% endif %}
 {# TUẤN 15/11/2026 "phân bổ gọn hơn": đã gửi khách thì gập phần áp giá, phần chính là Khách trả lời. #}{% set rq_fold=rq.send and not rq.send.stale and not rq.row.recheck_reason and not error %}{% if rq_fold %}<details class="rq-fold"><summary><span>Phần kỹ thuật và bản khách nhận · đã áp</span><b>{{ q.total|money }} đ</b></summary>{% endif %}<form method="post" action="/kiem-tra-may/{{ t.id }}/ap-gia" class="rq-two" data-busy data-rq-quote>
@@ -39,12 +39,12 @@
 {% if q.warranty is not none %}<p class="hint">Bảo hành {{ 'không' if q.warranty==0 else q.warranty|string ~ ' tháng' }} cho hạng mục đã sửa.</p>{% endif %}
 </div>
 {% if q.ai.status == 'DANG' %}<p class="hint" data-rq-ai-wait>Codex trên Z2 đang soạn mô tả cho khách (tối đa 3 phút). <a href="/dich-vu/{{ t.id }}">Tải lại</a> để lấy bản soạn; chưa có thì dùng mẫu bảng giá.</p>{% elif q.ai.status == 'LOI' %}<p class="hint">Codex chưa soạn được ({{ q.ai.error }}), đang dùng mẫu trong bảng giá.</p>{% endif %}
-<p class="hint">Áp vào báo giá: mỗi dịch vụ thành một dòng phí trọn gói trên phiếu, dòng vật tư khác giữ nguyên. Đổi giá sau khi khách đồng ý thì phải xin khách đồng ý lại.</p>
-{% if q.ok %}<button class="btn btn-ok pnz-full">{{ 'Áp lại báo giá' if rq.row.applied_at else 'Áp vào báo giá' }}</button>{% else %}<p class="alert warn">Còn dịch vụ chưa có giá: giám đốc thêm giá trong Bảng giá rồi áp.</p>{% endif %}
+<p class="hint">Duyệt giá: mỗi dịch vụ thành một dòng phí trọn gói trên phiếu, dòng vật tư khác giữ nguyên. Đổi giá sau khi khách đồng ý thì phải xin khách đồng ý lại.</p>
+{% if not rq.quoter %}<p class="alert info">Kinh doanh hoặc giám đốc duyệt giá này rồi gửi khách.</p>{% elif q.ok %}<button class="btn btn-ok pnz-full">{{ 'Duyệt lại giá' if rq.row.applied_at else 'Duyệt giá' }}</button>{% else %}<p class="alert warn">Còn dịch vụ chưa có giá: giám đốc thêm giá trong Bảng giá rồi áp.</p>{% endif %}
 <div class="rqs-acts"><a class="btn btn-ghost" href="/kiem-tra-may/{{ t.id }}">Sửa kết quả kiểm tra</a><a class="btn btn-ghost" href="/kiem-tra-may/{{ t.id }}/in" data-rq-print>In kết quả kiểm tra</a></div>
 </div>
 </form>{% if rq_fold %}</details>{% endif %}
-{% include 'bao_gia_sua_gui.jinja' %}
+{% if rq.quoter %}{% include 'bao_gia_sua_gui.jinja' %}{% endif %}
 {% endif %}
 </section>
 <script src="{{ asset('bao-gia-sua.js') }}" defer></script><script src="{{ asset('bao-gia-gui.js') }}" defer></script>

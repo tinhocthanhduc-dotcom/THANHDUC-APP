@@ -25,6 +25,8 @@ def holding(db,onsite):
     p,a,b,t,eq=onsite
     photo(db,p,t)
     svc.bring(db,p['technician'],t.id,t.version,intake(eq),[])
+    # Điều phối ở các test xưởng kiêm kinh doanh như chị Thanh: duyệt giá, gửi khách là việc kinh doanh (TUẤN 17/11/2026).
+    p['dispatcher'].roles=[*p['dispatcher'].roles,'sales'];db.commit()
     return p,a,b,t,eq
 
 

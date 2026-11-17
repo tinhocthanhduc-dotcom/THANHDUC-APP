@@ -85,9 +85,10 @@ def _quote_count(session, href):
 
 def quotes(session, user, active):
     """Tab Báo giá theo quyền người xem. Báo giá gộp (/bao-gia-gop) sáng tab Sửa máy."""
+    from ..service_tickets import can_quote
     active = '/bao-gia-sua' if active == '/bao-gia-gop' else active
     return [dict(label=label, n=_quote_count(session, href), href=href, on=href == active)
-            for href, label in QUOTE_TABS if nav.allowed(user, href)]
+            for href, label in QUOTE_TABS if nav.allowed(user, href) and (href != '/bao-gia-sua' or can_quote(user))]
 
 
 def quote_choices(user):
@@ -95,13 +96,13 @@ def quote_choices(user):
     from .. import quick_quotes as qq
     from ..quotes import WRITERS
     from ..security import has_role
-    from ..service_tickets import DISPATCHERS
+    from ..service_tickets import DISPATCHERS, can_quote
     rows = (
         ('/bao-gia/moi', 'Mua máy, mực, linh kiện', 'Báo giá hàng hóa · Bán hàng làm', has_role(user, *WRITERS)),
         ('/hoi-gia/moi', 'Hỏi giá sửa, chưa thấy máy', 'Giá theo model và gói sửa, ghi "giá dự kiến" · Bán hàng, Điều phối',
          qq.can_use(user)),
-        ('/kiem-tra-may', 'Máy đã kiểm tra, cần báo giá chính thức', 'Mở Máy chờ kiểm tra, chọn phiếu · Điều phối',
-         has_role(user, *DISPATCHERS)),
+        ('/kiem-tra-may', 'Máy đã kiểm tra, cần báo giá chính thức', 'Mở Bảng xưởng, cột Chờ duyệt giá · Kinh doanh, Giám đốc',
+         can_quote(user)),
         ('/bao-gia-hop-dong/moi', 'Hợp đồng, nhiều model một bảng', 'Báo giá hợp đồng · Điều phối', has_role(user, *DISPATCHERS)),
     )
     return [dict(href=h, title=t, hint=s) for h, t, s, ok in rows if ok and nav.allowed(user, h)]

@@ -39,7 +39,7 @@ TRANSITIONS = {
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "depart": "Thợ đi tới khách", "late": "Thợ báo trễ", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
-         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
+         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","repair_reported":"Thợ báo sửa xong","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ", "update_info": "Sửa thông tin phiếu",
          "goods_ok": "Đã nhận đủ hàng", "unassign": "Rút giao thợ", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
@@ -328,6 +328,9 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     ctx.update(service_machines.context(session,user,t,machine_form))
     # Báo giá sửa chữa đợt 3 (mẫu M3/M4 14/11/2026): thợ kiểm tra máy, điều phối áp giá bảng giá vào phiếu.
     from .. import repair_inspection as rinsp
+    ctx['quoter']=svc.can_quote(user)
+    from .. import service_workshop as _sw
+    ctx['ws_report']=_sw.reported(session,[t.id]).get(t.id) if at_workshop else None
     ctx['rq_inspect']=rinsp.can_inspect(user) and rinsp.is_waiting(t) and not t.quote_approved_at
     ctx['rq_done']=request.query_params.get('da_kiem_tra')==str(t.id)
     ctx['rq_applied']=request.query_params.get('da_ap_gia')=='1' and not error

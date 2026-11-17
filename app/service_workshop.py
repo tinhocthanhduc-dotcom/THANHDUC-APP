@@ -27,8 +27,10 @@ def hand_to_workshop(session,user,ident,version,custody_body):
     return t
 
 
-def _waiting(session,user,ident,version):
+def _waiting(session,user,ident,version,quote=False):
     tickets._require(user,tickets.DISPATCHERS,'Chỉ điều phối hoặc giám đốc được xử lý sửa ở xưởng.')
+    if quote and not tickets.can_quote(user):
+        raise BusinessError('FORBIDDEN','Chỉ kinh doanh hoặc giám đốc ghi khách đồng ý hay không sửa.',status=403)
     t=part_requests._ticket(session,ident)
     tickets._check_version(t,version)
     if t.status!='TAM_DUNG' or t.hold_reason!=WAITING or service_charges.return_locked(t):
@@ -40,10 +42,20 @@ def warranty_free(t):
     return t.billing=='MIEN_PHI' and t.warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN')
 
 
-def quote_approve(session,user,ident,version,promised_return_on,note=''):
+def repairers(session):
+    """Thợ đang làm, ít việc mở nhất lên đầu: gợi ý người sửa khi khách đồng ý (TUẤN 17/11/2026)."""
+    from sqlalchemy import func, select
+    from .models import ServiceTicket, User
+    load=dict(session.execute(select(ServiceTicket.assignee_id,func.count()).where(ServiceTicket.status.in_(tickets.OPEN),
+        ServiceTicket.assignee_id.is_not(None)).group_by(ServiceTicket.assignee_id)).all())
+    techs=[u for u in session.scalars(select(User).where(User.active.is_(True)).order_by(User.full_name)) if tickets.TECHNICIAN in u.roles]
+    return sorted(((u,load.get(u.id,0)) for u in techs),key=lambda x:(x[1],x[0].full_name))
+
+
+def quote_approve(session,user,ident,version,promised_return_on,note='',repairer_id=None):
     from datetime import date, datetime
     with _transaction(session):
-        t=_waiting(session,user,ident,version)
+        t=_waiting(session,user,ident,version,quote=True)
         if t.declined_at:raise BusinessError('BAD_STATUS','Khách đã từ chối sửa.',status=409)
         if not isinstance(promised_return_on,date) or isinstance(promised_return_on,datetime) or promised_return_on<tickets._now().astimezone(tickets.service_sla.TZ).date():
             raise BusinessError('BAD_APPOINTMENT','Chọn ngày hẹn trả từ hôm nay trở đi.')
@@ -52,6 +64,10 @@ def quote_approve(session,user,ident,version,promised_return_on,note=''):
         before=tickets.snapshot(t)
         t.quote_approved_at,t.quote_approved_by=tickets._now(),user.id
         t.promised_return_on=promised_return_on
+        if repairer_id:  # giao thợ sửa luôn: thợ thấy phiếu trên màn của mình
+            tech=tickets._technician(session,repairer_id)
+            t.assignee_id=tech.id
+            note=(note+' · ' if note else '')+'Giao thợ sửa: '+tech.full_name
         from .repair_quotes import close_open
         close_open(session,t.id,'DONG_Y')  # đợt 4: lần báo giá đang chờ khách đóng theo
         tickets._record(session,user,t,'quote_approve',before,t.status,note)
@@ -69,7 +85,7 @@ def quote_decline(session,user,ident,version,mode,fee,reason):
     from .schemas import ServiceCharges
     reason=(reason or '').strip()
     with _transaction(session):
-        t=_waiting(session,user,ident,version)
+        t=_waiting(session,user,ident,version,quote=True)
         if mode not in ('FULL','FREE'):raise BusinessError('BAD_COLLECTION','Chọn Thu phí kiểm tra hoặc Miễn phí.')
         before=tickets.snapshot(t)
         lines=[service_charges.line_input(x) for x in t.lines if x.stock_doc_id is not None]
@@ -87,6 +103,45 @@ def quote_decline(session,user,ident,version,mode,fee,reason):
         t.repaired_by=None
         t.warranty_months,t.warranty_scope=0,''
         _ready(session,user,t,'quote_decline',before,reason)
+    return t
+
+
+def reported(session,ids):
+    """{ticket_id: ServiceStep} lần thợ báo sửa xong còn hiệu lực: chưa có bước sửa xong nào sau đó (đợt 2, TUẤN 17/11/2026)."""
+    from sqlalchemy import select
+    from .models import ServiceStep
+    if not ids:return {}
+    last={}
+    for x in session.scalars(select(ServiceStep).where(ServiceStep.ticket_id.in_(list(ids)),
+            ServiceStep.action.in_(('repair_reported','repair_done'))).order_by(ServiceStep.id)):
+        last[x.ticket_id]=x
+    return {k:v for k,v in last.items() if v.action=='repair_reported'}
+
+
+def can_report(user,t):
+    return (tickets.TECHNICIAN in user.roles and t.assignee_id==user.id and t.status=='TAM_DUNG' and t.hold_reason==WAITING
+            and t.declined_at is None and (t.quote_approved_at is not None or warranty_free(t)))
+
+
+def report_repaired(session,user,ident,version,note):
+    """Thợ sửa ở xưởng báo sửa xong: ảnh sau sửa + đã sửa gì. Không đổi trạng thái, không đụng tiền/kho;
+    kho chốt Sửa xong (vật tư, thu tiền, bảo hành) rồi giao thợ trả."""
+    from .attachments import has_visible
+    note=' '.join(str(note or '').split())[:2000]
+    with _transaction(session):
+        t=part_requests._ticket(session,ident)
+        tickets._check_version(t,version)
+        if tickets.TECHNICIAN not in user.roles or t.assignee_id!=user.id:
+            raise BusinessError('FORBIDDEN','Chỉ thợ được giao sửa máy này báo sửa xong.',status=403)
+        if not can_report(user,t):
+            raise BusinessError('BAD_STATUS','Máy chưa ở bước sửa (khách chưa đồng ý hoặc đã chốt).',status=409)
+        if reported(session,[t.id]):
+            raise BusinessError('ALREADY_REPORTED','Đã báo sửa xong, chờ kho chốt.',status=409)
+        if len(note)<3:raise BusinessError('FIX_REQUIRED','Ghi đã sửa gì.')
+        if not has_visible(session,'service_ticket',t.id,'SAU'):
+            raise BusinessError('PHOTO_REQUIRED','Cần chụp ảnh máy sau sửa.')
+        before=tickets.snapshot(t)
+        tickets._record(session,user,t,'repair_reported',before,t.status,note)
     return t
 
 

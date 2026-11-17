@@ -54,9 +54,9 @@ def link(row: RepairQuoteVersion) -> str:
 
 
 def require(user: User):
-    from .service_tickets import DISPATCHERS
-    if not has_role(user, *DISPATCHERS):
-        raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc gửi báo giá và ghi khách trả lời.', status=403)
+    from .service_tickets import can_quote
+    if not can_quote(user):
+        raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh hoặc giám đốc duyệt, gửi báo giá và ghi khách trả lời.', status=403)
 
 
 def versions(session: Session, ticket_id: int) -> list[RepairQuoteVersion]:
@@ -166,10 +166,10 @@ def create_in_tx(session: Session, user: User, ticket_id: int, version, group_id
         raise BusinessError('ALREADY_APPROVED', f'{t.number}: khách đã đồng ý báo giá này, không cần gửi lại.', status=409)
     row = session.get(RepairInspection, t.id)
     if row is None or row.applied_at is None:
-        raise BusinessError('NOT_APPLIED', f'{t.number}: bấm Áp vào báo giá trước, rồi mới gửi khách.', status=409)
+        raise BusinessError('NOT_APPLIED', f'{t.number}: bấm Duyệt giá trước, rồi mới gửi khách.', status=409)
     snap = snapshot(session, t, row)
     if not _matches_ticket(t, row, snap):
-        raise BusinessError('STALE_QUOTE', f'{t.number}: giá trên phiếu khác bảng giá hiện tại (vừa đổi giá?). Bấm Áp lại báo giá rồi gửi.', status=409)
+        raise BusinessError('STALE_QUOTE', f'{t.number}: giá trên phiếu khác bảng giá hiện tại (vừa đổi giá?). Bấm Duyệt lại giá rồi gửi.', status=409)
     for old in session.scalars(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == t.id,
                                                                  RepairQuoteVersion.status == 'CHO').with_for_update()):
         old.status = 'THAY_THE'
@@ -329,7 +329,7 @@ def public(session: Session, token: str) -> tuple[RepairQuoteVersion | None, str
 # ---------- khách trả lời ----------
 
 def agree(session: Session, user: User, vid: int, ticket_version, choice: str, via: str, person: str, promised_return_on,
-          note: str = '') -> RepairQuoteVersion:
+          note: str = '', repairer_id: int | None = None) -> RepairQuoteVersion:
     """Khách đồng ý: khách chọn phương án khác bản đang áp thì áp lại theo phương án đó (giá phải đúng bản đã gửi),
     rồi bấm đúng nút "Khách đồng ý" của xưởng (ngày hẹn trả). Ghi PA, qua đâu, ai xác nhận lên lần báo giá."""
     from . import service_workshop
@@ -359,7 +359,8 @@ def agree(session: Session, user: User, vid: int, ticket_version, choice: str, v
         session.refresh(t)
         version = t.version
     service_workshop.quote_approve(session, user, t.id, version, promised_return_on,
-                                   f'Báo giá lần {v.no} · {choice} · {VIA[via]} · {person}{" · " + note.strip()[:500] if note.strip() else ""}')
+                                   f'Báo giá lần {v.no} · {choice} · {VIA[via]} · {person}{" · " + note.strip()[:500] if note.strip() else ""}',
+                                   repairer_id=repairer_id)
     v = session.get(RepairQuoteVersion, vid, with_for_update=True)
     v.status, v.reply_choice, v.reply_via, v.reply_person = 'DONG_Y', choice, via, person
     v.reply_note, v.replied_by, v.replied_at = str(note or '').strip()[:2000], user.id, _now()

@@ -71,28 +71,48 @@ def _inspect_page(request, session, user, ticket_id, form=None, error='', error_
         priced.setdefault(sid, set()).add(f'g{gid}' if gid else f'm{mid}')
     model = pb.find_model(session, v['model']) if v['model'] else None
     from .. import ghi_chu_phieu
-    return render(request, 'kiem_tra_may.jinja', t=t, ai_notes=ghi_chu_phieu.notes(session, user, ticket=t), row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
+    from .. import workshop_board as wb
+    stock = wb.part_stock(session)
+    return render(request, 'kiem_tra_may.jinja', stock=stock, plan=wb.plan(session, row), today=wb._now().date(), t=t, ai_notes=ghi_chu_phieu.notes(session, user, ticket=t), row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
                   customer=session.get(Customer, t.customer_code), machine=ri.machine_name(session, t), hq=hq,
                   models=models, groups=groups, priced={k: ' '.join(sorted(x)) for k, x in priced.items()},
                   model_group=groups.get(model.group_id) if model else '', part_rows=parts, waiting=ri.is_waiting(t),
                   users={u.id: u.full_name for u in session.scalars(select(User))}, error=error, error_code=error_code, status=status)
 
 
+BOARD_ROLES = ('technician', 'dispatcher', 'sales')
+BOARD_VIEWS = ('cua-toi', 'tat-ca', 'qua-han', 's1', 's2', 's3', 's4', 's6')
+
+
 @router.get('/kiem-tra-may')
 def listing(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    ri.require_inspect(user)
-    rows = ri.waiting_rows(session)
-    customers = {c.code: c for c in session.scalars(select(Customer).where(Customer.code.in_({r['ticket'].customer_code for r in rows})))} if rows else {}
+    """Bảng xưởng (TUẤN duyệt mẫu 17/11/2026): thay danh sách "Máy chờ kiểm tra"; mỗi máy một hàng, việc cần làm + ai làm."""
+    if not has_role(user, *BOARD_ROLES):
+        raise BusinessError('FORBIDDEN', 'Chỉ kho, kỹ thuật, kinh doanh hoặc giám đốc xem Bảng xưởng.', status=403)
+    from .. import workshop_board as wb
     from .. import repair_quote_groups as rg
     from ..service_tickets import DISPATCHERS
-    groups = rg.by_customer(rows)
-    # Báo giá gộp (mẫu duyệt 15/11/2026): khách có từ 2 máy đã áp giá, chưa đồng ý → nút Gộp báo giá cho điều phối.
-    ready = {code: sum(1 for r in g if r['inspection'] is not None and r['inspection'].applied_at and not r['ticket'].quote_approved_at)
-             for code, g in groups.items()}
-    can_group = has_role(user, *DISPATCHERS)
-    opened = {code: rg.open_for_customer(session, code) for code, g in groups.items() if len(g) > 1} if can_group else {}
-    return render(request, 'kiem_tra_may_ds.jinja', rows=rows, groups=groups, ready=ready, can_group=can_group, opened=opened,
-                  customers=customers, todo=sum(1 for r in rows if r['todo']))
+    view = request.query_params.get('view', '')
+    q = (request.query_params.get('q', '') or '').strip()[:80]
+    board = wb.build(session, user)
+    counts = board['counts']
+    if view not in BOARD_VIEWS:
+        view = 'cua-toi' if counts['mine'] else 'tat-ca'
+    board['rows'] = wb.pick(board['rows'], view, q)
+    tabs = [dict(label=label, n=counts[key], href=f'/kiem-tra-may?view={v}', on=view == v)
+            for v, key, label in (('cua-toi', 'mine', 'Việc của tôi'), ('tat-ca', 'all', 'Tất cả'), ('qua-han', 'late', 'Quá hạn'))]
+    # Báo giá gộp (mẫu duyệt 15/11/2026): khách có từ 2 máy đã áp giá, chưa đồng ý → gợi ý Gộp báo giá.
+    gather = []
+    if has_role(user, *DISPATCHERS):
+        rows = ri.waiting_rows(session)
+        for code, g in rg.by_customer(rows).items():
+            ready = sum(1 for r in g if r['inspection'] is not None and r['inspection'].applied_at and not r['ticket'].quote_approved_at)
+            opened = rg.open_for_customer(session, code) if len(g) > 1 else None
+            if ready > 1 or opened:
+                c = session.get(Customer, code)
+                gather.append(dict(code=code, name=c.name if c else code, ready=ready, opened=opened))
+    return render(request, 'kiem_tra_may_ds.jinja', board=board, tabs=tabs, view=view, q=q, gather=gather,
+                  can_group=has_role(user, *DISPATCHERS))
 
 
 @router.get('/kiem-tra-may/{ticket_id}')
@@ -102,16 +122,37 @@ def inspect_page(request: Request, ticket_id: int, user: User = Depends(web_user
 
 @router.post('/kiem-tra-may/{ticket_id}')
 def inspect_save(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """TUẤN 17/11/2026: kho chỉ kiểm tra, chọn gói + linh kiện rồi Lưu; báo giá do kinh doanh / giám đốc duyệt.
+    Lưu cũng ghi kho kỹ thuật đã nhận máy (nếu máy còn chờ kho nhận và người lưu được nhận), khỏi bấm riêng."""
     user = request.state.user
     try:
         ri.save(session, user, ticket_id, form)
     except BusinessError as exc:
         session.rollback()
         if exc.status in (403, 404):
+            session.refresh(user)  # trang lỗi còn đọc quyền người dùng sau khi phiên đóng
             raise
         return _inspect_page(request, session, user, ticket_id, form, exc.message, exc.code, exc.status)
-    back = '/kiem-tra-may' if not has_role(user, 'dispatcher') else f'/dich-vu/{ticket_id}'
-    return RedirectResponse(f'{back}?da_kiem_tra={ticket_id}', status_code=303)
+    _confirm_custody(session, user, ticket_id)
+    return RedirectResponse(f'/kiem-tra-may?da_kiem_tra={ticket_id}', status_code=303)
+
+
+def _confirm_custody(session, user, ticket_id):
+    from .. import equipment_custody as custody
+    from ..models import ServiceTicket
+    t = session.get(ServiceTicket, ticket_id)
+    row = custody.pending(session, t.serial) if t is not None and t.serial else None
+    if row is None or row.ticket_id != t.id or row.location != 'KHO_KY_THUAT' or not custody.can_confirm(user, row):
+        return
+    try:
+        custody.confirm(session, user, row.id, row.version)
+    except BusinessError:
+        session.rollback()  # kết quả kiểm tra đã lưu; kho nhận máy bấm riêng như cũ
+
+
+def _repairers(session):
+    from .. import service_workshop
+    return [dict(id=u.id, name=u.full_name, load=n) for u, n in service_workshop.repairers(session)]
 
 
 def panel_context(session, user, t, picks=None) -> dict:
@@ -134,11 +175,13 @@ def panel_context(session, user, t, picks=None) -> dict:
     from .. import repair_quote_groups as rg
     group = rg.for_ticket(session, t.id)
     siblings = sum(1 for r in rg.candidates(session, t.customer_code) if r['ready']) if has_role(user, 'dispatcher') else 0
-    return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, group=group, siblings=siblings,
+    from .. import service_tickets as _st
+    return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, quoter=_st.can_quote(user), group=group, siblings=siblings,
                         current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1,
-                        can_send=bool(row.applied_at) and (open_v is None or send['stale']),
+                        can_send=_st.can_quote(user) and bool(row.applied_at) and (open_v is None or send['stale']),
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
-                        statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS),
+                        statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS,
+                        repairers=_repairers(session) if send else []),
                 rq_warranty=row.warranty_months if row.applied_at else None)
 
 
@@ -154,6 +197,7 @@ def apply_quote(request: Request, ticket_id: int, form=Depends(checked_form), se
     except BusinessError as exc:
         session.rollback()
         if exc.status in (403, 404):
+            session.refresh(user)  # trang lỗi còn đọc quyền người dùng sau khi phiên đóng
             raise
         from .services import _detail
         return _detail(request, session, user, ticket_id, failed_action='rq-apply', error=exc.message, error_code=exc.code, status=exc.status)
@@ -213,7 +257,8 @@ def quote_action(request: Request, vid: int, action: str, form=Depends(checked_f
                 day = None
             version = str(form.get('version', '') or '')
             rqs.agree(session, user, vid, int(version) if version.isdigit() else None, str(form.get('pa', '')),
-                      str(form.get('via', '')), str(form.get('person', '')), day, str(form.get('note', '') or ''))
+                      str(form.get('via', '')), str(form.get('person', '')), day, str(form.get('note', '') or ''),
+                      int(form.get('repairer')) if str(form.get('repairer', '')).isdigit() else None)
         elif action == 'chua-dong-y':
             from . import _digits
             wanted = _digits(form.get('wanted_price')) or None

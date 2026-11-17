@@ -1,0 +1,20 @@
+{# Đợt 2 nối liền máy về xưởng (TUẤN 17/11/2026): thợ được giao sửa ở xưởng báo sửa xong bằng ảnh + đã sửa gì; kho chốt tiền, vật tư, bảo hành. #}
+{% set w=ws_repair %}{% set fx=form if failed_action=='ws-report' else {} %}
+<section class="card form" id="sua-xuong" data-ws-repair>
+<h2>{{ 'Đã báo sửa xong' if w.reported else 'Sửa máy ở xưởng' }}</h2>
+{% if w.promised %}<p class="hint">Hẹn trả khách {{ w.promised.strftime('%d/%m/%Y') }}</p>{% endif %}
+{% if w.packs %}<p class="group-label"><b>Gói sửa khách đã đồng ý</b></p><ul class="xg-lines">{% for i in w.packs %}<li><span>{{ i }}</span></li>{% endfor %}</ul>{% endif %}
+{% if w.parts %}<p class="group-label"><b>Linh kiện dự trù</b></p><ul class="xg-lines">{% for x in w.parts %}<li><span>{{ x.name }} · {{ x.code }}</span><b>× {{ x.qty }}</b></li>{% endfor %}</ul>{% endif %}
+{% if w.note %}<p class="hint">Kho ghi: {{ w.note }}</p>{% endif %}
+{% if w.reported %}<p class="alert ok">Bạn báo sửa xong {{ w.reported.at|vn_time }} {{ w.reported.at|vn_date }}: {{ w.reported.note }}. Kho chốt rồi giao thợ trả máy.</p>
+{% else %}
+{% if error and failed_action=='ws-report' %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+<form id="ws-report" method="post" action="/tho/phieu/{{ t.id }}/bao-sua-xong" enctype="multipart/form-data" data-busy>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+{% set has_after=files|selectattr('tag','equalto','SAU')|list %}
+<label>Ảnh máy sau sửa{% if has_after %} <span class="hint">· đã có {{ has_after|length }} ảnh, chụp thêm nếu cần</span>{% endif %}<input type="file" name="photo" accept="image/*" capture="environment" {% if not has_after %}required{% endif %}></label>
+<label>Đã sửa gì<textarea name="fix" required minlength="3" maxlength="2000" rows="3">{{ fx.get('fix', w.fix) }}</textarea></label>
+<p class="hint">Linh kiện thay khác dự trù thì ghi rõ để kho trừ đúng.</p>
+<button class="btn btn-ok pnz-full">Báo sửa xong</button>
+</form>{% endif %}
+</section>

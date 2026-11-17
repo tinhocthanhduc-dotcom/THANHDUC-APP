@@ -1,22 +1,23 @@
 {% extends "base.jinja" %}
 {% import '_ui.jinja' as ui %}
-{% block title %}Máy chờ kiểm tra{% endblock %}
-{% block main %}<div class="page-mid rq-page">
-{# Báo giá sửa chữa đợt 3 (mẫu M3 14/11/2026): máy đang ở xưởng chờ sửa; chưa kiểm tra lên đầu.
-   Báo giá gộp (mẫu duyệt 15/11/2026): máy cùng khách gom một khung, đủ 2 máy đã áp giá thì điều phối bấm Gộp báo giá. #}
-{% call ui.page_head('Máy chờ kiểm tra', sub=(todo ~ ' máy chưa kiểm tra · ' ~ rows|length ~ ' máy ở xưởng chờ sửa')) %}{% if can_group %}<a class="btn btn-ghost" href="/bao-gia-sua">Báo giá đã lập</a>{% endif %}{% endcall %}
-{% set done=request.query_params.get('da_kiem_tra','') %}{% if done %}{{ ui.toast('Đã gửi kết quả kiểm tra, điều phối báo giá cho khách.') }}{% endif %}
-{% macro row(r, in_group=false) %}{% set t=r.ticket %}{% set c=customers.get(t.customer_code) %}
-<a class="card rq-row" href="/kiem-tra-may/{{ t.id }}"><div><b>{{ t.number }} · {{ r.machine or 'Máy chưa ghi tên' }}</b>
-<p class="hint">{% if not in_group %}{{ c.name if c else t.customer_code }} · {% endif %}{{ t.symptom|truncate(90) }}</p></div>
-<span class="badge {{ 'b-huy' if r.late or r.recheck else ('b-cho' if r.todo else ('b-xong' if t.quote_approved_at else 'b-lam')) }}">{{ r.stage }}</span></a>{% endmacro %}
-{% for code, g in groups.items() %}{% if g|length > 1 %}{% set c=customers.get(code) %}
-<section class="card bgg-group" data-bgg-group><div class="bgg-gh"><b>{{ c.name if c else code }}</b><span class="badge b-lam">{{ g|length }} máy cùng khách</span></div>
-{% for r in g %}{{ row(r, true) }}{% endfor %}
-{% set og = opened.get(code) %}{% if og %}<a class="btn btn-ok pnz-full" href="/bao-gia-gop/{{ og.id }}">Mở báo giá gộp {{ og.number }} (đang chờ khách)</a>{% endif %}
-{% if can_group and ready[code] > 1 %}<a class="btn {{ 'btn-ghost' if og else 'btn-new' }} pnz-full" href="/bao-gia-gop/moi?khach={{ code|urlencode }}">{{ 'Gộp lại bản mới' if og else 'Gộp báo giá ' ~ ready[code] ~ ' máy' }}</a>
-{% elif can_group %}<p class="hint">Đủ 2 máy đã áp giá thì gộp được một báo giá chung.</p>{% endif %}
-</section>
-{% else %}{{ row(g[0]) }}{% endif %}
-{% else %}<p class="card hint">Không có máy nào ở xưởng chờ sửa.</p>{% endfor %}
+{% block title %}Bảng xưởng{% endblock %}
+{% block main %}<div class="page-wide bx-page">
+{# Bảng xưởng (TUẤN duyệt mẫu KuE6LqYr5PAakwcosnTbGK 17/11/2026): thay danh sách "Máy chờ kiểm tra". Mỗi máy một hàng:
+   tên máy + khách to, số phiếu nhỏ; màu đầu hàng = bước; cột Việc cần làm ghi ai làm, chỉ việc của mình mới có nút. #}
+{% set c = board.counts %}
+{% call ui.page_head('Bảng xưởng', sub=(c.all ~ ' máy ở xưởng · ' ~ c.late ~ ' quá hạn' ~ ((' · báo giá chờ khách ' ~ (board.waiting_total|money) ~ ' đ') if board.waiting_total else ''))) %}{% if can_group %}<a class="btn btn-ghost" href="/bao-gia-sua">Báo giá đã lập</a>{% endif %}{% endcall %}
+{% set done=request.query_params.get('da_kiem_tra','') %}{% if done %}{{ ui.toast('Đã lưu kết quả kiểm tra. Kinh doanh hoặc giám đốc duyệt báo giá.') }}{% endif %}
+<nav class="ltabs bx-tabs" aria-label="Lọc">{% for t in tabs %}<a class="ltab{{ ' on' if t.on }}{{ ' bx-red' if loop.index == 3 and t.n }}" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }} <span>{{ t.n }}</span></a>{% endfor %}</nav>
+<div class="bx-legend">{% for k, label in board.stages.items() %}{% if k != 's5' or c[k] %}<a class="bx-leg{{ ' on' if view == k }}" href="/kiem-tra-may?view={{ k }}"><i class="bx-dot bx-{{ k }}"></i>{{ label }} <b>{{ c[k] }}</b></a>{% endif %}{% endfor %}
+<form class="bx-find" method="get" action="/kiem-tra-may" role="search"><input type="hidden" name="view" value="{{ view }}"><input type="search" name="q" value="{{ q }}" placeholder="Tìm máy, khách, số phiếu" aria-label="Tìm" autocomplete="off"></form></div>
+{% for g in gather %}<div class="card bx-gather"><span><b>{{ g.name }}</b> có {{ g.ready }} máy đã áp giá, gửi chung một báo giá được.</span>{% if g.opened %}<a class="btn btn-ghost" href="/bao-gia-gop/{{ g.opened.id }}">Mở {{ g.opened.number }}</a>{% endif %}{% if g.ready > 1 %}<a class="btn btn-new" href="/bao-gia-gop/moi?khach={{ g.code|urlencode }}">{{ 'Gộp lại bản mới' if g.opened else 'Gộp báo giá ' ~ g.ready ~ ' máy' }}</a>{% endif %}</div>{% endfor %}
+{% if board.rows %}<div class="table-scroll"><table class="list-table lt-cards bx-table"><thead><tr><th class="bx-c-m">Máy</th><th class="bx-c-k">Khách</th><th class="bx-c-s">Bước</th><th class="bx-c-t">Thời gian</th><th>Việc cần làm</th></tr></thead><tbody>
+{% for r in board.rows %}<tr data-href="{{ r.href }}" class="bx-row bx-{{ r.stage }}{{ ' bx-late' if r.late }}">
+<td class="lt-first bx-m" data-label="Máy"><a href="{{ r.href }}"><b class="bx-mn">{{ r.machine }}</b></a><span class="lt-sub">{{ r.sub }}</span></td>
+<td class="bx-k" data-label="Khách"><b class="bx-cn">{{ r.customer }}</b>{% if r.contact %}<span class="lt-sub">{{ r.contact }}</span>{% endif %}</td>
+<td class="lt-st bx-s" data-label="Bước"><span class="bx-step bx-{{ r.stage }}">{{ r.stage_label }}</span>{% for chip, tone in r.chips %}<span class="bx-chip bx-{{ tone }}">{{ chip }}</span>{% endfor %}{% if r.note %}<span class="lt-sub">{{ r.note }}</span>{% endif %}</td>
+<td class="bx-t" data-label="Thời gian"><b class="bx-time{{ ' bx-' ~ r.tone if r.tone }}">{{ r.time }}</b>{% if r.time_sub %}<span class="lt-sub">{{ r.time_sub }}</span>{% endif %}</td>
+<td class="bx-a" data-label="Việc cần làm"><div class="bx-act"><div><b>{{ r.todo }}</b><span class="lt-sub">{{ r.who }}</span></div>{% if r.action %}<a class="btn {{ 'btn-ok' if r.action.tone == 'ok' else 'btn-new' if r.action.tone == 'new' else 'btn-ghost' }} bx-btn" href="{{ r.action.href }}">{{ r.action.label }}</a>{% endif %}</div></td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ ui.empty('Không có máy nào ở mục này.' if view != 'tat-ca' or q else 'Không có máy nào ở xưởng.', '/kiem-tra-may?view=tat-ca' if view != 'tat-ca' or q else '', 'Xem tất cả') }}{% endif %}
 </div>{% endblock %}

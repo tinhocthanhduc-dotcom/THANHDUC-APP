@@ -50,6 +50,7 @@
 <p class="alert warn" {% if completion_ready %}hidden{% endif %}>Hoàn tất các mục còn thiếu ở trên để hoàn thành phiếu.</p></section>
 {% endif %}{% endif %}
 {% if custody_machine and not pickup_first and (t.kind=='MANG_VE' or custody_machine.custody_ticket_id==t.id) and not (return_job and working and not custody_pending) %}{# Màn trả máy đã gồm ảnh và xác nhận trả khách; chỉ hiện khung máy khi thợ còn phải xác nhận nhận máy. #}{% include 'may_khach.jinja' %}{% endif %}
+{% if ws_repair %}{% include 'tho_xuong_sua.jinja' %}{% endif %}
 {% if t.status in ['CHO_LINH_KIEN','TAM_DUNG'] %}<section class="card"><h2>{{ service_status(t) }}</h2>{% if t.hold_reason and t.hold_reason not in workshop_holds %}<p>{{ hold_reasons.get(t.hold_reason,t.hold_reason) }}</p>{% endif %}</section>{% with can_request_parts=false %}{% include 'dich_vu_linh_kien.jinja' %}{% endwith %}{% endif %}
 {% if goods.required %}{% include 'tho_hang_mang_theo.jinja' %}{% endif %}
 {% if current_target and t.status!='DANG_LAM' %}<div class="{{ 'tho-plain-primary' if current_target in ['DA_NHAN','DANG_LAM'] else '' }}">{{ transition(current_target,true) }}</div>{% endif %}

@@ -3,7 +3,7 @@
 {% block title %}Báo giá gộp{% endblock %}
 {% block main %}<div class="page-wide bgg-page">
 {# TUẤN 16/11/2026: xem lại báo giá gộp cũ (không phải lần nào cũng tạo mới). Lập mới từ Máy chờ kiểm tra. #}
-{% call ui.page_head('Báo giá gộp', sub='Báo giá nhiều máy của một khách. Lập mới ở Máy chờ kiểm tra (khách có từ 2 máy đã áp giá).') %}<a class="btn btn-new" href="/cac-bao-gia/tao">+ Tạo báo giá</a>{% endcall %}
+{% call ui.page_head('Báo giá gộp', sub='Báo giá nhiều máy của một khách. Lập mới ở Bảng xưởng (khách có từ 2 máy đã áp giá).') %}<a class="btn btn-new" href="/cac-bao-gia/tao">+ Tạo báo giá</a>{% endcall %}
 {{ ui.hub_tabs(hub|default([]), 'Báo giá') }}
 {% with kind='gop' %}{% include '_bao_gia_loai.jinja' %}{% endwith %}
 {{ ui.list_tabs(tabs) }}
@@ -16,6 +16,6 @@
 <td data-label="Tổng" class="num"><b>{{ r.total|money }}</b></td>
 <td data-label="Trạng thái">{{ ui.badge(labels[r.state], {'CHO': 'cho', 'XONG': 'xong', 'THU_HOI': 'huy', 'HET_HAN': 'huy'}[r.state]) }}{% if r.state == 'CHO' and not r.g.sent_at %}<span class="lt-sub">chưa gửi khách</span>{% endif %}</td>
 </tr>{% endfor %}
-</tbody></table></div>{% else %}{{ ui.empty('Chưa có báo giá gộp nào đang chờ khách.' if view == 'cho' else 'Không có báo giá nào ở mục này.', '/kiem-tra-may', 'Máy chờ kiểm tra') }}{% endif %}
+</tbody></table></div>{% else %}{{ ui.empty('Chưa có báo giá gộp nào đang chờ khách.' if view == 'cho' else 'Không có báo giá nào ở mục này.', '/kiem-tra-may', 'Bảng xưởng') }}{% endif %}
 {% call ui.list_foot(p, 'báo giá') %}{% endcall %}
 </div>{% endblock %}

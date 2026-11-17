@@ -22,6 +22,9 @@ def error(code, fn, *a, **kw):
 @pytest.fixture
 def shop(db, people):
     p = people
+    # Điều phối ở quầy kiêm kinh doanh như chị Thanh: ghi khách đồng ý là việc kinh doanh (TUẤN 17/11/2026).
+    p['dispatcher'].roles = [*p['dispatcher'].roles, 'sales']
+    db.commit()
     eq = equipment.create(db, p['dispatcher'], EquipmentIn(serial='QUAY-01', product_code='TD-0001', customer_code='KTD-000001'))
     return p, eq
 
