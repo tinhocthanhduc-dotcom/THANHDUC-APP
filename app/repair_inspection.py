@@ -408,8 +408,8 @@ def apply(session: Session, user: User, ticket_id: int, version, choices: dict, 
     from . import service_charges, service_tickets
     from .schemas import ServiceCharges, ServiceLineIn
     from .stock_docs import _transaction
-    if not has_role(user, *service_tickets.DISPATCHERS):
-        raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc áp báo giá.', status=403)
+    if not service_tickets.can_quote(user):
+        raise BusinessError('FORBIDDEN', 'Chỉ kinh doanh hoặc giám đốc duyệt báo giá.', status=403)
     with _transaction(session):
         t = load_ticket(session, user, ticket_id, lock=True)
         service_tickets._check_version(t, version)

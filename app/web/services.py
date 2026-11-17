@@ -328,6 +328,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     ctx.update(service_machines.context(session,user,t,machine_form))
     # Báo giá sửa chữa đợt 3 (mẫu M3/M4 14/11/2026): thợ kiểm tra máy, điều phối áp giá bảng giá vào phiếu.
     from .. import repair_inspection as rinsp
+    ctx['quoter']=svc.can_quote(user)
     ctx['rq_inspect']=rinsp.can_inspect(user) and rinsp.is_waiting(t) and not t.quote_approved_at
     ctx['rq_done']=request.query_params.get('da_kiem_tra')==str(t.id)
     ctx['rq_applied']=request.query_params.get('da_ap_gia')=='1' and not error

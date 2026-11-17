@@ -130,6 +130,7 @@ def inspect_save(request: Request, ticket_id: int, form=Depends(checked_form), s
     except BusinessError as exc:
         session.rollback()
         if exc.status in (403, 404):
+            session.refresh(user)  # trang lỗi còn đọc quyền người dùng sau khi phiên đóng
             raise
         return _inspect_page(request, session, user, ticket_id, form, exc.message, exc.code, exc.status)
     _confirm_custody(session, user, ticket_id)
@@ -147,6 +148,11 @@ def _confirm_custody(session, user, ticket_id):
         custody.confirm(session, user, row.id, row.version)
     except BusinessError:
         session.rollback()  # kết quả kiểm tra đã lưu; kho nhận máy bấm riêng như cũ
+
+
+def _repairers(session):
+    from .. import service_workshop
+    return [dict(id=u.id, name=u.full_name, load=n) for u, n in service_workshop.repairers(session)]
 
 
 def panel_context(session, user, t, picks=None) -> dict:
@@ -169,11 +175,13 @@ def panel_context(session, user, t, picks=None) -> dict:
     from .. import repair_quote_groups as rg
     group = rg.for_ticket(session, t.id)
     siblings = sum(1 for r in rg.candidates(session, t.customer_code) if r['ready']) if has_role(user, 'dispatcher') else 0
-    return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, group=group, siblings=siblings,
+    from .. import service_tickets as _st
+    return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, quoter=_st.can_quote(user), group=group, siblings=siblings,
                         current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1,
-                        can_send=bool(row.applied_at) and (open_v is None or send['stale']),
+                        can_send=_st.can_quote(user) and bool(row.applied_at) and (open_v is None or send['stale']),
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
-                        statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS),
+                        statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS,
+                        repairers=_repairers(session) if send else []),
                 rq_warranty=row.warranty_months if row.applied_at else None)
 
 
@@ -189,6 +197,7 @@ def apply_quote(request: Request, ticket_id: int, form=Depends(checked_form), se
     except BusinessError as exc:
         session.rollback()
         if exc.status in (403, 404):
+            session.refresh(user)  # trang lỗi còn đọc quyền người dùng sau khi phiên đóng
             raise
         from .services import _detail
         return _detail(request, session, user, ticket_id, failed_action='rq-apply', error=exc.message, error_code=exc.code, status=exc.status)
@@ -248,7 +257,8 @@ def quote_action(request: Request, vid: int, action: str, form=Depends(checked_f
                 day = None
             version = str(form.get('version', '') or '')
             rqs.agree(session, user, vid, int(version) if version.isdigit() else None, str(form.get('pa', '')),
-                      str(form.get('via', '')), str(form.get('person', '')), day, str(form.get('note', '') or ''))
+                      str(form.get('via', '')), str(form.get('person', '')), day, str(form.get('note', '') or ''),
+                      int(form.get('repairer')) if str(form.get('repairer', '')).isdigit() else None)
         elif action == 'chua-dong-y':
             from . import _digits
             wanted = _digits(form.get('wanted_price')) or None

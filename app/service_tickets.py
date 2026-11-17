@@ -22,6 +22,13 @@ from . import search as tim
 
 CREATORS = ("dispatcher", "sales", "reception")
 DISPATCHERS = ("dispatcher",)
+# Duyệt giá sửa xưởng, gửi khách, ghi khách trả lời: kinh doanh hoặc giám đốc (TUẤN 17/11/2026); kho/điều phối chỉ kiểm tra máy.
+QUOTERS = ("sales",)
+
+
+def can_quote(user: User) -> bool:
+    """Màn báo giá nằm trong phiếu dịch vụ (cần quyền điều phối để mở khung xưởng) nên người duyệt cần cả hai."""
+    return has_role(user, *QUOTERS) and has_role(user, *DISPATCHERS)
 TECHNICIAN = "technician"
 
 OPEN = ("MOI", "DA_GIAO", "DA_NHAN", "DA_HEN", "DANG_LAM", "CHO_LINH_KIEN", "TAM_DUNG")

@@ -61,7 +61,7 @@ def _supplier_debt_dates(deductions):
 DIRECTOR_APPROVALS = ('refunds_pending', 'expenses_pending', 'pending_destruction', 'stock_counts_pending', 'pending_supplier_returns')
 
 
-def _specs(user, today, now):
+def _specs(user, today, now, session=None):
     director = has_role(user, 'director')
     # Kho phụ trách chỉ lọc hàng đợi của thủ kho; quyền thao tác không đổi.
     kho = list(user.warehouse_codes or []) if has_role(user, 'warehouse') and not director else []
@@ -110,6 +110,23 @@ def _specs(user, today, now):
         add('service_return_ready','Máy sửa xong chờ trả',service.where(t.status=='TAM_DUNG',t.hold_reason=='SUA_XONG_CHO_TRA'), 'service','/dich-vu')
         recent=select(ServiceStep.ticket_id).join(User,User.id==ServiceStep.actor_id).where(ServiceStep.action=='reassign',ServiceStep.at>=now-timedelta(days=7),User.roles.contains(['technician']),ServiceStep.note.startswith('Thợ '))
         add('service_transferred','Phiếu vừa chuyển thợ',service.where(t.id.in_(recent),t.status.in_(service_tickets.OPEN)), 'service','/dich-vu')
+    if session is not None and has_role(user, 'dispatcher', 'warehouse', 'sales'):
+        # Nối liền máy về xưởng đợt 1d (TUẤN 17/11/2026): mỗi bước một người làm, có hạn; chuông + Trưởng nhóm AI nhắc.
+        from . import workshop_board
+        from sqlalchemy import DateTime
+        ws = workshop_board.waiting(session)
+        def ws_add(key, title, stage):
+            ids = {i: d for i, (st, d) in ws.items() if st == stage}
+            due = case(*[(t.id == i, literal(d, DateTime(timezone=True))) for i, d in ids.items()], else_=None) if ids else literal(None, DateTime(timezone=True))
+            stmt = select(t.id, t.number, t.status, Customer.name.label('customer'), func.coalesce(t.total, 0).label('amount'),
+                          func.coalesce(due < now, False).label('overdue'), due.label('due_at'), t.appointment_at.label('appointment_at')
+                          ).join(Customer, Customer.code == t.customer_code).where(t.id.in_(list(ids) or [0])).order_by(due.asc().nulls_last(), t.id)
+            add(key, title, stmt, 'service', '/kiem-tra-may')
+        if has_role(user, 'dispatcher', 'warehouse'):
+            ws_add('service_ws_check', 'Máy mới về xưởng · kho kiểm tra', 's1')
+        if service_tickets.can_quote(user):
+            ws_add('service_ws_quote', 'Máy đã kiểm tra · duyệt giá gửi khách', 's2')
+            ws_add('service_ws_reply', 'Báo giá xưởng chờ khách trả lời', 's3')
     if has_role(user, 'dispatcher', 'warehouse'):
         # TUẤN 30/10/2026: thợ báo thiếu hàng mang theo; hết hiện khi thợ xác nhận lại đủ hàng hoặc phiếu qua bước đang làm.
         last_goods=select(ServiceStep.action).where(ServiceStep.ticket_id==t.id,ServiceStep.action.in_(('goods_ok','goods_short'))).order_by(ServiceStep.id.desc()).limit(1).correlate(t).scalar_subquery()
@@ -363,6 +380,8 @@ def _group(session, spec, page=1):
             if spec['key']=='orders_deposit':row['link']=f"/don-ban/{row['id']}?coc=1#thu-tien"
             if spec['key']=='orders_cancel_requested':row['link']=f"/don-ban/{row['id']}#de-nghi-huy"
             if spec['key']=='service_close':row['link']=f"/linh-kien-thu-hoi?ticket_id={row['id']}"
+            if spec['key']=='service_ws_check':row['link']=f"/kiem-tra-may/{row['id']}"
+            if spec['key'] in ('service_ws_quote','service_ws_reply'):row['link']=f"/dich-vu/{row['id']}#gui-khach"
             if spec['key']=='receipts_rejected':
                 row['link'] = (f"/don-ban/{row['order_id']}#thu-tien" if row['order_id'] else
                                '/cong-no-khach-hang/dau-ky/'+quote(row['opening_customer'],safe='')+'#thu-tien' if row.get('opening_customer') else f"/dich-vu/{row['ticket_id']}#thu-tien")
@@ -397,13 +416,13 @@ def collect(session, user, today=None, keys=None):
     """keys: chỉ tính các nhóm này (chuông thông báo chỉ cần nhóm việc người khác đẩy tới)."""
     with session.no_autoflush:
         now = _now()
-        return [_group(session, spec) for spec in _specs(user, today or now.date(), now).values() if keys is None or spec['key'] in keys]
+        return [_group(session, spec) for spec in _specs(user, today or now.date(), now, session).values() if keys is None or spec['key'] in keys]
 
 
 def filtered(session, user, key, page=1, today=None):
     with session.no_autoflush:
         now = _now()
-        spec = _specs(user, today or now.date(), now).get(key)
+        spec = _specs(user, today or now.date(), now, session).get(key)
         if spec is None:
             raise BusinessError('FORBIDDEN', 'Bạn không có quyền vào nhóm việc này.', status=403)
         return _group(session, spec, page)

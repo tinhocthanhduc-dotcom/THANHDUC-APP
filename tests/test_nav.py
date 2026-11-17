@@ -300,8 +300,11 @@ def test_doi_ai_tabs_for_director(client, make_user):
 
 @pytest.mark.parametrize('roles,first,tabs,choices', [
     (('sales', 'finance'), '/bao-gia', ['/bao-gia', '/hoi-gia'], ['/bao-gia/moi', '/hoi-gia/moi']),
-    (('technician', 'warehouse', 'dispatcher'), '/hoi-gia', ['/hoi-gia', '/bao-gia-sua', '/bao-gia-hop-dong'],
-     ['/hoi-gia/moi', '/kiem-tra-may', '/bao-gia-hop-dong/moi']),
+    # Kho kiêm điều phối (như anh Thạnh) không duyệt giá sửa: không có tab Sửa máy (TUẤN 17/11/2026).
+    (('technician', 'warehouse', 'dispatcher'), '/hoi-gia', ['/hoi-gia', '/bao-gia-hop-dong'],
+     ['/hoi-gia/moi', '/bao-gia-hop-dong/moi']),
+    (('sales', 'dispatcher'), '/bao-gia', ['/bao-gia', '/hoi-gia', '/bao-gia-sua', '/bao-gia-hop-dong'],
+     ['/bao-gia/moi', '/hoi-gia/moi', '/kiem-tra-may', '/bao-gia-hop-dong/moi']),
     (('director',), '/bao-gia', ['/bao-gia', '/hoi-gia', '/bao-gia-sua', '/bao-gia-hop-dong'],
      ['/bao-gia/moi', '/hoi-gia/moi', '/kiem-tra-may', '/bao-gia-hop-dong/moi']),
 ])

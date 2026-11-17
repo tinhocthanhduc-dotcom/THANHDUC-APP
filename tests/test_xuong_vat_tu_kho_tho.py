@@ -17,6 +17,7 @@ def to_workshop(db,p,t,eq):
     svc.bring(db,p['technician'],t.id,t.version,intake(eq),[],to_workshop=True)
     hand=custody.pending(db,eq.serial)
     if hand:custody.confirm(db,p['warehouse'],hand.id,hand.version)
+    p['dispatcher'].roles=[*p['dispatcher'].roles,'sales'];db.commit()  # điều phối kiêm kinh doanh ghi khách đồng ý
 
 
 def quote(db,p,t,warehouse,qty=1):

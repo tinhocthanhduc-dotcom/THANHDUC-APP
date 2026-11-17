@@ -27,8 +27,10 @@ def hand_to_workshop(session,user,ident,version,custody_body):
     return t
 
 
-def _waiting(session,user,ident,version):
+def _waiting(session,user,ident,version,quote=False):
     tickets._require(user,tickets.DISPATCHERS,'Chỉ điều phối hoặc giám đốc được xử lý sửa ở xưởng.')
+    if quote and not tickets.can_quote(user):
+        raise BusinessError('FORBIDDEN','Chỉ kinh doanh hoặc giám đốc ghi khách đồng ý hay không sửa.',status=403)
     t=part_requests._ticket(session,ident)
     tickets._check_version(t,version)
     if t.status!='TAM_DUNG' or t.hold_reason!=WAITING or service_charges.return_locked(t):
@@ -40,10 +42,20 @@ def warranty_free(t):
     return t.billing=='MIEN_PHI' and t.warranty_basis in ('PHIEU_TRUOC','MAY_CON_HAN')
 
 
-def quote_approve(session,user,ident,version,promised_return_on,note=''):
+def repairers(session):
+    """Thợ đang làm, ít việc mở nhất lên đầu: gợi ý người sửa khi khách đồng ý (TUẤN 17/11/2026)."""
+    from sqlalchemy import func, select
+    from .models import ServiceTicket, User
+    load=dict(session.execute(select(ServiceTicket.assignee_id,func.count()).where(ServiceTicket.status.in_(tickets.OPEN),
+        ServiceTicket.assignee_id.is_not(None)).group_by(ServiceTicket.assignee_id)).all())
+    techs=[u for u in session.scalars(select(User).where(User.active.is_(True)).order_by(User.full_name)) if tickets.TECHNICIAN in u.roles]
+    return sorted(((u,load.get(u.id,0)) for u in techs),key=lambda x:(x[1],x[0].full_name))
+
+
+def quote_approve(session,user,ident,version,promised_return_on,note='',repairer_id=None):
     from datetime import date, datetime
     with _transaction(session):
-        t=_waiting(session,user,ident,version)
+        t=_waiting(session,user,ident,version,quote=True)
         if t.declined_at:raise BusinessError('BAD_STATUS','Khách đã từ chối sửa.',status=409)
         if not isinstance(promised_return_on,date) or isinstance(promised_return_on,datetime) or promised_return_on<tickets._now().astimezone(tickets.service_sla.TZ).date():
             raise BusinessError('BAD_APPOINTMENT','Chọn ngày hẹn trả từ hôm nay trở đi.')
@@ -52,6 +64,10 @@ def quote_approve(session,user,ident,version,promised_return_on,note=''):
         before=tickets.snapshot(t)
         t.quote_approved_at,t.quote_approved_by=tickets._now(),user.id
         t.promised_return_on=promised_return_on
+        if repairer_id:  # giao thợ sửa luôn: thợ thấy phiếu trên màn của mình
+            tech=tickets._technician(session,repairer_id)
+            t.assignee_id=tech.id
+            note=(note+' · ' if note else '')+'Giao thợ sửa: '+tech.full_name
         from .repair_quotes import close_open
         close_open(session,t.id,'DONG_Y')  # đợt 4: lần báo giá đang chờ khách đóng theo
         tickets._record(session,user,t,'quote_approve',before,t.status,note)
@@ -69,7 +85,7 @@ def quote_decline(session,user,ident,version,mode,fee,reason):
     from .schemas import ServiceCharges
     reason=(reason or '').strip()
     with _transaction(session):
-        t=_waiting(session,user,ident,version)
+        t=_waiting(session,user,ident,version,quote=True)
         if mode not in ('FULL','FREE'):raise BusinessError('BAD_COLLECTION','Chọn Thu phí kiểm tra hoặc Miễn phí.')
         before=tickets.snapshot(t)
         lines=[service_charges.line_input(x) for x in t.lines if x.stock_doc_id is not None]

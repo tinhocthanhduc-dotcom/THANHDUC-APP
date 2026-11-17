@@ -11,6 +11,7 @@
 {% if t.lines %}<ul class="xg-lines">{% for line in t.lines %}<li><span>{{ line.description or charge_names.get(line.product_code, line.product_code) }}{% if line.qty!=1 %} × {{ line.qty|qty }}{% endif %}</span><b>{{ (line.amount+line.vat_amount)|money }}</b></li>{% endfor %}</ul>{% endif %}
 {% include 'dich_vu_tien.jinja' %}</details>
 {% if not approved and rq_reply %}
+{% elif not approved and not quoter %}<p class="hint">Kinh doanh hoặc giám đốc duyệt giá, gửi khách và ghi khách trả lời.</p>
 {% elif not approved %}
 <form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}
 <div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}" {% if (f.get('promised_return_on') or '')==d.value %}checked{% endif %}><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
@@ -30,7 +31,7 @@
 <label data-xg-free-reason>Lý do miễn phí<input name="reason" value="{{ f.get('reason',t.free_reason or '') }}" maxlength="2000"></label>
 {% if not next_step or next_step.primary.form!='workshop-repaired' %}<button class="btn btn-ok xg-primary">Sửa xong</button>{% endif %}</form>{% endwith %}
 {% endif %}
-{% if not rq_reply %}{% include 'xuong_khong_sua.jinja' %}{% endif %}
+{% if not rq_reply and quoter %}{% include 'xuong_khong_sua.jinja' %}{% endif %}
 {% else %}
 <p class="xg-kv"><span>Phải thu đã chốt</span><b>{{ (t.receivable or 0)|money }} đồng</b></p><p class="xg-kv"><span>{{ 'Khách không sửa' if t.declined_at else 'Thợ sửa' }}</span><b>{{ '' if t.declined_at else users.get(t.repaired_by,'Nhân viên') }}{% if t.warranty_months is not none and not t.declined_at %} · BH {{ 'không' if t.warranty_months==0 else t.warranty_months|string ~ ' tháng' }}{% endif %}</b></p>
 {% if can_open('/quay-sua') %}<div class="xg-counter"><a class="btn btn-ok xg-primary" href="/quay-sua/{{ t.id }}#tra">Khách tới lấy tại quầy ›</a><p class="hint">Khách tới cửa hàng lấy máy: trả và thu tiền tại quầy. Hoặc giao thợ mang trả bên dưới.</p></div>{% endif %}

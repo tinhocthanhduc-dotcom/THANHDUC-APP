@@ -19,13 +19,12 @@ from . import repair_quotes as rq
 from .models import Customer, Equipment, EquipmentCustody, RepairInspection, ServiceStep, ServiceTicket, User
 from .security import has_role
 from .service_sla import TZ
-from .service_tickets import DISPATCHERS
+from .service_tickets import DISPATCHERS, can_quote
 
 STAGES = {'s1': 'Mới về', 's2': 'Chờ duyệt giá', 's3': 'Chờ khách', 's4': 'Đang sửa', 's5': 'Chờ chốt', 's6': 'Chờ trả'}
 INSPECT_HOURS = 4      # mới về quá 4 giờ chưa kiểm tra: đỏ
 PRICE_HOURS = 2        # kiểm tra xong quá 2 giờ chưa gửi khách: đỏ
 CUSTODY_HOURS = 2      # kho chưa bấm nhận máy quá 2 giờ: đỏ
-QUOTERS = ('sales', 'dispatcher')   # đợt 1c chuyển hẳn sang kinh doanh + giám đốc
 
 
 def _now():
@@ -82,6 +81,32 @@ def _since(session, ids):
     return {tid: at for tid, at in rows}
 
 
+def waiting(session) -> dict:
+    """{ticket_id: (bước, hạn)} cho 3 bước có người phải làm ngay: s1 kho kiểm tra (4 giờ), s2 duyệt giá gửi khách (2 giờ),
+    s3 gọi lại khách (2 ngày). Việc của tôi + chuông + Trưởng nhóm AI dùng (đợt 1d)."""
+    from .service_workshop import warranty_free
+    t = ServiceTicket
+    items = list(session.scalars(select(t).where(t.status == 'TAM_DUNG', t.hold_reason == 'CHO_SUA_XUONG',
+                                                 t.declined_at.is_(None), t.quote_approved_at.is_(None)).order_by(t.id)))
+    items = [x for x in items if not warranty_free(x)]
+    if not items:
+        return {}
+    ids = [x.id for x in items]
+    since = _since(session, ids)
+    inspections = {r.ticket_id: r for r in session.scalars(select(RepairInspection).where(RepairInspection.ticket_id.in_(ids)))}
+    out = {}
+    for x in items:
+        sent = rq.open_version(session, x.id)
+        r = inspections.get(x.id)
+        if sent is not None and sent.sent_at:
+            out[x.id] = ('s3', sent.sent_at + timedelta(days=2))
+        elif r is not None and r.items and (r.applied_at is not None or not r.recheck_reason):
+            out[x.id] = ('s2', (r.inspected_at or x.created_at) + timedelta(hours=PRICE_HOURS))
+        else:
+            out[x.id] = ('s1', (since.get(x.id) or x.created_at) + timedelta(hours=INSPECT_HOURS))
+    return out
+
+
 def build(session, user) -> dict:
     from . import repair_inspection as ri
     from .service_workshop import warranty_free
@@ -97,7 +122,7 @@ def build(session, user) -> dict:
     machines = {e.serial: e for e in session.scalars(select(Equipment).where(Equipment.serial.in_({t.serial for t in items if t.serial})))} if items else {}
     pending = {r.serial: r for r in session.scalars(select(EquipmentCustody).where(
         EquipmentCustody.serial.in_(list(machines)), EquipmentCustody.status == 'CHO_NHAN'))} if machines else {}
-    quoter = has_role(user, *QUOTERS)
+    quoter = can_quote(user)
     dispatcher = has_role(user, *DISPATCHERS)
     inspector = ri.can_inspect(user)
     sales = has_role(user, 'sales')
@@ -129,7 +154,7 @@ def build(session, user) -> dict:
                 step_note = 'Bảo hành miễn phí' if not t.quote_approved_at else ''
                 if eq is not None and eq.custody_location == 'DOI_TAC':
                     chips.append(('Ở đối tác', 'warn'))
-                todo, who = 'Sửa máy, chốt sửa xong', 'Kho · ' + (names.get(t.repaired_by) or 'thợ xưởng')
+                todo, who = 'Sửa máy, chốt sửa xong', 'Thợ ' + (names.get(t.assignee_id) or 'xưởng') if t.quote_approved_at else 'Kho · thợ xưởng'
                 if dispatcher:
                     action, mine = dict(label='Sửa xong', href=f'{href}#workshop-repaired', tone='ok'), True
             elif sent is not None and sent.sent_at:
