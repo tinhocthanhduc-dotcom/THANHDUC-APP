@@ -62,7 +62,7 @@ AGENTS = {
                     defaults=dict(times=['08:30', '13:45', '17:45'])),
 }
 # Mốc tin của nhân viên AI gửi giám đốc theo giờ: gắn loại để Tin gộp giám đốc giữ lại (tin gấp không có ở đây).
-MARK_KINDS = (('nsa-cc:', 'nhan_su_bao'), ('tn-cuoi:', 'tom_tat_doi'))
+MARK_KINDS = (('nsa-cc:', 'nhan_su_bao'), ('tn-cuoi:', 'tom_tat_doi'), ('txn:', 'tu_xac_nhan'))
 MODES = {'TU_LAM': 'Tự làm', 'CHAY_THU': 'Chạy thử'}
 ACTIONS = {'GIAO': 'Đã giao', 'CHAY_THU': 'Chạy thử', 'BO_QUA': 'Bỏ qua', 'NHAC': 'Đã nhắc', 'BAO': 'Đã báo',
            'HOAN_TAC': 'Hoàn tác', 'CAI_DAT': 'Đổi cài đặt', 'DOI_NGUOI': 'Đổi người', 'DOC_TIN': 'Đọc tin Zalo', 'LENH': 'Lệnh giám đốc'}
@@ -549,8 +549,8 @@ def run_once(session, now=None, sender=None) -> int:
     """Gọi mỗi phút trong vòng nền báo điều phối, trước khi báo phiếu cần giao (phiếu đã tự giao thì không báo nữa)."""
     now = now or _now()
     total = 0
-    from . import nhan_su_ai, tin_gop, truong_nhom
-    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once, nhan_su_ai.run_once, tin_gop.run_once):
+    from . import nhan_su_ai, tin_gop, truong_nhom, tu_xac_nhan
+    for job in (dispatch_once, remind_once, clerk_once, truong_nhom.run_once, nhan_su_ai.run_once, tu_xac_nhan.run_once, tin_gop.run_once):
         try:
             total += job(session, now, sender)
         except Exception:  # noqa: BLE001 - lỗi một nhân viên AI không chặn các việc khác

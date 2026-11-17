@@ -16,12 +16,15 @@ from .models import (ApprovalLimit, AttendanceRequest, PendingDisposition, Pendi
                      StockBalance, User)
 from .security import has_role
 
-KEYS = ('BO_SUNG', 'NGHI', 'TAM_UNG', 'HUY_HANG', 'CHI_PHI')
+KEYS = ('BO_SUNG', 'NGHI', 'TAM_UNG', 'HUY_HANG', 'CHI_PHI', 'TU_XAC_NHAN')
 # CHI_PHI (TUẤN duyệt 16/11/2026): chi phí phát sinh trên đơn, theo giá vốn tính (chưa VAT) từng khoản.
-DEFAULTS = {'BO_SUNG': 1, 'NGHI': 2, 'TAM_UNG': 2_000_000, 'HUY_HANG': 500_000, 'CHI_PHI': 500_000}
+# TU_XAC_NHAN (TUẤN duyệt 17/11/2026): kế toán tự xác nhận báo thu do mình lập, mỗi phiếu tới mức này; giám đốc soát sau.
+# Mặc định trong code là 0 (tắt); migration 0107 đặt 3.000.000 trên máy chủ thật.
+OPTIONAL = ('CHI_PHI', 'TU_XAC_NHAN')  # biểu mẫu cũ không gửi các ô này: giữ nguyên
+DEFAULTS = {'BO_SUNG': 1, 'NGHI': 2, 'TAM_UNG': 2_000_000, 'HUY_HANG': 500_000, 'CHI_PHI': 500_000, 'TU_XAC_NHAN': 0}
 LABELS = {'BO_SUNG': 'Bổ sung giờ vào / ra', 'NGHI': 'Xin nghỉ', 'TAM_UNG': 'Tạm ứng lương', 'HUY_HANG': 'Hủy hàng chờ xử lý',
-          'CHI_PHI': 'Chi phí phát sinh trên đơn'}
-MAX = {'BO_SUNG': 1, 'NGHI': 30, 'TAM_UNG': 1_000_000_000, 'HUY_HANG': 1_000_000_000, 'CHI_PHI': 1_000_000_000}
+          'CHI_PHI': 'Chi phí phát sinh trên đơn', 'TU_XAC_NHAN': 'Kế toán tự xác nhận báo thu do mình lập'}
+MAX = {'BO_SUNG': 1, 'NGHI': 30, 'TAM_UNG': 1_000_000_000, 'HUY_HANG': 1_000_000_000, 'CHI_PHI': 1_000_000_000, 'TU_XAC_NHAN': 1_000_000_000}
 LEAVE_PICKS = (0, 1, 2, 3)
 
 
@@ -40,7 +43,7 @@ def save(session, user, values: dict):
     director(user)
     clean = {}
     for key in KEYS:
-        if values.get(key) is None and key == 'CHI_PHI':  # biểu mẫu cũ không có ô này: giữ nguyên
+        if values.get(key) is None and key in OPTIONAL:
             continue
         raw = str(values.get(key, '')).replace('.', '').replace(',', '').strip()
         if not raw.isdigit():

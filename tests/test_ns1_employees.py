@@ -276,12 +276,16 @@ def test_migration_down_up_retains_accounts_and_restores_guards(db,engine,p,empl
     cp=importlib.util.module_from_spec(cp_spec);cp_spec.loader.exec_module(cp)  # 0068 thêm khóa ghép mà NS5 hạ không biết
     cpm_spec=importlib.util.spec_from_file_location('cpm_dependency',path.parent/'0105_chi_phi_phat_sinh_moi_don.py')
     cpm=importlib.util.module_from_spec(cpm_spec);cpm_spec.loader.exec_module(cpm)  # 0105 mở rộng bảng 0068
+    txn_spec=importlib.util.spec_from_file_location('txn_dependency',path.parent/'0107_tu_xac_nhan_bao_thu.py')
+    txn=importlib.util.module_from_spec(txn_spec);txn_spec.loader.exec_module(txn)  # 0107 nới ràng buộc khóa hạn mức mà 0105 dựng lại
     account_id=p['technician'].id;db.rollback();db.expunge(employee)
     with engine.begin() as conn:
+        monkeypatch.setattr(txn,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(migration,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(payroll_migration,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(cp,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(cpm,'op',Operations(MigrationContext.configure(conn)))
+        txn.downgrade()
         cpm.downgrade()
         cp.downgrade()
         payroll_migration.downgrade()
@@ -294,6 +298,7 @@ def test_migration_down_up_retains_accounts_and_restores_guards(db,engine,p,empl
         payroll_migration.upgrade()
         cp.upgrade()
         cpm.upgrade()
+        txn.upgrade()
     db.expire_all();fresh=svc.create(db,p['admin'],account_id,body())
     assert fresh.code=='NV-0001'
 

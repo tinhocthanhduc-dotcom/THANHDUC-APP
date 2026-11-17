@@ -219,7 +219,10 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
     cp=importlib.util.module_from_spec(cp_spec);cp_spec.loader.exec_module(cp)
     cpm_spec=importlib.util.spec_from_file_location('cpm_migration',file.parent/'0105_chi_phi_phat_sinh_moi_don.py')
     cpm=importlib.util.module_from_spec(cpm_spec);cpm_spec.loader.exec_module(cpm)  # 0105 mở rộng bảng 0068 (đơn bán, lần giao)
+    txn_spec=importlib.util.spec_from_file_location('txn_migration',file.parent/'0107_tu_xac_nhan_bao_thu.py')
+    txn=importlib.util.module_from_spec(txn_spec);txn_spec.loader.exec_module(txn)  # 0107 nới ràng buộc khóa hạn mức mà 0105 dựng lại
     with engine.begin() as conn:
+        monkeypatch.setattr(txn,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(cpm,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(bh1,'op',Operations(MigrationContext.configure(conn)))
         monkeypatch.setattr(gd,'op',Operations(MigrationContext.configure(conn)))
@@ -231,6 +234,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         monkeypatch.setattr(ns5,'op',Operations(MigrationContext.configure(conn)))
         # Hạ các lớp phụ thuộc GH trước khi tái hiện schema S1/S2.
         # NS5 mở rộng ràng buộc khóa ghép tài chính mà S5 dựng lại khi hạ.
+        txn.downgrade()
         cpm.downgrade()
         cp.downgrade()  # 0068 thêm khóa ghép DANH_MUC_CHI_PHI_THO mà NS5 hạ không biết
         gd.downgrade()
@@ -258,6 +262,7 @@ def test_migration_backfills_legacy_delivery_preserving_px_and_receipts(db,engin
         gd.upgrade()
         cp.upgrade()
         cpm.upgrade()
+        txn.upgrade()
 
 
 def test_direct_stock_void_cannot_bypass_delivery_ownership(db,people):

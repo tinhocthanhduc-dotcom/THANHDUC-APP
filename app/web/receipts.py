@@ -223,7 +223,20 @@ def pending(request: Request,user: User=Depends(finance_user),session: Session=D
     if request.query_params.get('tab')=='hoan-tien':
         from .sales_returns import refund_queue
         return refund_queue(request,session,user)
+    if request.query_params.get('tab')=='tu-xac-nhan':
+        return self_confirmed_page(request,session,user)
     return _queue(request,session,user)
+
+
+def self_confirmed_page(request,session,user):
+    """Tab Tự xác nhận (TUẤN duyệt mẫu 17/11/2026): báo thu kế toán tự xác nhận trong hạn mức, theo ngày xác nhận. Chỉ đọc."""
+    from .. import tu_xac_nhan
+    raw=request.query_params.get('ngay','')
+    try:day=date.fromisoformat(raw) if raw else _today()
+    except ValueError:day=_today()
+    rows=tu_xac_nhan.day_rows(session,day)
+    return render(request,'bao_thu_tu_xac_nhan.jinja',rows=rows,totals=tu_xac_nhan.totals(rows),day=day,today=_today(),
+                  limit=svc.self_confirm_limit(session),is_director=has_role(user,'director'))
 
 
 def _queue_redirect(filters,anchor=''):
