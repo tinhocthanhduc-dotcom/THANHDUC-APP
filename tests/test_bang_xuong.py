@@ -367,3 +367,36 @@ def test_technician_screen_three_buttons_web(client, db, workshop, make_user):
     assert 'không sửa được' in page and 'Ngoài khả năng' in page and 'id="workshop-decline"' in page
     db.expire_all()
     assert db.get(ServiceTicket, tid).quote_approved_at is not None
+
+
+def test_workshop_screen_matches_onsite_and_swipe_reports(client, db, workshop, make_user):
+    """Mẫu 18/11: báo cáo = gói khách đồng ý (tick sẵn), vật tư dòng − số +, ảnh nghiệm thu, nút vuốt ở thanh dưới; Phát sinh/Không sửa được trong Việc khác."""
+    import re
+    from app.models import ServiceLine, ServiceTicket
+    from test_web import d5_image
+    p, a, b, t, eq = workshop
+    p = dict(p, workshop=workshop)
+    tho = make_user('bx.tho_sua', 'technician')
+    t, fuser, opts, v = _agreed(db, p, make_user, tho)
+    tid, ver = t.id, t.version
+    csrf = service_login(client, tho)
+    page = client.get(f'/tho/phieu/{tid}').text
+    assert 'Báo cáo sửa chữa' in page and 'name="done"' in page and 'Thay bao lụa sấy' in page and 'Lỗi gặp' not in page
+    assert re.search(r'form="ws-report" data-tho-primary disabled', page) and 'Vuốt để Báo sửa xong' in page
+    other = page[page.index('id="viec-khac"'):]
+    assert 'Phát sinh · báo lại khách' in other and 'Không sửa được' in other
+    assert 'name="extra_code" value="TD-0001"' in page and 'name="extra_wh" value="K58"' in page and 'Thêm vật tư khác' in page
+    pack = re.search(r'name="done" value="([^"]+)"', page).group(1)
+    up = client.post(f'/tho/phieu/{tid}/anh', data={'csrf': csrf, 'tag': 'SAU', 'form_key': str(__import__('uuid').uuid4())}, files={'file': ('sau.png', d5_image(), 'image/png')})
+    assert up.status_code == 201
+    page = client.get(f'/tho/phieu/{tid}').text
+    assert 'form="ws-report" data-tho-primary >' in page or 'form="ws-report" data-tho-primary>' in page
+    res = client.post(f'/tho/phieu/{tid}/bao-sua-xong', data={'csrf': csrf, 'version': str(ver), 'done': [pack], 'fix_extra': 'test in 20 trang',
+                                                            'extra_code': ['TD-0001', 'TD-0001'], 'extra_wh': ['K58', 'K58'], 'extra_qty': ['2', '0']},
+                      follow_redirects=False)
+    assert res.status_code == 303 and res.headers['location'] == '/tho?sua_xong=1'
+    db.expire_all()
+    extra = [x for x in db.get(ServiceTicket, tid).lines if x.kind == 'VAT_TU' and 'phát sinh' in (x.description or '')]
+    assert len(extra) == 1 and extra[0].qty == 2 and extra[0].amount == 0
+    page = client.get(f'/tho/phieu/{tid}').text
+    assert 'Đã báo sửa xong' in page and 'Vuốt để Báo sửa xong' not in page and 'Thay bao lụa sấy' in page

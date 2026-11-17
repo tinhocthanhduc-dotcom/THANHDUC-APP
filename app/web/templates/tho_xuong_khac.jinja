@@ -1,0 +1,12 @@
+{# Việc khác của thợ sửa ở xưởng (mẫu 18/11): Phát sinh · báo lại khách, Không sửa được. #}{% set w=ws_repair %}{% macro keys() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">{% endmacro %}
+{% if w.can_extra %}{% set fe=form if failed_action=='ws-phat-sinh' else {} %}<details name="tech-other" {% if fe %}open{% endif %}><summary>Phát sinh · báo lại khách <span>›</span></summary>
+<form method="post" action="/tho/phieu/{{ t.id }}/phat-sinh" class="form" data-busy>{{ keys() }}
+<label>Cần thêm gì, vì sao<textarea name="note" required minlength="3" maxlength="1000" rows="3" placeholder="vd: bánh xe kéo giấy mòn, cần thay">{{ fe.get('note', '') }}</textarea></label>
+<p class="hint">Máy về kho kiểm tra lại, kinh doanh gửi khách báo giá lần sau. Khách trả lời xong bạn sửa tiếp.</p>
+<button class="btn btn-new">Báo phát sinh</button></form></details>{% endif %}
+{% set ff=form if failed_action=='ws-khong-sua-duoc' else {} %}<details name="tech-other" {% if ff %}open{% endif %}><summary>Không sửa được <span>›</span></summary>
+<form method="post" action="/tho/phieu/{{ t.id }}/khong-sua-duoc" class="form" data-busy>{{ keys() }}
+<div class="field-group" role="group"><p class="group-label">Lý do</p><div class="chips">{% for r in w.reasons %}<label class="chip"><input type="radio" name="reason" value="{{ r }}" required {% if ff.get('reason') == r %}checked{% endif %}><span>{{ r }}</span></label>{% endfor %}</div></div>
+<label>Ghi thêm<input name="note" maxlength="1000" value="{{ ff.get('note', '') }}"></label>
+<p class="hint">Kinh doanh báo khách, ghi phí kiểm tra hoặc miễn phí, rồi kho giao trả máy.</p>
+<button class="btn btn-danger">Báo không sửa được</button></form></details>

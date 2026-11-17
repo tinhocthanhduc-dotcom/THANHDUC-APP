@@ -58,9 +58,13 @@ def test_finance_sees_tiles_rows_doc_links_last_receipt_and_totals(client, db, p
     assert totals['remaining'] == 570 and totals['pending'] == 20
 
 
-def test_tabs_and_filters_narrow_rows_and_totals(client, db, people, configured_finance):
+def test_tabs_and_filters_narrow_rows_and_totals(client, db, people, configured_finance, monkeypatch):
+    from app.web import customer_debts
+    from test_my_work import NOW
     p = people
     setup(db, p)
+    # Đồng hồ fixture people đứng ở NOW (18/10/2026): lấy "hôm nay" = hôm sau ngày giao, không theo ngày thật (từ 18/11 thật thì đơn nợ 30 ngày cũng quá hạn).
+    monkeypatch.setattr(customer_debts, '_today', lambda: NOW.date() + timedelta(days=1))
     service_login(client, p['finance'])
     over = client.get(PAGE + '?tab=vuot').text
     assert 'data-debt-row="KTD-000002"' in over and 'data-debt-row="KTD-000001"' not in over and 'Còn nợ <b>500</b> đ' in over

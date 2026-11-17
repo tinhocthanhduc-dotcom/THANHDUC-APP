@@ -5338,3 +5338,7 @@ main:has(> .sbt-page) { max-width: 1240px; }
 }
 .ktm-plan { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
 .ktm-plan .ktm-short { color: var(--warn); }
+/* Màn sửa ở xưởng (mẫu 18/11): mỗi gói khách đồng ý một dòng tick, chữ dài xuống dòng. */
+.ws-done { flex-direction: column; align-items: stretch; }
+.ws-done .chip span { display: block; white-space: normal; text-align: left; }
+[data-ws-report] input[name=fix_extra] { margin-top: 10px; width: 100%; }
