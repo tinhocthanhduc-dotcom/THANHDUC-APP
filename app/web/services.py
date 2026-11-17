@@ -347,6 +347,11 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     if not technician_view:
         from .customer_overview import _service_next
         ctx['svc_next']=_service_next(t,ctx['users'],session)
+        # Đợt 4 (TUẤN duyệt 18/11/2026): khung tóm tắt có nút Gọi khách; số người liên hệ của địa điểm trước, rồi số của khách.
+        from ..models import CustomerPhone
+        site_phone=ctx.get('site').contact_phone if ctx.get('site') is not None and getattr(ctx.get('site'),'contact_phone',None) else None
+        ctx['svc_phone']=site_phone or session.scalar(select(CustomerPhone.phone).where(CustomerPhone.customer_code==t.customer_code)
+                                                     .order_by(CustomerPhone.is_contact.desc(),CustomerPhone.phone).limit(1))
         ctx['workflow']=steps.service(t)
         ctx['check_heading']=''
         ctx['primary_checks']=steps.service_checks(session,t,ctx['next_step']['primary'] if ctx['next_step'] else None)
