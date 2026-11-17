@@ -9,7 +9,7 @@ TUẤN 16/11/2026, Phần A của phiếu "ERP cho Growth OS". Code: `app/market
 - Gửi kèm `Authorization: Bearer tdai_…`.
 - Chỉ dùng **từ trong máy chủ Z2**: Growth OS nối vào mạng `deploy_default` và gọi `http://api:8000`
   (như n8n). Yêu cầu đi qua Cloudflare (có `cf-ray` / `cf-connecting-ip`) bị từ chối 403.
-- Chỉ có 3 đường GET dưới đây. Khóa này không mở được đường nào khác của app (khách hàng, đơn, sổ quỹ, `/ai/*`, `/n8n/*`…).
+- Chỉ có các đường GET dưới đây (products, stock, margin-band, orders, ink-rhythm/summary). Khóa này không mở được đường nào khác của app (khách hàng, đơn, sổ quỹ, `/ai/*`, `/n8n/*`…).
 - Không trả: giá vốn, giá trị tồn, khách hàng, số điện thoại, đơn hàng.
 - Mỗi lần đọc ghi một dòng nhật ký `ai.marketing_read` (đường, tham số, số dòng), xem ở Trợ lý AI › Nhật ký.
 
@@ -131,3 +131,16 @@ Body: `{"order_ids": [12, 15], "marketing_cost": 500000}`. `order_ids` 1–500 i
   `CHUA_GIAO` (đơn chưa giao lần nào, doanh thu 0).
 - Không trả giá vốn từng mã, không trả khách. Báo giá, đơn của khách chạy thử, id không có → `not_found`.
 - Phiếu dịch vụ/sửa chữa chưa tính ở bản này (không có trong `order_ids`).
+
+## GET /marketing/v1/ink-rhythm/summary (đếm khách đến hạn lấy mực)
+
+TUẤN 17/11/2026, phiếu "Cơ hội bán hàng". Cùng khóa `growth-os` (`marketing_read`), cùng nhật ký. Không tham số.
+
+```json
+{"as_of": "2026-11-23T06:00:00+07:00", "goi": 18, "sap": 7, "hen": 3, "xong_tuan": 5, "list_path": "/khach-hang/nhac-muc"}
+```
+
+- Số lấy nguyên từ màn **Nhắc mực** (`ink_rhythm.collect`, theo ngày giờ VN lúc gọi), nên khớp các ô đầu màn đó.
+- `goi` = đã quá nhịp, chờ gọi; `sap` = sắp tới nhịp trong 7 ngày; `hen` = đang hẹn / tạm ẩn sau cuộc gọi;
+  `xong_tuan` = số cuộc gọi đã ghi từ thứ Hai tuần này. Khách đã chuyển nơi khác không tính.
+- Chỉ số đếm: không mã khách, tên, SĐT, số đơn, tên hàng. `list_path` là đường trong app quản lý (cần đăng nhập).

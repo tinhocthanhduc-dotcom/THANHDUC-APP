@@ -317,6 +317,24 @@ def orders(changed_since: str | None = None, cursor: str | None = None, limit: i
     return out
 
 
+# ---------- Đếm khách đến hạn lấy mực (TUẤN 17/11/2026, phiếu "Cơ hội bán hàng") ----------
+# Dùng nguyên ink_rhythm.collect() của màn Nhắc mực; chỉ trả số đếm, không trả khách, SĐT, đơn hay tên hàng.
+
+INK_LIST_PATH = '/khach-hang/nhac-muc'
+
+
+@router.get('/ink-rhythm/summary')
+def ink_rhythm_summary(key: AiKey = Depends(marketing_key), session: Session = Depends(get_session)):
+    from . import ink_rhythm
+
+    now = _now()
+    data = ink_rhythm.collect(session, now.date())
+    out = dict(as_of=_iso(now), goi=len(data['goi']), sap=len(data['sap']), hen=len(data['hen']), xong_tuan=int(data['xong']),
+               list_path=INK_LIST_PATH)
+    _log(session, key, '/ink-rhythm/summary', {}, out['goi'] + out['sap'] + out['hen'])
+    return out
+
+
 # ---------- Phần D: đóng góp lợi nhuận (TUẤN 17/11/2026) ----------
 # Khóa riêng "growth-os-lai" (phạm vi marketing_cost) vì có giá vốn; chỉ giám đốc tạo được khóa. Khóa đọc thường
 # (marketing_read) không gọi được đường này, khóa này cũng không gọi được các đường đọc kia.
