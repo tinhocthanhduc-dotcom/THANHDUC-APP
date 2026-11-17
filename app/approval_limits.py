@@ -143,10 +143,10 @@ def queue(session) -> list[dict]:
     for r in session.scalars(select(AttendanceRequest).where(AttendanceRequest.status == 'CHO_DUYET').order_by(AttendanceRequest.created_at, AttendanceRequest.id)):
         key, size = attendance_key(r)
         label = ('Bổ sung giờ ' + ('vào' if r.kind == 'BO_SUNG_VAO' else 'ra')) if r.punch_at else f'Xin nghỉ {_days(size)} ngày'
-        out.append(dict(key=key, id=r.id, number=r.number, label=label, who=names.get(r.user_id, '—'), amount=0, size=size,
+        out.append(dict(key=key, id=r.id, number=r.number, label=label, who=names.get(r.user_id, '—'), amount=0, size=size, version=r.version,
                         owner_id=r.user_id, link=f'/cham-cong/duyet#cc-{r.id}', delegable=_delegable(key, size, r.user_id, table, finance_ids)))
     for r in session.scalars(select(SalaryAdvance).where(SalaryAdvance.status == 'CHO_DUYET').order_by(SalaryAdvance.requested_at, SalaryAdvance.id)):
-        out.append(dict(key='TAM_UNG', id=r.id, number=r.number, label='Tạm ứng', who=names.get(r.user_id, '—'), amount=int(r.amount),
+        out.append(dict(key='TAM_UNG', id=r.id, number=r.number, label='Tạm ứng', who=names.get(r.user_id, '—'), amount=int(r.amount), version=r.version,
                         size=int(r.amount), owner_id=r.user_id, link=f'/tam-ung#tu-{r.id}',
                         delegable=_delegable('TAM_UNG', int(r.amount), r.user_id, table, finance_ids)))
     for r, product in session.execute(select(PendingDisposition, Product.name).join(PendingItem, PendingItem.id == PendingDisposition.item_id)
@@ -154,7 +154,7 @@ def queue(session) -> list[dict]:
                                       .where(PendingDisposition.kind == 'HUY', PendingDisposition.status == 'CHO_DUYET')
                                       .order_by(PendingDisposition.requested_at, PendingDisposition.id)):
         cost = disposal_cost(session, r)
-        out.append(dict(key='HUY_HANG', id=r.id, number=r.number, label=f'Hủy {_qty(r.qty)} {product}', who=names.get(r.requested_by, '—'),
+        out.append(dict(key='HUY_HANG', id=r.id, number=r.number, label=f'Hủy {_qty(r.qty)} {product}', who=names.get(r.requested_by, '—'), version=r.version,
                         amount=cost, size=cost, owner_id=r.requested_by, link=f'/cho-xu-ly/duyet-huy#xl-{r.id}',
                         delegable=_delegable('HUY_HANG', cost, r.requested_by, table, finance_ids)))
     return out

@@ -5237,9 +5237,26 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .lead-box label{display:grid;gap:4px;font-weight:700;color:var(--text)}
 /* Đợt 4 rà soát: Chờ anh duyệt (TUẤN duyệt 16/11/2026) */
 .ap-list{display:grid}
-.ap-row{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
-.ap-row:hover{background:var(--tag)}
+.ap-row{display:grid;grid-template-columns:1fr auto auto;gap:6px 12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
 .ap-main{display:grid;gap:2px;min-width:0}.ap-main b{overflow-wrap:anywhere}.ap-main small{color:var(--muted)}
+/* Đợt 2 tối ưu thao tác (17/11/2026): nút Duyệt/Từ chối tại dòng, Hoàn tác 5 giây. */
+.ap-open{color:inherit;text-decoration:none}.ap-open:hover{color:var(--accent);text-decoration:underline}
+.ap-acts{display:flex;gap:6px;justify-content:flex-end;align-items:center}.ap-acts form{margin:0}
+.ap-acts .btn-ok,.ap-acts .btn-danger,.ap-acts .btn{min-height:36px;padding:6px 14px;font-size:.9rem}
+.ap-state{display:flex;gap:8px;justify-content:flex-end;align-items:center;font-weight:700;color:var(--muted)}
+.ap-state.ap-ok{color:var(--ok)}.ap-state.ap-bad{color:var(--bad)}.ap-state .btn{min-height:36px;padding:6px 14px}
+.ap-rej{grid-column:1/-1;display:flex;gap:8px;align-items:center;margin:0}
+.ap-rej input[name=reason]{flex:1;min-width:0;min-height:40px;font-size:16px}
+.ap-row.ap-done{background:var(--ok-bg)}.ap-row.ap-rejecting{background:var(--bad-bg)}.ap-row.ap-busy{opacity:.7}
+@media (max-width:720px){
+  .ap-row{grid-template-columns:1fr auto;padding:12px 4px}
+  .ap-open b{color:var(--accent)}
+  .ap-acts,.ap-state{grid-column:1/-1;justify-content:stretch}
+  .ap-acts>form,.ap-acts>button,.ap-acts>.ap-openbtn{flex:1}.ap-acts form .btn-ok{width:100%}
+  .ap-acts .btn-ok,.ap-acts .btn-danger,.ap-acts .ap-openbtn{min-height:44px;font-size:1rem}
+  .ap-view{display:none}
+  .ap-rej{flex-wrap:wrap}.ap-rej input[name=reason]{flex-basis:100%}.ap-rej button{flex:1;min-height:44px}
+}
 .ap-money{font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ap-kt{color:var(--ok);font-weight:700}
 .ap-box{margin-bottom:14px}
