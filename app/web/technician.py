@@ -60,6 +60,10 @@ def owned(session, user, ticket_id):
 
 
 def after_post(request, session, user, ticket_id, fallback):
+    # Đợt 3 (TUẤN duyệt mẫu 17/11/2026): Nhận việc ngay trên thẻ màn Hôm nay thì ở lại màn Hôm nay.
+    if getattr(request.state,'technician_return',False) and request.query_params.get('ve')=='hom-nay':
+        number=session.scalar(select(ServiceTicket.number).where(ServiceTicket.id==ticket_id)) or ''
+        return RedirectResponse(f'/tho?nhan={number}#sap-toi',status_code=303)
     if getattr(request.state,'technician_return',False):
         ticket = session.get(ServiceTicket,ticket_id)
         if ticket is None or ticket.assignee_id!=user.id: return RedirectResponse('/tho',status_code=303)
@@ -294,6 +298,15 @@ def claim(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Dep
     except BusinessError as exc:
         session.rollback()
         return _today(request,user,session,claim_error=exc.message,status=exc.status)
+    # Đợt 3 tối ưu thao tác (TUẤN duyệt mẫu 17/11/2026): "Nhận và đi" = nhận + ghi đang đi tới khách trong một lần bấm.
+    if form.get('di')=='1':
+        from .. import service_suggest
+        try:
+            service_suggest.depart(session,user,t.id)
+        except BusinessError:
+            session.rollback()  # phiếu chưa có hẹn: đã nhận xong, chỉ không ghi "đang đi"
+        else:
+            return RedirectResponse(f'/tho?nhan={t.number}&hen=di#sap-toi',status_code=303)
     return RedirectResponse(f'/tho?nhan={t.number}#sap-toi',status_code=303)
 
 
@@ -309,7 +322,7 @@ def _today(request,user,session,claim_error=None,status=200):
         jobs.append(dict(kind='service',service_kind=ticket.kind,id=ticket.id,number=ticket.number,priority=ticket.priority,customer=customer.name,
             machine=machine or '',serial=ticket.serial or '',symptom=ticket.symptom,appointment=ticket.appointment_at,
             appointment_slot=ticket.appointment_slot, overdue=(ticket.status in ('DA_HEN','DA_NHAN') and ticket.appointment_at is not None and service_appointments.end(ticket.appointment_at,ticket.appointment_slot)<now) or (ticket.due_at is not None and ticket.due_at<now),
-            href=f'/tho/phieu/{ticket.id}',action=action['primary'] if action else None,status=ticket.status,created=ticket.created_at,
+            href=f'/tho/phieu/{ticket.id}',action=action['primary'] if action else None,status=ticket.status,created=ticket.created_at,version=ticket.version,
             group='active' if ticket.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG') else 'upcoming',
             sort=_schedule(ticket.appointment_at,ticket.status,now),**contact(customer,site)))
     orders=session.scalars(select(SalesOrder).where(SalesOrder.delivery_assignee_id==user.id,SalesOrder.fulfillment=='THO_GIAO',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN'))))

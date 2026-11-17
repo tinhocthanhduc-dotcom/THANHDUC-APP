@@ -3801,6 +3801,14 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .tho-claim-ask > summary::-webkit-details-marker { display: none; }
 .tho-claim-ask[open] > summary { display: none; }
 .tho-claim-form p { margin: 8px 0 0; }
+/* Đợt 3 tối ưu thao tác (17/11/2026): nút ngay trên thẻ việc màn Hôm nay, Hoàn tác 5 giây khi tự nhận. */
+.tho-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.tho-acts .tho-claim-btn[hidden] { display: none; }
+.tho-card-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: -4px 0 4px; }
+.tho-card-acts form { margin: 0; display: grid; }
+.tho-card-acts button { min-height: 46px; font-size: 16px; font-weight: 700; width: 100%; }
+.tho-undo { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; margin-top: 6px; color: var(--ok); font-weight: 700; }
+.tho-undo span { flex: 1; } .tho-undo .btn { min-height: 44px; }
 .svn-self-claim { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
 .svn-self-claim input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 .svn-self-claim small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
