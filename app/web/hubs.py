@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import User
-from . import nav, web_user
+from . import checked_form, nav, web_user
 
 router = APIRouter()
 
@@ -131,13 +131,18 @@ def quote_new(request: Request, user: User = Depends(web_user)):
 
 @router.get('/cho-anh-duyet')
 def approvals_page(request: Request, nhom: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
-    """Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): mọi việc chờ giám đốc duyệt ở một trang; bấm dòng mở phiếu cũ."""
+    """Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): mọi việc chờ giám đốc duyệt ở một trang.
+    Đợt 2 tối ưu thao tác (TUẤN duyệt mẫu 17/11/2026): Duyệt/Từ chối ngay tại dòng; kiểm kê vẫn mở phiếu."""
+    nav.check_access(user, '/cho-anh-duyet')
+    return _approvals(request, session, nhom, saved=request.query_params.get('da_luu', ''))
+
+
+def _approvals(request, session, nhom='', error=None, code='', status=200, saved='', failed=None):
     from datetime import datetime
 
     from .. import director_approvals as da
     from ..service_sla import TZ
     from . import render
-    nav.check_access(user, '/cho-anh-duyet')
     items = da.rows(session)
     now = datetime.now(TZ)
     counts = {k: sum(1 for r in items if r['group'] == k) for k in da.GROUPS}
@@ -145,5 +150,27 @@ def approvals_page(request: Request, nhom: str = '', user: User = Depends(web_us
     shown = [dict(r, age=da.age(r['since'], now)) for r in items if not nhom or r['group'] == nhom]
     tiles = [dict(label='Tất cả', n=len(items), href='/cho-anh-duyet', on=not nhom)] + [
         dict(label=label, n=counts[k], href=f'/cho-anh-duyet?nhom={k}', on=nhom == k) for k, label in da.GROUPS.items()]
-    return render(request, 'cho_anh_duyet.jinja', rows=shown, tiles=tiles, total=len(items),
-                  cash=sum(r['amount'] or 0 for r in items if r['kind'] in da.CASH_OUT))
+    return render(request, 'cho_anh_duyet.jinja', rows=shown, tiles=tiles, total=len(items), nhom=nhom,
+                  cash=sum(r['amount'] or 0 for r in items if r['kind'] in da.CASH_OUT),
+                  error=error, error_code=code, status=status, saved=saved, failed=failed or {})
+
+
+@router.post('/cho-anh-duyet/{kind}/{ident}/{action}')
+def approvals_decide(request: Request, kind: str, ident: int, action: str, form=Depends(checked_form),
+                     user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Một nút tại dòng → đúng hàm nghiệp vụ trang gốc (quyền, hạn mức, phiên bản, lý do giữ nguyên)."""
+    from .. import director_approvals as da
+    from ..errors import BusinessError
+    nav.check_access(user, '/cho-anh-duyet')
+    nhom = str(form.get('nhom', ''))
+    nhom = nhom if nhom in da.GROUPS else ''
+    if action not in ('duyet', 'tu-choi'):
+        raise BusinessError('NOT_FOUND', 'Không có thao tác này.', status=404)
+    try:
+        da.decide(session, user, kind, ident, action == 'duyet', form.get('version'), str(form.get('reason', '')))
+    except BusinessError as exc:
+        session.rollback()
+        return _approvals(request, session, nhom, exc.message, exc.code, exc.status,
+                          failed=dict(key=f'{kind}-{ident}', reason=str(form.get('reason', '')), action=action))
+    back = '/cho-anh-duyet?' + (f'nhom={nhom}&' if nhom else '') + 'da_luu=' + ('duyet' if action == 'duyet' else 'tu-choi')
+    return RedirectResponse(back, status_code=303)

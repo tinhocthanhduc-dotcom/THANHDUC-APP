@@ -2,11 +2,24 @@
 {% import '_ui.jinja' as ui %}
 {% block title %}Chờ anh duyệt{% endblock %}
 {% block main %}<div class="page-wide ap-page">
-{# Đợt 4 rà soát (TUẤN duyệt mẫu 16/11/2026): chỉ đọc; nút duyệt vẫn ở từng phiếu. #}
-{% call ui.page_head('Chờ anh duyệt', sub=(total ~ ' việc' ~ ((' · ' ~ (cash|money) ~ ' đ tiền ra') if cash else '') ~ '. Bấm một dòng để mở phiếu và duyệt như cũ.')) %}{% endcall %}
+{# Đợt 2 tối ưu thao tác (TUẤN duyệt mẫu 17/11/2026): Duyệt/Từ chối ngay tại dòng, Hoàn tác 5 giây; kiểm kê vẫn mở phiếu. #}
+{% call ui.page_head('Chờ anh duyệt', sub=(total ~ ' việc' ~ ((' · ' ~ (cash|money) ~ ' đ tiền ra') if cash else '') ~ '. Bấm Duyệt hoặc Từ chối ngay tại dòng.')) %}{% endcall %}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% elif saved %}<p class="alert ok" role="status">{{ 'Đã duyệt.' if saved == 'duyet' else 'Đã từ chối.' }}</p>{% endif %}
 <div class="list-tiles ap-tiles">{% for t in tiles %}<a class="list-tile{{ ' on' if t.on }}" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}><small>{{ t.label }}</small><strong>{{ t.n }}</strong></a>{% endfor %}</div>
 <section class="card list-card">
-{% if rows %}<div class="ap-list">{% for r in rows %}<a class="ap-row" href="{{ r.link }}"><span class="ap-main"><b>{{ r.label }}{% if r.number %} · {{ r.number }}{% endif %}{% if r.title %} · {{ r.title }}{% endif %}</b><small>{{ r.who }}{% if r.age %} · {{ r.age }}{% endif %}{% if r.kt %} · <span class="ap-kt">Kế toán duyệt được</span>{% endif %}</small></span><span class="ap-money">{% if r.amount is not none %}{{ r.amount|money }} đ{% else %}–{% endif %}</span></a>{% endfor %}</div>
+{% if rows %}<div class="ap-list" data-ap-list>{% for r in rows %}{% set key = r.kind ~ '-' ~ r.id %}{% set rejecting = failed.get('key') == key and failed.get('action') == 'tu-choi' %}
+<div class="ap-row{{ ' ap-rejecting' if rejecting }}" data-ap-row>
+<span class="ap-main"><a class="ap-open" href="{{ r.link }}"><b>{{ r.label }}{% if r.number %} · {{ r.number }}{% endif %}{% if r.title %} · {{ r.title }}{% endif %}</b></a><small>{{ r.who }}{% if r.age %} · {{ r.age }}{% endif %}{% if r.kt %} · <span class="ap-kt">Kế toán duyệt được</span>{% endif %}</small></span>
+<span class="ap-money">{% if r.amount is not none %}{{ r.amount|money }} đ{% else %}–{% endif %}</span>
+<span class="ap-acts" data-ap-acts>{% if r.inline %}
+<form method="post" action="/cho-anh-duyet/{{ r.kind }}/{{ r.id }}/duyet" data-ap-form data-ap-approve><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version or '' }}"><input type="hidden" name="nhom" value="{{ nhom }}"><button class="btn-ok">Duyệt</button></form>
+<button type="button" class="btn-danger" data-ap-reject>Từ chối</button>
+<a class="btn btn-ghost ap-view" href="{{ r.link }}">Xem</a>
+{% else %}<a class="btn ap-openbtn" href="{{ r.link }}">Mở phiếu</a>{% endif %}</span>
+<span class="ap-state" data-ap-state hidden></span>
+{% if r.inline %}<form method="post" action="/cho-anh-duyet/{{ r.kind }}/{{ r.id }}/tu-choi" class="ap-rej" data-ap-form{% if not rejecting %} hidden{% endif %}><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version or '' }}"><input type="hidden" name="nhom" value="{{ nhom }}"><input name="reason" required minlength="3" maxlength="300" placeholder="Lý do từ chối" aria-label="Lý do từ chối" value="{{ failed.get('reason', '') if rejecting }}"><button class="btn-danger">Gửi từ chối</button><button type="button" class="btn btn-ghost" data-ap-cancel>Thôi</button></form>{% endif %}
+</div>{% endfor %}</div>
 {% else %}{{ ui.empty('Không có việc nào chờ anh duyệt.') }}{% endif %}
 </section>
-</div>{% endblock %}
+</div>
+<script src="{{ asset('cho-anh-duyet.js') }}" defer></script>{% endblock %}
