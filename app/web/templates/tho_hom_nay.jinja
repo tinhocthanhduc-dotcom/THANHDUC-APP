@@ -15,10 +15,10 @@
 <div class="tl-acts"><form method="post" action="/tho/phieu/{{ row.id }}/di"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn-new">Đi ngay</button></form>
 <details><summary class="btn btn-ghost">Báo trễ</summary><div>{% for key, label in late_choices.items() %}<form method="post" action="/tho/phieu/{{ row.id }}/bao-tre"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tre" value="{{ key }}"><button class="btn btn-ghost">{{ label }}</button></form>{% endfor %}</div></details></div>
 </section>{% endfor %}
-{% if request.query_params.get('sua_xong') %}<p class="alert ok" role="status">Đã báo sửa xong. Kho chốt rồi giao trả máy.</p>{% endif %}
+{% set ws_flash={'sua_xong': 'Đã báo sửa xong. Kho chốt rồi giao trả máy.', 'phat_sinh': 'Đã báo phát sinh. Máy về kho kiểm tra lại, kinh doanh báo khách.', 'khong_sua': 'Đã báo không sửa được. Kinh doanh báo khách.'} %}{% for k, msg in ws_flash.items() if request.query_params.get(k) %}<p class="alert ok" role="status">{{ msg }}</p>{% endfor %}
 {% if workshop_jobs %}<h2 class="tho-grp" data-ws-title>Máy ở xưởng giao bạn sửa · {{ workshop_jobs|length }}</h2>
 <div class="tho-jobs">{% for row in workshop_jobs %}<a class="card tho-job" href="{{ row.href }}" data-ws-job="{{ row.id }}">
-<span class="cardtop"><span>{{ row.number }}</span><span class="tag tone-{{ 'ok' if row.reported else 'bad' if row.late else 'warn' }}">{{ 'Đã báo sửa xong' if row.reported else 'Cần sửa' }}</span></span>
+<span class="cardtop"><span>{{ row.number }}</span><span class="tag tone-{{ 'ok' if row.reported else 'bad' if row.late else 'warn' }}">{{ row.reported or 'Cần sửa' }}</span></span>
 <b>{{ row.customer }}</b><span class="tho-foot"><span class="tho-due">{% if row.promised %}Hẹn trả {{ row.promised.strftime('%d/%m') }}{% endif %}</span><span class="tho-next">{{ 'Xem' if row.reported else 'Báo sửa xong' }} ›</span></span></a>{% endfor %}</div>{% endif %}
 {% if unreported %}<h2 class="tho-grp" data-unreported-title>Còn tiền chưa báo · {{ unreported|length }} phiếu</h2>
 <div class="tho-jobs">{% for row in unreported %}<a class="card tho-job tho-unreported" href="{{ row.href }}" data-unreported="{{ row.id }}">

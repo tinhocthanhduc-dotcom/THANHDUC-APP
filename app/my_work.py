@@ -129,6 +129,7 @@ def _specs(user, today, now, session=None):
         if service_tickets.can_quote(user):
             ws_add('service_ws_quote', 'Máy đã kiểm tra · duyệt giá gửi khách', 's2')
             ws_add('service_ws_reply', 'Báo giá xưởng chờ khách trả lời', 's3')
+            ws_add('service_ws_failed', 'Thợ báo không sửa được · báo khách', 's3f')
         if 'technician' in user.roles:
             ws_add('service_ws_repair', 'Máy ở xưởng giao bạn sửa', 's4', own=True)
     if has_role(user, 'dispatcher', 'warehouse'):
@@ -386,6 +387,7 @@ def _group(session, spec, page=1):
             if spec['key']=='service_close':row['link']=f"/linh-kien-thu-hoi?ticket_id={row['id']}"
             if spec['key']=='service_ws_check':row['link']=f"/kiem-tra-may/{row['id']}"
             if spec['key'] in ('service_ws_quote','service_ws_reply'):row['link']=f"/dich-vu/{row['id']}#gui-khach"
+            if spec['key']=='service_ws_failed':row['link']=f"/dich-vu/{row['id']}#workshop-decline"
             if spec['key']=='service_ws_close':row['link']=f"/dich-vu/{row['id']}#workshop-repaired"
             if spec['key']=='service_ws_repair':row['link']=f"/tho/phieu/{row['id']}#sua-xuong"
             if spec['key']=='receipts_rejected':

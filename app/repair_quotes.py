@@ -391,6 +391,54 @@ def not_yet(session: Session, user: User, vid: int, reason: str, wanted_price=No
     return v
 
 
+def agreed_before(session: Session, ticket_id: int) -> RepairQuoteVersion | None:
+    """Lần báo giá khách đã đồng ý trước đó (khi thợ báo phát sinh và gửi lần mới)."""
+    return session.scalars(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == ticket_id, RepairQuoteVersion.status == 'DONG_Y')
+                           .order_by(RepairQuoteVersion.no.desc()).limit(1)).first()
+
+
+def keep_previous(session: Session, user: User, vid: int, note: str = '') -> RepairQuoteVersion:
+    """Khách không đồng ý phần phát sinh, chỉ sửa theo lần đã đồng ý: phí trên phiếu về đúng lần cũ, khách đồng ý lại
+    theo lần cũ, cùng thợ sửa tiếp (TUẤN duyệt 17/11/2026)."""
+    from . import service_charges, service_workshop
+    from .config import DEFAULT_VAT_RATE
+    from .schemas import ServiceCharges, ServiceLineIn
+    from .stock_docs import _transaction
+    from decimal import Decimal
+    v = _load(session, user, vid, lock=True)
+    if v.status != 'CHO':
+        raise BusinessError('BAD_STATUS', 'Lần báo giá này không còn chờ khách trả lời.', status=409)
+    old = agreed_before(session, v.ticket_id)
+    if old is None:
+        raise BusinessError('NO_PREVIOUS', 'Máy chưa có lần báo giá nào khách đã đồng ý.', status=409)
+    pick = old.reply_choice or old.snapshot.get('pick') or 'PA1'
+    fees = []
+    for ln in old.snapshot.get('lines') or []:
+        p = ln.get(pick) or ln.get('PA1')
+        if p is None:
+            raise BusinessError('NO_PREVIOUS', f'Lần {old.no} thiếu giá, gửi lại báo giá mới.', status=409)
+        fees.append(ServiceLineIn(kind='PHI', description=str(ln['name'])[:500], qty=Decimal(1), unit_price=p['price'], vat_rate=DEFAULT_VAT_RATE))
+    note = ' '.join(str(note or '').split())[:500]
+    with _transaction(session):
+        t = session.scalars(select(ServiceTicket).where(ServiceTicket.id == v.ticket_id).with_for_update()
+                            .execution_options(populate_existing=True)).first()
+        keep = [service_charges.line_input(x) for x in t.lines if x.kind != 'PHI']
+        service_charges.set_charges_in_tx(session, user, t, ServiceCharges(version=t.version, billing='THU_TIEN', lines=keep + fees))
+        row = session.get(RepairInspection, t.id, with_for_update=True)
+        if row is not None:
+            row.recheck_reason = ''
+            row.applied_at, row.applied_by = _now(), user.id
+        v.status, v.reply_reason, v.reply_note = 'CHUA_DONG_Y', f'Chỉ sửa theo lần {old.no}', note
+        v.replied_by, v.replied_at = user.id, _now()
+        version = t.version
+    day = max(t.promised_return_on or _today(), _today())
+    service_workshop.quote_approve(session, user, t.id, version, day, f'Giữ báo giá lần {old.no} · bỏ phần phát sinh lần {v.no}',
+                                   repairer_id=t.assignee_id)
+    audit.record(session, user, 'repair_quote.keep_previous', 'service_ticket', str(t.id), None, dict(no=v.no, kept=old.no))
+    session.commit()
+    return v
+
+
 def close_open(session: Session, ticket_id: int, status: str) -> None:
     """Gọi từ nút xưởng (Khách đồng ý / Khách không sửa) trong cùng transaction: lần đang chờ được đóng theo."""
     v = open_version(session, ticket_id)

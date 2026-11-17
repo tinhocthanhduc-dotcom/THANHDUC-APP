@@ -106,7 +106,10 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
     # _validate_lines chỉ nhận kho KHO/THO đang dùng, PX lúc Sửa xong chặn âm kho.
     _validate_lines(session, body.model_copy(update={'lines':editable}))
     before = _snapshot(t)
-    changed=(t.billing!=body.billing or Counter(_issued_key(x) for x in t.lines)!=Counter(_issued_key(x) for x in body.lines))
+    # Vật tư giá 0 (phát sinh, không tính khách) không đổi giá khách nên không bắt khách đồng ý lại (TUẤN 17/11/2026).
+    def priced(lines):
+        return Counter(_issued_key(x) for x in lines if not (x.kind=='VAT_TU' and not x.unit_price))
+    changed=(t.billing!=body.billing or priced(t.lines)!=priced(body.lines))
     if at_workshop and changed:
         t.quote_approved_at=t.quote_approved_by=None
     lines = []

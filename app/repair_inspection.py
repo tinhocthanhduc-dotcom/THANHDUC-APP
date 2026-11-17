@@ -59,6 +59,14 @@ def can_inspect(user: User) -> bool:
     return bool(user and user.active and has_role(user, *INSPECTORS))
 
 
+RECHECKED = 'Đã kiểm tra lại · '
+
+
+def needs_recheck(row) -> bool:
+    """Khách chưa đồng ý hoặc thợ báo phát sinh: kho phải kiểm tra lại trước khi duyệt giá lần sau."""
+    return bool(row is not None and row.recheck_reason and not row.recheck_reason.startswith(RECHECKED))
+
+
 def require_inspect(user: User):
     if not can_inspect(user):
         raise BusinessError('FORBIDDEN', 'Chỉ thợ hoặc điều phối được ghi kết quả kiểm tra máy.', status=403)
@@ -204,6 +212,8 @@ def save(session: Session, user: User, ticket_id: int, form) -> RepairInspection
     row.model_name, row.model_id = (model.name, model.id) if model else (model_name, None)
     row.note = str(form.get('note', '') or '').strip()[:2000]
     row.inspected_by, row.inspected_at = user.id, now
+    if needs_recheck(row):  # kho đã kiểm tra lại theo ý khách / phát sinh: sang bước duyệt giá, giữ lý do cho người duyệt
+        row.recheck_reason = (RECHECKED + row.recheck_reason)[:1000]
     old_items = {i.service_id: (_item_snap(i), i.customer_note) for i in row.items}
     for i in items:
         snap, note = old_items.get(i.service_id, (None, ''))

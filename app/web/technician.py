@@ -235,9 +235,15 @@ def detail_context(session, user, ticket, ctx):
         codes=[x for i in (row.items if row else []) for x in (i.parts or [])]
         pnames=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_({x.get('code') for x in codes}))).all()) if codes else {}
         parts=[dict(code=x.get('code'),name=pnames.get(x.get('code'),x.get('code')),qty=x.get('qty')) for x in codes]
-        step=service_workshop.reported(session,[ticket.id]).get(ticket.id)
-        ws_repair=dict(packs=items,parts=parts,note=row.note if row else '',reported=step,promised=ticket.promised_return_on,
-                       fix='; '.join(items))
+        step=service_workshop.tech_state(session,[ticket.id]).get(ticket.id)
+        from ..models import Warehouse
+        whs=[w for w in session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','THO'))).order_by(Warehouse.kind,Warehouse.code))
+             if w.kind=='KHO' or w.holder_id==user.id]
+        own=next((w for w in whs if w.kind=='THO'),None)
+        ws_repair=dict(packs=items,parts=parts,note=row.note if row else '',step=step,promised=ticket.promised_return_on,
+                       fix='; '.join(items),warehouses=whs,default_wh=(own or (whs[0] if whs else None)),
+                       products=list(session.execute(select(Product.code,Product.name).where(Product.active.is_(True)).order_by(Product.name)).all()),
+                       reasons=service_workshop.FAIL_REASONS,can_extra=ticket.quote_approved_at is not None)
     return dict(ws_repair=ws_repair,goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=equipment_svc.display_name(eq,product) if eq else '',**contact(ctx['customer'],ctx['site']))
@@ -334,9 +340,9 @@ def _today(request,user,session,claim_error=None,status=200):
     from .. import service_workshop
     mine=[x for x in session.scalars(select(t).where(t.assignee_id==user.id,service_self_claim.at_workshop()).order_by(t.promised_return_on.nulls_last(),t.id))
           if service_workshop.can_report(user,x)]
-    done=service_workshop.reported(session,[x.id for x in mine])
+    done={k:v.action for k,v in service_workshop.tech_state(session,[x.id for x in mine]).items() if v.action!='repair_extra'}
     names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({x.customer_code for x in mine}))).all()) if mine else {}
-    workshop_jobs=[dict(id=x.id,number=x.number,customer=names.get(x.customer_code,''),promised=x.promised_return_on,reported=x.id in done,
+    workshop_jobs=[dict(id=x.id,number=x.number,customer=names.get(x.customer_code,''),promised=x.promised_return_on,reported={'repair_reported':'Đã báo sửa xong','repair_failed':'Báo không sửa được'}.get(done.get(x.id),''),
         late=bool(x.promised_return_on and x.promised_return_on<day),href=f'/tho/phieu/{x.id}#sua-xuong') for x in mine]
     from ..models import ProductionOrder
     from .. import production
@@ -548,6 +554,8 @@ async def report_repaired(request:Request,ticket_id:int,form=Depends(checked_for
     owned(session,user,ticket_id)
     version=str(form.get('version','') or '')
     note=str(form.get('fix','') or '')
+    extras=list(zip(form.getlist('extra_code'),form.getlist('extra_qty')))
+    wh=str(form.get('extra_wh','') or '')
     try:
         upload=form.get('photo')
         if isinstance(upload,UploadFile) and upload.filename:
@@ -555,13 +563,43 @@ async def report_repaired(request:Request,ticket_id:int,form=Depends(checked_for
             if data:
                 if data.startswith(b'%PDF-'):raise BusinessError('BAD_FILE_TYPE','Ảnh sau sửa phải là ảnh.')
                 attachments.add(session,user,'service_ticket',str(ticket_id),'SAU',upload.filename or 'sau-sua.jpg',data)
-        service_workshop.report_repaired(session,user,ticket_id,int(version) if version.isdigit() else None,note)
+        service_workshop.report_repaired(session,user,ticket_id,int(version) if version.isdigit() else None,note,
+                                         [(c.split(' ')[0],wh,q) for c,q in extras if str(c).strip()])
     except BusinessError as exc:
         session.rollback()
         session.refresh(user)
         return _detail(request,session,user,ticket_id,technician_view=True,error=exc.message,error_code=exc.code,
-                       failed_action='ws-report',form=dict(fix=note),status=exc.status if exc.status!=403 else 403)
+                       failed_action='ws-report',form=dict(fix=note),status=exc.status)
     return RedirectResponse('/tho?sua_xong=1',status_code=303)
+
+
+@router.post('/tho/phieu/{ticket_id}/phat-sinh')
+def report_extra(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """Phát sinh · báo lại khách (TUẤN duyệt 17/11/2026)."""
+    return _report_other(request,ticket_id,'phat-sinh',form,user,session)
+
+
+@router.post('/tho/phieu/{ticket_id}/khong-sua-duoc')
+def report_failed(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """Không sửa được (TUẤN duyệt 17/11/2026)."""
+    return _report_other(request,ticket_id,'khong-sua-duoc',form,user,session)
+
+
+def _report_other(request,ticket_id,action,form,user,session):
+    from .. import service_workshop
+    from .services import _detail
+    owned(session,user,ticket_id)
+    version=str(form.get('version','') or '');version=int(version) if version.isdigit() else None
+    note=str(form.get('note','') or '');reason=str(form.get('reason','') or '')
+    try:
+        if action=='phat-sinh':service_workshop.report_extra(session,user,ticket_id,version,note)
+        else:service_workshop.report_failed(session,user,ticket_id,version,reason,note)
+    except BusinessError as exc:
+        session.rollback()
+        session.refresh(user)
+        return _detail(request,session,user,ticket_id,technician_view=True,error=exc.message,error_code=exc.code,
+                       failed_action='ws-'+action,form=dict(note=note,reason=reason),status=exc.status)
+    return RedirectResponse('/tho?'+('phat_sinh=1' if action=='phat-sinh' else 'khong_sua=1'),status_code=303)
 
 
 @router.post('/tho/phieu/{ticket_id}/anh')

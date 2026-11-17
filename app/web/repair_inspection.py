@@ -181,7 +181,8 @@ def panel_context(session, user, t, picks=None) -> dict:
                         can_send=_st.can_quote(user) and bool(row.applied_at) and (open_v is None or send['stale']),
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
                         statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS,
-                        repairers=_repairers(session) if send else []),
+                        repairers=_repairers(session) if send else [], assignee=t.assignee_id,
+                        previous=rqs.agreed_before(session, t.id) if send else None),
                 rq_warranty=row.warranty_months if row.applied_at else None)
 
 
@@ -226,7 +227,7 @@ def quote_create(request: Request, ticket_id: int, form=Depends(checked_form), s
     return RedirectResponse(f'/dich-vu/{ticket_id}?bao_gia_lan={v.no}#gui-khach', status_code=303)
 
 
-QUOTE_ACTIONS = ('gui-zalo', 'da-gui', 'thu-hoi', 'dong-y', 'chua-dong-y')
+QUOTE_ACTIONS = ('gui-zalo', 'da-gui', 'thu-hoi', 'dong-y', 'chua-dong-y', 'giu-lan-truoc')
 
 
 @router.post('/kiem-tra-may/bao-gia/{vid}/{action}')
@@ -259,6 +260,8 @@ def quote_action(request: Request, vid: int, action: str, form=Depends(checked_f
             rqs.agree(session, user, vid, int(version) if version.isdigit() else None, str(form.get('pa', '')),
                       str(form.get('via', '')), str(form.get('person', '')), day, str(form.get('note', '') or ''),
                       int(form.get('repairer')) if str(form.get('repairer', '')).isdigit() else None)
+        elif action == 'giu-lan-truoc':
+            rqs.keep_previous(session, user, vid, str(form.get('note', '') or ''))
         elif action == 'chua-dong-y':
             from . import _digits
             wanted = _digits(form.get('wanted_price')) or None

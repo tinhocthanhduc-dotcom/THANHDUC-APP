@@ -1,5 +1,7 @@
 """Bảng xưởng (TUẤN duyệt mẫu 17/11/2026): mỗi máy ở xưởng một hàng, bước đúng theo trạng thái, việc của mình mới có nút."""
+import pytest
 from app import repair_inspection as ri
+from app.errors import BusinessError
 from app import repair_quotes as rq
 from app import workshop_board as wb
 from app.models import RepairInspection
@@ -242,3 +244,126 @@ def test_technician_reports_repaired_then_kho_closes(client, db, workshop, make_
     service_login(client, kho)
     page = client.get(f'/dich-vu/{tid}').text
     assert 'báo sửa xong' in page and 'test in 20 trang' in page and 'id="workshop-repaired"' in page
+
+
+def _agreed(db, p, make_user, tho, parts=()):
+    boss = make_user('bx.boss', 'director')
+    fuser, feed, opts = book(db, boss)
+    t = p['workshop'][3]
+    ri.save(db, p['technician'], t.id, form(fuser, opts, ['Thay bao lụa sấy'], parts=list(parts)))
+    ri.apply(db, p['dispatcher'], t.id, t.version, {})
+    db.refresh(t)
+    v = rq.create(db, p['dispatcher'], t.id, t.version)
+    rq.mark_sent(db, p['dispatcher'], v.id, 'COPY')
+    db.refresh(t)
+    rq.agree(db, p['dispatcher'], v.id, t.version, 'PA1', 'ZALO', 'Anh Nam', tomorrow(), '', tho.id)
+    db.refresh(t)
+    return t, fuser, opts, v
+
+
+def test_extra_materials_not_charged_keep_approval_and_leave_stock(db, workshop, make_user):
+    """Vật tư phát sinh không tính khách: dòng giá 0, khách không phải đồng ý lại, kho trừ khi chốt, tổng khách giữ nguyên."""
+    from app import service_workshop
+    from app.models import ServiceTicket
+    from test_technician_stock import balance
+    from test_mv1_workshop import photo
+    from test_xg1_workshop import repaired
+    p, a, b, t, eq = workshop
+    p = dict(p, workshop=workshop)
+    tho = make_user('bx.tho_sua', 'technician')
+    t, fuser, opts, v = _agreed(db, p, make_user, tho)
+    total = sum(x.amount + x.vat_amount for x in t.lines)
+    stock = balance(db, 'K58')
+    photo(db, p, t, 'SAU', who='dispatcher')
+    service_workshop.report_repaired(db, tho, t.id, t.version, 'Vệ sinh, thay bánh xe', [('TD-0001', 'K58', 1)])
+    db.expire_all()
+    t = db.get(ServiceTicket, t.id)
+    extra = [x for x in t.lines if x.kind == 'VAT_TU']
+    assert len(extra) == 1 and extra[0].unit_price == 0 and extra[0].amount == 0 and 'không tính khách' in extra[0].description
+    assert t.quote_approved_at is not None and sum(x.amount + x.vat_amount for x in t.lines) == total
+    assert row(db, p['dispatcher'], t)['stage'] == 's5'
+    repaired(db, p, t, repaired_by=tho.id)
+    db.expire_all()
+    t = db.get(ServiceTicket, t.id)
+    assert t.total == total and balance(db, 'K58') == stock - 1 and all(x.stock_doc_id for x in t.lines if x.kind == 'VAT_TU')
+
+
+def test_extra_goes_back_to_kho_then_keep_previous_quote(db, workshop, make_user):
+    """Phát sinh · báo lại khách: về kho kiểm tra lại → duyệt giá → gửi lần 2 → khách chỉ giữ lần 1: giá về lần 1, cùng thợ sửa tiếp."""
+    from app import my_work, service_workshop
+    from app.models import ServiceTicket
+    p, a, b, t, eq = workshop
+    p = dict(p, workshop=workshop)
+    disp = p['dispatcher']
+    kho = make_user('bx.kho_dp', 'dispatcher', 'warehouse')
+    tho = make_user('bx.tho_sua', 'technician')
+    t, fuser, opts, v1 = _agreed(db, p, make_user, tho)
+    total1 = sum(x.amount + x.vat_amount for x in t.lines)
+    service_workshop.report_extra(db, tho, t.id, t.version, 'Bánh xe kéo giấy mòn, cần thay')
+    db.refresh(t)
+    r = row(db, kho, t)
+    assert t.quote_approved_at is None and r['stage'] == 's1' and 'Phát sinh khi sửa' in r['note']
+    assert t.id in [x['id'] for x in my_work.filtered(db, kho, 'service_ws_check')['rows']]
+    ri.save(db, kho, t.id, form(fuser, opts, ['Thay bao lụa sấy'], parts=[('TD-0001', 1)]))
+    r = row(db, disp, t)
+    assert r['stage'] == 's2' and 'Phát sinh khi sửa' in r['note'] and r['action']['label'] == 'Duyệt · gửi'
+    ri.apply(db, disp, t.id, t.version, {})
+    db.refresh(t)
+    v2 = rq.create(db, disp, t.id, t.version)
+    rq.mark_sent(db, disp, v2.id, 'COPY')
+    assert v2.no == 2 and rq.agreed_before(db, t.id).id == v1.id
+    rq.keep_previous(db, disp, v2.id, 'Khách chỉ sửa cụm sấy')
+    db.expire_all()
+    t = db.get(ServiceTicket, t.id)
+    assert t.quote_approved_at is not None and t.assignee_id == tho.id
+    assert sum(x.amount + x.vat_amount for x in t.lines) == total1
+    assert row(db, tho, t)['stage'] == 's4' and db.get(type(v2), v2.id).status == 'CHUA_DONG_Y'
+    assert t.id in [x['id'] for x in my_work.filtered(db, tho, 'service_ws_repair')['rows']]
+
+
+def test_cannot_repair_goes_to_sales_then_decline(db, workshop, make_user):
+    """Không sửa được: kinh doanh thấy (chuông) → báo khách → Khách không sửa → chờ trả."""
+    from app import my_work, notifications, service_workshop
+    from app.models import ServiceTicket
+    p, a, b, t, eq = workshop
+    p = dict(p, workshop=workshop)
+    disp = p['dispatcher']
+    tho = make_user('bx.tho_sua', 'technician')
+    t, fuser, opts, v = _agreed(db, p, make_user, tho)
+    with pytest.raises(BusinessError) as e:
+        service_workshop.report_failed(db, tho, t.id, t.version, 'Lý do lạ')
+    assert e.value.code == 'REASON_REQUIRED'
+    service_workshop.report_failed(db, tho, t.id, t.version, 'Không có linh kiện', 'Hết hàng hãng')
+    r = row(db, disp, t)
+    assert r['stage'] == 's3' and r['stage_label'] == 'Không sửa được' and r['action']['label'] == 'Báo khách · không sửa'
+    assert f'service_ws_failed:{t.id}' in {x['id'] for x in notifications.items(db, disp)}
+    assert my_work.filtered(db, tho, 'service_ws_repair')['rows'] == []
+    with pytest.raises(BusinessError) as e:
+        service_workshop.report_repaired(db, tho, t.id, t.version, 'Sửa xong')
+    assert e.value.code == 'ALREADY_REPORTED'
+    db.refresh(t)
+    service_workshop.quote_decline(db, disp, t.id, t.version, 'FREE', 0, 'Không sửa được, miễn phí kiểm tra')
+    db.expire_all()
+    t = db.get(ServiceTicket, t.id)
+    assert t.hold_reason == 'SUA_XONG_CHO_TRA' and row(db, disp, t)['stage'] == 's6'
+
+
+def test_technician_screen_three_buttons_web(client, db, workshop, make_user):
+    from app.models import ServiceTicket
+    p, a, b, t, eq = workshop
+    p = dict(p, workshop=workshop)
+    tho = make_user('bx.tho_sua', 'technician')
+    t, fuser, opts, v = _agreed(db, p, make_user, tho)
+    tid, ver = t.id, t.version
+    csrf = service_login(client, tho)
+    page = client.get(f'/tho/phieu/{tid}').text
+    assert 'Vật tư phát sinh · không tính khách' in page and 'Phát sinh · báo lại khách' in page and 'Không sửa được' in page
+    r = client.post(f'/tho/phieu/{tid}/khong-sua-duoc', data={'csrf': csrf, 'version': str(ver), 'reason': 'Ngoài khả năng'}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == '/tho?khong_sua=1'
+    assert 'Đã báo không sửa được' in client.get('/tho?khong_sua=1').text
+    client.cookies.clear()
+    service_login(client, p['dispatcher'])
+    page = client.get(f'/dich-vu/{tid}').text
+    assert 'không sửa được' in page and 'Ngoài khả năng' in page and 'id="workshop-decline"' in page
+    db.expire_all()
+    assert db.get(ServiceTicket, tid).quote_approved_at is not None

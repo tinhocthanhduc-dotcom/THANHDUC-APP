@@ -65,7 +65,7 @@ WHY = dict(zalo_inbox='Khách nhắn Zalo', service_appointment_overdue='Hẹn n
     service_assigned='Chờ nhận việc', service_return_ready='Khách chờ máy', orders_pickup_late='Hẹn lấy quá ngày',
     orders_cancel_requested='Đề nghị hủy', technician_deliveries='Cần giao', delivery_handover='Bàn giao thợ', delivery_unclaimed='Chưa ai nhận',
     orders_waiting='Chờ giao', parts_pending='Thợ chờ linh kiện', machines_pending='Chờ nhận máy', machines_warehouse='Chờ nhận máy',
-    service_ws_check='Máy mới về', service_ws_quote='Chờ duyệt giá', service_ws_reply='Chờ khách trả lời', service_ws_repair='Cần sửa ở xưởng', service_ws_close='Thợ báo sửa xong')
+    service_ws_check='Máy mới về', service_ws_quote='Chờ duyệt giá', service_ws_reply='Chờ khách trả lời', service_ws_repair='Cần sửa ở xưởng', service_ws_close='Thợ báo sửa xong', service_ws_failed='Không sửa được')
 # Mua hàng chưa phải gấp (TUẤN 2026-10-26): dòng "quá hạn" của các nhóm này (vd. tồn bằng 0) không kéo lên Làm ngay,
 # nhóm nằm cuối khung Trong ngày.
 CALM = ('stock_low', 'purchases_waiting', 'pending_supplier_returns')

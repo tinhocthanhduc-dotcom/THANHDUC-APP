@@ -1,20 +1,42 @@
-{# Đợt 2 nối liền máy về xưởng (TUẤN 17/11/2026): thợ được giao sửa ở xưởng báo sửa xong bằng ảnh + đã sửa gì; kho chốt tiền, vật tư, bảo hành. #}
-{% set w=ws_repair %}{% set fx=form if failed_action=='ws-report' else {} %}
+{# Thợ sửa máy ở xưởng (TUẤN duyệt 17/11/2026): 3 trường hợp. Sửa xong (ảnh + đã sửa gì + vật tư phát sinh không tính khách);
+   Phát sinh · báo lại khách (máy về kho kiểm tra lại, kinh doanh gửi báo giá lần sau); Không sửa được (kinh doanh báo khách). #}
+{% set w=ws_repair %}{% set st=w.step %}{% macro keys() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">{% endmacro %}
 <section class="card form" id="sua-xuong" data-ws-repair>
-<h2>{{ 'Đã báo sửa xong' if w.reported else 'Sửa máy ở xưởng' }}</h2>
+<h2>{{ {'repair_reported': 'Đã báo sửa xong', 'repair_failed': 'Đã báo không sửa được'}.get(st.action if st else '', 'Sửa máy ở xưởng') }}</h2>
 {% if w.promised %}<p class="hint">Hẹn trả khách {{ w.promised.strftime('%d/%m/%Y') }}</p>{% endif %}
 {% if w.packs %}<p class="group-label"><b>Gói sửa khách đã đồng ý</b></p><ul class="xg-lines">{% for i in w.packs %}<li><span>{{ i }}</span></li>{% endfor %}</ul>{% endif %}
 {% if w.parts %}<p class="group-label"><b>Linh kiện dự trù</b></p><ul class="xg-lines">{% for x in w.parts %}<li><span>{{ x.name }} · {{ x.code }}</span><b>× {{ x.qty }}</b></li>{% endfor %}</ul>{% endif %}
 {% if w.note %}<p class="hint">Kho ghi: {{ w.note }}</p>{% endif %}
-{% if w.reported %}<p class="alert ok">Bạn báo sửa xong {{ w.reported.at|vn_time }} {{ w.reported.at|vn_date }}: {{ w.reported.note }}. Kho chốt rồi giao thợ trả máy.</p>
+{% if st and st.action == 'repair_reported' %}<p class="alert ok">Bạn báo sửa xong {{ st.at|vn_time }} {{ st.at|vn_date }}: {{ st.note }}. Kho chốt rồi giao thợ trả máy.</p>
+{% elif st and st.action == 'repair_failed' %}<p class="alert warn">Bạn báo không sửa được {{ st.at|vn_time }} {{ st.at|vn_date }}: {{ st.note }}. Kinh doanh báo khách rồi kho giao trả máy.</p>
 {% else %}
-{% if error and failed_action=='ws-report' %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
-<form id="ws-report" method="post" action="/tho/phieu/{{ t.id }}/bao-sua-xong" enctype="multipart/form-data" data-busy>
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+{% if st and st.action == 'repair_extra' %}<p class="hint">Lần trước bạn báo phát sinh: {{ st.note }}. Khách đã trả lời, sửa tiếp theo báo giá mới nhất.</p>{% endif %}
+{% if error and failed_action in ['ws-report', 'ws-phat-sinh', 'ws-khong-sua-duoc'] %}<p class="alert bad" role="alert">{{ error }}</p>{% endif %}
+{% set fx=form if failed_action=='ws-report' else {} %}
+<form id="ws-report" method="post" action="/tho/phieu/{{ t.id }}/bao-sua-xong" enctype="multipart/form-data" data-busy>{{ keys() }}
 {% set has_after=files|selectattr('tag','equalto','SAU')|list %}
 <label>Ảnh máy sau sửa{% if has_after %} <span class="hint">· đã có {{ has_after|length }} ảnh, chụp thêm nếu cần</span>{% endif %}<input type="file" name="photo" accept="image/*" capture="environment" {% if not has_after %}required{% endif %}></label>
 <label>Đã sửa gì<textarea name="fix" required minlength="3" maxlength="2000" rows="3">{{ fx.get('fix', w.fix) }}</textarea></label>
-<p class="hint">Linh kiện thay khác dự trù thì ghi rõ để kho trừ đúng.</p>
+<details class="ws-extra" {% if fx.get('extra') %}open{% endif %}><summary>Vật tư phát sinh · không tính khách</summary>
+<p class="hint">Dùng thêm vật tư mà giá khách không đổi: ghi ở đây, kho trừ khi chốt, khách không phải đồng ý lại. Cần tính thêm tiền khách thì dùng nút Phát sinh · báo lại khách bên dưới.</p>
+<datalist id="ws-products">{% for code, name in w.products %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</datalist>
+{% for n in range(3) %}<div class="ws-extra-row"><label>Mã hàng<input name="extra_code" list="ws-products" autocomplete="off" placeholder="Gõ tên hoặc mã"></label><label class="ws-qty">SL<input name="extra_qty" type="number" min="1" step="1" inputmode="numeric" value="1"></label></div>{% endfor %}
+{% if w.warehouses %}<label>Lấy từ kho<select name="extra_wh">{% for wh in w.warehouses %}<option value="{{ wh.code }}" {% if w.default_wh and wh.code == w.default_wh.code %}selected{% endif %}>{{ 'Kho của tôi' if wh.kind == 'THO' else wh.name }} · {{ wh.code }}</option>{% endfor %}</select></label>{% endif %}
+</details>
 <button class="btn btn-ok pnz-full">Báo sửa xong</button>
-</form>{% endif %}
+</form>
+{% if w.can_extra %}{% set fe=form if failed_action=='ws-phat-sinh' else {} %}
+<details class="ws-more" {% if fe %}open{% endif %}><summary class="btn btn-ghost">Phát sinh · báo lại khách</summary>
+<form method="post" action="/tho/phieu/{{ t.id }}/phat-sinh" class="form" data-busy>{{ keys() }}
+<label>Cần thêm gì, vì sao<textarea name="note" required minlength="3" maxlength="1000" rows="3" placeholder="vd: bánh xe kéo giấy mòn, cần thay">{{ fe.get('note', '') }}</textarea></label>
+<p class="hint">Máy về kho kiểm tra lại, kinh doanh gửi khách báo giá lần sau. Khách trả lời xong bạn sửa tiếp.</p>
+<button class="btn btn-new pnz-full">Báo phát sinh</button></form></details>{% endif %}
+{% set ff=form if failed_action=='ws-khong-sua-duoc' else {} %}
+<details class="ws-more" {% if ff %}open{% endif %}><summary class="btn btn-ghost">Không sửa được</summary>
+<form method="post" action="/tho/phieu/{{ t.id }}/khong-sua-duoc" class="form" data-busy>{{ keys() }}
+<div class="field-group" role="group"><p class="group-label">Lý do</p><div class="chips">{% for r in w.reasons %}<label class="chip"><input type="radio" name="reason" value="{{ r }}" required {% if ff.get('reason') == r %}checked{% endif %}><span>{{ r }}</span></label>{% endfor %}</div></div>
+<label>Ghi thêm<input name="note" maxlength="1000" value="{{ ff.get('note', '') }}"></label>
+<p class="hint">Kinh doanh báo khách, ghi phí kiểm tra hoặc miễn phí, rồi kho giao trả máy.</p>
+<button class="btn btn-danger pnz-full">Báo không sửa được</button></form></details>
+{% endif %}
 </section>

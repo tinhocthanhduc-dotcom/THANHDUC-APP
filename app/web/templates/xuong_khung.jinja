@@ -32,7 +32,8 @@
 <label data-xg-free-reason>Lý do miễn phí<input name="reason" value="{{ f.get('reason',t.free_reason or '') }}" maxlength="2000"></label>
 {% if not next_step or next_step.primary.form!='workshop-repaired' %}<button class="btn btn-ok xg-primary">Sửa xong</button>{% endif %}</form>{% endwith %}
 {% endif %}
-{% if not rq_reply and quoter %}{% include 'xuong_khong_sua.jinja' %}{% endif %}
+{% if ws_fail %}<p class="alert warn" id="bao-khach-khong-sua">Thợ {{ users.get(ws_fail.actor_id, '') }} báo <b>không sửa được</b> {{ ws_fail.at|vn_time }} {{ ws_fail.at|vn_date }}: {{ ws_fail.note }}. {{ 'Báo khách rồi bấm Khách không sửa bên dưới (thu phí kiểm tra hoặc miễn phí).' if quoter else 'Kinh doanh hoặc giám đốc báo khách.' }}</p>{% endif %}
+{% if not rq_reply and quoter %}{% with xg_open=ws_fail %}{% include 'xuong_khong_sua.jinja' %}{% endwith %}{% endif %}
 {% else %}
 <p class="xg-kv"><span>Phải thu đã chốt</span><b>{{ (t.receivable or 0)|money }} đồng</b></p><p class="xg-kv"><span>{{ 'Khách không sửa' if t.declined_at else 'Thợ sửa' }}</span><b>{{ '' if t.declined_at else users.get(t.repaired_by,'Nhân viên') }}{% if t.warranty_months is not none and not t.declined_at %} · BH {{ 'không' if t.warranty_months==0 else t.warranty_months|string ~ ' tháng' }}{% endif %}</b></p>
 {% if can_open('/quay-sua') %}<div class="xg-counter"><a class="btn btn-ok xg-primary" href="/quay-sua/{{ t.id }}#tra">Khách tới lấy tại quầy ›</a><p class="hint">Khách tới cửa hàng lấy máy: trả và thu tiền tại quầy. Hoặc giao thợ mang trả bên dưới.</p></div>{% endif %}
