@@ -5314,3 +5314,5 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .bx-table td.bx-t { display: flex; gap: 8px; align-items: baseline; }
   .bx-find { margin-left: 0; width: 100%; } .bx-find input { width: 100%; }
 }
+.ktm-plan { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.ktm-plan .ktm-short { color: var(--warn); }

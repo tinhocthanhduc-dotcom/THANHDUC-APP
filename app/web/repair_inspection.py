@@ -71,7 +71,9 @@ def _inspect_page(request, session, user, ticket_id, form=None, error='', error_
         priced.setdefault(sid, set()).add(f'g{gid}' if gid else f'm{mid}')
     model = pb.find_model(session, v['model']) if v['model'] else None
     from .. import ghi_chu_phieu
-    return render(request, 'kiem_tra_may.jinja', t=t, ai_notes=ghi_chu_phieu.notes(session, user, ticket=t), row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
+    from .. import workshop_board as wb
+    stock = wb.part_stock(session)
+    return render(request, 'kiem_tra_may.jinja', stock=stock, plan=wb.plan(session, row), today=wb._now().date(), t=t, ai_notes=ghi_chu_phieu.notes(session, user, ticket=t), row=row, v=v, main=main, others=others, opts=opts, levels=LEVELS,
                   customer=session.get(Customer, t.customer_code), machine=ri.machine_name(session, t), hq=hq,
                   models=models, groups=groups, priced={k: ' '.join(sorted(x)) for k, x in priced.items()},
                   model_group=groups.get(model.group_id) if model else '', part_rows=parts, waiting=ri.is_waiting(t),
@@ -120,6 +122,8 @@ def inspect_page(request: Request, ticket_id: int, user: User = Depends(web_user
 
 @router.post('/kiem-tra-may/{ticket_id}')
 def inspect_save(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """TUẤN 17/11/2026: kho chỉ kiểm tra, chọn gói + linh kiện rồi Lưu; báo giá do kinh doanh / giám đốc duyệt.
+    Lưu cũng ghi kho kỹ thuật đã nhận máy (nếu máy còn chờ kho nhận và người lưu được nhận), khỏi bấm riêng."""
     user = request.state.user
     try:
         ri.save(session, user, ticket_id, form)
@@ -128,8 +132,21 @@ def inspect_save(request: Request, ticket_id: int, form=Depends(checked_form), s
         if exc.status in (403, 404):
             raise
         return _inspect_page(request, session, user, ticket_id, form, exc.message, exc.code, exc.status)
-    back = '/kiem-tra-may' if not has_role(user, 'dispatcher') else f'/dich-vu/{ticket_id}'
-    return RedirectResponse(f'{back}?da_kiem_tra={ticket_id}', status_code=303)
+    _confirm_custody(session, user, ticket_id)
+    return RedirectResponse(f'/kiem-tra-may?da_kiem_tra={ticket_id}', status_code=303)
+
+
+def _confirm_custody(session, user, ticket_id):
+    from .. import equipment_custody as custody
+    from ..models import ServiceTicket
+    t = session.get(ServiceTicket, ticket_id)
+    row = custody.pending(session, t.serial) if t is not None and t.serial else None
+    if row is None or row.ticket_id != t.id or row.location != 'KHO_KY_THUAT' or not custody.can_confirm(user, row):
+        return
+    try:
+        custody.confirm(session, user, row.id, row.version)
+    except BusinessError:
+        session.rollback()  # kết quả kiểm tra đã lưu; kho nhận máy bấm riêng như cũ
 
 
 def panel_context(session, user, t, picks=None) -> dict:

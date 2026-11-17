@@ -153,6 +153,11 @@ def build(session, user) -> dict:
                 time_label, tone = f'Kiểm tra xong {done.astimezone(TZ).strftime("%H:%M") if done and done.astimezone(TZ).date() == today else _day(done.astimezone(TZ)) if done else ""}', 'bad' if late else ''
                 time_sub = 'Vừa kiểm tra' if gone < timedelta(minutes=1) else f'Chờ {_ago(gone)}'
                 todo = 'Duyệt báo giá, gửi khách' if r.applied_at is None else 'Gửi báo giá cho khách'
+                pl = plan(session, r)
+                if pl and pl['missing']:
+                    chips.append((f'Thiếu {len(pl["missing"])} LK', 'warn'))
+                if pl:
+                    step_note = f'Công {pl["hours_text"]} · xong dự kiến {_day(pl["eta"])}'
                 who = 'Kinh doanh hoặc giám đốc'
                 if quoter:
                     action, mine = dict(label='Duyệt · gửi', href=f'{href}#gui-khach', tone='ok'), True
@@ -171,7 +176,7 @@ def build(session, user) -> dict:
                     chips.append(('Kho chưa nhận máy', 'warn'))
                 who = 'Kho'
                 if inspector:
-                    action, mine = dict(label='Kiểm tra máy', href=f'/kiem-tra-may/{t.id}', tone='new'), True
+                    action, mine = dict(label='Nhận máy · kiểm tra' if wait is not None else 'Kiểm tra máy', href=f'/kiem-tra-may/{t.id}', tone='new'), True
         else:
             stage = 's6'
             back_with = None
@@ -231,3 +236,48 @@ def pick(rows: list[dict], view: str, q: str = '') -> list[dict]:
         key = fold(q)
         rows = [x for x in rows if key in x['search']]
     return rows
+
+
+# ---------- dự trù khi kiểm tra (TUẤN 17/11: kho chọn gói + linh kiện, app tự hiện còn/thiếu, giờ công, ngày xong) ----------
+
+def part_stock(session, codes=None) -> dict:
+    """Số còn dùng được của linh kiện, cộng mọi kho hàng (loại KHO, đang dùng); không tính kho thợ, kho lỗi."""
+    from .models import Warehouse
+    from .stock_reservations import quantities
+    kho = set(session.scalars(select(Warehouse.code).where(Warehouse.kind == 'KHO', Warehouse.active.is_(True))))
+    out = {}
+    for (wh, code), q in quantities(session).items():
+        if wh in kho and (codes is None or code in codes):
+            out[code] = out.get(code, 0) + max(0, int(q['available'] or 0))
+    return out
+
+
+def add_work_days(day, n: int):
+    """Cộng n ngày làm việc (bỏ Chủ nhật)."""
+    while n > 0:
+        day += timedelta(days=1)
+        if day.weekday() != 6:
+            n -= 1
+    return day
+
+
+def plan(session, row) -> dict | None:
+    """Dự trù từ kết quả kiểm tra: giờ công theo cấp (bảng giá), linh kiện thiếu, ngày xong dự kiến."""
+    import math
+    from decimal import Decimal
+    from .models import PriceService, Product
+    if row is None or not row.items:
+        return None
+    hours = Decimal(0)
+    need = {}
+    for i in row.items:
+        s = session.get(PriceService, i.service_id)
+        hours += Decimal(getattr(s, f'hours_{i.level}', 0) or 0) if s else 0
+        for p in i.parts or []:
+            need[p['code']] = need.get(p['code'], 0) + int(p.get('qty') or 1)
+    have = part_stock(session, set(need)) if need else {}
+    names = dict(session.execute(select(Product.code, Product.name).where(Product.code.in_(list(need)))).all()) if need else {}
+    missing = [dict(code=c, name=names.get(c, c), need=n, have=have.get(c, 0)) for c, n in need.items() if have.get(c, 0) < n]
+    days = max(1, math.ceil(float(hours) / 8)) + (1 if missing else 0)
+    return dict(hours=hours, hours_text=(f'{hours:.1f}'.rstrip('0').rstrip('.').replace('.', ',') + ' giờ') if hours else 'chưa có giờ chuẩn',
+                parts=len(need), missing=missing, eta=add_work_days(_now().date(), days))

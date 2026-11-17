@@ -4,8 +4,34 @@
   var form = document.querySelector('[data-rq-form]');
   if (!form) return;
   var sum = form.querySelector('[data-ktm-sum]'), sumModel = form.querySelector('[data-ktm-sum-model]');
-  var partNames = {};
-  document.querySelectorAll('#ktm-part-list option').forEach(function (o) { partNames[o.value.toUpperCase()] = o.textContent; });
+  var partNames = {}, partStock = {};
+  document.querySelectorAll('#ktm-part-list option').forEach(function (o) {
+    partNames[o.value.toUpperCase()] = o.textContent; partStock[o.value.toUpperCase()] = Number(o.dataset.stock || 0);
+  });
+  // TUẤN 17/11/2026: kho chọn gói + linh kiện, app tự hiện giờ công (giờ chuẩn theo cấp), còn/thiếu linh kiện, ngày xong dự kiến.
+  var planBox = form.querySelector('[data-ktm-plan]');
+  function addWorkDays(d, n) { while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0) n--; } return d; }
+  function plan() {
+    if (!planBox) return;
+    var hours = 0, need = {}, any = false;
+    form.querySelectorAll('[data-rq-svc]').forEach(function (box) {
+      if (!box.querySelector('[data-rq-on]').checked) return;
+      any = true;
+      var cap = box.querySelector('[data-rq-cap]:checked'), h = (box.dataset.hours || '').split(' ');
+      if (cap) hours += Number(h[Number(cap.value) - 1] || 0);
+      box.querySelectorAll('.ktm-part').forEach(function (row) {
+        var code = (row.querySelector('[data-ktm-code]').value || '').trim().toUpperCase();
+        if (code) need[code] = (need[code] || 0) + Math.max(1, parseInt(row.querySelector('input[name^="sl_"]').value, 10) || 1);
+      });
+    });
+    var missing = Object.keys(need).filter(function (c) { return (partStock[c] || 0) < need[c]; });
+    planBox.querySelector('[data-ktm-hours]').textContent = !any ? '—' : hours ? String(Math.round(hours * 10) / 10).replace('.', ',') + ' giờ' : 'chưa có giờ chuẩn';
+    planBox.querySelector('[data-ktm-stock]').textContent = !Object.keys(need).length ? '—' : missing.length ?
+      'Thiếu ' + missing.map(function (c) { return (partNames[c] || c).split(' · ')[0]; }).join(', ') : 'Kho đủ';
+    planBox.querySelector('[data-ktm-stock]').classList.toggle('ktm-short', missing.length > 0);
+    var eta = addWorkDays(new Date(planBox.dataset.today + 'T00:00:00'), Math.max(1, Math.ceil(hours / 8)) + (missing.length ? 1 : 0));
+    planBox.querySelector('[data-ktm-eta]').textContent = any ? ('0' + eta.getDate()).slice(-2) + '/' + ('0' + (eta.getMonth() + 1)).slice(-2) : '—';
+  }
 
   function el(tag, cls, text) { var x = document.createElement(tag); if (cls) x.className = cls; if (text) x.textContent = text; return x; }
 
@@ -25,6 +51,7 @@
       sum.appendChild(li);
     });
     if (!sum.children.length) sum.appendChild(el('li', 'mu', 'Chưa chọn dịch vụ'));
+    plan();
   }
 
   form.querySelectorAll('[data-rq-svc]').forEach(function (box) {
@@ -63,7 +90,9 @@
       if (name) name.textContent = partNames[input.value.trim().toUpperCase()] || '';
     }
     list.querySelectorAll('[data-ktm-code]').forEach(showName);
-    list.addEventListener('input', function (e) { if (e.target.matches('[data-ktm-code]')) { showName(e.target); summary(); } });
+    list.addEventListener('input', function (e) {
+      if (e.target.matches('[data-ktm-code]')) { showName(e.target); summary(); } else if (e.target.matches('input[name^="sl_"]')) plan();
+    });
     if (add) {
       add.hidden = false;
       add.addEventListener('click', function () {

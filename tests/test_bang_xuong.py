@@ -68,3 +68,40 @@ def test_web_board_page(client, db, quoted):
     service_login(client, p['dispatcher'])
     dp = client.get('/dieu-phoi').text
     assert 'href="/kiem-tra-may?view=tat-ca"' in dp and 'href="/kiem-tra-may?view=s6"' in dp
+
+
+def test_plan_hours_missing_parts_and_eta(db, workshop, make_user):
+    """Kho chọn gói + linh kiện: app tự ra giờ công (giờ chuẩn theo cấp), linh kiện thiếu, ngày xong dự kiến."""
+    from decimal import Decimal
+    p, a, b, t, eq = workshop
+    boss = make_user('bx.boss', 'director')
+    fuser, feed, opts = book(db, boss)
+    fuser.hours_2 = Decimal('1.5')
+    db.commit()
+    ri.save(db, p['technician'], t.id, form(fuser, opts, ['Thay bao lụa sấy'], parts=[('TD-0001', 999)]))
+    pl = wb.plan(db, db.get(RepairInspection, t.id))
+    assert pl['hours_text'] == '1,5 giờ' and [m['code'] for m in pl['missing']] == ['TD-0001']
+    assert pl['eta'] == wb.add_work_days(wb._now().date(), 2)  # 1 ngày công + 1 ngày chờ linh kiện
+    r = row(db, p['sales'], t)
+    assert ('Thiếu 1 LK', 'warn') in r['chips'] and r['note'].startswith('Công 1,5 giờ')
+
+
+def test_save_inspection_confirms_custody_for_warehouse(client, db, workshop, make_user):
+    """Lưu kết quả kiểm tra = kho nhận máy luôn (khỏi bấm riêng); thợ lưu thì không nhận thay kho."""
+    from app import equipment_custody as custody
+    from app.models import EquipmentCustody
+    from app.schemas import CustodyHandover
+    p, a, b, t, eq = workshop
+    boss = make_user('bx.boss', 'director')
+    fuser, feed, opts = book(db, boss)
+    db.refresh(eq)
+    if custody.pending(db, eq.serial) is None:
+        custody.handover(db, p['dispatcher'], t.id, CustodyHandover(version=eq.version, location='KHO_KY_THUAT'))
+    keeper = make_user('bx.kho', 'warehouse', 'technician')
+    csrf = service_login(client, keeper)
+    data = {'csrf': csrf, 'model': 'Canon LBP 2900', 'dv': str(fuser.id), f'opt_{fuser.id}': str(opts['Thay bao lụa sấy'])}
+    r = client.post(f'/kiem-tra-may/{t.id}', data=data, follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == f'/kiem-tra-may?da_kiem_tra={t.id}'
+    db.expire_all()
+    assert custody.pending(db, eq.serial) is None
+    assert db.query(EquipmentCustody).filter_by(serial=eq.serial, status='DA_NHAN', location='KHO_KY_THUAT').count() >= 1
