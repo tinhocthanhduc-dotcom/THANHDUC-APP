@@ -5247,6 +5247,9 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .ap-state.ap-ok{color:var(--ok)}.ap-state.ap-bad{color:var(--bad)}.ap-state .btn{min-height:36px;padding:6px 14px}
 .ap-rej{grid-column:1/-1;display:flex;gap:8px;align-items:center;margin:0}
 .ap-rej input[name=reason]{flex:1;min-width:0;min-height:40px;font-size:16px}
+.work-act{grid-template-columns:150px minmax(0,1fr) 150px 130px 230px}.work-act:hover{background:none}
+.work-act .ap-open{color:inherit;text-decoration:none;font-weight:600}.work-act .ap-open:hover{color:var(--accent);text-decoration:underline}
+.ap-done{background:var(--ok-bg)}.ap-rejecting{background:var(--bad-bg)}.ap-busy{opacity:.7}
 .ap-row.ap-done{background:var(--ok-bg)}.ap-row.ap-rejecting{background:var(--bad-bg)}.ap-row.ap-busy{opacity:.7}
 @media (max-width:720px){
   .ap-row{grid-template-columns:1fr auto;padding:12px 4px}
@@ -5255,6 +5258,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .ap-acts>form,.ap-acts>button,.ap-acts>.ap-openbtn{flex:1}.ap-acts form .btn-ok{width:100%}
   .ap-acts .btn-ok,.ap-acts .btn-danger,.ap-acts .ap-openbtn{min-height:44px;font-size:1rem}
   .ap-view{display:none}
+  .work-act{grid-template-areas:"no money" "main main" "acts acts"}.work-act .wk-st{display:none}
+  .work-act .ap-acts,.work-act .ap-state{grid-area:acts}.work-act .ap-open{color:var(--accent)}
   .ap-rej{flex-wrap:wrap}.ap-rej input[name=reason]{flex-basis:100%}.ap-rej button{flex:1;min-height:44px}
 }
 .ap-money{font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}

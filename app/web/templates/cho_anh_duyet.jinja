@@ -12,7 +12,7 @@
 <span class="ap-main"><a class="ap-open" href="{{ r.link }}"><b>{{ r.label }}{% if r.number %} · {{ r.number }}{% endif %}{% if r.title %} · {{ r.title }}{% endif %}</b></a><small>{{ r.who }}{% if r.age %} · {{ r.age }}{% endif %}{% if r.kt %} · <span class="ap-kt">Kế toán duyệt được</span>{% endif %}</small></span>
 <span class="ap-money">{% if r.amount is not none %}{{ r.amount|money }} đ{% else %}–{% endif %}</span>
 <span class="ap-acts" data-ap-acts>{% if r.inline %}
-<form method="post" action="/cho-anh-duyet/{{ r.kind }}/{{ r.id }}/duyet" data-ap-form data-ap-approve><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version or '' }}"><input type="hidden" name="nhom" value="{{ nhom }}"><button class="btn-ok">Duyệt</button></form>
+<form method="post" action="/cho-anh-duyet/{{ r.kind }}/{{ r.id }}/duyet" data-ap-form data-ap-approve data-ap-done="✓ Đã duyệt"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ r.version or '' }}"><input type="hidden" name="nhom" value="{{ nhom }}"><button class="btn-ok">Duyệt</button></form>
 <button type="button" class="btn-danger" data-ap-reject>Từ chối</button>
 <a class="btn btn-ghost ap-view" href="{{ r.link }}">Xem</a>
 {% else %}<a class="btn ap-openbtn" href="{{ r.link }}">Mở phiếu</a>{% endif %}</span>
@@ -22,4 +22,4 @@
 {% else %}{{ ui.empty('Không có việc nào chờ anh duyệt.') }}{% endif %}
 </section>
 </div>
-<script src="{{ asset('cho-anh-duyet.js') }}" defer></script>{% endblock %}
+<script src="{{ asset('duyet-tai-dong.js') }}" defer></script>{% endblock %}

@@ -19,7 +19,7 @@ def test_page_shows_inline_buttons_and_approves(client, db, p):
     csrf = web_login(client, p['director'])
     page = client.get('/cho-anh-duyet').text
     assert f'action="/cho-anh-duyet/TAM_UNG/{row.id}/duyet"' in page and f'action="/cho-anh-duyet/TAM_UNG/{row.id}/tu-choi"' in page
-    assert 'data-ap-approve' in page and 'cho-anh-duyet.js' in page
+    assert 'data-ap-approve' in page and 'duyet-tai-dong.js' in page
     r = client.post(f'/cho-anh-duyet/TAM_UNG/{row.id}/duyet', data=dict(csrf=csrf, version=row.version, nhom='tien'), follow_redirects=False)
     assert r.status_code == 303 and r.headers['location'] == '/cho-anh-duyet?nhom=tien&da_luu=duyet'
     saved = db.get(SalaryAdvance, row.id, populate_existing=True)

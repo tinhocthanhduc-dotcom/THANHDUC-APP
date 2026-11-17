@@ -90,6 +90,11 @@ def decide(session, user, kind, ident, approve, version=None, reason=''):
     from . import ai_agent, attendance, cash_corrections, payroll, pending_dispositions, sales_refunds, service_expenses
     from .errors import BusinessError
     reason = str(reason or '').strip()
+    if kind == 'BAO_THU':  # Việc của tôi (Đợt 2b, TUẤN duyệt 17/11/2026): kế toán xác nhận báo thu tại dòng.
+        from . import sales_receipts
+        sales_receipts.check_finance(user)
+        version = _version(version)
+        return sales_receipts.confirm(session, user, ident, version) if approve else sales_receipts.reject(session, user, ident, reason, version)
     if kind not in INLINE:
         raise BusinessError('NOT_FOUND', 'Việc này phải mở phiếu để duyệt.', status=404)
     if kind == 'AI':

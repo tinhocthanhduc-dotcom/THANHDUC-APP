@@ -61,6 +61,22 @@ def _supplier_debt_dates(deductions):
 DIRECTOR_APPROVALS = ('refunds_pending', 'expenses_pending', 'pending_destruction', 'stock_counts_pending', 'pending_supplier_returns')
 
 
+# Đợt 2b tối ưu thao tác (TUẤN duyệt mẫu 17/11/2026): nhóm việc bấm xong ngay tại dòng (Việc của tôi).
+# nhóm → (loại ở director_approvals.decide, bảng lấy phiên bản, chữ nút xanh). Nhóm cần nhập liệu vẫn chỉ "Mở".
+INLINE = {'receipts_pending': ('BAO_THU', SalesReceipt, 'Xác nhận'), 'refunds_pending': ('HOAN_TIEN', SalesRefund, 'Duyệt'),
+          'expenses_pending': ('CHI_PHI', ServiceExpense, 'Duyệt'), 'pending_destruction': ('HUY_HANG', PendingDisposition, 'Duyệt'),
+          'pending_supplier_returns': ('TRA_NCC', PendingDisposition, 'Duyệt')}
+INLINE_KINDS = {v[0] for v in INLINE.values()}
+
+
+def _inline(session, key, rows):
+    kind, model, ok = INLINE[key]
+    versions = dict(session.execute(select(model.id, model.version).where(model.id.in_([r['id'] for r in rows]))).all())
+    for row in rows:
+        if row['id'] in versions:
+            row['act'] = dict(kind=kind, id=row['id'], version=versions[row['id']], ok=ok)
+
+
 def _specs(user, today, now, session=None):
     director = has_role(user, 'director')
     # Kho phụ trách chỉ lọc hàng đợi của thủ kho; quyền thao tác không đổi.
@@ -416,6 +432,8 @@ def _group(session, spec, page=1):
             item=stale.get(row['id'])
             if item:
                 row['overdue']=True;row['stale']=item['label'];row['customer']=f"{row['customer']} · {item['label']}"
+    if spec['key'] in INLINE and rows:
+        _inline(session, spec['key'], rows)
     return dict(key=spec['key'], title=spec['title'], count=count, rows=rows, page_size=page_size,
         link='/viec-cua-toi?'+urlencode({'nhom':spec['key']}), list_link=spec['link'])
 
