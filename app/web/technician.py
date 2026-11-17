@@ -244,9 +244,15 @@ def detail_context(session, user, ticket, ctx):
         whs=[w for w in session.scalars(select(Warehouse).where(Warehouse.active.is_(True),Warehouse.kind.in_(('KHO','THO'))).order_by(Warehouse.kind,Warehouse.code))
              if w.kind=='KHO' or w.holder_id==user.id]
         own=next((w for w in whs if w.kind=='THO'),None)
+        # Mẫu 18/11: vật tư phát sinh chọn từ Hàng tôi giữ + kho công ty (còn hàng), dòng − số + như màn Sửa tại chỗ.
+        stock=session.execute(select(Product.code,Product.name,StockBalance.warehouse_code,StockBalance.qty).join(StockBalance,StockBalance.product_code==Product.code)
+                              .where(StockBalance.warehouse_code.in_([x.code for x in whs]),StockBalance.qty>0,Product.active.is_(True)).order_by(Product.name)).all() if whs else []
+        kinds={x.code:x for x in whs}
+        mats=[dict(code=c,name=n,wh=wc,held=q,where='Hàng tôi giữ còn' if kinds[wc].kind=='THO' else f'{kinds[wc].name} còn') for c,n,wc,q in stock]
+        mats.sort(key=lambda m:(kinds[m['wh']].kind!='THO',m['name']))
         ws_repair=dict(packs=items,parts=parts,note=row.note if row else '',step=step,promised=ticket.promised_return_on,
-                       fix='; '.join(items),warehouses=whs,default_wh=(own or (whs[0] if whs else None)),
-                       products=list(session.execute(select(Product.code,Product.name).where(Product.active.is_(True)).order_by(Product.name)).all()),
+                       open=not (step and step.action in ('repair_reported','repair_failed')),materials=mats,
+                       sources=[dict(code=x.code,label='Hàng tôi giữ' if x.kind=='THO' else x.name) for x in sorted(whs,key=lambda x:x.kind!='THO') if any(m['wh']==x.code for m in mats)],
                        reasons=service_workshop.FAIL_REASONS,can_extra=ticket.quote_approved_at is not None)
     return dict(ws_repair=ws_repair,goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
@@ -566,9 +572,14 @@ async def report_repaired(request:Request,ticket_id:int,form=Depends(checked_for
     from .services import _detail
     owned(session,user,ticket_id)
     version=str(form.get('version','') or '')
-    note=str(form.get('fix','') or '')
-    extras=list(zip(form.getlist('extra_code'),form.getlist('extra_qty')))
-    wh=str(form.get('extra_wh','') or '')
+    # TUẤN 18/11: báo cáo = các gói khách đồng ý đã làm (tick) + Ghi thêm; form cũ gửi thẳng fix vẫn nhận.
+    done=[str(x).strip() for x in form.getlist('done') if str(x).strip()]
+    extra=str(form.get('fix_extra','') or '').strip()
+    note=str(form.get('fix','') or '') or '; '.join(done+([extra] if extra else []))
+    codes,qtys,whs=form.getlist('extra_code'),form.getlist('extra_qty'),form.getlist('extra_wh')
+    one_wh=str(form.get('extra_wh','') or '')
+    extras=[(str(c).split(' ')[0],whs[i] if len(whs)==len(codes) else one_wh,q) for i,(c,q) in enumerate(zip(codes,qtys))
+            if str(c).strip() and str(q).strip() not in ('','0')]
     try:
         upload=form.get('photo')
         if isinstance(upload,UploadFile) and upload.filename:
@@ -576,13 +587,12 @@ async def report_repaired(request:Request,ticket_id:int,form=Depends(checked_for
             if data:
                 if data.startswith(b'%PDF-'):raise BusinessError('BAD_FILE_TYPE','Ảnh sau sửa phải là ảnh.')
                 attachments.add(session,user,'service_ticket',str(ticket_id),'SAU',upload.filename or 'sau-sua.jpg',data)
-        service_workshop.report_repaired(session,user,ticket_id,int(version) if version.isdigit() else None,note,
-                                         [(c.split(' ')[0],wh,q) for c,q in extras if str(c).strip()])
+        service_workshop.report_repaired(session,user,ticket_id,int(version) if version.isdigit() else None,note,extras)
     except BusinessError as exc:
         session.rollback()
         session.refresh(user)
         return _detail(request,session,user,ticket_id,technician_view=True,error=exc.message,error_code=exc.code,
-                       failed_action='ws-report',form=dict(fix=note),status=exc.status)
+                       failed_action='ws-report',form=form,status=exc.status)
     return RedirectResponse('/tho?sua_xong=1',status_code=303)
 
 
