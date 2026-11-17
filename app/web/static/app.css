@@ -5342,3 +5342,28 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .ws-done { flex-direction: column; align-items: stretch; }
 .ws-done .chip span { display: block; white-space: normal; text-align: left; }
 [data-ws-report] input[name=fix_extra] { margin-top: 10px; width: 100%; }
+/* Đợt 4 phiếu dịch vụ văn phòng gọn (TUẤN duyệt 18/11/2026). */
+.svc-sum-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 16px; margin: 6px 0 0; }
+.svc-sum-grid > div { min-width: 0; }
+.svc-sum-grid dt { font-size: .8rem; color: var(--muted); margin: 0; }
+.svc-sum-grid dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; text-align: left; }
+.svc-sum-grid dd small { display: block; font-weight: 400; color: var(--muted); }
+.svc-sum-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.svc-sum .svc-machine-pick { margin-top: 10px; }
+.svc-sum-acts .svc-machine-pick { margin-top: 0; }
+.svc-machine-pick > summary { list-style: none; display: inline-flex; cursor: pointer; }
+.svc-machine-pick > summary::-webkit-details-marker { display: none; }
+.svc-machine-pick[open] { flex-basis: 100%; }
+.svc-machine-pick[open] > summary { color: var(--info-solid); border-color: var(--info-solid); }
+.svc-machine-pick .kind-row { box-shadow: none; border: 0; padding: 8px 0 0; margin: 0; }
+.svc-now { border-left: 4px solid var(--muted); }
+.svc-now-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.svc-now-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.svc-now-facts > div { background: var(--tag); border-radius: 8px; padding: 8px 10px; }
+.svc-now-facts small { display: block; color: var(--muted); }
+.svc-more { margin-top: 10px; }
+.svc-more > summary { cursor: pointer; }
+.svc-more-list { border-top: 1px dashed var(--line); padding-top: 8px; }
+.svc-more-list > summary { font-weight: 600; min-height: 40px; display: flex; align-items: center; }
+.svc-more-list .svc-acts { border-top: 0; margin-top: 6px; padding-top: 0; }
+@media (max-width: 700px) { .svc-sum-grid, .svc-now-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
