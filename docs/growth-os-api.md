@@ -103,3 +103,31 @@ Trả lời 4 câu hỏi của phiếu:
 4. **Đổi/hủy:** `version` tăng mỗi lần sửa, chốt, hủy, mở lại. `updated_at` = muộn nhất trong giờ sửa đơn, giờ giao/hủy lần giao,
    giờ trả/hủy trả hàng, giờ chi hoàn tiền. Đọc tăng dần bằng `changed_since` = `updated_at` lớn nhất đã thấy **trừ lùi 5 phút**
    (giao dịch dài có thể ghi giờ sớm hơn lúc lưu xong), bỏ trùng theo (`kind`, `id`, `version`, `updated_at`).
+
+## Phần D: POST /marketing/v1/contribution (lãi đóng góp)
+
+TUẤN 17/11/2026. **Khóa riêng** vì có giá vốn: Quản trị › Trợ lý AI, dòng **Growth OS · Lãi đóng góp (có giá vốn)**
+(agent `growth-os-lai`, phạm vi `marketing_cost`). Chỉ giám đốc tạo được. Khóa đọc thường gọi đường này bị `403`;
+khóa này cũng không gọi được các đường đọc khác. Cùng luật chỉ dùng trong Z2, tạm dừng, nhật ký `ai.marketing_read`.
+
+Body: `{"order_ids": [12, 15], "marketing_cost": 500000}`. `order_ids` 1–500 id đơn bán (`kind: DON` ở Phần C).
+`marketing_cost` (đồng, ≥ 0, mặc định 0) là chi phí marketing Growth OS đã phân bổ cho **cả nhóm đơn này**.
+
+```json
+{"as_of": "…", "calc_version": "td-2026-11-17.1",
+ "items": [{"order_id": 12, "number": "DB-26-00012", "status": "DA_GIAO", "delivered_net": 450000, "returns": 150000,
+            "net_revenue": 300000, "cogs_at_sale": 200000, "fees": 30000, "contribution_before_marketing": 70000,
+            "missing": ["PHI_SAN", "PHI_THANH_TOAN"]}],
+ "totals": {"net_revenue": 300000, "returns": 150000, "cogs_at_sale": 200000, "fees": 30000, "marketing_cost": 50000, "contribution": 20000},
+ "not_found": [999], "missing": ["PHI_SAN", "PHI_THANH_TOAN"]}
+```
+
+- Mọi số chưa VAT. `net_revenue` giống Phần C (giao còn hiệu lực − trả `DA_NHAN`).
+- `cogs_at_sale` = giá vốn **lúc xuất kho** (sổ kho `stock_ledger` của phiếu xuất gắn lần giao), trừ giá vốn hàng khách trả. Không dùng giá bình quân hiện tại.
+- `fees` = chi phí phát sinh nội bộ đã duyệt của đơn (gửi hàng, gửi xe, đối tác…), tính vào lần giao như Báo cáo lãi gộp.
+- Số liệu lấy chung nguồn với Báo cáo lãi gộp nên khớp với báo cáo trong app.
+- `contribution_before_marketing` = `net_revenue − cogs_at_sale − fees`. `totals.contribution` trừ thêm `marketing_cost`.
+- `missing`: `PHI_SAN`, `PHI_THANH_TOAN` (app chưa ghi phí sàn, phí cổng thanh toán); `GIA_VON` (có dòng hàng giao mà không có phiếu xuất);
+  `CHUA_GIAO` (đơn chưa giao lần nào, doanh thu 0).
+- Không trả giá vốn từng mã, không trả khách. Báo giá, đơn của khách chạy thử, id không có → `not_found`.
+- Phiếu dịch vụ/sửa chữa chưa tính ở bản này (không có trong `order_ids`).

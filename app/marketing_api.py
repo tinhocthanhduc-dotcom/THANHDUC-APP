@@ -2,7 +2,7 @@
 
 - Khóa riêng "growth-os" (phạm vi marketing_read) tạo ở Quản trị › Trợ lý AI, chỉ dùng từ trong máy chủ Z2
   (Growth OS nối vào mạng nội bộ của app, gọi http://api:8000; đi qua Cloudflare bị chặn như mọi khóa AI).
-- Chỉ GET, chỉ 3 đường dưới đây. Không đọc khách hàng, số điện thoại, đơn, tiền, giá vốn từng mã.
+- Chỉ GET cho các đường đọc. Riêng POST /contribution (Phần D) dùng khóa khác có giá vốn. Không đọc khách hàng, số điện thoại, đơn, tiền, giá vốn từng mã.
 - Mỗi lần đọc ghi một dòng nhật ký 'ai.marketing_read' (xem ở Trợ lý AI › Nhật ký).
 
 Tồn khả dụng = tồn − đang giữ cho đơn, cộng mọi kho bán hàng đang dùng (loại KHO). Không tính kho thợ (THO),
@@ -14,6 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -313,4 +314,87 @@ def orders(changed_since: str | None = None, cursor: str | None = None, limit: i
     items, nxt = order_rows(session, _parse_since(changed_since), _order_cursor(cursor), limit)
     out = dict(as_of=_iso(_now()), items=items, next_cursor=nxt)
     _log(session, key, '/orders', dict(changed_since=changed_since, cursor=cursor, limit=limit), len(items))
+    return out
+
+
+# ---------- Phần D: đóng góp lợi nhuận (TUẤN 17/11/2026) ----------
+# Khóa riêng "growth-os-lai" (phạm vi marketing_cost) vì có giá vốn; chỉ giám đốc tạo được khóa. Khóa đọc thường
+# (marketing_read) không gọi được đường này, khóa này cũng không gọi được các đường đọc kia.
+# Giá vốn, phí lấy nguyên nguồn Báo cáo lãi gộp (purchase_reports._margin_sources) để hai nơi không lệch nhau.
+
+COST_SCOPE = 'marketing_cost'
+CALC_VERSION = 'td-2026-11-17.1'
+CONTRIB_MAX = 500
+# App chưa ghi các khoản này; Growth OS tự ước nếu cần.
+ALWAYS_MISSING = ('PHI_SAN', 'PHI_THANH_TOAN')
+
+
+def marketing_cost_key(request: Request, session: Session = Depends(get_session)) -> AiKey:
+    raw = request.headers.get('authorization', '')
+    raw = raw[7:].strip() if raw.lower().startswith('bearer ') else ''
+    return ai_agent.authenticate(session, raw, request.headers, COST_SCOPE)
+
+
+class ContributionIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    order_ids: list[int] = Field(min_length=1, max_length=CONTRIB_MAX)
+    marketing_cost: int = Field(0, ge=0)
+
+
+def contribution_rows(session: Session, order_ids: list[int], marketing_cost: int = 0) -> dict:
+    from datetime import date
+    from .models import Customer, SalesDeliveryLine, SalesOrderLine, SalesReturn, SalesDelivery, SalesOrder
+    from .purchase_reports import _margin_sources
+
+    ids = list(dict.fromkeys(order_ids))
+    real = select(Customer.code).where(Customer.is_test.is_(False))
+    orders = {o.id: o for o in session.scalars(select(SalesOrder).where(SalesOrder.id.in_(ids), SalesOrder.customer_code.in_(real)))}
+    found = [i for i in ids if i in orders]
+    deliveries = dict(session.execute(select(SalesDelivery.id, SalesDelivery.order_id).where(
+        SalesDelivery.order_id.in_(found), SalesDelivery.status == 'DA_GIAO')).all()) if found else {}
+    returns_ = dict(session.execute(select(SalesReturn.id, SalesReturn.order_id).where(
+        SalesReturn.order_id.in_(found), SalesReturn.status == 'DA_NHAN')).all()) if found else {}
+    sums = {i: dict(delivered=0, returned=0, cogs=0, fees=0) for i in found}
+    if deliveries or returns_:
+        documents, costs = _margin_sources(date(2000, 1, 1), date.max)
+        mine = or_(and_(documents.c.kind == 'GH', documents.c.id.in_(list(deliveries) or [0])),
+                   and_(documents.c.kind == 'TH', documents.c.id.in_(list(returns_) or [0])))
+        for kind, rid, revenue in session.execute(select(documents.c.kind, documents.c.id, documents.c.revenue).where(mine)):
+            if kind == 'GH':
+                sums[deliveries[rid]]['delivered'] += int(revenue or 0)
+            else:
+                sums[returns_[rid]]['returned'] -= int(revenue or 0)
+        cmine = or_(and_(costs.c.kind == 'GH', costs.c.id.in_(list(deliveries) or [0])),
+                    and_(costs.c.kind == 'TH', costs.c.id.in_(list(returns_) or [0])))
+        for kind, rid, product, cost in session.execute(select(costs.c.kind, costs.c.id, costs.c.product_code, costs.c.cost).where(cmine)):
+            order_id = deliveries[rid] if kind == 'GH' else returns_[rid]
+            sums[order_id]['fees' if product is None else 'cogs'] += int(cost or 0)
+    # Dòng hàng đã giao mà không có phiếu xuất kho thì chưa có giá vốn.
+    no_cost = set()
+    if deliveries:
+        no_cost = set(session.scalars(select(SalesDeliveryLine.order_id).join(SalesOrderLine, and_(
+            SalesOrderLine.order_id == SalesDeliveryLine.order_id, SalesOrderLine.line_no == SalesDeliveryLine.order_line_no)).where(
+            SalesDeliveryLine.delivery_id.in_(list(deliveries)), SalesOrderLine.kind == 'HANG', SalesDeliveryLine.stock_doc_id.is_(None))))
+    items = []
+    for i in found:
+        s, o = sums[i], orders[i]
+        net = s['delivered'] - s['returned']
+        missing = list(ALWAYS_MISSING) + (['GIA_VON'] if i in no_cost else [])
+        if not deliveries or i not in deliveries.values():
+            missing.append('CHUA_GIAO')
+        items.append(dict(order_id=i, number=o.number, status=o.status, delivered_net=s['delivered'], returns=s['returned'],
+                          net_revenue=net, cogs_at_sale=s['cogs'], fees=s['fees'],
+                          contribution_before_marketing=net - s['cogs'] - s['fees'], missing=missing))
+    totals = dict(net_revenue=sum(r['net_revenue'] for r in items), returns=sum(r['returns'] for r in items),
+                  cogs_at_sale=sum(r['cogs_at_sale'] for r in items), fees=sum(r['fees'] for r in items))
+    totals['marketing_cost'] = int(marketing_cost)
+    totals['contribution'] = totals['net_revenue'] - totals['cogs_at_sale'] - totals['fees'] - totals['marketing_cost']
+    return dict(items=items, totals=totals, not_found=[i for i in ids if i not in orders],
+                missing=sorted({m for r in items for m in r['missing']}) or list(ALWAYS_MISSING), calc_version=CALC_VERSION)
+
+
+@router.post('/contribution')
+def contribution(body: ContributionIn, key: AiKey = Depends(marketing_cost_key), session: Session = Depends(get_session)):
+    out = dict(as_of=_iso(_now()), **contribution_rows(session, body.order_ids, body.marketing_cost))
+    _log(session, key, '/contribution', dict(orders=len(body.order_ids), marketing_cost=body.marketing_cost), len(out['items']))
     return out
