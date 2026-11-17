@@ -15,6 +15,11 @@
 <div class="tl-acts"><form method="post" action="/tho/phieu/{{ row.id }}/di"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><button class="btn-new">Đi ngay</button></form>
 <details><summary class="btn btn-ghost">Báo trễ</summary><div>{% for key, label in late_choices.items() %}<form method="post" action="/tho/phieu/{{ row.id }}/bao-tre"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="tre" value="{{ key }}"><button class="btn btn-ghost">{{ label }}</button></form>{% endfor %}</div></details></div>
 </section>{% endfor %}
+{% if request.query_params.get('sua_xong') %}<p class="alert ok" role="status">Đã báo sửa xong. Kho chốt rồi giao trả máy.</p>{% endif %}
+{% if workshop_jobs %}<h2 class="tho-grp" data-ws-title>Máy ở xưởng giao bạn sửa · {{ workshop_jobs|length }}</h2>
+<div class="tho-jobs">{% for row in workshop_jobs %}<a class="card tho-job" href="{{ row.href }}" data-ws-job="{{ row.id }}">
+<span class="cardtop"><span>{{ row.number }}</span><span class="tag tone-{{ 'ok' if row.reported else 'bad' if row.late else 'warn' }}">{{ 'Đã báo sửa xong' if row.reported else 'Cần sửa' }}</span></span>
+<b>{{ row.customer }}</b><span class="tho-foot"><span class="tho-due">{% if row.promised %}Hẹn trả {{ row.promised.strftime('%d/%m') }}{% endif %}</span><span class="tho-next">{{ 'Xem' if row.reported else 'Báo sửa xong' }} ›</span></span></a>{% endfor %}</div>{% endif %}
 {% if unreported %}<h2 class="tho-grp" data-unreported-title>Còn tiền chưa báo · {{ unreported|length }} phiếu</h2>
 <div class="tho-jobs">{% for row in unreported %}<a class="card tho-job tho-unreported" href="{{ row.href }}" data-unreported="{{ row.id }}">
 <span class="cardtop"><span>{{ row.number }}</span><span class="tag tone-{{ tones.get(row.status,'mute') }}">{{ service_status(row) }}</span></span>
@@ -65,4 +70,4 @@
 <span class="cardtop"><span>{{ r.number }}</span>{% set st=production_stale.get(r.id) if production_stale else none %}<span class="tag tone-{{ 'bad' if st else ('info' if r.status=='MOI' else 'warn') }}">{{ st.label if st else ('Mới' if r.status=='MOI' else 'Đang làm') }}</span></span>
 <b>Làm hàng: {{ r.qty_plan }} {{ name }}</b><span class="mu">{{ {'DO_MUC':'Đổ mực','TAN_TRANG':'Tân trang máy cũ','LAP_RAP':'Lắp ráp / khác'}[r.kind] }} · về kho {{ r.to_warehouse_code }}</span>
 <span class="tho-foot"><span class="tho-created">Tạo {{ r.created_at|service_time }}</span><span class="tho-next">{{ 'Bắt đầu làm' if r.status=='MOI' else 'Hoàn thành' }} ›</span></span></a>{% endfor %}</div>{% endif %}
-{% if not jobs and not unreported and not production_jobs and not claims and not order_claims %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}
+{% if not jobs and not workshop_jobs and not unreported and not production_jobs and not claims and not order_claims %}<p class="card">Bạn không có việc đang mở.</p>{% endif %}</div>{% endblock %}

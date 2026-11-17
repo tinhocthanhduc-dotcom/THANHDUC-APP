@@ -8,7 +8,7 @@ Bước:
   s2 Chờ duyệt giá đã kiểm tra, chưa gửi khách · Kinh doanh / giám đốc
   s3 Chờ khách    báo giá đã gửi, chờ khách trả lời · người đã gửi
   s4 Đang sửa     khách đã đồng ý (hoặc bảo hành miễn phí), chưa sửa xong · thợ, kho chốt
-  s5 Chờ chốt     (đợt 2: thợ báo sửa xong)
+  s5 Chờ chốt     thợ đã báo sửa xong (ảnh + đã sửa gì), kho chốt tiền/vật tư/bảo hành rồi giao trả
   s6 Chờ trả      sửa xong hoặc khách không sửa, máy chưa về tay khách
 """
 from datetime import timedelta
@@ -82,28 +82,37 @@ def _since(session, ids):
 
 
 def waiting(session) -> dict:
-    """{ticket_id: (bước, hạn)} cho 3 bước có người phải làm ngay: s1 kho kiểm tra (4 giờ), s2 duyệt giá gửi khách (2 giờ),
-    s3 gọi lại khách (2 ngày). Việc của tôi + chuông + Trưởng nhóm AI dùng (đợt 1d)."""
-    from .service_workshop import warranty_free
+    """{ticket_id: (bước, hạn, thợ được giao)} cho các bước có người phải làm: s1 kho kiểm tra (4 giờ), s2 duyệt giá gửi khách
+    (2 giờ), s3 gọi lại khách (2 ngày), s4 thợ sửa (trước ngày hẹn trả 1 ngày), s5 kho chốt (4 giờ).
+    Việc của tôi + chuông + Trưởng nhóm AI dùng (đợt 1d, đợt 2)."""
+    from datetime import datetime, time as dtime
+    from .service_workshop import reported, warranty_free
     t = ServiceTicket
     items = list(session.scalars(select(t).where(t.status == 'TAM_DUNG', t.hold_reason == 'CHO_SUA_XUONG',
-                                                 t.declined_at.is_(None), t.quote_approved_at.is_(None)).order_by(t.id)))
-    items = [x for x in items if not warranty_free(x)]
+                                                 t.declined_at.is_(None)).order_by(t.id)))
     if not items:
         return {}
     ids = [x.id for x in items]
     since = _since(session, ids)
+    done = reported(session, ids)
     inspections = {r.ticket_id: r for r in session.scalars(select(RepairInspection).where(RepairInspection.ticket_id.in_(ids)))}
     out = {}
     for x in items:
+        if x.quote_approved_at is not None or warranty_free(x):
+            if x.id in done:
+                out[x.id] = ('s5', (done[x.id].at or x.created_at) + timedelta(hours=INSPECT_HOURS), x.assignee_id)
+            else:
+                day = (x.promised_return_on - timedelta(days=1)) if x.promised_return_on else None
+                out[x.id] = ('s4', datetime.combine(day, dtime(17, 0), TZ) if day else None, x.assignee_id)
+            continue
         sent = rq.open_version(session, x.id)
         r = inspections.get(x.id)
         if sent is not None and sent.sent_at:
-            out[x.id] = ('s3', sent.sent_at + timedelta(days=2))
+            out[x.id] = ('s3', sent.sent_at + timedelta(days=2), x.assignee_id)
         elif r is not None and r.items and (r.applied_at is not None or not r.recheck_reason):
-            out[x.id] = ('s2', (r.inspected_at or x.created_at) + timedelta(hours=PRICE_HOURS))
+            out[x.id] = ('s2', (r.inspected_at or x.created_at) + timedelta(hours=PRICE_HOURS), x.assignee_id)
         else:
-            out[x.id] = ('s1', (since.get(x.id) or x.created_at) + timedelta(hours=INSPECT_HOURS))
+            out[x.id] = ('s1', (since.get(x.id) or x.created_at) + timedelta(hours=INSPECT_HOURS), x.assignee_id)
     return out
 
 
@@ -122,6 +131,8 @@ def build(session, user) -> dict:
     machines = {e.serial: e for e in session.scalars(select(Equipment).where(Equipment.serial.in_({t.serial for t in items if t.serial})))} if items else {}
     pending = {r.serial: r for r in session.scalars(select(EquipmentCustody).where(
         EquipmentCustody.serial.in_(list(machines)), EquipmentCustody.status == 'CHO_NHAN'))} if machines else {}
+    from .service_workshop import reported
+    done_map = reported(session, ids)
     quoter = can_quote(user)
     dispatcher = has_role(user, *DISPATCHERS)
     inspector = ri.can_inspect(user)
@@ -146,7 +157,18 @@ def build(session, user) -> dict:
         wait = pending.get(t.serial) if t.serial else None
         if t.status == 'TAM_DUNG' and t.hold_reason == 'CHO_SUA_XUONG' and t.declined_at is None:
             sent = rq.open_version(session, t.id)
-            if t.quote_approved_at or warranty_free(t):
+            if (t.quote_approved_at or warranty_free(t)) and t.id in done_map:
+                rep = done_map[t.id]
+                stage = 's5'
+                time_label, tone = _left(today, t.promised_return_on)
+                late = tone == 'bad'
+                at = rep.at.astimezone(TZ) if rep.at else None
+                time_sub = f'Thợ báo {at.strftime("%H:%M") if at and at.date() == today else _day(at)}' if at else ''
+                step_note = (rep.note or '')[:80]
+                todo, who = 'Chốt sửa xong, giao trả', 'Kho · ' + (names.get(rep.actor_id) or 'thợ') + ' đã sửa'
+                if dispatcher:
+                    action, mine = dict(label='Chốt · giao trả', href=f'{href}#workshop-repaired', tone='ok'), True
+            elif t.quote_approved_at or warranty_free(t):
                 stage = 's4'
                 time_label, tone = _left(today, t.promised_return_on)
                 late = tone == 'bad'
@@ -154,9 +176,11 @@ def build(session, user) -> dict:
                 step_note = 'Bảo hành miễn phí' if not t.quote_approved_at else ''
                 if eq is not None and eq.custody_location == 'DOI_TAC':
                     chips.append(('Ở đối tác', 'warn'))
-                todo, who = 'Sửa máy, chốt sửa xong', 'Thợ ' + (names.get(t.assignee_id) or 'xưởng') if t.quote_approved_at else 'Kho · thợ xưởng'
-                if dispatcher:
-                    action, mine = dict(label='Sửa xong', href=f'{href}#workshop-repaired', tone='ok'), True
+                todo, who = 'Sửa máy, báo sửa xong', 'Thợ ' + (names.get(t.assignee_id) or 'xưởng')
+                if t.assignee_id == user.id and 'technician' in user.roles:
+                    action, mine = dict(label='Báo sửa xong', href=f'/tho/phieu/{t.id}#sua-xuong', tone='ok'), True
+                elif dispatcher:  # thợ không dùng app: kho chốt thẳng như cũ
+                    action = dict(label='Sửa xong', href=f'{href}#workshop-repaired', tone='')
             elif sent is not None and sent.sent_at:
                 stage = 's3'
                 days = rq.waiting_days(sent)

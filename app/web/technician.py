@@ -224,7 +224,21 @@ def detail_context(session, user, ticket, ctx):
     stage = {'DA_GIAO':0,'DA_NHAN':1,'DA_HEN':2,'DANG_LAM':2,'CHO_LINH_KIEN':2,'TAM_DUNG':2}.get(ticket.status,3)
     if ticket.appointment_at: stage = 0 if ticket.status=='DA_GIAO' else (1 if ticket.status in service_tickets.OPEN else 2)
     goods=ctx.get('goods') or {}
-    return dict(goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    from .. import service_workshop
+    ws_repair=None
+    if ticket.status=='TAM_DUNG' and ticket.hold_reason=='CHO_SUA_XUONG' and service_workshop.can_report(user,ticket):
+        from .. import repair_inspection as rinsp
+        from ..models import PriceService
+        row=rinsp.inspection(session,ticket.id)
+        items=[f'{(session.get(PriceService,i.service_id).name if session.get(PriceService,i.service_id) else "Gói sửa")} · Cấp {i.level}'
+               +(': '+', '.join(str(o) for o in i.options) if i.options else '') for i in (row.items if row else [])]
+        codes=[x for i in (row.items if row else []) for x in (i.parts or [])]
+        pnames=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_({x.get('code') for x in codes}))).all()) if codes else {}
+        parts=[dict(code=x.get('code'),name=pnames.get(x.get('code'),x.get('code')),qty=x.get('qty')) for x in codes]
+        step=service_workshop.reported(session,[ticket.id]).get(ticket.id)
+        ws_repair=dict(packs=items,parts=parts,note=row.note if row else '',reported=step,promised=ticket.promised_return_on,
+                       fix='; '.join(items))
+    return dict(ws_repair=ws_repair,goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=equipment_svc.display_name(eq,product) if eq else '',**contact(ctx['customer'],ctx['site']))
 
@@ -316,6 +330,14 @@ def _today(request,user,session,claim_error=None,status=200):
     unreported=[dict(id=row.id,number=row.number,status=row.status,customer=row.name,due=int(row.due),href=f'/tho/phieu/{row.id}#thu-tien')
         for row in session.execute(select(t.id,t.number,t.status,Customer.name,due.label('due')).join(Customer,Customer.code==t.customer_code).where(
             t.assignee_id==user.id,t.status=='HOAN_THANH',t.billing=='THU_TIEN',t.priced_at.is_not(None),due>0).order_by(t.id))]
+    # Đợt 2 nối liền máy về xưởng (TUẤN 17/11/2026): máy khách đồng ý giao mình sửa ở xưởng, chưa báo sửa xong.
+    from .. import service_workshop
+    mine=[x for x in session.scalars(select(t).where(t.assignee_id==user.id,service_self_claim.at_workshop()).order_by(t.promised_return_on.nulls_last(),t.id))
+          if service_workshop.can_report(user,x)]
+    done=service_workshop.reported(session,[x.id for x in mine])
+    names=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({x.customer_code for x in mine}))).all()) if mine else {}
+    workshop_jobs=[dict(id=x.id,number=x.number,customer=names.get(x.customer_code,''),promised=x.promised_return_on,reported=x.id in done,
+        late=bool(x.promised_return_on and x.promised_return_on<day),href=f'/tho/phieu/{x.id}#sua-xuong') for x in mine]
     from ..models import ProductionOrder
     from .. import production
     production_jobs=list(session.execute(select(ProductionOrder,Product.name+production.title_extra()).join(Product,Product.code==ProductionOrder.product_code).where(ProductionOrder.technician_id==user.id,ProductionOrder.status.in_(('MOI','DANG_LAM'))).order_by(ProductionOrder.id)))
@@ -331,7 +353,7 @@ def _today(request,user,session,claim_error=None,status=200):
     soon=service_suggest.at_risk(session,now,level='tech',assignee_id=user.id)
     soon_customers=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({i['ticket'].customer_code for i in soon}))).all()) if soon else {}
     flash={'di':'Đã ghi bạn đang đi tới khách. Điều phối thấy ngay.','tre':'Đã báo trễ. Điều phối sẽ gọi khách.'}.get(str(request.query_params.get('hen','')),'')
-    return render(request,'tho_hom_nay.jinja',soon=soon,soon_customers=soon_customers,soon_label=service_suggest.risk_label,vn_tz=service_suggest.TZ,late_choices=service_suggest.LATE_CHOICES,late_flash=flash,production_jobs=production_jobs,production_stale=production_stale_items,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
+    return render(request,'tho_hom_nay.jinja',workshop_jobs=workshop_jobs,soon=soon,soon_customers=soon_customers,soon_label=service_suggest.risk_label,vn_tz=service_suggest.TZ,late_choices=service_suggest.LATE_CHOICES,late_flash=flash,production_jobs=production_jobs,production_stale=production_stale_items,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
         claims=claims,order_claims=order_claims,claim_trips=claim_trips,claim_busy=bool(claims or order_claims) and not service_self_claim.can_claim_more(session,user.id),claim_limit=get_settings().self_claim_max_open,
         claim_error=claim_error,claimed=claimed if claimed and any(j['number']==claimed or any(x['number']==claimed for x in j.get('trips',[])) for j in jobs) else '',status=status,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))
@@ -514,6 +536,32 @@ def delete_expense(request:Request,expense_id:int,form=Depends(checked_form),use
         message,code,status=_message(exc)
         return _detail(request,session,user,ticket_id,error=message,error_code=code,status=status,technician_view=True)
     return RedirectResponse(f'/tho/phieu/{ticket_id}?da_luu=1#chi-phi-phat-sinh',status_code=303)
+
+
+@router.post('/tho/phieu/{ticket_id}/bao-sua-xong')
+async def report_repaired(request:Request,ticket_id:int,form=Depends(checked_form),user:User=Depends(technician_user),session:Session=Depends(get_session)):
+    """Thợ sửa ở xưởng báo sửa xong (ảnh sau sửa + đã sửa gì); kho chốt tiền, vật tư, bảo hành rồi giao trả."""
+    from starlette.datastructures import UploadFile
+    from ..config import get_settings
+    from .. import service_workshop
+    from .services import _detail
+    owned(session,user,ticket_id)
+    version=str(form.get('version','') or '')
+    note=str(form.get('fix','') or '')
+    try:
+        upload=form.get('photo')
+        if isinstance(upload,UploadFile) and upload.filename:
+            data=await upload.read(get_settings().max_upload_mb*1024*1024+1)
+            if data:
+                if data.startswith(b'%PDF-'):raise BusinessError('BAD_FILE_TYPE','Ảnh sau sửa phải là ảnh.')
+                attachments.add(session,user,'service_ticket',str(ticket_id),'SAU',upload.filename or 'sau-sua.jpg',data)
+        service_workshop.report_repaired(session,user,ticket_id,int(version) if version.isdigit() else None,note)
+    except BusinessError as exc:
+        session.rollback()
+        session.refresh(user)
+        return _detail(request,session,user,ticket_id,technician_view=True,error=exc.message,error_code=exc.code,
+                       failed_action='ws-report',form=dict(fix=note),status=exc.status if exc.status!=403 else 403)
+    return RedirectResponse('/tho?sua_xong=1',status_code=303)
 
 
 @router.post('/tho/phieu/{ticket_id}/anh')

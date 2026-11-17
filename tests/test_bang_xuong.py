@@ -186,3 +186,59 @@ def test_handoffs_reach_the_right_person(db, workshop, make_user):
     assert ids(disp, 'service_ws_quote') == [] and ids(disp, 'service_ws_reply') == [t.id]
     rq.not_yet(db, disp, v.id, 'Giá cao', None, 'ZALO', '')
     assert ids(kho, 'service_ws_check') == [t.id]  # khách chưa đồng ý: về kho kiểm tra lại
+
+
+def test_technician_reports_repaired_then_kho_closes(client, db, workshop, make_user):
+    """Đợt 2: khách đồng ý giao thợ sửa → thợ thấy trên màn thợ, báo sửa xong (ảnh + đã sửa gì) → kho thấy Chờ chốt, chốt sửa xong."""
+    from app import my_work, notifications, service_workshop
+    from app.errors import BusinessError
+    from test_web import d5_image
+    import pytest
+    p, a, b, t, eq = workshop
+    disp = p['dispatcher']
+    kho = make_user('bx.kho_dp', 'dispatcher', 'warehouse')
+    boss = make_user('bx.boss', 'director')
+    tho = make_user('bx.tho_sua', 'technician')
+    fuser, feed, opts = book(db, boss)
+    ri.save(db, p['technician'], t.id, form(fuser, opts, ['Thay bao lụa sấy'], parts=[('TD-0001', 1)]))
+    ri.apply(db, disp, t.id, t.version, {})
+    db.refresh(t)
+    v = rq.create(db, disp, t.id, t.version)
+    rq.mark_sent(db, disp, v.id, 'COPY')
+    db.refresh(t)
+    rq.agree(db, disp, v.id, t.version, 'PA1', 'ZALO', 'Anh Nam', tomorrow(), '', tho.id)
+    db.refresh(t)
+    assert [r['id'] for r in my_work.filtered(db, tho, 'service_ws_repair')['rows']] == [t.id]
+    assert f'service_ws_repair:{t.id}' in {x['id'] for x in notifications.items(db, tho)}
+    r = row(db, tho, t)
+    assert r['stage'] == 's4' and r['action']['label'] == 'Báo sửa xong' and r['mine']
+    tid, ver = t.id, t.version
+    # thợ khác không báo thay được; thiếu ảnh thì không lưu
+    with pytest.raises(BusinessError) as e:
+        service_workshop.report_repaired(db, p['technician'], tid, ver, 'Thay bao lụa')
+    assert e.value.status == 403
+    with pytest.raises(BusinessError) as e:
+        service_workshop.report_repaired(db, tho, tid, ver, 'Thay bao lụa')
+    assert e.value.code == 'PHOTO_REQUIRED'
+    csrf = service_login(client, tho)
+    home = client.get('/tho').text
+    assert 'Máy ở xưởng giao bạn sửa' in home and f'/tho/phieu/{tid}#sua-xuong' in home
+    page = client.get(f'/tho/phieu/{tid}').text
+    assert 'Sửa máy ở xưởng' in page and 'Thay bao lụa sấy' in page and 'TD-0001' in page
+    res = client.post(f'/tho/phieu/{tid}/bao-sua-xong', data={'csrf': csrf, 'version': str(ver), 'fix': 'Thay bao lụa sấy, test in 20 trang'},
+                      files={'photo': ('sau.png', d5_image(), 'image/png')}, follow_redirects=False)
+    assert res.status_code == 303 and res.headers['location'] == '/tho?sua_xong=1'
+    db.expire_all()
+    t = db.get(type(t), tid)
+    assert t.status == 'TAM_DUNG' and t.hold_reason == 'CHO_SUA_XUONG' and t.repaired_by is None  # chưa đụng tiền, kho
+    assert my_work.filtered(db, tho, 'service_ws_repair')['rows'] == []
+    assert [x['id'] for x in my_work.filtered(db, kho, 'service_ws_close')['rows']] == [tid]
+    r = row(db, kho, t)
+    assert r['stage'] == 's5' and r['action']['label'] == 'Chốt · giao trả' and 'test in 20 trang' in r['note']
+    with pytest.raises(BusinessError) as e:
+        service_workshop.report_repaired(db, tho, tid, t.version, 'Báo lần hai')
+    assert e.value.code == 'ALREADY_REPORTED'
+    client.cookies.clear()
+    service_login(client, kho)
+    page = client.get(f'/dich-vu/{tid}').text
+    assert 'báo sửa xong' in page and 'test in 20 trang' in page and 'id="workshop-repaired"' in page
