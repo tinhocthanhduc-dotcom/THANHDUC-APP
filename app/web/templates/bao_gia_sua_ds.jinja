@@ -16,6 +16,6 @@
 <td data-label="Tổng" class="num"><b>{{ r.total|money }}</b></td>
 <td data-label="Trạng thái">{% if r.tab == 'chua-gui' %}{{ ui.badge('Chưa gửi khách', 'nhap') }}{% elif r.tab == 'khac' and r.v.status == 'CHO' %}{{ ui.badge('Hết hiệu lực', 'huy') }}{% else %}{{ ui.badge(statuses.get(r.v.status, r.v.status), {'CHO': 'cho', 'DONG_Y': 'xong', 'CHUA_DONG_Y': 'cho', 'KHONG_SUA': 'huy', 'THU_HOI': 'huy'}.get(r.v.status, 'nhap')) }}{% endif %}{% if r.v.reply_choice %}<span class="lt-sub">{{ r.v.reply_choice }}</span>{% endif %}<span class="lt-sub"><a href="/kiem-tra-may/bao-gia/{{ r.v.id }}/in">In A4</a></span></td>
 </tr>{% endfor %}
-</tbody></table></div>{% else %}{{ ui.empty('Không có báo giá nào ở mục này.', '/kiem-tra-may', 'Máy chờ kiểm tra') }}{% endif %}
+</tbody></table></div>{% else %}{{ ui.empty('Không có báo giá nào ở mục này.', '/kiem-tra-may', 'Bảng xưởng') }}{% endif %}
 {% call ui.list_foot(p, 'báo giá') %}{% endcall %}
 </div>{% endblock %}

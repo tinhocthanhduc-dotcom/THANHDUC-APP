@@ -153,7 +153,7 @@ def test_web_pick_create_public_print_and_reply(client, db, pair):
     csrf = service_login(client, p['technician'])
     assert client.get(f'/bao-gia-gop/moi?khach={t1.customer_code}').status_code == 403
     page = client.get('/kiem-tra-may').text
-    assert '2 máy cùng khách' in page and 'Gộp báo giá' not in page
+    assert t1.number in page and t2.number in page and 'Gộp báo giá' not in page  # Bảng xưởng: thợ không gộp
     client.cookies.clear()
     csrf = service_login(client, p['dispatcher'])
     page = client.get('/kiem-tra-may').text

@@ -100,7 +100,7 @@ def quote_choices(user):
         ('/bao-gia/moi', 'Mua máy, mực, linh kiện', 'Báo giá hàng hóa · Bán hàng làm', has_role(user, *WRITERS)),
         ('/hoi-gia/moi', 'Hỏi giá sửa, chưa thấy máy', 'Giá theo model và gói sửa, ghi "giá dự kiến" · Bán hàng, Điều phối',
          qq.can_use(user)),
-        ('/kiem-tra-may', 'Máy đã kiểm tra, cần báo giá chính thức', 'Mở Máy chờ kiểm tra, chọn phiếu · Điều phối',
+        ('/kiem-tra-may', 'Máy đã kiểm tra, cần báo giá chính thức', 'Mở Bảng xưởng, cột Chờ duyệt giá · Kinh doanh, Giám đốc',
          has_role(user, *DISPATCHERS)),
         ('/bao-gia-hop-dong/moi', 'Hợp đồng, nhiều model một bảng', 'Báo giá hợp đồng · Điều phối', has_role(user, *DISPATCHERS)),
     )

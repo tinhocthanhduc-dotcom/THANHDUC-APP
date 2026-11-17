@@ -78,21 +78,39 @@ def _inspect_page(request, session, user, ticket_id, form=None, error='', error_
                   users={u.id: u.full_name for u in session.scalars(select(User))}, error=error, error_code=error_code, status=status)
 
 
+BOARD_ROLES = ('technician', 'dispatcher', 'sales')
+BOARD_VIEWS = ('cua-toi', 'tat-ca', 'qua-han', 's1', 's2', 's3', 's4', 's6')
+
+
 @router.get('/kiem-tra-may')
 def listing(request: Request, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    ri.require_inspect(user)
-    rows = ri.waiting_rows(session)
-    customers = {c.code: c for c in session.scalars(select(Customer).where(Customer.code.in_({r['ticket'].customer_code for r in rows})))} if rows else {}
+    """Bảng xưởng (TUẤN duyệt mẫu 17/11/2026): thay danh sách "Máy chờ kiểm tra"; mỗi máy một hàng, việc cần làm + ai làm."""
+    if not has_role(user, *BOARD_ROLES):
+        raise BusinessError('FORBIDDEN', 'Chỉ kho, kỹ thuật, kinh doanh hoặc giám đốc xem Bảng xưởng.', status=403)
+    from .. import workshop_board as wb
     from .. import repair_quote_groups as rg
     from ..service_tickets import DISPATCHERS
-    groups = rg.by_customer(rows)
-    # Báo giá gộp (mẫu duyệt 15/11/2026): khách có từ 2 máy đã áp giá, chưa đồng ý → nút Gộp báo giá cho điều phối.
-    ready = {code: sum(1 for r in g if r['inspection'] is not None and r['inspection'].applied_at and not r['ticket'].quote_approved_at)
-             for code, g in groups.items()}
-    can_group = has_role(user, *DISPATCHERS)
-    opened = {code: rg.open_for_customer(session, code) for code, g in groups.items() if len(g) > 1} if can_group else {}
-    return render(request, 'kiem_tra_may_ds.jinja', rows=rows, groups=groups, ready=ready, can_group=can_group, opened=opened,
-                  customers=customers, todo=sum(1 for r in rows if r['todo']))
+    view = request.query_params.get('view', '')
+    q = (request.query_params.get('q', '') or '').strip()[:80]
+    board = wb.build(session, user)
+    counts = board['counts']
+    if view not in BOARD_VIEWS:
+        view = 'cua-toi' if counts['mine'] else 'tat-ca'
+    board['rows'] = wb.pick(board['rows'], view, q)
+    tabs = [dict(label=label, n=counts[key], href=f'/kiem-tra-may?view={v}', on=view == v)
+            for v, key, label in (('cua-toi', 'mine', 'Việc của tôi'), ('tat-ca', 'all', 'Tất cả'), ('qua-han', 'late', 'Quá hạn'))]
+    # Báo giá gộp (mẫu duyệt 15/11/2026): khách có từ 2 máy đã áp giá, chưa đồng ý → gợi ý Gộp báo giá.
+    gather = []
+    if has_role(user, *DISPATCHERS):
+        rows = ri.waiting_rows(session)
+        for code, g in rg.by_customer(rows).items():
+            ready = sum(1 for r in g if r['inspection'] is not None and r['inspection'].applied_at and not r['ticket'].quote_approved_at)
+            opened = rg.open_for_customer(session, code) if len(g) > 1 else None
+            if ready > 1 or opened:
+                c = session.get(Customer, code)
+                gather.append(dict(code=code, name=c.name if c else code, ready=ready, opened=opened))
+    return render(request, 'kiem_tra_may_ds.jinja', board=board, tabs=tabs, view=view, q=q, gather=gather,
+                  can_group=has_role(user, *DISPATCHERS))
 
 
 @router.get('/kiem-tra-may/{ticket_id}')

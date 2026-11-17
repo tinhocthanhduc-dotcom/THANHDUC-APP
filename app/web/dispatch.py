@@ -114,7 +114,9 @@ def dashboard(request: Request, view: str = "open", trang: str = "", so: str = "
         func.count().filter(ServiceTicket.status == 'TAM_DUNG', ServiceTicket.hold_reason == 'SUA_XONG_CHO_TRA'),
         func.count().filter(service_self_claim.claimable(now)),
     )).one()
-    tiles = [dict(label=label, n=n, href=f'/dieu-phoi?view={key}', on=view == key, tone='huy' if key in ('overdue', 'new', 'late') and n else '')
+    # Bảng xưởng (TUẤN 17/11/2026): 2 ô máy ở xưởng mở thẳng Bảng xưởng, không còn danh sách riêng.
+    board = {'workshop': '/kiem-tra-may?view=tat-ca', 'return_ready': '/kiem-tra-may?view=s6'}
+    tiles = [dict(label=label, n=n, href=board.get(key, f'/dieu-phoi?view={key}'), on=view == key, tone='huy' if key in ('overdue', 'new', 'late') and n else '')
              for key, n, label in (('open', count_open, 'Đang mở'), ('overdue', count_overdue, 'Quá hạn'), ('new', extra[0], 'Cần giao thợ'),
                                    ('late', len(risks), 'Sắp trễ hẹn'),
                                    *((('claim', extra[3], 'Chờ thợ tự nhận'),) if service_self_claim.minutes() > 0 or extra[3] else ()),

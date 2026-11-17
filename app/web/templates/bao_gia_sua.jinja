@@ -3,7 +3,7 @@
 <div class="xg-head"><h2>Báo giá sửa chữa</h2>
 {% if rq %}<p class="hint">Thợ {{ users.get(rq.row.inspected_by, '') }} kiểm tra {{ rq.row.inspected_at|vn_time }} {{ rq.row.inspected_at|vn_date }} · model {{ rq.row.model_name }}{% if rq.current %} · <b>đã áp vào phiếu</b>{% endif %}</p>{% endif %}</div>
 {% if not rq %}
-<p class="hint">Thợ chưa ghi kết quả kiểm tra máy. Thợ mở <b>Máy chờ kiểm tra</b> trên điện thoại, hoặc điều phối ghi thay.</p>
+<p class="hint">Thợ chưa ghi kết quả kiểm tra máy. Kho mở <b>Bảng xưởng</b> › Kiểm tra máy để ghi.</p>
 <a class="btn btn-new" href="/kiem-tra-may/{{ t.id }}">Kiểm tra máy ›</a>
 {% else %}{% set q=rq.q %}{% if rq.row.recheck_reason %}<p class="alert warn"><b>Khách chưa đồng ý.</b> {{ rq.row.recheck_reason }}. Thợ kiểm tra lại rồi áp giá, gửi lần mới.</p>{% endif %}
 {# TUẤN 15/11/2026 "phân bổ gọn hơn": đã gửi khách thì gập phần áp giá, phần chính là Khách trả lời. #}{% set rq_fold=rq.send and not rq.send.stale and not rq.row.recheck_reason and not error %}{% if rq_fold %}<details class="rq-fold"><summary><span>Phần kỹ thuật và bản khách nhận · đã áp</span><b>{{ q.total|money }} đ</b></summary>{% endif %}<form method="post" action="/kiem-tra-may/{{ t.id }}/ap-gia" class="rq-two" data-busy data-rq-quote>
