@@ -68,6 +68,8 @@ AGENTS = {
                 hint='Chỉ đọc: đếm sản phẩm Đăng web chờ anh xem trước, có thể trùng, bị lỗi, kèm link để nhắn Zalo 8:00 và 16:00. Không duyệt, không đăng, không đụng tiền hay kho.'),
     'growth-os': dict(name='Growth OS · Marketing (chỉ đọc)', scopes=('marketing_read',), ready=True,
                       hint='Chỉ đọc: danh mục hàng + giá bán, tồn khả dụng kho bán, nhóm biên lãi (CAO/VỪA/THẤP/ÂM). Không có giá vốn, khách, SĐT, đơn. Mỗi lần đọc ghi nhật ký.'),
+    'growth-os-lai': dict(name='Growth OS · Lãi đóng góp (có giá vốn)', scopes=('marketing_cost',), ready=True,
+                          hint='Chỉ tính: với danh sách đơn bán Growth OS gửi, trả doanh thu thuần, giá vốn lúc bán, chi phí phát sinh, lãi đóng góp từng đơn. Không trả giá vốn từng mã, không đọc khách. Chỉ tạo khi anh muốn Growth OS biết lãi.'),
 }
 
 

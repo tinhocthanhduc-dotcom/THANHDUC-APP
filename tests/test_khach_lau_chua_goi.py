@@ -119,3 +119,28 @@ def test_sales_creates_ink_ticket_only(client, db, held):  # noqa: F811
     assert t.kind == 'MUC_DINH_KY' and t.created_by == p['sales'].id
     assert f'Đã nhận đơn {t.number}' in client.get(r.headers['location']).text
     assert client.get(f'/dich-vu/{t.id}', follow_redirects=False).status_code == 403
+
+
+def test_growth_os_chi_dem_khach_den_han(client, db, held, monkeypatch):  # noqa: F811
+    """TUẤN 17/11/2026: Growth OS đọc số đếm nhắc mực bằng khóa marketing_read, không thấy khách."""
+    from app import ai_agent, marketing_api
+    from app.models import AuditLog, User
+    p, a, b = held
+    _tickets(client, db, p)
+    director = db.query(User).filter(User.roles.contains(['director'])).first()
+    h = {'Authorization': 'Bearer ' + ai_agent.create_key(db, director, 'growth-os')}
+    when = datetime.combine(TODAY + timedelta(days=10), datetime.min.time(), TZ) + timedelta(hours=8)
+    monkeypatch.setattr(marketing_api, '_now', lambda: when)
+    r = client.get('/marketing/v1/ink-rhythm/summary', headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    data = ink_rhythm.collect(db, when.date())
+    assert (body['goi'], body['sap'], body['hen'], body['xong_tuan']) == (len(data['goi']), len(data['sap']), len(data['hen']), data['xong']) == (1, 0, 0, 0)
+    assert body['list_path'] == '/khach-hang/nhac-muc'
+    assert 'KTD-' not in r.text and 'phone' not in r.text
+    assert db.query(AuditLog).filter(AuditLog.action == 'ai.marketing_read').count() == 1
+    assert client.get('/marketing/v1/ink-rhythm/summary').status_code == 401
+    lai = {'Authorization': 'Bearer ' + ai_agent.create_key(db, director, 'growth-os-lai')}
+    assert client.get('/marketing/v1/ink-rhythm/summary', headers=lai).status_code == 403
+    ai_agent.set_paused(db, director, True, 'growth-os')
+    assert client.get('/marketing/v1/ink-rhythm/summary', headers=h).status_code == 423
