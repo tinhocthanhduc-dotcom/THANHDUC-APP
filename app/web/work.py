@@ -51,7 +51,7 @@ def _area(user, key):
     return AREA_OF.get(key, 'sv' if key.startswith(('service_', 'machines_')) else 'kh')
 
 
-NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhận báo thu.', 'rejected':'Đã từ chối báo thu.'}
+NOTICES = {'done':'Đã hoàn tất bước này.', 'confirmed':'Đã xác nhận báo thu.', 'rejected':'Đã từ chối báo thu.', 'tai-dong':'Đã lưu.'}
 
 
 # Mẫu ưu tiên (2026-10-25): ba khung theo độ gấp thay cho khung theo phân hệ.

@@ -5,7 +5,7 @@
 Chỉ là điều hướng: không đổi quyền, không đổi việc của từng trang.
 """
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -170,7 +170,37 @@ def approvals_decide(request: Request, kind: str, ident: int, action: str, form=
         da.decide(session, user, kind, ident, action == 'duyet', form.get('version'), str(form.get('reason', '')))
     except BusinessError as exc:
         session.rollback()
+        if _inline(request):
+            return JSONResponse(dict(ok=False, message=exc.message, code=exc.code), status_code=exc.status)
         return _approvals(request, session, nhom, exc.message, exc.code, exc.status,
                           failed=dict(key=f'{kind}-{ident}', reason=str(form.get('reason', '')), action=action))
+    if _inline(request):
+        return JSONResponse(dict(ok=True))
     back = '/cho-anh-duyet?' + (f'nhom={nhom}&' if nhom else '') + 'da_luu=' + ('duyet' if action == 'duyet' else 'tu-choi')
     return RedirectResponse(back, status_code=303)
+
+
+def _inline(request) -> bool:
+    """duyet-tai-dong.js gửi bằng fetch kèm header này: trả JSON thay vì cả trang."""
+    return request.headers.get('x-tai-dong') == '1'
+
+
+@router.post('/viec-cua-toi/xu-ly/{kind}/{ident}/{action}')
+def work_decide(request: Request, kind: str, ident: int, action: str, form=Depends(checked_form),
+                user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Đợt 2b tối ưu thao tác (TUẤN duyệt mẫu 17/11/2026): Việc của tôi xác nhận báo thu / duyệt khoản trong hạn mức tại dòng.
+    Cùng hàm nghiệp vụ trang gốc; quyền, hạn mức, phiên bản, lý do kiểm ở đó."""
+    from .. import director_approvals as da, my_work
+    from ..errors import BusinessError
+    if action not in ('duyet', 'tu-choi') or kind not in my_work.INLINE_KINDS:
+        raise BusinessError('NOT_FOUND', 'Không có thao tác này.', status=404)
+    try:
+        da.decide(session, user, kind, ident, action == 'duyet', form.get('version'), str(form.get('reason', '')))
+    except BusinessError as exc:
+        # Hàm nghiệp vụ tự rollback giao dịch của nó; không rollback ở đây để trang lỗi chung còn đọc được người dùng.
+        if _inline(request):
+            return JSONResponse(dict(ok=False, message=exc.message, code=exc.code), status_code=exc.status)
+        raise
+    if _inline(request):
+        return JSONResponse(dict(ok=True))
+    return RedirectResponse('/viec-cua-toi?xong=tai-dong', status_code=303)

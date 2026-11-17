@@ -397,3 +397,28 @@ def test_closed_service_still_unreported_stays_visible_with_authorized_report_st
     page=next_action(client,page,method='TIEN_MAT',amount='500.000',received_at=DAY.isoformat())
     assert page.status_code==200 and Page(page.text).primary is None
     assert groups(db,people,'technician')['service_unreported']['count']==0
+
+
+def test_inline_receipt_confirm_and_reject_from_my_work(client, db, people, configured_finance):
+    """Đợt 2b tối ưu thao tác (TUẤN duyệt mẫu 17/11/2026): Việc của tôi xác nhận / từ chối báo thu ngay tại dòng."""
+    p=people
+    delivered=order(db,p,'DA_GIAO',amount=900)
+    first=report(db,p,delivered,400);second=report(db,p,delivered,500)
+    rows=groups(db,p,'finance')['receipts_pending']['rows']
+    assert {r['act']['kind'] for r in rows}=={'BAO_THU'} and {r['act']['version'] for r in rows}=={first.version}
+    csrf=service_login(client,p['finance'])
+    page=client.get('/viec-cua-toi?nhom=receipts_pending').text
+    assert f'action="/viec-cua-toi/xu-ly/BAO_THU/{first.id}/duyet"' in page and 'duyet-tai-dong.js' in page
+    # Bán hàng không có quyền xác nhận: chặn như trang Báo thu.
+    sales_csrf=service_login(client,p['sales'])
+    assert client.post(f'/viec-cua-toi/xu-ly/BAO_THU/{first.id}/duyet',data=dict(csrf=sales_csrf,version=first.version)).status_code==403
+    csrf=service_login(client,p['finance'])
+    r=client.post(f'/viec-cua-toi/xu-ly/BAO_THU/{first.id}/duyet',data=dict(csrf=csrf,version=first.version),headers={'X-Tai-Dong':'1'})
+    assert r.status_code==200 and r.json()=={'ok':True}
+    assert db.get(SalesReceipt,first.id,populate_existing=True).status=='DA_XAC_NHAN'
+    r=client.post(f'/viec-cua-toi/xu-ly/BAO_THU/{second.id}/tu-choi',data=dict(csrf=csrf,version=second.version,reason=''),headers={'X-Tai-Dong':'1'})
+    assert r.status_code>=400 and r.json()['ok'] is False and r.json()['message']
+    r=client.post(f'/viec-cua-toi/xu-ly/BAO_THU/{second.id}/tu-choi',data=dict(csrf=csrf,version=second.version,reason='Chưa thấy tiền'),follow_redirects=False)
+    assert r.status_code==303 and r.headers['location']=='/viec-cua-toi?xong=tai-dong'
+    assert db.get(SalesReceipt,second.id,populate_existing=True).status=='TU_CHOI'
+    assert client.post(f'/viec-cua-toi/xu-ly/TAM_UNG/{second.id}/duyet',data=dict(csrf=csrf,version=1)).status_code==404
