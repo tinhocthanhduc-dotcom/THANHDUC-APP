@@ -41,7 +41,7 @@
     if (!el) return null;
     if (el.tagName === 'SELECT') { var o = el.options[el.selectedIndex]; return o ? {value: el.value, label: o.textContent.trim(), option: o} : null; }
     var span = el.closest('label'), b = span && span.querySelector('b');
-    return {value: el.value, label: b ? b.textContent.trim() : (span ? span.textContent.trim() : el.value), option: el};
+    return {value: el.value, label: el.dataset.label || (b ? b.textContent.trim() : (span ? span.textContent.trim() : el.value)), option: el};
   }
   function set(key, text, empty) { var dd = q('[data-sv-sum=' + key + ']'); if (dd) { dd.textContent = text; dd.classList.toggle('svn-empty', !!empty); } }
   function check(key, ok, text) {
@@ -234,5 +234,53 @@
       done.hidden = true;
     }
     fire();
+  });
+})();
+// Đợt 4b (TUẤN duyệt 18/11/2026): Lần trước. Dùng lại điền loại, địa điểm, tick máy, thợ; Bỏ điền trả lại như trước khi bấm.
+(function() {
+  var form = document.querySelector('form.svn[data-service-form]');
+  if (!form) return;
+  var before = null;
+  function q(sel) { return form.querySelector(sel); }
+  function checkedValue(name) { var el = q('[name=' + name + ']:checked'); return el ? el.value : null; }
+  function setRadio(name, value) {
+    if (value === null || value === undefined) return;
+    var el = Array.prototype.find.call(form.querySelectorAll('[name=' + name + ']'), function(x) { return x.value === value && !x.disabled; });
+    if (el) el.checked = true;
+  }
+  function picks() { return Array.prototype.filter.call(form.querySelectorAll('[data-sv-pick]'), function(b) { return b.checked; }).map(function(b) { return b.value; }); }
+  function setPicks(list) { form.querySelectorAll('[data-sv-pick]').forEach(function(b) { b.checked = !b.disabled && list.indexOf(b.value) >= 0; }); }
+  function contact() {
+    var box = q('[data-sv-site-contact]'), site = q('[name=site_id]:checked');
+    if (!box) return;
+    var name = site ? site.dataset.contact || '' : '', phone = site ? site.dataset.phone || '' : '';
+    box.hidden = !(name || phone);
+    box.querySelector('[data-sv-contact-text]').textContent = name + (name && phone ? ' · ' : '') + phone;
+    var call = box.querySelector('[data-sv-contact-call]');
+    call.hidden = !phone; call.href = 'tel:' + phone.replace(/\s+/g, '');
+  }
+  form.addEventListener('change', function(event) { if (event.target.name === 'site_id') contact(); });
+  form.addEventListener('click', function(event) {
+    var useBtn = event.target.closest('[data-sv-last-use]'), undoBtn = event.target.closest('[data-sv-last-undo]');
+    var section = event.target.closest('[data-sv-last]');
+    if (!section || !(useBtn || undoBtn)) return;
+    if (useBtn) {
+      var r; try { r = JSON.parse(useBtn.dataset.svLastUse); } catch (e) { return; }
+      before = {kind: checkedValue('kind'), site: checkedValue('site_id'), tech: checkedValue('assignee_id'), picks: picks()};
+      setRadio('kind', r.kind || '');
+      setRadio('site_id', r.site_id || '');
+      setPicks(r.serials || []);
+      if (r.technician_id) setRadio('assignee_id', r.technician_id);
+      section.classList.add('is-used');
+      section.querySelector('[data-sv-last-done]').hidden = false;
+      if (window.tdToast) window.tdToast('Đã điền theo ' + r.number + ', nhập lỗi khách báo và giờ hẹn rồi bấm Nhận đơn');
+    } else if (before) {
+      setRadio('kind', before.kind); setRadio('site_id', before.site); setRadio('assignee_id', before.tech); setPicks(before.picks);
+      before = null;
+      section.classList.remove('is-used');
+      section.querySelector('[data-sv-last-done]').hidden = true;
+    }
+    contact();
+    (q('[name=kind]:checked') || form).dispatchEvent(new Event('change', {bubbles: true}));
   });
 })();

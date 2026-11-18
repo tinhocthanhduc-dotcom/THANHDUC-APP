@@ -1,0 +1,16 @@
+{# Đợt 4b (TUẤN duyệt mẫu 18/11/2026): lần nhận đơn gần nhất của khách. Dùng lại chỉ điền form (services.js), không tạo gì; máy chỉ tick khi bấm. #}
+{% set r = last_service %}{% if r %}<section class="svn-last" data-sv-last aria-label="Lần trước">
+<div class="svn-last-card" data-sv-last-card>
+<div class="svn-repeat-top"><b>Lần trước · {{ r.date }}</b><span class="svn-note">{{ 'hôm nay' if r.days == 0 else 'cách đây ' ~ r.days ~ ' ngày' }} · {% set u = ticket_url(r.ticket_id) %}{% if u %}<a href="{{ u }}" target="_blank" rel="noopener">{{ r.number }}</a>{% else %}{{ r.number }}{% endif %}</span></div>
+<dl class="svn-last-grid">
+<div><dt>Việc</dt><dd>{{ r.kind_label }}</dd></div>
+<div><dt>Địa điểm</dt><dd>{{ r.site }}</dd></div>
+<div><dt>Máy</dt><dd>{{ r.machine or 'Không chọn máy' }}</dd></div>
+<div><dt>Thợ</dt><dd>{{ r.technician or 'Chưa giao' }}</dd></div>
+</dl>
+{% if r.fault or r.fix %}<p class="svn-note svn-last-fault">Lỗi lần trước: {{ r.fault }}{% if r.fix %} · đã làm: {{ r.fix }}{% endif %}</p>{% endif %}
+<button type="button" class="btn btn-new" data-sv-last-use="{{ dict(kind=r.kind, site_id=r.site_id, serials=r.serials, technician_id=r.technician_id, number=r.number)|tojson|forceescape }}">Dùng lại lần trước</button>
+<p class="svn-note">Bấm mới điền: loại việc, địa điểm, tick máy, thợ. Lỗi khách báo và giờ hẹn vẫn nhập mới.</p>
+</div>
+<p class="svn-last-done" data-sv-last-done hidden><b>✓ Đã điền theo lần trước {{ r.number }}</b> <span class="svn-note">loại · địa điểm · máy · thợ</span> <button type="button" class="btn btn-ghost" data-sv-last-undo>Bỏ điền</button></p>
+</section>{% endif %}
