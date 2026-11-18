@@ -389,7 +389,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
 def _intake_info(session, customer_code, machines, user=None):
     """Màn Nhận đơn mới: mỗi máy có hạn bảo hành, lần sửa cuối, phiếu đang mở/đang giữ máy; kèm các phiếu chưa xong của khách."""
     if not customer_code:
-        return dict(machine_info={}, open_tickets=[])
+        return dict(machine_info={}, open_tickets=[], last_service=None, main_phone='')
     serials = [eq.serial for eq, _ in machines]
     busy, last = {}, {}
     if serials:
@@ -414,7 +414,13 @@ def _intake_info(session, customer_code, machines, user=None):
     ai_notes = ghi_chu_phieu.notes(session, user, customer_code=customer_code, cfg=cfg, part='customer') if cfg is not None else []
     machine_notes = {eq.serial: ghi_chu_phieu.notes(session, user, customer_code=customer_code, serial=eq.serial, cfg=cfg, part='machine')
                      for eq, _ in machines[:40]} if cfg is not None else {}
-    return dict(machine_info=info, open_tickets=open_rows, ai_notes=ai_notes, machine_notes={k: v for k, v in machine_notes.items() if v})
+    # Đợt 4b (TUẤN duyệt 18/11/2026): khung "Lần trước" + máy lần trước xếp đầu (máy sửa gần nhất trước).
+    last_service = service_repeat.last_service(session, customer_code) if user is not None and has_role(user, *svc.CREATORS) and not _ink_only(user) else None
+    machines.sort(key=lambda row: (row[0].serial not in (last_service or {}).get('serials', []), -(info[row[0].serial]['last'].toordinal() if info[row[0].serial]['last'] else 0)))
+    from ..models import CustomerPhone
+    main_phone = session.scalar(select(CustomerPhone.phone).where(CustomerPhone.customer_code == customer_code)
+                                .order_by(CustomerPhone.is_contact.desc(), CustomerPhone.phone).limit(1)) or ''
+    return dict(machine_info=info, open_tickets=open_rows, ai_notes=ai_notes, machine_notes={k: v for k, v in machine_notes.items() if v}, last_service=last_service, main_phone=main_phone)
 
 
 def _choices(session, customer_code):

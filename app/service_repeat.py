@@ -103,3 +103,51 @@ def last_ink(session, customer_code, now=None):
             serial=t.serial or '', machine=machine, technician=tech.full_name if tech else '',
             lines=lines, dropped=dropped, price=_money(price), note=t.symptom or ''))
     return out
+
+
+# Đợt 4b (TUẤN duyệt mẫu 18/11/2026): Nhận đơn hiện khung "Lần trước" cho mọi loại trừ Mực định kỳ (đã có khung riêng).
+# Chỉ đọc; nút Dùng lại điền form ở trình duyệt. Máy KHÔNG tự tick (TUẤN 05/11), chỉ tick khi bấm nút.
+SAME_INTAKE_SECONDS = 300
+KIND_LABELS = {'SUA_TAI_CHO': 'Sửa tại chỗ', 'MANG_VE': 'Mang máy về xưởng', 'BAO_HANH': 'Bảo hành'}
+
+
+def last_service(session, customer_code, now=None):
+    """Lần nhận đơn gần nhất của khách (không tính Mực định kỳ, đã hủy); gom các phiếu nhiều máy tạo cùng lúc."""
+    if not customer_code:
+        return None
+    rows = session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code == customer_code,
+                                                       ServiceTicket.status != 'DA_HUY',
+                                                       (ServiceTicket.kind.is_(None)) | (ServiceTicket.kind != 'MUC_DINH_KY'))
+                           .order_by(ServiceTicket.created_at.desc(), ServiceTicket.id.desc()).limit(12)).all()
+    if not rows:
+        return None
+    t = rows[0]
+    group = [x for x in rows if x.site_id == t.site_id and x.created_at is not None and t.created_at is not None
+             and abs((t.created_at - x.created_at).total_seconds()) <= SAME_INTAKE_SECONDS] or [t]
+    group.sort(key=lambda x: x.id)
+    serials = []
+    for x in group:
+        if x.serial and x.serial not in serials:
+            serials.append(x.serial)
+    names = []
+    for serial in serials[:3]:
+        eq = session.get(Equipment, serial)
+        prod = session.get(Product, eq.product_code) if eq is not None and eq.product_code else None
+        name = prod.name if prod else ((getattr(eq, 'model_name', '') or '') if eq is not None else '')
+        names.append(f'{name} · {serial}' if name else serial)
+    if len(serials) > 3:
+        names.append(f'+{len(serials) - 3} máy')
+    site = session.get(CustomerSite, t.site_id) if t.site_id else None
+    tech_id = t.repaired_by or t.assignee_id
+    tech = session.get(User, tech_id) if tech_id else None
+    today = (now or datetime.now(TZ)).astimezone(TZ).date()
+    created = t.created_at.astimezone(TZ).date() if t.created_at else today
+    first = group[0]
+    return dict(ticket_id=first.id, number=first.number, date=created.strftime('%d/%m/%Y'), days=(today - created).days,
+                kind=t.kind or '', kind_label=KIND_LABELS.get(t.kind or '', 'Chưa rõ'),
+                # Địa điểm chỉ dùng một lần (đã ẩn) thì không điền lại, chỉ ghi "Địa điểm khác".
+                site_id=None if site is not None and not site.active else str(t.site_id or ''),
+                site=('Địa điểm khác (dùng một lần)' if not site.active else site.name) if site is not None else 'Địa chỉ chính',
+                serials=serials, machine=', '.join(names), technician_id=str(tech.id) if tech is not None and tech.active else '',
+                technician=tech.full_name if tech is not None else '',
+                fault=(t.symptom or '').strip()[:160], fix=(t.fix_done or '').strip()[:160])

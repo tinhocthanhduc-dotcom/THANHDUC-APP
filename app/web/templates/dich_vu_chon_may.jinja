@@ -1,5 +1,6 @@
 {# TUẤN duyệt mẫu Nhận đơn mới 14/11/2026: địa điểm là nút bấm + "Địa điểm khác" nhập tay; tick nhiều máy (mỗi máy một phiếu); nhiều máy mới; lỗi riêng từng máy. #}
 {% if repeat is defined %}{% include 'dich_vu_lap_lai.jinja' %}{% endif %}
+{% if last_service is defined %}{% include 'dich_vu_lan_truoc.jinja' %}{% endif %}
 {% if open_tickets is defined and open_tickets %}<div class="svn-open" data-sv-open role="note"><b>Khách đang có {{ open_tickets|length }} phiếu chưa xong:</b>
 {% for t in open_tickets %}<a href="/dich-vu/{{ t.id }}" target="_blank" rel="noopener">{{ t.number }}{% if t.serial %} · {{ t.serial }}{% endif %} · {{ service_status(t) }}</a>{% if not loop.last %}, {% endif %}{% endfor %}. <span>Kiểm tra để khỏi tạo trùng.</span></div>{% endif %}
 {% if ai_notes is defined %}{% include 'ghi_chu_ai.jinja' %}{% endif %}
@@ -8,11 +9,13 @@
 {% set site_bad = error_code is defined and error_code=='BAD_SITE' %}
 <div class="svn-fld{% if site_bad %} svn-bad{% endif %}" role="group" aria-labelledby="svn-site-label"><p class="group-label" id="svn-site-label">Địa điểm làm việc</p>
 <div class="seg stock-seg svn-sites" data-sv-sites>
-<label><input type="radio" name="site_id" value="" data-address="{{ main_address }}" {% if not site_value %}checked{% endif %}><span>Địa chỉ chính</span></label>
-{% for site in sites %}<label><input type="radio" name="site_id" value="{{ site.id }}" data-address="{{ site.address }}" {% if site_value == site.id|string %}checked{% endif %}><span>{{ site.name }}</span></label>{% endfor %}
+{% set main_phone_v = main_phone if main_phone is defined else '' %}{% set last_site = last_service.site_id if last_service is defined and last_service else none %}<label><input type="radio" name="site_id" value="" data-address="{{ main_address }}" {% if not site_value %}checked{% endif %} data-label="Địa chỉ chính" data-contact="" data-phone="{{ main_phone_v }}"><span>Địa chỉ chính{% if last_site == '' %} <small class="svn-chip">lần trước</small>{% endif %}</span></label>
+{% for site in sites %}<label><input type="radio" name="site_id" value="{{ site.id }}" data-address="{{ site.address }}" {% if site_value == site.id|string %}checked{% endif %} data-label="{{ site.name }}" data-contact="{{ site.contact_name }}" data-phone="{{ site.contact_phone }}"><span>{{ site.name }}{% if last_site == site.id|string %} <small class="svn-chip">lần trước</small>{% endif %}</span></label>{% endfor %}
 <label class="svn-site-new"><input type="radio" name="site_id" value="NEW" data-address="" {% if site_value == 'NEW' %}checked{% endif %}><span>+ Địa điểm khác</span></label>
 </div></div>
 <p class="svn-note" data-sv-site-address>{% for site in sites if site_value == site.id|string %}{{ site.address }}{% else %}{{ main_address if site_value != 'NEW' else '' }}{% endfor %}</p>
+{% set cur_site = (sites|selectattr('id','equalto',site_value|int)|first) if site_value and site_value != 'NEW' else none %}{% set c_name = cur_site.contact_name if cur_site else '' %}{% set c_phone = cur_site.contact_phone if cur_site else (main_phone_v if site_value != 'NEW' else '') %}
+<p class="svn-contact" data-sv-site-contact {% if not (c_name or c_phone) %}hidden{% endif %}><b>Liên hệ: <span data-sv-contact-text>{{ c_name }}{% if c_name and c_phone %} · {% endif %}{{ c_phone }}</span></b>{% if c_phone %} · {% endif %}<a href="tel:{{ c_phone }}" data-sv-contact-call {% if not c_phone %}hidden{% endif %}>Gọi</a></p>
 <fieldset class="svn-newsite" data-sv-newsite {% if site_value != 'NEW' %}hidden disabled{% endif %}>
 <label class="svn-fld"><span>Địa chỉ nơi thợ đến <i class="svn-req-mark">*</i></span><input name="site_address" value="{{ d.get('site_address','') }}" maxlength="2000" required autocomplete="off" placeholder="Ví dụ: Chi nhánh Q7 · 45 Nguyễn Thị Thập, P. Tân Phú" {% if site_bad and site_value=='NEW' %}aria-invalid="true"{% endif %}></label>
 <div class="svn-newsite-row">
@@ -30,10 +33,10 @@
 <p class="group-label" id="svn-machine-label">Máy của khách <small data-machine-required-label>{{ '(bắt buộc, chọn ít nhất 1 máy)' if d.get('kind')=='MANG_VE' else '(không bắt buộc)' }}</small> <small>· tick được nhiều máy, mỗi máy một phiếu</small></p>
 {% if machines|length > 6 %}<input type="search" class="svn-mfilter" placeholder="Lọc theo tên hoặc serial" autocomplete="off" data-sv-mfilter aria-label="Lọc máy">{% endif %}
 <div class="svn-machines" data-sv-machines>
-{% for machine, product_name in machines %}{% set m = info.get(machine.serial, {}) %}{% set on = machine.serial in picks %}{% set off = m.get('busy') and not on %}
+{% for machine, product_name in machines %}{% set m = info.get(machine.serial, {}) %}{% set on = machine.serial in picks %}{% set was_last = last_service is defined and last_service and machine.serial in last_service.serials %}{% set off = m.get('busy') and not on %}
 <label class="svn-m{% if on %} is-on{% endif %}{% if off %} is-off{% endif %}" data-sv-m data-text="{{ (machine.serial ~ ' ' ~ (product_name or ''))|lower }}">
 <input type="checkbox" name="pick" value="{{ machine.serial }}" {% if on %}checked{% endif %} {% if off %}disabled{% endif %} data-sv-pick data-label="{{ product_name or machine.serial }}">
-<span class="svn-m-body"><span><b>{{ product_name or 'Máy' }}</b>{% if m.get('warranty') == true %} <span class="svn-chip ok">Còn BH đến {{ machine.warranty_until.strftime('%d/%m/%Y') }}</span>{% elif m.get('warranty') == false %} <span class="svn-chip">Hết BH</span>{% endif %}{% if off %} <span class="svn-chip warn">{{ 'Đang giữ theo' if m.get('held') else 'Đang ở' }} {{ m.busy }}</span>{% endif %}
+<span class="svn-m-body"><span><b>{{ product_name or 'Máy' }}</b>{% if was_last %} <span class="svn-chip info">Lần trước</span>{% endif %}{% if m.get('warranty') == true %} <span class="svn-chip ok">Còn BH đến {{ machine.warranty_until.strftime('%d/%m/%Y') }}</span>{% elif m.get('warranty') == false %} <span class="svn-chip">Hết BH</span>{% endif %}{% if off %} <span class="svn-chip warn">{{ 'Đang giữ theo' if m.get('held') else 'Đang ở' }} {{ m.busy }}</span>{% endif %}
 <br><small>{{ machine.serial }}{% if m.get('last') %} · sửa lần cuối {{ m.last.strftime('%d/%m/%Y') }}{% endif %}</small>{% set mn = machine_notes.get(machine.serial) if machine_notes is defined else none %}{% if mn %}<span class="gcai-m" data-ghi-chu-may>{% for n in mn %}<span class="{{ 'gcai-warn' if n.warn }}">{{ n.icon }} {{ n.text }}{% if n.link %} {{ n.link }}{% endif %}</span>{% endfor %}</span>{% endif %}</span>
 <input class="svn-own" name="own_{{ machine.serial }}" value="{{ own.get(machine.serial, '') }}" maxlength="500" autocomplete="off" placeholder="Lỗi riêng máy này (nếu có)" {% if not on %}hidden disabled{% endif %} data-sv-own></span>
 </label>{% endfor %}
