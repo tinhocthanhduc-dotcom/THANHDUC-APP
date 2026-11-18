@@ -393,22 +393,55 @@ def _counter_after_save(request,session,user,order,form):
     return RedirectResponse(f'/don-ban/{order.id}?da_luu=1',status_code=303)
 
 
+def _last_terms(session,customer):
+    # Đợt 5 (TUẤN duyệt 18/11/2026): giao nhận + thanh toán như đơn trước của khách. Đặt cọc cần số tiền riêng nên không chép.
+    last=session.scalars(select(SalesOrder).where(SalesOrder.customer_code==customer.code,SalesOrder.status!='DA_HUY')
+                         .order_by(SalesOrder.created_at.desc(),SalesOrder.id.desc()).limit(1)).first() if customer else None
+    if last is None:
+        return None
+    pay=last.payment_term if last.payment_term in ('TRA_NGAY','CONG_NO') else 'TRA_NGAY'
+    return dict(number=last.number,date=last.created_at.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).strftime('%d/%m') if last.created_at else '',
+                fulfillment=last.fulfillment,payment_term=pay,due_days=str(customer.due_days if pay=='CONG_NO' else 30))
+
+
+def _auto_warehouses(quote,stock_by_line,active):
+    # Kho tự chọn: ưu tiên một kho đủ hàng cho mọi dòng; không có thì mỗi dòng lấy kho đầu tiên đủ hàng; không kho nào đủ thì để trống.
+    need={l.line_no:float(l.qty) for l in quote.lines if l.product_code}
+    if not need:
+        return {}
+    for wh in active:
+        if all(stock_by_line[n].get(wh,0)>=q for n,q in need.items()):
+            return {n:wh for n in need}
+    out={}
+    for n,q in need.items():
+        wh=next((w for w in active if stock_by_line[n].get(w,0)>=q),None)
+        if wh:out[n]=wh
+    return out
+
+
 def _quote_form(request,session,quote,data=None,error=None,code='',status=200):
     customer=session.get(Customer,quote.customer_code)
-    data=data if data is not None else dict(version=quote.version,contact_name=quote.contact_name,
-        delivery_address=customer.address,note=quote.note,promised_date='',warehouses={},
-        fulfillment='TAI_QUAY',payment_term='TRA_NGAY',due_days='30',deposit_amount='',
-        lead_source=quote.lead_source or '',campaign_code=quote.campaign_code or '',lead_ref=quote.lead_ref or '',web_order_ref='')
     warehouses=_warehouses(session)
     codes={l.product_code for l in quote.lines if l.product_code}
     active=[w.code for w in warehouses if w.active]
     stock=stock_reservations.quantities(session,[(w,c) for w in active for c in codes])
     # Tồn khả dụng từng kho cho mỗi dòng hàng, để chọn kho ngay trên trang.
     stock_by_line={l.line_no:{w:float(stock.get((w,l.product_code),{}).get('available',0)) for w in active} for l in quote.lines if l.product_code}
+    prefill=None
+    if data is None:
+        terms=_last_terms(session,customer)
+        auto=_auto_warehouses(quote,stock_by_line,active)
+        prefill=dict(terms=terms,auto=auto)
+        data=dict(version=quote.version,contact_name=quote.contact_name,
+            delivery_address=customer.address,note=quote.note,promised_date=svc._today().isoformat(),warehouses=dict(auto),
+            fulfillment=terms['fulfillment'] if terms else 'TAI_QUAY',payment_term=terms['payment_term'] if terms else 'TRA_NGAY',
+            due_days=terms['due_days'] if terms else str(customer.due_days if customer else 30),deposit_amount='',
+            lead_source=quote.lead_source or '',campaign_code=quote.campaign_code or '',lead_ref=quote.lead_ref or '',web_order_ref='')
     card=picked.customer_cards(session,request.state.user,[customer]).get(customer.code) if customer else None
     return render(request,'don_ban_tu_bao_gia.jinja',q=quote,d=data,customer=customer,customer_card=card,quantity=_quantity,credit_warning=svc.credit_warning(session,customer,quote.total),
                   liquidation_warehouses=pending_liquidation.choices(session,list(codes)),warehouses=warehouses,linked=_active_order(session,quote.id),
                   stock_by_line=stock_by_line,goods_count=len(codes),fulfillments=FULFILLMENTS,payments=PAYMENTS,is_director=has_role(request.state.user,'director'),
+                  prefill=prefill,just_accepted=request.query_params.get('dong_y')=='1',
                   error=error,error_code=code,status=status)
 
 

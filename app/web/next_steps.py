@@ -33,7 +33,8 @@ def quote(user, q, linked):
     if q is None:return block(dict(form('Lưu và gửi', 'quote-edit', '/bao-gia/moi'), then='send'))
     base=f'/bao-gia/{q.id}'
     if q.status=='NHAP':return block(dict(form('Lưu và gửi', 'quote-edit', base), then='send'))
-    if q.status=='DA_GUI':return block(form('Khách đồng ý', 'quote-accept', base+'/accept'),[form('Khách từ chối','quote-reject',base+'/reject'),form('Tạo bản sửa','quote-revise',base+'/revise')])
+    # Đợt 5 (TUẤN duyệt 18/11/2026): một chạm ghi khách đồng ý và mở trang tạo đơn điền sẵn; "Chỉ ghi khách đồng ý" + "Tạo bản sửa" ở Việc khác.
+    if q.status=='DA_GUI':return block(dict(form('Khách đồng ý → tạo đơn', 'quote-accept', base+'/accept'), then='order'),[form('Khách từ chối','quote-reject',base+'/reject')])
     if q.status=='CHAP_NHAN':
         return block(link('Xem đơn bán '+linked.number if linked else 'Tạo đơn bán',
             f'/don-ban/{linked.id}' if linked else f'/don-ban/tu-bao-gia/{q.id}'))

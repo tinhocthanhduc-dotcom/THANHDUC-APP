@@ -282,6 +282,9 @@ def action(request: Request,quote_id: int,action: str,form=Depends(checked_form)
     except BusinessError as exc:
         return _form(request,session,quote=svc.load(session,user,quote_id),error=exc.message,code=exc.code,
                      status=exc.status,action_form=dict(form),action=action)
+    if action=='accept' and form.get('then')=='order' and has_role(user,'sales'):
+        # Đợt 5: khách đồng ý → mở ngay trang tạo đơn đã điền sẵn (chưa tạo gì, người bán vẫn bấm Tạo đơn và chốt).
+        return RedirectResponse(f'/don-ban/tu-bao-gia/{quote.id}?dong_y=1',status_code=303)
     return RedirectResponse(f'/bao-gia/{quote.id}?da_luu=1',status_code=303)
 
 
