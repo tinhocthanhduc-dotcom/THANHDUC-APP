@@ -5394,3 +5394,19 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .wk-step-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0}
 .wk-step-h b{font-size:1.02rem}.wk-step-h small{color:var(--muted)}
 .work-kho .ap-openbtn{min-height:36px;padding:6px 14px;font-size:.9rem;text-decoration:none}
+/* Đợt 7 tối ưu thao tác (TUẤN duyệt mẫu 18/11/2026): Tổng quan gọn — Việc cần anh + khối gập. */
+.tq-need{padding:0;overflow:hidden;margin:12px 0}
+.tq-need-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:12px 14px;background:var(--surface-2,#f8f9fb)}
+.tq-need-on .tq-need-h{background:var(--bad-bg)}
+.tq-need-h h2{margin:0;font-size:1.05rem;flex:1}.tq-need-h small{color:var(--muted)}
+.tq-n{color:var(--bad)}
+.tq-row{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.tq-num{min-width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;background:var(--surface-2,#eef0f4)}
+.tq-num.tq-red{background:var(--bad-bg);color:var(--bad)}
+.tq-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}.tq-main small{color:var(--muted)}
+.tq-row .btn{min-height:40px;white-space:nowrap}
+.tq-calm{margin:0;padding:12px 14px;border-top:1px solid var(--line);color:var(--ok);font-weight:600}
+.tq-below{margin-top:16px}
+.tq-below .hint{text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px}
+.overview-page .lv-fold{margin:0 0 8px}
+@media (max-width:640px){.tq-need-h small{flex-basis:100%}.tq-row{gap:10px;padding:10px 12px}}
