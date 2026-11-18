@@ -201,6 +201,34 @@ def next_for(session, user, limit=3, now=None) -> list[dict]:
                  mine=t.item_key == GD_NHAC) for t in tasks]
 
 
+def note_for(session, user, now=None) -> dict | None:
+    """Ô AI nhắc ở Việc của tôi (TUẤN duyệt 18/11/2026): gộp việc trễ theo loại, không trễ thì ghi việc gần hạn nhất."""
+    if active(session) is None:
+        return None
+    now = now or _now()
+    tasks = sorted((t for t in open_tasks(session, user.id) if t.item_key not in NO_DUE), key=lambda t: _rank(t, now))
+    if not tasks:
+        return None
+    first = tasks[0]
+    late = [t for t in tasks if t.due_at is not None and t.due_at < now]
+    if not late:
+        return dict(late=False, label='Mở ›', link=first.link, parts=[], head='Không có việc trễ.',
+                    tail=f'Gần hạn nhất: {first.number} {first.title}, {when(first, now).lower()}.')
+    kinds: dict[str, list] = {}
+    for t in late:
+        kinds.setdefault(t.title.split(' · ')[0], []).append(t)
+    spans = {when(t, now) for t in late}
+    head = f'{len(late)} việc {spans.pop().lower()}' if len(spans) == 1 else f'{len(late)} việc trễ, lâu nhất {when(min(late, key=lambda t: t.due_at), now).lower()[4:]}'
+    parts = []
+    for kind, rows in list(kinds.items())[:3]:
+        nums = ', '.join(str(t.number) for t in rows[:3] if t.number) + (' …' if len(rows) > 3 else '')
+        name = kind[:1].lower() + kind[1:]
+        parts.append(f'{len(rows)} {name}' + (f' ({nums})' if nums else ''))
+    if len(kinds) > 3:
+        parts.append(f'và {len(kinds) - 3} loại khác')
+    return dict(late=True, label='Mở việc trễ nhất ›', link=first.link, head=head, parts=parts, tail='')
+
+
 def when(t: TeamTask, now) -> str:
     if t.due_at is None:
         return 'Không có hạn'

@@ -94,6 +94,25 @@ def test_next_for_orders_late_first(db, team, monkeypatch):
     assert tn.next_for(db, team['thanh'], 3, MON) == []
 
 
+def test_o_ai_nhac_gop_viec_tre_theo_loai(db, team, monkeypatch):
+    """TUẤN duyệt 18/11/2026: ô AI nhắc thay khung Làm tiếp theo thứ tự."""
+    fake_work(monkeypatch, {'dai.thanh': [('orders_draft', 'Đơn nháp chưa chốt', [row(1), row(2)]),
+                                          ('orders_waiting', 'Đơn chờ giao', [row(3)])]})
+    tn.sync(db, MON)
+    note = tn.note_for(db, team['thanh'], MON)
+    assert note['late'] is False and note['head'] == 'Không có việc trễ.' and 'Gần hạn nhất: X-' in note['tail']
+    for ref in (1, 2):
+        task(db, 'orders_draft', ref).due_at = MON - timedelta(days=1, hours=1)
+    task(db, 'orders_waiting', 3).due_at = MON - timedelta(days=1, hours=2)
+    db.commit()
+    note = tn.note_for(db, team['thanh'], MON)
+    assert note['late'] and note['head'] == '3 việc trễ 1 ngày' and note['label'] == 'Mở việc trễ nhất ›'
+    assert note['parts'] == ['1 đơn chờ giao (X-3)', '2 đơn nháp chưa chốt (X-1, X-2)'] and note['link'] == '/x/3'
+    nva.rows(db)['TRUONG_NHOM'].enabled = False
+    db.commit()
+    assert tn.note_for(db, team['thanh'], MON) is None
+
+
 @pytest.fixture
 def zalo_on(monkeypatch):
     settings = nva.get_settings().model_copy(update=dict(zalo_bot_token='token', dispatch_zalo=True))
@@ -211,7 +230,7 @@ def test_pages(db, team, client, monkeypatch):
     service_login(client, team['thanh'])
     assert client.get('/doi-ai').status_code == 403
     page = client.get('/viec-cua-toi').text
-    assert 'Làm tiếp theo thứ tự' in page and 'X-1' in page
+    assert 'Làm tiếp theo thứ tự' not in page and 'aria-label="AI nhắc việc"' in page and 'X-1' in page
     service_login(client, team['director'])
     page = client.get('/doi-ai').text
     assert 'Trưởng nhóm AI' in page and 'Dai.Thanh' in page and 'X-1' in page and 'Đội AI vừa làm' in page
