@@ -14,5 +14,7 @@ def test_office_ticket_summary_current_step_and_folds(client, db, people):
     # Nút chính của thợ vẫn có, nhưng nằm trong "Làm thay thợ"; việc phụ gập trong "Việc khác".
     assert page.index('data-act-for-tech') < page.index('data-next-primary') and 'data-more-actions' in page
     assert 'id="svc-money"' in page and 'Tiền và vật tư · chưa lưu' in page
+    # 18/11: nút Lưu tiền phải thấy ngay trong khung tiền, không chỉ nằm trong "Làm thay thợ".
+    assert page.index('id="svc-money"') < page.index('data-charge-save')
     page = client.get(f'/dich-vu/{new.id}').text
     assert 'data-svc-now' not in page and 'data-act-for-tech' not in page and 'id="service-assign"' in page
