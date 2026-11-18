@@ -200,7 +200,7 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .charge-line .seg span { padding: 6px 8px; min-height: 40px; }
 .charge-line .charge-vat .seg label { min-width: 48px; flex: 0 1 auto; }
 .charge-line .charge-extra { display: grid; gap: 6px; }
-.charge-line .charge-extra fieldset { margin: 0; }
+.charge-line .charge-extra fieldset { margin: 0; min-width: 0; }
 .charge-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .charge-kind { font-size: .75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: var(--tag); color: var(--muted); justify-self: start; align-self: start; }
 .charge-kind.vt { background: var(--warn-bg); color: var(--warn); }
@@ -249,7 +249,10 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .charge-line .charge-vat .seg label { min-width: 46px; }
   .charge-line .charge-vat .seg span { white-space: nowrap; padding: 6px 4px; }
   .charge-line .charge-row-total { grid-area: total; flex-direction: column; align-items: flex-end; text-align: right; }
-  .charge-line .charge-extra { grid-area: extra; grid-template-columns: auto minmax(0, 1fr); align-items: end; }
+  /* TUẤN 18/11/2026: nhiều kho thì hàng nút kho chiếm hết bề ngang, ô ghi chú bị ép thành cột chữ dọc.
+     Kho xuất một hàng, Ghi chú một hàng dưới; chỉ khi một kho (chữ ngắn) mới đặt cạnh nhau. */
+  .charge-line .charge-extra { grid-area: extra; grid-template-columns: minmax(0, 1fr); align-items: end; }
+  .charge-line .charge-extra:has(> .charge-wh-one) { grid-template-columns: auto minmax(0, 1fr); }
   .charge-line .charge-core { grid-area: core; }
 }
 @container (min-width: 560px) {

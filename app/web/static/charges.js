@@ -107,6 +107,9 @@
       warning.scrollIntoView({block:'center'});
     });
   });
+  // TUẤN 18/11/2026: thêm/sửa vật tư chỉ lưu khi bấm Lưu tiền; rời trang lúc chưa lưu thì trình duyệt hỏi lại.
+  var saving = false; form.addEventListener('submit', function() { saving = true; });
+  window.addEventListener('beforeunload', function(event) { if (dirty && !saving) { event.preventDefault(); event.returnValue = ''; } });
   preview(); completionChecks();
   // Chưa có thay đổi thì nút Lưu tiền trong khung tổng xám (bấm cũng không đổi gì).
   var saveButton = form.querySelector('[data-charge-save]'); if (saveButton && !dirty) saveButton.disabled = true;
