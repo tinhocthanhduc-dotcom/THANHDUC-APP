@@ -66,24 +66,22 @@
 .wa-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
 .wa-row .wn-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
 .wa-row small{color:var(--muted)}
-.wa-row small.late{color:var(--bad);font-weight:600}
-</style>{% endif %}
-{% if next_up %}<section class="card work-next" aria-label="Làm tiếp theo thứ tự">
-{# Đội AI đợt 1 (TUẤN duyệt 15/11/2026): Trưởng nhóm AI xếp 3 việc nên làm tiếp. #}
-<p class="wn-h"><b>Làm tiếp theo thứ tự</b><small>Trưởng nhóm AI xếp theo hạn và độ gấp</small></p>
-<ol class="wn-list">{% for n in next_up %}<li><a class="wn-item{% if n.late %} wn-late{% endif %}" href="{{ n.link }}"><span class="wn-rank">{{ loop.index }}</span>
-<span class="wn-main"><b>{{ n.number }}</b> <span>{{ n.title }}</span><small>{{ n.when }}</small></span><span class="work-go">Mở ›</span></a></li>{% endfor %}</ol>
-</section>
-<style>
-.work-next{display:grid;gap:8px;margin-bottom:12px}
 .wn-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0}
 .wn-h small{color:var(--muted)}
-.wn-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-.wn-item{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;color:inherit;text-decoration:none}
-.wn-rank{font-weight:700;color:var(--a);font-size:1.1rem;text-align:center}
-.wn-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
-.wn-main small{color:var(--muted)}
-.wn-late .wn-main small{color:var(--bad);font-weight:600}
+.wa-row small.late{color:var(--bad);font-weight:600}
+</style>{% endif %}
+{% if ai_note %}<section class="work-ai{% if ai_note.late %} work-ai-late{% endif %}" aria-label="AI nhắc việc">
+{# TUẤN duyệt 18/11/2026: bỏ khung "Làm tiếp theo thứ tự", thay bằng một ô AI nhắc/ghi chú từ Trưởng nhóm AI. #}
+<p class="wai-text"><span>{% if ai_note.late %}<b>AI nhắc</b> · <span class="wai-red">{{ ai_note.head }}</span>{% if ai_note.parts %}: {{ ai_note.parts|join(', ') }}.{% endif %}{% else %}<b>AI ghi chú</b> · {{ ai_note.head }} {{ ai_note.tail }}{% endif %}</span></p>
+<a class="btn btn-ghost wai-go" href="{{ ai_note.link }}">{{ ai_note.label }}</a>
+</section>
+<style>
+.work-ai{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--a);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.work-ai-late{border-left-color:var(--bad)}
+.wai-text{flex:1;min-width:0;margin:0;line-height:1.45;overflow-wrap:anywhere}
+.wai-red{color:var(--bad);font-weight:600}
+.wai-go{white-space:nowrap}
+@media (max-width:640px){.work-ai{flex-direction:column;align-items:stretch}.wai-go{text-align:center}}
 </style>{% endif %}
 {% if selected_group %}
 {% for group in groups %}<section class="card work-area work-one" data-work-group="{{ group.key }}">
