@@ -5381,3 +5381,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .svn-last.is-used .svn-last-card { display: none; }
 .svn-contact { margin: 2px 0 8px; font-size: .92rem; }
 @media (max-width: 640px) { .svn-last-grid { grid-template-columns: 1fr; } .svn-last-card .btn { justify-self: stretch; } }
+/* Đợt 5 (TUẤN duyệt 18/11/2026): tạo đơn từ báo giá điền sẵn. */
+.oq-prefill { margin-bottom: 12px; }
+.oq-prev { display: inline-block; margin-left: 6px; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--info-bg, #e8f0fd); color: var(--accent, #1f5fbf); text-transform: none; letter-spacing: 0; vertical-align: middle; }
+.oq-auto { display: inline-block; margin-top: 4px; font-size: .75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #e7f6ec; color: #166534; }
+.doc-more-acts { display: grid; gap: 8px; margin-bottom: 10px; }
