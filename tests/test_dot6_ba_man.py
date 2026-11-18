@@ -85,7 +85,13 @@ def test_out_of_stock_rows_stay_in_day_band_not_urgent(client, db, people):
     service_login(client, p['warehouse'])
     page = client.get('/viec-cua-toi').text
     assert 'class="card work-now"' not in page or 'TD-0001' not in page[page.index('class="card work-now"'):page.index('</section>', page.index('class="card work-now"'))]
-    # TUẤN 2026-10-27: gập thành một dòng "Mua hàng · làm sau" như phần tiền.
+    # Đợt 6 tối ưu thao tác (TUẤN duyệt mẫu 18/11/2026): thủ kho thấy hàng dưới mức ở "4. Còn lại" của Việc kho trong ngày.
+    kho = page[page.index('id="viec-kho"'):]
+    kho = kho[kho.index('4. Còn lại'):]
+    assert 'data-work-group="stock_low"' in kho and 'TD-0001' in kho and 'ở khung Làm ngay' not in kho.split('</section>')[0]
+    # TUẤN 2026-10-27: người không giữ vai trò kho vẫn thấy dòng gập "Mua hàng · làm sau" như phần tiền.
+    service_login(client, p['director'])
+    page = client.get('/viec-cua-toi').text
     buy = page[page.index('class="card work-cash work-buy" id="mua-hang">'):]
     assert 'data-work-group="stock_low"' in buy and 'TD-0001' in buy and 'Hết hàng' in buy and 'ở khung Làm ngay' not in buy
     assert 'Hàng dưới mức tối thiểu · 1' in buy.split('</summary>')[0]

@@ -204,3 +204,21 @@ def work_decide(request: Request, kind: str, ident: int, action: str, form=Depen
     if _inline(request):
         return JSONResponse(dict(ok=True))
     return RedirectResponse('/viec-cua-toi?xong=tai-dong', status_code=303)
+
+
+@router.post('/viec-cua-toi/kho/{kind}/{ident}')
+def work_kho(request: Request, kind: str, ident: int, form=Depends(checked_form),
+             user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Đợt 6 tối ưu thao tác (TUẤN duyệt mẫu 18/11/2026): Giao đủ / Nhận đủ tại dòng Việc của tôi.
+    Cùng hàm nghiệp vụ trang gốc; tồn kho, giữ hàng, quyền, phiên bản kiểm ở đó."""
+    from .. import kho_inline
+    from ..errors import BusinessError
+    try:
+        kho_inline.run(session, user, kind, ident, form.get('version'))
+    except BusinessError as exc:
+        if _inline(request):
+            return JSONResponse(dict(ok=False, message=exc.message, code=exc.code), status_code=exc.status)
+        raise
+    if _inline(request):
+        return JSONResponse(dict(ok=True))
+    return RedirectResponse('/viec-cua-toi?xong=tai-dong', status_code=303)

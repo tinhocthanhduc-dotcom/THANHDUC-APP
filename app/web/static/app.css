@@ -5386,3 +5386,11 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .oq-prev { display: inline-block; margin-left: 6px; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--info-bg, #e8f0fd); color: var(--accent, #1f5fbf); text-transform: none; letter-spacing: 0; vertical-align: middle; }
 .oq-auto { display: inline-block; margin-top: 4px; font-size: .75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #e7f6ec; color: #166534; }
 .doc-more-acts { display: grid; gap: 8px; margin-bottom: 10px; }
+/* Đợt 6 tối ưu thao tác (TUẤN duyệt mẫu 18/11/2026): Việc kho trong ngày. */
+.chip-warn{display:inline-block;width:fit-content;font-size:.78rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}
+.work-kho-day{display:grid;gap:10px}
+.wk-step{display:grid;gap:8px;padding-top:6px;border-top:1px solid var(--line)}
+.wk-step:first-of-type{border-top:0}
+.wk-step-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0}
+.wk-step-h b{font-size:1.02rem}.wk-step-h small{color:var(--muted)}
+.work-kho .ap-openbtn{min-height:36px;padding:6px 14px;font-size:.9rem;text-decoration:none}

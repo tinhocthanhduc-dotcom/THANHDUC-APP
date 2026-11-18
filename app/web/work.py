@@ -70,7 +70,13 @@ WHY = dict(zalo_inbox='Khách nhắn Zalo', service_appointment_overdue='Hẹn n
 # nhóm nằm cuối khung Trong ngày.
 CALM = ('stock_low', 'purchases_waiting', 'pending_supplier_returns')
 AREA_NAMES = {code: name for code, name, _ in AREAS}
-BANDS = ('now', 'day', 'money')
+BANDS = ('now', 'day', 'money', 'kho')
+# Đợt 6 tối ưu thao tác (TUẤN duyệt mẫu 18/11/2026): thủ kho thấy việc kho xếp theo thứ tự làm trong ngày.
+KHO_STEPS = (('1. Giao hàng', 'Đơn đã chốt, hẹn sớm nhất trước', ('orders_pickup_late', 'orders_waiting', 'delivery_handover')),
+    ('2. Cấp linh kiện', 'Thợ đang chờ', ('parts_pending', 'service_goods_short')),
+    ('3. Nhận hàng', 'Hàng về, máy về, thợ trả, thành phẩm', ('purchases_waiting', 'machines_warehouse', 'technician_returns', 'production_receive')),
+    ('4. Còn lại', 'Không gấp', ('stock_low', 'service_ws_check', 'service_ws_close')))
+KHO_KEYS = {k for _, _, keys in KHO_STEPS for k in keys}
 SHOWN = 5
 NOW_SHOWN = 15
 
@@ -112,6 +118,13 @@ def page(request: Request, user, session):
     busy = [g for g in groups if g['count']]
     total = sum(g['count'] for g in busy)
     shown = [g for g in busy if not area_key or _area(user, g['key']) == area_key]
+    kho = []
+    if 'warehouse' in user.roles:
+        by_key = {g['key']: g for g in shown}
+        kho = [dict(title=t, sub=sub, groups=[by_key[k] for k in keys if k in by_key]) for t, sub, keys in KHO_STEPS]
+        kho = [step for step in kho if step['groups']]
+        shown = [g for g in shown if g['key'] not in KHO_KEYS]
+    kho_n = sum(g['count'] for step in kho for g in step['groups'])
     clock = my_work._now()
     hot = []
     for g in shown:
@@ -132,12 +145,12 @@ def page(request: Request, user, session):
     buy = [g for g in shown if g['key'] in CALM and g['count']]
     money = [g for g in shown if _band(g['key']) == 'money' and g['count'] > late_left(g)]
     counts = dict(now=sum(g['count'] for g in shown if g['key'] in URGENT) + sum(late_left(g) for g in shown if g['key'] not in URGENT),
-        day=sum(g['count'] - late_left(g) for g in day), buy=sum(g['count'] for g in buy), money=sum(g['count'] - late_left(g) for g in money))
+        day=sum(g['count'] - late_left(g) for g in day), buy=sum(g['count'] for g in buy), money=sum(g['count'] - late_left(g) for g in money), kho=kho_n)
     link = lambda xem, khu: '/viec-cua-toi' + ('?' + urlencode({k: v for k, v in (('xem', xem), ('khu', khu)) if v}) if xem or khu else '')
     tiles = [dict(label=label, n=counts[band], sub=sub, href=link('' if view == band else band, area_key),
         on=view == band, tone='hot' if band == 'now' and counts['now'] else band)
         for band, label, sub in (('now', 'Làm ngay', 'Quá hạn, có hẹn, khách chờ'), ('day', 'Trong ngày', 'Cần làm, chưa trễ'),
-            ('money', 'Tiền · làm sau', 'Báo thu, xác nhận, trả NCC'))]
+            ('money', 'Tiền · làm sau', 'Báo thu, xác nhận, trả NCC')) + ((('kho', 'Việc kho', 'Giao, cấp, nhận hàng'),) if kho else ())]
     chips = [dict(label='Tất cả', href=link(view, ''), on=not area_key, key='')] + [
         dict(label=name, href=link(view, code), on=area_key == code, key=code)
         for code, name, _ in AREAS if code in known]
@@ -150,7 +163,7 @@ def page(request: Request, user, session):
     next_up = [] if key else truong_nhom.next_for(session, user, 3)
     asked = [] if key else sorted((t for t in truong_nhom.open_tasks(session, user.id) if t.item_key == truong_nhom.GD_NHAC),
                                   key=lambda t: (t.due_at is None, t.due_at, t.id))
-    return render(request, 'viec_cua_toi.jinja', next_up=next_up, asked=asked, when=truong_nhom.when, now_at=truong_nhom._now(), groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
+    return render(request, 'viec_cua_toi.jinja', kho=kho, next_up=next_up, asked=asked, when=truong_nhom.when, now_at=truong_nhom._now(), groups=groups, hot=shown_hot, now_more=now_more, day=day, buy=buy, money=money, counts=counts, view=view,
         chips=chips, money_open=money_open, calm=CALM, tiles=tiles, area_key=area_key, total=total, labels=LABELS, verbs=VERBS, icons=icons, hints=HINTS, shortcuts=shortcuts,
         advance_pending=payroll.pending_count(session,user),attendance_pending=attendance.pending_count(session,user) if has_role(user,'director','finance') else 0,disposal_pending=_disposal_pending(session,user),pending_notices=alerts.pending_notices(session,user),selected_group=key, page=number,
         watch=None if key else dict(url='/viec-cua-toi/moi', stamp=work_watch.my_queue(session, user, groups)), notice=NOTICES.get(request.query_params.get('xong', ''), ''))
