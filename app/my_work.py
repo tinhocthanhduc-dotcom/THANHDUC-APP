@@ -262,7 +262,9 @@ def _specs(user, today, now, session=None):
         waiting = docs(SalesOrder, Customer.name).join(Customer, Customer.code==SalesOrder.customer_code).where(SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')))
         if not director and not has_role(user, 'warehouse'):waiting=waiting.where(SalesOrder.created_by==user.id)
         if kho:waiting=waiting.where(or_(SalesOrder.created_by==user.id,in_kho))
-        add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id), 'warehouse_order' if has_role(user,'warehouse') else 'order', '/don-ban')
+        # Đợt 6: thủ kho thấy đơn hẹn sớm nhất trước.
+        waiting = waiting.order_by(SalesOrder.promised_date.asc().nulls_last(), SalesOrder.confirmed_at, SalesOrder.id) if has_role(user, 'warehouse') else waiting.order_by(SalesOrder.confirmed_at, SalesOrder.id)
+        add('orders_waiting', 'Đơn đã chốt · chờ giao hàng', waiting, 'warehouse_order' if has_role(user,'warehouse') else 'order', '/don-ban')
         pickups=docs(SalesOrder,Customer.name,overdue=literal(True)).join(Customer,Customer.code==SalesOrder.customer_code).where(
             SalesOrder.fulfillment=='KHACH_LAY_SAU',SalesOrder.status.in_(('DA_CHOT','GIAO_MOT_PHAN')),SalesOrder.promised_date<today)
         if not director and not has_role(user,'warehouse'):pickups=pickups.where(SalesOrder.created_by==user.id)
@@ -365,6 +367,12 @@ def _specs(user, today, now, session=None):
     if 'director' in user.roles and 'finance' not in user.roles:
         for key in DIRECTOR_APPROVALS:
             specs.pop(key, None)
+    if has_role(user, 'warehouse'):
+        # Đợt 6 (TUẤN duyệt mẫu 18/11/2026): việc kho không cần nhập gì thì có nút xanh tại dòng.
+        from . import kho_inline
+        for key in kho_inline.KEYS:
+            if key in specs and (key != 'orders_waiting' or specs[key]['kind'] == 'warehouse_order'):
+                specs[key]['kho_inline'] = True
     return specs
 
 
@@ -434,6 +442,9 @@ def _group(session, spec, page=1):
                 row['overdue']=True;row['stale']=item['label'];row['customer']=f"{row['customer']} · {item['label']}"
     if spec['key'] in INLINE and rows:
         _inline(session, spec['key'], rows)
+    if spec.get('kho_inline') and rows:
+        from . import kho_inline
+        kho_inline.fill(session, spec['key'], rows)
     return dict(key=spec['key'], title=spec['title'], count=count, rows=rows, page_size=page_size,
         link='/viec-cua-toi?'+urlencode({'nhom':spec['key']}), list_link=spec['link'])
 
