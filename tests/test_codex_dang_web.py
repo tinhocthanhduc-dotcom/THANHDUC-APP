@@ -59,7 +59,9 @@ def test_codex_lay_cau_lenh_tra_loi_thanh_ban_xem_truoc(client, db, web_login, m
 
     ds = client.get("/ai/dang-web/viec", headers=hw).json()
     assert [x["id"] for x in ds] == [viec_id] and "TD-0123" in ds[0]["lenh"]
-    assert "sale_price" not in json.dumps(ds) and "355" not in json.dumps(ds).replace(ds[0]["lenh"], "")
+    # id viec chua gio tao (vd 233551) nen bo id + lenh truoc khi do gia 355.
+    con_lai = json.dumps([{k: v for k, v in x.items() if k not in ("id", "lenh")} for x in ds])
+    assert "sale_price" not in json.dumps(ds) and "355" not in con_lai and "355" not in ds[0]["lenh"]
 
     r = client.post(f"/ai/dang-web/viec/{viec_id}/tra-loi", headers=hw, json={"tra_loi": "không có JSON"})
     assert r.status_code == 422 and hd.doc(goc, viec_id)["trang_thai"] == hd.CHO_DAN
