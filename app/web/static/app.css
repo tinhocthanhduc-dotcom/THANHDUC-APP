@@ -3859,6 +3859,11 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .zht-kv dt { color: var(--muted); }
 .zht-kv dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
 .zht-link { font-weight: 600; }
+.zht-ai { display: grid; gap: 6px; padding: 8px 10px; border-radius: 8px; background: var(--tag); }
+.zht-ai-note, .zht-ai-warn { margin: 0; font-size: .9rem; }
+.zht-ai-warn { color: var(--bad); }
+.zht-ai-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.zht-ai-acts form { margin: 0; }
 @media (max-width: 1100px) { .zht-grid.zht-open { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); } .zht-grid.zht-open .zht-side { grid-column: 2; } }
 @media (max-width: 760px) {
   .zht-grid, .zht-grid.zht-open { grid-template-columns: minmax(0, 1fr); }

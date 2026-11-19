@@ -2471,6 +2471,24 @@ class ZaloTriage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ZaloReplyDraft(Base):
+    """0109 AI soạn sẵn câu trả lời trong Tất cả tin Zalo (TUẤN duyệt mẫu 19/11/2026). AI không tự gửi."""
+    __tablename__ = 'zalo_reply_drafts'
+    __table_args__ = (CheckConstraint("status in ('DANG','XONG','LOI','DA_GUI','BO')", name='ck_zalo_reply_drafts_status'),
+                      Index('ix_zalo_reply_drafts_chat', 'chat_pk', 'id'))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat_pk: Mapped[int] = mapped_column(ForeignKey('zalo_chats.id'))
+    job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id'))
+    status: Mapped[str] = mapped_column(String(8), default='DANG', server_default='DANG')
+    facts: Mapped[str] = mapped_column(Text, default='', server_default='')  # số liệu app đưa cho AI (để soát số lạ)
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_message_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_messages.id'))
+
+
 class ApprovalLimit(Base):
     """0091 Hạn mức duyệt: giám đốc giao kế toán duyệt thay trong hạn mức (TUẤN duyệt 11/11/2026). 0 = không giao."""
     __tablename__ = 'approval_limits'

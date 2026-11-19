@@ -34,8 +34,19 @@
 </article>{% else %}{{ ui.empty('Hội thoại này chưa có tin nào.') }}{% endfor %}
 <span id="cuoi"></span>
 </div>
-{% if current.chat_type == 'PRIVATE' or director %}<form class="zalo-reply" method="post" action="/zalo/hop-thu/{{ current.id }}/tra-loi"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loc" value="{{ loc }}">
-<label for="zht-noi-dung"><b>Trả lời khách</b> <small class="mu">· gửi từ Zalo Bot công ty</small></label><textarea id="zht-noi-dung" name="noi_dung" rows="3" maxlength="{{ max_text }}" required></textarea>
+{% set hidden_fields %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loc" value="{{ loc }}">{% endset %}
+{% if current.chat_type == 'PRIVATE' and not current.user_id %}<div class="zht-ai" id="tra-loi">
+{% if ai == 'z2' %}<p class="zht-ai-note" role="alert">Máy Z2 (Codex/Claude) đang không chạy nên AI chưa soạn được. Anh/chị gõ tay giúp.</p>{% endif %}
+{% if draft and draft.status == 'DANG' %}<p class="zht-ai-note" aria-live="polite"><b>AI đang soạn câu trả lời…</b> Trang tự tải lại sau vài giây.</p>
+<script>setTimeout(function () { location.reload(); }, 6000);</script>
+{% elif draft and draft.status == 'LOI' %}<p class="zht-ai-note" role="alert">AI chưa soạn được lần này. Bấm soạn lại hoặc gõ tay.</p>
+{% elif draft and draft.status == 'XONG' %}<p class="zht-ai-note"><b>AI đã soạn sẵn</b> · đọc, sửa nếu cần rồi bấm Gửi khách. AI không tự gửi.</p>
+{% if draft.odd %}<p class="zht-ai-warn" role="alert">AI viết số/mã không có trong dữ liệu: <b>{{ draft.odd|join(', ') }}</b>. Kiểm lại trước khi gửi.</p>{% endif %}{% endif %}
+<div class="zht-ai-acts">{% if not draft or draft.status != 'DANG' %}<form method="post" action="/zalo/hop-thu/{{ current.id }}/ai-soan">{{ hidden_fields }}<button class="btn btn-ghost">{{ 'AI soạn lại' if draft else 'AI soạn câu trả lời' }}</button></form>{% endif %}
+{% if draft %}<form method="post" action="/zalo/hop-thu/{{ current.id }}/bo-soan/{{ draft.id }}">{{ hidden_fields }}<button class="btn btn-danger">Bỏ bản soạn</button></form>{% endif %}</div>
+</div>{% endif %}
+{% if current.chat_type == 'PRIVATE' or director %}<form class="zalo-reply" method="post" action="/zalo/hop-thu/{{ current.id }}/tra-loi">{{ hidden_fields }}{% if draft and draft.status == 'XONG' %}<input type="hidden" name="ban_soan" value="{{ draft.id }}">{% endif %}
+<label for="zht-noi-dung"><b>Trả lời khách</b> <small class="mu">· gửi từ Zalo Bot công ty</small></label><textarea id="zht-noi-dung" name="noi_dung" rows="{{ 5 if draft and draft.status == 'XONG' else 3 }}" maxlength="{{ max_text }}" required>{{ draft.text if draft and draft.status == 'XONG' else '' }}</textarea>
 <button class="btn btn-ok">Gửi khách</button></form>{% endif %}
 {% else %}{{ ui.empty('Chọn một hội thoại để xem tin.') }}{% endif %}
 </section>

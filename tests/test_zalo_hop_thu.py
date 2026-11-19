@@ -99,3 +99,73 @@ def test_hop_zalo_tab_dau_la_tat_ca_tin(client, make_user, chats):
     service_login(client, make_user('kd', 'sales'))
     r = client.get('/hop-zalo', follow_redirects=False)
     assert r.headers['location'] == '/zalo/hop-thu'
+
+
+# ---------- Đợt 2: AI soạn sẵn câu trả lời ----------
+
+@pytest.fixture
+def z2(db, monkeypatch):
+    from app import zalo_agent
+    from app.models import ZaloTroLy
+    db.add(ZaloTroLy(id=1, enabled=False, staff_engine='claude'))
+    db.commit()
+    monkeypatch.setattr(zalo_agent, 'z2_alive', lambda session: True)
+
+
+def _finish(db, answer, status='XONG'):
+    from app.models import ZaloAiJob
+    job = db.scalars(select(ZaloAiJob).order_by(ZaloAiJob.id.desc())).first()
+    job.answer, job.status = answer, status
+    db.commit()
+    return job
+
+
+def test_ai_soan_khong_gui_nguoi_duyet_moi_gui(client, db, make_user, chats, zalo, z2):
+    from app.models import AuditLog, ZaloAiJob, ZaloReplyDraft
+    seller = make_user('kd', 'sales')
+    csrf = service_login(client, seller)
+    r = client.post(f"/zalo/hop-thu/{chats['khach']}/ai-soan", data={'csrf': csrf, 'form_key': FK.format(30)}, follow_redirects=False)
+    assert r.status_code == 303
+    job = db.scalars(select(ZaloAiJob)).one()
+    assert 'Công ty Hưng Phát' in job.prompt and 'Máy sửa xong chưa em?' in job.prompt and 'Còn nợ' not in job.prompt
+    assert 'AI đang soạn' in client.get(f"/zalo/hop-thu?chat={chats['khach']}").text
+    _finish(db, '<<<Dạ anh, máy đang chờ linh kiện, mai 9999 em báo lại ạ.>>>')
+    html = client.get(f"/zalo/hop-thu?chat={chats['khach']}").text
+    assert 'AI đã soạn sẵn' in html and 'Dạ anh, máy đang chờ linh kiện' in html and '9999' in html.split('không có trong dữ liệu', 1)[1][:200]
+    assert zalo['sent'] == []  # AI không tự gửi
+    draft = db.scalars(select(ZaloReplyDraft)).one()
+    r = client.post(f"/zalo/hop-thu/{chats['khach']}/tra-loi",
+                    data={'csrf': csrf, 'form_key': FK.format(31), 'noi_dung': 'Dạ anh, máy đang chờ linh kiện ạ.', 'ban_soan': str(draft.id)})
+    assert r.status_code == 200
+    assert zalo['sent'][-1] == ('sendMessage', dict(chat_id='c-khach', text='Dạ anh, máy đang chờ linh kiện ạ.'))
+    db.expire_all()
+    draft = db.get(ZaloReplyDraft, draft.id)
+    assert draft.status == 'DA_GUI' and draft.closed_by == seller.id and draft.sent_message_id
+    log = db.scalars(select(AuditLog).where(AuditLog.action == 'zalo.ai_reply_sent')).one()
+    assert log.after['edited'] is True
+
+
+def test_ai_soan_khi_z2_tat_va_ngoai_pham_vi(client, db, make_user, chats, zalo):
+    from app.models import ZaloAiJob
+    csrf = service_login(client, make_user('kd', 'sales'))
+    r = client.post(f"/zalo/hop-thu/{chats['khach']}/ai-soan", data={'csrf': csrf, 'form_key': FK.format(40)}, follow_redirects=True)
+    assert r.status_code == 200 and 'Máy Z2 (Codex/Claude) đang không chạy' in r.text
+    assert db.scalars(select(ZaloAiJob)).all() == []
+    for i, key in enumerate(('nv', 'nhom')):
+        assert client.post(f"/zalo/hop-thu/{chats[key]}/ai-soan", data={'csrf': csrf, 'form_key': FK.format(41 + i)}).status_code == 404
+
+
+def test_bo_ban_soan_va_z2_loi(client, db, make_user, chats, zalo, z2):
+    from app.models import ZaloReplyDraft
+    csrf = service_login(client, make_user('dp', 'dispatcher'))
+    assert client.post(f"/zalo/hop-thu/{chats['la']}/ai-soan", data={'csrf': csrf, 'form_key': FK.format(49)}).status_code == 422  # chưa có tin khách
+    db.add(ZaloMessage(chat_pk=chats['la'], direction='IN', kind='text', text='alo', status='DA_NHAN', message_at=datetime.now(timezone.utc)))
+    db.commit()
+    client.post(f"/zalo/hop-thu/{chats['la']}/ai-soan", data={'csrf': csrf, 'form_key': FK.format(50)})
+    _finish(db, '', status='LOI')
+    assert 'AI chưa soạn được' in client.get(f"/zalo/hop-thu?chat={chats['la']}").text
+    draft = db.scalars(select(ZaloReplyDraft)).one()
+    client.post(f"/zalo/hop-thu/{chats['la']}/bo-soan/{draft.id}", data={'csrf': csrf, 'form_key': FK.format(51)})
+    db.expire_all()
+    assert db.get(ZaloReplyDraft, draft.id).status == 'BO'
+    assert 'AI soạn câu trả lời' in client.get(f"/zalo/hop-thu?chat={chats['la']}").text
