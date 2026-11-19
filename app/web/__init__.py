@@ -180,6 +180,7 @@ templates.env.globals["web_navigation"] = nav.menu
 from . import sites as _sites  # noqa: E402
 templates.env.globals["site_main_url"] = _sites.main_url
 templates.env.globals["site_shortcuts"] = _sites.shortcuts
+templates.env.globals["site_url"] = _sites.site_url
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key
 templates.env.globals["asset"] = asset

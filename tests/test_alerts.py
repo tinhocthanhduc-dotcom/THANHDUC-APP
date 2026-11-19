@@ -228,7 +228,7 @@ def test_web_empty_groups_links_overflow_and_finance_hides_slow(client,db,people
     page=client.get('/tong-quan')
     assert page.status_code==200 and 'Cần xử lý' in page.text and 'và 5 mục khác' in page.text
     assert 'href="/dich-vu/25"' in page.text and 'data-alert-kind="CHAM_LUAN_CHUYEN"' in page.text
-    assert page.text.index('overview-grid')<page.text.index('id="alerts-title"')<page.text.index('Doanh thu 30 ngày gần nhất')
+    assert page.text.index('overview-grid')<page.text.index('id="alerts-title"')<page.text.index('trang Số liệu')
     service_login(client,p['finance']);page=client.get('/tong-quan')
     assert page.status_code==200 and 'data-alert-kind="CHAM_LUAN_CHUYEN"' not in page.text
 

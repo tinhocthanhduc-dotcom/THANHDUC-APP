@@ -33,9 +33,6 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
         groups.setdefault(notice['kind'],[]).append(notice)
     def period(start,end):return urlencode({'from':start.isoformat(),'to':end.isoformat()})
     # SVG chỉ dùng tọa độ, số tiền vẫn là int ở tầng dữ liệu và nhãn.
-    maximum=max((r['amount'] for r in data['revenue_daily']),default=0)
-    bars=[dict(**r,x=40+n*28,height=(r['amount']*170/maximum if maximum else 0))
-        for n,r in enumerate(data['revenue_daily'])]
     board=svc.day_board(session,user,today=data['today'])
     # Hai khung cảnh báo: việc cần để mắt (đỏ nhiều lên đầu) và kho · mua hàng (không gấp, cuối trang).
     calm={k:v for k,v in groups.items() if k in CALM_KINDS}
@@ -51,10 +48,23 @@ def page(request:Request,user:User=Depends(web_user),session:Session=Depends(get
     # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): ô Chờ anh duyệt trên đầu Tổng quan, chỉ giám đốc.
     from .. import director_approvals
     approvals=director_approvals.summary(session) if has_role(user,'director') else None
-    return render(request,'tong_quan.jinja',s=data,five=five,approvals=approvals,five_when=morning_report.period_label(five) if five else '',five_pct=morning_report.month_change(five) if five else None,orders=orders,order_statuses=ORDER_STATUSES,fulfillments=FULFILLMENTS,bars=bars,board=board,live=live,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
+    return render(request,'tong_quan.jinja',s=data,five=five,approvals=approvals,five_when=morning_report.period_label(five) if five else '',five_pct=morning_report.month_change(five) if five else None,orders=orders,order_statuses=ORDER_STATUSES,fulfillments=FULFILLMENTS,board=board,live=live,eye_groups=eye,calm_groups=calm,debt_groups=debt,avg30=avg30,
         service_labels=SERVICE_STATUSES,advance_pending=advance_pending,attendance_pending=attendance_pending,can_save=has_role(user,'director'),alert_groups=groups,alert_counts=notices.counts,alert_labels=alerts.LABELS,
         today_query=period(data['today'],data['today']),month_query=period(data['month_start'],data['today']),
         last_query=period(data['last_month_start'],data['last_month_end']))
+
+
+def _bars(data):
+    # SVG chỉ dùng tọa độ, số tiền vẫn là int ở tầng dữ liệu và nhãn.
+    maximum=max((r['amount'] for r in data['revenue_daily']),default=0)
+    return [dict(**r,x=40+n*28,height=(r['amount']*170/maximum if maximum else 0)) for n,r in enumerate(data['revenue_daily'])]
+
+
+@router.get('/so-lieu')
+def numbers(request:Request,user:User=Depends(web_user),session:Session=Depends(get_session)):
+    """Số liệu (gọn trang chính, TUẤN duyệt 19/11/2026): biểu đồ 30 ngày, số dư từng quỹ, tồn theo kho; cùng quyền Tổng quan."""
+    data=svc.summary(session,user)
+    return render(request,'so_lieu.jinja',s=data,bars=_bars(data))
 
 
 ORDER_TABS=(('','Tất cả'),('ban','Đơn bán'),('dv','Dịch vụ'),('mo','Chưa xong'))

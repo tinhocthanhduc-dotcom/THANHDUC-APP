@@ -389,7 +389,9 @@ def test_main_hidden_pages_still_open_and_shortcuts(client, make_user):
     q = client.get('/bao-cao/lai-rong', headers={'host': 'quantri.testserver'}).text
     assert 'Thành Đức Quản trị' in q and 'site-quantri' in q and 'data-site-apps' not in q
     links = {a['href'] for a in Menu(q).links}
-    assert {'/bao-cao/lai-rong', '/luong', '/doi-ai', '/dang-web', '/han-muc-duyet', '/nhan-su'} <= links
+    assert {'/so-lieu', '/bao-cao/lai-rong', '/luong', '/doi-ai', '/dang-web', '/han-muc-duyet', '/nhan-su'} <= links
+    q = client.get('/', headers={'host': 'quantri.testserver'}, follow_redirects=False)
+    assert q.status_code == 303 and q.headers['location'] == '/so-lieu'  # Đợt 2: trang đầu quantri là Số liệu
     assert '/don-ban' not in links and '/tong-quan' not in links
     r = client.get('/don-ban', headers={'host': 'quantri.testserver', 'sec-fetch-dest': 'document'}, follow_redirects=False)
     assert r.status_code == 303 and r.headers['location'] == 'http://testserver/don-ban'
