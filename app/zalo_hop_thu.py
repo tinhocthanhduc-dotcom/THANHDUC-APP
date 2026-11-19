@@ -220,10 +220,13 @@ def _history(session: Session, chat: ZaloChat) -> str:
     return '\n'.join(out)
 
 
-def request_draft(session: Session, user: User, chat_pk: int) -> ZaloReplyDraft:
+def request_draft(session: Session, user: User | None, chat_pk: int) -> ZaloReplyDraft:
+    """user=None: Trả lời tự động (đợt 3) nhờ AI soạn khi khách hỏi giá; vẫn chỉ chờ duyệt, không tự gửi."""
     from . import zalo_agent
     from .tin_gui_khach import _now
-    chat = get_chat(session, user, chat_pk)
+    chat = get_chat(session, user, chat_pk) if user is not None else session.get(ZaloChat, chat_pk)
+    if chat is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy hội thoại.', status=404)
     if chat.chat_type != 'PRIVATE' or chat.user_id:
         raise BusinessError('VALIDATION', 'AI chỉ soạn trả lời cho hội thoại riêng của khách.', status=422)
     if not session.scalar(select(func.count()).select_from(ZaloMessage).where(ZaloMessage.chat_pk == chat.id, ZaloMessage.direction == 'IN')):
@@ -232,17 +235,18 @@ def request_draft(session: Session, user: User, chat_pk: int) -> ZaloReplyDraft:
     if cfg.staff_engine not in ('codex', 'claude') or not zalo_agent.z2_alive(session):
         raise BusinessError('NO_Z2', 'Máy Z2 (Codex/Claude) đang không chạy nên AI chưa soạn được. Hãy gõ tay.', status=409)
     for old in session.scalars(select(ZaloReplyDraft).where(ZaloReplyDraft.chat_pk == chat.id, ZaloReplyDraft.status.in_(('DANG', 'XONG', 'LOI')))):
-        old.status, old.closed_by, old.closed_at = 'BO', user.id, _now()
+        old.status, old.closed_by, old.closed_at = 'BO', user.id if user else None, _now()
     facts = draft_facts(session, chat)
     from .service_sla import TZ
     job = ZaloAiJob(log_id=None, engine=cfg.staff_engine,
                     prompt=DRAFT_PROMPT.format(today=_now().astimezone(TZ).strftime('%d/%m/%Y'), facts=facts, history=_history(session, chat)))
     session.add(job)
     session.flush()
-    draft = ZaloReplyDraft(chat_pk=chat.id, job_id=job.id, status='DANG', facts=facts, created_by=user.id)
+    draft = ZaloReplyDraft(chat_pk=chat.id, job_id=job.id, status='DANG', facts=facts, created_by=user.id if user else None)
     session.add(draft)
     session.flush()
-    audit.record(session, user, 'zalo.ai_reply_draft', 'zalo_chat', str(chat.id), None, dict(draft=draft.id, job=job.id))
+    if user is not None:
+        audit.record(session, user, 'zalo.ai_reply_draft', 'zalo_chat', str(chat.id), None, dict(draft=draft.id, job=job.id))
     session.commit()
     return draft
 
@@ -266,11 +270,12 @@ def draft_state(session: Session, chat: ZaloChat) -> dict | None:
             draft.status = 'LOI'
         session.commit()
     if draft.status == 'DANG':
-        return dict(id=draft.id, status='DANG')
+        return dict(id=draft.id, status='DANG', auto=draft.created_by is None)
     if draft.status == 'LOI':
-        return dict(id=draft.id, status='LOI')
+        return dict(id=draft.id, status='LOI', auto=draft.created_by is None)
     known = tokens(draft.facts) | tokens(_history(session, chat))
-    return dict(id=draft.id, status='XONG', text=draft.text, odd=sorted(tokens(draft.text) - known))
+    return dict(id=draft.id, status='XONG', text=draft.text, odd=sorted(tokens(draft.text) - known), auto=draft.created_by is None,
+                ai=draft.job_id is not None)
 
 
 def drop_draft(session: Session, user: User, chat_pk: int, draft_id: int) -> None:

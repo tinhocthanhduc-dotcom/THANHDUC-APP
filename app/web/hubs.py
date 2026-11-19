@@ -15,7 +15,7 @@ from . import checked_form, nav, web_user
 
 router = APIRouter()
 
-ZALO_TABS = (('/zalo/hop-thu', 'Tất cả tin'), ('/tin-zalo', 'Cần trả lời'), ('/don-nhap-zalo', 'Đơn nháp'), ('/phieu-nhap-zalo', 'Phiếu nháp'), ('/tin-gui-khach', 'Chờ gửi khách'))
+ZALO_TABS = (('/zalo/hop-thu', 'Tất cả tin'), ('/tin-zalo', 'Cần trả lời'), ('/don-nhap-zalo', 'Đơn nháp'), ('/phieu-nhap-zalo', 'Phiếu nháp'), ('/tin-gui-khach', 'Chờ gửi khách'), ('/zalo/tu-tra-loi', 'Trả lời tự động'))
 ZALO_PAGES = ('/zalo/tro-ly', '/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no')
 
 
@@ -33,6 +33,8 @@ def _zalo_count(session, user, href):
     if href == '/phieu-nhap-zalo':
         from .. import zalo_phieu_nhap
         return zalo_phieu_nhap.waiting(session)
+    if href == '/zalo/tu-tra-loi':
+        return ''
     from .. import tin_gui_khach
     return int(tin_gui_khach.counts(session, user).get('cho', 0))
 

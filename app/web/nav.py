@@ -22,6 +22,8 @@ GROUPS = (
         {'label': 'Hộp Zalo', 'href': '/hop-zalo', 'prefixes': ('/hop-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
         # Tất cả tin Zalo (TUẤN duyệt mẫu zalo.quanlythanhduc.com 19/11/2026): lịch sử theo hội thoại; kế toán không vào.
         {'label': 'Tất cả tin Zalo', 'href': '/zalo/hop-thu', 'prefixes': ('/zalo/hop-thu',), 'roles': ('sales', 'dispatcher'), 'hidden': True, 'highlight': '/hop-zalo'},
+        # Trả lời tự động Zalo (TUẤN duyệt mẫu 19/11/2026): chỉ giám đốc cài.
+        {'label': 'Trả lời tự động', 'href': '/zalo/tu-tra-loi', 'prefixes': ('/zalo/tu-tra-loi',), 'roles': ('director',), 'hidden': True, 'highlight': '/hop-zalo'},
         # Màn giao hàng mở từ Việc của tôi hoặc từ đơn: thủ kho và kinh doanh (Đợt 1b), menu sáng Việc của tôi (không sáng Danh mục › Kho).
         {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse', 'sales'), 'hidden': True, 'highlight': '/viec-cua-toi'},
         # Menu gọn 17/11/2026: nhóm Khách hàng chỉ có một mục nên thành mục đầu menu.

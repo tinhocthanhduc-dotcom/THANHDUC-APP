@@ -2198,7 +2198,12 @@ class ZaloTroLy(Base):
     """Cấu hình Trợ lý Zalo, một dòng duy nhất. Mặc định tắt; giám đốc bật trên màn Trợ lý Zalo."""
     __tablename__ = 'zalo_tro_ly'
     __table_args__ = (CheckConstraint('id = 1', name='ck_zalo_tro_ly_one_row'),
-                      CheckConstraint("staff_engine in ('api','codex','claude')", name='ck_zalo_tro_ly_staff_engine'))
+                      CheckConstraint("staff_engine in ('api','codex','claude')", name='ck_zalo_tro_ly_staff_engine'),
+                      CheckConstraint("auto_ngoai_gio in ('TU_GUI','CHO_DUYET','TAT')", name='ck_zalo_tro_ly_auto_ngoai_gio'),
+                      CheckConstraint("auto_tinh_trang in ('TU_GUI','CHO_DUYET','TAT')", name='ck_zalo_tro_ly_auto_tinh_trang'),
+                      CheckConstraint("auto_hoi_gia in ('CHO_DUYET','TAT')", name='ck_zalo_tro_ly_auto_hoi_gia'),
+                      CheckConstraint("auto_bao_hong in ('TU_GUI','CHO_DUYET','TAT')", name='ck_zalo_tro_ly_auto_bao_hong'),
+                      CheckConstraint("auto_nguoi_la in ('TU_GUI','CHO_DUYET','TAT')", name='ck_zalo_tro_ly_auto_nguoi_la'))
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
     # Đơn nháp khách nhắn được lập dưới tên người này (kinh doanh), để họ kiểm và chốt.
@@ -2212,6 +2217,13 @@ class ZaloTroLy(Base):
     invoice_po: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'))
     # 0084 đợt 4: dòng chuyển khoản ghi trong tin nhắc nợ gửi khách (giám đốc nhập; trống thì tin không có dòng này).
     bank_line: Mapped[str] = mapped_column(Text, default='', server_default='')
+    # 0109 Trả lời tự động (TUẤN duyệt mẫu 19/11/2026): công tắc chung (mặc định tắt) + mức cho từng loại tin khách.
+    auto_on: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
+    auto_ngoai_gio: Mapped[str] = mapped_column(String(9), default='TU_GUI', server_default='TU_GUI')
+    auto_tinh_trang: Mapped[str] = mapped_column(String(9), default='TU_GUI', server_default='TU_GUI')
+    auto_hoi_gia: Mapped[str] = mapped_column(String(9), default='CHO_DUYET', server_default='CHO_DUYET')  # tin có giá không bao giờ tự gửi
+    auto_bao_hong: Mapped[str] = mapped_column(String(9), default='TU_GUI', server_default='TU_GUI')
+    auto_nguoi_la: Mapped[str] = mapped_column(String(9), default='TU_GUI', server_default='TU_GUI')
     updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -2482,7 +2494,7 @@ class ZaloReplyDraft(Base):
     status: Mapped[str] = mapped_column(String(8), default='DANG', server_default='DANG')
     facts: Mapped[str] = mapped_column(Text, default='', server_default='')  # số liệu app đưa cho AI (để soát số lạ)
     text: Mapped[str] = mapped_column(Text, default='', server_default='')
-    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))  # trống = Trả lời tự động soạn
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
