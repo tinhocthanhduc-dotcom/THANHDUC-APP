@@ -51,7 +51,7 @@ EXPECTED['director'].add('/bao-cao/lai-rong')  # Lãi ròng tháng (đợt 4, TU
 EXPECTED['finance'].add('/cham-cong/duyet')  # Kế toán duyệt chấm công trong hạn mức (TUẤN duyệt 11/11/2026)
 EXPECTED['director'].add('/han-muc-duyet')  # Quản trị › Hạn mức duyệt (TUẤN duyệt 11/11/2026)
 EXPECTED['sales'].add('/dang-web')  # TUẤN 01/11/2026: Kinh doanh dùng được Đăng web
-EXPECTED['director'].difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu'))  # Việc riêng của thợ không lên menu giám đốc.
+EXPECTED['director'].difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu','/cham-cong'))  # TUẤN 19/11/2026: cả Chấm công  # Việc riêng của thợ không lên menu giám đốc.
 for _role in ('technician','dispatcher','warehouse','director'):
     EXPECTED[_role].add('/san-xuat')
 for _role in ('dispatcher','sales','director'):
@@ -143,7 +143,7 @@ def test_multi_role_union_and_home_priority(client, make_user, roles, home):
     assert client.get('/', follow_redirects=False).headers['location'] == home
     links = Menu(client.get(home).text).links
     expected=set().union(*(EXPECTED[r] for r in roles))
-    if 'director' in roles:expected.difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu'))
+    if 'director' in roles:expected.difference_update(('/kpi','/hoa-hong','/tien-toi-giu','/hang-toi-giu','/cham-cong'))
     if 'technician' in roles:expected.add('/tho')  # thợ nhiều vai vẫn có lối vào màn thợ
     assert {a['href'] for a in links} == expected
 
@@ -375,19 +375,15 @@ def test_grouped_menu_no_duplicates(client, make_user, roles, top, first, tabs):
 
 def test_main_hidden_pages_still_open_and_shortcuts(client, make_user):
     """Gọn trang chính (TUẤN duyệt mẫu 19/11/2026): mục bỏ khỏi menu chính vẫn mở bằng link cũ, có trên menu quantri.*;
-    khối Trang khác chỉ có site người xem mở được; truy cập bằng IP thì không có."""
+    TUẤN 19/11/2026: ẩn khối Trang khác trên menu chính."""
     gd = make_user('gon.gd', 'director')
     service_login(client, gd)
     for path in ('/luong', '/doi-ai', '/bao-cao/lai-rong', '/han-muc-duyet', '/thiet-bi', '/zalo/hop-thu'):
         assert client.get(path).status_code == 200, path
     html = client.get('/tong-quan').text
-    apps = html.split('data-site-apps', 1)[1].split('</nav>', 1)[0]
-    assert re.findall(r'href="([^"]+)"', apps) == ['http://care.testserver/', 'http://zalo.testserver/', 'http://quantri.testserver/']
-    assert 'data-zalo-count' in apps
-    r = client.get('/hop-zalo/so.json')
-    assert r.status_code == 200 and r.json() == {'n': 0}
+    assert 'Trang khác' not in html and 'http://care.testserver/"' not in html
     q = client.get('/bao-cao/lai-rong', headers={'host': 'quantri.testserver'}).text
-    assert 'Thành Đức Quản trị' in q and 'site-quantri' in q and 'data-site-apps' not in q
+    assert 'Thành Đức Quản trị' in q and 'site-quantri' in q
     links = {a['href'] for a in Menu(q).links}
     assert {'/so-lieu', '/bao-cao/lai-rong', '/luong', '/doi-ai', '/dang-web', '/han-muc-duyet', '/nhan-su'} <= links
     q = client.get('/', headers={'host': 'quantri.testserver'}, follow_redirects=False)
@@ -395,12 +391,9 @@ def test_main_hidden_pages_still_open_and_shortcuts(client, make_user):
     assert '/don-ban' not in links and '/tong-quan' not in links
     r = client.get('/don-ban', headers={'host': 'quantri.testserver', 'sec-fetch-dest': 'document'}, follow_redirects=False)
     assert r.status_code == 303 and r.headers['location'] == 'http://testserver/don-ban'
-    assert 'data-site-apps' not in client.get('/tong-quan', headers={'host': '192.168.10.200'}).text
     # Thủ kho: menu Quản trị chỉ còn Báo cáo mua hàng, Nhóm hàng, Danh sách kho (theo quyền thật).
     kho = make_user('gon.kho', 'warehouse')
     service_login(client, kho)
-    apps = client.get('/viec-cua-toi').text.split('data-site-apps', 1)[1].split('</nav>', 1)[0]
-    assert 'http://quantri.testserver/' in apps and 'http://zalo.testserver/' not in apps
     q = client.get('/', headers={'host': 'quantri.testserver'}, follow_redirects=False)
     assert q.status_code == 303 and q.headers['location'] == '/bao-cao-mua-hang'
     assert {a['href'] for a in Menu(client.get('/kho', headers={'host': 'quantri.testserver'}).text).links} == {'/bao-cao-mua-hang', '/nhom-hang', '/kho'}

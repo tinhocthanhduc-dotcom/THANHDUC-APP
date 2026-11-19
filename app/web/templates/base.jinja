@@ -76,7 +76,6 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
       {% endfor %}
       <p class="nav-empty" data-nav-empty hidden>Không có trang nào khớp.</p>
       {% if navigation.site %}<a class="nav-top site-out" href="{{ site_main_url(request, '/') }}" title="Sang trang quản lý đầy đủ">↗ Sang trang quản lý đầy đủ</a>{% endif %}
-      {% set other_sites = site_shortcuts(request, user) %}{% if other_sites %}{# Gọn trang chính (TUẤN duyệt mẫu 19/11/2026): lối sang Care, Zalo, Quản trị. #}<div class="site-apps" data-site-apps><div class="nav-head">Trang khác</div>{% for s in other_sites %}<a class="site-app site-app-{{ s.key }}" href="{{ s.url }}" title="Mở {{ s.label }}"><span class="brand-mark">{{ s.mark }}</span><span>{{ s.label }}</span>{% if s.key == 'zalo' %}<em class="site-app-n" data-zalo-count hidden></em>{% endif %}</a>{% endfor %}</div>{% endif %}
       </nav>
     </div>
   </details>
