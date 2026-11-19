@@ -20,6 +20,8 @@ GROUPS = (
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
         # Đợt 2 rà soát (TUẤN duyệt 16/11/2026): 4 hộp tin Zalo gom thành một mục, tab theo quyền (app/web/hubs.py).
         {'label': 'Hộp Zalo', 'href': '/hop-zalo', 'prefixes': ('/hop-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
+        # Tất cả tin Zalo (TUẤN duyệt mẫu zalo.quanlythanhduc.com 19/11/2026): lịch sử theo hội thoại; kế toán không vào.
+        {'label': 'Tất cả tin Zalo', 'href': '/zalo/hop-thu', 'prefixes': ('/zalo/hop-thu',), 'roles': ('sales', 'dispatcher'), 'hidden': True, 'highlight': '/hop-zalo'},
         # Màn giao hàng mở từ Việc của tôi hoặc từ đơn: thủ kho và kinh doanh (Đợt 1b), menu sáng Việc của tôi (không sáng Danh mục › Kho).
         {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse', 'sales'), 'hidden': True, 'highlight': '/viec-cua-toi'},
         # Menu gọn 17/11/2026: nhóm Khách hàng chỉ có một mục nên thành mục đầu menu.

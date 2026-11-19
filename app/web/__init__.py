@@ -1076,6 +1076,8 @@ from .zalo import router as zalo_router
 router.include_router(zalo_router)
 from .zalo_tro_ly import router as zalo_tro_ly_router
 router.include_router(zalo_tro_ly_router)
+from .zalo_hop_thu import router as zalo_hop_thu_router
+router.include_router(zalo_hop_thu_router)
 from .tin_gui_khach import router as tin_gui_khach_router
 router.include_router(tin_gui_khach_router)
 from .hubs import router as hubs_router  # noqa: E402

@@ -1,0 +1,59 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% import 'phan_trang.jinja' as pager %}
+{% block title %}Tất cả tin Zalo{% endblock %}
+{% block main %}<div class="page-wide zht-page">
+{# Tất cả tin Zalo (TUẤN duyệt mẫu zalo.quanlythanhduc.com 19/11/2026): trái hội thoại, giữa lịch sử, phải khách là ai. #}
+{% call ui.page_head('Tất cả tin', sub='Mọi tin khách nhắn vào Zalo Bot công ty, mới nhất ở trên. Tin Zalo cá nhân và Zalo OA không đọc được.') %}{% endcall %}
+{{ ui.hub_tabs(hub|default([]), 'Hộp Zalo') }}
+{% if gui == 'loi' %}<section class="card zalo-note zalo-bad" role="alert"><b>Tin chưa gửi được.</b> Xem lý do ở tin cuối trong hội thoại. App không tự gửi lại.</section>
+{% elif gui == 'ok' %}{{ ui.toast('Đã gửi tin cho khách qua Zalo Bot') }}{% endif %}
+
+<div class="zht-grid{{ ' zht-open' if current }}">
+<section class="card zht-list" aria-label="Hội thoại">
+<nav class="ltabs" aria-label="Loại hội thoại">{% for t in tabs %}<a class="ltab{{ ' on' if t.on }}" href="/zalo/hop-thu?{% if t.key != 'tat-ca' %}loc={{ t.key }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }} <span>{{ t.n }}</span></a>{% endfor %}</nav>
+<form class="filter-bar" method="get" action="/zalo/hop-thu" role="search">{% if loc != 'tat-ca' %}<input type="hidden" name="loc" value="{{ loc }}">{% endif %}<input type="search" name="q" value="{{ q }}" placeholder="Tìm tên khách, mã, nội dung…" aria-label="Tìm" autocomplete="off"><button class="btn btn-ghost">Tìm</button></form>
+{% for c in chats %}{% set cust = names.get(c.customer_code) %}<a class="zht-chat{{ ' on' if current and current.id == c.id }}" href="/zalo/hop-thu?chat={{ c.id }}{% if loc != 'tat-ca' %}&loc={{ loc }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if current and current.id == c.id %} aria-current="true"{% endif %}>
+<span class="zht-r1"><b>{{ cust.name if cust else (c.display_name or 'Chưa rõ tên') }}</b><small class="mu">{{ when(c.last_message_at) }}</small></span>
+<small class="zht-last">{{ c.last_text }}</small>
+<span class="zht-tags">{% if c.chat_type == 'GROUP' %}{{ ui.badge('Nhóm', 'nhap') }}{% elif c.user_id %}{{ ui.badge('Nhân viên', 'xong') }}{% elif c.customer_code %}{{ ui.badge('Khách', 'moi') }}{% else %}{{ ui.badge('Chưa gắn khách', 'cho') }}{% endif %}{% if c.id in waiting %} {{ ui.badge('Cần trả lời', 'huy') }}{% endif %}{% if c.unread %} {{ ui.badge(c.unread ~ ' mới', 'cho') }}{% endif %}</span></a>
+{% else %}{{ ui.empty('Không có hội thoại nào khớp.' if q else 'Chưa có tin nhắn nào.') }}{% endfor %}
+{{ pager.bar(p, 'hội thoại') }}
+</section>
+
+<section class="card zht-thread" aria-label="Nội dung hội thoại">
+{% if current %}{% set cust = side.customer %}
+<header class="zht-head"><a class="btn btn-ghost zht-back" href="/zalo/hop-thu{% if loc != 'tat-ca' %}?loc={{ loc }}{% endif %}" aria-label="Về danh sách">←</a>
+<div><b>{{ cust.name if cust else (current.display_name or 'Chưa rõ tên') }}</b><small class="mu">{% if cust %}{{ cust.code }} · {% endif %}{% if side.staff %}Nhân viên {{ side.staff.full_name }} · {% endif %}nhắn qua Zalo Bot</small></div></header>
+<div class="zalo-msgs">
+{% if pm %}{{ pager.bar(pm, 'tin') }}{% endif %}
+{% for m in messages %}<article class="zalo-msg {{ 'zalo-out' if m.direction == 'OUT' else 'zalo-in' }}" id="tin-{{ m.id }}">
+<small class="mu">{{ m.sender_name or ('Tin nhắn đến' if m.direction == 'IN' else 'Tự động') }} · {{ when(m.message_at) }}{% if m.direction == 'OUT' and m.status in send_states %} · {{ ui.badge(send_states[m.status][0], send_states[m.status][1]) }}{% endif %}</small>
+{% if m.text %}<p>{{ m.text }}</p>{% elif m.kind in kind_labels %}<p class="mu">[{{ kind_labels[m.kind] }}]</p>{% endif %}
+{% if m.error %}<small class="zalo-err">{{ m.error }}</small>{% endif %}
+</article>{% else %}{{ ui.empty('Hội thoại này chưa có tin nào.') }}{% endfor %}
+<span id="cuoi"></span>
+</div>
+{% if current.chat_type == 'PRIVATE' or director %}<form class="zalo-reply" method="post" action="/zalo/hop-thu/{{ current.id }}/tra-loi"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="loc" value="{{ loc }}">
+<label for="zht-noi-dung"><b>Trả lời khách</b> <small class="mu">· gửi từ Zalo Bot công ty</small></label><textarea id="zht-noi-dung" name="noi_dung" rows="3" maxlength="{{ max_text }}" required></textarea>
+<button class="btn btn-ok">Gửi khách</button></form>{% endif %}
+{% else %}{{ ui.empty('Chọn một hội thoại để xem tin.') }}{% endif %}
+</section>
+
+{% if current %}<aside class="card zht-side" aria-label="Khách là ai">
+{% set cust = side.customer %}
+<span class="zht-sec">Khách</span>
+{% if cust %}<dl class="zht-kv"><div><dt>Mã</dt><dd>{{ cust.code }}</dd></div>{% if cust.phones %}<div><dt>SĐT</dt><dd>{{ cust.phones[0].phone }}</dd></div>{% endif %}</dl>
+{% if can_open('/khach-hang/' ~ cust.code) %}<a class="zht-link" href="/khach-hang/{{ cust.code }}">Mở trang khách ›</a>{% endif %}
+{% elif side.staff %}<p class="hint">Đây là hội thoại của nhân viên {{ side.staff.full_name }} với bot.</p>
+{% else %}<p class="hint">Chưa biết khách nào. {% if director %}<a href="/zalo/tin-nhan?chat={{ current.id }}">Gắn khách cho hội thoại này ›</a>{% else %}Nhờ giám đốc gắn khách để thấy phiếu và đơn của khách.{% endif %}</p>{% endif %}
+{% if cust %}<span class="zht-sec">Phiếu dịch vụ đang mở</span>
+{% for t in side.tickets %}<div class="zht-row">{% if t.url %}<a href="{{ t.url }}">{{ t.number }}</a>{% else %}<span>{{ t.number }}</span>{% endif %}<span>{{ ui.badge(t.status, 'xong' if t.done else 'moi') }}</span></div><small class="mu">{{ t.kind }}</small>
+{% else %}<p class="hint">Không có phiếu đang mở.</p>{% endfor %}
+{% if side.orders %}<span class="zht-sec">Đơn gần nhất</span>
+{% for o in side.orders %}<div class="zht-row"><a href="{{ o.url }}">{{ o.number }}</a><span>{{ o.status }}</span></div>{% endfor %}{% endif %}
+{% if side.debt is not none %}<span class="zht-sec">Tiền</span><div class="zht-row"><span>Còn nợ</span><b>{{ side.debt|money }}</b></div>{% endif %}
+{% if can_open('/dich-vu/moi') %}<a class="zht-link" href="/dich-vu/moi?customer_code={{ cust.code|urlencode }}">Nhận đơn dịch vụ cho khách này ›</a>{% endif %}{% endif %}
+</aside>{% endif %}
+</div>
+</div>{% endblock %}
