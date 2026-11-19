@@ -3865,11 +3865,35 @@ summary.dw-row { list-style: none; } summary.dw-row::-webkit-details-marker { di
 .zht-ai-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .zht-ai-acts form { margin: 0; }
 @media (max-width: 1100px) { .zht-grid.zht-open { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); } .zht-grid.zht-open .zht-side { grid-column: 2; } }
+/* Khung đứng yên như Zalo PC (TUẤN 19/11/2026): cả khung vừa màn hình, mỗi cột tự cuộn, tin mới ở dưới. */
+.zht-grid { height: var(--zht-h, calc(100vh - 170px)); min-height: 460px; align-items: stretch; }
+.zht-list, .zht-side { overflow-y: auto; overscroll-behavior: contain; }
+.zht-thread { display: flex; flex-direction: column; overflow: hidden; }
+.zht-thread > * { flex: none; }
+.zht-thread > .zalo-msgs { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; padding-right: 4px; }
+.zht-thread > .empty, .zht-thread > .ui-empty { flex: 1 1 auto; }
+.zht-thread .zalo-reply { grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 8px; }
+.zht-thread .zalo-reply label { grid-column: 1 / -1; }
+.zht-thread .zalo-reply textarea { max-height: 30vh; min-height: 58px; }
+.zht-ai { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.zht-ai > p { grid-column: 1; }
+.zht-ai > .zht-ai-acts { grid-column: 2; grid-row: 1 / span 3; }
+/* Trên zalo.quanlythanhduc.com menu trái đã có các mục nên bỏ tiêu đề và hàng tab để khung chat cao hơn. */
+body.site-zalo .zht-page > .page-head, body.site-zalo .zht-page > .hub-tabs { display: none; }
+@media (max-width: 1100px) {
+  .zht-grid.zht-open { grid-template-rows: minmax(0, 1fr) auto; }
+  .zht-grid.zht-open .zht-list { grid-row: 1 / span 2; }
+  .zht-grid.zht-open .zht-side { grid-row: 2; max-height: 180px; }
+}
 @media (max-width: 760px) {
-  .zht-grid, .zht-grid.zht-open { grid-template-columns: minmax(0, 1fr); }
+  .zht-grid, .zht-grid.zht-open { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; height: auto; min-height: 0; }
   .zht-grid.zht-open .zht-list { display: none; }
-  .zht-grid.zht-open .zht-side { grid-column: auto; }
+  .zht-grid.zht-open .zht-side { grid-column: auto; grid-row: auto; max-height: none; }
+  .zht-list { overflow: visible; }
+  .zht-grid.zht-open .zht-thread { height: var(--zht-h, calc(100vh - 120px)); min-height: 420px; }
   .zht-back { display: inline-flex; }
+  .zht-ai { grid-template-columns: minmax(0, 1fr); }
+  .zht-ai > .zht-ai-acts { grid-column: auto; grid-row: auto; }
 }
 /* Trả lời tự động Zalo (TUẤN duyệt mẫu 19/11/2026): mỗi loại tin một khung, mức chọn bằng nút liền. */
 .ztl-form { display: grid; gap: 10px; max-width: 900px; }
