@@ -491,6 +491,14 @@ def new(request: Request, user: User = Depends(web_user), session: Session = Dep
         code = c.code if c and c.status == 'DANG_DUNG' else ''
         return _new_form(request, session, dict(customer_code=code, kind='SUA_TAI_CHO', priority='THUONG',
                                                 symptom=quick_quotes.ticket_symptom(quick), warranty_of_id='', hg=str(quick.id)))
+    bh = request.query_params.get('bao_hanh', '')
+    if bh.isdigit() and len(bh) <= 18 and not _ink_only(user):
+        # Bảo hành sửa chữa (Care, TUẤN duyệt 19/11/2026): nhận máy bảo hành từ phiếu cũ, điền sẵn khách/địa điểm/máy/phiếu gốc.
+        parent = session.get(ServiceTicket, int(bh))
+        owner = session.get(Customer, parent.customer_code) if parent else None
+        if parent and parent.status in ('HOAN_THANH', 'DA_DONG') and owner and owner.status == 'DANG_DUNG':
+            return _new_form(request, session, dict(customer_code=owner.code, site_id=str(parent.site_id or ''), serial=parent.serial or '',
+                                                    kind='BAO_HANH', priority='THUONG', symptom='', warranty_of_id=str(parent.id)))
     chosen = session.get(Customer, request.query_params.get('customer_code','')[:50]) if request.query_params.get('customer_code') else None
     if chosen and chosen.status == 'DANG_DUNG':
         # Quay về từ màn tạo/chọn khách: chọn sẵn khách, để _new_form tự chọn địa điểm duy nhất (máy không chọn sẵn).

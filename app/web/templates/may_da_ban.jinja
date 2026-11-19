@@ -1,0 +1,29 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Máy đã bán{% endblock %}
+{% block main %}<div class="page-wide list-page" data-list-page="may-da-ban">
+{% call ui.page_head('Máy đã bán', sub='Máy Thành Đức bán có serial, lấy từ phiếu giao hàng. Hạn bảo hành tính từ ngày giao.') %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/may-da-ban', q, 'Tìm serial, tên máy, khách, số điện thoại, số đơn (không dấu)…') %}{% if bh %}<input type="hidden" name="bh" value="{{ bh }}">{% endif %}{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Serial · ngày giao</th><th>Máy</th><th>Khách</th><th>Đơn bán</th><th>Bảo hành</th><th class="num">Lần sửa</th></tr></thead><tbody>
+{% for e, d, o in rows %}{% set st = states[e.serial] %}{% set c = customers.get(e.customer_code) %}
+<tr data-href="/thiet-bi/{{ e.serial|urlquote }}"{% if st == 'sap' %} class="lt-alert"{% endif %}>
+<td class="lt-first"><a class="lt-no" href="/thiet-bi/{{ e.serial|urlquote }}">{{ e.serial }}</a><span class="lt-sub">Giao {{ d.delivered_at|vn_date }}</span></td>
+<td><b>{{ products.get(e.product_code) or e.model_name or e.product_code }}</b><span class="lt-sub">{{ 'Máy cũ' if e.condition == 'CU' else 'Máy mới' }}</span></td>
+<td>{{ c.name if c else e.customer_code }}<span class="lt-sub">{{ phones.get(e.customer_code, '') }}</span></td>
+<td>{% if can_order %}<a href="/don-ban/{{ o.id }}">{{ o.number }}</a>{% else %}{{ o.number }}{% endif %}<span class="lt-sub">{{ d.number }}</span></td>
+<td class="lt-st">{% if st == 'tu-choi' %}{{ ui.badge('Từ chối BH', 'huy') }}<span class="lt-sub">{{ e.warranty_void_on|vn_date }}{% if e.warranty_void_reason %} · {{ e.warranty_void_reason }}{% endif %}</span>
+{% elif st == 'het' %}{{ ui.badge('Hết bảo hành', 'nhap') }}{% if e.warranty_until %}<span class="lt-sub">từ {{ e.warranty_until|vn_date }}</span>{% endif %}
+{% else %}{% set left = (e.warranty_until - today).days %}{{ ui.badge('Còn ' ~ left ~ ' ngày' if st == 'sap' else 'Còn bảo hành', 'cho' if st == 'sap' else 'xong') }}<span class="lt-sub">đến {{ e.warranty_until|vn_date }}</span>{% endif %}</td>
+<td class="num">{% if repairs.get(e.serial) %}<b>{{ repairs[e.serial] }}</b>{% else %}<span class="lt-sub">0</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có máy phù hợp.', link(q='') if q else '', 'Xóa tìm') }}{% endif %}
+{{ ui.list_foot(page, 'máy') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}
