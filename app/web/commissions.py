@@ -127,8 +127,50 @@ def _rules(request,session,user,error=None,form=None):
         if selected is None:raise BusinessError('NOT_FOUND',status=404)
         data={c.key:getattr(selected,c.key) for c in selected.__table__.columns}
         data.update(replaces_id=selected.id,reason='')
-    return _render(request,'hoa_hong_quy_tac.jinja',rows=svc.rules(session,user),accounts=_accounts(session),d=data,
+    rows=svc.rules(session,user)
+    return _render(request,'hoa_hong_quy_tac.jinja',rows=rows,groups=_rule_groups(rows,svc._now().astimezone(svc.TZ).date()),
+        accounts=_accounts(session),d=data,open_form=bool(form or selected is not None),
         error=error.message if error else None,error_code=error.code if error else '',status=error.status if error else 200)
+
+
+THO_ORDER=('SUA_TAI_CHO','MANG_VE','BAO_HANH','MUC_DINH_KY','SAN_XUAT','GIAO_DON',None)
+
+
+def _rule_text(r):
+    """Câu đọc được cho một quy tắc. Chỉ diễn giải, không đổi cách tính (PHIEU_SX/GIAO_DON bỏ % trong draft)."""
+    pct=f"{r.pct.normalize():f}".replace('.',',');fixed=f"{r.fixed_amount:,}".replace(',','.')+'đ'
+    if r.target=='KINH_DOANH':return pct+'% lãi gộp',''
+    if r.service_kind in ('SAN_XUAT','GIAO_DON'):
+        unit='mỗi sản phẩm đạt' if r.service_kind=='SAN_XUAT' else 'mỗi lần giao'
+        text=fixed+' '+unit if r.fixed_amount else 'Không tính'
+        return text,('Loại này không tính theo %, phần '+pct+'% không có tác dụng.' if r.pct else '')
+    parts=([pct+'% tiền công'] if r.pct else [])+([fixed+' mỗi phiếu'] if r.fixed_amount else [])
+    return ' + '.join(parts) or 'Không tính','' 
+
+
+def _rule_groups(rows,today):
+    active=[(r,name) for r,name in rows if not r.replaced_at]
+    def items(found):
+        found=sorted(found,key=lambda x:(x[0].user_id is not None,x[1] or '',x[0].effective_from,x[0].id))
+        return [dict(rule=r,who=name or 'Chung',text=_rule_text(r)[0],warn=_rule_text(r)[1],
+                     upcoming=r.effective_from>today) for r,name in found]
+    def current(found):
+        now=[x for x in found if x['rule'].user_id is None and not x['upcoming']]
+        return now[-1] if now else None
+    sales=items([x for x in active if x[0].target=='KINH_DOANH'])
+    tho=[x for x in active if x[0].target=='THO']
+    default=items([x for x in tho if x[0].service_kind is None]);base=current(default)
+    lines=[]
+    for kind in THO_ORDER:
+        found=default if kind is None else items([x for x in tho if x[0].service_kind==kind])
+        if found:fallback=''
+        elif kind=='GIAO_DON':fallback='Chưa có quy tắc · không tính hoa hồng giao đơn'
+        elif base:fallback='Theo mức mặc định: '+base['text']
+        else:fallback='Chưa có quy tắc · không tính'
+        lines.append(dict(kind=kind or '',label=KIND_LABELS[kind] if kind else 'Mặc định · các loại còn lại',items=found,fallback=fallback))
+    return [dict(target='KINH_DOANH',title='Kinh doanh',note='Tính trên lãi gộp đơn bán, theo ngày tạo đơn.',
+                 lines=[dict(kind='',label='Đơn bán',items=sales,fallback='Chưa có quy tắc · không tính')]),
+            dict(target='THO',title='Thợ',note='Tính theo ngày hoàn thành phiếu. Riêng một người ưu tiên hơn Chung; loại phiếu cụ thể ưu tiên hơn Mặc định.',lines=lines)]
 
 
 @router.get('/hoa-hong/quy-tac')
