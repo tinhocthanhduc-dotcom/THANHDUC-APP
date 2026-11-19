@@ -176,6 +176,21 @@ def report_wrong(request: Request, form=Depends(checked_form), session: Session 
     return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_bao=1#bao-sai', status_code=303)
 
 
+# Gỡ dấu "máy hết quyền bảo hành" (TUẤN 19/11/2026); chỉ điều phối/giám đốc. Serial gửi trong form như Báo sai.
+@router.post('/thiet-bi/go-tu-choi-bh')
+def clear_warranty_void(request: Request, form=Depends(checked_form), session: Session = Depends(get_session)):
+    from .. import service_warranty
+    serial = str(form.get('serial', ''))
+    version = form.get('version')
+    try:
+        row = service_warranty.clear_void(session, request.state.user, serial, int(version) if str(version or '').isdigit() else None)
+    except BusinessError as exc:
+        if exc.status in (403, 404):
+            raise
+        return _form(request, session, equipment.snapshot(equipment.load(session, serial)), error=exc.message, status=exc.status)
+    return RedirectResponse('/thiet-bi/' + quote(row.serial, safe='') + '?da_luu=1', status_code=303)
+
+
 @router.post('/thiet-bi/bao-sai/{report_id}/xong')
 def report_done(request: Request, report_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
     row = equipment_reports.resolve(session, request.state.user, report_id)

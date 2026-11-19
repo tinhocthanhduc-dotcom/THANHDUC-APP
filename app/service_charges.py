@@ -85,6 +85,10 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
             raise BusinessError('FORBIDDEN', 'Chỉ điều phối hoặc giám đốc được đổi bảo hành sang Có thu tiền.', status=403)
         if not body.billing_reason.strip():
             raise BusinessError('REASON_REQUIRED', 'Phải ghi lý do thu tiền phiếu còn bảo hành.')
+    if body.void_machine_warranty and not warranty_override:
+        raise BusinessError('WARRANTY_MISMATCH', 'Chỉ đánh dấu máy hết bảo hành khi đổi phiếu bảo hành sang Có thu tiền.')
+    if body.void_machine_warranty and not t.serial:
+        raise BusinessError('SERIAL_REQUIRED', 'Phiếu chưa có serial máy nên không đánh dấu máy hết bảo hành được.')
     issued=[x for x in t.lines if x.stock_doc_id is not None]
     required=Counter(_issued_key(x) for x in issued)
     submitted=Counter(_issued_key(x) for x in body.lines if x.stock_doc_id is not None)
@@ -131,6 +135,9 @@ def set_charges_in_tx(session: Session, user: User, t: ServiceTicket, body: Serv
     t.version += 1
     session.flush()
     audit.record(session, user, "service_ticket.charges", "service_ticket", str(t.id), before, _snapshot(t), body.billing_reason.strip() if warranty_override else "")
+    if body.void_machine_warranty:
+        from . import service_warranty
+        service_warranty.mark_void(session, user, t, body.billing_reason.strip())
     return t
 
 

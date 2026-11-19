@@ -4,7 +4,8 @@
 <label><input type="radio" name="billing" value="MIEN_PHI" {% if charges.billing == 'MIEN_PHI' %}checked{% endif %} required><span>Miễn phí</span></label>
 </div></fieldset>
 {% if not charges.billing %}<p class="hint charge-pick-billing" data-charge-pick-billing>Chọn Có thu tiền hoặc Miễn phí.</p>{% endif %}
-{% if t.warranty_basis in ['PHIEU_TRUOC','MAY_CON_HAN'] and can_warranty_override %}<label>Lý do chuyển bảo hành sang Có thu tiền (chỉ điều phối)<textarea name="billing_reason" maxlength="2000">{{ charges.get('billing_reason','') }}</textarea></label>{% endif %}
+{% if t.warranty_basis in ['PHIEU_TRUOC','MAY_CON_HAN'] and can_warranty_override %}<label>Lý do chuyển bảo hành sang Có thu tiền (chỉ điều phối)<textarea name="billing_reason" maxlength="2000">{{ charges.get('billing_reason','') }}</textarea></label>
+{% if t.serial %}<label class="check"><input type="checkbox" name="void_machine_warranty" value="1" {% if charges.get('void_machine_warranty') %}checked{% endif %}> <b>Máy hết quyền bảo hành</b> <small class="hint">(lần sau nhận máy {{ t.serial }} sẽ cảnh báo đỏ và không tự miễn phí)</small></label>{% endif %}{% endif %}
 {# TUẤN 07/11/2026: ô lý do chỉ hiện khi chọn Miễn phí (lõi bỏ qua lý do khi Có thu tiền). #}
 <label class="charge-free" data-free-box {% if charges.billing != 'MIEN_PHI' %}hidden{% endif %}>Lý do miễn phí (bắt buộc)<textarea name="free_reason" maxlength="2000" rows="2" data-free-reason>{{ charges.free_reason }}</textarea></label>
 <div class="charge-lines" data-charge-lines>

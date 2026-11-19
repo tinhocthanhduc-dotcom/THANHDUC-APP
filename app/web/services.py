@@ -405,7 +405,8 @@ def _intake_info(session, customer_code, machines, user=None):
     for eq, _ in machines:
         held = held_numbers.get(eq.custody_ticket_id) if eq.custody_location != 'TAI_KHACH' and eq.custody_ticket_id is not None else None
         info[eq.serial] = dict(busy=held or busy.get(eq.serial), held=bool(held), last=last[eq.serial].astimezone(TZ).date() if eq.serial in last else None,
-                               warranty=None if eq.warranty_until is None else eq.warranty_until >= today)
+                               warranty=None if eq.warranty_until is None else eq.warranty_until >= today,
+                               void=eq.warranty_void_on, void_reason=eq.warranty_void_reason)
     open_rows = list(session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code == customer_code, ServiceTicket.status.in_(svc.OPEN))
                                      .order_by(ServiceTicket.id.desc()).limit(4)))
     # Ghi chú phiếu AI (15/11/2026): lưu ý theo khách hiện ngay, lưu ý từng máy hiện khi tick máy đó.
