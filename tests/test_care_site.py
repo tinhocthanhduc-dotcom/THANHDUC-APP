@@ -35,8 +35,10 @@ def test_care_menu_brand_and_main_menu_unchanged(client, db, t3_people):
     assert 'href="http://testserver/"' in r.text
     assert 'Thiết bị của khách' not in r.text and 'Tồn kho' not in r.text
     main = client.get('/dich-vu')
-    assert main.status_code == 200 and 'Thành Đức Care' not in main.text and 'Thiết bị của khách' in main.text
-    assert 'site-care' not in main.text
+    # Gọn trang chính (TUẤN duyệt 19/11/2026): Thiết bị chỉ còn trên menu Care; trang chính có lối sang Care.
+    assert main.status_code == 200 and 'Thành Đức Care' not in main.text and 'Thiết bị của khách' not in main.text
+    assert 'site-care' not in main.text and 'Trang khác' in main.text and 'href="http://care.testserver/"' in main.text
+    assert client.get('/thiet-bi').status_code == 200  # link cũ trên tên miền chính vẫn mở
 
 
 def test_care_menu_still_follows_roles(client, db, t3_people):

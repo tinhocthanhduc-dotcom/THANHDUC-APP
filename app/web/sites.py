@@ -35,7 +35,47 @@ SITES = {
               ('/zalo/bao-cao-sang', 'Tin gửi nội bộ', '')),
         allow=('/zalo', '/hop-zalo', '/tin-zalo', '/tin-gui-khach', '/don-nhap-zalo', '/phieu-nhap-zalo'),
     ),
+    # quantri.quanlythanhduc.com (TUẤN duyệt mẫu 19/11/2026): báo cáo, nhân sự & lương, thiết lập, hệ thống, đăng web.
+    # Trang chính chỉ còn vận hành; các trang này vẫn mở được trên tên miền chính bằng link cũ.
+    'quantri': dict(
+        name='Thành Đức Quản trị', sub='Báo cáo · Nhân sự · Thiết lập', mark='QT', theme='#6d28d9',
+        groups=(('Báo cáo', (('/bao-cao/lai-rong', 'Lãi ròng', ''),
+                             ('/bao-cao/tai-chinh', 'Báo cáo tài chính', ''),
+                             ('/bao-cao/ban-hang', 'Báo cáo bán hàng', ''),
+                             ('/bao-cao-mua-hang', 'Báo cáo mua hàng', ''))),
+                ('Nhân sự & lương', (('/cham-cong/duyet', 'Duyệt chấm công', ''),
+                                     ('/cham-cong/bang', 'Bảng công', ''),
+                                     ('/kpi/tong', 'KPI tổng', ''),
+                                     ('/hoa-hong/thang', 'Hoa hồng tháng', ''),
+                                     ('/luong', 'Bảng lương', ''),
+                                     ('/luong/chi', 'Chi lương', ''))),
+                ('Thiết lập', (('/nhom-hang', 'Nhóm hàng', ''),
+                               ('/kho', 'Danh sách kho', ''),
+                               ('/ghep-tai-chinh', 'Thiết lập tài chính', ''),
+                               ('/dieu-chinh', 'Điều chỉnh sổ', ''),
+                               ('/han-muc-duyet', 'Hạn mức duyệt', ''),
+                               ('/kpi/muc-tieu', 'Mục tiêu KPI', ''),
+                               ('/hoa-hong/quy-tac', 'Quy tắc hoa hồng', ''),
+                               ('/cham-cong/ngay-le', 'Ngày lễ', ''))),
+                ('Hệ thống', (('/nhan-su', 'Hồ sơ nhân viên', ''),
+                              ('/tai-khoan', 'Tài khoản nhân viên', ''),
+                              ('/doi-ai', 'Đội AI', ''),
+                              ('/toc-do', 'Tốc độ app', ''),
+                              ('/ui/quy-chuan', 'Quy chuẩn giao diện', ''))),
+                ('Web', (('/dang-web', 'Đăng web', ''),))),
+        allow=('/bao-cao', '/bao-cao-mua-hang', '/cham-cong/duyet', '/cham-cong/bang', '/cham-cong/ngay-le', '/kpi/tong',
+               '/kpi/muc-tieu', '/hoa-hong/thang', '/hoa-hong/quy-tac', '/luong', '/nhom-hang', '/kho', '/ton-dau-ky',
+               '/ghep-tai-chinh', '/quy', '/danh-muc-thu-chi', '/dieu-chinh', '/han-muc-duyet', '/nhan-su', '/tai-khoan',
+               '/doi-ai', '/nhan-vien-ao', '/tro-ly-ai', '/zalo/tro-ly', '/zalo/tin-nhan', '/zalo/bao-cao-sang',
+               '/zalo/nhac-no', '/toc-do', '/ui/quy-chuan', '/dang-web'),
+    ),
 }
+for _s in SITES.values():  # Site menu phẳng = một nhóm không tiêu đề.
+    _s.setdefault('groups', (('', _s.get('menu', ())),))
+    _s['menu'] = tuple(entry for _, entries in _s['groups'] for entry in entries)
+
+# Khối "Trang khác" trên menu tên miền chính (TUẤN duyệt mẫu 19/11/2026), theo thứ tự này.
+SHORTCUTS = (('care', 'Care'), ('zalo', 'Zalo'), ('quantri', 'Quản trị'))
 
 # Mọi site đều mở được: đăng nhập, tài khoản, tệp tĩnh, link báo giá cho khách, hộp xem nhanh, QR.
 COMMON = ('/', '/dang-nhap', '/dang-xuat', '/doi-mat-khau', '/ho-so-cua-toi', '/ca-nhan', '/static', '/sw.js',
@@ -91,13 +131,42 @@ def home_url(user, site):
     return None
 
 
-def menu_items(user, site):
+def _target(user, href, alt):
     from . import nav
+    return href if nav.allowed(user, href.split('?')[0]) else (alt if alt and nav.allowed(user, alt.split('?')[0]) else '')
+
+
+def menu_items(user, site):
+    return [(t, label) for href, label, alt in site['menu'] if (t := _target(user, href, alt))]
+
+
+def menu_groups(user, site):
+    """[(nhãn nhóm, [(href, nhãn)])] theo quyền; nhóm không còn mục nào thì bỏ."""
     out = []
-    for href, label, alt in site['menu']:
-        target = href if nav.allowed(user, href.split('?')[0]) else (alt if alt and nav.allowed(user, alt.split('?')[0]) else '')
-        if target:
-            out.append((target, label))
+    for group, entries in site['groups']:
+        picked = [(t, label) for href, label, alt in entries if (t := _target(user, href, alt))]
+        if picked:
+            out.append((group, picked))
+    return out
+
+
+def _is_ip(host: str) -> bool:
+    return host.replace('.', '').isdigit() or host.startswith('[')
+
+
+def shortcuts(request: Request, user):
+    """Lối sang tên miền con trên tên miền chính: chỉ site người dùng mở được ít nhất một mục; truy cập bằng IP thì không có."""
+    if user is None or site_for(request) is not None:
+        return []
+    host = request.headers.get('host', '')
+    if not host or _is_ip(host.split(':')[0]):
+        return []
+    proto = request.headers.get('x-forwarded-proto', '').split(',')[0].strip().lower() or request.url.scheme
+    out = []
+    for key, label in SHORTCUTS:
+        site = SITES[key]
+        if menu_items(user, site):
+            out.append(dict(key=key, label=label, mark=site['mark'], url=f'{proto}://{key}.{host}/'))
     return out
 
 

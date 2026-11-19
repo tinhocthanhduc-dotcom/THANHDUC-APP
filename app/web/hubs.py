@@ -66,6 +66,14 @@ def zalo_home(request: Request, user: User = Depends(web_user)):
     return RedirectResponse(first, status_code=303)
 
 
+@router.get('/hop-zalo/so.json')
+def zalo_count(user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Số tin Zalo cần trả lời của người xem, cho ô Zalo ở khối Trang khác (gọn trang chính 19/11/2026)."""
+    nav.check_access(user, '/hop-zalo')
+    n = _zalo_count(session, user, '/tin-zalo') if nav.allowed(user, '/tin-zalo') else 0
+    return JSONResponse({'n': n})
+
+
 # Đợt 3 rà soát (TUẤN duyệt mẫu 16/11/2026): 4 chỗ báo giá gom thành mục "Báo giá", tab theo quyền.
 QUOTE_TABS = (('/bao-gia', 'Hàng hóa'), ('/hoi-gia', 'Hỏi giá sửa'), ('/bao-gia-sua', 'Sửa máy'), ('/bao-gia-hop-dong', 'Hợp đồng'))
 QUOTE_HOME = '/cac-bao-gia'

@@ -5478,3 +5478,18 @@ body.site-zalo { --site: #0b62d6; --site-text: #fff; --site-bg: #e5efff; }
 .site-zalo .role-nav a.on { background: var(--site-bg); color: var(--site); box-shadow: inset 3px 0 0 var(--site); }
 .site-zalo .role-nav a.on .nav-ico, .site-zalo .phone-tabs a.on { color: var(--site); }
 .role-nav .site-out { margin-top: 10px; border-top: 1px solid var(--line); border-radius: 0; color: var(--accent); font-size: .92rem; }
+/* Tên miền con Quản trị (TUẤN duyệt mẫu 19/11/2026): màu tím. */
+body.site-quantri { --site: #6d28d9; --site-text: #fff; --site-bg: #efe9fd; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.site-quantri { --site: #b49bff; --site-text: #1a0b3d; --site-bg: #2a2145; } }
+:root[data-theme="dark"] body.site-quantri { --site: #b49bff; --site-text: #1a0b3d; --site-bg: #2a2145; }
+.site-quantri .brand-mark { background: var(--site); color: var(--site-text); }
+.site-quantri .role-nav a.on { background: var(--site-bg); color: var(--site); box-shadow: inset 3px 0 0 var(--site); }
+.site-quantri .role-nav a.on .nav-ico, .site-quantri .phone-tabs a.on { color: var(--site); }
+/* Khối "Trang khác" cuối menu tên miền chính: Care, Zalo (số tin cần trả lời), Quản trị. */
+.site-apps { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 2px; }
+.role-nav .site-app { display: flex; align-items: center; gap: 10px; }
+.site-app .brand-mark { width: 24px; height: 24px; font-size: .62rem; border-radius: 6px; flex: 0 0 auto; }
+.site-app-care .brand-mark { background: #0f766e; color: #fff; }
+.site-app-zalo .brand-mark { background: #0b62d6; color: #fff; }
+.site-app-quantri .brand-mark { background: #6d28d9; color: #fff; }
+.site-app-n { margin-left: auto; font-style: normal; font-weight: 700; font-size: .75rem; min-width: 20px; padding: 0 7px; border-radius: 99px; background: var(--bad, #b42318); color: #fff; text-align: center; }
