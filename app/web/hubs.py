@@ -1,7 +1,7 @@
 """Đợt 2 rà soát (TUẤN duyệt mẫu 16/11/2026): gom trang cùng việc thành một mục menu có tab.
 
 - Đội AI (chỉ giám đốc): Hôm nay · Chờ anh duyệt · Thành viên · Nhật ký · Zalo. Mỗi tab là trang cũ, giữ nút và cài đặt.
-- Hộp Zalo (nhân viên): Cần trả lời · Đơn nháp · Phiếu nháp · Chờ gửi khách; mỗi người chỉ thấy tab mình mở được.
+- Hộp Zalo (nhân viên): Tất cả tin (19/11/2026) · Cần trả lời · Đơn nháp · Phiếu nháp · Chờ gửi khách; mỗi người chỉ thấy tab mình mở được.
 Chỉ là điều hướng: không đổi quyền, không đổi việc của từng trang.
 """
 from fastapi import APIRouter, Depends, Request
@@ -15,11 +15,14 @@ from . import checked_form, nav, web_user
 
 router = APIRouter()
 
-ZALO_TABS = (('/tin-zalo', 'Cần trả lời'), ('/don-nhap-zalo', 'Đơn nháp'), ('/phieu-nhap-zalo', 'Phiếu nháp'), ('/tin-gui-khach', 'Chờ gửi khách'))
+ZALO_TABS = (('/zalo/hop-thu', 'Tất cả tin'), ('/tin-zalo', 'Cần trả lời'), ('/don-nhap-zalo', 'Đơn nháp'), ('/phieu-nhap-zalo', 'Phiếu nháp'), ('/tin-gui-khach', 'Chờ gửi khách'))
 ZALO_PAGES = ('/zalo/tro-ly', '/zalo/tin-nhan', '/zalo/bao-cao-sang', '/zalo/nhac-no')
 
 
 def _zalo_count(session, user, href):
+    if href == '/zalo/hop-thu':
+        from .. import zalo_hop_thu
+        return zalo_hop_thu.unread_chats(session, user)
     if href == '/tin-zalo':
         from ..models import ZaloTriage
         return int(session.scalar(select(func.count()).select_from(ZaloTriage).where(

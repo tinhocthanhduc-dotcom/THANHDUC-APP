@@ -267,8 +267,8 @@ def test_login_returns_to_allowed_next_page_else_role_home(client, make_user):
 
 
 @pytest.mark.parametrize('roles,first,tabs', [
-    (('sales',), '/tin-zalo', ['/tin-zalo', '/don-nhap-zalo', '/tin-gui-khach']),
-    (('dispatcher',), '/tin-zalo', ['/tin-zalo', '/phieu-nhap-zalo', '/tin-gui-khach']),
+    (('sales',), '/zalo/hop-thu', ['/zalo/hop-thu', '/tin-zalo', '/don-nhap-zalo', '/tin-gui-khach']),  # Tất cả tin (19/11/2026)
+    (('dispatcher',), '/zalo/hop-thu', ['/zalo/hop-thu', '/tin-zalo', '/phieu-nhap-zalo', '/tin-gui-khach']),
     (('finance',), '/tin-zalo', ['/tin-zalo', '/tin-gui-khach']),
 ])
 def test_hop_zalo_tabs_follow_role(client, make_user, roles, first, tabs):
