@@ -19,7 +19,7 @@ depends_on = None
 def upgrade():
     op.add_column('equipment', sa.Column('warranty_void_on', sa.Date(), nullable=True))
     op.add_column('equipment', sa.Column('warranty_void_reason', sa.Text(), nullable=False, server_default=''))
-    op.add_column('equipment', sa.Column('warranty_void_ticket_id', sa.Integer(), nullable=True))
+    op.add_column('equipment', sa.Column('warranty_void_ticket_id', sa.BigInteger(), nullable=True))
     op.create_foreign_key('fk_equipment_warranty_void_ticket', 'equipment', 'service_tickets', ['warranty_void_ticket_id'], ['id'])
 
 
