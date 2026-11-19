@@ -358,3 +358,15 @@ def test_g05_commission_and_kpi_go_to_assigned_technician_not_clicker(db,people)
     actual=kpi.compute(db,JAN)
     assert actual[p['technician'].id]['tho_bao_hanh_lai']==1
     assert actual.get(p['dispatcher'].id,{}).get('tho_bao_hanh_lai',0)==0
+
+
+def test_rules_page_groups_active_rules_readably(client,db,people):
+    p=people;rule(db,p,'KINH_DOANH',pct=5);base=rule(db,p,'THO',pct=2,fixed_amount=10000)
+    sx=rule(db,p,'THO',pct=2,fixed_amount=0,service_kind='SAN_XUAT')
+    svc.replace_rule(db,p['director'],base.id,dict(target='THO',pct=1,fixed_amount=5000,effective_from='2027-01-01',reason='Đổi'))
+    web_login(client,p['director']);page=client.get('/hoa-hong/quy-tac').text
+    assert '5% lãi gộp' in page and '1% tiền công + 5.000đ mỗi phiếu' in page
+    assert 'Theo mức mặc định: 1% tiền công + 5.000đ mỗi phiếu' in page  # Mang về/Bảo hành chưa có mức riêng
+    assert 'Chưa có quy tắc · không tính hoa hồng giao đơn' in page
+    assert 'phần 2% không có tác dụng' in page and f'data-hh-replace="{sx.id}"' in page
+    assert f'data-hh-replace="{base.id}"' not in page and '1 bản đã thay' in page  # bản cũ chỉ còn trong lịch sử

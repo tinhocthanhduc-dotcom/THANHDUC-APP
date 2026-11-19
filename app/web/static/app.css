@@ -5509,3 +5509,46 @@ body.site-quantri { --site: #6d28d9; --site-text: #fff; --site-bg: #efe9fd; }
 .site-quantri .brand-mark { background: var(--site); color: var(--site-text); }
 .site-quantri .role-nav a.on { background: var(--site-bg); color: var(--site); box-shadow: inset 3px 0 0 var(--site); }
 .site-quantri .role-nav a.on .nav-ico, .site-quantri .phone-tabs a.on { color: var(--site); }
+
+/* Quy tắc hoa hồng (19/11): thẻ đang áp dụng theo nhóm, Thay tại dòng mở popup, lịch sử ẩn. */
+.hh-groups { display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; align-items: start; }
+.hh-group { padding: 0; overflow: hidden; }
+.hh-ghead { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.hh-ghead h2 { margin: 0; font-size: 1.1rem; }
+.hh-gnote { margin: 4px 0 0; color: var(--muted); font-size: .85rem; }
+.hh-lines { list-style: none; margin: 0; padding: 0; }
+.hh-line { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.hh-line:last-child { border-bottom: 0; }
+.hh-kind { font-weight: 700; padding-top: 6px; }
+.hh-vals { display: grid; gap: 8px; min-width: 0; }
+.hh-val { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.hh-val.hh-person { padding-left: 12px; border-left: 3px solid var(--line); }
+.hh-text { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.hh-text b { font-size: 1.05rem; }
+.hh-who { font-size: .78rem; font-weight: 700; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.hh-since { flex-basis: 100%; color: var(--muted); font-size: .8rem; }
+.hh-warn { flex-basis: 100%; color: var(--warn); background: var(--warn-bg); border-radius: 8px; padding: 4px 8px; font-size: .82rem; }
+.hh-none { color: var(--muted); font-style: italic; }
+.hh-none .btn { font-style: normal; }
+.hh-val .btn { flex: none; }
+.hh-history { margin-top: 16px; }
+.hh-history > summary { cursor: pointer; padding: 4px 0; list-style-position: inside; }
+.hh-history[open] > summary { margin-bottom: 10px; }
+.hh-dialog form { display: flex; flex-direction: column; min-height: 0; margin: 0; gap: 0; }
+.hh-dhead, .hh-dfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
+.hh-dhead { border-bottom: 1px solid var(--line); }
+.hh-dhead h2 { margin: 0; font-size: 1.1rem; }
+.hh-dfoot { border-top: 1px solid var(--line); justify-content: flex-end; }
+.hh-dbody { display: grid; gap: 12px; padding: 14px 16px; overflow-y: auto; min-height: 0; }
+.hh-scope { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.hh-scope > span { font-size: .8rem; color: var(--muted); }
+.hh-cur { font-size: 1.05rem; }
+.hh-pick { display: grid; gap: 12px; }
+@media (max-width: 900px) {
+  .hh-groups { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .hh-line { grid-template-columns: 1fr; gap: 6px; padding: 12px; }
+  .hh-kind { padding-top: 0; }
+  .hh-dfoot .btn-ok { flex: 1; }
+}
