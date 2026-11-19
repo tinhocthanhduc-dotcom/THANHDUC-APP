@@ -3,6 +3,7 @@
 {% block main %}
 <form method="post" action="/dang-nhap" class="card login">
   <h1>Đăng nhập</h1>
+  {% if request.state.site|default(none) %}<p class="mu">{{ request.state.site.name }} · {{ request.state.site.sub }}</p>{% endif %}
   <input type="hidden" name="form_key" value="{{ form_key() }}">
   {% if error %}<p class="alert bad">{{ error }}</p>{% endif %}
   <input type="hidden" name="next" value="{{ next }}">

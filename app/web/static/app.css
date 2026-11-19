@@ -5442,3 +5442,11 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .tq-below .hint{text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px}
 .overview-page .lv-fold{margin:0 0 8px}
 @media (max-width:640px){.tq-need-h small{flex-basis:100%}.tq-row{gap:10px;padding:10px 12px}}
+/* Tên miền con Care (TUẤN duyệt mẫu 19/11/2026): cùng giao diện, logo + mục đang mở màu xanh ngọc để biết đang ở Care. */
+body.site-care { --site: #0f766e; --site-text: #fff; --site-bg: #e3f4f1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.site-care { --site: #2dd4bf; --site-text: #04201c; --site-bg: #133430; } }
+:root[data-theme="dark"] body.site-care { --site: #2dd4bf; --site-text: #04201c; --site-bg: #133430; }
+.site-care .brand-mark { background: var(--site); color: var(--site-text); }
+.site-care .role-nav a.on { background: var(--site-bg); color: var(--site); box-shadow: inset 3px 0 0 var(--site); }
+.site-care .role-nav a.on .nav-ico, .site-care .phone-tabs a.on { color: var(--site); }
+.role-nav .site-out { margin-top: 10px; border-top: 1px solid var(--line); border-radius: 0; color: var(--accent); font-size: .92rem; }

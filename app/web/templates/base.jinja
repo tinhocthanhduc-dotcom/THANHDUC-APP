@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{% block title %}Thành Đức{% endblock %} · Thành Đức</title>
+{% set web_site = request.state.site|default(none) %}<title>{% block title %}Thành Đức{% endblock %} · {{ web_site.name if web_site else 'Thành Đức' }}</title>
 <link rel="stylesheet" href="{{ asset('app.css') }}">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-180.png">
-<meta name="theme-color" content="#1d4ed8">
+<meta name="theme-color" content="{{ web_site.theme if web_site else '#1d4ed8' }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Thành Đức">
+<meta name="apple-mobile-web-app-title" content="{{ web_site.name if web_site else 'Thành Đức' }}">
 <script>
 // Sáng/Tối người dùng chọn trên máy này; đặt trước khi vẽ trang để không nháy màu.
 // Safari iOS dưới 16 chưa có form.requestSubmit (vuốt xác nhận, Vào ca/Ra ca dùng nó).
@@ -31,8 +31,8 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 <script src="{{ asset('sales-serials.js') }}" defer></script>
 </head>
 {% if user %}{% macro notify_bell(cls, url='/ca-nhan/thong-bao') %}<details class="notify {{ cls }}" data-notify="{{ url }}" data-notify-user="{{ user.id }}" data-csrf="{{ csrf }}"><summary class="notify-btn" aria-label="Thông báo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><span class="notify-badge" data-notify-count hidden></span></summary><div class="notify-panel"><div class="notify-head"><strong data-notify-title>Thông báo</strong><button type="button" class="btn btn-ghost" data-notify-readall hidden>Đã xem hết</button></div><div class="notify-list" data-notify-list><p class="mu">Đang tải thông báo…</p></div><button type="button" class="btn btn-info notify-push" data-push-toggle hidden>Bật thông báo khi tắt màn hình</button><p class="hint notify-push-hint" data-push-hint hidden></p></div></details>{% endmacro %}
-{% endif %}{% set navigation = web_navigation(user, request.url.path, request.query_params) if user else none %}
-<body{% if navigation and navigation.technician %} class="tho-app"{% elif navigation %} class="web-app"{% endif %}{% if user %} data-qn="{{ quick_create_kinds() }}"{% endif %}>
+{% endif %}{% set navigation = web_navigation(user, request.url.path, request.query_params, site=request.state.site|default(none)) if user else none %}
+<body class="{% if navigation and navigation.technician %}tho-app{% elif navigation %}web-app{% endif %}{% if request.state.site|default(none) %} site-{{ request.state.site.key }}{% endif %}"{% if user %} data-qn="{{ quick_create_kinds() }}"{% endif %}>
 {% if user %}
 {% if navigation.technician %}
 {# Khung riêng cho thợ (theo bản mẫu màn thợ): thanh trên gọn, tab dưới cùng. #}
@@ -54,7 +54,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
 {% set name_parts = user.full_name.split() %}
 <aside class="side" style="--tabs: {{ navigation.tabs|length + 1 }}">
   <div class="side-head">
-    <a class="brand" href="{{ navigation.home }}"><span class="brand-mark">TĐ</span><span class="brand-name">Thành Đức<small>Quản lý vận hành</small></span></a>
+    {% if navigation.site %}<a class="brand" href="{{ navigation.home }}"><span class="brand-mark">{{ navigation.site.mark }}</span><span class="brand-name">{{ navigation.site.name }}<small>{{ navigation.site.sub }}</small></span></a>{% else %}<a class="brand" href="{{ navigation.home }}"><span class="brand-mark">TĐ</span><span class="brand-name">Thành Đức<small>Quản lý vận hành</small></span></a>{% endif %}
     <button type="button" class="side-mini" data-nav-mini aria-label="Thu gọn hoặc mở rộng menu" title="Thu gọn / mở rộng menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM9 4v16M15 10l-2 2 2 2"></path></svg></button>
   </div>
   <details class="menu-shell" data-web-menu>
@@ -75,6 +75,7 @@ try { var tdTheme = localStorage.getItem('td-theme'); if (tdTheme === 'dark' || 
         {% endif %}
       {% endfor %}
       <p class="nav-empty" data-nav-empty hidden>Không có trang nào khớp.</p>
+      {% if navigation.site %}<a class="nav-top site-out" href="{{ site_main_url(request, '/') }}" title="Sang trang quản lý đầy đủ">↗ Sang trang quản lý đầy đủ</a>{% endif %}
       </nav>
     </div>
   </details>
