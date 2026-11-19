@@ -273,7 +273,7 @@ def test_web_preserves_dispatcher_warehouse_line_when_tech_adds_fee(client, db, 
     p,a,b=held;t=ticket(db,p,'DANG_LAM');charges(db,p,t,warehouse='K58',who='dispatcher')
     csrf=service_login(client,p['technician'])
     response=client.get(f'/dich-vu/{t.id}')
-    assert 'name="warehouse_0" value="K58" data-charge-warehouse checked' in response.text
+    assert '<select name="warehouse_0" data-charge-warehouse required>' in response.text and '<option value="K58" selected>' in response.text
     data=dict(csrf=csrf,version=t.version,billing='THU_TIEN',line_kind=['VAT_TU','PHI'],line_product=['TD-0001',''],
         line_description=['Drum','Công sửa'],line_qty=['1','1'],line_price=['2.000','50.000'],warehouse_0='K58',warehouse_1='',vat_0='0',vat_1='0')
     response=client.post(f'/dich-vu/{t.id}/tien/luu',data=data)

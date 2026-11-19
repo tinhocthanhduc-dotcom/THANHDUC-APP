@@ -45,7 +45,7 @@
       if (check.dataset.check === 'warehouses') {
         ok = Array.from(form.querySelectorAll('[data-charge-line]')).every(function(row) {
           if (row.querySelector('[name=line_kind]').value !== 'VAT_TU') return true;
-          return !!(row.querySelector('[data-charge-warehouse]:checked') || row.querySelector('input[type=hidden][data-charge-warehouse]'));
+          return Array.from(row.querySelectorAll('[data-charge-warehouse]')).some(function(i) { return i.type === 'hidden' || (i.type === 'radio' ? i.checked : !!i.value); });
         });
       }
       check.dataset.ok = ok ? '1' : '0';
