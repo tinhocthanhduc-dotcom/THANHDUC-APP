@@ -46,7 +46,7 @@
 {% if draft %}<form method="post" action="/zalo/hop-thu/{{ current.id }}/bo-soan/{{ draft.id }}">{{ hidden_fields() }}<button class="btn btn-danger">Bỏ bản soạn</button></form>{% endif %}</div>
 </div>{% endif %}
 {% if current.chat_type == 'PRIVATE' or director %}<form class="zalo-reply" method="post" action="/zalo/hop-thu/{{ current.id }}/tra-loi">{{ hidden_fields() }}{% if draft and draft.status == 'XONG' %}<input type="hidden" name="ban_soan" value="{{ draft.id }}">{% endif %}
-<label for="zht-noi-dung"><b>Trả lời khách</b> <small class="mu">· gửi từ Zalo Bot công ty</small></label><textarea id="zht-noi-dung" name="noi_dung" rows="{{ 5 if draft and draft.status == 'XONG' else 3 }}" maxlength="{{ max_text }}" required>{{ draft.text if draft and draft.status == 'XONG' else '' }}</textarea>
+<label for="zht-noi-dung"><b>Trả lời khách</b> <small class="mu">· gửi từ Zalo Bot công ty</small></label><textarea id="zht-noi-dung" name="noi_dung" rows="{{ 4 if draft and draft.status == 'XONG' else 2 }}" maxlength="{{ max_text }}" required>{{ draft.text if draft and draft.status == 'XONG' else '' }}</textarea>
 <button class="btn btn-ok">Gửi khách</button></form>{% endif %}
 {% else %}{{ ui.empty('Chọn một hội thoại để xem tin.') }}{% endif %}
 </section>
@@ -67,4 +67,28 @@
 {% if can_open('/dich-vu/moi') %}<a class="zht-link" href="/dich-vu/moi?customer_code={{ cust.code|urlencode }}">Nhận đơn dịch vụ cho khách này ›</a>{% endif %}{% endif %}
 </aside>{% endif %}
 </div>
-</div>{% endblock %}
+</div>
+<script>
+(function () {
+  /* Khung vừa màn hình, mỗi cột tự cuộn; mở hội thoại thì cuộn sẵn tới tin mới nhất. */
+  var grid = document.querySelector('.zht-grid');
+  if (!grid) return;
+  var phone = window.matchMedia('(max-width: 760px)');
+  function fit() {
+    var box = phone.matches ? (grid.querySelector('.zht-thread') || grid) : grid;
+    var top = box.getBoundingClientRect().top + window.scrollY;
+    var bar = document.querySelector('.phone-tabs');
+    var under = bar && getComputedStyle(bar).position === 'fixed' ? bar.getBoundingClientRect().height : 0;
+    var h = Math.max(420, window.innerHeight - top - under - 16);
+    grid.style.setProperty('--zht-h', h + 'px');
+    var extra = document.documentElement.scrollHeight - window.innerHeight;
+    if (!phone.matches && extra > 0 && h - extra >= 420) grid.style.setProperty('--zht-h', (h - extra - 2) + 'px');
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  var msgs = grid.querySelector('.zalo-msgs');
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  var on = grid.querySelector('.zht-chat.on');
+  if (on && on.scrollIntoView) on.scrollIntoView({block: 'nearest'});
+})();
+</script>{% endblock %}
