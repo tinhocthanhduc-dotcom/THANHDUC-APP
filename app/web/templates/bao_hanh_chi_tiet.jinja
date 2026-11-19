@@ -1,5 +1,6 @@
 {% if t.kind=='BAO_HANH' %}<section class="card service-action"><h2>Bảo hành</h2>
-{% if t.warranty_basis=='HET_HAN' %}<p class="alert bad">Hết hạn bảo hành</p>{% endif %}
+{% if warranty.void %}<p class="alert bad" data-warranty-void>{{ warranty.void }}{% if warranty.void_ticket_id and warranty.void_ticket_id != t.id %} · <a href="/dich-vu/{{ warranty.void_ticket_id }}">xem phiếu đã từ chối</a>{% endif %}. Muốn vẫn bảo hành thì chọn Miễn phí và ghi lý do.</p>
+{% elif t.warranty_basis=='HET_HAN' %}<p class="alert bad">Hết hạn bảo hành</p>{% endif %}
 {% if warranty.parent %}<p>Bảo hành cho <a href="/dich-vu/{{ warranty.parent.id }}">{{ warranty.parent.number }}</a> (thợ {{ users.get(warranty.technician_id,'Chưa giao') }}, xong {{ warranty.completed_at|service_time }}{% if warranty.days is not none %}, {{ 'còn ' ~ warranty.days ~ ' ngày' if warranty.days >= 0 else 'đã hết hạn' }}{% endif %})</p>
 {% elif t.warranty_basis=='MAY_CON_HAN' %}<p>Bảo hành máy đến {{ warranty.until.strftime('%d/%m/%Y') if warranty.until else '—' }}</p>{% endif %}
 {% if can_relink %}<form method="post" action="/linh-kien-thu-hoi/phieu/{{ t.id }}/bao-hanh" class="form" id="warranty-link">

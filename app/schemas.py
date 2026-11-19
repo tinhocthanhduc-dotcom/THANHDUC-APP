@@ -664,6 +664,8 @@ class ServiceCharges(BaseModel):
 
     billing: Literal["THU_TIEN", "MIEN_PHI"]
     billing_reason: str = Field(default='', max_length=2000)
+    # Đổi bảo hành sang Có thu tiền kèm đánh dấu máy hết quyền bảo hành (TUẤN 19/11/2026).
+    void_machine_warranty: bool = False
     free_reason: str = Field(default="", max_length=2000)
     lines: list[ServiceLineIn] = Field(default_factory=list, max_length=200)
     version: int | None = Field(default=None, ge=1)
@@ -785,6 +787,9 @@ class EquipmentOut(EquipmentFields):
     custody_location: str
     custody_holder_id: int | None
     custody_ticket_id: int | None
+    warranty_void_on: date | None = None
+    warranty_void_reason: str = ''
+    warranty_void_ticket_id: int | None = None
     version: int
     created_by: int
     created_at: datetime

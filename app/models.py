@@ -575,6 +575,10 @@ class Equipment(Base):
     site_id: Mapped[int | None] = mapped_column(ForeignKey("customer_sites.id"))
     warranty_until: Mapped[date | None] = mapped_column(Date)
     support_until: Mapped[date | None] = mapped_column(Date)
+    # Máy đã bị từ chối bảo hành (TUẤN 19/11/2026): lần sau không tự Miễn phí, màn nhận máy cảnh báo đỏ.
+    warranty_void_on: Mapped[date | None] = mapped_column(Date)
+    warranty_void_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    warranty_void_ticket_id: Mapped[int | None] = mapped_column(ForeignKey('service_tickets.id', name='fk_equipment_warranty_void_ticket', use_alter=True))
     condition: Mapped[str] = mapped_column(String(3), default="MOI")
     note: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)

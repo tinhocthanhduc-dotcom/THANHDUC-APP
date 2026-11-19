@@ -27,7 +27,10 @@ TZ = ZoneInfo('Asia/Ho_Chi_Minh')
 
 
 def detail_context(session, user, ticket, shown=None):
-    saved = dict(billing_reason='', billing=ticket.billing or '', free_reason=ticket.free_reason or '', version=ticket.version,
+    # Máy đã bị từ chối bảo hành: phiếu Bảo hành chưa lưu tiền thì chọn sẵn Có thu tiền (vẫn đổi sang Miễn phí được).
+    from .. import service_warranty
+    void = service_warranty.void_of(session, ticket.serial) if ticket.kind == 'BAO_HANH' and ticket.billing is None else None
+    saved = dict(billing_reason='', billing=ticket.billing or ('THU_TIEN' if void is not None else ''), free_reason=ticket.free_reason or '', version=ticket.version,
                  lines=[ServiceLineOut.model_validate(line).model_dump(mode='json') for line in ticket.lines])
     for line in saved['lines']:
         line['unit_price'] = money(line['unit_price'])
@@ -58,7 +61,7 @@ def _raw(form):
         lines.append(dict(kind=str(kind), stock_doc_id=at('line_stock_doc_id') or None, description=at('line_description'), product_code=at('line_product') or None,
                           warehouse_code=str(form.get(f'warehouse_{i}', '')) or None, qty=at('line_qty'),
                           unit_price=at('line_price'), vat_rate=str(form.get(f'vat_{i}', str(DEFAULT_VAT_RATE)))))
-    return dict(billing_reason=str(form.get('billing_reason','')), billing=str(form.get('billing', '')), free_reason=str(form.get('free_reason', '')),
+    return dict(billing_reason=str(form.get('billing_reason','')), void_machine_warranty=form.get('void_machine_warranty')=='1', billing=str(form.get('billing', '')), free_reason=str(form.get('free_reason', '')),
                 version=str(form.get('version', '')), lines=lines)
 
 
@@ -76,7 +79,7 @@ def _body(raw, version):
             raise BusinessError('BAD_VAT', f'VAT dòng {i} phải là 0, 5, 8 hoặc 10%.')
         lines.append({**line, 'unit_price': int(price.replace('.', '')), 'vat_rate': vat,
                       'qty': str(line['qty']).replace(',', '.')})
-    return ServiceCharges(billing_reason=raw.get('billing_reason',''), billing=raw['billing'], free_reason=raw['free_reason'], version=version, lines=lines)
+    return ServiceCharges(billing_reason=raw.get('billing_reason',''), void_machine_warranty=bool(raw.get('void_machine_warranty')), billing=raw['billing'], free_reason=raw['free_reason'], version=version, lines=lines)
 
 
 @router.get('/dich-vu/tim-vat-tu')

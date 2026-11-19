@@ -84,6 +84,9 @@ def _warranty_info(session,ticket,eq):
     """Khung hạn bảo hành ở phiếu Bảo hành: còn hạn (miễn phí, giữ hạn cũ) hay hết hạn (tính như sửa thường)."""
     from .. import service_warranty
     from ..models import ServiceTicket as _T
+    void=service_warranty.void_text(eq)
+    if void and ticket.warranty_basis=='HET_HAN':
+        return dict(valid=False,end=eq.warranty_until,source='',void=void)
     if ticket.warranty_basis=='PHIEU_TRUOC' and ticket.warranty_of_id:
         parent=session.get(_T,ticket.warranty_of_id)
         return dict(valid=True,end=service_warranty.warranty_end(session,parent) if parent else None,source='Theo phiếu '+parent.number if parent else '')

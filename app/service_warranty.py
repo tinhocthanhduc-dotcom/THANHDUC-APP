@@ -49,6 +49,59 @@ def terms(session,ticket):
     return 'Bảo hành: '+length+(', đến '+end.strftime('%d/%m/%Y') if end else ', tính từ ngày hoàn thành')+(' · '+ticket.warranty_scope if ticket.warranty_scope else '')
 
 
+def void_of(session, serial):
+    """Thiết bị đã bị từ chối bảo hành (TUẤN 19/11/2026), không có thì None."""
+    machine = session.get(Equipment, serial) if serial else None
+    return machine if machine is not None and machine.warranty_void_on is not None else None
+
+
+def voided_before(session, machine, parent):
+    """Phiếu sửa xong trước (hoặc trong) ngày từ chối thì hết quyền bảo hành; sửa lại sau đó thì bảo hành phiếu mới bình thường."""
+    if machine is None or machine.warranty_void_on is None or parent is None:
+        return False
+    stamp, _ = completion(session, parent)
+    return stamp is None or stamp.astimezone(service_sla.TZ).date() <= machine.warranty_void_on
+
+
+def void_text(machine):
+    if machine is None or machine.warranty_void_on is None:
+        return ''
+    return 'Máy đã bị từ chối bảo hành ngày ' + machine.warranty_void_on.strftime('%d/%m/%Y') + (
+        ': ' + machine.warranty_void_reason if machine.warranty_void_reason else '')
+
+
+def mark_void(session, user, ticket, reason):
+    """Đánh dấu máy của phiếu hết quyền bảo hành. Caller giữ transaction."""
+    if not ticket.serial:
+        raise BusinessError('SERIAL_REQUIRED', 'Phiếu chưa có serial máy nên không đánh dấu máy hết bảo hành được.')
+    machine = session.get(Equipment, ticket.serial, with_for_update=True)
+    if machine is None:
+        raise BusinessError('BAD_SERIAL', 'Không tìm thấy thiết bị của phiếu.')
+    from . import equipment
+    before = equipment.snapshot(machine)
+    machine.warranty_void_on, machine.warranty_void_reason, machine.warranty_void_ticket_id = today(), reason[:2000], ticket.id
+    session.flush()
+    audit.record(session, user, 'equipment.warranty_void', 'equipment', machine.serial, before, equipment.snapshot(machine), reason)
+
+
+def clear_void(session, user, serial, version):
+    from . import equipment
+    equipment.check_editor(user)
+    with _transaction(session):
+        machine = session.get(Equipment, equipment.normalize_serial(serial), with_for_update=True)
+        if machine is None:
+            raise BusinessError('NOT_FOUND', 'Không tìm thấy thiết bị.', status=404)
+        if version is not None and machine.version != version:
+            raise BusinessError('VERSION_CONFLICT', 'Người khác vừa sửa thiết bị, hãy tải lại.', status=409)
+        if machine.warranty_void_on is None:
+            return machine
+        before = equipment.snapshot(machine)
+        machine.warranty_void_on, machine.warranty_void_reason, machine.warranty_void_ticket_id = None, '', None
+        session.flush()
+        audit.record(session, user, 'equipment.warranty_void_clear', 'equipment', machine.serial, before, equipment.snapshot(machine), '')
+    return machine
+
+
 def assess(session, ticket, warranty_of_id):
     if ticket.kind != 'BAO_HANH':
         if warranty_of_id is not None:
@@ -62,10 +115,12 @@ def assess(session, ticket, warranty_of_id):
         if parent.status not in ('HOAN_THANH', 'DA_DONG'):
             raise BusinessError('WARRANTY_NOT_COMPLETED', 'Phiếu trước chưa hoàn thành.', status=409)
         end = warranty_end(session,parent)
+        if voided_before(session, void_of(session, ticket.serial or parent.serial), parent): return 'HET_HAN', end, ''
         if end is not None and end >= today(): return 'PHIEU_TRUOC', end, 'Bảo hành ' + parent.number
         return 'HET_HAN', end, ''
     machine = session.get(Equipment, ticket.serial) if ticket.serial else None
     end = machine.warranty_until if machine else None
+    if machine is not None and machine.warranty_void_on is not None: return 'HET_HAN', end, ''
     if end is not None and end >= today(): return 'MAY_CON_HAN', end, 'Bảo hành máy đến ' + end.strftime('%d/%m/%Y')
     return 'HET_HAN', end, ''
 
@@ -123,5 +178,6 @@ def info(session, ticket):
     else:
         machine = session.get(Equipment, ticket.serial) if ticket.serial else None
         end = machine.warranty_until if machine else None
+    machine = void_of(session, ticket.serial or (parent.serial if parent else None))
     return dict(parent=parent, completed_at=stamp, technician_id=technician_id, until=end,
-                days=(end - today()).days if end else None)
+                days=(end - today()).days if end else None, void=void_text(machine), void_ticket_id=machine.warranty_void_ticket_id if machine else None)

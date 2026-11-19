@@ -4751,6 +4751,8 @@ main:has(> .sbt-page) { max-width: 1240px; }
 .svn-chip { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #eef0f4; color: #4b5363; white-space: nowrap; }
 .svn-chip.ok { background: #e7f6ec; color: #166534; }
 .svn-chip.warn { background: #fff4d6; color: #8a5a00; }
+.svn-chip.bad { background: #fde8e8; color: #b42318; }
+.svn-void { color: #b42318; }
 .svn-own { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px; }
 .svn-own[hidden] { display: none; }
 .svn-newm { display: grid; gap: 8px; margin-top: 10px; }

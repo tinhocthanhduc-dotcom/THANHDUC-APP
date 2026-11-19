@@ -106,17 +106,25 @@ def _machine(session, user, t, serial, c, today, rules, out):
     done = [x for x in past if x.status in DONE and x.kind != 'MUC_DINH_KY']
     names = dict(session.execute(select(User.id, User.full_name)).all())
     opened = (t.created_at.astimezone(TZ).date() if t is not None and t.created_at else today)
+    # Máy đã bị từ chối bảo hành (TUẤN 19/11/2026): luôn cảnh báo, không báo "còn bảo hành" theo hạn cũ.
+    void = service_warranty.void_of(session, serial)
+    if void is not None:
+        out.append(_note('⛔', service_warranty.void_text(void) + '. Không tự miễn phí, báo khách tính tiền như sửa thường.',
+                         href=_url(user, void.warranty_void_ticket_id) if void.warranty_void_ticket_id else '',
+                         link='phiếu đã từ chối' if void.warranty_void_ticket_id else '', warn=True, rank=0))
     # Còn bảo hành: phiếu sửa gần nhất còn hạn, không thì hạn bảo hành máy mua mới.
     if 'bao_hanh' in rules:
         if t is not None and t.kind == 'BAO_HANH' and t.warranty_of_id:
             parent = session.get(ServiceTicket, t.warranty_of_id)
-            if parent is not None:
+            if parent is not None and not service_warranty.voided_before(session, void, parent):
                 end = service_warranty.warranty_end(session, parent)
                 out.append(_note('🛡', f"Phiếu bảo hành của {parent.number}" + (f", hạn đến {_d(end, True)}" if end else '') + '.',
                                  href=_url(user, parent.id), link=parent.number, rank=1))
         else:
             hit = None
             for x in done:
+                if service_warranty.voided_before(session, void, x):
+                    break
                 end = service_warranty.warranty_end(session, x)
                 if end and end >= opened:
                     hit = (x, end)
@@ -127,7 +135,7 @@ def _machine(session, user, t, serial, c, today, rules, out):
                                  href=_url(user, x.id), link=x.number, warn=True, rank=0))
             else:
                 eq = session.get(Equipment, serial)
-                if eq is not None and eq.warranty_until and eq.warranty_until >= opened:
+                if eq is not None and void is None and eq.warranty_until and eq.warranty_until >= opened:
                     out.append(_note('🛡', f"Máy còn bảo hành mua mới đến {_d(eq.warranty_until, True)}.", warn=True, rank=0))
     if 'moi_sua' in rules:
         recent = [x for x in done if (_done_day(session, x) or today) >= today - timedelta(days=int(c['recent_days']))][:2]
