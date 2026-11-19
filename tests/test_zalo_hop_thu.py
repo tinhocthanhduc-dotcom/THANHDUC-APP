@@ -169,3 +169,22 @@ def test_bo_ban_soan_va_z2_loi(client, db, make_user, chats, zalo, z2):
     db.expire_all()
     assert db.get(ZaloReplyDraft, draft.id).status == 'BO'
     assert 'AI soạn câu trả lời' in client.get(f"/zalo/hop-thu?chat={chats['la']}").text
+
+
+ZALO = {'host': 'zalo.testserver', 'accept': 'text/html'}
+
+
+def test_ten_mien_zalo_menu_rieng_va_trang_ngoai_ve_trang_chinh(client, make_user, chats):
+    from app.web import sites
+    assert sites.key_of('zalo.quanlythanhduc.com') == 'zalo'
+    service_login(client, make_user('kd', 'sales'))
+    r = client.get('/zalo/hop-thu', headers=ZALO)
+    assert r.status_code == 200 and 'Thành Đức Zalo' in r.text and 'site-zalo' in r.text
+    for label in ('Tất cả tin', 'Cần trả lời', 'Chờ gửi khách', 'Đơn &amp; phiếu nháp'):
+        assert label in r.text, label
+    assert 'Trả lời tự động' not in r.text.split('class="role-nav"', 1)[1].split('</nav>', 1)[0]  # chỉ giám đốc
+    r = client.get('/', headers=ZALO, follow_redirects=False)
+    assert r.headers['location'] == '/zalo/hop-thu'
+    r = client.get('/don-ban', headers={'host': 'zalo.testserver', 'sec-fetch-dest': 'document'}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == 'http://testserver/don-ban'
+    assert 'Thành Đức Zalo' not in client.get('/zalo/hop-thu').text  # tên miền chính giữ nguyên

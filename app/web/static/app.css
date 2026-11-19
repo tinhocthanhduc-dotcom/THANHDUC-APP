@@ -5470,4 +5470,11 @@ body.site-care { --site: #0f766e; --site-text: #fff; --site-bg: #e3f4f1; }
 .site-care .brand-mark { background: var(--site); color: var(--site-text); }
 .site-care .role-nav a.on { background: var(--site-bg); color: var(--site); box-shadow: inset 3px 0 0 var(--site); }
 .site-care .role-nav a.on .nav-ico, .site-care .phone-tabs a.on { color: var(--site); }
+/* Tên miền con Zalo (TUẤN duyệt mẫu 19/11/2026): màu xanh Zalo. */
+body.site-zalo { --site: #0b62d6; --site-text: #fff; --site-bg: #e5efff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.site-zalo { --site: #6aa8ff; --site-text: #07152b; --site-bg: #182a46; } }
+:root[data-theme="dark"] body.site-zalo { --site: #6aa8ff; --site-text: #07152b; --site-bg: #182a46; }
+.site-zalo .brand-mark { background: var(--site); color: var(--site-text); }
+.site-zalo .role-nav a.on { background: var(--site-bg); color: var(--site); box-shadow: inset 3px 0 0 var(--site); }
+.site-zalo .role-nav a.on .nav-ico, .site-zalo .phone-tabs a.on { color: var(--site); }
 .role-nav .site-out { margin-top: 10px; border-top: 1px solid var(--line); border-radius: 0; color: var(--accent); font-size: .92rem; }
