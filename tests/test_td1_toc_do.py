@@ -39,7 +39,7 @@ def test_page_only_for_director_and_admin(client, make_user):
     page = client.get('/toc-do?ky=7-ngay')
     assert page.status_code == 200 and 'Tốc độ app' in page.text
     assert 'GET /viec-cua-toi' in page.text and 'Hỏi nền 15 giây' in page.text
-    assert 'href="/toc-do"' in client.get('/viec-cua-toi').text  # có trong menu Quản trị
+    assert 'href="/toc-do"' in client.get('/viec-cua-toi', headers={'host': 'quantri.testserver'}).text  # menu Hệ thống trên quantri.* (19/11/2026)
 
 
 def test_browser_beacon_needs_csrf_and_is_summarised(client, make_user):
