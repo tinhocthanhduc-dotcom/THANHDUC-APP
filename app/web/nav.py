@@ -365,7 +365,8 @@ MAIN_HIDDEN = frozenset(('/hop-zalo', '/thiet-bi', '/dang-web', '/bao-cao/ban-ha
 
 
 # Việc riêng của thợ và con số của chính mình: giám đốc xem ở trang tổng, không cần trên menu.
-DIRECTOR_HIDDEN = ('/kpi', '/hoa-hong', '/tien-toi-giu', '/hang-toi-giu')
+# TUẤN 19/11/2026: giám đốc bỏ cả Chấm công khỏi menu (vẫn mở từ Cá nhân ở nút tài khoản).
+DIRECTOR_HIDDEN = ('/kpi', '/hoa-hong', '/tien-toi-giu', '/hang-toi-giu', '/cham-cong')
 
 
 def site_menu(user, path, query, site):

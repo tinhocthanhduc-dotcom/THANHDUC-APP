@@ -75,8 +75,6 @@ for _s in SITES.values():  # Site menu phẳng = một nhóm không tiêu đề.
     _s.setdefault('groups', (('', _s.get('menu', ())),))
     _s['menu'] = tuple(entry for _, entries in _s['groups'] for entry in entries)
 
-# Khối "Trang khác" trên menu tên miền chính (TUẤN duyệt mẫu 19/11/2026), theo thứ tự này.
-SHORTCUTS = (('care', 'Care'), ('zalo', 'Zalo'), ('quantri', 'Quản trị'))
 
 # Mọi site đều mở được: đăng nhập, tài khoản, tệp tĩnh, link báo giá cho khách, hộp xem nhanh, QR.
 COMMON = ('/', '/dang-nhap', '/dang-xuat', '/doi-mat-khau', '/ho-so-cua-toi', '/ca-nhan', '/static', '/sw.js',
@@ -163,13 +161,6 @@ def site_url(request: Request, key: str, path: str = '/'):
     proto = request.headers.get('x-forwarded-proto', '').split(',')[0].strip().lower() or request.url.scheme
     return f'{proto}://{key}.{host}{path}'
 
-
-def shortcuts(request: Request, user):
-    """Lối sang tên miền con trên tên miền chính: chỉ site người dùng mở được ít nhất một mục; truy cập bằng IP thì không có."""
-    if user is None or site_url(request, 'x') is None:
-        return []
-    return [dict(key=key, label=label, mark=SITES[key]['mark'], url=site_url(request, key))
-            for key, label in SHORTCUTS if menu_items(user, SITES[key])]
 
 
 async def middleware(request: Request, call_next):
