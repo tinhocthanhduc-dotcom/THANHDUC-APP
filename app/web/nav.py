@@ -84,6 +84,9 @@ GROUPS = (
         {'label': 'Phiếu nháp từ Zalo', 'href': '/phieu-nhap-zalo', 'prefixes': ('/phieu-nhap-zalo',), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/hop-zalo'},
         {'label': 'Máy đang giữ', 'href': '/may-dang-giu', 'prefixes': ('/may-dang-giu',), 'roles': ('dispatcher','warehouse')},
         {'label': 'Thiết bị của khách', 'href': '/thiet-bi', 'prefixes': ('/thiet-bi',), 'roles': ('dispatcher', 'reception', 'technician', 'sales')},
+        # Care (TUẤN duyệt 19/11/2026): hai trang mới, hiện trên menu care.quanlythanhduc.com; tên miền chính mở bằng link.
+        {'label': 'Máy đã bán', 'href': '/may-da-ban', 'prefixes': ('/may-da-ban',), 'roles': ('dispatcher', 'reception', 'technician', 'sales'), 'hidden': True, 'highlight': '/thiet-bi'},
+        {'label': 'Bảo hành sửa chữa', 'href': '/bao-hanh-sua-chua', 'prefixes': ('/bao-hanh-sua-chua',), 'roles': ('dispatcher', 'reception', 'technician', 'sales'), 'hidden': True, 'highlight': '/dich-vu'},
     )},
     {'label': 'Kho', 'section': 'Nghiệp vụ', 'items': (
         {'label': 'Tồn kho', 'href': '/ton-kho', 'prefixes': ('/ton-kho', '/the-kho'), 'roles': ('sales', 'warehouse', 'finance')},
@@ -296,6 +299,13 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/kpi': 'M4 20V10M10 20V4M16 20v-7',
     '/hoa-hong': 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     '/tho': 'M3 5h18v15H3zM3 10h18M8 3v4M16 3v4',
+    # Menu Care (care.quanlythanhduc.com, TUẤN duyệt 19/11/2026).
+    '/dich-vu': 'M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z',
+    '/kiem-tra-may': 'M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6',
+    '/thiet-bi': 'M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v7H6z',
+    '/may-da-ban': 'M20 7l-8-4-8 4 8 4 8-4zM4 7v10l8 4 8-4V7M12 11v10',
+    '/bao-hanh-sua-chua': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
+    '/bang-gia': 'M20.6 13.4L13.4 20.6a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01',
 }.items()}
 # Menu gọn (TUẤN duyệt mẫu 17/11/2026): thứ tự nhóm nghiệp vụ theo việc chính của người dùng (vai ghi trên tài khoản),
 # nhóm của việc chính lên trước; giám đốc giữ thứ tự gốc. Chỉ đổi chỗ hiện, không đổi quyền.
@@ -332,7 +342,32 @@ def technician_shell(user, path, query=None):
 DIRECTOR_HIDDEN = ('/kpi', '/hoa-hong', '/tien-toi-giu', '/hang-toi-giu')
 
 
-def menu(user, path, query=None):
+def site_menu(user, path, query, site):
+    """Menu tên miền con (care.*): chỉ các mục của site, vẫn lọc theo quyền; khung máy tính cho cả thợ."""
+    from . import sites
+    current = matching(path, query)
+    links = sites.menu_items(user, site)
+    base = lambda h: h.split('?')[0]
+    picked = [dict(href=h, label=l, active=bool(current) and current is matching(base(h)), icon=NAV_ICONS.get(base(h), '')) for h, l in links]
+    # Trang ẩn (vd. Nhận đơn) sáng mục cha của nó; còn không thì theo đường dẫn cha (vd. /dich-vu/12).
+    for test in ((lambda i: bool(current) and current.get('highlight') == base(i['href'])),
+                 (lambda i: path == base(i['href']) or path.startswith(base(i['href']) + '/'))):
+        if any(i['active'] for i in picked):
+            break
+        for i in picked:
+            if test(i):
+                i['active'] = True
+                break
+    groups = [dict(label='', section='', items=picked, active=any(i['active'] for i in picked), icon='')] if picked else []
+    tabs = [dict(href=i['href'], label=i['label'], icon=i['icon'], active=i['active']) for i in picked][:3]
+    roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
+    return dict(groups=groups, tabs=tabs, crumb=None, roles=roles, technician=False, pure=pure_technician(user),
+                home=sites.home_url(user, site) or home_url(user), personal=[], site=site)
+
+
+def menu(user, path, query=None, site=None):
+    if site:
+        return site_menu(user, path, query, site)
     current = matching(path, query)
     groups = []
     shell = technician_shell(user, path, query)
@@ -357,4 +392,4 @@ def menu(user, path, query=None):
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
     # Người nhiều vai trong khung thợ: tab dưới là nhóm đầu, menu đầy đủ mở từ nút tài khoản.
     personal = [dict(href=h, label=l, hint=t) for h, l, t in PERSONAL if allowed(user, h)] if shell else []
-    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal)
+    return dict(groups=groups, tabs=tabs, crumb=crumb, roles=roles, technician=shell, pure=pure_technician(user), home=home_url(user), personal=personal, site=None)

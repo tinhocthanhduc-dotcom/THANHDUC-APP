@@ -177,6 +177,8 @@ def vn_time(value) -> str:
 templates.env.filters["vn_time"] = vn_time
 templates.env.add_extension("jinja2.ext.do")
 templates.env.globals["web_navigation"] = nav.menu
+from . import sites as _sites  # noqa: E402
+templates.env.globals["site_main_url"] = _sites.main_url
 templates.env.globals["tab_icons"] = nav.TAB_ICONS
 templates.env.globals["form_key"] = form_keys.form_key
 templates.env.globals["asset"] = asset
@@ -456,7 +458,13 @@ def home(request: Request, session: Session = Depends(get_session)):
         user = web_user(request, session)
     except LoginRequired:
         return RedirectResponse("/dang-nhap", status_code=303)
-    return RedirectResponse(nav.home_url(user), status_code=303)
+    return RedirectResponse(_home_for(request, user), status_code=303)
+
+
+def _home_for(request, user):
+    """Trang đầu theo vai trò; trên tên miền con (care.*) là mục đầu của menu site."""
+    site = getattr(request.state, 'site', None)
+    return (_sites.home_url(user, site) if site else None) or nav.home_url(user)
 
 
 @router.get("/viec-cua-toi")
@@ -489,7 +497,7 @@ async def login_submit(request: Request, session: Session = Depends(get_session)
     except BusinessError:
         return render(request, "dang_nhap.jinja", next=next_url, username=username, error="Sai tên đăng nhập hoặc mật khẩu.", status=401)
     # Quay lại trang đang mở trước khi hết phiên nếu vai trò được vào, không thì về trang đầu theo vai trò.
-    target = next_url if next_url != "/" and nav.allowed(user, next_url.split("?")[0]) else nav.home_url(user)
+    target = next_url if next_url != "/" and nav.allowed(user, next_url.split("?")[0]) else _home_for(request, user)
     if user.must_change_password:target="/doi-mat-khau"
     response = RedirectResponse(target, status_code=303)
     set_session_cookie(response, web_session_token(token))
@@ -1108,3 +1116,5 @@ router.include_router(khach_tra_sau_router)
 from .quick_create import router as quick_create_router  # noqa: E402
 
 router.include_router(quick_create_router)
+from .care import router as care_router  # noqa: E402
+router.include_router(care_router)  # Care (19/11/2026): Máy đã bán, Bảo hành sửa chữa

@@ -45,6 +45,11 @@ async def renew_session_cookie(request: Request, call_next):
     return response
 
 
+# Tên miền con (care.quanlythanhduc.com, TUẤN duyệt 19/11/2026): nhận site theo Host, trang ngoài phạm vi về tên miền chính.
+from .web import sites as web_sites
+app.middleware("http")(web_sites.middleware)
+
+
 # TD1: đo tốc độ, đặt ngoài cùng để tính cả thời gian các middleware khác.
 from . import perf
 app.add_middleware(perf.Middleware)

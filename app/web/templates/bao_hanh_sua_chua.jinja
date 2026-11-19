@@ -1,0 +1,29 @@
+{% extends "base.jinja" %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Bảo hành sửa chữa{% endblock %}
+{% block main %}<div class="page-wide list-page" data-list-page="bao-hanh-sua-chua">
+{% call ui.page_head('Bảo hành sửa chữa', sub='Phiếu sửa đã xong có bảo hành. Hạn tính từ ngày hoàn thành cộng số tháng bảo hành trên phiếu.') %}{% endcall %}
+{{ ui.tiles(tiles) }}
+<section class="card list-frame">
+{{ ui.list_tabs(tabs) }}
+{% call ui.list_bar('/bao-hanh-sua-chua', q, 'Tìm số phiếu, serial, khách, số điện thoại (không dấu)…') %}{% if tt %}<input type="hidden" name="tt" value="{{ tt }}">{% endif %}{% endcall %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards">
+<thead><tr><th>Phiếu · ngày xong</th><th>Máy</th><th>Khách</th><th>Đã sửa · phạm vi BH</th><th>Hạn bảo hành</th><th></th></tr></thead><tbody>
+{% for t in rows %}{% set i = info[t.id] %}{% set child = open_child.get(t.id) %}{% set url = ticket_url(t.id) %}
+<tr{% if url %} data-href="{{ url }}"{% endif %}{% if not child and 0 <= i.left <= soon_days %} class="lt-alert"{% endif %}>
+<td class="lt-first">{% if url %}<a class="lt-no" href="{{ url }}">{{ t.number }}</a>{% else %}<b>{{ t.number }}</b>{% endif %}<span class="lt-sub">xong {{ i.done|vn_date }}{% if t.assignee_id %} · {{ users.get(t.assignee_id, '') }}{% endif %}</span></td>
+<td><b>{{ machines.get(t.serial) or 'Chưa ghi máy' }}</b><span class="lt-sub">{{ t.serial or '' }}</span></td>
+<td>{{ customers.get(t.customer_code, t.customer_code) }}<span class="lt-sub">{{ phones.get(t.customer_code, '') }}</span></td>
+<td>{{ (t.fix_done or t.symptom)|truncate(90) }}{% if t.warranty_scope %}<span class="lt-sub">BH: {{ t.warranty_scope }}</span>{% endif %}</td>
+<td class="lt-st">{% if child %}{{ ui.badge('Đang quay lại', 'lam') }}{% set curl = ticket_url(child.id) %}<span class="lt-sub">phiếu BH {% if curl %}<a href="{{ curl }}">{{ child.number }}</a>{% else %}{{ child.number }}{% endif %}</span>
+{% elif i.left < 0 %}{{ ui.badge('Hết hạn', 'nhap') }}<span class="lt-sub">từ {{ i.end|vn_date }}</span>
+{% else %}{{ ui.badge('Còn ' ~ i.left ~ ' ngày', 'cho' if i.left <= soon_days else 'xong') }}<span class="lt-sub">{{ t.warranty_months ~ ' tháng · ' if t.warranty_months else '' }}đến {{ i.end|vn_date }}</span>{% endif %}</td>
+<td class="lt-actions">{% if can_take and not child and i.left >= 0 %}<a class="btn btn-ghost" href="/dich-vu/moi?bao_hanh={{ t.id }}">Nhận máy bảo hành</a>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ ui.empty('Không có phiếu phù hợp.', link(q='') if q else '', 'Xóa tìm') }}{% endif %}
+{{ ui.list_foot(page, 'phiếu') }}
+</section>
+</div>
+<script src="{{ asset('pager.js') }}" defer></script>
+{% endblock %}
