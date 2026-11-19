@@ -229,6 +229,14 @@ def collect(session, now=None) -> int:
                 raise ValueError(job.error or 'Z2 không đọc được')
             apply(session, row, parse(job.answer), now)
             if row.status == 'XONG':
+                session.commit()
+                from . import zalo_tu_tra_loi
+                try:  # Trả lời tự động (19/11/2026): hỏi giá → AI soạn chờ duyệt; báo hỏng → báo đã nhận. Lỗi không chặn chia việc.
+                    zalo_tu_tra_loi.on_triage(session, row)
+                except Exception:  # noqa: BLE001
+                    session.rollback()
+                    log.exception('Trả lời tự động lỗi ở tin %s', row.message_id)
+                row = session.get(ZaloTriage, row.id)
                 session.add(VirtualAgentLog(agent='TRUONG_NHOM', action='DOC_TIN', target_id=row.owner_id,
                                             text=f'Đọc tin Zalo: {INTENTS[row.intent].lower()} · {row.summary[:160]}',
                                             reason=_reason(session, row)))

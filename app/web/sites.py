@@ -24,6 +24,17 @@ SITES = {
         allow=('/dich-vu', '/xem-dich-vu', '/kiem-tra-may', '/thiet-bi', '/may-da-ban', '/bao-hanh-sua-chua',
                '/bang-gia', '/tra-gia', '/bao-gia-sua', '/bao-gia-gop', '/hoi-gia', '/quay-sua', '/may-dang-giu'),
     ),
+    # zalo.quanlythanhduc.com (TUẤN duyệt mẫu 19/11/2026): tin nhắn khách qua Zalo Bot, trả lời, soạn sẵn, tự trả lời.
+    'zalo': dict(
+        name='Thành Đức Zalo', sub='Tin nhắn khách', mark='ZL', theme='#0b62d6',
+        menu=(('/zalo/hop-thu', 'Tất cả tin', ''),
+              ('/tin-zalo', 'Cần trả lời', ''),
+              ('/tin-gui-khach', 'Chờ gửi khách', ''),
+              ('/don-nhap-zalo', 'Đơn & phiếu nháp', '/phieu-nhap-zalo'),
+              ('/zalo/tu-tra-loi', 'Trả lời tự động', ''),
+              ('/zalo/bao-cao-sang', 'Tin gửi nội bộ', '')),
+        allow=('/zalo', '/hop-zalo', '/tin-zalo', '/tin-gui-khach', '/don-nhap-zalo', '/phieu-nhap-zalo'),
+    ),
 }
 
 # Mọi site đều mở được: đăng nhập, tài khoản, tệp tĩnh, link báo giá cho khách, hộp xem nhanh, QR.

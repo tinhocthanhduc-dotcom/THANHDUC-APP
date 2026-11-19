@@ -22,6 +22,8 @@ GROUPS = (
         {'label': 'Hộp Zalo', 'href': '/hop-zalo', 'prefixes': ('/hop-zalo',), 'roles': ('sales', 'finance', 'dispatcher')},
         # Tất cả tin Zalo (TUẤN duyệt mẫu zalo.quanlythanhduc.com 19/11/2026): lịch sử theo hội thoại; kế toán không vào.
         {'label': 'Tất cả tin Zalo', 'href': '/zalo/hop-thu', 'prefixes': ('/zalo/hop-thu',), 'roles': ('sales', 'dispatcher'), 'hidden': True, 'highlight': '/hop-zalo'},
+        # Trả lời tự động Zalo (TUẤN duyệt mẫu 19/11/2026): chỉ giám đốc cài.
+        {'label': 'Trả lời tự động', 'href': '/zalo/tu-tra-loi', 'prefixes': ('/zalo/tu-tra-loi',), 'roles': ('director',), 'hidden': True, 'highlight': '/hop-zalo'},
         # Màn giao hàng mở từ Việc của tôi hoặc từ đơn: thủ kho và kinh doanh (Đợt 1b), menu sáng Việc của tôi (không sáng Danh mục › Kho).
         {'label': 'Giao hàng', 'href': '/kho/giao', 'prefixes': ('/kho/giao',), 'roles': ('warehouse', 'sales'), 'hidden': True, 'highlight': '/viec-cua-toi'},
         # Menu gọn 17/11/2026: nhóm Khách hàng chỉ có một mục nên thành mục đầu menu.
@@ -304,6 +306,14 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/may-da-ban': 'M20 7l-8-4-8 4 8 4 8-4zM4 7v10l8 4 8-4V7M12 11v10',
     '/bao-hanh-sua-chua': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     '/bang-gia': 'M20.6 13.4L13.4 20.6a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01',
+    # Menu Zalo (zalo.quanlythanhduc.com, TUẤN duyệt 19/11/2026).
+    '/zalo/hop-thu': 'M21 12a8 8 0 01-11.5 7.2L4 21l1.8-5.5A8 8 0 1121 12z',
+    '/tin-zalo': 'M12 8v4M12 16h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    '/tin-gui-khach': 'M22 2L11 13M22 2l-7 20-4-9-9-4z',
+    '/don-nhap-zalo': 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h5',
+    '/phieu-nhap-zalo': 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h5',
+    '/zalo/tu-tra-loi': 'M13 2L3 14h9l-1 8 10-12h-9z',
+    '/zalo/bao-cao-sang': 'M4 4h16v12H5.2L4 17.2zM8 8h8M8 12h5',
 }.items()}
 # Menu gọn (TUẤN duyệt mẫu 17/11/2026): thứ tự nhóm nghiệp vụ theo việc chính của người dùng (vai ghi trên tài khoản),
 # nhóm của việc chính lên trước; giám đốc giữ thứ tự gốc. Chỉ đổi chỗ hiện, không đổi quyền.

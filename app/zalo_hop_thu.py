@@ -6,13 +6,18 @@ Xem lại mọi hội thoại khách nhắn vào Zalo Bot theo từng người, 
 - Trả lời đi ra từ Zalo Bot (zalo_bot.send_text), giới hạn như màn Tin nhắn Zalo.
 - Gắn hội thoại với khách/nhân viên vẫn chỉ giám đốc, ở màn Tin nhắn Zalo.
 - Công nợ chỉ hiện cho kế toán/giám đốc. Không đổi tiền, kho, công nợ.
+- Đợt 2: "AI soạn câu trả lời" nhờ Codex/Claude trên Z2 soạn từ tin gần nhất + trạng thái phiếu/đơn (không đưa tiền,
+  công nợ cho AI). AI không tự gửi: bản soạn hiện trong ô trả lời, người xem sửa rồi bấm Gửi khách. Số lạ thì cảnh báo.
 """
+from datetime import timedelta
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from . import zalo_bot as bot
 from .errors import BusinessError
-from .models import Customer, SalesOrder, ServiceTicket, User, ZaloChat, ZaloMessage, ZaloTriage
+from . import audit
+from .models import Customer, SalesOrder, ServiceTicket, User, ZaloAiJob, ZaloChat, ZaloMessage, ZaloReplyDraft, ZaloTriage
 from .security import has_role
 from .zalo_tra_cuu import KINDS, ORDER_STATUSES, TICKET_STATUSES
 
@@ -132,14 +137,156 @@ def panel(session: Session, user: User, chat: ZaloChat) -> dict:
     return out
 
 
-def reply(session: Session, user: User, chat_pk: int, text: str) -> ZaloMessage:
+def reply(session: Session, user: User, chat_pk: int, text: str, draft_id: int | None = None) -> ZaloMessage:
     chat = get_chat(session, user, chat_pk)
     text = bot._no_nul(text or '').strip()
     if not text:
         raise BusinessError('VALIDATION', 'Hãy nhập nội dung trả lời.', status=422)
     if len(text) > bot.MAX_TEXT:
         raise BusinessError('VALIDATION', f'Tin nhắn Zalo tối đa {bot.MAX_TEXT} ký tự.', status=422)
-    return bot.send_text(session, chat, text, user)
+    draft = session.get(ZaloReplyDraft, draft_id, with_for_update=True) if draft_id else None
+    if draft is not None and (draft.chat_pk != chat.id or draft.status != 'XONG'):
+        draft = None  # bản soạn của hội thoại khác hoặc đã đóng: gửi như tin gõ tay
+    row = bot.send_text(session, chat, text, user)
+    if draft is not None:
+        draft.status, draft.closed_by, draft.closed_at, draft.sent_message_id = 'DA_GUI', user.id, row.message_at, row.id
+        audit.record(session, user, 'zalo.ai_reply_sent', 'zalo_chat', str(chat.id), None,
+                     dict(draft=draft.id, edited=text != draft.text.strip()))
+        session.commit()
+    return row
+
+
+# ---------- Đợt 2: AI soạn sẵn câu trả lời ----------
+
+DRAFT_WAIT = 240   # giây: quá lâu máy Z2 chưa trả lời thì báo lỗi, bấm soạn lại được
+DRAFT_KEEP = timedelta(hours=12)   # bản soạn cũ hơn không hiện nữa
+HISTORY = 10
+DRAFT_PROMPT = """Bạn là nhân viên chăm sóc khách của Công ty Tin Học Thành Đức (bán, sửa máy in, giao/nạp mực, TP.HCM).
+Soạn MỘT tin Zalo trả lời tin mới nhất của khách dưới đây. Nhân viên sẽ đọc, sửa rồi mới gửi.
+Quy tắc bắt buộc:
+- Chỉ dùng thông tin trong phần "Số liệu của công ty" và trong cuộc trò chuyện. Không bịa trạng thái, giờ hẹn, giá.
+- Không viết con số, số tiền, ngày giờ, mã phiếu/đơn nào không có trong số liệu hoặc cuộc trò chuyện.
+- Khách hỏi giá mà số liệu không có giá: nói bên em sẽ gửi báo giá ngay, không đoán giá.
+- Không nhắc công nợ, không hứa giảm giá, không hứa giờ giao nếu số liệu không có.
+- Xưng "em", gọi khách "anh/chị" (hoặc theo tên nếu biết). Lịch sự, ngắn gọn, dưới 600 ký tự. Văn bản thường, không markdown.
+- Chỉ trả về nội dung tin, không giải thích, không bọc trong dấu ngoặc.
+Hôm nay: {today}.
+Số liệu của công ty:
+<<<
+{facts}
+>>>
+Cuộc trò chuyện gần đây (cũ → mới):
+<<<
+{history}
+>>>"""
+
+
+def _hm(value) -> str:
+    from .service_sla import TZ
+    return value.astimezone(TZ).strftime('%H:%M %d/%m/%Y') if value else ''
+
+
+def draft_facts(session: Session, chat: ZaloChat) -> str:
+    """Số liệu đưa cho AI: khách, phiếu dịch vụ đang mở, đơn gần nhất. Không tiền, không công nợ."""
+    lines = []
+    customer = session.get(Customer, chat.customer_code) if chat.customer_code else None
+    if customer is None:
+        lines.append('Người nhắn chưa được gắn với khách nào trong hệ thống (chưa biết là khách nào).')
+        return '\n'.join(lines)
+    lines.append(f'Khách: {customer.name} (mã {customer.code}).')
+    tickets = list(session.scalars(select(ServiceTicket).where(ServiceTicket.customer_code == customer.code,
+                                                               ServiceTicket.status.not_in(CLOSED_TICKETS))
+                                   .order_by(ServiceTicket.created_at.desc()).limit(5)))
+    for t in tickets:
+        when = f', hẹn {_hm(t.appointment_at)}' if t.appointment_at else ''
+        lines.append(f'Phiếu {t.number}: {KINDS.get(t.kind or "", "dịch vụ")}, {TICKET_STATUSES.get(t.status, t.status)}{when}.'
+                     + (f' Lỗi khách báo: {(t.symptom or "")[:120]}' if t.symptom else ''))
+    if not tickets:
+        lines.append('Không có phiếu dịch vụ nào đang mở.')
+    for o in session.scalars(select(SalesOrder).where(SalesOrder.customer_code == customer.code, SalesOrder.status.not_in(('DA_HUY', 'NHAP')))
+                             .order_by(SalesOrder.created_at.desc()).limit(3)):
+        due = f', hẹn giao {o.promised_date.strftime("%d/%m/%Y")}' if o.promised_date else ''
+        lines.append(f'Đơn {o.number}: {ORDER_STATUSES.get(o.status, o.status)}{due}.')
+    return '\n'.join(lines)
+
+
+def _history(session: Session, chat: ZaloChat) -> str:
+    rows = bot.list_messages(session, chat.id, 0, HISTORY)
+    out = []
+    for m in rows:
+        who = 'Khách' if m.direction == 'IN' else 'Công ty'
+        body = (m.text or f'[{bot.KIND_LABELS.get(m.kind, m.kind)}]').replace('\n', ' ')[:400]
+        out.append(f'{who} ({_hm(m.message_at)}): {body}')
+    return '\n'.join(out)
+
+
+def request_draft(session: Session, user: User | None, chat_pk: int) -> ZaloReplyDraft:
+    """user=None: Trả lời tự động (đợt 3) nhờ AI soạn khi khách hỏi giá; vẫn chỉ chờ duyệt, không tự gửi."""
+    from . import zalo_agent
+    from .tin_gui_khach import _now
+    chat = get_chat(session, user, chat_pk) if user is not None else session.get(ZaloChat, chat_pk)
+    if chat is None:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy hội thoại.', status=404)
+    if chat.chat_type != 'PRIVATE' or chat.user_id:
+        raise BusinessError('VALIDATION', 'AI chỉ soạn trả lời cho hội thoại riêng của khách.', status=422)
+    if not session.scalar(select(func.count()).select_from(ZaloMessage).where(ZaloMessage.chat_pk == chat.id, ZaloMessage.direction == 'IN')):
+        raise BusinessError('VALIDATION', 'Khách chưa nhắn tin nào để trả lời.', status=422)
+    cfg = zalo_agent.config(session)
+    if cfg.staff_engine not in ('codex', 'claude') or not zalo_agent.z2_alive(session):
+        raise BusinessError('NO_Z2', 'Máy Z2 (Codex/Claude) đang không chạy nên AI chưa soạn được. Hãy gõ tay.', status=409)
+    for old in session.scalars(select(ZaloReplyDraft).where(ZaloReplyDraft.chat_pk == chat.id, ZaloReplyDraft.status.in_(('DANG', 'XONG', 'LOI')))):
+        old.status, old.closed_by, old.closed_at = 'BO', user.id if user else None, _now()
+    facts = draft_facts(session, chat)
+    from .service_sla import TZ
+    job = ZaloAiJob(log_id=None, engine=cfg.staff_engine,
+                    prompt=DRAFT_PROMPT.format(today=_now().astimezone(TZ).strftime('%d/%m/%Y'), facts=facts, history=_history(session, chat)))
+    session.add(job)
+    session.flush()
+    draft = ZaloReplyDraft(chat_pk=chat.id, job_id=job.id, status='DANG', facts=facts, created_by=user.id if user else None)
+    session.add(draft)
+    session.flush()
+    if user is not None:
+        audit.record(session, user, 'zalo.ai_reply_draft', 'zalo_chat', str(chat.id), None, dict(draft=draft.id, job=job.id))
+    session.commit()
+    return draft
+
+
+def draft_state(session: Session, chat: ZaloChat) -> dict | None:
+    """Bản AI soạn đang mở của hội thoại: DANG (chờ Z2), LOI, hoặc XONG kèm chữ và số lạ (không có trong số liệu/tin)."""
+    from .tin_gui_khach import _now, clean_answer, tokens
+    draft = session.scalars(select(ZaloReplyDraft).where(ZaloReplyDraft.chat_pk == chat.id, ZaloReplyDraft.status.in_(('DANG', 'XONG', 'LOI')))
+                            .order_by(ZaloReplyDraft.id.desc()).limit(1)).first()
+    if draft is None or _now() - draft.created_at > DRAFT_KEEP:
+        return None
+    if draft.status == 'DANG':
+        job = session.get(ZaloAiJob, draft.job_id) if draft.job_id else None
+        if job is None or job.status == 'LOI':
+            draft.status = 'LOI'
+        elif job.status == 'XONG':
+            text = clean_answer(job.answer)[:bot.MAX_TEXT]
+            draft.status, draft.text = ('XONG', text) if text else ('LOI', '')
+        elif _now() - job.created_at > timedelta(seconds=DRAFT_WAIT):
+            job.status, job.error, job.done_at = 'LOI', f'Quá {DRAFT_WAIT} giây máy Z2 chưa trả lời', _now()
+            draft.status = 'LOI'
+        session.commit()
+    if draft.status == 'DANG':
+        return dict(id=draft.id, status='DANG', auto=draft.created_by is None)
+    if draft.status == 'LOI':
+        return dict(id=draft.id, status='LOI', auto=draft.created_by is None)
+    known = tokens(draft.facts) | tokens(_history(session, chat))
+    return dict(id=draft.id, status='XONG', text=draft.text, odd=sorted(tokens(draft.text) - known), auto=draft.created_by is None,
+                ai=draft.job_id is not None)
+
+
+def drop_draft(session: Session, user: User, chat_pk: int, draft_id: int) -> None:
+    from .tin_gui_khach import _now
+    chat = get_chat(session, user, chat_pk)
+    draft = session.get(ZaloReplyDraft, draft_id, with_for_update=True)
+    if draft is None or draft.chat_pk != chat.id:
+        raise BusinessError('NOT_FOUND', 'Không tìm thấy bản soạn.', status=404)
+    if draft.status in ('DANG', 'XONG', 'LOI'):
+        draft.status, draft.closed_by, draft.closed_at = 'BO', user.id, _now()
+        session.commit()
 
 
 def unread_chats(session: Session, user: User) -> int:
