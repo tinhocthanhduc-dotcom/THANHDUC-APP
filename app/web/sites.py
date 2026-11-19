@@ -39,7 +39,8 @@ SITES = {
     # Trang chính chỉ còn vận hành; các trang này vẫn mở được trên tên miền chính bằng link cũ.
     'quantri': dict(
         name='Thành Đức Quản trị', sub='Báo cáo · Nhân sự · Thiết lập', mark='QT', theme='#6d28d9',
-        groups=(('Báo cáo', (('/bao-cao/lai-rong', 'Lãi ròng', ''),
+        groups=(('Báo cáo', (('/so-lieu', 'Số liệu', ''),
+                             ('/bao-cao/lai-rong', 'Lãi ròng', ''),
                              ('/bao-cao/tai-chinh', 'Báo cáo tài chính', ''),
                              ('/bao-cao/ban-hang', 'Báo cáo bán hàng', ''),
                              ('/bao-cao-mua-hang', 'Báo cáo mua hàng', ''))),
@@ -63,7 +64,7 @@ SITES = {
                               ('/toc-do', 'Tốc độ app', ''),
                               ('/ui/quy-chuan', 'Quy chuẩn giao diện', ''))),
                 ('Web', (('/dang-web', 'Đăng web', ''),))),
-        allow=('/bao-cao', '/bao-cao-mua-hang', '/cham-cong/duyet', '/cham-cong/bang', '/cham-cong/ngay-le', '/kpi/tong',
+        allow=('/so-lieu', '/bao-cao', '/bao-cao-mua-hang', '/cham-cong/duyet', '/cham-cong/bang', '/cham-cong/ngay-le', '/kpi/tong',
                '/kpi/muc-tieu', '/hoa-hong/thang', '/hoa-hong/quy-tac', '/luong', '/nhom-hang', '/kho', '/ton-dau-ky',
                '/ghep-tai-chinh', '/quy', '/danh-muc-thu-chi', '/dieu-chinh', '/han-muc-duyet', '/nhan-su', '/tai-khoan',
                '/doi-ai', '/nhan-vien-ao', '/tro-ly-ai', '/zalo/tro-ly', '/zalo/tin-nhan', '/zalo/bao-cao-sang',
@@ -154,20 +155,21 @@ def _is_ip(host: str) -> bool:
     return host.replace('.', '').isdigit() or host.startswith('[')
 
 
+def site_url(request: Request, key: str, path: str = '/'):
+    """Link sang tên miền con từ tên miền chính; đang ở tên miền con, vào bằng IP hoặc không có Host thì None."""
+    host = request.headers.get('host', '')
+    if site_for(request) is not None or not host or _is_ip(host.split(':')[0]):
+        return None
+    proto = request.headers.get('x-forwarded-proto', '').split(',')[0].strip().lower() or request.url.scheme
+    return f'{proto}://{key}.{host}{path}'
+
+
 def shortcuts(request: Request, user):
     """Lối sang tên miền con trên tên miền chính: chỉ site người dùng mở được ít nhất một mục; truy cập bằng IP thì không có."""
-    if user is None or site_for(request) is not None:
+    if user is None or site_url(request, 'x') is None:
         return []
-    host = request.headers.get('host', '')
-    if not host or _is_ip(host.split(':')[0]):
-        return []
-    proto = request.headers.get('x-forwarded-proto', '').split(',')[0].strip().lower() or request.url.scheme
-    out = []
-    for key, label in SHORTCUTS:
-        site = SITES[key]
-        if menu_items(user, site):
-            out.append(dict(key=key, label=label, mark=site['mark'], url=f'{proto}://{key}.{host}/'))
-    return out
+    return [dict(key=key, label=label, mark=SITES[key]['mark'], url=site_url(request, key))
+            for key, label in SHORTCUTS if menu_items(user, SITES[key])]
 
 
 async def middleware(request: Request, call_next):

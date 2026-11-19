@@ -164,14 +164,17 @@ def test_web_summary_home_redirects_menu_svg_and_role_permissions(client,people)
         assert root.status_code==303 and root.headers['location']==('/tong-quan' if role in ('director','finance') else '/tho' if role=='technician' else '/viec-cua-toi')
         page=client.get('/tong-quan')
         if role in ('director','finance'):
-            assert page.status_code==200 and '<svg' in page.text and page.text.count('<rect ')==30
+            # Gọn trang chính (TUẤN duyệt 19/11/2026): biểu đồ 30 ngày, quỹ, tồn theo kho ở trang Số liệu (quantri.*).
+            assert page.status_code==200 and 'href="http://quantri.testserver/so-lieu"' in page.text and 'Doanh thu 30 ngày gần nhất' not in page.text
+            so=client.get('/so-lieu');assert so.status_code==200 and '<svg' in so.text and so.text.count('<rect ')==30 and 'Số dư từng quỹ' in so.text
+            assert ('Giá trị tồn theo kho' in so.text)==(role=='director')
             assert 'overview-grid' in page.text and '>Tổng quan</a>' in page.text
             assert ('Giá trị tồn kho' in page.text)==(role=='director')
             assert ('Lãi gộp tháng này' in page.text)==(role=='director')
             assert 'href="/bao-thu"' in page.text
             nav=page.text.split('<nav aria-label="Menu chính" class="role-nav">',1)[1].split('</nav>',1)[0]
             assert nav.index('href="/tong-quan"')<nav.index('href="/khach-hang"')
-        else:assert page.status_code==403
+        else:assert page.status_code==403 and client.get('/so-lieu').status_code==403
     client.cookies.clear()
     assert client.get('/',follow_redirects=False).headers['location']=='/dang-nhap'
 
@@ -203,7 +206,7 @@ def test_day_board_technicians_sales_counts_reasons_and_roles(client,db,people,m
     assert 'Thợ hôm nay' in page and 'Chờ khách duyệt' in page and 'Kinh doanh hôm nay' in page
     # Bản 2 (28/10/2026): ai đang làm gì · việc cần làm tiếp · việc đang diễn ra lên đầu; bảng thợ cũ, cảnh báo, tiền gập xuống dưới.
     assert page.index('Ai đang làm gì')<page.index('Việc cần làm tiếp')<page.index('Việc đang diễn ra')<page.index('Kết quả hôm nay theo người')<page.index('Thợ hôm nay')
-    assert page.index('Thợ hôm nay')<page.index('Theo dõi · không gấp')<page.index('Tiền · tháng này')<page.index('Doanh thu 30 ngày gần nhất')
+    assert page.index('Thợ hôm nay')<page.index('Theo dõi · không gấp')<page.index('Tiền · tháng này')<page.index('trang Số liệu')
     # Khách vượt hạn mức là việc theo dõi, gập sẵn ở cuối, không tính vào việc đỏ (TUẤN 26/10/2026).
     assert page.index('Theo dõi · không gấp')<page.index('data-alert-kind="KHACH_VUOT_HAN_MUC"') and '<details class="alert-group" data-alert-kind="KHACH_VUOT_HAN_MUC" open' not in page
     service_login(client,p['finance']);page=client.get('/tong-quan').text

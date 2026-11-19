@@ -15,6 +15,8 @@ SECTIONS = ('', 'Nghiệp vụ', 'Quản lý & thiết lập')
 GROUPS = (
     {'label': '', 'section': '', 'items': (
         {'label': 'Tổng quan', 'href': '/tong-quan', 'prefixes': ('/tong-quan',), 'roles': ('finance',)},
+        # Số liệu (gọn trang chính 19/11/2026): 3 khối số dời từ Tổng quan, trên menu quantri.*.
+        {'label': 'Số liệu', 'href': '/so-lieu', 'prefixes': ('/so-lieu',), 'roles': ('finance',), 'hidden': True, 'highlight': '/tong-quan'},
         # Đợt 4 rà soát (TUẤN duyệt 16/11/2026): mọi việc chờ giám đốc duyệt ở một trang (app/director_approvals.py).
         {'label': 'Chờ anh duyệt', 'href': '/cho-anh-duyet', 'prefixes': ('/cho-anh-duyet',), 'roles': ('director',)},
         {'label': 'Việc của tôi', 'href': '/viec-cua-toi', 'prefixes': ('/viec-cua-toi', '/giu-may', '/giao-don', '/tho-tra-hang'), 'roles': ('technician', 'sales', 'warehouse', 'dispatcher', 'reception', 'finance')},
@@ -308,6 +310,8 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/bang-gia': 'M20.6 13.4L13.4 20.6a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01',
     # Menu Quản trị (quantri.quanlythanhduc.com, TUẤN duyệt 19/11/2026).
     'Báo cáo': 'M4 20V10M10 20V4M16 20v-7M2 20h20',
+    '/so-lieu': 'M3 3v18h18M7 15l4-4 3 3 5-6',
+    '/bao-cao/lai-rong': 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
     'Thiết lập': 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
     'Hệ thống': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     '/dang-web': 'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20',

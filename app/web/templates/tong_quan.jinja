@@ -118,7 +118,7 @@
 {{ alert_rows(calm_groups) }}{% if not calm_groups %}<p class="alert-empty">Kho và mua hàng không có gì cần theo dõi</p>{% endif %}</section>
 </div>
 </details>
-<details class="lv-fold card" data-fold="tien"><summary><b>Tiền · tháng này</b><span class="hint">doanh thu {{ s.revenue_month|money }}{% if 'gross_margin_month' in s %} · lãi gộp {{ s.gross_margin_month|money }}{% endif %} · biểu đồ 30 ngày · quỹ{% if 'inventory_total' in s %} · tồn kho{% endif %}</span></summary>
+<details class="lv-fold card" data-fold="tien"><summary><b>Tiền · tháng này</b><span class="hint">doanh thu {{ s.revenue_month|money }}{% if 'gross_margin_month' in s %} · lãi gộp {{ s.gross_margin_month|money }}{% endif %} · quỹ{% if 'inventory_total' in s %} · tồn kho{% endif %}</span></summary>
 <div class="overview-grid overview-six">
 {{ tile('Doanh thu tháng này',s.revenue_month,'/bao-cao/ban-hang?'+month_query,detail='Từ ngày 1 đến hôm nay · gồm dịch vụ · tháng trước '+(s.revenue_last_month|money)) }}
 {% if 'gross_margin_month' in s %}{{ tile('Lãi gộp tháng này',s.gross_margin_month,'/bao-cao-mua-hang?tab=lai-gop&'+month_query) }}{% endif %}
@@ -130,11 +130,6 @@
 {% if s.damage_cost_month is defined %}{{ tile('Chi phí hàng hư hỏng (không dùng tiền)',s.damage_cost_month,'/bao-cao/cho-xu-ly?'+month_query+'#thang') }}{% endif %}
 </div>
 
-<section class="sales-report-section card overview-chart-card"><details open><summary><h2>Doanh thu 30 ngày gần nhất</h2></summary><p class="hint">{{ s.chart_start.strftime('%d/%m/%Y') }} – {{ s.today.strftime('%d/%m/%Y') }} · Chưa VAT · gồm đơn bán và dịch vụ</p>
-<svg class="overview-chart" viewBox="0 0 900 235" role="img" aria-labelledby="revenue-title revenue-description"><title id="revenue-title">Doanh thu chưa VAT 30 ngày</title><desc id="revenue-description">Mỗi cột là một ngày; bảng số liệu bên dưới có đủ 30 ngày.</desc><line x1="30" y1="190" x2="885" y2="190" stroke="currentColor"/>
-{% for b in bars %}<rect x="{{ b.x }}" y="{{ 190-b.height }}" width="20" height="{{ b.height }}" fill="currentColor"><title>{{ b.day.strftime('%d/%m/%Y') }}: {{ b.amount|money }} đồng</title></rect>{% if (loop.index0%7==0 and loop.index0<25) or loop.last %}<text x="{{ b.x+10 }}" y="215" text-anchor="{{ 'end' if loop.last else 'middle' }}">{{ b.day.strftime('%d/%m') }}</text>{% endif %}{% endfor %}</svg>
-<details><summary>Xem số liệu từng ngày</summary><div class="overview-days">{% for b in bars %}<a href="/bao-cao/ban-hang?from={{ b.day.isoformat() }}&to={{ b.day.isoformat() }}"><span>{{ b.day.strftime('%d/%m') }}</span><strong>{{ b.amount|money }}</strong></a>{% endfor %}</div></details></details></section>
-<section class="sales-report-section card overview-fold"><details><summary><h2 class="overview-label">Số dư từng quỹ ({{ s.funds|length }})</h2></summary><div class="overview-grid overview-small">{% for f in s.funds %}{{ tile(f.code+' · '+f.name,f.balance,'/so-quy/'+(f.code|urlquote),detail='Ngừng dùng' if not f.active else '') }}{% else %}<p>Chưa có quỹ.</p>{% endfor %}</div></details></section>
-{% if 'inventory' in s %}<section class="sales-report-section card overview-fold"><details><summary><h2 class="overview-label">Giá trị tồn theo kho ({{ s.inventory|length }})</h2></summary><div class="overview-grid overview-small">{% for w in s.inventory %}{{ tile(w.warehouse_code+' · '+w.name,w.value,'/ton-kho?kho='+(w.warehouse_code|urlquote)) }}{% else %}<p>Chưa có kho.</p>{% endfor %}</div></details></section>{% endif %}
+{% set so_lieu = site_url(request, 'quantri', '/so-lieu') or '/so-lieu' %}{% if can_open('/so-lieu') %}<p class="hint tq-so-lieu">Biểu đồ doanh thu 30 ngày, số dư từng quỹ, giá trị tồn theo kho: <a href="{{ so_lieu }}">trang Số liệu ›</a></p>{% endif %}
 </details>
 </div><script src="{{ asset('pager.js') }}" defer></script><script src="{{ asset('tong-quan-gon.js') }}" defer></script>{% endblock %}
