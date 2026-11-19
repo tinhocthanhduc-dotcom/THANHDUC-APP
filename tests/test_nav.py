@@ -83,6 +83,14 @@ EXPECTED['director'].add('/cho-anh-duyet')  # Đợt 4 rà soát: Chờ anh duy�
 # Menu gọn (TUẤN duyệt mẫu 17/11/2026): báo cáo hàng chờ xử lý mở từ trang Hàng chờ xử lý, Tồn đầu kỳ từ Danh sách kho.
 for _role in EXPECTED:
     EXPECTED[_role].difference_update(('/bao-cao/cho-xu-ly', '/ton-dau-ky'))
+# Gọn trang chính (TUẤN duyệt mẫu 19/11/2026): Zalo, Thiết bị sang zalo./care.; báo cáo, nhân sự, thiết lập, hệ thống,
+# Đăng web sang quantri. Trang vẫn mở được trên tên miền chính (test_main_hidden_pages_still_open).
+MOVED = {'/hop-zalo', '/thiet-bi', '/dang-web', '/bao-cao/ban-hang', '/bao-cao-mua-hang', '/bao-cao/tai-chinh',
+         '/bao-cao/lai-rong', '/dieu-chinh', '/nhom-hang', '/kho', '/ghep-tai-chinh', '/cham-cong/duyet', '/cham-cong/bang',
+         '/kpi/tong', '/hoa-hong/thang', '/luong', '/luong/chi', '/nhan-su', '/kpi/muc-tieu', '/hoa-hong/quy-tac',
+         '/cham-cong/ngay-le', '/tai-khoan', '/han-muc-duyet', '/doi-ai', '/toc-do', '/ui/quy-chuan'}
+for _role in EXPECTED:
+    EXPECTED[_role].difference_update(MOVED)
 
 HOMES = {'finance': '/tong-quan', 'director': '/tong-quan', 'dispatcher': '/dieu-phoi',
          'reception': '/dich-vu', 'technician': '/tho', 'sales': '/viec-cua-toi',
@@ -281,8 +289,11 @@ def test_hop_zalo_tabs_follow_role(client, make_user, roles, first, tabs):
     hub = html.split('class="hub-tabs"', 1)[1].split('</nav>', 1)[0]
     assert re.findall(r'href="([^"]+)"', hub) == tabs
     assert 'aria-current="page"' in hub
+    # Gọn trang chính 19/11/2026: Hộp Zalo không còn trên menu chính; trên zalo.* mục của tab sáng.
+    assert not [a for a in Menu(html).links if 'aria-current' in a]
+    html = client.get(first, headers={'host': 'zalo.testserver'}).text
     active = [a for a in Menu(html).links if 'aria-current' in a]
-    assert active and active[0]['href'] == '/hop-zalo'
+    assert active and active[0]['href'] == first
 
 
 def test_doi_ai_tabs_for_director(client, make_user):
@@ -295,7 +306,8 @@ def test_doi_ai_tabs_for_director(client, make_user):
         hub = html.split('class="hub-tabs"', 1)[1].split('</nav>', 1)[0]
         assert re.findall(r'href="([^"]+)"', hub) == ['/doi-ai', '/tro-ly-ai', '/nhan-vien-ao', '/tro-ly-ai?tab=nhat-ky', '/zalo/tro-ly'], path
         assert re.search(r'href="%s" aria-current="page"' % re.escape(on), hub), path
-        active = [a for a in Menu(html).links if 'aria-current' in a]
+        assert not [a for a in Menu(html).links if 'aria-current' in a], path  # Đội AI sang quantri.* (19/11/2026)
+        active = [a for a in Menu(client.get(path, headers={'host': 'quantri.testserver'}).text).links if 'aria-current' in a]
         assert active and active[0]['href'] == '/doi-ai', path
 
 
@@ -340,10 +352,10 @@ def test_bao_gia_tao_one_choice_opens_directly(client, make_user):
 
 
 @pytest.mark.parametrize('roles,top,first,tabs', [
-    (('sales', 'finance'), ['/tong-quan', '/viec-cua-toi', '/hop-zalo', '/khach-hang'], 'Bán hàng', ['/viec-cua-toi', '/don-ban', '/bao-thu']),
-    (('finance',), ['/tong-quan', '/viec-cua-toi', '/hop-zalo', '/khach-hang'], 'Tài chính', ['/viec-cua-toi', '/bao-thu', '/thu-chi']),
-    (('technician', 'warehouse', 'dispatcher'), ['/viec-cua-toi', '/hop-zalo', '/khach-hang', '/tho'], 'Dịch vụ', ['/viec-cua-toi', '/dieu-phoi', '/dich-vu']),
-    (('director',), ['/tong-quan', '/cho-anh-duyet', '/viec-cua-toi', '/hop-zalo', '/khach-hang'], 'Bán hàng', ['/cho-anh-duyet', '/tong-quan', '/dieu-phoi']),
+    (('sales', 'finance'), ['/tong-quan', '/viec-cua-toi', '/khach-hang'], 'Bán hàng', ['/viec-cua-toi', '/don-ban', '/bao-thu']),
+    (('finance',), ['/tong-quan', '/viec-cua-toi', '/khach-hang'], 'Tài chính', ['/viec-cua-toi', '/bao-thu', '/thu-chi']),
+    (('technician', 'warehouse', 'dispatcher'), ['/viec-cua-toi', '/khach-hang', '/tho'], 'Dịch vụ', ['/viec-cua-toi', '/dieu-phoi', '/dich-vu']),
+    (('director',), ['/tong-quan', '/cho-anh-duyet', '/viec-cua-toi', '/khach-hang'], 'Bán hàng', ['/cho-anh-duyet', '/tong-quan', '/dieu-phoi']),
 ])
 def test_grouped_menu_no_duplicates(client, make_user, roles, top, first, tabs):
     """Menu gọn (TUẤN duyệt mẫu 17/11/2026): nhóm gập như cũ, mục đầu ít, không trang nào hai chỗ, không hai mục cùng tên."""
@@ -359,3 +371,34 @@ def test_grouped_menu_no_duplicates(client, make_user, roles, top, first, tabs):
     assert len(hrefs) == len(set(hrefs)) and len(labels) == len(set(labels))
     assert all(g['label'] != 'Báo cáo' for g in menu['groups'])
     assert [t['href'] for t in menu['tabs']] == tabs
+
+
+def test_main_hidden_pages_still_open_and_shortcuts(client, make_user):
+    """Gọn trang chính (TUẤN duyệt mẫu 19/11/2026): mục bỏ khỏi menu chính vẫn mở bằng link cũ, có trên menu quantri.*;
+    khối Trang khác chỉ có site người xem mở được; truy cập bằng IP thì không có."""
+    gd = make_user('gon.gd', 'director')
+    service_login(client, gd)
+    for path in ('/luong', '/doi-ai', '/bao-cao/lai-rong', '/han-muc-duyet', '/thiet-bi', '/zalo/hop-thu'):
+        assert client.get(path).status_code == 200, path
+    html = client.get('/tong-quan').text
+    apps = html.split('data-site-apps', 1)[1].split('</nav>', 1)[0]
+    assert re.findall(r'href="([^"]+)"', apps) == ['http://care.testserver/', 'http://zalo.testserver/', 'http://quantri.testserver/']
+    assert 'data-zalo-count' in apps
+    r = client.get('/hop-zalo/so.json')
+    assert r.status_code == 200 and r.json() == {'n': 0}
+    q = client.get('/bao-cao/lai-rong', headers={'host': 'quantri.testserver'}).text
+    assert 'Thành Đức Quản trị' in q and 'site-quantri' in q and 'data-site-apps' not in q
+    links = {a['href'] for a in Menu(q).links}
+    assert {'/bao-cao/lai-rong', '/luong', '/doi-ai', '/dang-web', '/han-muc-duyet', '/nhan-su'} <= links
+    assert '/don-ban' not in links and '/tong-quan' not in links
+    r = client.get('/don-ban', headers={'host': 'quantri.testserver', 'sec-fetch-dest': 'document'}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers['location'] == 'http://testserver/don-ban'
+    assert 'data-site-apps' not in client.get('/tong-quan', headers={'host': '192.168.10.200'}).text
+    # Thủ kho: menu Quản trị chỉ còn Báo cáo mua hàng, Nhóm hàng, Danh sách kho (theo quyền thật).
+    kho = make_user('gon.kho', 'warehouse')
+    service_login(client, kho)
+    apps = client.get('/viec-cua-toi').text.split('data-site-apps', 1)[1].split('</nav>', 1)[0]
+    assert 'http://quantri.testserver/' in apps and 'http://zalo.testserver/' not in apps
+    q = client.get('/', headers={'host': 'quantri.testserver'}, follow_redirects=False)
+    assert q.status_code == 303 and q.headers['location'] == '/bao-cao-mua-hang'
+    assert {a['href'] for a in Menu(client.get('/kho', headers={'host': 'quantri.testserver'}).text).links} == {'/bao-cao-mua-hang', '/nhom-hang', '/kho'}

@@ -76,3 +76,12 @@ if (webMenu) {
     if (first && search.value.trim()) { event.preventDefault(); location.href = first.href; }
   });
 }
+
+// Số tin Zalo cần trả lời trên ô "Zalo" của khối Trang khác (đọc từ tên miền chính, không chặn trang).
+const zaloCount = document.querySelector('[data-zalo-count]');
+if (zaloCount) {
+  fetch('/hop-zalo/so.json', { credentials: 'same-origin', headers: { accept: 'application/json' } })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => { if (d && d.n > 0) { zaloCount.textContent = d.n > 99 ? '99+' : String(d.n); zaloCount.hidden = false; } })
+    .catch(() => {});
+}

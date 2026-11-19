@@ -306,6 +306,11 @@ NAV_ICONS = {k: _NAV_ICON.format(v) for k, v in {
     '/may-da-ban': 'M20 7l-8-4-8 4 8 4 8-4zM4 7v10l8 4 8-4V7M12 11v10',
     '/bao-hanh-sua-chua': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     '/bang-gia': 'M20.6 13.4L13.4 20.6a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01',
+    # Menu Quản trị (quantri.quanlythanhduc.com, TUẤN duyệt 19/11/2026).
+    'Báo cáo': 'M4 20V10M10 20V4M16 20v-7M2 20h20',
+    'Thiết lập': 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+    'Hệ thống': 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
+    '/dang-web': 'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20',
     # Menu Zalo (zalo.quanlythanhduc.com, TUẤN duyệt 19/11/2026).
     '/zalo/hop-thu': 'M21 12a8 8 0 01-11.5 7.2L4 21l1.8-5.5A8 8 0 1121 12z',
     '/tin-zalo': 'M12 8v4M12 16h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -346,17 +351,28 @@ def technician_shell(user, path, query=None):
     return (path.startswith('/giao-don/') or path.startswith('/tho-tra-hang')) and (query or {}).get('return_to') == 'tho'
 
 
+# Gọn trang chính (TUẤN duyệt mẫu 19/11/2026): tên miền chính chỉ còn vận hành hằng ngày. Các mục này hiện trên
+# menu zalo.*, care.*, quantri.* (app/web/sites.py); trang vẫn mở được trên tên miền chính bằng link cũ, quyền giữ nguyên.
+MAIN_HIDDEN = frozenset(('/hop-zalo', '/thiet-bi', '/dang-web', '/bao-cao/ban-hang', '/bao-cao-mua-hang',
+                         '/bao-cao/tai-chinh', '/bao-cao/lai-rong', '/dieu-chinh', '/nhom-hang', '/kho', '/ghep-tai-chinh',
+                         '/cham-cong/duyet', '/cham-cong/bang', '/kpi/tong', '/hoa-hong/thang', '/luong', '/luong/chi',
+                         '/nhan-su', '/kpi/muc-tieu', '/hoa-hong/quy-tac', '/cham-cong/ngay-le', '/tai-khoan',
+                         '/han-muc-duyet', '/doi-ai', '/toc-do', '/ui/quy-chuan'))
+
+
 # Việc riêng của thợ và con số của chính mình: giám đốc xem ở trang tổng, không cần trên menu.
 DIRECTOR_HIDDEN = ('/kpi', '/hoa-hong', '/tien-toi-giu', '/hang-toi-giu')
 
 
 def site_menu(user, path, query, site):
-    """Menu tên miền con (care.*): chỉ các mục của site, vẫn lọc theo quyền; khung máy tính cho cả thợ."""
+    """Menu tên miền con (care.*, zalo.*, quantri.*): chỉ các mục của site, vẫn lọc theo quyền; khung máy tính cho cả thợ."""
     from . import sites
     current = matching(path, query)
-    links = sites.menu_items(user, site)
     base = lambda h: h.split('?')[0]
-    picked = [dict(href=h, label=l, active=bool(current) and current is matching(base(h)), icon=NAV_ICONS.get(base(h), '')) for h, l in links]
+    groups = [dict(label=label, section='', active=False, icon=NAV_ICONS.get(label, ''),
+                   items=[dict(href=h, label=l, active=bool(current) and current is matching(base(h)), icon=NAV_ICONS.get(base(h), '')) for h, l in links])
+              for label, links in sites.menu_groups(user, site)]
+    picked = [i for g in groups for i in g['items']]
     # Trang ẩn (vd. Nhận đơn) sáng mục cha của nó; còn không thì theo đường dẫn cha (vd. /dich-vu/12).
     for test in ((lambda i: bool(current) and current.get('highlight') == base(i['href'])),
                  (lambda i: path == base(i['href']) or path.startswith(base(i['href']) + '/'))):
@@ -366,7 +382,8 @@ def site_menu(user, path, query, site):
             if test(i):
                 i['active'] = True
                 break
-    groups = [dict(label='', section='', items=picked, active=any(i['active'] for i in picked), icon='')] if picked else []
+    for g in groups:
+        g['active'] = any(i['active'] for i in g['items'])
     tabs = [dict(href=i['href'], label=i['label'], icon=i['icon'], active=i['active']) for i in picked][:3]
     roles = ', '.join(label for role, label in ROLE_LABELS.items() if role in user.roles)
     return dict(groups=groups, tabs=tabs, crumb=None, roles=roles, technician=False, pure=pure_technician(user),
@@ -382,7 +399,7 @@ def menu(user, path, query=None, site=None):
     if shell:
         groups = [dict(label='', section='', items=[dict(href=href,label=label,active=(current is matching(href.split('?')[0]))) for href,label in TECH_LINKS], active=False)]
     for group in GROUPS + ACCOUNT_GROUPS:
-        visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in DIRECTOR_HIDDEN and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
+        visible = [dict(item, active=item is current or (bool(current) and not item.get('highlight') and current.get('highlight')==item['href'])) for item in group['items'] if not item.get('hidden') and item['href'] not in MAIN_HIDDEN and not pure_technician(user) and (not item.get('technician_page') or 'technician' in user.roles) and not item.get('account_page') and not (item.get('payroll_page') and 'admin' in user.roles and 'director' not in user.roles) and not (item['href'] in DIRECTOR_HIDDEN and 'director' in user.roles) and has_role(user, *item.get('menu_roles',item['roles']))]
         if visible:
             if len(visible) == 1 and visible[0].get('solo'): visible[0]['label'] = visible[0]['solo']  # Mục lẻ đứng riêng phải tự đủ nghĩa.
             for item in visible: item['icon'] = NAV_ICONS.get(item['href'], NAV_ICONS.get(group['label'], ''))

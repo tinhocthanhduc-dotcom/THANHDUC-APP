@@ -160,8 +160,8 @@ def test_web_page_tabs_forms_and_director_only(client, db, report_people, monkey
     assert page.status_code == 200, page.text
     html = page.text
     assert 'data-pl-table' in html and 'Tháng 10/2026' in html and '>150.000<' in html and 'data-payroll-status="CHUA_CO"' in html
-    assert 'Chưa · thiếu 45.150.000' in html and 'Chi phí ngoài sổ: 0 khoản' in html and 'data-todo-box' in html and 'href="/bao-cao/lai-rong"' in html
-    assert 'Lãi ròng' in client.get('/bao-cao/tai-chinh').text  # có trong menu Báo cáo của giám đốc
+    assert 'Chưa · thiếu 45.150.000' in html and 'Chi phí ngoài sổ: 0 khoản' in html and 'data-todo-box' in html
+    assert 'Lãi ròng' in client.get('/bao-cao/tai-chinh', headers={'host': 'quantri.testserver'}).text  # menu Báo cáo trên quantri.* (19/11/2026)
     assert 'data-group-table' in client.get('/bao-cao/lai-rong?thang=2026-10&tab=theo-loai').text
     assert 'data-customer-table' in client.get('/bao-cao/lai-rong?thang=2026-10&tab=theo-khach').text
     assert 'data-pl-bars' in client.get('/bao-cao/lai-rong?thang=2026-10&tab=12-thang').text
