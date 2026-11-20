@@ -291,6 +291,10 @@ def test_internal_inspection_print_has_details_no_prices(client, db, workshop, m
     for text in ('KẾT QUẢ KIỂM TRA MÁY', t.number, 'Sửa chữa cụm sấy', 'Cấp 3', 'Rulo ép mòn nặng', 'Thay bao lụa sấy',
                  'TD-0001', 'Máy kẹt giấy ở cụm sấy', 'PA1 · Tiêu chuẩn'):
         assert text in r.text, text
+    # TUẤN 20/11/2026: một khung Tình trạng máy (Thợ ghi → Kết quả kiểm tra sơ bộ), linh kiện dự kiến dòng riêng dưới gói.
+    for text in ('Tình trạng máy', 'Kết quả kiểm tra sơ bộ', 'class="kt-lk"', 'Linh kiện dự kiến:'):
+        assert text in r.text, text
+    assert 'Thợ ghi' not in r.text and 'Không cần linh kiện' not in r.text
     for text in ('650.000', 'Lãi trực tiếp', 'vốn'):
         assert text not in r.text, text
     client.cookies.clear()
