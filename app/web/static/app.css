@@ -5760,3 +5760,10 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
   .bctc-seg { width: 100%; }
   .bctc-dates label { flex: 1 1 140px; } .bctc-dates input { width: 100%; }
 }
+/* Báo giá cho khách gộp (TUẤN duyệt 20/11/2026): gói thiếu giá tô vàng không in ra; dòng khác của phiếu; nút In báo giá trên đầu phiếu. */
+.rq-cline.rq-miss { background: var(--warn-bg, #fff4dc); border-radius: 6px; padding: 4px 6px; }
+.rq-miss-note { color: var(--warn, #7a5200); font-size: .8rem; }
+.rq-extra small { color: var(--muted, #5d6676); font-size: .78rem; }
+.rq-print-head { display: inline; margin: 0; }
+.rq-print-head button[disabled] { opacity: .45; cursor: not-allowed; }
+.rq-merge-tien { margin-top: 10px; }

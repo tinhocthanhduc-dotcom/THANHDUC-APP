@@ -1,0 +1,7 @@
+{# Khách đồng ý + hẹn trả của xưởng (tách từ xuong_khung 20/11/2026, dùng chung với khung Báo giá cho khách). #}
+{% set f=xg_form %}{% macro fields() %}<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ f.get('version') or t.version }}">{% endmacro %}
+<form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}
+<div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}" {% if (f.get('promised_return_on') or '')==d.value %}checked{% endif %}><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
+<label class="xg-date">Hoặc chọn ngày<input type="date" name="promised_return_on" value="{{ f.get('promised_return_on') or (t.promised_return_on.isoformat() if t.promised_return_on else '') }}" required data-xg-date></label></div>{% if error_code=='BAD_APPOINTMENT' %}<small class="field-error">{{ error }}</small>{% endif %}
+<details class="xg-more"><summary>Ghi chú xác nhận</summary><label>Ghi chú (ai đồng ý, qua đâu)<input name="note" maxlength="2000" value="{{ f.get('note','') }}"></label></details>
+{% if not next_step or next_step.primary.form!='workshop-approve' %}<button class="btn btn-ok xg-primary">Khách đồng ý</button>{% endif %}</form>

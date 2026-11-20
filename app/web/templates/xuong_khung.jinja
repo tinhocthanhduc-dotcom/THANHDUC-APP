@@ -7,17 +7,11 @@
 {% if not (rq_reply and not ready and not approved) %}<div class="xg-head"><h2>{{ 'Giao thợ trả máy' if ready else ('Sửa xong' if approved else 'Báo giá cho khách') }}</h2>
 <p class="hint">{% if custody_machine %}{{ custody_machine.serial }} · {{ custody_locations[custody_machine.custody_location] }}{% if custody_current and custody_current.partner_name %} · {{ custody_current.partner_name }}{% endif %}{% if custody_pending %} · <b>chờ {{ custody_locations.get(custody_pending.location,'kho') }} xác nhận nhận</b>{% endif %}{% endif %}{% if t.promised_return_on %} · hẹn trả {{ t.promised_return_on.strftime('%d/%m') }}{% endif %}</p></div>{% endif %}
 {% if not ready %}
-<details class="xg-quote" {% if not approved and not t.lines %}open{% endif %} data-xg-quote><summary><span>Báo giá và vật tư · {{ t.lines|length }} dòng</span><b>{{ total|money }} đồng</b></summary>
-{% if t.lines %}<ul class="xg-lines">{% for line in t.lines %}<li><span>{{ line.description or charge_names.get(line.product_code, line.product_code) }}{% if line.qty!=1 %} × {{ line.qty|qty }}{% endif %}</span><b>{{ (line.amount+line.vat_amount)|money }}</b></li>{% endfor %}</ul>{% endif %}
-{% include 'dich_vu_tien.jinja' %}</details>
+{% include 'xuong_bao_gia_tien.jinja' %}
 {% if not approved and rq_reply %}
 {% elif not approved and not quoter %}<p class="hint">Kinh doanh hoặc giám đốc duyệt giá, gửi khách và ghi khách trả lời.</p>
 {% elif not approved %}
-<form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}
-<div class="field-group" role="group"><p class="group-label">Hẹn trả khách</p><div class="seg xg-days" data-xg-days>{% for d in workshop_return_days %}<label><input type="radio" name="return_pick" value="{{ d.value }}" {% if (f.get('promised_return_on') or '')==d.value %}checked{% endif %}><span>{{ d.label }}<small>{{ d.sub }}</small></span></label>{% endfor %}</div>
-<label class="xg-date">Hoặc chọn ngày<input type="date" name="promised_return_on" value="{{ f.get('promised_return_on') or (t.promised_return_on.isoformat() if t.promised_return_on else '') }}" required data-xg-date></label></div>{% if error_code=='BAD_APPOINTMENT' %}<small class="field-error">{{ error }}</small>{% endif %}
-<details class="xg-more"><summary>Ghi chú xác nhận</summary><label>Ghi chú (ai đồng ý, qua đâu)<input name="note" maxlength="2000" value="{{ f.get('note','') }}"></label></details>
-{% if not next_step or next_step.primary.form!='workshop-approve' %}<button class="btn btn-ok xg-primary">Khách đồng ý</button>{% endif %}</form>
+{% include 'xuong_dong_y.jinja' %}
 {% else %}
 {% if t.quote_approved_at %}<details class="xg-more"><summary>Khách đã đồng ý · hẹn trả {{ t.promised_return_on.strftime('%d/%m/%Y') if t.promised_return_on else '' }} · đổi ngày</summary><form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}<label>Ngày hẹn trả mới<input type="date" name="promised_return_on" value="{{ t.promised_return_on.isoformat() if t.promised_return_on else '' }}" required></label><input type="hidden" name="note" value=""><button class="btn btn-ghost">Cập nhật ngày hẹn trả</button></form></details>{% else %}<p class="alert ok">Bảo hành miễn phí, không cần khách duyệt giá.</p>{% endif %}
 {# Đổi thợ sửa (TUẤN duyệt mẫu PV1anDADorn327t1Wdjt77 20/11/2026): giao/đổi ngay trong khung, phiếu vẫn ở xưởng. #}
