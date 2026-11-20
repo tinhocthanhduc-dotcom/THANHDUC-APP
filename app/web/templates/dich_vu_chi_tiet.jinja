@@ -127,6 +127,8 @@
 {% if svc_step %}<ol class="svc-steps" data-svc-step="{{ svc_step }}">{% for label in ['Lưu tiền và vật tư','Ảnh sau sửa','Hoàn thành'] %}<li class="{{ 'done' if loop.index < svc_step else 'now' if loop.index == svc_step else '' }}"><span class="dot">{{ '✓' if loop.index < svc_step else loop.index }}</span>{{ label }}</li>{% endfor %}</ol>{% endif %}
 {% if normal_target in transitions %}{{ action_form(normal_target) }}{% endif %}
 {% with wf_part='action', hide_secondary=true %}{% include 'thanh_buoc.jinja' %}{% endwith %}{% if waiting_tech %}</details>{% endif %}
+{# TUẤN duyệt 20/11/2026 (mẫu WhRixnQ4diF1v8J2MPR437): Khách không sửa ngay dưới Khách đồng ý, bấm mở ô phí kiểm tra / miễn phí. #}
+{% if rq_merge and rq.quoter %}<div class="rq-decline-step" data-xg-panel>{% with xg_open=ws_fail %}{% include 'xuong_khong_sua.jinja' %}{% endwith %}</div>{% endif %}
 {% set shown=[] %}{% set fa=failed_action or '' %}
 {% set bar %}{% for a in (next_step.secondary if next_step else []) %}{% if a.form=='part-create' %}{% set _=shown.append('part-create') %}<a class="btn btn-ghost" href="#svc-parts" data-open-details data-svc-act="part-create">{{ a.label }}</a>{% elif a.form=='service-no-show' and can_no_show %}{% set _=shown.append('no-show') %}{% call act('service-no-show', a.label, fa=='no-show') %}{{ no_show_form() }}{% endcall %}{% elif a.form and a.form.startswith('service-') and a.form[8:] in transitions %}{% set _=shown.append('transition:' ~ a.form[8:]) %}{% call act(a.form, a.label, fa=='transition:' ~ a.form[8:]) %}{{ action_form(a.form[8:], true) }}{% endcall %}{% endif %}{% endfor %}
 {% if can_reschedule %}{% call act('service-reschedule', 'Dời hẹn', fa=='reschedule') %}{{ reschedule_form() }}{% endcall %}{% endif %}
