@@ -41,7 +41,7 @@ def test_line_warranty_lead_time_and_pages(client, db, workshop, make_user):
     v = db.scalar(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == t.id))
     s = v.snapshot
     months = {ln['name']: ln[ln['pick']]['warranty'] for ln in s['lines']}
-    assert months['Phí kiểm tra'] == rq.FEE_WARRANTY == 1 and months['Rulo ép'] == 6 and 3 in months.values()
+    assert months['Phí vệ sinh máy'] == rq.FEE_WARRANTY == 1 and months['Rulo ép'] == 6 and 3 in months.values()
     assert s['chosen']['warranty'] == 6 and s['chosen']['total'] == 648000
     assert s['days'] == 2 and s['terms'] == list(rq.DEFAULT_TERMS)
     assert 'Sửa xong dự kiến 2 ngày' in v.text and 'Rulo ép: 50.000đ' in v.text
@@ -110,3 +110,64 @@ def test_warranty_text():
     assert rq.warranty_text(dict(lines=[one(1, 1100000, True)])) == '1 tháng kể từ ngày trả máy'  # chỉ có phí ghi tay
     assert rq.warranty_text(dict(lines=[one(0)])) == 'Không bảo hành'
     assert rq.warranty_text(dict(lines=[one(None)])) == ''  # báo giá cũ chưa ghi số tháng
+
+
+def fee_ticket(db, p, t, make_user):
+    """Gói sửa đã duyệt (450.000 + VAT) + dòng "Phí kiểm tra máy" 100.000 + VAT ghi tay trên phiếu."""
+    from app import service_charges
+    from app.models import ServiceTicket
+    from app.schemas import ServiceCharges
+    boss = make_user('rq.boss', 'director')
+    fuser, feed, opts = book(db, boss)
+    ri.save(db, p['technician'], t.id, form(fuser, opts, ['Thay bao lụa sấy']))
+    ri.apply(db, p['dispatcher'], t.id, t.version, {})
+    t = db.get(ServiceTicket, t.id)
+    db.refresh(t)
+    keep = [service_charges.line_input(x) for x in t.lines]
+    service_charges.set_charges(db, p['dispatcher'], t.id, ServiceCharges(version=t.version, billing='THU_TIEN', lines=keep + [
+        dict(kind='PHI', description='Phí kiểm tra máy', qty=1, unit_price=100000, vat_rate=8)]))
+    db.refresh(t)
+    return t
+
+
+def test_inspection_fee_free_when_customer_agrees(client, db, workshop, make_user):
+    """TUẤN chọn 20/11/2026: phí kiểm tra miễn khi khách đồng ý sửa (không cộng tổng), không sửa thì thu."""
+    from test_gui_bao_gia_sua import tomorrow
+    from app.models import ServiceTicket
+    p, a, b, t, eq = workshop
+    t = fee_ticket(db, p, t, make_user)
+    pv = rq.preview(db, t, ri.inspection(db, t.id))
+    assert pv['ready'] and pv['total'] == 486000 and pv['fee'] == dict(subtotal=100000, vat=8000, total=108000)
+    v = rq.create(db, p['dispatcher'], t.id, t.version)
+    s = v.snapshot
+    assert s['chosen']['total'] == 486000 and s['fee']['total'] == 108000
+    assert [ln['name'] for ln in s['lines'] if ln.get('free_if_agree')] == ['Phí kiểm tra máy']
+    assert 'Phí kiểm tra máy: miễn phí khi anh/chị đồng ý sửa (không sửa: 108.000đ gồm VAT)' in v.text and 'Tổng cộng: 486.000đ' in v.text
+    client.cookies.clear()
+    pub = client.get(f'/bg/{v.token}').text
+    assert 'Miễn phí khi anh/chị đồng ý sửa' in pub and 'Nếu không sửa: thu phí kiểm tra <b>108.000đ</b>' in pub and '486.000đ' in pub
+    service_login(client, p['dispatcher'])
+    pr = client.get(f'/kiem-tra-may/bao-gia/{v.id}/in').text
+    assert 'Nếu khách không sửa:</b> thu phí kiểm tra 108.000 đồng' in pr and '486.000 đồng' in pr
+    # Phiếu chưa đổi: không phải lập lần mới.
+    db.refresh(t)
+    assert rq.open_version(db, t.id).id == v.id
+    # Khách đồng ý: dòng phí kiểm tra về 0đ, tiền phiếu đúng tổng khách đã đồng ý.
+    rq.agree(db, p['dispatcher'], v.id, t.version, 'PA1', 'ZALO', 'Chị Lan', tomorrow())
+    db.expire_all()
+    t = db.get(ServiceTicket, t.id)
+    fee = [x for x in t.lines if x.description == 'Phí kiểm tra máy']
+    assert len(fee) == 1 and fee[0].amount == fee[0].vat_amount == 0
+    assert sum(x.amount + x.vat_amount for x in t.lines) == 486000 and t.quote_approved_at
+
+
+def test_inspection_fee_kept_when_customer_declines(db, workshop, make_user):
+    from app.models import ServiceTicket
+    p, a, b, t, eq = workshop
+    t = fee_ticket(db, p, t, make_user)
+    v = rq.create(db, p['dispatcher'], t.id, t.version)
+    rq.not_yet(db, p['dispatcher'], v.id, rq.REASONS[0] if rq.REASONS[0] != 'Khác' else rq.REASONS[1])
+    db.expire_all()
+    t = db.get(ServiceTicket, t.id)
+    fee = [x for x in t.lines if x.description == 'Phí kiểm tra máy']
+    assert fee[0].amount + fee[0].vat_amount == 108000
