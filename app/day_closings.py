@@ -6,7 +6,7 @@ from sqlalchemy import case,func,select,text
 from . import audit
 from .errors import BusinessError
 from .finance_catalogs import check_reader,check_writer,check_version
-from .models import CashDoc,DayClosing,FundLedger
+from .models import CashDoc,DayClosing,Fund,FundLedger,SalesReceipt,User
 from .security import has_role
 
 LOCK_NAMESPACE=0x54444341
@@ -103,6 +103,8 @@ def recent(session,user):
     closed={r.day:r for r in session.scalars(select(DayClosing).where(DayClosing.day.between(start,end)))}
     drafts=dict(session.execute(select(CashDoc.doc_date,func.count()).where(CashDoc.doc_date.between(start,end),
                     CashDoc.status=='NHAP').group_by(CashDoc.doc_date)).all())
+    counts=dict(session.execute(select(CashDoc.doc_date,func.count()).where(CashDoc.doc_date.between(start,end),
+                    CashDoc.status=='DA_GHI',CashDoc.kind.in_(('PT','PC')),CashDoc.is_opening.is_(False)).group_by(CashDoc.doc_date)).all())
     totals={r.day:r for r in session.execute(select(FundLedger.entry_date.label('day'),
         func.sum(case((CashDoc.kind=='PT',FundLedger.amount),else_=0)).label('income'),
         func.sum(case((CashDoc.kind=='PC',-FundLedger.amount),else_=0)).label('expense'))
@@ -110,4 +112,40 @@ def recent(session,user):
         .group_by(FundLedger.entry_date))}
     return [dict(day=day,status=closed[day].status if day in closed else 'CHUA_CHOT',version=closed[day].version if day in closed else 0,
                  income=int(totals[day].income) if day in totals else 0,expense=int(totals[day].expense) if day in totals else 0,
-                 drafts=drafts.get(day,0)) for day in [end-timedelta(days=n) for n in range(30)]]
+                 drafts=drafts.get(day,0),docs=counts.get(day,0)) for day in [end-timedelta(days=n) for n in range(30)]]
+
+
+def detail(session,user,day):
+    """Chốt sổ mới (mẫu 20/11/2026): khung chi tiết một ngày. Chỉ đọc, không đổi luật chốt."""
+    check_reader(user)
+    funds=[dict(name=r.name,income=int(r.income),expense=int(r.expense)) for r in session.execute(
+        select(Fund.name,func.sum(case((CashDoc.kind=='PT',FundLedger.amount),else_=0)).label('income'),
+               func.sum(case((CashDoc.kind=='PC',-FundLedger.amount),else_=0)).label('expense'))
+        .join(CashDoc,CashDoc.id==FundLedger.doc_id).join(Fund,Fund.code==FundLedger.fund_code)
+        .where(FundLedger.entry_date==day,CashDoc.is_opening.is_(False),CashDoc.kind.in_(('PT','PC')))
+        .group_by(Fund.code,Fund.name).order_by(Fund.name))]
+    big=list(session.scalars(select(CashDoc).where(CashDoc.doc_date==day,CashDoc.status=='DA_GHI',CashDoc.kind.in_(('PT','PC')),
+        CashDoc.is_opening.is_(False)).order_by(CashDoc.amount.desc(),CashDoc.id).limit(5)))
+    drafts=list(session.scalars(select(CashDoc).where(CashDoc.doc_date==day,CashDoc.status=='NHAP').order_by(CashDoc.id)))
+    pending=session.execute(select(func.count(),func.coalesce(func.sum(SalesReceipt.amount),0))
+        .where(SalesReceipt.received_at==day,SalesReceipt.status=='CHO_XAC_NHAN')).one()
+    row=session.get(DayClosing,day)
+    ids=[i for i in ((row.closed_by,row.unlocked_by) if row else ()) if i]
+    names=dict(session.execute(select(User.id,User.full_name).where(User.id.in_(ids))).all()) if ids else {}
+    return dict(day=day,funds=funds,big=big,drafts=drafts,pending_count=int(pending[0]),pending_total=int(pending[1]),
+                closing=row,closed_by=names.get(row.closed_by,'') if row else '',unlocked_by=names.get(row.unlocked_by,'') if row else '')
+
+
+def close_many(session,user,items):
+    """Chốt nhiều ngày một lần: mỗi ngày gọi close() riêng (giao dịch riêng), ngày lỗi không chặn ngày khác.
+    Hôm nay không chốt theo lô, chốt riêng cuối ngày."""
+    check_writer(user)
+    today=_today();done=[];failed=[]
+    for day,version in sorted(items):
+        if day>=today:
+            failed.append((day,'Hôm nay chốt riêng cuối ngày.'));continue
+        try:
+            close(session,user,day,version);done.append(day)
+        except BusinessError as exc:
+            failed.append((day,exc.message))
+    return done,failed

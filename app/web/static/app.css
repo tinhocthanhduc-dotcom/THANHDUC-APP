@@ -5556,3 +5556,67 @@ body.site-quantri { --site: #6d28d9; --site-text: #fff; --site-bg: #efe9fd; }
   .hh-kind { padding-top: 0; }
   .hh-dfoot .btn-ok { flex: 1; }
 }
+
+/* Chốt sổ ngày mới (mẫu 6jyhDqwoSRFLCrHS1bb4dS, TUẤN duyệt 20/11/2026): tab + bảng một dòng một ngày bên trái, chi tiết ngày bên phải; điện thoại: danh sách → một ngày. */
+main:has(> .cs-page) { max-width: 1280px; }
+.cs-page { display: grid; gap: 12px; min-width: 0; }
+.cs-page .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cs-bulk { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--ok-solid); border-radius: 12px; background: var(--ok-bg); }
+.cs-bulk p { margin: 0; flex: 1; min-width: 220px; } .cs-bulk p b { color: var(--ok); }
+.cs-failed { margin: 0; padding: 10px 14px 10px 30px; display: grid; gap: 4px; }
+.cs-split { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; align-items: start; }
+.cs-list { min-width: 0; padding: 0; overflow: hidden; }
+.cs-table-wrap { overflow-x: auto; }
+.cs-table th { white-space: nowrap; }
+.cs-table td { vertical-align: middle; }
+.cs-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cs-table tbody td.num { font-weight: 700; }
+.cs-table tr[hidden] { display: none; }
+.cs-table tr.on td { background: var(--info-bg); } .cs-table tr.on td:first-child { box-shadow: inset 3px 0 0 var(--info-solid); }
+.cs-table tr.cs-zero td { color: var(--muted); } .cs-table tr.cs-zero td.num { font-weight: 400; }
+.cs-day a { color: inherit; text-decoration: none; display: grid; } .cs-day b { white-space: nowrap; } .cs-day small { color: var(--muted); font-size: .8rem; }
+.cs-group td { background: var(--bg); font-size: .88rem; } .cs-group a { color: var(--muted); font-weight: 600; text-decoration: none; display: block; }
+.cs-table tfoot td { font-weight: 700; background: var(--bg); }
+.cs-act { text-align: right; white-space: nowrap; }
+.cs-act .btn-ok, .cs-act .btn-ghost { min-height: 38px; padding: 6px 12px; font-size: .88rem; }
+.cs-inline { display: inline; margin: 0; }
+.cs-neg { color: var(--bad); } .cs-pos { color: var(--ok); }
+.cs-panel { display: grid; gap: 10px; padding: 14px 16px; min-width: 0; position: sticky; top: 12px; }
+.cs-back { display: none; font-weight: 600; text-decoration: none; }
+.cs-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+.cs-head h2 { margin: 0; font-size: 1.1rem; } .cs-head small { color: var(--muted); display: block; }
+.cs-sub { margin: 4px 0 0; font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.cs-kv dt { white-space: nowrap; } .cs-kv dd { white-space: nowrap; }
+.cs-docs, .cs-check { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; font-size: .9rem; }
+.cs-docs li { display: flex; justify-content: space-between; gap: 8px; } .cs-docs li span { color: var(--muted); text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.cs-docs a, .cs-check a { font-weight: 600; text-decoration: none; }
+.cs-check li::before { content: "✓ "; color: var(--ok); font-weight: 800; }
+.cs-check li.warn::before { content: "! "; color: var(--warn); } .cs-check li.bad::before { content: "✕ "; color: var(--bad); }
+.cs-check li.bad { color: var(--bad); }
+.cs-panel .next-box { margin: 0; } .cs-panel .next-box .ph-actions { display: grid; gap: 8px; } .cs-panel .next-box form, .cs-panel .next-box button, .cs-panel .next-box .btn { width: 100%; }
+.cs-unlock > summary { list-style: none; cursor: pointer; color: var(--bad); border-color: var(--bad); width: 100%; }
+.cs-unlock > summary::-webkit-details-marker { display: none; }
+.cs-unlock[open] > summary { margin-bottom: 8px; }
+.cs-unlock textarea { font-size: 16px; }
+@media (max-width: 900px) {
+  .cs-split { grid-template-columns: minmax(0, 1fr); }
+  .cs-panel { position: static; }
+  .cs-split:not(.picked) .cs-panel { display: none; }
+  .cs-split.picked .cs-list { display: none; }
+  .cs-back { display: block; }
+  .cs-page:has(.cs-split.picked) > .tiles, .cs-page:has(.cs-split.picked) > .cs-bulk, .cs-page:has(.cs-split.picked) > .page-head .ph-sub { display: none; }
+}
+@media (max-width: 760px) {
+  .cs-page .tiles { grid-template-columns: 1fr 1fr; }
+  .cs-table thead { display: none; }
+  .cs-table, .cs-table tbody, .cs-table tfoot { display: block; }
+  .cs-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .cs-table td { padding: 0; border: 0; }
+  .cs-table tr.on { background: var(--info-bg); box-shadow: inset 3px 0 0 var(--info-solid); }
+  .cs-table tr.on td, .cs-table tr.on td:first-child { background: none; box-shadow: none; }
+  .cs-table td:nth-child(3), .cs-table td:nth-child(4), .cs-table td:nth-child(6) { display: none; }
+  .cs-table td.cs-day { grid-column: 1; grid-row: 1; } .cs-table td:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .cs-table td:nth-child(5) { grid-column: 2; grid-row: 1; } .cs-table td.cs-act { grid-column: 2; grid-row: 2; }
+  .cs-table tr.cs-group, .cs-table tfoot tr { display: block; }
+  .cs-table tfoot td { display: none; } .cs-table tfoot td:first-child { display: block; }
+}

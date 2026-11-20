@@ -173,3 +173,20 @@ def test_close_and_post_serialize_without_late_post(db,engine,cash_people):
     assert sorted(results) in [sorted(['close','post']),sorted(['DRAFTS_OPEN','post'])]
     db.expire_all();assert doc.status=='DA_GHI' and db.query(FundLedger).count()==1
     if 'close' in results:assert days.is_closed(db,DAY)
+
+
+def test_close_many_skips_today_and_drafts_keeps_others_and_detail(db,cash_people):
+    """Chốt sổ mới 20/11/2026: chốt nhiều ngày, ngày lỗi không chặn ngày khác; khung chi tiết chỉ đọc."""
+    f=cash_people['finance'];p=posted(db,f,amount=700000)
+    draft=make_doc(db,f,doc_date=DAY+timedelta(days=1))
+    done,failed=days.close_many(db,f,[(DAY,0),(DAY+timedelta(days=1),0),(DAY+timedelta(days=2),0),(TODAY,0)])
+    assert done==[DAY,DAY+timedelta(days=2)]
+    assert [d for d,_ in failed]==[DAY+timedelta(days=1),TODAY]
+    assert days.is_closed(db,DAY) and not days.is_closed(db,DAY+timedelta(days=1)) and not days.is_closed(db,TODAY)
+    fails('FORBIDDEN',days.close_many,db,cash_people['sales'],[(DAY,1)])
+    d=days.detail(db,f,DAY)
+    assert d['funds']==[dict(name='QUY-TM',income=700000,expense=0)] and [c.number for c in d['big']]==[p.number]
+    assert d['closing'].status=='DA_CHOT' and d['closed_by']
+    assert [c.number for c in days.detail(db,f,DAY+timedelta(days=1))['drafts']]==[draft.number]
+    rows={r['day']:r for r in days.recent(db,f)}
+    assert rows[DAY]['docs']==1 and rows[DAY+timedelta(days=1)]['drafts']==1

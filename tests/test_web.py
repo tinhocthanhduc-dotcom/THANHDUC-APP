@@ -2857,6 +2857,27 @@ def test_t4_web_close_unlock_badges_and_permissions(client,db,closing_people):
     assert client.get('/chot-so').status_code==403 and client.get('/dieu-chinh').status_code==403
 
 
+def test_chot_so_moi_tabs_bulk_detail(client,db,closing_people):
+    from app import day_closings as days
+    from test_cash import posted,make_doc,DAY
+    from datetime import timedelta
+    p=closing_people;posted(db,p['finance']);make_doc(db,p['finance'],doc_date=DAY+timedelta(days=1))
+    csrf=service_login(client,p['finance'])
+    page=client.get('/chot-so').text
+    assert 'data-close-many' in page and 'class="ltab on"' in page and 'Phiếu nháp chặn chốt' in page
+    assert f'data-day-detail="{DAY+timedelta(days=1)}"' in page and 'Còn 1 phiếu nháp' in page
+    assert f'data-day-detail="{DAY}"' in client.get(f'/chot-so?ngay={DAY}').text
+    eligible=[r for r in days.recent(db,p['finance']) if r['status']!='DA_CHOT' and not r['drafts'] and r['day']<days._today()]
+    data={'csrf':csrf,'day':[str(r['day']) for r in eligible]+[str(DAY+timedelta(days=1))],f'version_{DAY+timedelta(days=1)}':'0'}
+    data.update({f"version_{r['day']}":str(r['version']) for r in eligible})
+    r=client.post('/chot-so/chot-nhieu',data=data)
+    assert r.status_code==409 and 'CLOSE_MANY_PARTIAL' in r.text and 'Còn phiếu nháp' in r.text
+    assert days.is_closed(db,DAY) and not days.is_closed(db,DAY+timedelta(days=1))
+    page=client.get('/chot-so?tab=da').text
+    assert page.count('id="ngay-')==30 and 'Mở khóa ngày này' not in page
+    assert client.post('/chot-so/chot-nhieu',data=dict(csrf=csrf)).status_code==400
+
+
 def test_t4_web_request_approve_reject_versions_and_csrf(client,db,closing_people):
     from app import day_closings as days,cash_posting
     from app.models import CashCorrection,CashDoc
