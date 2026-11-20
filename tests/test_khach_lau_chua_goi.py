@@ -68,6 +68,9 @@ def test_page_and_call_result_hides_then_returns(client, db, held, monkeypatch):
     # Khách đặt mực: mở sẵn màn nhận đơn với khách này.
     r = client.post('/khach-hang/nhac-muc/KTD-000001/goi', data=dict(csrf=csrf, result='DAT_MUC', tab='goi'), follow_redirects=False)
     assert r.headers['location'] == '/dich-vu/moi?customer_code=KTD-000001'
+    # Ghim giờ cuộc gọi theo ngày giả lập: giờ thật có thể sau ngày "chuyển nơi khác" bên dưới (test hỏng từ 20/11/2026).
+    db.query(CustomerInkCall).filter_by(result='DAT_MUC').one().called_at = datetime.combine(later, datetime.min.time(), TZ) + timedelta(hours=10)
+    db.commit()
     # Chuyển nơi khác: sang tab riêng.
     client.post('/khach-hang/nhac-muc/KTD-000001/goi', data=dict(csrf=csrf, result='CHUYEN_NOI_KHAC', tab='goi'))
     lost = db.query(CustomerInkCall).filter_by(result='CHUYEN_NOI_KHAC').one()
