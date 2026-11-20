@@ -1,25 +1,73 @@
 {% extends 'base.jinja' %}
-{% macro category_table(rows,label,count,total) %}
-<table class="sales-report-table"><thead><tr><th>Danh mục</th><th>Số phiếu</th><th>{{ label }}</th></tr></thead><tbody>{% for r in rows %}<tr><th data-label="Danh mục">{{ r.code }} · {{ r.name }}</th><td data-label="Số phiếu">{{ r.documents }}</td><td data-label="{{ label }}">{{ r.amount|money }}</td></tr>{% else %}<tr><td colspan="3">Không có phát sinh.</td></tr>{% endfor %}</tbody><tfoot><tr><th data-label="Tổng">Cộng</th><td data-label="Số phiếu">{{ count }}</td><td data-label="{{ label }}">{{ total|money }}</td></tr></tfoot></table>
+{% import '_ui.jinja' as ui %}
+{# Báo cáo tài chính làm lại theo mẫu TUẤN duyệt 20/11/2026: câu tóm tắt + 4 ô so kỳ trước + biểu đồ dòng tiền
+   + tiền vào/ra theo danh mục (bấm mở Thu chi đã lọc) + thẻ quỹ + công nợ gọn. Tiền tố CSS bctc-. #}
+{% macro pct(v, bad_up=false) %}{% if v is none %}Kỳ trước chưa có số để so{% else %}<span class="{{ ('bctc-down' if v > 0 else 'bctc-up') if bad_up else ('bctc-up' if v > 0 else 'bctc-down') }}">{{ '▲' if v > 0 else '▼' if v < 0 else '=' }} {{ v|abs }}%</span> so với kỳ trước{% endif %}{% endmacro %}
+{% macro cat_list(rows, total, kind, tone) %}
+{% for r in rows %}{% set tag = 'a' if r.code else 'div' %}<{{ tag }} class="bctc-hb bctc-{{ tone }}"{% if r.code %} href="/thu-chi?loai={{ kind }}&danh_muc={{ r.code|urlencode }}&from={{ start }}&to={{ end }}&trang_thai=DA_GHI"{% endif %}>
+<span class="bctc-hb-n">{{ r.name }} <small>· {{ r.documents }} phiếu</small></span><span class="bctc-hb-v">{{ r.amount|money }}<small>{{ '%.1f'|format(r.pct)|replace('.0','')|replace('.',',') }}%</small></span>
+<span class="bctc-track"><i style="width:{{ [r.pct, 0.8]|max }}%"></i></span></{{ tag }}>
+{% else %}<p class="bctc-muted">Không có phát sinh trong kỳ.</p>{% endfor %}
 {% endmacro %}
 {% block title %}Báo cáo tài chính{% endblock %}
-{% block main %}
-<h1>Báo cáo tài chính</h1><p>Đơn vị: đồng. Ngày theo giờ Việt Nam.</p>
-<div class="seg sales-report-presets">{% for label,value,active in presets %}<a class="btn {{ 'primary' if active else '' }}" href="/bao-cao/tai-chinh?period={{ value }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
-<form action="/bao-cao/tai-chinh" class="form quote-filters"><div class="row2"><label>Từ ngày<input type="date" name="from" value="{{ start }}" required></label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label></div><button>Lọc</button></form>
+{% block main %}<div class="page-wide bctc-page">
+{% call ui.page_head('Báo cáo tài chính', sub='Dòng tiền thật qua các quỹ (không phải lãi lỗ). Đơn vị đồng, ngày theo giờ Việt Nam.') %}{% if can_open('/bao-cao/lai-rong') %}<a class="btn btn-ghost" href="/bao-cao/lai-rong">Xem lãi lỗ</a>{% endif %}
+<details class="bctc-csv"><summary class="btn btn-ghost">Tải CSV ▾</summary><div class="bctc-csv-menu">
+<a href="/bao-cao/tai-chinh/quy.csv?{{ query }}">Số dư quỹ</a><a href="/bao-cao/tai-chinh/thu.csv?{{ query }}">Thu theo danh mục</a><a href="/bao-cao/tai-chinh/chi.csv?{{ query }}">Chi theo danh mục</a><a href="/bao-cao/tai-chinh/dong-tien.csv?{{ query }}">Dòng tiền theo ngày</a><a href="/bao-cao/tai-chinh/cong-no.csv?{{ query }}">Công nợ khách</a></div></details>{% endcall %}
+<div class="bctc-bar">
+<nav class="bctc-seg" aria-label="Chọn kỳ">{% for label,value,active in presets %}<a href="/bao-cao/tai-chinh?period={{ value }}"{% if active %} class="on" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+<form action="/bao-cao/tai-chinh" class="bctc-dates" data-autofilter><label>Từ ngày<input type="date" name="from" value="{{ start }}" required></label><label>Đến ngày<input type="date" name="to" value="{{ end }}" required></label><noscript><button class="btn btn-ghost">Xem</button></noscript></form>
+{% if not error %}<span class="bctc-muted">So với: <b>{{ s.prev_label }}</b></span>{% endif %}
+</div>
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% else %}
-<section class="sales-report-section" id="quy"><div class="bar"><h2>Số dư quỹ hiện tại</h2><a class="btn" href="/bao-cao/tai-chinh/quy.csv?{{ query }}">Tải CSV</a></div><p>Hiện tại, không giới hạn theo khoảng ngày. Bao gồm quỹ đã ngừng dùng.</p>
-<table class="sales-report-table"><thead><tr><th>Quỹ</th><th>Số dư</th></tr></thead><tbody>{% for r in funds %}<tr><th data-label="Quỹ"><a href="/so-quy/{{ r.code }}">{{ r.code }} · {{ r.name }}</a>{% if not r.active %} · Ngừng dùng{% endif %}</th><td data-label="Số dư">{{ r.balance|money }}</td></tr>{% else %}<tr><td colspan="2">Chưa có quỹ.</td></tr>{% endfor %}</tbody><tfoot><tr><th data-label="Tổng">Tất cả quỹ</th><td data-label="Số dư">{{ fund_total|money }}</td></tr></tfoot></table></section>
-<section class="sales-report-section" id="danh-muc"><h2>Thu chi theo danh mục</h2><p>Theo ngày sổ, gồm dòng đảo vào ngày hủy; không gồm chuyển quỹ và đầu kỳ. Số phiếu là số chứng từ có phát sinh trong khoảng (mỗi phiếu tính một lần trong mỗi bảng).</p>
-<div class="bar"><h3>Thu</h3><a class="btn" href="/bao-cao/tai-chinh/thu.csv?{{ query }}">Tải CSV Thu</a></div>{{ category_table(income,'Thu',totals.income_documents,totals.income) }}
-<div class="bar"><h3>Chi</h3><a class="btn" href="/bao-cao/tai-chinh/chi.csv?{{ query }}">Tải CSV Chi</a></div>{{ category_table(expense,'Chi',totals.expense_documents,totals.expense) }}<p><strong>Chênh lệch thu − chi: {{ totals.net|money }} đồng</strong></p></section>
-<section class="card" data-non-cash-damage><h2>Chi phí hàng hư hỏng (không dùng tiền)</h2><strong>{{ damage_cost|money }} đồng</strong><p>Trong kỳ đã chọn · theo phiếu hủy hàng đã ghi, loại các phiếu đã hủy.</p></section>
-<section class="card"><h2>Chênh lệch trả hàng lỗi cho NCC</h2><strong>{{ pending_return_difference|money }} đồng</strong></section>
-<section class="sales-report-section" id="dong-tien"><div class="bar"><h2>Dòng tiền theo ngày</h2><a class="btn" href="/bao-cao/tai-chinh/dong-tien.csv?{{ query }}">Tải CSV</a></div><p>Số dư cuối ngày cộng tất cả quỹ, có đầu kỳ và chuyển quỹ. Dòng đảo được ghi vào ngày hủy, không đổi ngày gốc.</p>
-<table class="sales-report-table"><thead><tr><th>Ngày</th><th>Thu</th><th>Chi</th><th>Chênh lệch</th><th>Số dư cuối ngày</th></tr></thead><tbody>{% for r in daily %}<tr><th data-label="Ngày">{{ r.day.strftime('%d/%m/%Y') }}</th><td data-label="Thu">{{ r.income|money }}</td><td data-label="Chi">{{ r.expense|money }}</td><td data-label="Chênh lệch">{{ r.net|money }}</td><td data-label="Số dư cuối ngày">{{ r.closing_balance|money }}</td></tr>{% endfor %}</tbody><tfoot><tr><th data-label="Tổng">Cộng / Cuối kỳ</th><td data-label="Thu">{{ totals.income|money }}</td><td data-label="Chi">{{ totals.expense|money }}</td><td data-label="Chênh lệch">{{ totals.net|money }}</td><td data-label="Số dư cuối kỳ">{{ daily[-1].closing_balance|money }}</td></tr></tfoot></table></section>
-<section class="sales-report-section" id="cong-no"><div class="bar"><h2>Công nợ khách tổng hợp</h2><a class="btn" href="/bao-cao/tai-chinh/cong-no.csv?{{ query }}">Tải CSV</a></div><p>Tại {{ as_of }}, không giới hạn theo khoảng ngày. Chỉ gồm chứng từ còn nợ: đơn Đã chốt/Đã giao và dịch vụ Hoàn thành/Đã đóng. Tiền chờ xác nhận chưa trừ nợ.</p>
-<table class="sales-report-table"><thead><tr><th>Khách hàng</th><th>Phải thu</th><th>Đã thu</th><th>Chờ xác nhận</th><th>Còn nợ</th></tr></thead><tbody>{% for r in customers %}<tr><th data-label="Khách hàng"><a href="/bao-cao/tai-chinh?{{ query }}&khach={{ r.customer_code|urlencode }}#chung-tu">{{ r.customer_code }} · {{ r.name }}</a></th><td data-label="Phải thu">{{ r.receivable|money }}</td><td data-label="Đã thu">{{ r.paid|money }}</td><td data-label="Chờ xác nhận">{{ r.pending|money }}</td><td data-label="Còn nợ">{{ r.remaining|money }}</td></tr>{% else %}<tr><td colspan="5">Không có khách còn nợ.</td></tr>{% endfor %}</tbody><tfoot><tr><th data-label="Tổng">Cộng</th><td data-label="Phải thu">{{ debts.receivable|money }}</td><td data-label="Đã thu">{{ debts.paid|money }}</td><td data-label="Chờ xác nhận">{{ debts.pending|money }}</td><td data-label="Còn nợ">{{ debts.remaining|money }}</td></tr></tfoot></table>
-{% if customer %}<div id="chung-tu"><div class="bar"><h3>Chứng từ còn nợ · {{ customer }}</h3><a class="btn" href="/bao-cao/tai-chinh/chung-tu.csv?{{ query }}&{{ customer_query }}">Tải CSV chứng từ</a></div><p>Ngày phát sinh nợ: ngày chốt đơn bán hoặc ngày khóa tiền khi hoàn thành dịch vụ, giờ Việt Nam.</p>
-<table class="sales-report-table"><thead><tr><th>Chứng từ</th><th>Ngày phát sinh nợ</th><th>Số ngày</th><th>Phải thu</th><th>Đã thu</th><th>Chờ xác nhận</th><th>Còn nợ</th></tr></thead><tbody>{% for r in detail %}<tr><th data-label="Chứng từ"><a href="{% if r.kind=='DK' %}/cong-no-khach-hang/dau-ky/{{ r.customer_code|urlencode }}{% else %}{{ '/don-ban/' if r.kind=='DB' else '/dich-vu/' }}{{ r.id }}{% endif %}#thu-tien">{{ r.number }}</a>{% if r.kind=='DK' %} <span class="lt-sub">Nợ đầu kỳ</span>{% endif %}</th><td data-label="Ngày phát sinh nợ">{{ r.day.strftime('%d/%m/%Y') if r.day else '—' }}</td><td data-label="Số ngày">{{ r.days }}</td><td data-label="Phải thu">{{ r.receivable|money }}</td><td data-label="Đã thu">{{ r.paid|money }}</td><td data-label="Chờ xác nhận">{{ r.pending|money }}</td><td data-label="Còn nợ">{{ r.remaining|money }}</td></tr>{% else %}<tr><td colspan="7">Không có chứng từ còn nợ.</td></tr>{% endfor %}</tbody></table></div>{% endif %}</section>
+{% set t = s.totals %}
+<section class="card bctc-answer" aria-label="Tóm tắt">
+<div class="bctc-answer-main">
+<h2>{{ s.label }}: tiền vào <span class="bctc-up">{{ s.short(t.income) }}</span>, tiền ra <span class="bctc-down">{{ s.short(t.expense) }}</span>, {{ 'dư thêm' if t.net >= 0 else 'hụt' }} <b>{{ s.short(t.net|abs) }}</b>.</h2>
+<p>{% if s.ratio is not none %}Tiền ra bằng {{ s.ratio }}% tiền vào.{% else %}Chưa có tiền vào trong kỳ.{% endif %}{% if s.biggest %} Khoản chi lớn nhất là {{ s.biggest.name|lower }} ({{ s.short(s.biggest.amount) }}, {{ s.biggest.pct|round|int }}% tiền ra).{% endif %}</p>
+{% set flow = t.income + t.expense %}<div class="bctc-meter" aria-hidden="true">{% if flow %}<i class="bctc-mi" style="width:{{ t.income * 100 / flow }}%"></i><i class="bctc-mo" style="width:{{ t.expense * 100 / flow }}%"></i>{% endif %}</div>
+<div class="bctc-legend"><span><i class="bctc-dot bctc-mi"></i>Vào {{ t.income|money }}</span><span><i class="bctc-dot bctc-mo"></i>Ra {{ t.expense|money }}</span></div>
+</div>
+<div class="bctc-cash"><span class="bctc-kicker">Tiền đang có (mọi quỹ)</span><b class="bctc-big">{{ fund_total|money }}</b>
+{% for r in funds if r.balance or r.active %}<div class="bctc-row"><span>{{ r.name }}</span><b>{{ r.balance|money }}</b></div>{% endfor %}
+<div class="bctc-row bctc-muted"><span>Khách còn nợ</span><b>{{ debts.remaining|money }}</b></div></div>
+</section>
+<div class="bctc-tiles">
+<div class="bctc-tile"><span>Tiền vào · {{ t.income_documents }} phiếu</span><b class="bctc-up">{{ t.income|money }}</b><small>{{ pct(s.change.income) }} ({{ s.prev.income|money }})</small></div>
+<div class="bctc-tile"><span>Tiền ra · {{ t.expense_documents }} phiếu</span><b class="bctc-down">{{ t.expense|money }}</b><small>{{ pct(s.change.expense, bad_up=true) }} ({{ s.prev.expense|money }})</small></div>
+<div class="bctc-tile"><span>Thu − chi</span><b>{{ '+' if t.net > 0 else '−' if t.net < 0 }}{{ t.net|abs|money }}</b><small>{{ pct(s.change.net) }}</small></div>
+<div class="bctc-tile"><span>Số dư cuối kỳ (mọi quỹ)</span><b>{{ s.closing|money }}</b><small>Đầu kỳ {{ s.opening|money }}</small></div>
+</div>
+<section class="card bctc-sec" id="dong-tien"><h2>Dòng tiền theo {{ 'tháng' if s.chart and s.chart.by_month else 'ngày' }} <small>Cột xanh: vào · cột đỏ: ra · đường: số dư cuối {{ 'tháng' if s.chart and s.chart.by_month else 'ngày' }}</small></h2>
+{% set c = s.chart %}{% if c %}<div class="bctc-chart-wrap"><svg class="bctc-chart" viewBox="0 0 {{ c.w }} {{ c.h }}" role="img" aria-label="Biểu đồ dòng tiền">
+<g class="bctc-grid"><line x1="{{ c.x0 }}" y1="{{ c.top }}" x2="{{ c.w - 6 }}" y2="{{ c.top }}"/><line x1="{{ c.x0 }}" y1="{{ c.bot }}" x2="{{ c.w - 6 }}" y2="{{ c.bot }}"/><line class="bctc-zero" x1="{{ c.x0 }}" y1="{{ c.mid }}" x2="{{ c.w - 6 }}" y2="{{ c.mid }}"/></g>
+<text x="{{ c.x0 - 6 }}" y="{{ c.top + 4 }}" text-anchor="end">+{{ c.peak }}</text><text x="{{ c.x0 - 6 }}" y="{{ c.mid + 4 }}" text-anchor="end">0</text><text x="{{ c.x0 - 6 }}" y="{{ c.bot + 4 }}" text-anchor="end">−{{ c.peak }}</text>
+{% for b in c.bars %}<rect class="bctc-{{ b.tone }}" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="1.5"><title>{{ b.tip }}</title></rect>{% endfor %}
+<polyline class="bctc-line" points="{{ c.points }}"/><circle class="bctc-end" cx="{{ c.last.x }}" cy="{{ c.last.y }}" r="4"/>
+{% for l in c.labels %}<text x="{{ l.x }}" y="{{ c.h - 8 }}" text-anchor="middle">{{ l.text }}</text>{% endfor %}
+</svg></div>{% endif %}
+<details class="bctc-days"><summary>Xem bảng từng ngày (chỉ ngày có phát sinh)</summary>
+<div class="table-scroll"><table class="sales-report-table"><thead><tr><th>Ngày</th><th>Thu</th><th>Chi</th><th>Chênh lệch</th><th>Số dư cuối ngày</th></tr></thead><tbody>{% for r in s.daily|reverse %}<tr><th data-label="Ngày">{{ r.day.strftime('%d/%m/%Y') }}</th><td data-label="Thu">{{ r.income|money }}</td><td data-label="Chi">{{ r.expense|money }}</td><td data-label="Chênh lệch">{{ r.net|money }}</td><td data-label="Số dư cuối ngày">{{ r.closing_balance|money }}</td></tr>{% else %}<tr><td colspan="5">Không có phát sinh.</td></tr>{% endfor %}</tbody><tfoot><tr><th data-label="Tổng">Cộng / Cuối kỳ</th><td data-label="Thu">{{ t.income|money }}</td><td data-label="Chi">{{ t.expense|money }}</td><td data-label="Chênh lệch">{{ t.net|money }}</td><td data-label="Số dư cuối ngày">{{ s.closing|money }}</td></tr></tfoot></table></div>
+</details></section>
+<div class="bctc-two" id="danh-muc">
+<section class="card bctc-sec"><h2>Tiền vào từ đâu <small>{{ t.income|money }}</small></h2><p class="bctc-hint">Bấm một dòng để xem các phiếu thu</p>{{ cat_list(s.income, t.income, 'PT', 'in') }}</section>
+<section class="card bctc-sec"><h2>Tiền ra cho việc gì <small>{{ t.expense|money }}</small></h2><p class="bctc-hint">Bấm một dòng để xem từng phiếu chi, chi cho ai</p>{{ cat_list(s.expense, t.expense, 'PC', 'out') }}</section>
+</div>
+<div class="bctc-two">
+<section class="card bctc-sec" id="quy"><h2>Quỹ <small>Số dư hiện tại</small></h2><p class="bctc-hint">Không theo kỳ đang xem. Gồm cả quỹ đã ngừng dùng.</p>
+<div class="bctc-funds">{% for r in funds %}<div class="bctc-fund"><span>{{ r.code }} · {{ r.name }}{% if not r.active %} · Ngừng dùng{% endif %}</span><b>{{ r.balance|money }}</b>
+<div class="bctc-meter bctc-thin" aria-hidden="true"><i class="bctc-acc" style="width:{{ (r.balance * 100 / fund_total) if fund_total > 0 and r.balance > 0 else 0 }}%"></i></div><a href="/so-quy/{{ r.code }}">Sổ quỹ →</a></div>{% else %}<p class="bctc-muted">Chưa có quỹ.</p>{% endfor %}</div>
+<div class="bctc-row bctc-total"><span>Tất cả quỹ</span><b>{{ fund_total|money }}</b></div></section>
+<section class="card bctc-sec" id="cong-no"><h2>Khách còn nợ <small>tại {{ as_of|vn_date }}</small></h2><p class="bctc-hint">Đơn đã chốt/đã giao, dịch vụ hoàn thành/đã đóng, nợ đầu kỳ. Tiền chờ xác nhận chưa trừ nợ.</p>
+<div class="bctc-debt"><div><span>Phải thu</span><b>{{ debts.receivable|money }}</b></div><div><span>Chờ xác nhận</span><b>{{ debts.pending|money }}</b></div><div><span>Còn nợ</span><b class="bctc-down">{{ debts.remaining|money }}</b></div></div>
+{% for r in customers[:5] %}<a class="bctc-hb" href="/bao-cao/tai-chinh?{{ query }}&khach={{ r.customer_code|urlencode }}#chung-tu"><span class="bctc-hb-n">{{ r.name }} <small>· {{ r.documents }} chứng từ</small></span><span class="bctc-hb-v">{{ r.remaining|money }}</span></a>{% else %}<p class="bctc-muted">Không có khách còn nợ.</p>{% endfor %}
+{% if customers|length > 5 %}<a class="bctc-more" href="/cong-no-khach-hang">Xem tất cả {{ customers|length }} khách ở Công nợ khách hàng →</a>{% endif %}
+</section></div>
+{% if customer %}{% set cname = (customers|selectattr('customer_code','equalto',customer)|map(attribute='name')|first) or '' %}
+<section class="card bctc-sec" id="chung-tu"><div class="bctc-h"><h2>Chứng từ còn nợ · {{ customer }}{% if cname %} · {{ cname }}{% endif %}</h2><a class="btn btn-ghost" href="/bao-cao/tai-chinh/chung-tu.csv?{{ query }}&{{ customer_query }}">Tải CSV chứng từ</a></div><p class="bctc-hint">Ngày phát sinh nợ: ngày chốt đơn bán hoặc ngày khóa tiền khi hoàn thành dịch vụ, giờ Việt Nam.</p>
+<div class="table-scroll"><table class="sales-report-table"><thead><tr><th>Chứng từ</th><th>Ngày phát sinh nợ</th><th>Số ngày</th><th>Phải thu</th><th>Đã thu</th><th>Chờ xác nhận</th><th>Còn nợ</th></tr></thead><tbody>{% for r in detail %}<tr><th data-label="Chứng từ"><a href="{% if r.kind=='DK' %}/cong-no-khach-hang/dau-ky/{{ r.customer_code|urlencode }}{% else %}{{ '/don-ban/' if r.kind=='DB' else '/dich-vu/' }}{{ r.id }}{% endif %}#thu-tien">{{ r.number }}</a>{% if r.kind=='DK' %} <span class="lt-sub">Nợ đầu kỳ</span>{% endif %}</th><td data-label="Ngày phát sinh nợ">{{ r.day.strftime('%d/%m/%Y') if r.day else '' }}</td><td data-label="Số ngày">{{ r.days }}</td><td data-label="Phải thu">{{ r.receivable|money }}</td><td data-label="Đã thu">{{ r.paid|money }}</td><td data-label="Chờ xác nhận">{{ r.pending|money }}</td><td data-label="Còn nợ">{{ r.remaining|money }}</td></tr>{% else %}<tr><td colspan="7">Khách này không còn chứng từ nợ.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
+<section class="card bctc-sec bctc-note" data-non-cash-damage><b>Khoản không dùng tiền trong kỳ</b> (không nằm trong dòng tiền ở trên): Chi phí hàng hư hỏng (không dùng tiền) <b>{{ damage_cost|money }} đồng</b> · Chênh lệch trả hàng lỗi cho NCC <b>{{ pending_return_difference|money }} đồng</b>.</section>
+{% endif %}
+</div>
 {% endblock %}

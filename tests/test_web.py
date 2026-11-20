@@ -2913,7 +2913,7 @@ def test_t5_finance_page_totals_presets_and_csv(client, db, t5_money):
     service_login(client, p['finance'])
     page = client.get('/bao-cao/tai-chinh')
     assert page.status_code == 200
-    for expected in ('Số dư quỹ hiện tại','Thu chi theo danh mục','Dòng tiền theo ngày','Công nợ khách tổng hợp',
+    for expected in ('Tiền đang có (mọi quỹ)','Tiền vào từ đâu','Tiền ra cho việc gì','Dòng tiền theo ngày','Khách còn nợ',
                      '1.500.000','300.000','6.200.000','Tháng trước','Hôm nay','Tháng này',
                      'name="from" value="2026-10-01"','name="to" value="2026-10-31"'):
         assert expected in page.text

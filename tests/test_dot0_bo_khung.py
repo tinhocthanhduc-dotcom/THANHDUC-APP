@@ -13,7 +13,7 @@ CSS = (ROOT / 'static' / 'app.css').read_text()
 KIT = ('badge', 'page_head', 'tiles', 'filter_chips', 'filter_bar', 'totals', 'steps', 'next_box', 'empty', 'toast')
 # Màn cũ còn tự vẽ <h1>. Mỗi đợt chuyển màn sang page_head thì xóa tên khỏi đây; màn mới không được thêm vào.
 LEGACY_H1 = frozenset((
-    'bao_cao_ban_hang.jinja', 'bao_cao_cho_xu_ly.jinja', 'bao_cao_mua_hang.jinja', 'bao_cao_tai_chinh.jinja',
+    'bao_cao_ban_hang.jinja', 'bao_cao_cho_xu_ly.jinja', 'bao_cao_mua_hang.jinja',
     'bao_gia_ds.jinja', 'bao_gia_form.jinja', 'bao_thu_chi_tiet.jinja',
     'bao_thu_ds.jinja', 'ca_nhan.jinja',
     'cho_xu_ly_chuyen.jinja',
