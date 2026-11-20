@@ -27,7 +27,7 @@
 .words{font-size:13px;font-style:italic;color:#444;margin:0}
 .alt{background:#eef4fb;border-radius:8px;padding:8px 10px;font-size:13.5px;color:var(--navy)}
 .time{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}.time .ic{width:40px;height:40px;border-radius:10px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
-.cond{margin:0;padding-left:20px;display:grid;gap:3px;font-size:13.5px;color:#333}
+.bhx{margin:0;background:#e5f4ea;color:var(--ok);border-radius:8px;padding:8px 10px;font-size:14px}.bhx b{font-weight:800}.cond{margin:0;padding-left:20px;display:grid;gap:3px;font-size:13.5px;color:#333}
 .cta{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cta a,.cta button{display:block;text-align:center;border-radius:10px;padding:12px;font:inherit;font-weight:700;text-decoration:none;border:0;cursor:pointer}
 .cta .z{background:#0068ff;color:#fff}.cta .c{background:var(--navy);color:#fff}.cta .pr{grid-column:1/-1;background:#fff;color:var(--navy);border:1px solid #c9d2e0}
 .mu{color:var(--muted)}.foot{text-align:center;color:var(--muted);font-size:12px;margin:0}
@@ -57,7 +57,7 @@
 {% if words %}<p class="words">Bằng chữ: {{ words }}.</p>{% endif %}
 {% if s.alt %}<div class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}.</div>{% endif %}</section>
 <div class="two{{ '' if s.days else ' one' }}">{% if s.days %}{% set dl = {1: '1 ngày', 2: '2 ngày', 3: '3 ngày', 7: '1 tuần'} %}<section class="pc"><div class="time"><span class="ic">{{ '1T' if s.days == 7 else s.days ~ 'N' }}</span><div><b>Sửa xong dự kiến {{ dl.get(s.days, s.days ~ ' ngày') }} làm việc</b><br><span class="words" style="font-style:normal">tính từ khi anh/chị đồng ý báo giá</span></div></div></section>{% endif %}
-<section class="pc"><h3>Điều kiện bảo hành</h3><ol class="cond">{% for x in (s.terms or default_terms) %}<li>{{ x }}</li>{% endfor %}</ol></section></div>
+<section class="pc"><h3>Điều kiện bảo hành</h3>{% if bh_text %}<p class="bhx">Thời gian bảo hành: <b>{{ bh_text }}</b></p>{% endif %}<ol class="cond">{% for x in (s.terms or default_terms) %}<li>{{ x }}</li>{% endfor %}</ol></section></div>
 <nav class="cta">{% if phone %}<a class="z" href="https://zalo.me/{{ phone }}" target="_blank" rel="noopener">Nhắn Zalo đồng ý</a><a class="c" href="tel:{{ phone }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}<button type="button" class="pr" onclick="window.print()">In / lưu PDF</button></nav>
 {% else %}
 <section class="pc state">{% set msg = {'het_han': ('Báo giá đã hết hạn', 'Báo giá này đã quá ngày hiệu lực. Anh/chị liên hệ để nhận báo giá mới.'),

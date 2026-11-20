@@ -17,6 +17,7 @@
 {% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td class="n"><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<br><small>{{ ln.description }}</small>{% endif %}</td><td class="c">{{ qty(ln) }}</td><td class="m">{{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }}</td><td class="m">{{ p.price|money }}</td><td class="c">{{ bh(p) }}</td></tr>{% endfor %}
 </tbody></table>
 <div class="in-sum"><div class="left">
+{% if bh_text %}<div class="in-bh"><b>Thời gian bảo hành:</b> {{ bh_text }}</div>{% endif %}
 <div class="in-note"><h4>Điều kiện bảo hành</h4><ul>{% for x in (s.terms or default_terms) %}<li>{{ x }}</li>{% endfor %}</ul></div>
 <div class="in-note"><h4>Ghi chú</h4><ul>{% if s.days %}<li>Sửa xong dự kiến {{ {1: '1 ngày', 2: '2 ngày', 3: '3 ngày', 7: '1 tuần'}.get(s.days, s.days ~ ' ngày') }} làm việc, tính từ khi khách đồng ý báo giá.</li>{% endif %}{% if s.alt %}<li>Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng {{ s.alt.total|money }} đồng (đã gồm VAT).</li>{% endif %}<li>Báo giá có hiệu lực đến hết ngày {{ v.valid_until|vn_date }}.</li></ul></div></div>
 {{ f.totals([('Cộng tiền sửa (chưa VAT)', c.subtotal|money ~ ' đồng'), ('Thuế GTGT 8%', c.vat|money ~ ' đồng')], ('TỔNG THANH TOÁN', c.total|money ~ ' đồng')) }}</div>

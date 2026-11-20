@@ -51,6 +51,7 @@ def test_line_warranty_lead_time_and_pages(client, db, workshop, make_user):
     assert 'logo-thanh-duc' not in pub and 'Mã số thuế: <b>0313015734</b>' in pub and 'mailto:info@thanhduc.vn' in pub and '>Máy in Máy in' not in pub
     assert 'Bảo hành 6 tháng' in pub and 'Bảo hành 1 tháng' in pub
     assert 'Bảo hành 3 tháng' in pub and '648.000' in pub and 'Bằng chữ: Sáu trăm bốn mươi tám nghìn đồng' in pub
+    assert 'Thời gian bảo hành: <b>1 đến 6 tháng tùy hạng mục' in pub
     assert 'Sửa xong dự kiến 2 ngày' in pub and 'Điều kiện bảo hành' in pub and rq.DEFAULT_TERMS[2] in pub
     assert 'https://zalo.me/0888304668' in pub and 'tel:0888304668' in pub and 'window.print()' in pub
     customer = db.get(Customer, t.customer_code)
@@ -60,6 +61,7 @@ def test_line_warranty_lead_time_and_pages(client, db, workshop, make_user):
     service_login(client, p['dispatcher'])
     pr = client.get(f'/kiem-tra-may/bao-gia/{v.id}/in').text
     assert '<th class="c">Bảo hành</th>' in pr and '6 tháng' in pr and rq.DEFAULT_TERMS[0] in pr and 'Sửa xong dự kiến 2 ngày' in pr
+    assert '<b>Thời gian bảo hành:</b> 1 đến 6 tháng' in pr
 
 
 def test_lead_time_optional_and_invalid_ignored(client, db, workshop, make_user):
@@ -97,3 +99,11 @@ def test_only_director_edits_terms(client, db, workshop, make_user):
     # Để trống: quay về 5 dòng chuẩn.
     rq.save_terms(db, boss, '  \n ')
     assert rq.terms(db) == list(rq.DEFAULT_TERMS)
+
+
+def test_warranty_text():
+    one = lambda m: dict(pick='PA1', PA1=dict(price=1, vat=0, warranty=m))
+    assert rq.warranty_text(dict(lines=[one(3), one(3)])) == '3 tháng kể từ ngày trả máy'
+    assert rq.warranty_text(dict(lines=[one(0)])) == 'Không bảo hành'
+    assert rq.warranty_text(dict(lines=[one(None)])) == ''  # báo giá cũ chưa ghi số tháng
+    assert rq.warranty_text(dict(lines=[one(1), one(0), one(6)])).startswith('tối đa 6 tháng tùy hạng mục')

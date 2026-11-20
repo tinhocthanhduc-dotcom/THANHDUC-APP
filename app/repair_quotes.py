@@ -45,6 +45,19 @@ DEFAULT_TERMS = ('Bảo hành hạng mục và linh kiện đã thay, tính từ
                  'Không bảo hành khi tem bị rách hoặc máy đã sửa ở nơi khác.')
 
 
+def warranty_text(snap: dict | None) -> str:
+    """Dòng "Thời gian bảo hành" nổi bật (TUẤN 20/11/2026: cột Bảo hành khó thấy). '' khi bản cũ chưa ghi số tháng."""
+    months = [(ln.get(ln.get('pick') or 'PA1') or {}).get('warranty') for ln in (snap or {}).get('lines') or []]
+    months = [m for m in months if m is not None]
+    if not months or max(months) <= 0:
+        return 'Không bảo hành' if months else ''
+    lo, hi = min(months), max(months)
+    if lo == hi:
+        return f'{hi} tháng kể từ ngày trả máy'
+    span = f'tối đa {hi} tháng' if lo <= 0 else f'{lo} đến {hi} tháng'
+    return f'{span} tùy hạng mục (xem cột Bảo hành), kể từ ngày trả máy'
+
+
 def terms(session: Session) -> list[str]:
     from .models import QuoteTerm
     row = session.get(QuoteTerm, TERMS_KEY)
