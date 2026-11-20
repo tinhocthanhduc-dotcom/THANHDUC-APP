@@ -27,7 +27,7 @@
 .words{font-size:13px;font-style:italic;color:#444;margin:0}
 .alt{background:#eef4fb;border-radius:8px;padding:8px 10px;font-size:13.5px;color:var(--navy)}
 .time{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}.time .ic{width:40px;height:40px;border-radius:10px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
-.bhx{margin:0;background:#e5f4ea;color:var(--ok);border-radius:8px;padding:8px 10px;font-size:14px}.bhx b{font-weight:800}.bhl{grid-column:1/-1;display:block;color:var(--ok);font-size:13px;margin-top:2px}.pt .bhl{font-size:12.5px}.cond{margin:0;padding-left:20px;display:grid;gap:3px;font-size:13.5px;color:#333}
+.bhx{margin:0;background:#e5f4ea;color:var(--ok);border-radius:8px;padding:8px 10px;font-size:14px}.bhx b{font-weight:800}.bhl{margin:0;background:#e5f4ea;color:var(--ok);border-radius:8px;padding:8px 10px;font-size:14px}.bhl b{font-weight:800}.cond{margin:0;padding-left:20px;display:grid;gap:3px;font-size:13.5px;color:#333}
 .cta{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cta a,.cta button{display:block;text-align:center;border-radius:10px;padding:12px;font:inherit;font-weight:700;text-decoration:none;border:0;cursor:pointer}
 .cta .z{background:#0068ff;color:#fff}.cta .c{background:var(--navy);color:#fff}.cta .pr{grid-column:1/-1;background:#fff;color:var(--navy);border:1px solid #c9d2e0}
 .mu{color:var(--muted)}.foot{text-align:center;color:var(--muted);font-size:12px;margin:0}
@@ -43,16 +43,17 @@
 <section class="doc"><span class="t">Báo giá sửa chữa</span><h2 class="m">{{ s.model if (s.model or '').lower().startswith('máy') else 'Máy in ' ~ s.model }}</h2>
 <div class="strip"><span>Số phiếu<b>{{ s.number }} · lần {{ v.no }}</b></span><span>Ngày lập<b>{{ v.created_at|vn_date }}</b></span><span>Hiệu lực đến<b>{{ v.valid_until|vn_date }}</b></span></div></section>
 <section class="pc"><h3>Khách hàng và máy</h3><div class="kv"><span>Khách hàng</span><b>{{ s.customer }}</b><span>Máy</span><b>{{ s.model }}</b>{% if s.serial %}<span>Serial</span><i>{{ s.serial }}</i>{% endif %}{% if s.symptom %}<span>Khách báo</span><i>{{ s.symptom }}</i>{% endif %}</div></section>
-{% macro bh(p) %}{% if p.warranty is not none and p.warranty is defined %}<span class="bhl">Thời gian bảo hành: <b>{{ (p.warranty ~ ' tháng') if p.warranty > 0 else 'không bảo hành' }}</b>{% if p.warranty > 0 %} kể từ ngày trả máy{% endif %}</span>{% endif %}{% endmacro %}
+
 {% macro qty(ln) %}{% set q = (ln.qty or '1')|string %}{{ (q.rstrip('0').rstrip('.') if '.' in q else q) }}{% endmacro %}
 <section class="pc"><h3>Hạng mục sửa chữa</h3>
 <div class="items">{% for ln in s.lines %}{% set p = ln[ln.pick] %}
 <div class="item"><b class="n">{{ loop.index }}. {{ ln.name }}</b><span class="p">{{ (p.price + p.vat)|money }}</span>
 <span class="d">{% if ln.description %}{{ ln.description }} {% endif %}SL {{ qty(ln) }} · đơn giá {{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }} chưa VAT</span>
-{{ bh(p) }}<div class="chips">{% if ln.pick == 'PA2' %}<span class="chip">Linh kiện chính hãng</span>{% endif %}</div></div>{% endfor %}</div>
+<div class="chips">{% if ln.pick == 'PA2' %}<span class="chip">Linh kiện chính hãng</span>{% endif %}</div></div>{% endfor %}</div>
 <table class="pt"><thead><tr><th class="c">STT</th><th>Hạng mục</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>
-{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<small>{{ ln.description }}</small>{% endif %}{{ bh(p) }}</td><td class="c">{{ qty(ln) }}</td><td class="r">{{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }}</td><td class="r">{{ p.price|money }}</td></tr>{% endfor %}
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<small>{{ ln.description }}</small>{% endif %}</td><td class="c">{{ qty(ln) }}</td><td class="r">{{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }}</td><td class="r">{{ p.price|money }}</td></tr>{% endfor %}
 </tbody></table>
+{% if bh_text %}<p class="bhl">Thời gian bảo hành: <b>{{ bh_text }}</b></p>{% endif %}
 <div class="sum"><div><span>Cộng chưa VAT</span><span>{{ c.subtotal|money }}</span></div><div><span>Thuế GTGT 8%</span><span>{{ c.vat|money }}</span></div><div class="g"><span>Tổng thanh toán</span><b>{{ c.total|money }}đ</b></div></div>
 {% if words %}<p class="words">Bằng chữ: {{ words }}.</p>{% endif %}
 {% if s.alt %}<div class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}.</div>{% endif %}</section>

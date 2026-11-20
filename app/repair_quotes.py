@@ -41,8 +41,22 @@ TERMS_KEY = 'DIEU_KIEN_BH'
 DEFAULT_TERMS = ('Bảo hành hạng mục và linh kiện đã thay, tính từ ngày trả máy.',
                  'Mang máy kèm số phiếu khi bảo hành.',
                  'Không bảo hành khi máy rơi vỡ, vào nước, cháy nổ do nguồn điện.',
-                 'Không bảo hành khi dùng mực, giấy kém chất lượng gây hỏng.',
                  'Không bảo hành khi tem bị rách hoặc máy đã sửa ở nơi khác.')
+
+
+def warranty_text(snap: dict | None) -> str:
+    """Một dòng "Thời gian bảo hành" chung dưới danh sách hạng mục (TUẤN 20/11/2026). '' khi bản cũ chưa ghi số tháng."""
+    months = [(ln.get(ln.get('pick') or 'PA1') or {}).get('warranty') for ln in (snap or {}).get('lines') or []]
+    months = [m for m in months if m is not None]
+    if not months:
+        return ''
+    lo, hi = min(months), max(months)
+    if hi <= 0:
+        return 'Không bảo hành'
+    if lo == hi:
+        return f'{hi} tháng kể từ ngày trả máy'
+    span = f'tối đa {hi} tháng' if lo <= 0 else f'{lo} đến {hi} tháng'
+    return f'{span} tùy hạng mục, kể từ ngày trả máy'
 
 
 def terms(session: Session) -> list[str]:

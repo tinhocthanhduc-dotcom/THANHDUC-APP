@@ -49,9 +49,9 @@ def test_line_warranty_lead_time_and_pages(client, db, workshop, make_user):
     client.cookies.clear()
     pub = client.get(f'/bg/{v.token}').text
     assert 'logo-thanh-duc' not in pub and 'Mã số thuế: <b>0313015734</b>' in pub and 'mailto:info@thanhduc.vn' in pub and '>Máy in Máy in' not in pub
-    assert 'Thời gian bảo hành: <b>1 tháng</b>' in pub
-    assert 'Thời gian bảo hành: <b>3 tháng</b>' in pub and '648.000' in pub and 'Bằng chữ: Sáu trăm bốn mươi tám nghìn đồng' in pub
-    assert 'Thời gian bảo hành: <b>6 tháng</b> kể từ ngày trả máy' in pub and '>Bảo hành</th>' not in pub
+    assert pub.count('Thời gian bảo hành:') == 1 and 'Thời gian bảo hành: <b>1 đến 6 tháng tùy hạng mục, kể từ ngày trả máy</b>' in pub
+    assert '648.000' in pub and 'Bằng chữ: Sáu trăm bốn mươi tám nghìn đồng' in pub
+    assert '>Bảo hành</th>' not in pub
     assert 'Sửa xong dự kiến 2 ngày' in pub and 'Điều kiện bảo hành' in pub and rq.DEFAULT_TERMS[2] in pub
     assert 'https://zalo.me/0888304668' in pub and 'tel:0888304668' in pub and 'window.print()' in pub
     customer = db.get(Customer, t.customer_code)
@@ -61,7 +61,7 @@ def test_line_warranty_lead_time_and_pages(client, db, workshop, make_user):
     service_login(client, p['dispatcher'])
     pr = client.get(f'/kiem-tra-may/bao-gia/{v.id}/in').text
     assert rq.DEFAULT_TERMS[0] in pr and 'Sửa xong dự kiến 2 ngày' in pr
-    assert '<b>Thời gian bảo hành:</b> 6 tháng kể từ ngày trả máy' in pr and '>Bảo hành</th>' not in pr
+    assert pr.count('Thời gian bảo hành:') == 1 and '<b>Thời gian bảo hành:</b> 1 đến 6 tháng tùy hạng mục' in pr and '>Bảo hành</th>' not in pr
 
 
 def test_lead_time_optional_and_invalid_ignored(client, db, workshop, make_user):
@@ -100,3 +100,11 @@ def test_only_director_edits_terms(client, db, workshop, make_user):
     rq.save_terms(db, boss, '  \n ')
     assert rq.terms(db) == list(rq.DEFAULT_TERMS)
 
+
+
+def test_warranty_text():
+    one = lambda m: dict(pick='PA1', PA1=dict(price=1, vat=0, warranty=m))
+    assert rq.warranty_text(dict(lines=[one(1), one(1)])) == '1 tháng kể từ ngày trả máy'
+    assert rq.warranty_text(dict(lines=[one(0)])) == 'Không bảo hành'
+    assert rq.warranty_text(dict(lines=[one(None)])) == ''  # báo giá cũ chưa ghi số tháng
+    assert rq.warranty_text(dict(lines=[one(1), one(0), one(6)])) == 'tối đa 6 tháng tùy hạng mục, kể từ ngày trả máy'

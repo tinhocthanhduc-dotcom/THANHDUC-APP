@@ -313,7 +313,7 @@ def quote_print(request: Request, vid: int, user: User = Depends(web_user), sess
         raise BusinessError('NOT_FOUND', 'Không có lần báo giá này.', status=404)
     t = session.get(ServiceTicket, v.ticket_id)
     return render(request, 'bao_gia_sua_in.jinja', v=v, s=v.snapshot, t=t, customer=session.get(Customer, t.customer_code),
-                  words=money_words(v.snapshot['chosen']['total']), company=get_settings(), default_terms=rqs.DEFAULT_TERMS, maker=session.get(User, v.created_by), back=f'/dich-vu/{t.id}#gui-khach')
+                  words=money_words(v.snapshot['chosen']['total']), company=get_settings(), default_terms=rqs.DEFAULT_TERMS, bh_text=rqs.warranty_text(v.snapshot), maker=session.get(User, v.created_by), back=f'/dich-vu/{t.id}#gui-khach')
 
 
 @router.get('/kiem-tra-may/{ticket_id:int}/in')
@@ -346,7 +346,7 @@ def quote_public(request: Request, token: str, session: Session = Depends(get_se
     from .. import repair_quotes as rqs
     v, state = rqs.public(session, token)
     resp = render(request, 'bao_gia_sua_khach.jinja', v=v if state == 'ok' else None, s=v.snapshot if v is not None and state == 'ok' else None,
-                  state=state, co=rqs.link_settings(), words=_quote_words(v, state), default_terms=rqs.DEFAULT_TERMS, status=200 if state == 'ok' else 404 if state == 'khong_co' else 410)
+                  state=state, co=rqs.link_settings(), words=_quote_words(v, state), default_terms=rqs.DEFAULT_TERMS, bh_text=rqs.warranty_text(v.snapshot) if v is not None and state == 'ok' else '', status=200 if state == 'ok' else 404 if state == 'khong_co' else 410)
     resp.headers['Cache-Control'] = 'no-store'
     resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
     resp.headers['Referrer-Policy'] = 'no-referrer'
