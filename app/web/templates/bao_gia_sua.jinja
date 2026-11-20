@@ -1,6 +1,6 @@
 {# TUẤN duyệt mẫu M4 14/11/2026: trái phần kỹ thuật nội bộ (lãi chỉ GĐ, kế toán thấy), phải đúng bản khách nhận: mỗi dịch vụ một dòng trọn gói, không tên linh kiện. #}
-<section class="card rqs-panel" aria-label="Báo giá sửa chữa" data-rq-panel>
-<div class="xg-head"><h2>Báo giá sửa chữa</h2>
+<section class="card rqs-panel" aria-label="Báo giá cho khách" data-rq-panel>
+<div class="xg-head"><h2>{{ 'Báo giá cho khách' if rq_merge else 'Báo giá sửa chữa' }}</h2>
 {% if rq %}<p class="hint">Thợ {{ users.get(rq.row.inspected_by, '') }} kiểm tra {{ rq.row.inspected_at|vn_time }} {{ rq.row.inspected_at|vn_date }} · model {{ rq.row.model_name }}{% if rq.current %} · <b>đã áp vào phiếu</b>{% endif %}</p>{% endif %}</div>
 {% if not rq %}
 <p class="hint">Thợ chưa ghi kết quả kiểm tra máy. Kho mở <b>Bảng xưởng</b> › Kiểm tra máy để ghi.</p>
@@ -32,19 +32,24 @@
 <div class="rq-cust"><p class="group-label"><b>Bản khách nhận</b></p>
 <div class="rq-paper"><p class="rq-paper-h">BÁO GIÁ SỬA CHỮA · {{ t.number }}</p>
 {% if q.contract %}{% set c=q.contract %}<p class="alert info">Giá hợp đồng <a href="/bao-gia-hop-dong/{{ c.id }}">{{ c.number }}</a> (ký {{ c.signed_on.strftime('%d/%m/%Y') }}){% if c.discount %}, giảm {{ c.discount }}% so với bảng giá chung{% endif %}. Ô không có trên hợp đồng theo bảng giá chung.</p>{% endif %}
-{% for ln in q.lines %}<div class="rq-cline"><div class="rq-kv"><span><b>{{ ln.customer_name }}</b></span><b data-rq-price="{{ ln.item.service_id }}">{{ ln.pick.price|money if ln.ok else '—' }}</b></div>
+{% for ln in q.lines %}<div class="rq-cline{{ ' rq-miss' if not q.ok }}"><div class="rq-kv"><span><b>{{ ln.customer_name }}</b>{% if not q.ok %}<small class="rq-miss-note">{{ 'chưa có giá' if not ln.ok else 'gói chưa đủ giá' }} · không in ra</small>{% endif %}</span><b data-rq-price="{{ ln.item.service_id }}">{{ ln.pick.price|money if ln.ok else 'chưa có giá' }}</b></div>
 <label class="rq-desc"><small>Mô tả kết quả cho khách · {{ {'duyet': 'đã duyệt', 'ai': 'Codex soạn sẵn, sửa được', 'mau': 'mẫu trong bảng giá'}[ln.description_source] }}</small><textarea name="mo_ta_{{ ln.item.service_id }}" rows="2" maxlength="500">{{ ln.description }}</textarea></label></div>{% endfor %}
-<p class="rq-kv"><span>VAT 8%</span><b data-rq-vat>{{ q.vat|money }}</b></p>
-<p class="rq-kv rq-profit"><span>Tổng cộng</span><b data-rq-total>{{ q.total|money }}</b></p>
+{% set pv=rq.pv %}{% for ex in pv.extras %}<div class="rq-cline rq-extra"><div class="rq-kv"><span><b>{{ ex.name }}</b><small>dòng trên phiếu</small></span><b>{{ ex.PA1.price|money }}</b></div></div>{% endfor %}
+<p class="rq-kv"><span>VAT 8%</span><b data-rq-vat data-base="{{ pv.extra_vat }}">{{ pv.vat|money }}</b></p>
+<p class="rq-kv rq-profit"><span>{{ 'Tổng gửi khách' if rq_merge else 'Tổng cộng' }}</span><b data-rq-total data-base="{{ pv.extra_subtotal + pv.extra_vat }}">{{ pv.total|money }}</b></p>
 {% if q.warranty is not none %}<p class="hint">Bảo hành {{ 'không' if q.warranty==0 else q.warranty|string ~ ' tháng' }} cho hạng mục đã sửa.</p>{% endif %}
 </div>
 {% if q.ai.status == 'DANG' %}<p class="hint" data-rq-ai-wait>Codex trên Z2 đang soạn mô tả cho khách (tối đa 3 phút). <a href="/dich-vu/{{ t.id }}">Tải lại</a> để lấy bản soạn; chưa có thì dùng mẫu bảng giá.</p>{% elif q.ai.status == 'LOI' %}<p class="hint">Codex chưa soạn được ({{ q.ai.error }}), đang dùng mẫu trong bảng giá.</p>{% endif %}
 <p class="hint">Duyệt giá: mỗi dịch vụ thành một dòng phí trọn gói trên phiếu, dòng vật tư khác giữ nguyên. Đổi giá sau khi khách đồng ý thì phải xin khách đồng ý lại.</p>
-{% if not rq.quoter %}<p class="alert info">Kinh doanh hoặc giám đốc duyệt giá này rồi gửi khách.</p>{% elif q.ok %}<button class="btn btn-ok pnz-full">{{ 'Duyệt lại giá' if rq.row.applied_at else 'Duyệt giá' }}</button>{% else %}<p class="alert warn">Còn dịch vụ chưa có giá: giám đốc thêm giá trong Bảng giá rồi áp.</p>{% endif %}
+{% if not rq.quoter %}<p class="alert info">Kinh doanh hoặc giám đốc duyệt giá này rồi gửi khách.</p>{% elif q.ok %}<button class="btn btn-ok pnz-full">{{ 'Duyệt lại giá' if rq.row.applied_at else 'Duyệt giá' }}</button>{% else %}<p class="alert warn" data-rq-missing>{% if pv.total > 0 %}Gói sửa chưa có giá: báo giá in ra chỉ gồm dòng vật tư, phí đang có trên phiếu ({{ pv.total|money }} đ). Thêm giá gói rồi Duyệt giá để báo đủ.{% else %}Gói sửa chưa có giá và phiếu chưa có dòng nào có giá: chưa in, chưa gửi được.{% endif %} <a href="/bang-gia/model-may">Thêm model vào nhóm máy ›</a> · <a href="/bang-gia/gia-model">Đặt giá riêng model ›</a></p>{% endif %}
 <div class="rqs-acts"><a class="btn btn-ghost" href="/kiem-tra-may/{{ t.id }}">Sửa kết quả kiểm tra</a><a class="btn btn-ghost" href="/kiem-tra-may/{{ t.id }}/in" data-rq-print>In kết quả kiểm tra</a></div>
 </div>
 </form>{% if rq_fold %}</details>{% endif %}
+{% if rq_merge %}<div class="rq-merge-tien">{% include 'xuong_bao_gia_tien.jinja' %}</div>{% endif %}
 {% if rq.quoter %}{% include 'bao_gia_sua_gui.jinja' %}{% endif %}
+{% if rq_merge %}{% if ws_fail %}<p class="alert warn" id="bao-khach-khong-sua">Thợ {{ users.get(ws_fail.actor_id, '') }} báo <b>không sửa được</b> {{ ws_fail.at|vn_time }} {{ ws_fail.at|vn_date }}: {{ ws_fail.note }}. {{ 'Báo khách rồi bấm Khách không sửa bên dưới (thu phí kiểm tra hoặc miễn phí).' if rq.quoter else 'Kinh doanh hoặc giám đốc báo khách.' }}</p>{% endif %}
+{% if not (rq.send and not rq.group) %}{% if rq.quoter %}<div class="rq-reply" id="khach-tra-loi"><p class="group-label"><b>Khách trả lời</b></p>{% include 'xuong_dong_y.jinja' %}{% with xg_open=ws_fail %}{% include 'xuong_khong_sua.jinja' %}{% endwith %}</div>
+{% else %}<p class="hint">Kinh doanh hoặc giám đốc duyệt giá, gửi khách và ghi khách trả lời.</p>{% endif %}{% endif %}{% endif %}
 {% endif %}
 </section>
 <script src="{{ asset('bao-gia-sua.js') }}" defer></script><script src="{{ asset('bao-gia-gui.js') }}" defer></script>

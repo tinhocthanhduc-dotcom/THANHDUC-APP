@@ -1,0 +1,4 @@
+{# Dòng tiền và vật tư của phiếu xưởng (tách từ xuong_khung 20/11/2026 để khung Báo giá cho khách dùng chung). #}
+{% set total=t.total if t.total is not none else charge_subtotal + charge_vat %}<details class="xg-quote" {% if not approved and not t.lines and not rq_merge %}open{% endif %} data-xg-quote><summary><span>{{ "Dòng tiền và vật tư trên phiếu" if rq_merge else "Báo giá và vật tư" }} · {{ t.lines|length }} dòng</span><b>{{ total|money }} đồng</b></summary>
+{% if t.lines %}<ul class="xg-lines">{% for line in t.lines %}<li><span>{{ line.description or charge_names.get(line.product_code, line.product_code) }}{% if line.qty!=1 %} × {{ line.qty|qty }}{% endif %}</span><b>{{ (line.amount+line.vat_amount)|money }}</b></li>{% endfor %}</ul>{% endif %}
+{% include 'dich_vu_tien.jinja' %}</details>

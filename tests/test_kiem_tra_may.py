@@ -172,7 +172,7 @@ def test_web_technician_inspects_dispatcher_applies_margin_hidden(client, db, wo
     client.cookies.clear()
     csrf = service_login(client, p['dispatcher'])
     page = client.get(f'/dich-vu/{t.id}')
-    assert page.status_code == 200 and 'Báo giá sửa chữa' in page.text and 'Duyệt giá' in page.text
+    assert page.status_code == 200 and 'Báo giá cho khách' in page.text and 'Duyệt giá' in page.text
     assert 'Sửa chữa cụm sấy máy Canon LBP 2900' in page.text and 'Lãi trực tiếp' not in page.text
     db.refresh(t)
     r = client.post(f'/kiem-tra-may/{t.id}/ap-gia', data={'csrf': csrf, 'version': str(t.version), f'pa_{fuser.id}': '1'}, follow_redirects=False)

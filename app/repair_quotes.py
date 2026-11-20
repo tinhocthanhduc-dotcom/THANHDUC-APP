@@ -94,32 +94,97 @@ def _totals(lines, key):
     return dict(subtotal=sub, vat=vat, total=sub + vat, warranty=max((p['warranty'] or 0 for p in picked), default=0))
 
 
+def extra_lines(session: Session, t: ServiceTicket, row: RepairInspection) -> list[dict]:
+    """Dòng tiền khác trên phiếu (vật tư, phí ghi tay) có giá: khách cũng trả nên báo giá phải có (TUẤN duyệt 20/11/2026).
+    Bỏ dòng gói sửa đã áp (row.applied_lines) và dòng giá 0 (linh kiện nằm trong gói)."""
+    from .models import Product
+    applied = set(row.applied_lines or [])
+    out = []
+    for x in sorted(t.lines, key=lambda x: x.line_no):
+        if x.amount + x.vat_amount <= 0 or (x.kind == 'PHI' and x.stock_doc_id is None and x.description in applied):
+            continue
+        name = (x.description or '').strip()
+        if not name and x.product_code:
+            p = session.get(Product, x.product_code)
+            name = p.name if p is not None else x.product_code
+        qty = x.qty.normalize() if hasattr(x.qty, 'normalize') else x.qty
+        if x.qty != 1:
+            name = f'{name or "Vật tư"} × {qty:f}'
+        pa = dict(price=x.amount, vat=x.vat_amount, warranty=None)
+        out.append(dict(name=(name or 'Phí dịch vụ')[:500], description='', PA1=pa, PA2=None, pick='PA1', extra=True))
+    return out
+
+
+def _sum(lines: list[dict], key: str = 'pick') -> dict:
+    sub = vat = 0
+    for ln in lines:
+        p = ln[ln['pick'] if key == 'pick' else key] or ln['PA1']
+        sub += p['price']
+        vat += p['vat']
+    return dict(subtotal=sub, vat=vat, total=sub + vat)
+
+
+def preview(session: Session, t: ServiceTicket, row: RepairInspection, q: dict | None = None) -> dict:
+    """Bản khách nhận đang hiện trên phiếu: gói sửa có giá + dòng khác trên phiếu. Gói thiếu giá thì không đưa vào
+    (missing), vẫn in được nếu tổng > 0 (TUẤN chọn 20/11/2026). Tổng 0 thì chặn in / gửi."""
+    q = q if q is not None else ri.quote(session, t, row)
+    extras = extra_lines(session, t, row)
+    if q['ok']:
+        pkg = [dict(name=ln['customer_name'], total=ln['pick']['price_vat']) for ln in q['lines']]
+        sub, vat = q['subtotal'], q['vat']
+        missing = []
+    else:
+        pkg, sub, vat = [], 0, 0
+        missing = [ln['customer_name'] for ln in q['lines']]
+    ex = _sum(extras)
+    sub, vat = sub + ex['subtotal'], vat + ex['vat']
+    # Gói đã áp lần trước (khách chưa đồng ý rồi bảng giá mất giá) còn nằm trên phiếu mà không in ra thì tiền lệch: chặn.
+    applied = set(row.applied_lines or [])
+    leftover = bool(missing) and any(x.kind == 'PHI' and x.stock_doc_id is None and x.description in applied for x in t.lines)
+    total = sub + vat
+    code = 'NO_PRICE'
+    if leftover:
+        reason = 'Gói sửa đã duyệt lần trước còn trên phiếu nhưng bảng giá chưa có giá: giám đốc thêm giá rồi Duyệt lại giá.'
+    elif total <= 0:
+        reason = 'Báo giá đang 0 đ nên chưa in, chưa gửi được. Thêm giá gói sửa (hoặc dòng vật tư có giá) rồi in.'
+    elif q['ok'] and not row.applied_at:
+        code, reason = 'NOT_APPLIED', f'{t.number}: bấm Duyệt giá trước, rồi mới in, gửi khách.'
+    else:
+        reason = ''
+    return dict(extras=extras, missing=missing, packages=pkg, subtotal=sub, vat=vat, total=total, ready=not reason, reason=reason, code=code,
+                extra_subtotal=ex['subtotal'], extra_vat=ex['vat'])
+
+
 def snapshot(session: Session, t: ServiceTicket, row: RepairInspection) -> dict:
-    """Bản khách: chỉ phần được phép ra ngoài. Giá lấy từ bảng giá như lúc áp, đối chiếu với dòng tiền của phiếu."""
+    """Bản khách: chỉ phần được phép ra ngoài. Giá gói lấy từ bảng giá như lúc áp, đối chiếu với dòng tiền của phiếu;
+    dòng khác trên phiếu (vật tư có giá) lấy đúng tiền của phiếu."""
     q = ri.quote(session, t, row)
-    if not q['ok']:
-        raise BusinessError('NO_PRICE', 'Báo giá còn dịch vụ chưa có giá, chưa gửi được.', status=409)
+    pv = preview(session, t, row, q)
+    if not pv['ready']:
+        raise BusinessError(pv['code'], pv['reason'], status=409)
     lines = []
-    for ln in q['lines']:
-        pa1, pa2 = _pa(ln['std']), _pa(ln['gen'])
-        lines.append(dict(name=ln['customer_name'], description=ln['description'], PA1=pa1, PA2=pa2 if SHOW_BOTH or ln['genuine'] else None,
-                          pick='PA2' if ln['genuine'] else 'PA1'))
+    if q['ok']:
+        for ln in q['lines']:
+            pa1, pa2 = _pa(ln['std']), _pa(ln['gen'])
+            lines.append(dict(name=ln['customer_name'], description=ln['description'], PA1=pa1, PA2=pa2 if SHOW_BOTH or ln['genuine'] else None,
+                              pick='PA2' if ln['genuine'] else 'PA1'))
+    extras = pv['extras']
     customer = session.get(Customer, t.customer_code)
     pick = 'PA2' if any(ln['pick'] == 'PA2' for ln in lines) else 'PA1'
-    chosen = dict(subtotal=q['subtotal'], vat=q['vat'], total=q['total'], warranty=q['warranty'] or 0)
+    chosen = dict(subtotal=pv['subtotal'], vat=pv['vat'], total=pv['total'], warranty=(q['warranty'] or 0) if q['ok'] else 0)
     other = 'PA1' if pick == 'PA2' else 'PA2'
-    alt = _totals(lines, other) if any(ln[other] for ln in lines) else None
+    alt = _totals(lines + extras, other) if any(ln[other] for ln in lines) else None
     if alt and alt['total'] == chosen['total']:
         alt = None
     return dict(number=t.number, customer=customer.name if customer else t.customer_code, model=row.model_name, serial=t.serial or '',
-                symptom=' '.join((t.symptom or '').split())[:300], lines=lines, pick=pick, chosen=chosen, alt=alt,
-                alt_key=other if alt else '')
+                symptom=' '.join((t.symptom or '').split())[:300], lines=lines + extras, pick=pick, chosen=chosen, alt=alt,
+                alt_key=other if alt else '', missing=pv['missing'])
 
 
 def _matches_ticket(t: ServiceTicket, row: RepairInspection, snap: dict) -> bool:
     """Dòng phí đã áp trên phiếu phải đúng bằng giá trong bản chụp (không gửi giá khác với tiền thật của phiếu)."""
     applied = {x.description: x.unit_price for x in t.lines if x.kind == 'PHI' and x.stock_doc_id is None and x.description in (row.applied_lines or [])}
-    want = {ln['name'][:500]: (ln[ln['pick']] or {}).get('price') for ln in snap['lines']}
+    want = {ln['name'][:500]: (ln[ln['pick']] or {}).get('price') for ln in snap['lines'] if not ln.get('extra')}
     return applied == want
 
 
@@ -127,6 +192,9 @@ def zalo_text(snap: dict, row: RepairQuoteVersion) -> str:
     out = [f'Dạ, Thành Đức gửi báo giá sửa máy {snap["model"]} ({snap["number"]}, lần {row.no}):']
     for ln in snap['lines']:
         p = ln[ln['pick']]
+        if ln.get('extra'):
+            out.append(f'• {ln["name"]}: {_m(p["price"])}đ')
+            continue
         out.append(f'• {ln["name"]}{" (linh kiện chính hãng)" if ln["pick"] == "PA2" else ""}: {_m(p["price"])}đ')
     c = snap['chosen']
     out.append(f'VAT 8%: {_m(c["vat"])}đ. Tổng cộng: {_m(c["total"])}đ.')
@@ -165,10 +233,12 @@ def create_in_tx(session: Session, user: User, ticket_id: int, version, group_id
     if t.quote_approved_at:
         raise BusinessError('ALREADY_APPROVED', f'{t.number}: khách đã đồng ý báo giá này, không cần gửi lại.', status=409)
     row = session.get(RepairInspection, t.id)
-    if row is None or row.applied_at is None:
-        raise BusinessError('NOT_APPLIED', f'{t.number}: bấm Duyệt giá trước, rồi mới gửi khách.', status=409)
+    if row is None or not row.items:
+        raise BusinessError('NO_INSPECTION', f'{t.number}: thợ chưa ghi kết quả kiểm tra máy.', status=409)
     snap = snapshot(session, t, row)
-    if not _matches_ticket(t, row, snap):
+    if not snap['missing'] and row.applied_at is None:
+        raise BusinessError('NOT_APPLIED', f'{t.number}: bấm Duyệt giá trước, rồi mới gửi khách.', status=409)
+    if not snap['missing'] and not _matches_ticket(t, row, snap):
         raise BusinessError('STALE_QUOTE', f'{t.number}: giá trên phiếu khác bảng giá hiện tại (vừa đổi giá?). Bấm Duyệt lại giá rồi gửi.', status=409)
     for old in session.scalars(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == t.id,
                                                                  RepairQuoteVersion.status == 'CHO').with_for_update()):
@@ -353,7 +423,8 @@ def agree(session: Session, user: User, vid: int, ticket_version, choice: str, v
     if choice != v.snapshot['pick']:
         row = session.get(RepairInspection, t.id)
         choices = {i.service_id: choice == 'PA2' for i in row.items}
-        if ri.quote(session, t, row, choices)['total'] != (v.snapshot.get('alt') or {}).get('total'):
+        pv = preview(session, t, row)
+        if ri.quote(session, t, row, choices)['total'] + pv['extra_subtotal'] + pv['extra_vat'] != (v.snapshot.get('alt') or {}).get('total'):
             raise BusinessError('PRICE_CHANGED', 'Giá phương án khách chọn đã đổi so với lúc gửi. Gửi lại báo giá mới.', status=409)
         ri.apply(session, user, t.id, version, choices)
         session.refresh(t)
@@ -414,6 +485,8 @@ def keep_previous(session: Session, user: User, vid: int, note: str = '') -> Rep
     pick = old.reply_choice or old.snapshot.get('pick') or 'PA1'
     fees = []
     for ln in old.snapshot.get('lines') or []:
+        if ln.get('extra'):
+            continue  # dòng vật tư/phí khác của phiếu: không phải gói, giữ nguyên trên phiếu
         p = ln.get(pick) or ln.get('PA1')
         if p is None:
             raise BusinessError('NO_PREVIOUS', f'Lần {old.no} thiếu giá, gửi lại báo giá mới.', status=409)

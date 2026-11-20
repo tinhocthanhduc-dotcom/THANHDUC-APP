@@ -155,6 +155,13 @@ def _repairers(session):
     return [dict(id=u.id, name=u.full_name, load=n) for u, n in service_workshop.repairers(session)]
 
 
+def _stale(v, row, pv) -> bool:
+    """Lần đang chờ không còn đúng bản khách hiện tại: duyệt lại giá sau lần đó, hoặc tổng tiền phiếu đã đổi."""
+    if row.applied_at and v.created_at < row.applied_at:
+        return True
+    return pv['ready'] and (v.snapshot.get('chosen') or {}).get('total') != pv['total']
+
+
 def panel_context(session, user, t, picks=None) -> dict:
     """Khung "Báo giá sửa chữa" trong phiếu (điều phối, máy chờ sửa ở xưởng)."""
     row = ri.inspection(session, t.id)
@@ -166,19 +173,20 @@ def panel_context(session, user, t, picks=None) -> dict:
     from ..tin_gui_khach import linked_chat
     vers = rqs.versions(session, t.id)
     open_v = next((v for v in vers if v.status == 'CHO'), None)
+    pv = rqs.preview(session, t, row, q if not picks else None)
     send = None
     if open_v is not None:
         text, source = rqs.suggested_text(session, open_v)
         send = dict(v=open_v, link=rqs.link(open_v), text=text, source=source, ai=rqs.ai_text(session, open_v),
                     late=rqs.overdue(open_v), days=rqs.waiting_days(open_v),
-                    stale=bool(row.applied_at and open_v.created_at < row.applied_at))
+                    stale=_stale(open_v, row, pv))
     from .. import repair_quote_groups as rg
     group = rg.for_ticket(session, t.id)
     siblings = sum(1 for r in rg.candidates(session, t.customer_code) if r['ready']) if has_role(user, 'dispatcher') else 0
     from .. import service_tickets as _st
     return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, quoter=_st.can_quote(user), group=group, siblings=siblings,
                         current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1,
-                        can_send=_st.can_quote(user) and bool(row.applied_at) and (open_v is None or send['stale']),
+                        can_send=_st.can_quote(user) and pv['ready'] and (open_v is None or send['stale']), pv=pv,
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
                         statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS,
                         repairers=_repairers(session) if send else [], assignee=t.assignee_id,
@@ -228,6 +236,27 @@ def quote_create(request: Request, ticket_id: int, form=Depends(checked_form), s
 
 
 QUOTE_ACTIONS = ('gui-zalo', 'da-gui', 'thu-hoi', 'dong-y', 'chua-dong-y', 'giu-lan-truoc')
+
+
+@router.post('/kiem-tra-may/{ticket_id}/in-bao-gia')
+def quote_print_now(request: Request, ticket_id: int, form=Depends(checked_form), session: Session = Depends(get_session)):
+    """Nút In báo giá trên đầu phiếu (TUẤN duyệt 20/11/2026): lần đang chờ còn đúng thì in lần đó, không thì lưu lần mới rồi in."""
+    from .. import repair_quotes as rqs
+    from ..models import ServiceTicket
+    user = request.state.user
+    try:
+        rqs.require(user)
+        t = session.get(ServiceTicket, ticket_id)
+        row = ri.inspection(session, ticket_id) if t is not None else None
+        v = rqs.open_version(session, ticket_id) if row is not None else None
+        if v is not None and v.group_id:  # máy trong báo giá gộp: in bản gộp của cả nhóm
+            return RedirectResponse(f'/bao-gia-gop/{v.group_id}/in', status_code=303)
+        if v is None or _stale(v, row, rqs.preview(session, t, row)):
+            version = str(form.get('version', '') or '')
+            v = rqs.create(session, user, ticket_id, int(version) if version.isdigit() else None)
+    except BusinessError as exc:
+        return _ticket_error(request, session, user, ticket_id, exc)
+    return RedirectResponse(f'/kiem-tra-may/bao-gia/{v.id}/in', status_code=303)
 
 
 @router.post('/kiem-tra-may/bao-gia/{vid}/{action}')
