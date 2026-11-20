@@ -11,10 +11,9 @@
 {% macro href(day) %}/chot-so?{% if tab!='chua' %}tab={{ tab }}&amp;{% endif %}ngay={{ day.isoformat() }}{% if zero_open %}&amp;trong=1{% endif %}{% endmacro %}
 {% macro close_form(r, label='Chốt ngày', cls='btn-ok') %}<form method="post" action="/chot-so/{{ r.day }}/close" class="cs-inline">{{ token() }}<input type="hidden" name="version" value="{{ r.version }}"><button class="{{ cls }}">{{ label }}</button></form>{% endmacro %}
 {% macro row(r) %}<tr id="ngay-{{ r.day }}" class="{{ 'on' if r.day==sel }}{{ ' cs-zero' if r.empty }}"{% if not r.shown or (r.empty and not zero_open and r.day!=today and r.day!=sel) %} hidden{% endif %}>
-<td class="cs-day"><a href="{{ href(r.day) }}"><b>{{ wd[r.day.weekday()] }} {{ r.day.strftime('%d/%m') }}</b><small>{% if r.day==today %}Hôm nay{% elif r.docs %}{{ r.docs }} phiếu{% elif r.drafts %}Chỉ có phiếu nháp{% else %}Không phát sinh{% endif %}</small></a></td>
-<td>{{ status_chip(r) }}</td><td class="num">{{ r.income|money }}</td><td class="num">{{ r.expense|money }}</td><td class="num">{{ diff(r.income-r.expense) }}</td>
-<td>{% if r.drafts %}{{ ui.badge(r.drafts~' nháp','huy') }}{% else %}0{% endif %}</td>
-<td class="cs-act">{% if r.status!='DA_CHOT' and r.drafts %}<a class="btn btn-ghost" href="{{ href(r.day) }}">Xem phiếu nháp</a>{% elif r.status!='DA_CHOT' %}{{ close_form(r) }}{% else %}<a class="btn btn-ghost" href="{{ href(r.day) }}">Xem</a>{% endif %}</td></tr>{% endmacro %}
+<td class="cs-day"><a href="{{ href(r.day) }}"><b>{{ wd[r.day.weekday()] }} {{ r.day.strftime('%d/%m') }}</b><small>{% if r.day==today %}Hôm nay{% elif r.docs %}{{ r.docs }} phiếu{% elif r.drafts %}Chỉ có phiếu nháp{% else %}Không phát sinh{% endif %}</small></a>{{ status_chip(r) }}</td>
+<td class="num">{{ r.income|money }}</td><td class="num">{{ r.expense|money }}</td><td class="num">{{ diff(r.income-r.expense) }}</td>
+<td class="cs-act">{% if r.status!='DA_CHOT' and r.drafts %}{{ ui.badge(r.drafts~' phiếu nháp','huy') }}<a class="btn btn-ghost" href="{{ href(r.day) }}">Xem</a>{% elif r.status!='DA_CHOT' %}{{ close_form(r) }}{% else %}<a class="btn btn-ghost" href="{{ href(r.day) }}">Xem</a>{% endif %}</td></tr>{% endmacro %}
 {% block main %}
 <div class="page-wide cs-page">
 {% call ui.page_head('Chốt sổ ngày', sub='30 ngày gần nhất, giờ Việt Nam. Thu chi theo ngày sổ, không gồm chuyển quỹ và số dư đầu kỳ.') %}<a class="btn btn-ghost" href="/thu-chi">Thu chi · Sổ quỹ</a><a class="btn btn-ghost" href="/dieu-chinh">Điều chỉnh</a>{% endcall %}
@@ -30,13 +29,13 @@
 <div class="card list-frame cs-list">
 {{ ui.list_tabs(tabs) }}
 <div class="cs-table-wrap"><table class="list-table cs-table">
-<thead><tr><th>Ngày</th><th>Trạng thái</th><th class="num">Thu</th><th class="num">Chi</th><th class="num">Chênh lệch</th><th>Phiếu nháp</th><th></th></tr></thead>
+<thead><tr><th>Ngày · trạng thái</th><th class="num">Thu</th><th class="num">Chi</th><th class="num">Chênh lệch</th><th></th></tr></thead>
 <tbody>{% for r in rows %}{{ row(r) }}{% endfor %}
 {% set zeros = rows|selectattr('shown')|selectattr('empty')|rejectattr('day','equalto',today)|rejectattr('day','equalto',sel)|list %}
-{% if zeros %}<tr class="cs-group"><td colspan="7"><a href="/chot-so?{% if tab!='chua' %}tab={{ tab }}&amp;{% endif %}ngay={{ sel.isoformat() }}{% if not zero_open %}&amp;trong=1{% endif %}">{{ '▾ Ẩn' if zero_open else '▸' }} {{ zeros|length }} ngày không phát sinh phiếu ({{ zeros[-1].day.strftime('%d/%m') }} – {{ zeros[0].day.strftime('%d/%m') }}){% if not zero_open %} · bấm để xem{% endif %}</a></td></tr>{% endif %}
-{% if not rows|selectattr('shown')|list %}<tr><td colspan="7">{{ ui.empty('Không có ngày nào trong mục này.') }}</td></tr>{% endif %}
+{% if zeros %}<tr class="cs-group"><td colspan="5"><a href="/chot-so?{% if tab!='chua' %}tab={{ tab }}&amp;{% endif %}ngay={{ sel.isoformat() }}{% if not zero_open %}&amp;trong=1{% endif %}">{{ '▾ Ẩn' if zero_open else '▸' }} {{ zeros|length }} ngày không phát sinh phiếu ({{ zeros[-1].day.strftime('%d/%m') }} – {{ zeros[0].day.strftime('%d/%m') }}){% if not zero_open %} · bấm để xem{% endif %}</a></td></tr>{% endif %}
+{% if not rows|selectattr('shown')|list %}<tr><td colspan="5">{{ ui.empty('Không có ngày nào trong mục này.') }}</td></tr>{% endif %}
 </tbody>
-{% set shown = rows|selectattr('shown')|list %}{% if shown %}<tfoot><tr><td colspan="2">{{ shown|length }} ngày trong mục</td><td class="num">{{ shown|sum(attribute='income')|money }}</td><td class="num">{{ shown|sum(attribute='expense')|money }}</td><td class="num">{{ diff(shown|sum(attribute='income')-shown|sum(attribute='expense')) }}</td><td>{{ shown|sum(attribute='drafts') }}</td><td></td></tr></tfoot>{% endif %}
+{% set shown = rows|selectattr('shown')|list %}{% if shown %}<tfoot><tr><td>{{ shown|length }} ngày trong mục</td><td class="num">{{ shown|sum(attribute='income')|money }}</td><td class="num">{{ shown|sum(attribute='expense')|money }}</td><td class="num">{{ diff(shown|sum(attribute='income')-shown|sum(attribute='expense')) }}</td><td class="cs-act">{% if shown|sum(attribute='drafts') %}{{ shown|sum(attribute='drafts') }} phiếu nháp{% endif %}</td></tr></tfoot>{% endif %}
 </table></div></div>
 
 {% set r = rows|selectattr('day','equalto',sel)|first %}{% set d = detail %}
@@ -45,7 +44,7 @@
 <div class="cs-head"><div><h2>{{ wd_full[sel.weekday()] }} {{ sel.strftime('%d/%m/%Y') }}</h2><small>{% if r.status=='DA_CHOT' and d.closing %}Chốt bởi {{ d.closed_by or 'không rõ' }} · {{ d.closing.closed_at|vn_time if d.closing.closed_at else '' }}{% else %}{{ r.docs }} phiếu đã ghi sổ{% if sel==today %} · hôm nay{% endif %}{% endif %}</small></div>{{ status_chip(r) }}</div>
 <p class="cs-sub">Thu chi theo quỹ</p>
 {% if d.funds %}<dl class="totals cs-kv">{% for f in d.funds %}{% if f.income %}<dt>{{ f.name }} · thu</dt><dd>{{ f.income|money }}</dd>{% endif %}{% if f.expense %}<dt>{{ f.name }} · chi</dt><dd>{{ f.expense|money }}</dd>{% endif %}{% endfor %}<dt class="tot-main">Chênh lệch ngày</dt><dd class="tot-main">{{ diff(r.income-r.expense) }}</dd></dl>{% else %}<p class="hint">Ngày này chưa có phiếu thu chi nào ghi sổ.</p>{% endif %}
-{% if d.big %}<p class="cs-sub">Phiếu lớn trong ngày</p><ul class="cs-docs">{% for c in d.big %}<li><a href="/thu-chi/{{ c.id }}">{{ c.number }}</a><span>{% if c.partner_name or c.description %}{{ (c.partner_name or c.description)|truncate(40) }} · {% endif %}{{ c.amount|money }}</span></li>{% endfor %}</ul>{% endif %}
+{% if d.big %}<p class="cs-sub">Phiếu lớn trong ngày</p><ul class="cs-docs">{% for c in d.big %}<li><a class="cs-no" href="/thu-chi/{{ c.id }}">{{ c.number }}</a><span>{% if c.partner_name or c.description %}{{ (c.partner_name or c.description)|truncate(40) }} · {% endif %}{{ c.amount|money }}</span></li>{% endfor %}</ul>{% endif %}
 {% if r.status!='DA_CHOT' %}<p class="cs-sub">Kiểm tra trước khi chốt</p>
 <ul class="cs-check">{% if d.drafts %}<li class="bad">Còn {{ d.drafts|length }} phiếu nháp, ghi sổ hoặc hủy trước khi chốt: {% for c in d.drafts %}<a href="/thu-chi/{{ c.id }}">{{ c.number }}</a>{{ ', ' if not loop.last }}{% endfor %}</li>{% else %}<li>Không còn phiếu nháp</li>{% endif %}
 {% if sel<today %}<li>Ngày đã qua</li>{% elif sel==today %}<li class="warn">Hôm nay chưa hết ngày, nên chốt cuối ngày.</li>{% endif %}
