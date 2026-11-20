@@ -39,7 +39,7 @@
 </style></head><body><main class="wrap">
 <header class="brand"><img src="{{ asset('logo-thanh-duc.jpg') }}" alt="Logo Thành Đức"><div><b>{{ co.name or 'Thành Đức' }}</b>{% if co.tax_code %}<small>MST: {{ co.tax_code }}</small>{% endif %}{% if co.address %}<small>{{ co.address }}</small>{% endif %}<small>{% if co.hotline %}Hotline {{ co.hotline }}{% endif %}{% if co.hotline and co.website %} · {% endif %}{{ co.website }}</small></div></header>
 {% if state == 'ok' %}{% set c = s.chosen %}{% set phone = (co.hotline or co.phone or '')|replace(' ', '')|replace('.', '') %}
-<section class="doc"><span class="t">Báo giá sửa chữa</span><h1 class="m">Máy in {{ s.model }}</h1>
+<section class="doc"><span class="t">Báo giá sửa chữa</span><h2 class="m">Máy in {{ s.model }}</h2>
 <div class="strip"><span>Số phiếu<b>{{ s.number }} · lần {{ v.no }}</b></span><span>Ngày lập<b>{{ v.created_at|vn_date }}</b></span><span>Hiệu lực đến<b>{{ v.valid_until|vn_date }}</b></span></div></section>
 <section class="pc"><h3>Khách hàng và máy</h3><div class="kv"><span>Khách hàng</span><b>{{ s.customer }}</b><span>Máy</span><b>{{ s.model }}</b>{% if s.serial %}<span>Serial</span><i>{{ s.serial }}</i>{% endif %}{% if s.symptom %}<span>Khách báo</span><i>{{ s.symptom }}</i>{% endif %}</div></section>
 {% macro bh(p) %}{% if p.warranty is not none and p.warranty is defined %}{% if p.warranty > 0 %}<span class="chip bh">Bảo hành {{ p.warranty }} tháng</span>{% else %}<span class="chip no">Không bảo hành</span>{% endif %}{% endif %}{% endmacro %}
