@@ -387,3 +387,25 @@ async def import_preview(request: Request, form=Depends(checked_form), session: 
             raise
         return _page(request, session, user, tab, error=exc, status=exc.status)
     return render(request, 'bang_gia_nhap.jinja', tab=tab, tabs=svc.TABS, plan=plan, content=svc.decode_text(raw))
+
+
+# Điều kiện bảo hành in trên báo giá sửa chữa (TUẤN duyệt mẫu Hc9Cnfxxq5MJh2fFps8xfN 20/11/2026): 5 dòng chuẩn, sửa được.
+@router.get('/bang-gia/dieu-kien-bao-hanh')
+def terms_page(request: Request, da_luu: str = '', user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import repair_quotes as rqs
+    svc.require_edit(user)
+    return render(request, 'bang_gia_dieu_kien.jinja', lines=rqs.terms(session), saved=bool(da_luu), error=None,
+                  defaults=rqs.DEFAULT_TERMS)
+
+
+@router.post('/bang-gia/dieu-kien-bao-hanh')
+def terms_save(request: Request, form=Depends(checked_form), user: User = Depends(web_user), session: Session = Depends(get_session)):
+    from .. import repair_quotes as rqs
+    text = str(form.get('text', '') or '')
+    try:
+        rqs.save_terms(session, user, text)
+    except BusinessError as exc:
+        session.rollback()
+        return render(request, 'bang_gia_dieu_kien.jinja', lines=text.splitlines(), saved=False, error=exc.message,
+                      defaults=rqs.DEFAULT_TERMS, status=exc.status)
+    return RedirectResponse('/bang-gia/dieu-kien-bao-hanh?da_luu=1', status_code=303)

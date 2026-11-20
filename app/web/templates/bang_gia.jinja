@@ -52,7 +52,7 @@
 </tr>{% endfor %}</tbody></table></div>
 {% else %}{{ ui.empty('Nhóm máy này chưa có gói sửa nào có giá.' ~ (' Bấm + Thêm gói sửa để bắt đầu.' if can_edit else '')) }}{% endif %}
 <p class="hint">Giá chưa VAT, giá gồm VAT ghi nhỏ bên dưới; CH = khi khách chọn linh kiện chính hãng; ô "—" là cấp không áp dụng. Model khác nhóm thì đặt giá riêng ở màn Sửa. Cấp do phương án kỹ thuật chính: không thay linh kiện chính → cấp 1, thay 1 → cấp 2, từ 2 → cấp 3.</p>
-<div class="action-bar bg-actions">{% if can_edit %}<a class="btn btn-new" href="/bang-gia/dich-vu/moi?kind=GOI">+ Thêm gói sửa</a>{% endif %}<a class="btn btn-new" href="/bang-gia/gia-model">Giá theo model</a><a class="btn btn-ghost" href="/bang-gia/model-may">Model máy · {{ model_count }}</a></div>
+<div class="action-bar bg-actions">{% if can_edit %}<a class="btn btn-new" href="/bang-gia/dich-vu/moi?kind=GOI">+ Thêm gói sửa</a>{% endif %}<a class="btn btn-new" href="/bang-gia/gia-model">Giá theo model</a><a class="btn btn-ghost" href="/bang-gia/model-may">Model máy · {{ model_count }}</a>{% if can_edit %}<a class="btn btn-ghost" href="/bang-gia/dieu-kien-bao-hanh">Điều kiện bảo hành</a>{% endif %}</div>
 
 <section class="card bg-lookup" id="tra-gia" aria-label="Tra giá theo model">
 <h2 class="doc-h">Tra giá theo model</h2>

@@ -971,6 +971,17 @@ class PlSetting(Base):
     __mapper_args__ = {'version_id_col': version}
 
 
+class QuoteTerm(Base):
+    """0110: điều kiện bảo hành in trên báo giá sửa gửi khách (key DIEU_KIEN_BH, mỗi dòng một điều kiện)."""
+    __tablename__ = 'quote_terms'
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    text: Mapped[str] = mapped_column(Text, default='', server_default='')
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    __mapper_args__ = {'version_id_col': version}
+
+
 class FinanceMapping(Base):
     __tablename__ = 'finance_mappings'
     __table_args__ = (

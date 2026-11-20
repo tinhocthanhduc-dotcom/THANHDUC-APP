@@ -33,6 +33,41 @@ REASONS = ('Giá cao', 'Muốn linh kiện chính hãng', 'Muốn rẻ hơn', 'C
 STATUSES = {'CHO': 'Chờ khách trả lời', 'DONG_Y': 'Khách đồng ý', 'CHUA_DONG_Y': 'Chưa đồng ý', 'KHONG_SUA': 'Không sửa',
             'THAY_THE': 'Đã có lần mới', 'THU_HOI': 'Đã thu hồi link'}
 SENT_VIA = {'BOT': 'Zalo công ty', 'COPY': 'Zalo cá nhân / gọi điện', 'IN': 'In A4'}
+# Báo giá gửi khách chuyên nghiệp (TUẤN duyệt mẫu Hc9Cnfxxq5MJh2fFps8xfN 20/11/2026): thời gian sửa dự kiến người gửi chọn,
+# bảo hành từng dòng (gói theo bảng giá, vật tư theo mã hàng, phí ghi tay mặc định 1 tháng), điều kiện bảo hành sửa được.
+LEAD_DAYS = {1: '1 ngày', 2: '2 ngày', 3: '3 ngày', 7: '1 tuần'}
+FEE_WARRANTY = 1
+TERMS_KEY = 'DIEU_KIEN_BH'
+DEFAULT_TERMS = ('Bảo hành hạng mục và linh kiện đã thay, tính từ ngày trả máy.',
+                 'Mang máy kèm số phiếu khi bảo hành.',
+                 'Không bảo hành khi máy rơi vỡ, vào nước, cháy nổ do nguồn điện.',
+                 'Không bảo hành khi dùng mực, giấy kém chất lượng gây hỏng.',
+                 'Không bảo hành khi tem bị rách hoặc máy đã sửa ở nơi khác.')
+
+
+def terms(session: Session) -> list[str]:
+    from .models import QuoteTerm
+    row = session.get(QuoteTerm, TERMS_KEY)
+    lines = [ln.strip() for ln in (row.text if row else '').splitlines() if ln.strip()]
+    return lines or list(DEFAULT_TERMS)
+
+
+def save_terms(session: Session, user: User, text: str) -> list[str]:
+    """Giám đốc / người sửa bảng giá chỉnh điều kiện bảo hành; để trống thì quay về 5 dòng chuẩn."""
+    from . import price_book
+    from .models import QuoteTerm
+    if not price_book.can_edit(user):
+        raise BusinessError('FORBIDDEN', 'Chỉ người được sửa bảng giá mới đổi điều kiện bảo hành.', status=403)
+    lines = [' '.join(ln.split())[:300] for ln in str(text or '').splitlines() if ln.strip()][:12]
+    row = session.get(QuoteTerm, TERMS_KEY, with_for_update=True)
+    before = row.text if row else None
+    if row is None:
+        row = QuoteTerm(key=TERMS_KEY)
+        session.add(row)
+    row.text, row.updated_by, row.updated_at = '\n'.join(lines), user.id, _now()
+    audit.record(session, user, 'quote_terms.save', 'quote_terms', TERMS_KEY, dict(text=before), dict(text=row.text))
+    session.commit()
+    return terms(session)
 
 
 def _now():
@@ -104,14 +139,14 @@ def extra_lines(session: Session, t: ServiceTicket, row: RepairInspection) -> li
         if x.amount + x.vat_amount <= 0 or (x.kind == 'PHI' and x.stock_doc_id is None and x.description in applied):
             continue
         name = (x.description or '').strip()
+        product = session.get(Product, x.product_code) if x.product_code else None
         if not name and x.product_code:
-            p = session.get(Product, x.product_code)
-            name = p.name if p is not None else x.product_code
+            name = product.name if product is not None else x.product_code
         qty = x.qty.normalize() if hasattr(x.qty, 'normalize') else x.qty
-        if x.qty != 1:
-            name = f'{name or "Vật tư"} × {qty:f}'
-        pa = dict(price=x.amount, vat=x.vat_amount, warranty=None)
-        out.append(dict(name=(name or 'Phí dịch vụ')[:500], description='', PA1=pa, PA2=None, pick='PA1', extra=True))
+        months = (product.warranty_months if product is not None else 0) if x.kind == 'VAT_TU' else FEE_WARRANTY
+        pa = dict(price=x.amount, vat=x.vat_amount, warranty=months)
+        out.append(dict(name=(name or 'Phí dịch vụ')[:500], description='', PA1=pa, PA2=None, pick='PA1', extra=True,
+                        qty=f'{qty:f}', unit=x.unit_price))
     return out
 
 
@@ -155,7 +190,7 @@ def preview(session: Session, t: ServiceTicket, row: RepairInspection, q: dict |
                 extra_subtotal=ex['subtotal'], extra_vat=ex['vat'])
 
 
-def snapshot(session: Session, t: ServiceTicket, row: RepairInspection) -> dict:
+def snapshot(session: Session, t: ServiceTicket, row: RepairInspection, days: int | None = None) -> dict:
     """Bản khách: chỉ phần được phép ra ngoài. Giá gói lấy từ bảng giá như lúc áp, đối chiếu với dòng tiền của phiếu;
     dòng khác trên phiếu (vật tư có giá) lấy đúng tiền của phiếu."""
     q = ri.quote(session, t, row)
@@ -171,14 +206,15 @@ def snapshot(session: Session, t: ServiceTicket, row: RepairInspection) -> dict:
     extras = pv['extras']
     customer = session.get(Customer, t.customer_code)
     pick = 'PA2' if any(ln['pick'] == 'PA2' for ln in lines) else 'PA1'
-    chosen = dict(subtotal=pv['subtotal'], vat=pv['vat'], total=pv['total'], warranty=(q['warranty'] or 0) if q['ok'] else 0)
+    picked = [(ln[ln['pick']] or ln['PA1']) for ln in lines + extras]
+    chosen = dict(subtotal=pv['subtotal'], vat=pv['vat'], total=pv['total'], warranty=max((p['warranty'] or 0 for p in picked), default=0))
     other = 'PA1' if pick == 'PA2' else 'PA2'
     alt = _totals(lines + extras, other) if any(ln[other] for ln in lines) else None
     if alt and alt['total'] == chosen['total']:
         alt = None
     return dict(number=t.number, customer=customer.name if customer else t.customer_code, model=row.model_name, serial=t.serial or '',
                 symptom=' '.join((t.symptom or '').split())[:300], lines=lines + extras, pick=pick, chosen=chosen, alt=alt,
-                alt_key=other if alt else '', missing=pv['missing'])
+                alt_key=other if alt else '', missing=pv['missing'], days=days if days in LEAD_DAYS else None, terms=terms(session))
 
 
 def _matches_ticket(t: ServiceTicket, row: RepairInspection, snap: dict) -> bool:
@@ -193,13 +229,16 @@ def zalo_text(snap: dict, row: RepairQuoteVersion) -> str:
     for ln in snap['lines']:
         p = ln[ln['pick']]
         if ln.get('extra'):
-            out.append(f'• {ln["name"]}: {_m(p["price"])}đ')
+            qty = f' × {ln["qty"]}' if ln.get('qty') not in (None, '1') else ''
+            out.append(f'• {ln["name"]}{qty}: {_m(p["price"])}đ')
             continue
         out.append(f'• {ln["name"]}{" (linh kiện chính hãng)" if ln["pick"] == "PA2" else ""}: {_m(p["price"])}đ')
     c = snap['chosen']
     out.append(f'VAT 8%: {_m(c["vat"])}đ. Tổng cộng: {_m(c["total"])}đ.')
     if c['warranty']:
         out.append(f'Bảo hành {c["warranty"]} tháng cho hạng mục đã sửa.')
+    if snap.get('days'):
+        out.append(f'Sửa xong dự kiến {LEAD_DAYS[snap["days"]]} kể từ khi anh/chị đồng ý.')
     if snap.get('alt'):
         label = 'linh kiện chính hãng' if snap['alt_key'] == 'PA2' else 'tiêu chuẩn'
         out.append(f'Phương án {label}: tổng {_m(snap["alt"]["total"])}đ.')
@@ -213,16 +252,16 @@ def _m(n) -> str:
     return f'{int(n or 0):,}'.replace(',', '.')
 
 
-def create(session: Session, user: User, ticket_id: int, version) -> RepairQuoteVersion:
+def create(session: Session, user: User, ticket_id: int, version, days: int | None = None) -> RepairQuoteVersion:
     """Lưu bản khách thành lần mới (lần cũ đang chờ chuyển Đã có lần mới) và soạn tin Zalo."""
     from .stock_docs import _transaction
     require(user)
     with _transaction(session):
-        v = create_in_tx(session, user, ticket_id, version)
+        v = create_in_tx(session, user, ticket_id, version, days=days)
     return v
 
 
-def create_in_tx(session: Session, user: User, ticket_id: int, version, group_id: int | None = None) -> RepairQuoteVersion:
+def create_in_tx(session: Session, user: User, ticket_id: int, version, group_id: int | None = None, days: int | None = None) -> RepairQuoteVersion:
     """Phần việc của create() trong transaction người gọi (báo giá gộp gọi cho từng máy, cùng một transaction)."""
     from . import service_tickets
     require(user)
@@ -235,7 +274,7 @@ def create_in_tx(session: Session, user: User, ticket_id: int, version, group_id
     row = session.get(RepairInspection, t.id)
     if row is None or not row.items:
         raise BusinessError('NO_INSPECTION', f'{t.number}: thợ chưa ghi kết quả kiểm tra máy.', status=409)
-    snap = snapshot(session, t, row)
+    snap = snapshot(session, t, row, days)
     if not snap['missing'] and row.applied_at is None:
         raise BusinessError('NOT_APPLIED', f'{t.number}: bấm Duyệt giá trước, rồi mới gửi khách.', status=409)
     if not snap['missing'] and not _matches_ticket(t, row, snap):
@@ -524,7 +563,7 @@ def close_open(session: Session, ticket_id: int, status: str) -> None:
 def link_settings() -> dict:
     s = get_settings()
     return dict(name=s.company_name, phone=s.company_phone, hotline=s.company_hotline, address=s.company_address,
-                website=s.company_website)
+                website=s.company_website, tax_code=s.company_tax_code, email=s.company_email)
 
 
 # ---------- Danh sách báo giá một máy đã lập (TUẤN 16/11/2026: "chưa có báo giá loại không gộp?") ----------

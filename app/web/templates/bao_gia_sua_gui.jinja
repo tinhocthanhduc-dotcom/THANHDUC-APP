@@ -8,6 +8,7 @@
 {% elif rq.siblings > 1 %}<p class="hint">Khách có {{ rq.siblings }} máy đã áp giá ở xưởng. <a href="/bao-gia-gop/moi?khach={{ t.customer_code|urlencode }}">Gộp báo giá các máy</a> để gửi một link, một bản in.</p>{% endif %}
 {% if rq.can_send %}
 <form method="post" action="/kiem-tra-may/{{ t.id }}/gui" class="rq-send-new" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="version" value="{{ t.version }}">
+<div class="rq-lead"><span class="hint"><b>Sửa xong dự kiến</b> (không bắt buộc)</span><div class="seg">{% for k, lb in rq.lead_days.items() %}<label><input type="radio" name="du_kien" value="{{ k }}"><span>{{ lb }}</span></label>{% endfor %}</div></div>
 <div class="rq-sendbar"><div><span class="hint">Tổng gửi khách</span><b>{{ rq.pv.total|money }} đ</b> <span class="hint">gồm VAT</span></div><button class="btn btn-new">Lưu và gửi lần {{ rq.next_no }}</button></div>
 <p class="hint rq-sendbar-note">{% if sd and sd.stale %}Báo giá đã đổi sau lần {{ sd.v.no }}: lưu lần mới, link lần {{ sd.v.no }} sẽ không hiện giá nữa.{% else %}Lưu thành báo giá lần {{ rq.next_no }}, có link xem và tin Zalo soạn sẵn, hiệu lực {{ rq.valid_days }} ngày.{% endif %}</p></form>
 {% elif not sd and rq.pv.reason %}<p class="alert {{ 'bad' if rq.pv.total <= 0 else 'warn' }}" data-rq-blocked>{{ rq.pv.reason }}</p>{% endif %}
