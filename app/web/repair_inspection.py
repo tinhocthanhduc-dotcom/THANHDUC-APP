@@ -185,7 +185,7 @@ def panel_context(session, user, t, picks=None) -> dict:
     siblings = sum(1 for r in rg.candidates(session, t.customer_code) if r['ready']) if has_role(user, 'dispatcher') else 0
     from .. import service_tickets as _st
     return dict(rq=dict(row=row, q=q, finance=finance, levels=LEVELS, director='director' in user.roles, quoter=_st.can_quote(user), group=group, siblings=siblings,
-                        current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1,
+                        current=bool(row.applied_at), versions=vers, send=send, next_no=(vers[0].no + 1) if vers else 1, lead_days=rqs.LEAD_DAYS,
                         can_send=_st.can_quote(user) and pv['ready'] and (open_v is None or send['stale']), pv=pv,
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
                         statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS,
@@ -228,8 +228,10 @@ def quote_create(request: Request, ticket_id: int, form=Depends(checked_form), s
     from .. import repair_quotes as rqs
     user = request.state.user
     version = str(form.get('version', '') or '')
+    lead = str(form.get('du_kien', '') or '')
+    days = int(lead) if lead.isdigit() and int(lead) in rqs.LEAD_DAYS else None
     try:
-        v = rqs.create(session, user, ticket_id, int(version) if version.isdigit() else None)
+        v = rqs.create(session, user, ticket_id, int(version) if version.isdigit() else None, days=days)
     except BusinessError as exc:
         return _ticket_error(request, session, user, ticket_id, exc)
     return RedirectResponse(f'/dich-vu/{ticket_id}?bao_gia_lan={v.no}#gui-khach', status_code=303)
@@ -311,7 +313,7 @@ def quote_print(request: Request, vid: int, user: User = Depends(web_user), sess
         raise BusinessError('NOT_FOUND', 'Không có lần báo giá này.', status=404)
     t = session.get(ServiceTicket, v.ticket_id)
     return render(request, 'bao_gia_sua_in.jinja', v=v, s=v.snapshot, t=t, customer=session.get(Customer, t.customer_code),
-                  words=money_words(v.snapshot['chosen']['total']), company=get_settings(), maker=session.get(User, v.created_by), back=f'/dich-vu/{t.id}#gui-khach')
+                  words=money_words(v.snapshot['chosen']['total']), company=get_settings(), default_terms=rqs.DEFAULT_TERMS, maker=session.get(User, v.created_by), back=f'/dich-vu/{t.id}#gui-khach')
 
 
 @router.get('/kiem-tra-may/{ticket_id:int}/in')
@@ -331,13 +333,20 @@ def inspection_print(request: Request, ticket_id: int, user: User = Depends(web_
 public_router = APIRouter(include_in_schema=False)
 
 
+def _quote_words(v, state) -> str:
+    from ..money_words import money_words
+    if v is None or state != 'ok':
+        return ''
+    return money_words(int((v.snapshot.get('chosen') or {}).get('total') or 0))
+
+
 @public_router.get('/bg/{token}')
 def quote_public(request: Request, token: str, session: Session = Depends(get_session)):
     """Khách mở link báo giá: không cần đăng nhập, chỉ đọc bản chụp phần cho khách (mẫu M6)."""
     from .. import repair_quotes as rqs
     v, state = rqs.public(session, token)
     resp = render(request, 'bao_gia_sua_khach.jinja', v=v if state == 'ok' else None, s=v.snapshot if v is not None and state == 'ok' else None,
-                  state=state, co=rqs.link_settings(), status=200 if state == 'ok' else 404 if state == 'khong_co' else 410)
+                  state=state, co=rqs.link_settings(), words=_quote_words(v, state), default_terms=rqs.DEFAULT_TERMS, status=200 if state == 'ok' else 404 if state == 'khong_co' else 410)
     resp.headers['Cache-Control'] = 'no-store'
     resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
     resp.headers['Referrer-Policy'] = 'no-referrer'

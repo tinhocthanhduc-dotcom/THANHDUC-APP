@@ -28,6 +28,7 @@ KEEP = {
     "customer_contacts", "customer_sites", "equipment", "push_keys", "push_subscriptions", "audit_log", "ai_keys",
     "zalo_chats", "zalo_messages", "zalo_tro_ly", "production_boms", "production_bom_lines", "virtual_agents",
     "pl_settings",  # 0089: lương giám đốc mục tiêu là cấu hình
+    "quote_terms",  # 0110: điều kiện bảo hành trên báo giá là cấu hình
     "approval_limits",  # 0091: hạn mức duyệt là cấu hình giám đốc đặt
     "repair_groups", "repair_models", "price_services", "repair_prices", "repair_options", "repair_symptoms",  # 0092: bảng giá chung là cấu hình
 }

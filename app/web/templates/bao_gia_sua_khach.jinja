@@ -1,51 +1,71 @@
-{# Mẫu M6 duyệt 14/11/2026: khách mở link báo giá, không đăng nhập. Chỉ hiện giá khi lần báo giá còn hiệu lực. #}
+{# Mẫu M6 duyệt 14/11/2026, làm lại bản chuyên nghiệp có bảo hành 20/11/2026: khách mở link báo giá, không đăng nhập. Chỉ hiện giá khi lần báo giá còn hiệu lực. #}
 <!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
 <title>{% if state == 'ok' %}Báo giá sửa máy {{ s.model }}{% else %}Báo giá sửa chữa{% endif %} · {{ co.name or 'Thành Đức' }}</title>
 <style>
-:root{--ink:#1d2a3a;--muted:#5d6b7c;--line:#dfe5ec;--bg:#f3f6f9;--card:#fff;--navy:#1f3a5f;--ok:#1d7a46;--warn:#a15c00}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:560px;margin:0 auto;padding:16px}
-.co{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}.co b{color:var(--navy);font-size:18px}.co small{color:var(--muted)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
-.h{font-size:20px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 8px;font-size:14px}
-.kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0}.kv span{min-width:0}.kv b{white-space:nowrap}
-.ln{border-top:1px solid var(--line);padding:10px 0}.ln:first-of-type{border-top:0}.ln p{margin:4px 0 0;color:var(--muted);font-size:14px}
-.tot{border-top:2px solid var(--navy);margin-top:8px;padding-top:8px;font-size:18px}.tot b{color:var(--navy)}
-.alt{background:#eef4fb;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:15px}
-.tag{display:inline-block;background:#e8f5ee;color:var(--ok);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600}
-.state{text-align:center;padding:28px 16px}.state .h{color:var(--warn)}
+/* Bản chuyên nghiệp có bảo hành (TUẤN duyệt mẫu Hc9Cnfxxq5MJh2fFps8xfN 20/11/2026): luôn nền giấy trắng, in/lưu PDF được. */
+:root{--ink:#1d2330;--muted:#5d6676;--line:#dfe3ea;--bg:#f3f6f9;--card:#fff;--navy:#16325c;--red:#c8102e;--ok:#1d6b38;--warn:#a15c00;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:14px 16px 28px;display:grid;gap:12px}
+.brand{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;background:#fff;border-radius:12px;padding:12px;border:1px solid var(--line)}
+.brand img{width:52px;height:56px;object-fit:contain}
+.brand b{color:var(--red);font-size:14px;line-height:1.3;display:block;text-transform:uppercase}.brand small{color:var(--muted);font-size:12px;display:block}
+.doc{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;display:grid;gap:6px}
+.doc .t{font-size:12px;letter-spacing:.12em;opacity:.8;text-transform:uppercase}.doc .m{font-size:18px;line-height:1.3;margin:0}
+.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.strip span{background:rgba(255,255,255,.12);border-radius:8px;padding:5px 8px;font-size:12px;min-width:0}.strip b{display:block;font-size:13px;overflow-wrap:anywhere}
+.pc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:8px;min-width:0}
+.pc h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy)}
+.kv{display:grid;grid-template-columns:100px minmax(0,1fr);gap:3px 10px;font-size:14px}.kv span{color:var(--muted)}.kv b,.kv i{overflow-wrap:anywhere;font-style:normal}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 0;border-top:1px solid #e6e9ef}.item:first-child{border-top:0;padding-top:2px}
+.item .n{font-size:14.5px}.item .p{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}.item .d{grid-column:1/-1;color:var(--muted);font-size:13px}
+.chips{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:700;border-radius:99px;padding:2px 8px;background:#eef1f6;color:var(--navy);white-space:nowrap}.chip.bh{background:#e5f4ea;color:var(--ok)}.chip.no{background:#fbe9e9;color:#a12a2a}
+.pt{width:100%;border-collapse:collapse;font-size:13.5px;display:none}.pt th{background:var(--navy);color:#fff;padding:7px 6px;text-align:left;font-weight:600}.pt td{padding:8px 6px;border-bottom:1px solid #dde2ea;vertical-align:top}
+.pt .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.pt .c{text-align:center}.pt td small{display:block;color:var(--muted);font-size:12.5px}.pt tr:nth-child(even) td{background:#f7f9fc}
+.sum{display:grid;gap:4px;font-size:14px;font-variant-numeric:tabular-nums}.sum div{display:flex;justify-content:space-between;gap:10px}
+.sum .g{border-top:2px solid var(--navy);padding-top:8px;margin-top:4px;font-weight:800;color:var(--navy);align-items:baseline}.sum .g b{font-size:22px}
+.words{font-size:13px;font-style:italic;color:#444;margin:0}
+.alt{background:#eef4fb;border-radius:8px;padding:8px 10px;font-size:13.5px;color:var(--navy)}
+.time{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}.time .ic{width:40px;height:40px;border-radius:10px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
+.cond{margin:0;padding-left:20px;display:grid;gap:3px;font-size:13.5px;color:#333}
+.cta{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cta a,.cta button{display:block;text-align:center;border-radius:10px;padding:12px;font:inherit;font-weight:700;text-decoration:none;border:0;cursor:pointer}
+.cta .z{background:#0068ff;color:#fff}.cta .c{background:var(--navy);color:#fff}.cta .pr{grid-column:1/-1;background:#fff;color:var(--navy);border:1px solid #c9d2e0}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin:0}
+.state{text-align:center;padding:28px 16px}.state h2{color:var(--warn);margin:0 0 6px;font-size:20px}.state p{color:var(--muted);margin:0 0 8px}
 .call{display:block;text-align:center;background:var(--navy);color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:600;margin-top:12px}
-.hd{background:var(--navy);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px}.hd .h{font-size:19px;margin:0 0 2px;color:#fff}.hd p{margin:0;opacity:.85;font-size:14px}
-.total{background:var(--card);border:2px solid var(--navy);border-radius:12px;padding:14px 16px;margin-bottom:12px;display:grid;gap:2px}.total .big{font-size:28px;font-weight:800;color:var(--navy);line-height:1.2}.total small,.total span{color:var(--muted);font-size:14px}
-.list{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
-.mc{padding:12px 16px;border-top:1px solid var(--line);display:grid;gap:4px}.mc:first-child{border-top:0}
-.mc .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.mc .top b:last-child{white-space:nowrap}
-.meta{color:var(--muted);font-size:14px}
-.it{display:flex;justify-content:space-between;gap:10px;font-size:15px;padding-left:10px;border-left:3px solid var(--line)}.it span:last-child{color:var(--muted);white-space:nowrap}
-details{font-size:14px;color:var(--muted)}summary{cursor:pointer;color:#1f5fbf}
-.alt{font-size:14px;color:var(--navy);background:#eef4fb;border-radius:8px;padding:6px 10px}
-.co b{min-width:0;font-size:15px;line-height:1.3}.co small{white-space:nowrap}
-.foot{color:var(--muted);font-size:13px;text-align:center}
+.two{display:grid;gap:12px}
+@media (min-width:760px){.wrap{padding:22px 24px 36px}.items{display:none}.pt{display:table}.two{grid-template-columns:1fr 1fr}.cta{grid-template-columns:1fr 1fr 1fr}.cta .pr{grid-column:auto}}
+@media print{body{background:#fff}.wrap{max-width:none;padding:0}.cta{display:none}.items{display:none}.pt{display:table}.pc,.brand{border-color:#ccd3df;break-inside:avoid}.doc,.pt th,.time .ic{-webkit-print-color-adjust:exact;print-color-adjust:exact}.two{grid-template-columns:1fr 1fr}}
 </style></head><body><main class="wrap">
-<div class="co"><b>{{ co.name or 'Thành Đức' }}</b>{% if co.hotline or co.phone %}<small>{{ co.hotline or co.phone }}</small>{% endif %}</div>
-{% if state == 'ok' %}{% set c = s.chosen %}
-{# Bản gọn (TUẤN duyệt 15/11/2026): tổng gồm VAT lên đầu, một hạng mục thì không lặp giá. #}
-<div class="hd"><h2 class="h">Báo giá sửa máy {{ s.model }}</h2><p>{{ s.number }} · lần {{ v.no }} · hiệu lực đến {{ v.valid_until|vn_date }}</p><p>{{ s.customer }}{% if s.serial %} · Serial {{ s.serial }}{% endif %}</p></div>
-<section class="total"><span>Tổng cộng · đã gồm VAT 8%</span><b class="big">{{ c.total|money }}đ</b><small>Chưa VAT {{ c.subtotal|money }}đ · VAT {{ c.vat|money }}đ{% if c.warranty %} · Bảo hành {{ c.warranty }} tháng{% endif %}</small>
-{% if s.alt %}<span class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}</span>{% endif %}</section>
-<section class="list">{% set many = s.lines|length > 1 %}{% for ln in s.lines %}{% set p = ln[ln.pick] %}
-<div class="mc"><div class="top"><b>{{ ln.name }}{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</b>{% if many %}<b>{{ (p.price + p.vat)|money }}đ</b>{% endif %}</div>{% if ln.description %}<span class="meta">{{ ln.description }}</span>{% endif %}</div>{% endfor %}</section>
-<section class="card"><p class="sub" style="margin:0">Anh/chị đồng ý thì nhắn Zalo hoặc gọi lại, bên em sửa và hẹn ngày trả máy.</p>
-{% if co.hotline or co.phone %}<a class="call" href="tel:{{ (co.hotline or co.phone)|replace(' ', '')|replace('.', '') }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}</section>
+<header class="brand"><img src="{{ asset('logo-thanh-duc.jpg') }}" alt="Logo Thành Đức"><div><b>{{ co.name or 'Thành Đức' }}</b>{% if co.tax_code %}<small>MST: {{ co.tax_code }}</small>{% endif %}{% if co.address %}<small>{{ co.address }}</small>{% endif %}<small>{% if co.hotline %}Hotline {{ co.hotline }}{% endif %}{% if co.hotline and co.website %} · {% endif %}{{ co.website }}</small></div></header>
+{% if state == 'ok' %}{% set c = s.chosen %}{% set phone = (co.hotline or co.phone or '')|replace(' ', '')|replace('.', '') %}
+<section class="doc"><span class="t">Báo giá sửa chữa</span><h2 class="m">Máy in {{ s.model }}</h2>
+<div class="strip"><span>Số phiếu<b>{{ s.number }} · lần {{ v.no }}</b></span><span>Ngày lập<b>{{ v.created_at|vn_date }}</b></span><span>Hiệu lực đến<b>{{ v.valid_until|vn_date }}</b></span></div></section>
+<section class="pc"><h3>Khách hàng và máy</h3><div class="kv"><span>Khách hàng</span><b>{{ s.customer }}</b><span>Máy</span><b>{{ s.model }}</b>{% if s.serial %}<span>Serial</span><i>{{ s.serial }}</i>{% endif %}{% if s.symptom %}<span>Khách báo</span><i>{{ s.symptom }}</i>{% endif %}</div></section>
+{% macro bh(p) %}{% if p.warranty is not none and p.warranty is defined %}{% if p.warranty > 0 %}<span class="chip bh">Bảo hành {{ p.warranty }} tháng</span>{% else %}<span class="chip no">Không bảo hành</span>{% endif %}{% endif %}{% endmacro %}
+{% macro qty(ln) %}{% set q = (ln.qty or '1')|string %}{{ (q.rstrip('0').rstrip('.') if '.' in q else q) }}{% endmacro %}
+<section class="pc"><h3>Hạng mục sửa chữa</h3>
+<div class="items">{% for ln in s.lines %}{% set p = ln[ln.pick] %}
+<div class="item"><b class="n">{{ loop.index }}. {{ ln.name }}</b><span class="p">{{ (p.price + p.vat)|money }}</span>
+<span class="d">{% if ln.description %}{{ ln.description }} {% endif %}SL {{ qty(ln) }} · đơn giá {{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }} chưa VAT</span>
+<div class="chips">{{ bh(p) }}{% if ln.pick == 'PA2' %}<span class="chip">Linh kiện chính hãng</span>{% endif %}</div></div>{% endfor %}</div>
+<table class="pt"><thead><tr><th class="c">STT</th><th>Hạng mục</th><th class="c">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th><th class="c">Bảo hành</th></tr></thead><tbody>
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<small>{{ ln.description }}</small>{% endif %}</td><td class="c">{{ qty(ln) }}</td><td class="r">{{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }}</td><td class="r">{{ p.price|money }}</td><td class="c">{{ bh(p) }}</td></tr>{% endfor %}
+</tbody></table>
+<div class="sum"><div><span>Cộng chưa VAT</span><span>{{ c.subtotal|money }}</span></div><div><span>Thuế GTGT 8%</span><span>{{ c.vat|money }}</span></div><div class="g"><span>Tổng thanh toán</span><b>{{ c.total|money }}đ</b></div></div>
+{% if words %}<p class="words">Bằng chữ: {{ words }}.</p>{% endif %}
+{% if s.alt %}<div class="alt">Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng <b>{{ s.alt.total|money }}đ</b>{% if s.alt.warranty %}, bảo hành {{ s.alt.warranty }} tháng{% endif %}.</div>{% endif %}</section>
+<div class="two">{% if s.days %}{% set dl = {1: '1 ngày', 2: '2 ngày', 3: '3 ngày', 7: '1 tuần'} %}<section class="pc"><div class="time"><span class="ic">{{ '1T' if s.days == 7 else s.days ~ 'N' }}</span><div><b>Sửa xong dự kiến {{ dl.get(s.days, s.days ~ ' ngày') }} làm việc</b><br><span class="words" style="font-style:normal">tính từ khi anh/chị đồng ý báo giá</span></div></div></section>{% endif %}
+<section class="pc"><h3>Điều kiện bảo hành</h3><ol class="cond">{% for x in (s.terms or default_terms) %}<li>{{ x }}</li>{% endfor %}</ol></section></div>
+<nav class="cta">{% if phone %}<a class="z" href="https://zalo.me/{{ phone }}" target="_blank" rel="noopener">Nhắn Zalo đồng ý</a><a class="c" href="tel:{{ phone }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}<button type="button" class="pr" onclick="window.print()">In / lưu PDF</button></nav>
 {% else %}
-<section class="card state">{% set msg = {'het_han': ('Báo giá đã hết hạn', 'Báo giá này đã quá ngày hiệu lực. Anh/chị liên hệ để nhận báo giá mới.'),
+<section class="pc state">{% set msg = {'het_han': ('Báo giá đã hết hạn', 'Báo giá này đã quá ngày hiệu lực. Anh/chị liên hệ để nhận báo giá mới.'),
  'thu_hoi': ('Báo giá đã thu hồi', 'Báo giá này không còn dùng. Anh/chị liên hệ để nhận báo giá mới.'),
  'lan_moi': ('Đã có báo giá mới', 'Bên em đã gửi lần báo giá mới hơn. Anh/chị xem link trong tin nhắn mới nhất.'),
  'bao_lai': ('Bên em đang báo giá lại', 'Kỹ thuật đang kiểm tra lại theo ý anh/chị. Bên em sẽ gửi link báo giá mới.'),
  'qua_lan': ('Link đã mở quá nhiều lần', 'Để bảo mật, link không hiện giá nữa. Anh/chị liên hệ để nhận link mới.')}.get(state, ('Không tìm thấy báo giá', 'Link không đúng hoặc đã bị xóa.')) %}
-<h2 class="h">{{ msg[0] }}</h2><p class="sub">{{ msg[1] }}</p>
+<h2>{{ msg[0] }}</h2><p>{{ msg[1] }}</p>
 {% if co.hotline or co.phone %}<a class="call" href="tel:{{ (co.hotline or co.phone)|replace(' ', '')|replace('.', '') }}">Gọi {{ co.hotline or co.phone }}</a>{% endif %}</section>
 {% endif %}
-<p class="foot">{{ co.address }}{% if co.website %} · {{ co.website }}{% endif %}</p>
+<p class="foot">{{ [co.website, co.email, co.phone]|select|join(' · ') }}</p>
 </main></body></html>
