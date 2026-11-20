@@ -165,7 +165,7 @@ def _groups(rows,user,people,group_form):
         g['rows'].append(row);g['total']+=row.amount
         age=max(0,(today-row.received_at).days)
         if g['oldest'] is None or age>g['days']:g['days'],g['oldest']=age,row
-        if row.reported_by!=user.id:g['eligible'].append(row)
+        if row.reported_by!=user.id or has_role(user,'director'):g['eligible'].append(row)
     chosen={str(v) for v in group_form.get('receipt_ids',[])}
     for g in found.values():
         g['own']=g['kind']=='cash' and not g['eligible']

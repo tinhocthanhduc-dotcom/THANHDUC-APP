@@ -279,10 +279,13 @@ def _receipt_self(ctx, receipt):
     if session is None:
         return dict(can=False, done=False, over=False, limit=0)
     limit = sales_receipts.self_confirm_limit(session)
+    # Giám đốc xác nhận được báo thu do chính mình lập, không giới hạn (TUẤN 20/11/2026); khớp decide_in_tx.
+    if user and has_role(user, 'director') and receipt.reported_by == user.id and receipt.status == 'CHO_XAC_NHAN':
+        return dict(can=True, done=False, over=False, limit=limit, director=True)
     can = bool(user) and sales_receipts.can_self_confirm(session, user, receipt)
     over = (bool(user) and not can and limit > 0 and receipt.status == 'CHO_XAC_NHAN' and receipt.reported_by == user.id
             and receipt.amount > limit)
-    return dict(can=can, done=sales_receipts.is_self_confirmed(session, receipt), over=over, limit=limit)
+    return dict(can=can, done=sales_receipts.is_self_confirmed(session, receipt), over=over, limit=limit, director=False)
 
 
 templates.env.globals["receipt_self"] = _receipt_self

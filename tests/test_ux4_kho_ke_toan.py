@@ -92,10 +92,10 @@ def test_cash_queue_compact_totals_group_and_self_exclusion(client,db,work_peopl
     page=client.get('/bao-thu?method=TIEN_MAT')
     assert 'id="cash-confirm-' not in page.text and 'name="receipt_id"' not in page.text and 'không tự xác nhận được' in page.text
     for row in rows:assert f'id="receipt-confirm-{row.id}"' not in page.text
+    # TUẤN 20/11/2026: giám đốc được xác nhận báo thu do chính mình lập, cả nhóm tiền mặt.
     p['technician'].roles=['technician','director'];db.commit();service_login(client,p['technician'])
     page=client.get('/bao-thu?method=TIEN_MAT')
-    assert 'id="cash-confirm-' not in page.text
-    for row in rows:assert f'id="receipt-confirm-{row.id}"' not in page.text
+    assert f'id="cash-confirm-{p["technician"].id}"' in page.text and 'không tự xác nhận được' not in page.text
 
 
 def test_cash_group_confirm_posts_three_receipts(client,db,work_people,configured_finance):
@@ -196,3 +196,19 @@ def test_purchase_receiving_link_and_remaining_default(client,db,work_people):
     assert 'Đơn mua chờ nhận hàng' in html and f'href="/don-mua/{order.id}/nhan#nhan-hang"' in html
     html=client.get(f'/don-mua/{order.id}/nhan').text
     assert f'name="qty_{order.lines[0].id}" value="3"' in html
+
+
+def test_director_confirms_own_cash_group_and_single(client,db,work_people,configured_finance):
+    """TUẤN 20/11/2026: giám đốc tự xác nhận báo thu do chính mình lập (nhóm tiền mặt và từng phiếu), có nhật ký."""
+    p=work_people;rows=reports(db,p)
+    p['technician'].roles=['technician','director'];db.commit()
+    csrf=service_login(client,p['technician'])
+    r=client.post('/bao-thu/xac-nhan-nhom',data=group_data(csrf,rows,p),follow_redirects=False)
+    assert r.status_code==303
+    db.expire_all();assert all(x.status=='DA_XAC_NHAN' and x.decided_by==p['technician'].id for x in rows)
+    # Kế toán không phải giám đốc vẫn bị chặn tự xác nhận nhóm của mình.
+    p['technician'].roles=['technician','finance'];db.commit()
+    more=reports(db,p)
+    with pytest.raises(BusinessError) as e:
+        sales_receipts.confirm_cash_group(db,p['technician'],[(x.id,x.version) for x in more],600000,p['technician'].id)
+    assert e.value.code=='SELF_CONFIRM'
