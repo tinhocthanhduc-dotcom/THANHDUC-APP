@@ -612,9 +612,9 @@ dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
  .warehouse-bottom {position:fixed;bottom:0;left:0;right:0;padding:.75rem;margin:0;background:white;border-top:1px solid #cbd5e1;z-index:30;}
 }
 
-main:has([data-receipt-queue]) {max-width:1280px;}
+main:has([data-receipt-queue]) {max-width:1480px;}
 /* Khuôn 6 (thiết kế lại 07/11/2026): Báo thu. Trái "Ai đang giữ tiền", phải chi tiết một người; điện thoại: danh sách → một người. */
-main:has(> .rq-page) { max-width: 1240px; }
+main:has(> .rq-page) { max-width: 1480px; }
 .rq-page { display: grid; gap: 12px; min-width: 0; }
 .rq-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rq-top h1 { margin: 0; }
@@ -634,7 +634,7 @@ main:has(> .rq-page) { max-width: 1240px; }
 .rq-chip.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent); }
 .rq-dates summary { cursor: pointer; font-weight: 600; padding: 6px 4px; }
 .rq-dates[open] { flex-basis: 100%; }
-.rq-split { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+.rq-split { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
 .rq-split > .empty { grid-column: 1 / -1; }
 .rq-people { padding: 0; overflow: hidden; }
 .rq-people h2 { margin: 0; padding: 10px 14px; font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
@@ -685,8 +685,11 @@ main:has(> .rq-page) { max-width: 1240px; }
 .rq-cb { width: 36px; }
 .rq-cb input { width: 20px; height: 20px; accent-color: var(--accent); }
 tr.rq-off td:not(.rq-cb) { opacity: .45; }
-.rq-act { white-space: nowrap; text-align: right; }
-.rq-act form { margin: 0; display: inline-block; }
+/* 20/11/2026: cột nút không cắt chữ: nút và Từ chối xếp dọc, ghi chú xuống dòng. */
+.rq-act { text-align: right; min-width: 150px; }
+.rq-act form { margin: 0; display: block; }
+.rq-act .btn-ok { white-space: nowrap; }
+.rq-act .hint { display: block; max-width: 170px; margin-left: auto; white-space: normal; text-align: right; }
 .rq-act .btn-ok { min-height: 38px; padding: 6px 12px; font-size: .85rem; }
 .rq-reject { display: inline-block; text-align: left; }
 .rq-reject summary { cursor: pointer; color: var(--bad); font-weight: 600; font-size: .85rem; padding: 6px; list-style: none; }
@@ -696,6 +699,13 @@ tr.rq-off td:not(.rq-cb) { opacity: .45; }
 .rq-reject-form small { color: var(--muted); font-weight: 400; }
 .rq-reject-form textarea { width: 100%; font-size: 16px; }
 .rq-note { margin: 0; padding: 10px 16px; font-size: .82rem; }
+/* Máy tính màn vừa (≤1400px): danh sách người lên trên thành ô, bảng chiếm cả chiều ngang để không cắt cột nút. */
+@media (min-width: 761px) and (max-width: 1400px) {
+  .rq-split { grid-template-columns: minmax(0, 1fr); }
+  .rq-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .rq-people h2 { grid-column: 1 / -1; }
+  .rq-people .rq-who { border-right: 1px solid var(--line); }
+}
 @media (max-width: 760px) {
   .rq-tiles { grid-template-columns: 1fr 1fr; }
   .rq-tiles .stock-tile:first-child { grid-column: 1 / -1; }
