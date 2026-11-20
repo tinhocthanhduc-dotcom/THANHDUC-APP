@@ -4,7 +4,7 @@ from urllib.parse import quote, urlencode
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy import func, select
@@ -332,6 +332,9 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     from .. import service_workshop as _sw
     ctx['ws_report']=_sw.reported(session,[t.id]).get(t.id) if at_workshop else None
     ctx['ws_fail']=_sw.failed(session,[t.id]).get(t.id) if at_workshop else None
+    ctx['ws_change']=at_workshop and _sw.can_change_repairer(session,user,t)
+    ctx['ws_repairers']=[dict(id=u.id,name=u.full_name,load=n) for u,n in _sw.repairers(session) if u.id!=t.assignee_id] if ctx['ws_change'] else []
+    ctx['ws_reasons']=_sw.CHANGE_REASONS
     ctx['rq_inspect']=rinsp.can_inspect(user) and rinsp.is_waiting(t) and not t.quote_approved_at
     ctx['rq_done']=request.query_params.get('da_kiem_tra')==str(t.id)
     ctx['rq_applied']=request.query_params.get('da_ap_gia')=='1' and not error
@@ -990,13 +993,13 @@ def workshop_handover(request:Request,ticket_id:int,form=Depends(checked_form),s
 
 
 @router.post('/dich-vu/{ticket_id}/xuong/{action}')
-def workshop_dispatch(request:Request,ticket_id:int,action:str,form=Depends(checked_form),session:Session=Depends(get_session)):
+def workshop_dispatch(request:Request,ticket_id:int,action:str,background:BackgroundTasks,form=Depends(checked_form),session:Session=Depends(get_session)):
     from datetime import date
     from .. import service_workshop
     from . import technician as technician_web
     user=request.state.user
     svc._require(user,svc.DISPATCHERS,'Chỉ điều phối được xử lý sửa ở xưởng.')
-    shown={k:str(form.get(k,'')) for k in ('version','promised_return_on','note','repaired_by','mode','reason','fee','fault','fix','warranty_months','warranty_scope')};shown['action']=action
+    shown={k:str(form.get(k,'')) for k in ('version','promised_return_on','note','repaired_by','mode','reason','fee','fault','fix','warranty_months','warranty_scope','assignee_id')};shown['action']=action
     try:
         version=_version(form)
         if action=='dong-y':
@@ -1015,8 +1018,14 @@ def workshop_dispatch(request:Request,ticket_id:int,action:str,form=Depends(chec
                 chips,fix,rep=technician_web.report_fields(form);fault=chips or fault
                 shown.update(repair_result=rep['repair_result'],fix_extra=rep['fix_extra'],picked=rep['fault']+rep['work'])
             service_workshop.workshop_repaired(session,user,ticket_id,version,repairer,shown['mode'],shown['reason'],fault,fix,months,shown['warranty_scope'])
+        elif action=='doi-tho':
+            ident=shown['assignee_id']
+            if not ident.isascii() or not ident.isdigit() or len(ident)>18:raise BusinessError('BAD_ASSIGNEE','Chọn thợ sửa.')
+            _,old_id=service_workshop.change_repairer(session,user,ticket_id,version,int(ident),shown['reason'],shown['note'])
+            background.add_task(service_workshop.notify_repairer,ticket_id,old_id)
+            return RedirectResponse(f'/dich-vu/{ticket_id}?doi_tho_sua=1#doi-tho-sua',status_code=303)
         else:raise BusinessError('NOT_FOUND','Không có thao tác này.',status=404)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_message(exc)
-        return _detail(request,session,user,ticket_id,form=shown,failed_action='xg1',error=message,error_code=code,status=status,xg_form=shown)
+        return _detail(request,session,user,ticket_id,form=shown,failed_action='doi-tho' if action=='doi-tho' else 'xg1',error=message,error_code=code,status=status,xg_form=shown)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
