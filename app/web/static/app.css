@@ -679,8 +679,8 @@ main:has(> .rq-page) { max-width: 1240px; }
 .rq-table a { text-decoration: none; font-weight: 600; }
 .rq-table tr[hidden] { display: none; }
 .rq-nowrap { white-space: nowrap; }
-.rq-kh { max-width: 280px; }
-.rq-kh span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rq-kh { min-width: 180px; }
+.rq-kh span { display: block; overflow-wrap: anywhere; }
 .rq-src { display: none; }
 .rq-cb { width: 36px; }
 .rq-cb input { width: 20px; height: 20px; accent-color: var(--accent); }
@@ -2205,6 +2205,11 @@ main:has(> .page-mid) { max-width: 752px; }
 .doc-view .doc-prog { display: flex; gap: 4px; flex-wrap: wrap; }
 .doc-view .doc-total { font-size: 1.5rem; color: var(--info-solid); }
 .doc-view .doc-balance { padding-top: 10px; border-top: 1px solid var(--line); }
+/* Tiền đơn (20/11/2026): nhãn Phải thu/Chờ xác nhận/Khách còn phải trả giữ một dòng; ghi chú dưới số tiền xuống dòng riêng, không bóp cột nhãn. */
+.doc-money .totals dt { white-space: nowrap; }
+.doc-money .receipt-balance { padding: 10px 0 0; gap: 6px 10px; font-size: .92rem; }
+.doc-money .totals dd { white-space: nowrap; }
+.doc-money .totals dd .q-hold { display: block; max-width: 12em; margin-left: auto; font-weight: 400; white-space: normal; }
 .doc-view .doc-next > .btn, .doc-view .doc-next > button, .doc-view .doc-pay button { width: 100%; }
 .doc-view .doc-pay { display: grid; gap: 8px; margin-top: 4px; }
 .doc-view .doc-pay .seg label { flex: 1; }
@@ -4714,13 +4719,12 @@ main:has(> .sbt-page) { max-width: 1240px; }
   .hg-two .pnz-side { order: 0; }
 }
 
-/* Báo giá sửa chữa đợt 3 (mẫu M3/M4 14/11/2026): thợ kiểm tra máy, điều phối áp báo giá. */
-.rq-page { max-width: 760px; }
+/* Báo giá sửa chữa đợt 3 (mẫu M3/M4 14/11/2026): thợ kiểm tra máy, điều phối áp báo giá.
+   Không đặt .rq-page/.rq-head ở đây: trùng tên với trang Báo thu (bóp hẹp bảng 20/11/2026). */
 .rq-card, .rq-svc { display: grid; gap: 10px; min-width: 0; }
 .rq-h { margin: 4px 0 0; }
 .rq-check { display: flex; gap: 10px; align-items: center; min-height: 44px; }
 .rq-check input { width: 22px; height: 22px; flex: none; }
-.rq-head { font-size: 1.05rem; }
 .rq-svc:not(:has([data-rq-on]:checked)) .rq-body { display: none; }
 .rq-body { display: grid; gap: 10px; }
 .rq-body .group-label { margin: 4px 0 0; }
