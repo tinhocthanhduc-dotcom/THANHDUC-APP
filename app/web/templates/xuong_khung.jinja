@@ -20,6 +20,21 @@
 {% if not next_step or next_step.primary.form!='workshop-approve' %}<button class="btn btn-ok xg-primary">Khách đồng ý</button>{% endif %}</form>
 {% else %}
 {% if t.quote_approved_at %}<details class="xg-more"><summary>Khách đã đồng ý · hẹn trả {{ t.promised_return_on.strftime('%d/%m/%Y') if t.promised_return_on else '' }} · đổi ngày</summary><form id="workshop-approve" method="post" action="/dich-vu/{{ t.id }}/xuong/dong-y" class="form" data-busy>{{ fields() }}<label>Ngày hẹn trả mới<input type="date" name="promised_return_on" value="{{ t.promised_return_on.isoformat() if t.promised_return_on else '' }}" required></label><input type="hidden" name="note" value=""><button class="btn btn-ghost">Cập nhật ngày hẹn trả</button></form></details>{% else %}<p class="alert ok">Bảo hành miễn phí, không cần khách duyệt giá.</p>{% endif %}
+{# Đổi thợ sửa (TUẤN duyệt mẫu PV1anDADorn327t1Wdjt77 20/11/2026): giao/đổi ngay trong khung, phiếu vẫn ở xưởng. #}
+{% set dt=xg_form if xg_form.get('action')=='doi-tho' else {} %}{% set dt_done=request.query_params.get('doi_tho_sua')=='1' %}
+<div class="xg-tech" id="doi-tho-sua">{% if dt_done %}<p class="alert ok">Đã giao máy cho {{ users.get(t.assignee_id, '') }} sửa. Thợ thấy máy trên màn của mình và nhận tin Zalo nếu đã gắn Zalo.</p>{% endif %}
+{% if t.assignee_id %}<div class="xg-kv xg-tech-kv"><span>Thợ đang sửa</span><b>{{ users.get(t.assignee_id, '') }}</b></div>{% elif ws_change %}<p class="alert warn">Chưa giao thợ sửa. Máy đang chờ ở kho.</p>{% endif %}
+{% if ws_change and ws_repairers %}{% set first=not t.assignee_id %}
+<details class="xg-more xg-tech-form" {% if dt or first %}open{% endif %}><summary>{{ 'Giao thợ sửa' if first else 'Đổi thợ sửa' }}</summary>
+<form id="workshop-change-tech" method="post" action="/dich-vu/{{ t.id }}/xuong/doi-tho" class="form" data-busy>{{ fields() }}
+<label>{{ 'Giao thợ sửa' if first else 'Thợ sửa mới' }}<select name="assignee_id" required>{% for r in ws_repairers %}<option value="{{ r.id }}" {% if (dt.get('assignee_id') or ws_repairers[0].id|string)==r.id|string %}selected{% endif %}>{{ r.name }} · {{ r.load }} việc đang mở{{ ' · gợi ý' if loop.first }}</option>{% endfor %}</select></label>
+{% if dt and error_code in ['BAD_ASSIGNEE','SAME_ASSIGNEE','NO_TECH_WAREHOUSE'] %}<small class="field-error">{{ error }}</small>{% endif %}
+{% if not first %}<div class="field-group" role="group"><p class="group-label">Lý do</p><div class="chips">{% for r in ws_reasons %}<label class="chip"><input type="radio" name="reason" value="{{ r }}" required {% if dt.get('reason')==r %}checked{% endif %}><span>{{ r }}</span></label>{% endfor %}</div></div>
+<label>Ghi chú (không bắt buộc){% if dt.get('reason')=='Khác' %} · lý do Khác ghi rõ{% endif %}<input name="note" maxlength="500" value="{{ dt.get('note','') }}" placeholder="vd: Phong đi công trình 2 ngày"></label>
+{% if dt and error_code=='REASON_REQUIRED' %}<small class="field-error">{{ error }}</small>{% endif %}
+<p class="hint">Vật tư đã cấp cho phiếu ở kho thợ cũ chuyển theo thợ mới, kho không cần làm gì.</p>{% endif %}
+{% if dt and error_code not in ['BAD_ASSIGNEE','SAME_ASSIGNEE','NO_TECH_WAREHOUSE','REASON_REQUIRED'] %}<p class="alert bad">{{ error }}</p>{% endif %}
+<button class="btn btn-new">{{ 'Giao thợ sửa' if first else 'Đổi thợ sửa' }}</button></form></details>{% endif %}</div>
 {% with f=xg_form if xg_form.get('action')=='sua-xong' else {} %}{% set has_after=files|selectattr('tag','equalto','SAU')|list %}
 {{ anh.saved('Ảnh nghiệm thu', has_after, '/dich-vu/' ~ t.id ~ '/anh/tai', '<input type="hidden" name="version" value="'|safe ~ (f.get('version') or t.version) ~ '"><input type="hidden" name="tag" value="SAU">'|safe, true, none, 'image/*', 2, 'workshop-after-photo') }}{% if not has_after %}<small class="hint">Bắt buộc trước khi Sửa xong</small>{% endif %}
 {% if ws_report %}<p class="alert info">Thợ {{ users.get(ws_report.actor_id, '') }} báo sửa xong {{ ws_report.at|vn_time }} {{ ws_report.at|vn_date }}: {{ ws_report.note }}. Kiểm tra máy, chốt vật tư và tiền rồi giao trả.</p>{% endif %}

@@ -75,6 +75,83 @@ def quote_approve(session,user,ident,version,promised_return_on,note='',repairer
     return t
 
 
+# Đổi thợ sửa máy ở xưởng (TUẤN duyệt mẫu PV1anDADorn327t1Wdjt77 20/11/2026): sau khi khách đồng ý, điều phối/giám đốc
+# giao hoặc đổi thợ sửa; phiếu vẫn ở xưởng (TAM_DUNG/CHO_SUA_XUONG), hàng đã cấp đi theo thợ mới, không đổi khi thợ đã báo kết quả.
+CHANGE_REASONS=('Thợ bận việc khác','Thợ nghỉ','Cần thợ rành máy này','Khác')
+
+
+def can_change_repairer(session,user,t):
+    return (has_role(user,*tickets.DISPATCHERS) and t.status=='TAM_DUNG' and t.hold_reason==WAITING and t.declined_at is None
+            and not service_charges.return_locked(t) and (t.quote_approved_at is not None or warranty_free(t))
+            and t.id not in reported(session,[t.id]) and t.id not in failed(session,[t.id]))
+
+
+def change_repairer(session,user,ident,version,assignee_id,reason='',note=''):
+    """Trả (phiếu, id thợ cũ hoặc None)."""
+    note=' '.join(str(note or '').split())[:500]
+    with _transaction(session):
+        t=_waiting(session,user,ident,version)
+        if t.declined_at is not None or (t.quote_approved_at is None and not warranty_free(t)):
+            raise BusinessError('BAD_STATUS','Khách chưa đồng ý sửa, chưa giao thợ sửa được.',status=409)
+        if t.id in reported(session,[t.id]) or t.id in failed(session,[t.id]):
+            raise BusinessError('ALREADY_REPORTED','Thợ đã báo kết quả sửa, không đổi thợ được nữa. Kho chốt tiếp.',status=409)
+        if assignee_id is None:raise BusinessError('BAD_ASSIGNEE','Chọn thợ sửa.')
+        tech=tickets._technician(session,assignee_id)
+        old_id=t.assignee_id
+        if old_id==tech.id:raise BusinessError('SAME_ASSIGNEE','Máy đang giao cho thợ này rồi.',status=409)
+        if old_id is not None:
+            if reason not in CHANGE_REASONS:raise BusinessError('REASON_REQUIRED','Chọn lý do đổi thợ sửa.')
+            if reason=='Khác' and len(note)<3:raise BusinessError('REASON_REQUIRED','Lý do Khác: ghi rõ vì sao.')
+        before=tickets.snapshot(t)
+        moved=''
+        if old_id is not None:
+            from . import technician_reassign
+            moved=technician_reassign.describe(session,*technician_reassign.move_ticket_stock(session,user,t,tech.id))
+        from .models import User
+        old=session.get(User,old_id) if old_id else None
+        t.assignee_id=tech.id
+        head=f'Đổi thợ sửa: {old.full_name if old else "?"} → {tech.full_name}' if old_id else f'Giao thợ sửa: {tech.full_name}'
+        text=' · '.join(x for x in (head,reason if old_id else '',note,moved) if x)
+        tickets._record(session,user,t,'reassign' if old_id else 'assign',before,t.status,text[:2000])
+    return t,old_id
+
+
+def notify_repairer(ticket_id,old_id=None):
+    """Chạy nền sau khi đổi/giao thợ sửa: Zalo cho thợ mới (và thợ cũ). Zalo lỗi vẫn ghi ở Tin nhắn Zalo, không làm hỏng việc đổi."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+    from . import zalo_bot
+    from .config import get_settings
+    from .db import engine
+    from .dispatch_alerts import base_url
+    from .models import Customer, ServiceStep, ServiceTicket, User, ZaloChat
+    if not get_settings().zalo_bot_token.strip():
+        return 0
+    sent=0
+    with Session(engine()) as session:
+        t=session.get(ServiceTicket,ticket_id)
+        if t is None or t.assignee_id is None:return 0
+        step=session.scalar(select(ServiceStep).where(ServiceStep.ticket_id==t.id,ServiceStep.action.in_(('assign','reassign')))
+                            .order_by(ServiceStep.id.desc()).limit(1))
+        customer=session.get(Customer,t.customer_code)
+        new=session.get(User,t.assignee_id)
+        from .repair_inspection import machine_name
+        machine=machine_name(session,t) or t.serial or 'máy'
+        line=f'{t.number} · {machine} · {customer.name if customer else t.customer_code}'
+        due=f'Hẹn trả khách: {t.promised_return_on.strftime("%d/%m")}' if t.promised_return_on else ''
+        why=(step.note if step else '')[:300]
+        bodies={t.assignee_id:'\n'.join(x for x in ('Anh/chị được giao sửa máy ở xưởng',line,due,why,f'{base_url()}/tho/phieu/{t.id}#sua-xuong') if x)}
+        if old_id and old_id!=t.assignee_id:
+            bodies[old_id]='\n'.join(('Máy ở xưởng đã chuyển cho '+(new.full_name if new else 'thợ khác')+' sửa',line,why))
+        for uid,body in bodies.items():
+            chat=session.scalar(select(ZaloChat).join(User,User.id==ZaloChat.user_id).where(ZaloChat.user_id==uid,User.active.is_(True),
+                                ZaloChat.chat_type=='PRIVATE').order_by(ZaloChat.id).limit(1))
+            if chat is None:continue
+            zalo_bot.send_text(session,chat,body,None,'thong_bao')
+            sent+=1
+    return sent
+
+
 def _ready(session,user,t,action,before,note):
     t.status,t.hold_reason='TAM_DUNG',READY
     t.due_at=tickets.service_sla.due_at(t.status,t.priority,tickets._now(),t.appointment_at,t.appointment_slot)

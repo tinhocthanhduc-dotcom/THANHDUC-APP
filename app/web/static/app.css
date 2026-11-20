@@ -5620,3 +5620,7 @@ main:has(> .cs-page) { max-width: 1280px; }
   .cs-table tr.cs-group, .cs-table tfoot tr { display: block; }
   .cs-table tfoot td { display: none; } .cs-table tfoot td:first-child { display: block; }
 }
+/* Đổi thợ sửa ở xưởng (20/11/2026) */
+.xg-tech { display: grid; gap: 8px; }
+.xg-tech-kv { background: var(--bg); border-radius: 8px; padding: 10px 12px; align-items: center; }
+.xg-tech-form form { padding: 10px 12px; display: grid; gap: 10px; }

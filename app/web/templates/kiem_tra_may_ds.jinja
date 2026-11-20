@@ -17,7 +17,7 @@
 <td class="bx-k" data-label="Khách"><b class="bx-cn">{{ r.customer }}</b>{% if r.contact %}<span class="lt-sub">{{ r.contact }}</span>{% endif %}</td>
 <td class="lt-st bx-s" data-label="Bước"><span class="bx-step bx-{{ r.stage }}">{{ r.stage_label }}</span>{% for chip, tone in r.chips %}<span class="bx-chip bx-{{ tone }}">{{ chip }}</span>{% endfor %}{% if r.note %}<span class="lt-sub">{{ r.note }}</span>{% endif %}</td>
 <td class="bx-t" data-label="Thời gian"><b class="bx-time{{ ' bx-' ~ r.tone if r.tone }}">{{ r.time }}</b>{% if r.time_sub %}<span class="lt-sub">{{ r.time_sub }}</span>{% endif %}</td>
-<td class="bx-a" data-label="Việc cần làm"><div class="bx-act"><div><b>{{ r.todo }}</b><span class="lt-sub">{{ r.who }}</span></div>{% if r.action %}<a class="btn {{ 'btn-ok' if r.action.tone == 'ok' else 'btn-new' if r.action.tone == 'new' else 'btn-ghost' }} bx-btn" href="{{ r.action.href }}">{{ r.action.label }}</a>{% endif %}</div></td>
+<td class="bx-a" data-label="Việc cần làm"><div class="bx-act"><div><b>{{ r.todo }}</b><span class="lt-sub">{{ r.who }}</span></div>{% if r.action %}<a class="btn {{ 'btn-ok' if r.action.tone == 'ok' else 'btn-new' if r.action.tone == 'new' else 'btn-ghost' }} bx-btn" href="{{ r.action.href }}">{{ r.action.label }}</a>{% endif %}{% if r.extra %}<a class="btn btn-ghost bx-btn bx-extra" href="{{ r.extra.href }}">{{ r.extra.label }}</a>{% endif %}</div></td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}{{ ui.empty('Không có máy nào ở mục này.' if view != 'tat-ca' or q else 'Không có máy nào ở xưởng.', '/kiem-tra-may?view=tat-ca' if view != 'tat-ca' or q else '', 'Xem tất cả') }}{% endif %}
 </div>{% endblock %}

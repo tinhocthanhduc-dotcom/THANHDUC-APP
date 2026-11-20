@@ -152,6 +152,7 @@ def build(session, user) -> dict:
         sub_bits, step_note, chips = [t.number], '', []
         late, time_label, time_sub, tone = False, '', '', ''
         todo, who, action, mine = '', '', None, False
+        extra = None
         label = ''
         href = f'/dich-vu/{t.id}'
         if r and r.items:
@@ -196,10 +197,17 @@ def build(session, user) -> dict:
                 if eq is not None and eq.custody_location == 'DOI_TAC':
                     chips.append(('Ở đối tác', 'warn'))
                 todo, who = 'Sửa máy, báo sửa xong', 'Thợ ' + (names.get(t.assignee_id) or 'xưởng')
-                if t.assignee_id == user.id and 'technician' in user.roles:
+                if not t.assignee_id:  # đổi thợ sửa 20/11/2026: chọn "Để kho giao sau" lúc khách đồng ý
+                    todo, who = 'Giao thợ sửa', 'Điều phối'
+                    if dispatcher:
+                        action, mine = dict(label='Giao thợ sửa', href=f'{href}#doi-tho-sua', tone='new'), True
+                elif t.assignee_id == user.id and 'technician' in user.roles:
                     action, mine = dict(label='Báo sửa xong', href=f'/tho/phieu/{t.id}#sua-xuong', tone='ok'), True
+                    if dispatcher:
+                        extra = dict(label='Đổi thợ', href=f'{href}#doi-tho-sua')
                 elif dispatcher:  # thợ không dùng app: kho chốt thẳng như cũ
                     action = dict(label='Sửa xong', href=f'{href}#workshop-repaired', tone='')
+                    extra = dict(label='Đổi thợ', href=f'{href}#doi-tho-sua')
             elif sent is not None and sent.sent_at:
                 stage = 's3'
                 days = rq.waiting_days(sent)
@@ -280,7 +288,7 @@ def build(session, user) -> dict:
         rows.append(dict(t=t, stage=stage, stage_label=label or STAGES[stage], machine=machine, sub=' · '.join(b for b in sub_bits if b),
                          customer=c.name if c else t.customer_code, contact=(c.address or '')[:60] if c else '',
                          note=step_note, chips=chips, late=late, time=time_label, time_sub=time_sub, tone=tone,
-                         todo=todo, who=who, action=action, mine=mine, href=href,
+                         todo=todo, who=who, action=action, extra=extra, mine=mine, href=href,
                          search=fold(' '.join((t.number, machine, c.name if c else '', t.serial or '', t.customer_code)))))
     order = {k: i for i, k in enumerate(STAGES)}
     rows.sort(key=lambda x: (not x['late'], not x['mine'], order[x['stage']], x['t'].id))
