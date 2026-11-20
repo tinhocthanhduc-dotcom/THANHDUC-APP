@@ -25,7 +25,7 @@ def lines(db, p, t):
     t = db.get(ServiceTicket, t.id)
     keep = [service_charges.line_input(x) for x in t.lines]
     service_charges.set_charges(db, p['dispatcher'], t.id, ServiceCharges(version=t.version, billing='THU_TIEN', lines=keep + [
-        dict(kind='PHI', description='Phí kiểm tra', qty=1, unit_price=100000, vat_rate=8),
+        dict(kind='PHI', description='Phí vệ sinh máy', qty=1, unit_price=100000, vat_rate=8),
         dict(kind='VAT_TU', description='Rulo ép', product_code='TD-0001', warehouse_code='K58', qty=1, unit_price=50000, vat_rate=8)]))
     db.refresh(t)
     return t
@@ -121,7 +121,7 @@ def test_changed_ticket_lines_make_new_version_on_print(client, db, workshop, ma
     t = lines(db, p, t)
     v1 = rq.create(db, p['dispatcher'], t.id, t.version)
     db.refresh(t)
-    keep = [service_charges.line_input(x) for x in t.lines if x.description != 'Phí kiểm tra']
+    keep = [service_charges.line_input(x) for x in t.lines if x.description != 'Phí vệ sinh máy']
     service_charges.set_charges(db, p['dispatcher'], t.id, ServiceCharges(version=t.version, billing='THU_TIEN', lines=keep))
     db.refresh(t)
     csrf = service_login(client, p['dispatcher'])

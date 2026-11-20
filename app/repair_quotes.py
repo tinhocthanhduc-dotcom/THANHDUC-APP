@@ -41,8 +41,19 @@ TERMS_KEY = 'DIEU_KIEN_BH'
 DEFAULT_TERMS = ('Bảo hành hạng mục và linh kiện đã thay, tính từ ngày trả máy.',
                  'Mang máy kèm số phiếu khi bảo hành.',
                  'Không bảo hành khi máy rơi vỡ, vào nước, cháy nổ do nguồn điện.',
-                 'Không bảo hành khi dùng mực, giấy kém chất lượng gây hỏng.',
                  'Không bảo hành khi tem bị rách hoặc máy đã sửa ở nơi khác.')
+
+
+def warranty_text(snap: dict | None) -> str:
+    """Một dòng "Thời gian bảo hành" chung dưới danh sách hạng mục (TUẤN 20/11/2026): lấy một số của gói sửa chính
+    (dòng gói giá cao nhất; không có gói thì dòng giá cao nhất). '' khi bản cũ chưa ghi số tháng."""
+    lines = [ln for ln in (snap or {}).get('lines') or [] if (ln.get(ln.get('pick') or 'PA1') or {}).get('warranty') is not None]
+    main = [ln for ln in lines if not ln.get('extra')] or lines
+    if not main:
+        return ''
+    best = max(main, key=lambda ln: (ln.get(ln.get('pick') or 'PA1') or {}).get('price') or 0)
+    months = best[best.get('pick') or 'PA1']['warranty']
+    return f'{months} tháng kể từ ngày trả máy' if months > 0 else 'Không bảo hành'
 
 
 def terms(session: Session) -> list[str]:
@@ -121,7 +132,7 @@ def _pa(p: dict) -> dict | None:
 
 
 def _totals(lines, key):
-    picked = [ln[key] or ln['PA1'] for ln in lines]
+    picked = [ln[key] or ln['PA1'] for ln in lines if not ln.get('free_if_agree')]
     if any(p is None for p in picked):
         return None
     sub = sum(p['price'] for p in picked)
@@ -145,14 +156,32 @@ def extra_lines(session: Session, t: ServiceTicket, row: RepairInspection) -> li
         qty = x.qty.normalize() if hasattr(x.qty, 'normalize') else x.qty
         months = (product.warranty_months if product is not None else 0) if x.kind == 'VAT_TU' else FEE_WARRANTY
         pa = dict(price=x.amount, vat=x.vat_amount, warranty=months)
-        out.append(dict(name=(name or 'Phí dịch vụ')[:500], description='', PA1=pa, PA2=None, pick='PA1', extra=True,
-                        qty=f'{qty:f}', unit=x.unit_price))
+        line = dict(name=(name or 'Phí dịch vụ')[:500], description='', PA1=pa, PA2=None, pick='PA1', extra=True,
+                    qty=f'{qty:f}', unit=x.unit_price)
+        if is_inspect_fee(x):
+            line['free_if_agree'] = True  # TUẤN chọn 20/11/2026: khách đồng ý sửa thì miễn phí kiểm tra
+        out.append(line)
     return out
+
+
+def is_inspect_fee(x) -> bool:
+    """Dòng "Phí kiểm tra…" ghi tay trên phiếu: miễn khi khách đồng ý sửa, chỉ thu khi khách không sửa."""
+    from .text import fold
+    return x.kind == 'PHI' and x.stock_doc_id is None and fold(x.description or '').startswith('phi kiem tra')
+
+
+def inspect_fee(lines: list[dict]) -> dict:
+    """Tổng phí kiểm tra sẽ thu nếu khách không sửa (không nằm trong tổng báo giá)."""
+    sub = sum(ln['PA1']['price'] for ln in lines if ln.get('free_if_agree'))
+    vat = sum(ln['PA1']['vat'] for ln in lines if ln.get('free_if_agree'))
+    return dict(subtotal=sub, vat=vat, total=sub + vat)
 
 
 def _sum(lines: list[dict], key: str = 'pick') -> dict:
     sub = vat = 0
     for ln in lines:
+        if ln.get('free_if_agree'):
+            continue
         p = ln[ln['pick'] if key == 'pick' else key] or ln['PA1']
         sub += p['price']
         vat += p['vat']
@@ -187,7 +216,7 @@ def preview(session: Session, t: ServiceTicket, row: RepairInspection, q: dict |
     else:
         reason = ''
     return dict(extras=extras, missing=missing, packages=pkg, subtotal=sub, vat=vat, total=total, ready=not reason, reason=reason, code=code,
-                extra_subtotal=ex['subtotal'], extra_vat=ex['vat'])
+                extra_subtotal=ex['subtotal'], extra_vat=ex['vat'], fee=inspect_fee(extras))
 
 
 def snapshot(session: Session, t: ServiceTicket, row: RepairInspection, days: int | None = None) -> dict:
@@ -206,7 +235,7 @@ def snapshot(session: Session, t: ServiceTicket, row: RepairInspection, days: in
     extras = pv['extras']
     customer = session.get(Customer, t.customer_code)
     pick = 'PA2' if any(ln['pick'] == 'PA2' for ln in lines) else 'PA1'
-    picked = [(ln[ln['pick']] or ln['PA1']) for ln in lines + extras]
+    picked = [(ln[ln['pick']] or ln['PA1']) for ln in lines + extras if not ln.get('free_if_agree')]
     chosen = dict(subtotal=pv['subtotal'], vat=pv['vat'], total=pv['total'], warranty=max((p['warranty'] or 0 for p in picked), default=0))
     other = 'PA1' if pick == 'PA2' else 'PA2'
     alt = _totals(lines + extras, other) if any(ln[other] for ln in lines) else None
@@ -214,7 +243,8 @@ def snapshot(session: Session, t: ServiceTicket, row: RepairInspection, days: in
         alt = None
     return dict(number=t.number, customer=customer.name if customer else t.customer_code, model=row.model_name, serial=t.serial or '',
                 symptom=' '.join((t.symptom or '').split())[:300], lines=lines + extras, pick=pick, chosen=chosen, alt=alt,
-                alt_key=other if alt else '', missing=pv['missing'], days=days if days in LEAD_DAYS else None, terms=terms(session))
+                alt_key=other if alt else '', missing=pv['missing'], days=days if days in LEAD_DAYS else None, terms=terms(session),
+                fee=pv['fee'] if pv['fee']['total'] else None)
 
 
 def _matches_ticket(t: ServiceTicket, row: RepairInspection, snap: dict) -> bool:
@@ -228,6 +258,9 @@ def zalo_text(snap: dict, row: RepairQuoteVersion) -> str:
     out = [f'Dạ, Thành Đức gửi báo giá sửa máy {snap["model"]} ({snap["number"]}, lần {row.no}):']
     for ln in snap['lines']:
         p = ln[ln['pick']]
+        if ln.get('free_if_agree'):
+            out.append(f'• {ln["name"]}: miễn phí khi anh/chị đồng ý sửa (không sửa: {_m(p["price"] + p["vat"])}đ gồm VAT)')
+            continue
         if ln.get('extra'):
             qty = f' × {ln["qty"]}' if ln.get('qty') not in (None, '1') else ''
             out.append(f'• {ln["name"]}{qty}: {_m(p["price"])}đ')
@@ -468,6 +501,7 @@ def agree(session: Session, user: User, vid: int, ticket_version, choice: str, v
         ri.apply(session, user, t.id, version, choices)
         session.refresh(t)
         version = t.version
+    version = _waive_inspect_fee(session, user, t, v, version)
     service_workshop.quote_approve(session, user, t.id, version, promised_return_on,
                                    f'Báo giá lần {v.no} · {choice} · {VIA[via]} · {person}{" · " + note.strip()[:500] if note.strip() else ""}',
                                    repairer_id=repairer_id)
@@ -477,6 +511,30 @@ def agree(session: Session, user: User, vid: int, ticket_version, choice: str, v
     audit.record(session, user, 'repair_quote.agree', 'service_ticket', str(t.id), None, dict(no=v.no, choice=choice, via=via, person=person))
     session.commit()
     return v
+
+
+def _waive_inspect_fee(session: Session, user: User, t: ServiceTicket, v: RepairQuoteVersion, version):
+    """Khách đồng ý sửa: dòng phí kiểm tra báo "miễn phí khi đồng ý" về 0đ trên phiếu, để tiền phiếu đúng tổng khách đã đồng ý."""
+    from . import service_charges
+    from .schemas import ServiceCharges
+    names = {ln['name'] for ln in v.snapshot.get('lines') or [] if ln.get('free_if_agree')}
+    if not names:
+        return version
+    session.refresh(t)
+    lines, changed = [], False
+    for x in t.lines:
+        li = service_charges.line_input(x)
+        if is_inspect_fee(x) and (x.description or '').strip()[:500] in names and x.amount + x.vat_amount > 0:
+            li.update(unit_price=0, gross=0)
+            changed = True
+        lines.append(li)
+    if not changed:
+        return version
+    service_charges.set_charges(session, user, t.id, ServiceCharges(version=version, billing=t.billing or 'THU_TIEN',
+                                                                  free_reason=t.free_reason or '', lines=lines))
+    session.refresh(t)
+    audit.record(session, user, 'repair_quote.waive_inspect_fee', 'service_ticket', str(t.id), None, dict(no=v.no, lines=sorted(names)))
+    return t.version
 
 
 def not_yet(session: Session, user: User, vid: int, reason: str, wanted_price=None, via: str = '', note: str = '') -> RepairQuoteVersion:

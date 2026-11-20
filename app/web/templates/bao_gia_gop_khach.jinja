@@ -40,7 +40,7 @@ details{font-size:14px;color:var(--muted)}summary{cursor:pointer;color:#1f5fbf}
 <section class="list">{% for v in rows %}{% set s = v.snapshot %}{% set many = s.lines|length > 1 %}
 <div class="mc"><div class="top"><b>{{ loop.index }}. {{ s.model }}</b><b>{{ s.chosen.total|money }}đ</b></div>
 <span class="meta">{% if s.serial %}Serial {{ s.serial }} · {% endif %}{{ s.number }}{% if s.chosen.warranty %} · BH {{ s.chosen.warranty }} tháng{% endif %}{% if v.status == 'DONG_Y' %} · <span class="tag">Đã đồng ý</span>{% endif %}</span>
-{% for ln in s.lines %}{% set p = ln[ln.pick] %}<div class="it"><span>{{ ln.name }}{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</span><span>{% if many %}{{ (p.price + p.vat)|money }}{% endif %}</span></div>{% endfor %}
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<div class="it"><span>{{ ln.name }}{% if ln.pick == 'PA2' %} <span class="tag">Chính hãng</span>{% endif %}</span><span>{% if ln.free_if_agree %}Miễn phí khi đồng ý sửa ({{ (p.price + p.vat)|money }}đ nếu không sửa){% elif many %}{{ (p.price + p.vat)|money }}{% endif %}</span></div>{% endfor %}
 {% if s.alt %}<span class="alt">{{ 'Chính hãng' if s.alt_key == 'PA2' else 'Tiêu chuẩn' }}: {{ s.alt.total|money }}đ</span>{% endif %}
 {% set desc = s.lines|selectattr('description')|map(attribute='description')|list %}{% if desc %}<details><summary>Xem mô tả</summary>{{ desc|join(' ') }}</details>{% endif %}
 </div>{% endfor %}</section>

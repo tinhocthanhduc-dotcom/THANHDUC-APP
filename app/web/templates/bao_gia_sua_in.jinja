@@ -10,16 +10,17 @@
 {% block body %}
 <div class="in-cards">{{ f.card('Khách hàng', s.customer, [('Mã khách', customer.code if customer else ''), ('Địa chỉ', customer.address if customer else ''), ('Điện thoại', (customer|customer_phones('')) if customer else '')]) }}
 {{ f.card('Máy sửa', s.model, [('Serial', s.serial), ('Tình trạng khách báo', s.symptom), ('Người lập', maker.full_name if maker else '')]) }}</div>
-{% macro bh(p) %}{% if p.warranty is defined and p.warranty is not none %}{{ (p.warranty ~ ' tháng') if p.warranty > 0 else 'Không BH' }}{% endif %}{% endmacro %}
 {% macro qty(ln) %}{% set q = (ln.qty or '1')|string %}{{ (q.rstrip('0').rstrip('.') if '.' in q else q) }}{% endmacro %}
-<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:11mm"><col style="width:24mm"><col style="width:26mm"><col style="width:20mm"></colgroup>
-<thead><tr><th class="c">STT</th><th>Hạng mục sửa chữa</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="m">Thành tiền<small>chưa VAT</small></th><th class="c">Bảo hành</th></tr></thead><tbody>
-{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td class="n"><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<br><small>{{ ln.description }}</small>{% endif %}</td><td class="c">{{ qty(ln) }}</td><td class="m">{{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }}</td><td class="m">{{ p.price|money }}</td><td class="c">{{ bh(p) }}</td></tr>{% endfor %}
+<table class="in-it"><colgroup><col style="width:9mm"><col><col style="width:11mm"><col style="width:24mm"><col style="width:28mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Hạng mục sửa chữa</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
+{% for ln in s.lines %}{% set p = ln[ln.pick] %}<tr><td class="c">{{ loop.index }}</td><td class="n"><b>{{ ln.name }}</b>{% if ln.pick == 'PA2' %} (linh kiện chính hãng){% endif %}{% if ln.description %}<br><small>{{ ln.description }}</small>{% endif %}{% if ln.free_if_agree %}<br><small>Miễn phí khi khách đồng ý sửa; không sửa thu {{ (p.price + p.vat)|money }} đồng (gồm VAT).</small>{% endif %}</td><td class="c">{{ qty(ln) }}</td><td class="m">{{ (ln.unit if ln.extra and ln.unit is defined else p.price)|money }}</td><td class="m">{{ "Miễn phí" if ln.free_if_agree else p.price|money }}</td></tr>{% endfor %}
+{% if bh_text %}<tr class="in-bhr"><td></td><td colspan="4"><b>Thời gian bảo hành:</b> {{ bh_text }}</td></tr>{% endif %}
 </tbody></table>
 <div class="in-sum"><div class="left">
 <div class="in-note"><h4>Điều kiện bảo hành</h4><ul>{% for x in (s.terms or default_terms) %}<li>{{ x }}</li>{% endfor %}</ul></div>
 <div class="in-note"><h4>Ghi chú</h4><ul>{% if s.days %}<li>Sửa xong dự kiến {{ {1: '1 ngày', 2: '2 ngày', 3: '3 ngày', 7: '1 tuần'}.get(s.days, s.days ~ ' ngày') }} làm việc, tính từ khi khách đồng ý báo giá.</li>{% endif %}{% if s.alt %}<li>Phương án {{ 'linh kiện chính hãng' if s.alt_key == 'PA2' else 'tiêu chuẩn' }}: tổng {{ s.alt.total|money }} đồng (đã gồm VAT).</li>{% endif %}<li>Báo giá có hiệu lực đến hết ngày {{ v.valid_until|vn_date }}.</li></ul></div></div>
 {{ f.totals([('Cộng tiền sửa (chưa VAT)', c.subtotal|money ~ ' đồng'), ('Thuế GTGT 8%', c.vat|money ~ ' đồng')], ('TỔNG THANH TOÁN', c.total|money ~ ' đồng')) }}</div>
+{% if s.fee %}<div class="in-words"><b>Nếu khách không sửa:</b> thu phí kiểm tra {{ s.fee.total|money }} đồng (gồm VAT).</div>{% endif %}
 <div class="in-words"><b>Tổng thanh toán bằng chữ:</b> {{ words }}.</div>
 {% endblock %}
 {% block signatures %}<div class="in-sd">Thành phố Hồ Chí Minh, {{ v.created_at|vn_long_date }}</div>
