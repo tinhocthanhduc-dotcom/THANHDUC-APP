@@ -659,7 +659,8 @@ def confirm_cash_group(session,user,items,counted,reporter_id):
                 if row.status!='CHO_XAC_NHAN':raise BusinessError('BAD_STATUS','Báo thu không còn chờ xác nhận.',status=409)
                 if row.method!='TIEN_MAT' or row.reported_by!=reporter_id:
                     raise BusinessError('BAD_GROUP','Chỉ xác nhận chung tiền mặt của cùng một người nộp.')
-                if row.reported_by==user.id:
+                # Giám đốc được xác nhận tiền mặt do chính mình nộp (TUẤN 20/11/2026), giống xác nhận từng phiếu.
+                if row.reported_by==user.id and not has_role(user,'director'):
                     raise BusinessError('SELF_CONFIRM','Không được tự xác nhận báo thu trong nhóm.',status=403)
                 locked.append(row)
             except BusinessError as exc:
