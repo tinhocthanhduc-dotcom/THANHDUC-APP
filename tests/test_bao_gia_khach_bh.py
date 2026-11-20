@@ -2,7 +2,7 @@
 
 Điều kiện xong: mỗi dòng có số tháng bảo hành (gói theo bảng giá, vật tư theo mã hàng, phí ghi tay 1 tháng); người gửi chọn
 thời gian sửa dự kiến 1/2/3 ngày hoặc 1 tuần; 5 điều kiện bảo hành chuẩn, chỉ giám đốc sửa; trang khách mở link và bản In A4
-hiện logo, MST, bảng hạng mục có bảo hành, bằng chữ, điều kiện, nút Zalo/Gọi/In; trang khách không lộ điện thoại khách.
+hiện thông tin công ty (không logo, TUẤN 20/11), MST, bảng hạng mục có bảo hành, bằng chữ, điều kiện, nút Zalo/Gọi/In; trang khách không lộ điện thoại khách.
 """
 from sqlalchemy import select
 
@@ -45,10 +45,11 @@ def test_line_warranty_lead_time_and_pages(client, db, workshop, make_user):
     assert s['chosen']['warranty'] == 6 and s['chosen']['total'] == 648000
     assert s['days'] == 2 and s['terms'] == list(rq.DEFAULT_TERMS)
     assert 'Sửa xong dự kiến 2 ngày' in v.text and 'Rulo ép: 50.000đ' in v.text
-    # Trang khách: logo, MST, bảo hành từng dòng, bằng chữ, thời gian, điều kiện, Zalo/Gọi/In; không lộ điện thoại khách.
+    # Trang khách: thông tin công ty không logo, MST, bảo hành từng dòng, bằng chữ, thời gian, điều kiện, Zalo/Gọi/In; không lộ điện thoại khách.
     client.cookies.clear()
     pub = client.get(f'/bg/{v.token}').text
-    assert 'logo-thanh-duc' in pub and 'MST: 0313015734' in pub and 'Bảo hành 6 tháng' in pub and 'Bảo hành 1 tháng' in pub
+    assert 'logo-thanh-duc' not in pub and 'Mã số thuế: <b>0313015734</b>' in pub and 'mailto:info@thanhduc.vn' in pub and '>Máy in Máy in' not in pub
+    assert 'Bảo hành 6 tháng' in pub and 'Bảo hành 1 tháng' in pub
     assert 'Bảo hành 3 tháng' in pub and '648.000' in pub and 'Bằng chữ: Sáu trăm bốn mươi tám nghìn đồng' in pub
     assert 'Sửa xong dự kiến 2 ngày' in pub and 'Điều kiện bảo hành' in pub and rq.DEFAULT_TERMS[2] in pub
     assert 'https://zalo.me/0888304668' in pub and 'tel:0888304668' in pub and 'window.print()' in pub
