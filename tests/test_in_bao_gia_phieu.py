@@ -59,7 +59,10 @@ def test_missing_package_prints_ticket_lines_only(client, db, workshop, make_use
     assert pv['ready'] and pv['total'] == 162000 and pv['missing'] and len(pv['extras']) == 2
     page = client.get(f'/dich-vu/{t.id}').text
     assert 'Báo giá cho khách' in page and 'Tổng gửi khách' in page and 'data-rq-missing' in page and 'Rulo ép' in page
-    assert 'data-xg-panel' not in page and page.count('id="workshop-approve"') == 1 and 'Khách trả lời' in page
+    assert 'class="card form xg-panel"' not in page and page.count('id="workshop-approve"') == 1 and 'Khách trả lời' in page
+    # Mẫu WhRixnQ4diF1v8J2MPR437: Khách không sửa chỉ một chỗ, ngay dưới Khách đồng ý ở Bước tiếp; dải Gửi khách gọn.
+    assert page.count('id="workshop-decline"') == 1 and page.index('rq-decline-step') > page.index('data-next-primary')
+    assert 'rq-sendbar' in page and 'Lưu và gửi lần 1' in page and 'xg-days5' in page
     assert 'disabled title=' not in page
     r = client.post(f'/kiem-tra-may/{t.id}/in-bao-gia', data={'csrf': csrf, 'version': str(t.version)}, follow_redirects=False)
     v = db.scalar(select(RepairQuoteVersion).where(RepairQuoteVersion.ticket_id == t.id))
@@ -98,6 +101,18 @@ def test_applied_package_plus_ticket_lines_and_alternative(db, workshop, make_us
     db.expire_all()
     t = db.get(ServiceTicket, t.id)
     assert sum(x.amount + x.vat_amount for x in t.lines) == 810000 and t.quote_approved_at
+
+
+def test_past_return_date_not_preselected(client, db, workshop, make_user):
+    from datetime import timedelta
+    from app import service_tickets
+    p, a, b, t, eq = workshop
+    t = unknown_model(db, dict(p, t=t), make_user)
+    t.promised_return_on = service_tickets._now().date() - timedelta(days=1)
+    db.commit()
+    service_login(client, p['dispatcher'])
+    page = client.get(f'/dich-vu/{t.id}').text
+    assert t.promised_return_on.isoformat() not in page.split('data-xg-date')[0].rsplit('<input', 1)[-1]
 
 
 def test_changed_ticket_lines_make_new_version_on_print(client, db, workshop, make_user):

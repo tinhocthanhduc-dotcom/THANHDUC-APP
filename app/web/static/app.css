@@ -5767,3 +5767,21 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .rq-print-head { display: inline; margin: 0; }
 .rq-print-head button[disabled] { opacity: .45; cursor: not-allowed; }
 .rq-merge-tien { margin-top: 10px; }
+/* Gửi khách gọn (TUẤN duyệt 20/11/2026, mẫu WhRixnQ4diF1v8J2MPR437). */
+.rq-sendbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel-soft, var(--surface-2, transparent)); }
+.rq-sendbar b { font-size: 1.15rem; font-variant-numeric: tabular-nums; margin-left: 6px; }
+.rq-sendbar .btn { width: auto; flex: none; }
+.rq-sendbar-note { margin: 4px 0 0; font-size: 13px; }
+.seg.xg-days.xg-days5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.seg.xg-days.xg-days5 > label { min-width: 0; }
+.xg-days5 span, .xg-days5 small { display: block; }
+.xg-day-pick { display: flex; flex-direction: column; justify-content: center; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; text-align: center; font-size: 13px; }
+.xg-day-pick input[type=date] { width: 100%; min-width: 0; font-size: 13px; padding: 2px; border: 0; background: transparent; color: inherit; }
+.xg-note1 { display: block; margin-top: 8px; }
+.xg-note1 input { width: 100%; }
+.rq-decline-step { margin-top: 8px; }
+.rq-decline-step .xg-decline { border-color: var(--bad); }
+.rq-decline-step .xg-decline > summary { justify-content: center; color: var(--bad); font-weight: 700; }
+@media (max-width: 480px) { .xg-day-pick input[type=date] { font-size: 16px; } }
+.seg .xg-day-pick input[type=date] { position: static; opacity: 1; width: 100%; }
+.xg-day-pick:has(input:valid:not(:placeholder-shown)) { border-color: var(--accent); }
