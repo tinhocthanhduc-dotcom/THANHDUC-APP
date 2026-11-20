@@ -4,25 +4,28 @@
 {% block main %}<div class="page-wide list-page cash-page" data-list-page="thu-chi">
 {% call ui.page_head('Thu chi · Sổ quỹ', sub='Phiếu thu, chi, chuyển quỹ. Tiền khách trả vào đây sau khi kế toán xác nhận báo thu.') %}<a class="btn btn-ghost" href="/quy">Quỹ và sổ quỹ</a><a class="btn btn-new" href="/thu-chi/moi">+ Lập phiếu</a>{% endcall %}
 {% if error %}<p class="alert bad" role="alert" data-error-code="{{ error.code }}">{{ error.message }}</p>{% endif %}
-{{ ui.tiles(tiles) }}
+{{ ui.tiles(tiles, keep_phone=true) }}
 <section class="card list-frame">
 {{ ui.list_tabs(tabs) }}
-{% call ui.list_bar('/thu-chi', filters.q, 'Tìm số phiếu, người nộp/nhận, nội dung (không dấu)…', active=chips|length) %}{% if filters.trang_thai %}<input type="hidden" name="trang_thai" value="{{ filters.trang_thai }}">{% endif %}
+{% call ui.list_bar('/thu-chi', filters.q, 'Tìm số phiếu, người nộp/nhận, danh mục, nội dung (không dấu)…', active=chips|length) %}{% if filters.trang_thai %}<input type="hidden" name="trang_thai" value="{{ filters.trang_thai }}">{% endif %}
 <select name="quy" aria-label="Quỹ"><option value="">Mọi quỹ</option>{% for f in funds %}<option value="{{ f.code }}" {% if filters.quy==f.code %}selected{% endif %}>{{ f.code }} · {{ f.name }}</option>{% endfor %}</select>
 <select name="loai" aria-label="Loại phiếu"><option value="">Mọi loại phiếu</option>{% for value,label in kinds.items() %}<option value="{{ value }}" {% if filters.loai==value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+<select name="danh_muc" aria-label="Danh mục"><option value="">Mọi danh mục</option>{% for c in categories %}<option value="{{ c.code }}" {% if filters.danh_muc==c.code %}selected{% endif %}>{{ 'Thu' if c.direction=='THU' else 'Chi' }} · {{ c.name }}{% if not c.active %} (ngừng){% endif %}</option>{% endfor %}<option value="{{ no_category }}" {% if filters.danh_muc==no_category %}selected{% endif %}>Chưa chọn danh mục</option></select>
+<select name="doi_tuong" aria-label="Đối tượng"><option value="">Mọi đối tượng</option>{% for value,label in who_kinds.items() %}<option value="{{ value }}" {% if filters.doi_tuong==value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
 {{ ui.date_range('Kỳ', 'from', filters['from'], 'to', filters.to) }}{% endcall %}
-{{ ui.filter_chips(chips, link(quy='', loai='')) }}
-{% if rows %}<div class="table-scroll"><table class="list-table lt-cards cash-list">
-<thead><tr><th>Số phiếu · ngày</th><th>Quỹ</th><th>Nội dung</th><th>Trạng thái</th><th class="num">Số tiền</th></tr></thead><tbody>
-{% for d in rows %}<tr data-href="/thu-chi/{{ d.id }}" class="cash-{{ d.status|lower }}{{ ' lt-alert' if d.status == 'NHAP' }}">
+{{ ui.filter_chips(chips, link(quy='', loai='', danh_muc='', doi_tuong='')) }}
+{% if cat_chips %}<div class="tc-cats" aria-label="{{ 'Thu' if cat_dir=='THU' else 'Chi' }} theo danh mục"><span class="tc-cats-l">{{ 'Thu' if cat_dir=='THU' else 'Chi' }} theo danh mục</span>{% for c in cat_chips %}<a class="tc-chip{{ ' on' if c.on }}" href="{{ c.href }}"{% if c.on %} aria-current="true"{% endif %}>{{ c.name }} <b>{{ c.amount|money }}</b>{% if c.on %} <span aria-hidden="true">×</span>{% endif %}</a>{% endfor %}</div>{% endif %}
+{% if rows %}<div class="table-scroll"><table class="list-table lt-cards cash-list tc-list">
+<thead><tr><th>Số phiếu · ngày</th><th>Danh mục · quỹ</th><th>Nộp / nhận</th><th>Nội dung · chứng từ gốc</th><th class="num">Số tiền</th></tr></thead><tbody>
+{% for d in rows %}{% set i = info[d.id] %}<tr data-href="/thu-chi/{{ d.id }}" class="cash-{{ d.status|lower }}{{ ' lt-alert' if d.status == 'NHAP' }}">
 <td class="lt-first"><a class="lt-no code" href="/thu-chi/{{ d.id }}">{{ d.number }}</a><span class="lt-sub">{{ d.doc_date.strftime('%d/%m/%Y') }} · {{ kinds[d.kind] }}</span></td>
-<td><b>{{ d.fund_code }}{% if d.to_fund_code %} → {{ d.to_fund_code }}{% endif %}</b></td>
-<td class="cash-desc">{{ d.description or '—' }}{% if d.partner_name or d.is_opening %}<span class="lt-sub">{{ d.partner_name }}{% if d.partner_name and d.is_opening %} · {% endif %}{% if d.is_opening %}Đầu kỳ{% endif %}</span>{% endif %}</td>
-<td class="lt-st">{{ ui.badge(states[d.status], {'NHAP':'cho','DA_GHI':'xong','DA_HUY':'huy'}[d.status]) }}</td>
-<td class="num"><b class="cash-amt{{ ' lt-bad' if d.kind == 'PC' }}">{{ '−' if d.kind=='PC' else '' }}{{ d.amount|money }}</b></td>
+<td class="tc-cat">{% if d.kind == 'CQ' %}<span class="tc-pill tc-cq">Chuyển quỹ</span>{% elif i.cat %}<span class="tc-pill tc-{{ 'thu' if d.kind == 'PT' else 'chi' }}">{{ i.cat }}</span>{% else %}<span class="tc-pill tc-none">{{ 'Số dư đầu kỳ' if d.is_opening else 'Chưa chọn danh mục' }}</span>{% endif %}<span class="lt-sub">{{ d.fund_code }}{% if d.to_fund_code %} → {{ d.to_fund_code }}{% endif %}</span></td>
+<td class="tc-who">{% if i.who %}<span class="tc-kind">{{ who_kinds[i.who_kind] }}</span><b>{{ i.who }}</b>{% elif d.kind != 'CQ' %}<span class="tc-none-who">Chưa ghi người {{ 'nộp' if d.kind == 'PT' else 'nhận' }}</span>{% endif %}</td>
+<td class="cash-desc tc-desc">{{ d.description or '—' }}{% if i.src_label %}<a class="tc-src" href="{{ i.src_href }}">↗ {{ i.src_label }}</a>{% endif %}</td>
+<td class="num tc-amt"><b class="cash-amt{{ ' lt-bad' if d.kind == 'PC' }}">{{ '−' if d.kind=='PC' else '' }}{{ d.amount|money }}</b>{{ ui.badge(states[d.status], {'NHAP':'cho','DA_GHI':'xong','DA_HUY':'huy'}[d.status]) }}</td>
 </tr>{% endfor %}
 </tbody></table></div>
-{% else %}{{ ui.empty('Không có phiếu nào khớp bộ lọc trong kỳ này.', link(q='', quy='', loai='', trang_thai='') if chips or filters.q or filters.trang_thai else '', 'Xóa lọc') }}{% endif %}
+{% else %}{{ ui.empty('Không có phiếu nào khớp bộ lọc trong kỳ này.', link(q='', quy='', loai='', trang_thai='', danh_muc='', doi_tuong='') if chips or filters.q or filters.trang_thai else '', 'Xóa lọc') }}{% endif %}
 {% call ui.list_foot(page, 'phiếu') %}Đã ghi: thu <b>{{ sums.PT|money }}</b> · chi <b>{{ sums.PC|money }}</b> · chuyển <b>{{ sums.CQ|money }}</b> đồng{% endcall %}
 </section>
 </div>

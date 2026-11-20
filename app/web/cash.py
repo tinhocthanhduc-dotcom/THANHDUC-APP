@@ -126,9 +126,10 @@ def _staff(session):
 
 @router.get('/thu-chi')
 def listing(request: Request,user: User=Depends(finance_user),session: Session=Depends(get_session)):
-    from . import paging
-    filters={key:request.query_params.get(key,'') for key in ('loai','quy','trang_thai','from','to','q','trang','so')}
+    from . import paging, cash_view
+    filters={key:request.query_params.get(key,'') for key in ('loai','quy','trang_thai','from','to','q','danh_muc','doi_tuong','trang','so')}
     filters['q']=filters['q'][:200]
+    if filters['doi_tuong'] not in cash_view.WHO: filters['doi_tuong']=''
     found=[];error=None
     try:
         start,end=_period(request)
@@ -140,27 +141,45 @@ def listing(request: Request,user: User=Depends(finance_user),session: Session=D
             raise BusinessError('BAD_STATUS','Trạng thái phiếu chưa hợp lệ.')
     except BusinessError as exc:
         error=exc
+    # 20/11/2026: mỗi phiếu có danh mục, người nộp/nhận (tên thật) và chứng từ gốc; tìm được theo các tên đó.
+    info=cash_view.describe(session,found)
     if fold(filters['q']):
         key=fold(filters['q'])
-        found=[d for d in found if tim.text_matches(key,' '.join((d.number,d.partner_name or '',d.description or '',d.customer_code or '',d.supplier_code or '')))]
-    rows=[d for d in found if not filters['trang_thai'] or d.status==filters['trang_thai']]
+        found=[d for d in found if tim.text_matches(key,' '.join((d.number,d.partner_name or '',d.description or '',d.customer_code or '',d.supplier_code or '',
+                                                                 info[d.id]['who'],info[d.id]['cat'],info[d.id]['src_label'])))]
     query={k:v for k,v in filters.items() if k not in ('trang','so')}
-    page,shown=paging.slice_rows(rows,filters['trang'],filters['so'],query)
     link=paging.linker('/thu-chi',query)
+    if filters['doi_tuong']:
+        found=[d for d in found if cash_view.matches(info,'',filters['doi_tuong'])(d)]
+    # Chip "Chi/Thu theo danh mục" tính trước khi lọc danh mục, để vẫn thấy các danh mục khác.
+    cat_dir='THU' if filters['loai']=='PT' else 'CHI'
+    cat_chips=cash_view.category_chips(found,info,cat_dir,link,filters['danh_muc']) if filters['loai'] in ('','PT','PC') else []
+    if filters['danh_muc']:
+        found=[d for d in found if cash_view.matches(info,filters['danh_muc'],'')(d)]
+    rows=[d for d in found if not filters['trang_thai'] or d.status==filters['trang_thai']]
+    page,shown=paging.slice_rows(rows,filters['trang'],filters['so'],query)
     posted=[d for d in rows if d.status=='DA_GHI']
     sums={kind:sum(d.amount for d in posted if d.kind==kind) for kind in docs.KINDS}
     # Ô số: phiếu đã ghi trong kỳ đang xem (theo quỹ), bấm là lọc loại phiếu.
     in_period=[d for d in found if d.status=='DA_GHI']
     def tile(kind,label,tone):
-        items=[d for d in in_period if d.kind==kind]
-        return dict(label=label,n=len(items),sub=money(sum(d.amount for d in items))+' đ',href=link(loai=kind,trang_thai='DA_GHI'),on=filters['loai']==kind,tone=tone)
+        items=[d for d in in_period if d.kind==kind and not d.is_opening]
+        return dict(label=label,n=money(sum(d.amount for d in items)),sub=f'{len(items)} phiếu',href=link(loai=kind,trang_thai='DA_GHI'),on=filters['loai']==kind,tone=tone)
     drafts=sum(1 for d in found if d.status=='NHAP')
-    tiles=[tile('PT','Thu trong kỳ','xong'),tile('PC','Chi trong kỳ','huy'),tile('CQ','Chuyển quỹ',''),
+    net=sum(d.amount for d in in_period if d.kind=='PT' and not d.is_opening)-sum(d.amount for d in in_period if d.kind=='PC' and not d.is_opening)
+    tiles=[tile('PT','Thu trong kỳ','xong'),tile('PC','Chi trong kỳ','huy'),
+           dict(label='Thu − chi trong kỳ',n=('+' if net>0 else '−' if net<0 else '')+money(abs(net)),sub='Không tính chuyển quỹ, đầu kỳ',href='',on=False,tone=''),
            dict(label='Phiếu nháp',n=drafts,sub='Chưa ghi sổ' if drafts else 'Không có phiếu treo',href=link(trang_thai='NHAP',loai=''),on=filters['trang_thai']=='NHAP' and not filters['loai'],tone='cho' if drafts else '')]
     tabs=[dict(label='Tất cả',n=len(found),href=link(trang_thai=''),on=not filters['trang_thai'])]+[
         dict(label=label,n=sum(1 for d in found if d.status==code),href=link(trang_thai=code),on=filters['trang_thai']==code) for code,label in docs.STATES.items()]
-    chips=[dict(label=label,href=link(**{key:''})) for key,label in (('quy','Quỹ '+filters['quy']),('loai',docs.KINDS.get(filters['loai'],''))) if filters.get(key)]
+    categories=sorted(session.scalars(select(CashCategory)),key=lambda c:(c.direction!='CHI',fold(c.name).endswith('khac'),fold(c.name)))
+    cat_name={c.code:c.name for c in categories}
+    chips=[dict(label=label,href=link(**{key:''})) for key,label in (
+        ('quy','Quỹ '+filters['quy']),('loai',docs.KINDS.get(filters['loai'],'')),
+        ('danh_muc','Chưa chọn danh mục' if filters['danh_muc']==cash_view.NO_CATEGORY else cat_name.get(filters['danh_muc'],filters['danh_muc'])),
+        ('doi_tuong',cash_view.WHO.get(filters['doi_tuong'],''))) if filters.get(key)]
     return render(request,'thu_chi_ds.jinja',rows=shown,page=page,tiles=tiles,tabs=tabs,chips=chips,link=link,sums=sums,filters=filters,kinds=docs.KINDS,states=docs.STATES,
+                  info=info,cat_chips=cat_chips,cat_dir=cat_dir,categories=categories,who_kinds=cash_view.WHO,no_category=cash_view.NO_CATEGORY,
                   funds=list(session.scalars(select(Fund).order_by(Fund.code))),error=error,status=error.status if error else 200)
 
 

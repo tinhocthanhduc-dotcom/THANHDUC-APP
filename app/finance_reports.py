@@ -195,3 +195,20 @@ def damage_cost(session,user,start=None,end=None):
     with session.no_autoflush:
         return int(session.scalar(select(func.coalesce(func.sum(PendingDisposition.cost_value),0)).where(
             PendingDisposition.kind=='HUY',PendingDisposition.status=='DA_GHI',day>=start,day<=end)))
+
+
+def opening_balance(session, user, start):
+    """Tổng số dư mọi quỹ trước ngày start (cộng sổ quỹ, gồm đầu kỳ và chuyển quỹ)."""
+    check_reader(user)
+    with session.no_autoflush:
+        return int(session.scalar(select(func.coalesce(func.sum(FundLedger.amount), 0)).where(FundLedger.entry_date < start)))
+
+
+def previous_range(start, end):
+    """Kỳ so sánh (20/11/2026): kỳ là trọn tháng thì so tháng trước; còn lại lùi đúng số ngày."""
+    from datetime import timedelta
+    if start.day == 1 and end == start.replace(day=monthrange(start.year, start.month)[1]):
+        last = start - timedelta(days=1)
+        return last.replace(day=1), last
+    days = (end - start).days + 1
+    return start - timedelta(days=days), start - timedelta(days=1)

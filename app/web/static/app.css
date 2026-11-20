@@ -5634,3 +5634,122 @@ main:has(> .cs-page) { max-width: 1280px; }
 .xg-tech { display: grid; gap: 8px; }
 .xg-tech-kv { background: var(--bg); border-radius: 8px; padding: 10px 12px; align-items: center; }
 .xg-tech-form form { padding: 10px 12px; display: grid; gap: 10px; }
+
+/* Thu chi · Sổ quỹ (20/11/2026): danh mục, người nộp/nhận, chứng từ gốc trên mỗi phiếu. Tiền tố tc- riêng. */
+.tc-cats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 0 12px 10px; }
+.tc-cats-l { font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.tc-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--text); font-size: .85rem; text-decoration: none; white-space: nowrap; }
+.tc-chip b { font-variant-numeric: tabular-nums; }
+.tc-chip.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent); }
+.tc-pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: .8rem; font-weight: 700; background: var(--tag); color: var(--text); }
+.tc-pill.tc-thu { background: var(--ok-bg); color: var(--ok); }
+.tc-pill.tc-chi { background: var(--bad-bg); color: var(--bad); }
+.tc-pill.tc-cq { background: var(--info-bg); color: var(--accent); }
+.tc-pill.tc-none { color: var(--muted); font-weight: 600; }
+.tc-who b { display: block; overflow-wrap: anywhere; }
+.tc-kind { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.tc-none-who { color: var(--muted); font-size: .85rem; }
+.tc-src { display: block; margin-top: 3px; font-size: .82rem; color: var(--accent); text-decoration: none; }
+.tc-amt .badge { margin-top: 4px; }
+.tc-list td.tc-amt { white-space: nowrap; }
+@media (min-width: 641px) { .list-table.tc-list { display: table; width: 100%; } .tc-list th:nth-child(2) { width: 190px; } .tc-list th:nth-child(3) { width: 220px; } }
+.tc-list td.tc-amt .cash-amt { display: block; }
+@media (max-width: 640px) {
+  .tc-cats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tc-cats-l { display: none; }
+  .list-table.lt-cards.tc-list tr { grid-template-columns: minmax(0, 1fr) auto; }
+  .list-table.lt-cards.tc-list td.tc-cat { grid-column: 1; grid-row: 1; }
+  .list-table.lt-cards.tc-list td.tc-cat .lt-sub { display: none; }
+  .list-table.lt-cards.tc-list td.tc-amt { grid-column: 2; grid-row: 1 / span 2; text-align: right; }
+  .list-table.lt-cards.tc-list td.tc-amt .badge { display: none; }
+  .list-table.lt-cards.tc-list td.tc-who { grid-column: 1; grid-row: 2; margin-top: 4px; }
+  .list-table.lt-cards.tc-list td.tc-who .tc-kind { display: inline; margin-right: 6px; }
+  .list-table.lt-cards.tc-list td.tc-who b { display: inline; }
+  .list-table.lt-cards.tc-list td.tc-desc { grid-column: 1 / -1; grid-row: 3; font-size: .88rem; color: var(--text); }
+  .list-table.lt-cards.tc-list td.lt-first { grid-column: 1 / -1; grid-row: 4; display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; margin-top: 4px; font-size: .82rem; }
+  .list-table.lt-cards.tc-list td.lt-first .lt-sub { display: inline; }
+}
+
+/* Báo cáo tài chính (mẫu duyệt 20/11/2026). Tiền tố bctc- riêng. */
+.bctc-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.bctc-page > * { min-width: 0; }
+.bctc-page h2 { font-size: 1.05rem; margin: 0 0 2px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.bctc-page h2 small { font-weight: 600; color: var(--muted); font-size: .85rem; }
+.bctc-up { color: var(--ok); } .bctc-down { color: var(--bad); } .bctc-muted { color: var(--muted); font-size: .88rem; }
+.bctc-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.bctc-bar > * { min-width: 0; }
+.bctc-seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.bctc-seg a { padding: 8px 12px; font-weight: 600; font-size: .9rem; color: var(--text); text-decoration: none; border-right: 1px solid var(--line); white-space: nowrap; }
+.bctc-seg a:last-child { border-right: 0; } .bctc-seg a.on { background: var(--accent); color: var(--accent-text); }
+.bctc-dates { display: flex; gap: 8px; flex-wrap: wrap; }
+.bctc-dates label { display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); white-space: nowrap; }
+.bctc-dates input { min-height: 38px; }
+.bctc-csv { position: relative; }
+.bctc-csv summary { list-style: none; cursor: pointer; } .bctc-csv summary::-webkit-details-marker { display: none; }
+.bctc-csv-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; min-width: 210px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 4px; }
+.bctc-csv-menu a { padding: 9px 12px; border-radius: 6px; color: var(--text); text-decoration: none; }
+.bctc-csv-menu a:hover, .bctc-csv-menu a:focus-visible { background: var(--tag); }
+.bctc-answer { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; padding: 16px 18px; }
+.bctc-answer h2 { display: block; font-size: 1.15rem; line-height: 1.45; text-wrap: balance; }
+.bctc-answer p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.bctc-meter { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--tag); margin: 10px 0 6px; }
+.bctc-meter i { display: block; height: 100%; }
+.bctc-meter.bctc-thin { height: 6px; margin: 4px 0 6px; }
+.bctc-mi { background: var(--ok-solid); } .bctc-mo { background: var(--bad-solid); } .bctc-acc { background: var(--accent); }
+.bctc-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bctc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+.bctc-cash { border-left: 1px solid var(--line); padding-left: 18px; min-width: 0; }
+.bctc-kicker { font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.bctc-big { display: block; font-size: 1.7rem; margin: 2px 0 4px; font-variant-numeric: tabular-nums; }
+.bctc-row { display: flex; justify-content: space-between; gap: 10px; font-size: .9rem; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.bctc-row.bctc-total { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 10px; font-weight: 700; }
+.bctc-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.bctc-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; min-width: 0; }
+.bctc-tile > span { display: block; color: var(--muted); font-size: .85rem; }
+.bctc-tile > b { display: block; font-size: 1.35rem; margin: 3px 0 2px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.bctc-tile > small { color: var(--muted); font-size: .8rem; }
+.bctc-sec { padding: 14px 16px; min-width: 0; }
+.bctc-hint { color: var(--muted); font-size: .82rem; margin: 0 0 8px; }
+.bctc-h { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bctc-chart-wrap { overflow-x: auto; }
+.bctc-chart { display: block; width: 100%; min-width: 520px; height: auto; margin-top: 6px; }
+.bctc-chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bctc-grid line { stroke: var(--line); stroke-width: 1; } .bctc-grid .bctc-zero { stroke: var(--muted); }
+.bctc-chart rect.bctc-in { fill: var(--ok-solid); } .bctc-chart rect.bctc-out { fill: var(--bad-solid); }
+.bctc-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.bctc-end { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.bctc-days { margin-top: 10px; } .bctc-days summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.bctc-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.bctc-hb { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.bctc-hb:last-of-type { border-bottom: 0; }
+a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--accent); }
+.bctc-hb-n { font-weight: 600; font-size: .92rem; overflow-wrap: anywhere; }
+.bctc-hb-n small { color: var(--muted); font-weight: 500; }
+.bctc-hb-v { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bctc-hb-v small { display: block; color: var(--muted); font-weight: 500; font-size: .78rem; }
+.bctc-track { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--tag); overflow: hidden; }
+.bctc-track i { display: block; height: 100%; }
+.bctc-in .bctc-track i { background: var(--ok-solid); } .bctc-out .bctc-track i { background: var(--bad-solid); }
+.bctc-funds { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.bctc-fund { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); min-width: 0; }
+.bctc-fund > span { display: block; color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+.bctc-fund > b { display: block; font-size: 1.15rem; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.bctc-fund a { font-size: .85rem; color: var(--accent); text-decoration: none; }
+.bctc-debt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 6px; }
+.bctc-debt div { background: var(--bg); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.bctc-debt span { display: block; color: var(--muted); font-size: .8rem; }
+.bctc-debt b { font-size: 1rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.bctc-more { display: inline-block; margin-top: 8px; color: var(--accent); font-weight: 600; text-decoration: none; }
+.bctc-note { font-size: .88rem; color: var(--muted); line-height: 1.6; } .bctc-note b { color: var(--text); }
+@media (max-width: 900px) {
+  .bctc-answer, .bctc-two { grid-template-columns: 1fr; }
+  .bctc-cash { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 10px; }
+  .bctc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .bctc-tile > b { font-size: 1.1rem; }
+  .bctc-answer { padding: 14px; } .bctc-answer h2 { font-size: 1.02rem; }
+  .bctc-debt b { font-size: .92rem; }
+  .bctc-seg { width: 100%; }
+  .bctc-dates label { flex: 1 1 140px; } .bctc-dates input { width: 100%; }
+}
