@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, equipment, service_appointments, service_charges, service_repeat, service_self_claim, service_suggest, service_visits, service_warranty, technician_returns, zalo_phieu_nhap
+from .. import attachments, equipment, service_appointments, service_unassign, service_charges, service_repeat, service_self_claim, service_suggest, service_visits, service_warranty, technician_returns, zalo_phieu_nhap
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -42,7 +42,7 @@ STEPS = {"create": "Nhận đơn", "depart": "Thợ đi tới khách", "late": "
          "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","repair_reported":"Thợ báo sửa xong","repair_failed":"Thợ báo không sửa được","repair_extra":"Thợ báo phát sinh, báo lại khách","quote_reschedule":"Đổi ngày hẹn trả","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ", "update_info": "Sửa thông tin phiếu",
-         "goods_ok": "Đã nhận đủ hàng", "unassign": "Rút giao thợ", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
+         "goods_ok": "Đã nhận đủ hàng", "unassign": "Hủy giao thợ", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
 
 
 def local_time(value):
@@ -313,6 +313,8 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
                   users=_users(session), technicians=_technicians(session) if dispatcher else [],
                   counts=svc.open_counts(session) if dispatcher else {},
                   can_assign=dispatcher and t.status in svc.ASSIGNABLE and not at_workshop,
+                  unassign_block=service_unassign.blocked(session, t) if dispatcher and t.status in svc.ASSIGNABLE and t.status!='MOI' and not at_workshop else '', unassign_reasons=service_unassign.REASONS,
+                  unassigned_now=request.query_params.get('huy_giao')=='1',
                   tech_ranks={r['id']: r for r in service_suggest.rank(session, t)} if dispatcher and t.status in svc.ASSIGNABLE and not at_workshop else {},
                   can_request_transfer=own and t.status in svc.OPEN and not t.transfer_request and not at_workshop,
                   can_reject_transfer=dispatcher and bool(t.transfer_request), transitions=targets,
@@ -786,7 +788,7 @@ def set_kind(request: Request, ticket_id: int, form=Depends(checked_form), sessi
 
 
 @router.post("/dich-vu/{ticket_id}/{action}")
-def action(request: Request, ticket_id: int, action: str, form=Depends(checked_form), session: Session = Depends(get_session)):
+def action(request: Request, ticket_id: int, action: str, background: BackgroundTasks, form=Depends(checked_form), session: Session = Depends(get_session)):
     user = request.state.user
     if ('technician' in user.roles and (form.get('appointment_choice') or (form.get('to_status')=='DA_HUY' and not has_role(user,*svc.DISPATCHERS)))):
         from .technician import owned
@@ -814,6 +816,11 @@ def action(request: Request, ticket_id: int, action: str, form=Depends(checked_f
                 tech_name = session.scalar(select(User.full_name).where(User.id == int(body.assignee_id)))
                 sep = '&' if '?' in back else '?'
                 return RedirectResponse(back + sep + urlencode(dict(da_giao=f'{t_number} cho {tech_name}')), status_code=303)
+        elif action == 'huy-giao-tho':
+            # Hủy giao thợ (TUẤN duyệt mẫu 21/11/2026): phiếu về chưa giao thợ, báo thợ cũ qua Zalo.
+            _, old_id, label = service_unassign.unassign(session, user, ticket_id, version, str(form.get('ly_do', '')), str(form.get('note', '')))
+            background.add_task(service_unassign.notify, ticket_id, old_id, label)
+            return RedirectResponse(f'/dich-vu/{ticket_id}?huy_giao=1', status_code=303)
         elif action == 'reschedule':
             appointment, slot = service_appointments.parse(form,svc._now())
             svc.reschedule(session,user,ticket_id,version,appointment,slot,str(form.get('note','')))

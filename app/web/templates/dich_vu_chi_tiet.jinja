@@ -138,6 +138,7 @@
 {% if can_reject_transfer %}{% call act('service-transfer-reject', 'Từ chối chuyển', fa=='transfer-reject') %}<form method="post" action="/dich-vu/{{ t.id }}/transfer-reject" class="form service-action">{{ version('transfer-reject') }}<label>Lý do / ghi chú<textarea name="reason" maxlength="2000">{{ form.get('reason', '') if failed_action == 'transfer-reject' else '' }}</textarea></label><button>Xác nhận từ chối chuyển</button></form>{% endcall %}{% endif %}{% endset %}
 {% if bar|trim %}<details class="svc-more svc-more-list" data-more-actions {% if failed_action and failed_action in shown + ['reschedule','no-show','transfer-request','transfer-reject'] or (failed_action or '').startswith('transition:') %}open{% endif %}><summary>Việc khác</summary><div class="svc-acts">{{ bar }}</div></details>{% endif %}
 </section>
+{% if unassigned_now %}{{ ui.toast('Đã hủy giao thợ') }}{% endif %}
 {% if virtual_undone %}{{ ui.toast('Đã hoàn tác, phiếu về Cần giao thợ') }}{% endif %}
 {% if virtual_note and not virtual_note.undone %}<section class="card done-state service-action nva-note" data-virtual-note><div class="done-k">Điều phối AI đã giao</div><b>{{ virtual_note.name }}</b><p class="hint">Lúc {{ virtual_note.at|vn_time }} {{ virtual_note.at|vn_date }}{% if virtual_note.reason %} · Lý do: {{ virtual_note.reason }}{% endif %}</p>
 {% if virtual_note.can_undo %}<form method="post" action="/dich-vu/{{ t.id }}/dieu-phoi-ao/hoan-tac" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="log_id" value="{{ virtual_note.id }}"><button class="btn btn-danger">Hoàn tác</button><span class="hint">còn {{ virtual_note.minutes_left }} phút · phiếu về Cần giao thợ. Muốn đổi thợ, bấm Giao thợ khác bên dưới.</span></form>{% endif %}
@@ -149,7 +150,18 @@
   <div class="field-group" role="group" aria-label="Chọn thợ mới"><p class="group-label">Chọn thợ mới · số việc đang mở</p><div class="seg svc-techs">
     {% for tech in technicians %}{% set rk = tech_ranks.get(tech.id) %}<label class="dp-rank"><input type="radio" name="assignee_id" value="{{ tech.id }}" {% if failed_action == 'assign' and form.get('assignee_id', '')|string == tech.id|string %}checked{% endif %} required><span>{{ tech.full_name }}<small>{{ counts.get(tech.id, 0) }} việc{% if tech.id == t.assignee_id %} · đang giữ phiếu{% endif %}</small>{% if rk %}{% set extra = rk.blocked or ([rk.near] + (rk.free.split(' · ')[1:]))|select|join(' · ') %}{% if extra %}<small class="dp-rank-x">{{ extra }}</small>{% endif %}{% endif %}</span></label>{% endfor %}
   </div></div>{{ note('assign') }}<button class="btn-ok">Lưu giao thợ</button>
-</form></details></section>
+</form></details>
+{% if t.assignee_id and not t.transfer_request %}<details data-unassign {% if failed_action == 'huy-giao-tho' %}open{% endif %}><summary class="btn btn-danger-ghost">Hủy giao thợ</summary>
+{% if unassign_block %}<p class="alert bad" data-unassign-block>{{ unassign_block }}</p>{% else %}
+<form id="service-unassign" method="post" action="/dich-vu/{{ t.id }}/huy-giao-tho" class="form">{{ version('huy-giao-tho') }}
+  <p class="group-label">Hủy giao thợ {{ users.get(t.assignee_id, '') }}?</p>
+  <div class="field-group" role="group" aria-label="Lý do"><p class="group-label">Lý do</p><div class="chips">
+    {% for code, label in unassign_reasons.items() %}<label class="chip"><input type="radio" name="ly_do" value="{{ code }}" required {% if failed_action == 'huy-giao-tho' and form.get('ly_do') == code %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+  </div></div>{{ note('huy-giao-tho', 'Ghi chú thêm (chọn Khác thì bắt buộc)') }}
+  <p class="hint">{% if t.priced_at and (t.repaired_by or t.declined_at) %}Sau khi hủy: phiếu về Sửa xong, chờ trả máy, máy vẫn ở Kho kỹ thuật. Hẹn trả lại để chọn thợ.{% else %}Sau khi hủy: phiếu về Mới · chưa giao thợ. Điều phối AI không tự giao lại, anh giao tay.{% endif %} {{ users.get(t.assignee_id, 'Thợ') }} nhận tin Zalo.</p>
+  <button class="btn btn-danger">Xác nhận hủy giao</button>
+</form>{% endif %}</details>{% endif %}
+</section>
 {% endif %}
 {% if collection %}<section class="card doc-card doc-money">{% include 'bao_thu_trong_don.jinja' %}</section>{% endif %}
 </aside>

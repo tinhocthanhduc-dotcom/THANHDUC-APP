@@ -67,6 +67,11 @@ def items(session, user, tho=False):
                        ServiceTicket.assignee_id == user.id, ServiceTicket.status.in_(OPEN))
                 .order_by(ServiceStep.id.desc()).limit(my_work.LIMIT)):
             out.append(_item('ticket_info', step_id, 'Điều phối sửa thông tin phiếu', number, f'/tho/phieu/{ticket_id}', info=True))
+    # Hủy giao thợ (TUẤN 21/11/2026): thợ cũ biết phiếu vừa bị rút khỏi mình.
+    if 'technician' in user.roles:
+        from . import service_unassign
+        for step_id, number, note in service_unassign.recent_for(session, user.id, since):
+            out.append(_item('ticket_unassigned', step_id, 'Phiếu đã rút khỏi anh/chị', f'{number} · {note}', '/tho', info=True))
     # Thợ tự nhận (TUẤN 04/11/2026): thợ thấy phiếu đang chờ nhận; điều phối biết ai vừa tự nhận.
     from . import service_self_claim
     now = my_work._now()

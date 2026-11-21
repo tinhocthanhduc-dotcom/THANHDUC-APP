@@ -5787,3 +5787,10 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 @media (max-width: 480px) { .xg-day-pick input[type=date] { font-size: 16px; } }
 .seg .xg-day-pick input[type=date] { position: static; opacity: 1; width: 100%; }
 .xg-day-pick:has(input:valid:not(:placeholder-shown)) { border-color: var(--accent); }
+
+/* Hủy giao thợ (TUẤN duyệt mẫu 21/11/2026): nút viền đỏ cạnh Giao thợ khác, mở ra hỏi lý do. */
+[data-assigned]{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+[data-assigned]>.done-k,[data-assigned]>b,[data-assigned]>.hint,[data-assigned]>details[open]{flex-basis:100%}
+.btn.btn-danger-ghost{background:transparent;border:1px solid var(--bad-solid);color:var(--bad)}
+[data-unassign] form{margin-top:10px}
+[data-unassign] .alert{margin-top:10px}
