@@ -269,6 +269,8 @@ def _candidates(session, c: dict, now):
         kind_ok = kind_ok | t.kind.is_(None)   # phiếu chưa chọn loại = thợ đến chỗ khách, tính như Sửa tại chỗ
     done = exists().where(VirtualAgentLog.ticket_id == t.id, VirtualAgentLog.agent == 'DIEU_PHOI',
                           VirtualAgentLog.action.in_(('GIAO', 'HOAN_TAC', 'CHAY_THU')))
+    # Điều phối/giám đốc đã bấm Hủy giao thợ (TUẤN 21/11/2026): để người giao tay, AI không giao lại.
+    done = done | exists().where(ServiceStep.ticket_id == t.id, ServiceStep.action == 'unassign')
     wait = timedelta(minutes=int(c['wait_minutes']))
     return list(session.scalars(select(t).where(
         t.status == 'MOI', t.assignee_id.is_(None), t.counter_intake.is_(False), t.warranty_of_id.is_(None),
