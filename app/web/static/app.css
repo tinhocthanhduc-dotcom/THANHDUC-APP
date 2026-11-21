@@ -5794,3 +5794,20 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .btn.btn-danger-ghost{background:transparent;border:1px solid var(--bad-solid);color:var(--bad)}
 [data-unassign] form{margin-top:10px}
 [data-unassign] .alert{margin-top:10px}
+/* Hoa hồng của tôi: ô tổng luôn hiện, điện thoại dạng thẻ không tràn ngang, bỏ cột Người hưởng */
+.hh-total{padding:14px 16px;margin-bottom:12px}
+.hh-total p{margin:0}
+.hh-total-label{font-weight:700;color:var(--muted);font-size:.9rem}
+.hh-total-n{font-size:1.9rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+.hh-total-n small{font-size:1rem;font-weight:700;margin-left:3px;color:var(--muted)}
+.hh-total-sub{font-size:.88rem;color:var(--muted)}
+.hh-list{display:none;list-style:none;margin:0;padding:0}
+.hh-list li{padding:10px 14px;border-bottom:1px solid var(--line)}
+.hh-row1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.hh-amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+.hh-list .hh-meta{margin:2px 0 0;font-size:.88rem;color:var(--muted)}
+.hh-list .hh-note{margin:2px 0 0;font-size:.85rem;color:var(--muted);overflow-wrap:anywhere}
+.hh-list li.hr-negative .hh-amt{color:var(--bad)}
+.hh-list .hh-foot{display:flex;justify-content:space-between;gap:10px;font-weight:700;border-bottom:0;border-top:2px solid var(--line);background:var(--bg);padding:12px 14px;margin-top:-1px}
+.hh-list .hh-empty{color:var(--muted);border-bottom:0}
+@media (max-width:640px){.hh-mine .hh-desk{display:none}.hh-mine .hh-list{display:block}}
