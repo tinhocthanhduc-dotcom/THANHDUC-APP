@@ -86,7 +86,7 @@ def test_blocked_while_technician_holds_ticket_parts(db, held):
     assert t.status == 'DA_HEN' and t.assignee_id == p['technician'].id
 
 
-def test_return_trip_goes_back_to_ready_and_cancels_machine_handover(db, workshop):
+def test_return_trip_goes_back_to_ready_and_cancels_machine_handover(client, db, workshop):
     p, a, b, t, eq = workshop
     quote(db, p, t); approve(db, p, t); photo(db, p, t, 'SAU', who='dispatcher'); repaired(db, p, t)
     ws.schedule_return(db, p['dispatcher'], t.id, t.version, service_tickets._now() + timedelta(days=1), None, p['technician'].id, 'Giao trả máy')
@@ -97,6 +97,11 @@ def test_return_trip_goes_back_to_ready_and_cancels_machine_handover(db, worksho
     assert (t.status, t.hold_reason) == ('TAM_DUNG', 'SUA_XONG_CHO_TRA')
     assert db.get(EquipmentCustody, hand.id).status == 'DA_HUY' and custody.pending(db, eq.serial) is None
     assert db.get(type(eq), eq.serial).custody_location == 'KHO_KY_THUAT'
+    # Màn thợ Hôm nay không còn hiện phiếu (máy ở Kho kỹ thuật chờ hẹn trả), không tính việc đang mở.
+    from app import service_self_claim
+    service_login(client, p['technician'])
+    assert t.number not in client.get('/tho').text
+    assert service_self_claim.open_jobs(db, p['technician'].id) == 0
     # Hẹn trả lại cho thợ khác như bình thường.
     ws.schedule_return(db, p['dispatcher'], t.id, t.version, service_tickets._now() + timedelta(days=2), None, p['other_tech'].id, 'Hẹn lại')
     t = fresh(db, t)

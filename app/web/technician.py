@@ -324,7 +324,7 @@ def _today(request,user,session,claim_error=None,status=200):
     now=service_tickets._now(); jobs=[]
     rows=session.execute(select(ServiceTicket,Customer,CustomerSite,equipment_svc.name_column()).join(Customer,Customer.code==ServiceTicket.customer_code)
         .outerjoin(CustomerSite,CustomerSite.id==ServiceTicket.site_id).outerjoin(Equipment,Equipment.serial==ServiceTicket.serial)
-        .outerjoin(Product,Product.code==Equipment.product_code).where(ServiceTicket.assignee_id==user.id,ServiceTicket.status.in_(service_tickets.OPEN),~service_self_claim.at_workshop())).all()
+        .outerjoin(Product,Product.code==Equipment.product_code).where(ServiceTicket.assignee_id==user.id,ServiceTicket.status.in_(service_tickets.OPEN),~service_self_claim.off_tech())).all()
     for ticket,customer,site,machine in rows:
         action=next_steps.service(session,user,ticket)
         if action and ticket.status=='DA_GIAO':action={**action,'primary':{**action['primary'],'label':'Nhận đơn'}}

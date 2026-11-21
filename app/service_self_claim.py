@@ -63,15 +63,21 @@ def at_workshop():
     return (ServiceTicket.status == 'TAM_DUNG') & (ServiceTicket.hold_reason == 'CHO_SUA_XUONG')
 
 
+def off_tech():
+    """Phiếu nằm ở xưởng/kho kỹ thuật, thợ không cầm việc: chờ sửa ở xưởng hoặc sửa xong chờ hẹn trả.
+    Ẩn khỏi màn thợ Hôm nay và không tính việc đang mở (21/11/2026: hủy giao thợ trả máy mà màn thợ vẫn hiện Tạm dừng)."""
+    return (ServiceTicket.status == 'TAM_DUNG') & ServiceTicket.hold_reason.in_(('CHO_SUA_XUONG', 'SUA_XONG_CHO_TRA'))
+
+
 def open_jobs(session, user_id: int) -> int:
     """Việc đang mở của thợ: phiếu dịch vụ + đơn Thợ giao (TUẤN 07/11/2026), đếm đúng như màn thợ Hôm nay.
     Đơn đi cùng một phiếu đang mở của chính thợ là cùng chuyến, không tính thêm."""
     from .models import SalesOrder
     from .service_tickets import OPEN
     tickets = session.scalar(select(func.count()).select_from(ServiceTicket).where(
-        ServiceTicket.assignee_id == user_id, ServiceTicket.status.in_(OPEN), ~at_workshop())) or 0
+        ServiceTicket.assignee_id == user_id, ServiceTicket.status.in_(OPEN), ~off_tech())) or 0
     same_trip = exists().where(ServiceTicket.id == SalesOrder.service_ticket_id, ServiceTicket.assignee_id == user_id,
-                               ServiceTicket.status.in_(OPEN), ~at_workshop())
+                               ServiceTicket.status.in_(OPEN), ~off_tech())
     orders = session.scalar(select(func.count()).select_from(SalesOrder).where(
         SalesOrder.delivery_assignee_id == user_id, SalesOrder.fulfillment == 'THO_GIAO',
         SalesOrder.status.in_(('DA_CHOT', 'GIAO_MOT_PHAN')), ~same_trip)) or 0
