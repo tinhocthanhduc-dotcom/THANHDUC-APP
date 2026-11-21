@@ -1,10 +1,21 @@
 {% extends 'base.jinja' %}{% import '_ui.jinja' as ui %}{% from '_commissions.jinja' import documents %}
 {% block title %}Hoa hồng của tôi{% endblock %}
-{% block main %}<div class="page-wide">
-{% call ui.page_head('Hoa hồng của tôi', sub='Tháng ' ~ month.strftime('%m/%Y') ~ ' · chỉ tính phần khách đã trả và kế toán đã xác nhận · số nháp có thể đổi tới khi khóa tháng', badge_label='Đã khóa' if locked else 'Nháp', badge_tone='xong' if locked else 'cho') %}{% endcall %}
-{{ ui.tiles([dict(label='Tổng tháng ' ~ month.strftime('%m/%Y'), n=total|money, on=true), dict(label='Số dòng', n=rows|length)]) }}
+{% block main %}<div class="page-wide hh-mine">
+{% call ui.page_head('Hoa hồng của tôi', sub='Chỉ tính phần khách đã trả và kế toán đã xác nhận', badge_label='Đã khóa' if locked else 'Nháp', badge_tone='xong' if locked else 'cho') %}{% endcall %}
+<section class="card hh-total" aria-label="Tổng hoa hồng">
+<p class="hh-total-label">Tổng hoa hồng tháng {{ month.strftime('%m/%Y') }}</p>
+<p class="hh-total-n{{ ' hr-negative' if total<0 }}">{{ total|money }}<small>đ</small></p>
+<p class="hh-total-sub">{{ rows|length }} chứng từ · {{ 'Tháng đã khóa, số không đổi nữa' if locked else 'Số nháp, đổi tới khi giám đốc khóa tháng' }}</p>
+</section>
 <section class="card frame">
-{% call ui.month_bar('/hoa-hong', month) %}{{ 'Tháng đã khóa, số không đổi nữa' if locked else 'Số nháp, đổi tới khi giám đốc khóa tháng' }}{% endcall %}
-{{ documents(rows) }}
+{{ ui.month_bar('/hoa-hong', month) }}
+<div class="hh-desk">{{ documents(rows, mine=true) }}</div>
+<ul class="hh-list" aria-label="Các dòng hoa hồng">{% for r in rows %}<li class="{{ 'hr-negative' if r.amount<0 }}">
+<div class="hh-row1"><b>{{ r.number }}</b><b class="hh-amt">{{ r.amount|money }}</b></div>
+{% if r.missing_rule %}<span class="badge b-cho">Chưa có quy tắc</span>{% endif %}
+<p class="hh-meta">{% if r.source!='DIEU_CHINH' %}Đã thu {{ (r.paid_ratio*100)|round(2)|qty }}%{% else %}Điều chỉnh{% endif %}{% if r.source=='PHIEU_DV' %} · Tiền công {{ r.base|money }} · Cố định {{ r.fixed_amount|money }} · {{ r.pct|qty }}%{% endif %}</p>
+{% if r.note %}<p class="hh-note">{{ r.note }}</p>{% endif %}
+</li>{% else %}<li class="hh-empty">Chưa có hoa hồng trong tháng này.</li>{% endfor %}
+{% if rows %}<li class="hh-foot"><span>Tổng · {{ rows|length }} chứng từ</span><b>{{ total|money }}</b></li>{% endif %}</ul>
 </section>
 </div>{% endblock %}
