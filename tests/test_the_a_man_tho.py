@@ -243,8 +243,25 @@ def test_swipe_accepts_finger_after_camera_ghost_touch():
     js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'ui.js').read_text()
     swipe = js[js.index('function bindSwipe'):js.index("window.bindSwipe = bindSwipe")]
     assert '.isPrimary' not in swipe  # không bỏ qua ngón không phải "ngón chính"
-    assert 'event.pointerId !== drag.id' in swipe  # chỉ theo đúng ngón đang kéo
+    assert "drag.id !== 'p' + event.pointerId" in swipe  # chỉ theo đúng ngón đang kéo
     assert "visibilitychange" in swipe and "pageshow" in swipe  # quay lại từ máy ảnh thì xóa trạng thái kéo dở
+
+
+def test_swipe_uses_native_touch_so_ghost_finger_cannot_cancel():
+    """TUẤN 23/11 "vẫn còn bàn tay ma, nhất là ngay sau khi tải ảnh": ngón ma còn lại sau máy ảnh làm trình duyệt hiểu
+    ngón vuốt là cử chỉ hai ngón (phóng to/cuộn) và hủy luồng pointer. Nay máy cảm ứng kéo bằng touch events theo mã ngón,
+    chặn cuộn/phóng to (preventDefault, passive: false). Đã thử Playwright Pixel 5 + iPhone SE (CDP 2 điểm chạm,
+    ngón ma giữ yên): vuốt thẳng/chéo/hơi lên trước đều gửi; kéo dọc, nửa đường, chạm không gửi; chuột vẫn chạy."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / 'app' / 'web' / 'static' / 'ui.js').read_text()
+    swipe = js[js.index('function bindSwipe'):js.index("window.bindSwipe = bindSwipe")]
+    assert "TOUCH && event.pointerType === 'touch'" in swipe  # pointer chỉ còn cho chuột/bút
+    for ev in ('touchstart', 'touchmove', 'touchend', 'touchcancel'):
+        assert "box.addEventListener('%s'" % ev in swipe
+    assert "{ passive: false }" in swipe and "event.preventDefault()" in swipe
+    assert "event.touches.length > 1" in swipe  # có ngón ma thì không cho thành cử chỉ hai ngón
+    assert "'t' + event.changedTouches[i].identifier" in swipe  # theo đúng ngón đang kéo
+    assert "'Ảnh đang tải lên, chờ vài giây rồi vuốt lại'" in swipe
 
 
 def test_swipe_shows_sending_and_blocks_second_swipe():
