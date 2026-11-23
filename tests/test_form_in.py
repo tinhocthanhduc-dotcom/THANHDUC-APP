@@ -113,7 +113,8 @@ def test_intake_print_shows_machine_condition_accessories_and_link(client, db, b
     assert html.count('<td><b>') == 2 and 'Thợ giữ' in html
     assert re.search(r'[Nn]gày \d{2} tháng \d{2} năm 20\d{2}', html)
     detail = client.get(f'/dich-vu/{t.id}').text
-    assert f'href="/dich-vu/{t.id}/phieu-nhan-may"' in detail
+    # TUẤN 23/11: bỏ nút In phiếu nhận máy trên phiếu dịch vụ (vẫn in ở Quầy sửa).
+    assert f'href="/dich-vu/{t.id}/phieu-nhan-may"' not in detail and 'In biên bản' in detail
     # Phiếu chưa nhận máy không có phiếu tiếp nhận.
     other = ticket_without_intake(db, p)
     assert client.get(f'/dich-vu/{other.id}/phieu-nhan-may').status_code == 404
