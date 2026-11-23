@@ -111,7 +111,14 @@ def listing(request: Request, user: User = Depends(web_user), session: Session =
             if ready > 1 or opened:
                 c = session.get(Customer, code)
                 gather.append(dict(code=code, name=c.name if c else code, ready=ready, opened=opened))
-    return render(request, 'kiem_tra_may_ds.jinja', board=board, tabs=tabs, view=view, q=q, gather=gather,
+    # Trả máy cả chuyến (TUẤN duyệt mẫu 23/11/2026): khách có từ 2 máy sửa xong chờ giao thợ trả.
+    return_groups = []
+    if has_role(user, *DISPATCHERS):
+        from .. import service_return_trip
+        for code, ts in service_return_trip.ready_by_customer(session).items():
+            c = session.get(Customer, code)
+            return_groups.append(dict(code=code, name=c.name if c else code, n=len(ts), due=sum(t.receivable or 0 for t in ts)))
+    return render(request, 'kiem_tra_may_ds.jinja', board=board, tabs=tabs, view=view, q=q, gather=gather, return_groups=return_groups, giao_chuyen=request.query_params.get('giao_chuyen', ''),
                   can_group=has_role(user, *DISPATCHERS))
 
 

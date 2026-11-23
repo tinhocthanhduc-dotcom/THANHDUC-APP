@@ -70,6 +70,7 @@ GROUPS = (
         {'label': 'Điều phối', 'href': '/dieu-phoi', 'prefixes': ('/dieu-phoi',), 'roles': ('dispatcher',)},
         # Bảng xưởng (TUẤN duyệt mẫu 17/11/2026) thay "Máy chờ kiểm tra": mọi máy ở xưởng, việc cần làm + ai làm.
         {'label': 'Bảng xưởng', 'href': '/kiem-tra-may', 'prefixes': ('/kiem-tra-may',), 'roles': ('technician', 'dispatcher', 'sales')},
+        {'label': 'Giao thợ trả cả chuyến', 'href': '/tra-may-ca-chuyen', 'prefixes': ('/tra-may-ca-chuyen',), 'roles': ('dispatcher',), 'hidden': True, 'highlight': '/kiem-tra-may'},
         # TUẤN 06/11/2026: kinh doanh (Thanh) được tự nhận đơn Mực định kỳ khi khách gọi; chỉ màn nhận đơn, không vào phiếu dịch vụ.
         {'label': 'Nhận đơn dịch vụ', 'href': '/dich-vu/moi', 'prefixes': ('/dich-vu/moi', '/dich-vu/chon-khach', '/dich-vu/tim-khach'), 'roles': ('dispatcher', 'reception', 'technician', 'sales'), 'hidden': True, 'highlight': '/dich-vu'},
         # F2: bản xem chỉ đọc phiếu dịch vụ cho kế toán (đối chiếu báo thu) và kho (linh kiện, máy đang giữ); không giá vốn, không thao tác.

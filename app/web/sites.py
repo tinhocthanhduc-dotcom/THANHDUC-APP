@@ -22,7 +22,7 @@ SITES = {
               ('/bang-gia?tab=goi', 'Bảng giá sửa', '')),
         # Trang mở được trên site (ngoài menu: trang con của phiếu, báo giá sửa, máy tại quầy).
         allow=('/dich-vu', '/xem-dich-vu', '/kiem-tra-may', '/thiet-bi', '/may-da-ban', '/bao-hanh-sua-chua',
-               '/bang-gia', '/tra-gia', '/bao-gia-sua', '/bao-gia-gop', '/hoi-gia', '/quay-sua', '/may-dang-giu'),
+               '/bang-gia', '/tra-gia', '/bao-gia-sua', '/bao-gia-gop', '/hoi-gia', '/quay-sua', '/may-dang-giu', '/tra-may-ca-chuyen'),
     ),
     # zalo.quanlythanhduc.com (TUẤN duyệt mẫu 19/11/2026): tin nhắn khách qua Zalo Bot, trả lời, soạn sẵn, tự trả lời.
     'zalo': dict(
