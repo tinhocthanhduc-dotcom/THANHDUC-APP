@@ -124,19 +124,50 @@ def ticket_without_intake(db, p):
     return ticket(db, p, 'DANG_LAM')
 
 
-def test_acceptance_report_preview_then_repaired_money_and_warranty(client, db, repaired):
+def test_acceptance_report_repaired_waiting_return_money_and_warranty(client, db, repaired):
     p, a, b, t, eq = repaired
     service_login(client, p['other_tech'])
     html = client.get(f'/dich-vu/{t.id}/bien-ban').text
-    assert 'BIÊN BẢN NGHIỆM THU DỊCH VỤ' in html and t.number in html and 'BẢN XEM TRƯỚC' in html
-    assert 'Máy bị kẹt giấy' in html and 'Đã sửa xong' in html and 'Chưa hoàn thành' in html
-    # Tiền: dòng chưa VAT, ô tổng có VAT và tổng đã gồm VAT; chưa hoàn thành nên chưa có Đã thanh toán.
+    # TUẤN 23/11/2026: máy đã sửa xong (chờ trả máy) không còn là bản xem trước; ngày sửa xong lấy ở bước sửa xong.
+    assert 'BIÊN BẢN NGHIỆM THU VÀ BÀN GIAO MÁY' in html and t.number in html and 'BẢN XEM TRƯỚC' not in html
+    assert 'Máy bị kẹt giấy' in html and 'Đã sửa xong' in html and 'Chưa sửa xong' not in html and 'Chưa hoàn thành' not in html
+    assert 'Ngày sửa xong: <b>' in html and 'Ngày bàn giao: <b>....../....../' in html and 'ngày ...... tháng ......' in html
+    # Tiền: dòng chưa VAT, ô tổng có VAT và tổng đã gồm VAT; còn phải trả để thợ thu khi trả máy.
     assert '500.000 đồng' in html and '40.000 đồng' in html and '540.000 đồng' in html and 'Năm trăm bốn mươi nghìn đồng' in html
-    assert 'Đã thanh toán' not in html and 'Bảo hành' in html
-    assert html.count('<td><b>') == 2 and 'Đại diện khách hàng' in html and 'Kỹ thuật viên' in html
+    assert 'Đã thanh toán' in html and 'Còn phải trả' in html and 'Bảo hành' in html
+    assert html.count('<td><b>') == 2 and 'Đại diện khách hàng' in html and 'Kỹ thuật viên Thành Đức' in html
+    assert 'Khách hàng kiểm tra khi nhận máy' in html and 'href="/dich-vu/%d/bien-ban-gop"' % t.id in html
     # Thợ khác không xem được phiếu không phải của mình.
     service_login(client, p['technician'])
     assert client.get(f'/dich-vu/{t.id}/bien-ban').status_code in (403, 404)
+
+
+def test_acceptance_report_preview_before_repair(client, db, people):
+    from test_my_work import ticket
+    t = ticket(db, people, 'DANG_LAM')
+    service_login(client, people['dispatcher'])
+    html = client.get(f'/dich-vu/{t.id}/bien-ban').text
+    assert 'BẢN XEM TRƯỚC' in html and 'Chưa sửa xong' in html
+
+
+def test_acceptance_report_group_picks_ready_family_and_sums_money(client, db, repaired):
+    from app import service_tickets
+    p, a, b, t, eq = repaired
+    sib = _sibling_ready(db, p, t)
+    service_login(client, p['dispatcher'])
+    pick = client.get(f'/dich-vu/{t.id}/bien-ban-gop')
+    assert pick.status_code == 200, pick.text
+    assert f'value="{t.id}" checked' in pick.text and f'value="{sib.id}" checked' in pick.text
+    html = client.get(f'/dich-vu/{t.id}/bien-ban-gop?p={t.id}&p={sib.id}').text
+    assert 'Gộp 2 máy' in html and t.number in html and sib.number in html and html.count('data-nt-may=') == 2
+    total = t.total + sib.total
+    from app.web import money
+    assert f'{money(total)} đồng' in html and 'Tổng thanh toán 2 máy bằng chữ' in html and 'BẢN XEM TRƯỚC' not in html
+    # Chỉ một máy hoặc máy chưa sửa xong thì không in, quay về màn chọn có báo lỗi.
+    assert 'Chọn ít nhất 2 máy' in client.get(f'/dich-vu/{t.id}/bien-ban-gop?p={t.id}').text
+    other = service_tickets.load(db, p['dispatcher'], sib.id)
+    assert other.customer_code == t.customer_code
+
 
 
 # ---- Bổ sung 26/10 chiều (TUẤN): in phiếu giao hàng trước khi giao để thợ mang theo ----
@@ -343,3 +374,19 @@ def test_sales_stock_issue_print_whole_order_with_chosen_date(client, db, setup)
     assert db.query(StockDoc).count() == docs
     service_login(client, p['other_tech'])
     assert client.get(f'/don-ban/{o.id}/xuat-kho/in').status_code == 403
+
+
+def _sibling_ready(db, p, t):
+    """Máy thứ hai cùng chỗ (tách từ phiếu t) đã sửa xong, chờ trả máy, có tiền 300.000 + VAT 24.000."""
+    from sqlalchemy import text
+    from app import service_tickets
+    from app.models import ServiceStep
+    from app.schemas import ServiceTicketIn
+    row = service_tickets.create(db, p['dispatcher'], ServiceTicketIn(customer_code=t.customer_code, kind='SUA_TAI_CHO', symptom='Máy bị kẹt giấy'))
+    db.execute(text("UPDATE service_tickets SET split_from_id=:root, assignee_id=:tech, status='TAM_DUNG', hold_reason='SUA_XONG_CHO_TRA', billing='THU_TIEN', "
+                    "subtotal=300000, vat_total=24000, total=324000, receivable=324000, priced_at=now(), fix_done='Thay bánh kéo giấy' WHERE id=:id"),
+               dict(root=t.id, id=row.id, tech=t.assignee_id))
+    db.add(ServiceStep(ticket_id=row.id, action='repair_done', from_status='DANG_LAM', to_status='TAM_DUNG', actor_id=p['dispatcher'].id, note='Sửa xong'))
+    db.commit()
+    db.refresh(row)
+    return row

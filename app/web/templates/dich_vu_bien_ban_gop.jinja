@@ -1,0 +1,31 @@
+{# Biên bản nghiệm thu gộp nhiều máy của một khách (TUẤN duyệt mẫu 23/11/2026): mỗi máy một khối, tiền theo từng phiếu, tổng chung. #}
+{% extends "in_khung.jinja" %}
+{% import '_in.jinja' as f %}
+{% import '_bien_ban.jinja' as nt %}
+{% set n = machines|length %}
+{% set shared = symptoms|length == 1 %}
+{% block title %}Biên bản nghiệm thu gộp {{ t.number }}{% endblock %}
+{% block tools_sub %}{{ customer.name }} · {{ n }} máy{% endblock %}
+{% block tools_extra %}<a class="back" href="/dich-vu/{{ t.id }}/bien-ban-gop?chon=1">Chọn lại máy</a>{% endblock %}
+{% block doc_title %}BIÊN BẢN NGHIỆM THU VÀ BÀN GIAO MÁY{% endblock %}
+{% block doc_sub %}Gộp {{ n }} máy{% set kinds = [] %}{% for x in tickets %}{% if service_kinds[x.kind] not in kinds %}{% do kinds.append(service_kinds[x.kind]) %}{% endif %}{% endfor %} · {{ kinds|join(', ') }}{% endblock %}
+{% block meta %}<span>Số biên bản: <b>{{ t.number }}</b> (gộp {{ n }} phiếu)</span>{{ f.meta('Ngày sửa xong', repaired_at|vn_date if repaired_at else '') }}<span>Ngày bàn giao: <b>{{ nt.handover(completed_at, year) }}</b></span>{% endblock %}
+{% block body %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa điểm', ((site.name ~ (' · ' ~ site.address if site.address and site.address != site.name else '')) if site else customer.address)), ('Người liên hệ', site.contact_name if site else ''), ('Điện thoại', customer|customer_phones(site.contact_name if site else '', site.contact_phone if site else ''))]) }}
+{{ f.card('Tổng hợp', n ~ ' máy', [('Phiếu', tickets|map(attribute='number')|join(' · ')), ('Ngày nhận máy', received_at|vn_date if received_at else ''), ('Thợ sửa', technicians|join(', ')), ('Bảo hành', 'Theo từng máy, tính từ ngày hoàn thành phiếu')]) }}</div>
+{% if shared %}<div class="kt-tt"><h4>Lỗi khách báo khi gửi máy</h4><dl><dt>Chung</dt><dd>{{ symptoms[0] }}</dd></dl></div>{% endif %}
+<table class="in-it nt-it"><colgroup><col style="width:9mm"><col><col style="width:11mm"><col style="width:24mm"><col style="width:11mm"><col style="width:26mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Máy · nội dung · vật tư</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead>
+{% for m in machines %}{% set x = m.t %}<tbody data-nt-may="{{ x.number }}"><tr class="nt-may"><td class="c"><b>{{ loop.index }}</b></td><td colspan="5"><b>Máy {{ loop.index }} · {{ m.name or 'Máy ngoài danh mục' }}</b> <span class="sr">{% if m.serial %}· Serial {{ m.serial }} {% endif %}· Phiếu {{ x.number }}{% if m.warranty_short %} · BH {{ m.warranty_short }}{% endif %}</span><span class="nt-may-ok"><span class="ok-box"></span>Đạt</span></td></tr>
+<tr class="nt-vl"><td></td><td colspan="5">{% if not shared and x.symptom %}<i>Lỗi khách báo:</i> {{ x.symptom }} &nbsp; {% endif %}{% if x.fault_found %}<i>Lỗi:</i> {{ x.fault_found }} &nbsp; {% endif %}<i>Đã làm:</i> {{ m.work or '—' }}</td></tr>
+{% for line in x.lines %}{% set row = nt.line_row(line, m, '', false) %}{{ row }}{% endfor %}
+<tr class="nt-cg"><td></td>{% if x.billing == 'MIEN_PHI' %}<td colspan="4">Cộng máy {{ loop.index }} <span class="nt-mute">({{ 'miễn phí: ' ~ (x.free_reason or 'theo chính sách bảo hành') }})</span></td><td class="m">0</td>{% elif x.billing == 'THU_TIEN' %}<td colspan="4">Cộng máy {{ loop.index }} <span class="nt-mute">(gồm VAT {{ x.total|money }})</span></td><td class="m">{{ x.subtotal|money }}</td>{% else %}<td colspan="4">Cộng máy {{ loop.index }} <span class="nt-mute">(chưa chốt tiền)</span></td><td class="m">—</td>{% endif %}</tr></tbody>{% endfor %}
+</table>
+<div class="in-sum"><div class="left">{{ nt.check(n) }}</div>
+{% if total %}{% set extra = [] %}{% if balance %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else 'ok')) %}{% endif %}
+{{ f.totals([('Tiền chưa VAT (' ~ n ~ ' máy)', subtotal|money ~ ' đồng'), ('Thuế GTGT', vat|money ~ ' đồng')], ('TỔNG THANH TOÁN', total|money ~ ' đồng'), extra) }}
+{% else %}{{ f.totals([], ('MIỄN PHÍ', '0 đồng')) }}{% endif %}</div>
+{% if total %}<div class="in-words"><b>Tổng thanh toán {{ n }} máy bằng chữ:</b> {{ words }}.</div>{% endif %}
+{{ nt.notes(['Đơn giá chưa gồm thuế GTGT; tổng thanh toán đã gồm thuế. Tiền và bảo hành vẫn theo từng phiếu.']) }}
+{% endblock %}
+{% block signatures %}{{ nt.sign(completed_at, technicians[0] if technicians|length == 1 else '', year) }}{% endblock %}

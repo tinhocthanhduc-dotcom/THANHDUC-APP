@@ -1,0 +1,13 @@
+{# Chọn máy đưa vào biên bản nghiệm thu gộp (TUẤN duyệt mẫu 23/11/2026). #}
+{% extends "base.jinja" %}
+{% import "_ui.jinja" as ui %}
+{% block title %}Biên bản gộp · {{ t.number }}{% endblock %}
+{% block main %}
+{% call ui.page_head('Biên bản nghiệm thu gộp', sub=customer.name, back='/dich-vu/' ~ t.id) %}{% endcall %}
+{% if error %}<div class="alert bad" role="alert">{{ error }}</div>{% endif %}
+<form method="get" action="/dich-vu/{{ t.id }}/bien-ban-gop" class="card nt-chon">
+<p class="hint">Chọn máy của khách đã sửa xong để in chung một biên bản. Máy cùng chỗ đã được chọn sẵn.</p>
+{% for x, ready, same, name in rows %}<label class="nt-chon-row{% if not ready %} off{% endif %}"><input type="checkbox" name="p" value="{{ x.id }}" {% if ready and (same or x.id == t.id) %}checked{% endif %} {% if not ready %}disabled{% endif %}><span><b>{{ x.number }}</b> · {{ name or 'Máy ngoài danh mục' }}{% if x.serial %} · {{ x.serial }}{% endif %}<small>{% if ready %}{{ service_status(x) }}{% if same %} · cùng chỗ{% endif %}{% else %}Chưa sửa xong, không chọn được{% endif %}</small></span></label>{% else %}<p>Khách chưa có máy nào khác đã sửa xong.</p>{% endfor %}
+<div class="nt-chon-act"><button class="btn btn-new" type="submit">Xem biên bản gộp</button><a class="btn btn-ghost" href="/dich-vu/{{ t.id }}/bien-ban">Chỉ in máy này</a></div>
+</form>
+{% endblock %}

@@ -5811,3 +5811,11 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .hh-list .hh-foot{display:flex;justify-content:space-between;gap:10px;font-weight:700;border-bottom:0;border-top:2px solid var(--line);background:var(--bg);padding:12px 14px;margin-top:-1px}
 .hh-list .hh-empty{color:var(--muted);border-bottom:0}
 @media (max-width:640px){.hh-mine .hh-desk{display:none}.hh-mine .hh-list{display:block}}
+
+/* TUẤN duyệt 23/11/2026: chọn máy cho biên bản nghiệm thu gộp. */
+.nt-chon{display:grid;gap:4px}
+.nt-chon-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line,#e5e9ef);cursor:pointer}
+.nt-chon-row input{width:20px;height:20px;margin-top:2px;flex:none}
+.nt-chon-row small{display:block;color:var(--muted,#6b7280);font-size:13px}
+.nt-chon-row.off{opacity:.55;cursor:default}
+.nt-chon-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}

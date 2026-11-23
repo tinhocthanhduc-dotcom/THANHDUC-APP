@@ -1,28 +1,31 @@
+{# Biên bản nghiệm thu và bàn giao máy, một phiếu (TUẤN duyệt mẫu 23/11/2026). #}
 {% extends "in_khung.jinja" %}
 {% import '_in.jinja' as f %}
-{% set done = t.status in ['HOAN_THANH', 'DA_DONG'] %}
+{% import '_bien_ban.jinja' as nt %}
 {% block title %}Biên bản nghiệm thu {{ t.number }}{% endblock %}
 {% block tools_sub %}{{ customer.name }} · {{ service_status(t) }}{% endblock %}
-{% block doc_title %}BIÊN BẢN NGHIỆM THU DỊCH VỤ{% endblock %}
-{% block doc_sub %}{{ service_kinds[t.kind] }}{% if machine_name %} · {{ machine_name }}{% endif %}{% endblock %}
-{% block meta %}{{ f.meta('Số phiếu', t.number) }}{{ f.meta('Ngày hoàn thành', completed_at|vn_date if completed_at else 'Chưa hoàn thành') }}{{ f.meta('Kỹ thuật viên', repairer or (technician.full_name if technician else '')) }}{% endblock %}
+{% block tools_extra %}<a class="back" href="/dich-vu/{{ t.id }}/bien-ban-gop" data-bien-ban-gop>Gộp nhiều máy</a>{% endblock %}
+{% block doc_title %}BIÊN BẢN NGHIỆM THU VÀ BÀN GIAO MÁY{% endblock %}
+{% block doc_sub %}{{ service_kinds[t.kind] }}{% if m.name %} · {{ m.name }}{% endif %}{% endblock %}
+{% block meta %}{{ f.meta('Số phiếu', t.number) }}{{ f.meta('Ngày sửa xong', m.repaired_at|vn_date if m.repaired_at else 'Chưa sửa xong') }}<span>Ngày bàn giao: <b>{{ nt.handover(m.completed_at, year) }}</b></span>{% endblock %}
 {% block body %}
-<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa điểm', (site.name ~ (' · ' ~ site.address if site.address else '')) if site else customer.address), ('Người liên hệ', site.contact_name if site else ''), ('Điện thoại', customer|customer_phones(site.contact_name if site else '', site.contact_phone if site else ''))]) }}
-{{ f.card('Máy và dịch vụ', machine_name or 'Máy ngoài danh mục', [('Serial', t.serial), ('Loại dịch vụ', service_kinds[t.kind]), ('Thợ thực hiện', repairer or (technician.full_name if technician else 'Chưa giao')), ('Ngày giờ hoàn thành', completed_at|service_time if completed_at else ''), ('Trạng thái', service_status(t)), ('Bảo hành', warranty_terms)]) }}</div>
-<div class="in-secs"><div class="in-sec"><h4>Mô tả lỗi khách báo</h4>{{ t.symptom }}</div>
-{% if t.fault_found %}<div class="in-sec"><h4>Lỗi tìm thấy</h4>{{ t.fault_found }}</div>{% endif %}
-<div class="in-sec"><h4>Việc đã làm</h4>{{ t.fix_done or work_note or 'Chưa có ghi chú ở bước cuối.' }}</div></div>
-{% if t.lines %}<table class="in-it"><colgroup><col style="width:9mm"><col style="width:21mm"><col><col style="width:12mm"><col style="width:25mm"><col style="width:12mm"><col style="width:27mm"></colgroup>
-<thead><tr><th class="c">STT</th><th>Mã</th><th>Nội dung · vật tư</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th></tr></thead><tbody>
-{% for line in t.lines %}{% set p = products.get(line.product_code) %}{% set included = line.kind == 'VAT_TU' and not line.amount %}<tr><td class="c">{{ loop.index }}</td><td class="code">{{ line.product_code or '' }}</td><td class="n">{{ line.description or (p.name if p else '') }}{% if p and line.description and line.description != p.name %}<span class="cd">{{ p.name }}</span>{% endif %}{% if included %}<span class="cd">Vật tư đã tính trong phí dịch vụ</span>{% endif %}</td><td class="c">{{ line.qty|qty }}</td><td class="m">{{ '—' if included else line.unit_price|money }}</td><td class="c">{{ '' if included else line.vat_rate ~ '%' }}</td><td class="m">{{ '—' if included else line.amount|money }}</td></tr>{% endfor %}
+<div class="in-cards">{{ f.card('Khách hàng', customer.name, [('Mã khách', customer.code), ('Mã số thuế', customer.tax_code), ('Địa điểm', ((site.name ~ (' · ' ~ site.address if site.address and site.address != site.name else '')) if site else customer.address)), ('Người liên hệ', site.contact_name if site else ''), ('Điện thoại', customer|customer_phones(site.contact_name if site else '', site.contact_phone if site else ''))]) }}
+{{ f.card('Máy sửa chữa' if t.kind == 'MANG_VE' else 'Máy và dịch vụ', m.name or 'Máy ngoài danh mục', [('Serial', t.serial), ('Loại dịch vụ', service_kinds[t.kind]), ('Ngày nhận máy', m.received_at|vn_date if m.received_at else ''), ('Thợ thực hiện', m.technician or 'Chưa giao'), ('Ngày giờ hoàn thành', m.completed_at|service_time if m.completed_at else ''), ('Bảo hành', m.warranty)]) }}</div>
+<div class="kt-tt"><h4>Tình trạng máy và việc đã làm</h4><dl>
+<dt>Lỗi khách báo</dt><dd>{{ t.symptom or '—' }}</dd>
+{% if t.fault_found %}<dt>Lỗi tìm thấy</dt><dd>{{ t.fault_found }}</dd>{% endif %}
+<dt>Việc đã làm</dt><dd>{{ m.work or 'Chưa có ghi chú ở bước cuối.' }}</dd></dl></div>
+{% if t.lines %}<table class="in-it nt-it"><colgroup><col style="width:9mm"><col><col style="width:11mm"><col style="width:24mm"><col style="width:11mm"><col style="width:25mm"><col style="width:17mm"></colgroup>
+<thead><tr><th class="c">STT</th><th>Nội dung · vật tư</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th><th class="c">Bảo hành</th></tr></thead><tbody>
+{% for line in t.lines %}{{ nt.line_row(line, m, loop.index) }}{% endfor %}
 </tbody></table>{% endif %}
-{% if photos %}<div class="in-photos" style="margin-top:12px">{% for photo in photos[:4] %}<figure><img src="/attachments/{{ photo.id }}/file" alt="Ảnh sau sửa"><figcaption>{{ photo.filename }}</figcaption></figure>{% endfor %}</div>{% endif %}
-<div class="in-sum"><div class="left">
-<div class="in-note"><h4>Ghi chú</h4><ul>{% if t.billing == 'MIEN_PHI' %}<li><span class="q">Miễn phí:</span> {{ t.free_reason or 'theo chính sách bảo hành' }}.</li>{% elif t.billing == 'THU_TIEN' %}<li>Đơn giá trên chưa gồm thuế GTGT; tổng thanh toán đã gồm thuế.</li>{% else %}<li>Chưa chốt tiền dịch vụ.</li>{% endif %}<li>{{ warranty_terms }}.</li>{% if t.warranty_scope %}<li>Phạm vi bảo hành: {{ t.warranty_scope }}.</li>{% endif %}{% if not done %}<li><span class="q">Bản xem trước:</span> phiếu chưa hoàn thành, số liệu có thể thay đổi.</li>{% endif %}</ul></div></div>
+{% if photos %}<div class="in-photos sm">{% for photo in photos[:4] %}<figure><img src="/attachments/{{ photo.id }}/file" alt="Ảnh sau sửa"><figcaption>{{ photo.filename }}</figcaption></figure>{% endfor %}</div>{% endif %}
+<div class="in-sum"><div class="left">{{ nt.check(1) }}</div>
 {% if t.billing == 'THU_TIEN' and t.total %}{% set extra = [] %}{% if balance %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else 'ok')) %}{% endif %}
 {{ f.totals([('Tiền chưa VAT', t.subtotal|money ~ ' đồng'), ('Thuế GTGT', t.vat_total|money ~ ' đồng')], ('TỔNG THANH TOÁN', t.total|money ~ ' đồng'), extra) }}
 {% elif t.billing == 'MIEN_PHI' %}{{ f.totals([], ('MIỄN PHÍ', '0 đồng')) }}{% endif %}</div>
 {% if t.billing == 'THU_TIEN' and t.total %}<div class="in-words"><b>Tổng thanh toán bằng chữ:</b> {{ words }}.</div>{% endif %}
+{% set items = [] %}{% if t.billing == 'MIEN_PHI' %}{% do items.append('Miễn phí: ' ~ (t.free_reason or 'theo chính sách bảo hành') ~ '.') %}{% elif t.billing == 'THU_TIEN' %}{% do items.append('Đơn giá chưa gồm thuế GTGT; tổng thanh toán đã gồm thuế.') %}{% else %}{% do items.append('Chưa chốt tiền dịch vụ.') %}{% endif %}{% if t.warranty_scope %}{% do items.append('Phạm vi bảo hành: ' ~ t.warranty_scope ~ '.') %}{% endif %}{% if watermark == 'BẢN XEM TRƯỚC' %}{% do items.append('Bản xem trước: máy chưa sửa xong, số liệu có thể thay đổi.') %}{% endif %}
+{{ nt.notes(items) }}
 {% endblock %}
-{% block signatures %}<div class="in-sd">{{ (completed_at or t.created_at)|vn_long_date|capitalize }}</div>
-{{ f.signatures([('Đại diện khách hàng', '(Ký, ghi rõ họ tên)'), ('Kỹ thuật viên', '(Ký, ghi rõ họ tên)')]) }}{% endblock %}
+{% block signatures %}{{ nt.sign(m.completed_at, m.technician, year) }}{% endblock %}

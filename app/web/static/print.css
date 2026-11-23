@@ -134,3 +134,26 @@ table.in-sg{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:6p
 .kt-it tr.kt-lk td:last-child{padding:5px 8px;background:var(--in-soft)!important;border-radius:3px}
 .in-note + .in-note{margin-top:6px}
 .in-it tr.in-bhr td{background:#eef6f0!important;color:#1d6b38;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+/* TUẤN duyệt 23/11/2026: biên bản nghiệm thu và bàn giao máy (một máy + gộp nhiều máy). */
+.nt-it td.bh{font-size:11px;color:#1d6b38;text-align:center}
+.nt-it tbody{break-inside:avoid}
+.nt-it tbody tr:nth-child(even) td{background:transparent}
+.nt-it tr.nt-may td{background:#e8eef6!important;border-bottom:1px solid #c9d5e4;font-size:12px;color:var(--in-navy)}
+.nt-it tr.nt-may td b{font-weight:800}
+.nt-it tr.nt-may .sr{color:#4b5563;font-weight:500}
+.nt-it tr.nt-vl td{font-size:11.5px;color:#374151;padding-top:5px;padding-bottom:5px}
+.nt-it tr.nt-vl td i{font-style:normal;font-weight:600;color:#4b5563}
+.nt-it tr.nt-cg td{font-weight:700;border-bottom:2px solid #c9d5e4}
+.nt-it .nt-mute{font-weight:400;color:var(--in-mute)}
+.nt-may-ok{float:right;font-weight:600;color:#4b5563;font-size:11px}
+.ok-box{display:inline-block;width:11px;height:11px;border:1.4px solid var(--in-navy);border-radius:2px;vertical-align:-1px;margin-right:5px}
+.nt-kq{border:1px solid var(--in-line);border-radius:6px;padding:8px 12px;font-size:12px;break-inside:avoid}
+.nt-kq h4{margin:0 0 5px;font-size:10.5px;font-weight:700;color:var(--in-navy);text-transform:uppercase;letter-spacing:.8px}
+.nt-kq p{margin:4px 0}
+.nt-kq .ln{display:inline-block;width:62%;border-bottom:1px dotted #9aa3b2;height:12px;vertical-align:baseline}
+.nt-note{margin-top:10px}
+.nt-sg .ln{margin-top:22mm}
+.nt-sg .nm{display:block;margin-top:3px;font-size:11.5px;color:var(--in-ink);font-weight:600}
+.in-photos.sm{margin-top:10px}
+.in-photos.sm img{height:26mm}
