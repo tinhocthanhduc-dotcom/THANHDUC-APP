@@ -390,3 +390,21 @@ def _sibling_ready(db, p, t):
     db.commit()
     db.refresh(row)
     return row
+
+
+def test_acceptance_report_group_preticks_same_return_trip(client, db, repaired):
+    """TUẤN 23/11/2026: máy khác của khách cùng thợ trả, cùng ngày hẹn được chọn sẵn; khác ngày thì không."""
+    from datetime import timedelta
+    from sqlalchemy import text
+    from app import service_tickets
+    p, a, b, t, eq = repaired
+    day = service_tickets._now() + timedelta(days=1)
+    trip, other = _sibling_ready(db, p, t), _sibling_ready(db, p, t)
+    db.execute(text("UPDATE service_tickets SET split_from_id=NULL, status='DA_HEN', hold_reason='', appointment_at=:d, appointment_slot='SANG' WHERE id IN (:a, :b, :c)"),
+               dict(d=day, a=t.id, b=trip.id, c=other.id))
+    db.execute(text("UPDATE service_tickets SET appointment_at=:d WHERE id=:c"), dict(d=day + timedelta(days=2), c=other.id))
+    db.commit()
+    service_login(client, p['dispatcher'])
+    pick = client.get(f'/dich-vu/{t.id}/bien-ban-gop').text
+    assert f'value="{trip.id}" checked' in pick and f'value="{other.id}" checked' not in pick and f'value="{other.id}"' in pick
+    assert 'BẢN XEM TRƯỚC' not in client.get(f'/dich-vu/{t.id}/bien-ban').text

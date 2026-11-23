@@ -1383,7 +1383,8 @@ def test_d5_report_contains_ticket_serial_and_visible_after_photos(client, db, s
     for value in [d5_ticket.number, 'AB123', 'Máy in', 'Minh Phát', 'Văn phòng', 'Máy in kẹt giấy',
                   'Đã thay bánh kéo giấy và chạy thử', 'Dv.Technician', 'Đại diện khách hàng', 'Ngày giờ hoàn thành']:
         assert value in report.text
-    assert f'src="/attachments/{after.id}/file"' in report.text
+    # TUẤN 23/11/2026: biên bản nghiệm thu không in ảnh chụp nữa.
+    assert f'/attachments/{after.id}/file' not in report.text
     assert f'/attachments/{before.id}/file' not in report.text
     assert 'window.print()' in report.text and 'Phiếu chưa hoàn thành' not in report.text
     assert 'size: A4' in client.get('/static/app.css').text
