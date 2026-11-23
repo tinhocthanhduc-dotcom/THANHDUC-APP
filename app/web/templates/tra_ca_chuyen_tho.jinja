@@ -1,0 +1,42 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Trả {{ rows|length }} máy · {{ customer.name if customer else t.customer_code }}{% endblock %}
+{# TUẤN duyệt mẫu 23/11/2026: thợ trả cả chuyến: tick máy khách nhận, một ảnh cho mọi phiếu, thu chung, biên bản gộp, vuốt một lần. #}
+{% block main %}
+<div class="kts-page tcc-page">
+{{ ui.page_head('Trả ' ~ rows|length ~ ' máy', sub=(customer.name if customer else t.customer_code) ~ (' · ' ~ (t.appointment_at|appointment_label(t.appointment_slot)) if t.appointment_at else ''), back='/tho') }}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if request.query_params.get('anh') %}<p class="alert ok" role="status">Đã gắn ảnh trả máy vào cả {{ rows|length }} phiếu.</p>{% endif %}
+{% if request.query_params.get('nhan') %}<p class="alert ok" role="status">Đã nhận {{ request.query_params.get('nhan') }} máy từ kho.</p>{% endif %}
+{% if waiting %}<form method="post" action="/tho/chuyen-tra/{{ t.id }}/nhan-may" class="card tcc-recv"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><p>Chưa nhận từ kho: <b>{{ waiting|join(', ') }}</b>. Kiểm tra máy rồi xác nhận nhận trước khi đi.</p><button class="btn btn-ok">Đã nhận {{ waiting|length }} máy từ kho</button></form>{% endif %}
+{% if site and site.address %}<p class="hint">{{ site.address }}</p>{% endif %}
+<section class="card" id="anh"><h2 class="doc-h">Ảnh trả máy</h2>
+{% if photos %}<div class="tcc-photos">{% for a in photos %}<img src="/attachments/{{ a.id }}/file" alt="Ảnh trả máy">{% endfor %}</div>{% endif %}
+<form method="post" action="/tho/chuyen-tra/{{ t.id }}/anh" enctype="multipart/form-data" class="tcc-photo-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<label class="btn btn-new">+ Chụp ảnh<input type="file" name="file" accept="image/*" capture="environment" hidden onchange="this.form.submit()"></label></form>
+<p class="hint">Chụp chung các máy tại chỗ khách. Ảnh gắn vào cả {{ rows|length }} phiếu.{% if missing %} Còn thiếu ảnh: {{ missing|join(', ') }}.{% endif %}</p></section>
+<form method="post" action="/tho/chuyen-tra/{{ t.id }}/hoan-thanh" class="card form tcc-form" data-tcc-trip data-gps-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
+<input type="hidden" name="gps_lat"><input type="hidden" name="gps_lng"><input type="hidden" name="gps_accuracy">
+<h2 class="doc-h">Máy khách đã nhận</h2>
+<div class="tcc-list">{% for x in rows %}{% set eq = machines.get(x.id) %}<label class="nt-chon-row" data-tcc-row data-due="{{ dues[x.id] }}"><input type="checkbox" name="p" value="{{ x.id }}" {% if x.id in picked %}checked{% endif %}><input type="hidden" name="v_{{ x.id }}" value="{{ x.version }}"><input type="hidden" name="mv_{{ x.id }}" value="{{ eq.version if eq else '' }}">
+<span><b>{{ x.number }}</b> · {{ names.get(x.serial) or 'Máy ngoài danh mục' }}<small>{{ x.serial or '' }}{% if x.billing == 'MIEN_PHI' %} · miễn phí{% endif %}{% if x.number in waiting %} · <b>chưa nhận máy từ kho</b>{% endif %}</small></span><b class="tcc-amt">{{ dues[x.id]|money }}</b></label>{% endfor %}</div>
+<p class="hint">Bỏ tick máy khách chưa nhận: máy đó giữ lại, mở phiếu đó để hẹn lại. Phụ kiện trả đủ như lúc nhận; thiếu phụ kiện thì trả máy đó trên phiếu riêng để ghi chú.</p>
+<div class="tc-total"><b>Phải thu</b><b data-tcc-total>{{ total|money }} đ</b></div>
+<div role="group" aria-label="Khách trả"><b>Khách trả</b><div class="seg">{% for key, label in [('FULL', 'Thu đủ'), ('PARTIAL', 'Thu một phần'), ('LATER', 'Khách trả sau')] %}<label><input type="radio" name="mode" value="{{ key }}"{% if data.mode == key %} checked{% endif %} required data-tcc-mode><span>{{ label }}</span></label>{% endfor %}</div></div>
+<label data-tcc-partial {% if data.mode != 'PARTIAL' %}hidden{% endif %}><b>Khách đưa bao nhiêu?</b><input name="amount" inputmode="numeric" data-money value="{{ data.amount }}"></label>
+<div role="group" aria-label="Cách thu" data-tcc-method><b>Cách thu</b><div class="seg">{% for key, label in methods.items() %}<label><input type="radio" name="method" value="{{ key }}"{% if data.method == key %} checked{% endif %} required><span>{{ label }}</span></label>{% endfor %}</div></div>
+{% if qr_url %}<a class="btn btn-ghost" href="{{ qr_url }}">QR chuyển khoản</a>{% endif %}
+<p class="hint">Thu thiếu thì app trừ theo thứ tự phiếu, mỗi phiếu một báo thu, chờ kế toán xác nhận.</p>
+<label>Ghi chú (không bắt buộc)<input name="note" maxlength="500" value="{{ data.note or '' }}"></label>
+<a class="btn btn-ghost" href="/dich-vu/{{ t.id }}/bien-ban-gop" data-tcc-bien-ban>In biên bản gộp {{ rows|length }} máy</a>
+<div class="swipe" data-swipe><button type="submit" class="btn-ok">Vuốt để hoàn thành <span data-tcc-n>{{ picked|length }}</span> máy</button></div>
+</form>
+<script>
+(function(){var f=document.querySelector('[data-tcc-trip]');if(!f)return;function fmt(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
+function s(){var n=0,t=0;f.querySelectorAll('[data-tcc-row]').forEach(function(r){if(r.querySelector('input[type=checkbox]').checked){n++;t+=+r.dataset.due;}});f.querySelector('[data-tcc-n]').textContent=n;f.querySelector('[data-tcc-total]').textContent=fmt(t)+' đ';
+var m=(f.querySelector('[data-tcc-mode]:checked')||{}).value;f.querySelector('[data-tcc-partial]').hidden=m!=='PARTIAL';f.querySelector('[name=amount]').required=m==='PARTIAL';f.querySelector('[data-tcc-method]').hidden=m==='LATER';}
+f.addEventListener('change',s);s();})();
+</script>
+</div>
+{% endblock %}

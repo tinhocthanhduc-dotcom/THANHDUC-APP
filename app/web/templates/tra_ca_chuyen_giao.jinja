@@ -1,0 +1,28 @@
+{% extends 'base.jinja' %}
+{% import '_ui.jinja' as ui %}
+{% block title %}Giao thợ trả cả chuyến{% endblock %}
+{# TUẤN duyệt mẫu 23/11/2026: tick các máy sửa xong của một khách, chọn ngày, buổi, thợ một lần. #}
+{% block main %}
+<div class="kts-page tcc-page">
+{{ ui.page_head('Giao thợ trả cả chuyến', sub=customer.name, back='/kiem-tra-may?view=s6') }}
+{% if error %}<p class="alert bad" role="alert" data-error-code="{{ error_code }}">{{ error }}</p>{% endif %}
+{% if rows|length < 2 %}<p class="card hint">Khách này chưa có từ 2 máy sửa xong đang chờ giao thợ trả. Giao thợ trả từng máy trên phiếu.</p>{% else %}
+<form method="post" action="/tra-may-ca-chuyen" class="card form tcc-form" data-tcc-form>
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}"><input type="hidden" name="khach" value="{{ customer.code }}">
+<h2 class="doc-h">Máy đi trả</h2>
+<div class="tcc-list">{% for t in rows %}<label class="nt-chon-row" data-tcc-row data-due="{{ t.receivable or 0 }}"><input type="checkbox" name="p" value="{{ t.id }}" {% if t.id in picked %}checked{% endif %}><input type="hidden" name="v_{{ t.id }}" value="{{ t.version }}">
+<span><b>{{ t.number }}</b> · {{ names.get(t.serial) or 'Máy ngoài danh mục' }}{% if t.serial %} · {{ t.serial }}{% endif %}<small>{% if t.declined_at %}Khách không sửa{% else %}Sửa xong{% endif %}{% if t.billing == 'MIEN_PHI' %} · miễn phí{% endif %}</small></span><b class="tcc-amt">{{ (t.receivable or 0)|money }}</b></label>{% endfor %}</div>
+<div class="tc-total"><b>Phải thu cả chuyến</b><b data-tcc-total>{{ rows|selectattr('id', 'in', picked)|map(attribute='receivable')|map('default', 0)|sum|money }} đ</b></div>
+{% with ap_form=form, returning=true %}{% include 'hen_khach.jinja' %}{% endwith %}
+<div role="group" aria-label="Thợ đi trả"><b>Thợ đi trả</b><div class="seg tcc-tech">{% for u, load in technicians %}<label><input type="radio" name="assignee_id" value="{{ u.id }}" {% if form.get('assignee_id', '')|string == u.id|string %}checked{% endif %} required><span>{{ u.full_name }} <small>· {{ load }} việc</small></span></label>{% endfor %}</div></div>
+<label>Ghi chú<input name="note" maxlength="2000" value="{{ form.get('note', '') }}" placeholder="Ví dụ: gọi chị Hà trước khi tới"></label>
+<p class="hint">Thợ nhận các máy từ kho, xác nhận trên màn thợ trước khi đi. Tiền và bảo hành vẫn theo từng phiếu.</p>
+<button class="btn btn-ok" data-tcc-submit>Giao thợ trả <span data-tcc-n>{{ picked|length }}</span> máy</button>
+</form>
+<script>
+(function(){var f=document.querySelector('[data-tcc-form]');if(!f)return;function fmt(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
+function s(){var n=0,t=0;f.querySelectorAll('[data-tcc-row]').forEach(function(r){if(r.querySelector('input[type=checkbox]').checked){n++;t+=+r.dataset.due;}});f.querySelector('[data-tcc-n]').textContent=n;f.querySelector('[data-tcc-total]').textContent=fmt(t)+' đ';}
+f.addEventListener('change',s);s();})();
+</script>{% endif %}
+</div>
+{% endblock %}

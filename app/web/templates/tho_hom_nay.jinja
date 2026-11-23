@@ -50,6 +50,12 @@
 {% else %}<form method="post" action="/tho/nhan-don/{{ c.id }}" class="tho-claim-form tho-acts" data-undo-form data-undo-label="Nhận giao {{ c.number }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">
 <button class="btn btn-ok tho-claim-btn" type="submit" data-claim-order-submit>Nhận giao đơn này</button></form>{% endif %}
 </div>{% endfor %}</div>{% endif %}
+{% if tra_chuyen %}<p class="alert ok" role="status" data-tra-chuyen>Đã trả {{ tra_chuyen }} máy cả chuyến.</p>{% endif %}
+{% if return_trips %}<h2 class="tho-grp" id="tra-chuyen">Trả máy cả chuyến · {{ return_trips|length }}</h2>
+<div class="tho-jobs">{% for r in return_trips %}<a class="card tho-job tcc-card" href="/tho/chuyen-tra/{{ r.anchor.id }}" data-return-trip="{{ r.anchor.id }}">
+<span class="cardtop"><span>{% if r.appointment %}{{ r.appointment|appointment_label(r.slot) }}{% else %}Chưa hẹn{% endif %}</span><span class="tag tone-info">{{ r.tickets|length }} máy</span></span>
+<b>Trả {{ r.tickets|length }} máy · {{ r.customer }}</b><span class="mu">{{ r.tickets|map(attribute='number')|join(', ') }}</span>
+<span class="tho-foot"><span class="tho-due">Phải thu {{ r.due|money }} đ</span><span class="tho-next">Trả cả chuyến ›</span></span></a>{% endfor %}</div>{% endif %}
 {% for group,label in [('active','Đang làm'),('upcoming','Sắp tới')] %}{% set rows=jobs|selectattr('group','equalto',group)|list %}{% if rows %}
 <h2 class="tho-grp"{% if group=='upcoming' %} id="sap-toi"{% endif %}>{{ label }}</h2>
 <div class="tho-jobs">{% for job in rows %}{% if job.trips %}<div class="tho-trip-group" data-trip-group>{% endif %}<a class="card tho-job {% if job.overdue %}service-overdue{% endif %}" href="{{ job.href }}" data-job="{{ job.kind }}:{{ job.id }}"{% if job.action %} data-next-label="{{ job.action.label }}" data-next-route="{{ job.action.route }}"{% endif %}>

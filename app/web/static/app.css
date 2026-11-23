@@ -5819,3 +5819,16 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .nt-chon-row small{display:block;color:var(--muted,#6b7280);font-size:13px}
 .nt-chon-row.off{opacity:.55;cursor:default}
 .nt-chon-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+/* TUẤN duyệt mẫu 23/11/2026: trả máy cả chuyến. */
+.tcc-list{display:grid}
+.tcc-list .nt-chon-row span{flex:1;min-width:0}
+.tcc-amt{white-space:nowrap;font-variant-numeric:tabular-nums}
+.tcc-tech label small{color:var(--muted,#6b7280)}
+.tcc-photos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.tcc-photos img{width:72px;height:72px;object-fit:cover;border-radius:10px}
+.tcc-card{border:2px solid #1d4ed8}
+.tcc-banner{display:block;text-decoration:none}
+.tcc-form .tcc-list label.nt-chon-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:center;font-weight:400}
+.tcc-form .tcc-list label.nt-chon-row input[type=checkbox]{margin:0;width:20px;height:20px}
+.tcc-form .tcc-list label.nt-chon-row small{display:block}

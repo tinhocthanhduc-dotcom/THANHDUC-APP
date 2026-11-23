@@ -257,7 +257,9 @@ def detail_context(session, user, ticket, ctx):
                        open=not (step and step.action in ('repair_reported','repair_failed')),materials=mats,
                        sources=[dict(code=x.code,label='Hàng tôi giữ' if x.kind=='THO' else x.name) for x in sorted(whs,key=lambda x:x.kind!='THO') if any(m['wh']==x.code for m in mats)],
                        reasons=service_workshop.FAIL_REASONS,can_extra=ticket.quote_approved_at is not None)
-    return dict(ws_repair=ws_repair,goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
+    from .. import service_return_trip
+    trip_n=len(service_return_trip.trip_for(session,user,ticket)) if return_job else 0
+    return dict(return_trip_n=trip_n,ws_repair=ws_repair,goods_locked=bool(target=='DANG_LAM' and goods.get('required') and goods.get('step') is None),technician_view=True,return_job=return_job,workshop_repair=workshop_repair,can_bring_workshop=can_bring and not bring_stage,bring_stage=bring_stage,**({'can_custody_receive':False} if bring_stage else {}),**({'can_custody_handover':False} if workshop_repair else {}),**(return_lock if return_job else {}),workshop_materials=materials,issued_materials=issued_rows,trip_machines=trip_machines,checks=checks,completion_ready=all(c['ok'] for c in checks),
         tech_primary=primary,current_target=target,exception_targets=exceptions,step_index=stage,
         machine_name=equipment_svc.display_name(eq,product) if eq else '',**contact(ctx['customer'],ctx['site']))
 
@@ -381,7 +383,9 @@ def _today(request,user,session,claim_error=None,status=200):
     soon=service_suggest.at_risk(session,now,level='tech',assignee_id=user.id)
     soon_customers=dict(session.execute(select(Customer.code,Customer.name).where(Customer.code.in_({i['ticket'].customer_code for i in soon}))).all()) if soon else {}
     flash={'di':'Đã ghi bạn đang đi tới khách. Điều phối thấy ngay.','tre':'Đã báo trễ. Điều phối sẽ gọi khách.'}.get(str(request.query_params.get('hen','')),'')
-    return render(request,'tho_hom_nay.jinja',workshop_jobs=workshop_jobs,soon=soon,soon_customers=soon_customers,soon_label=service_suggest.risk_label,vn_tz=service_suggest.TZ,late_choices=service_suggest.LATE_CHOICES,late_flash=flash,production_jobs=production_jobs,production_stale=production_stale_items,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
+    from .. import service_return_trip
+    return_trips=service_return_trip.trips(session,user)
+    return render(request,'tho_hom_nay.jinja',return_trips=return_trips,tra_chuyen=str(request.query_params.get('tra_chuyen','')),workshop_jobs=workshop_jobs,soon=soon,soon_customers=soon_customers,soon_label=service_suggest.risk_label,vn_tz=service_suggest.TZ,late_choices=service_suggest.LATE_CHOICES,late_flash=flash,production_jobs=production_jobs,production_stale=production_stale_items,jobs=jobs,today=day,punch_hint=punch_hint,lunch_label=attendance.lunch_label(),unreported=unreported,
         claims=claims,order_claims=order_claims,claim_trips=claim_trips,claim_busy=bool(claims or order_claims) and not service_self_claim.can_claim_more(session,user.id),claim_limit=get_settings().self_claim_max_open,
         claim_error=claim_error,claimed=claimed if claimed and any(j['number']==claimed or any(x['number']==claimed for x in j.get('trips',[])) for j in jobs) else '',status=status,
         watch=dict(url='/tho/moi',stamp=work_watch.technician(session,user)))

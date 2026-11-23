@@ -953,6 +953,9 @@ router.include_router(custody_router)
 # Thu chung cả chỗ đăng ký trước /dich-vu/{ticket_id}/{action} của services.
 from .thu_chung import router as thu_chung_router  # noqa: E402
 router.include_router(thu_chung_router)
+# Trả máy cả chuyến (TUẤN duyệt mẫu 23/11/2026).
+from .tra_ca_chuyen import router as tra_ca_chuyen_router  # noqa: E402
+router.include_router(tra_ca_chuyen_router)
 from .services import router as services_router
 
 router.include_router(services_router)

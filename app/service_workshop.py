@@ -469,17 +469,25 @@ def repair_done(session,user,ident,version,total,mode,reason,materials,fault='',
 def schedule_return(session,user,ident,version,appointment,slot,assignee_id,note=''):
     tickets._require(user,tickets.DISPATCHERS,'Chỉ điều phối hoặc giám đốc được hẹn trả máy.')
     with _transaction(session):
-        t=part_requests._ticket(session,ident);tickets._check_version(t,version)
-        if t.status!='TAM_DUNG' or t.hold_reason!=READY or not service_charges.return_locked(t):
-            raise BusinessError('BAD_STATUS','Máy chưa ở bước sửa xong chờ trả.',status=409)
-        eq=held_machine(session,t)
-        tickets._technician(session,assignee_id)
-        tickets.transition_in_tx(session,user,t,'DA_HEN',note,appointment,appointment_slot=slot)
-        if t.assignee_id!=assignee_id:
-            tickets.assign_in_tx(session,user,t.id,assignee_id,None,note)
-        if eq.custody_location!='THO_GIU' or eq.custody_holder_id!=assignee_id:
-            custody.handover_in_tx(session,user,t.id,CustodyHandover(version=eq.version,
-                location='THO_GIU',holder_id=assignee_id))
+        t=part_requests._ticket(session,ident)
+        schedule_return_in_tx(session,user,t,version,appointment,slot,assignee_id,note)
+    return t
+
+
+def schedule_return_in_tx(session,user,t,version,appointment,slot,assignee_id,note=''):
+    """Caller khóa phiếu và giữ transaction; dùng chung cho giao thợ trả một máy và trả cả chuyến (23/11/2026)."""
+    tickets._require(user,tickets.DISPATCHERS,'Chỉ điều phối hoặc giám đốc được hẹn trả máy.')
+    tickets._check_version(t,version)
+    if t.status!='TAM_DUNG' or t.hold_reason!=READY or not service_charges.return_locked(t):
+        raise BusinessError('BAD_STATUS','Máy chưa ở bước sửa xong chờ trả.',status=409)
+    eq=held_machine(session,t)
+    tickets._technician(session,assignee_id)
+    tickets.transition_in_tx(session,user,t,'DA_HEN',note,appointment,appointment_slot=slot)
+    if t.assignee_id!=assignee_id:
+        tickets.assign_in_tx(session,user,t.id,assignee_id,None,note)
+    if eq.custody_location!='THO_GIU' or eq.custody_holder_id!=assignee_id:
+        custody.handover_in_tx(session,user,t.id,CustodyHandover(version=eq.version,
+            location='THO_GIU',holder_id=assignee_id))
     return t
 
 
