@@ -4,7 +4,7 @@ from urllib.parse import quote, urlencode
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy import func, select
@@ -916,29 +916,33 @@ def photo_hide(request: Request, ticket_id: int, attachment_id: int, form=Depend
 
 @router.get("/dich-vu/{ticket_id}/bien-ban")
 def acceptance_report(request: Request, ticket_id: int, user: User = Depends(web_user), session: Session = Depends(get_session)):
-    from ..config import get_settings
-    from ..models import CustomerSite, Equipment, Product
-    from ..money_words import money_words
-    from .. import sales_receipts
+    """Biên bản nghiệm thu và bàn giao máy một phiếu (TUẤN duyệt mẫu 23/11/2026)."""
+    from . import bien_ban
+    from .lists import _today
     t = svc.load(session, user, ticket_id)
-    machine = session.get(Equipment, t.serial) if t.serial else None
-    product = session.get(Product, machine.product_code) if machine and machine.product_code else None
-    completion = next((step for step in reversed(t.steps) if step.to_status == "HOAN_THANH"), None)
-    last = t.steps[-1] if t.steps else None
-    done = t.status in ('HOAN_THANH', 'DA_DONG')
-    photos = [a for a in attachments.list_for(session, user, "service_ticket", str(t.id))
-              if a.tag == "SAU" and a.content_type.startswith("image/")]
-    codes = {line.product_code for line in t.lines if line.product_code}
-    repairer = session.get(User, t.repaired_by) if t.repaired_by else None
-    return render(request, "dich_vu_bien_ban.jinja", t=t, customer=session.get(Customer, t.customer_code), company=get_settings(),
-                  back=f"/dich-vu/{t.id}", site=session.get(CustomerSite, t.site_id) if t.site_id else None, product=product,
-                  machine_name=equipment.display_name(machine, product) if machine else '',
-                  technician=session.get(User, t.assignee_id) if t.assignee_id else None, repairer=repairer.full_name if repairer else '',
-                  work_note=completion.note if completion and done else last.note if last else "",
-                  completed_at=completion.at if completion else None, photos=photos, warranty_terms=service_warranty.terms(session, t),
-                  products={p.code: p for p in session.scalars(select(Product).where(Product.code.in_(codes)))} if codes else {},
-                  balance=sales_receipts.balance(t) if done and t.billing == 'THU_TIEN' else None,
-                  words=money_words(t.total or 0), watermark='ĐÃ HỦY' if t.status == 'DA_HUY' else '' if done else 'BẢN XEM TRƯỚC')
+    return render(request, "dich_vu_bien_ban.jinja", year=_today().year, **bien_ban.single_context(session, user, t))
+
+
+@router.get("/dich-vu/{ticket_id}/bien-ban-gop")
+def acceptance_report_group(request: Request, ticket_id: int, p: list[int] = Query(default=[]), chon: int = 0,
+                            user: User = Depends(web_user), session: Session = Depends(get_session)):
+    """Biên bản gộp nhiều máy của một khách: chưa chọn máy thì ra màn chọn (máy cùng chỗ đã sửa xong chọn sẵn)."""
+    from . import bien_ban
+    from .lists import _today
+    from ..models import Equipment, Product
+    t = svc.load(session, user, ticket_id)
+    error = ''
+    if p and not chon:
+        try:
+            return render(request, "dich_vu_bien_ban_gop.jinja", year=_today().year, **bien_ban.group_context(session, user, t, p))
+        except BusinessError as exc:
+            error = exc.message
+    rows = bien_ban.candidates(session, user, t)
+    serials = [x.serial for x, _, _ in rows if x.serial]
+    names = dict(session.execute(select(Equipment.serial, equipment.name_column()).outerjoin(Product, Product.code == Equipment.product_code)
+                                 .where(Equipment.serial.in_(serials))).all()) if serials else {}
+    return render(request, "dich_vu_bien_ban_chon.jinja", t=t, customer=session.get(Customer, t.customer_code), error=error,
+                  rows=[(x, ready, same, names.get(x.serial, '')) for x, ready, same in rows])
 
 
 @router.get("/dich-vu/{ticket_id}/phieu-nhan-may")
