@@ -72,6 +72,8 @@
     if (window.MutationObserver) new MutationObserver(syncLock).observe(button, { attributes: true, attributeFilter: ['disabled'] });
     function explainLock() {
       if (button.dataset.photoBusy) { if (lockToast) lockToast.remove(); lockToast = window.tdToast('Đang nén ảnh, chờ 1–2 giây rồi vuốt lại'); return; }
+      // Ảnh màn thợ đang tải lên (technician-photos.js): trước đây báo "Còn thiếu: ảnh…" dù thợ vừa chụp xong.
+      if (document.querySelector('.tech-photo[data-uploading]')) { if (lockToast) lockToast.remove(); lockToast = window.tdToast('Ảnh đang tải lên, chờ vài giây rồi vuốt lại'); return; }
       var why = box.dataset.why || 'Chưa đủ điều kiện';
       var target = document.getElementById(button.getAttribute('aria-describedby') || '');
       if (target) {
@@ -145,39 +147,88 @@
     // điện thoại có khi không gửi lại lúc nhấc ngón đã bấm nút Chụp ảnh, nên coi như vẫn còn một ngón đang chạm.
     // Ngón vuốt thật lúc đó không còn là "ngón chính" (isPrimary = false) và trước đây bị bỏ qua, thanh vuốt đứng im.
     // Nay nhận mọi ngón bấm vào thanh, chỉ theo đúng ngón đang kéo; quay lại trang (sau máy ảnh) thì xóa trạng thái kéo dở.
+    // Lỗi TUẤN 23/11 "vẫn còn bàn tay ma, nhất là ngay sau khi tải ảnh": trên điện thoại thật, chạm vào nút Chụp ảnh
+    // mở máy ảnh trước khi nhấc ngón, trình duyệt giữ lại một "ngón ma" chưa nhấc. Ngón vuốt thật thành ngón thứ hai:
+    // trình duyệt coi hai ngón là thao tác phóng to/cuộn trang và hủy luồng sự kiện pointer (pointercancel), nút tròn
+    // bật về đầu. Giả lập trên máy tính không có bộ nhận cử chỉ nên không thấy lỗi này.
+    // Nay trên máy cảm ứng kéo bằng sự kiện chạm gốc (touchstart/touchmove/touchend) theo đúng mã ngón đang kéo:
+    // chặn cuộn/phóng to ngay khi kéo ngang (preventDefault) và ngay khi có ngón ma, nên trình duyệt không cướp mất cử chỉ.
+    // Chuột/bút vẫn dùng pointer. Quay lại trang (sau máy ảnh) thì xóa trạng thái kéo dở.
+    var TOUCH = 'ontouchstart' in window;
     function reset() {
-      if (drag) { try { box.releasePointerCapture(drag.id); } catch (e) { /* đã nhả */ } }
+      if (drag && drag.capture != null) { try { box.releasePointerCapture(drag.capture); } catch (e) { /* đã nhả */ } }
       drag = null; box.classList.remove('swipe-drag'); busy(false); syncLock();
     }
-    box.addEventListener('pointerdown', function (event) {
-      if (event.button > 0 || box.classList.contains('swipe-busy')) return;
-      if (drag && drag.id !== event.pointerId && drag.moved && Date.now() - drag.at < 1000) return;  // ngón thứ hai trong lúc đang kéo thật
-      if (locked()) { quietClickUntil = Date.now() + 800; explainLock(); return; }
-      try { box.setPointerCapture(event.pointerId); } catch (e) { /* trình duyệt cũ */ }
-      drag = { id: event.pointerId, start: event.clientX - x, moved: false, at: Date.now() };
+    function begin(id, clientX, clientY, capture) {
+      if (box.classList.contains('swipe-busy')) return false;
+      if (drag && drag.id !== id && drag.moved && Date.now() - drag.at < 1000) return false;  // ngón thứ hai trong lúc đang kéo thật
+      if (locked()) { quietClickUntil = Date.now() + 800; explainLock(); return false; }
+      drag = { id: id, start: clientX - x, x0: clientX, y0: clientY, moved: false, dir: '', at: Date.now(), capture: capture == null ? null : capture };
       box.classList.add('swipe-drag');
-    });
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reset(); });
-    window.addEventListener('pageshow', reset);
-    box.addEventListener('pointermove', function (event) {
-      if (!drag || event.pointerId !== drag.id) return;
-      var v = Math.max(0, Math.min(maxX(), event.clientX - drag.start));
+      return true;
+    }
+    function moveTo(clientX) {
+      var v = Math.max(0, Math.min(maxX(), clientX - drag.start));
       if (v > 4) drag.moved = true;
       drag.at = Date.now();
-      if (drag.moved && event.cancelable) event.preventDefault();
       setX(v);
-    });
-    function release(event) {
-      if (!drag || (event.pointerId !== undefined && event.pointerId !== drag.id)) return;
+    }
+    function finish(ok) {
       var moved = drag.moved; drag = null;
       box.classList.remove('swipe-drag');
       quietClickUntil = Date.now() + 800;
-      if (event.type === 'pointerup' && moved && x >= maxX() * 0.8) done();
-      else { setX(0); if (!moved && event.type === 'pointerup') window.tdToast('Vuốt nút tròn hết sang phải'); }
+      if (ok && moved && x >= maxX() * 0.8) done();
+      else { setX(0); if (!moved && ok) window.tdToast('Vuốt nút tròn hết sang phải'); }
+    }
+    box.addEventListener('pointerdown', function (event) {
+      if (event.button > 0 || (TOUCH && event.pointerType === 'touch')) return;
+      if (!begin('p' + event.pointerId, event.clientX, event.clientY, event.pointerId)) return;
+      try { box.setPointerCapture(event.pointerId); } catch (e) { drag.capture = null; }
+    });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reset(); });
+    window.addEventListener('pageshow', reset);
+    window.addEventListener('focus', function () { if (!box.classList.contains('swipe-busy')) reset(); });
+    box.addEventListener('pointermove', function (event) {
+      if (!drag || drag.id !== 'p' + event.pointerId) return;
+      moveTo(event.clientX);
+      if (drag.moved && event.cancelable) event.preventDefault();
+    });
+    function release(event) {
+      if (!drag || drag.id !== 'p' + event.pointerId) return;
+      finish(event.type === 'pointerup');
     }
     box.addEventListener('pointerup', release);
     box.addEventListener('pointercancel', release);
-    box.addEventListener('lostpointercapture', function (event) { if (drag && event.pointerId === drag.id) release({ type: 'pointercancel' }); });
+    box.addEventListener('lostpointercapture', function (event) { if (drag && drag.id === 'p' + event.pointerId) finish(false); });
+    function ours(event) {
+      if (!drag) return null;
+      for (var i = 0; i < event.changedTouches.length; i++) if (drag.id === 't' + event.changedTouches[i].identifier) return event.changedTouches[i];
+      return null;
+    }
+    box.addEventListener('touchstart', function (event) {
+      var t = event.changedTouches[0];
+      if (!t) return;
+      // Có ngón khác đang "chạm" (ngón ma sau máy ảnh): không cho trình duyệt hiểu thành phóng to/cuộn.
+      if (event.touches.length > 1 && event.cancelable) event.preventDefault();
+      begin('t' + t.identifier, t.clientX, t.clientY, null);
+    }, { passive: false });
+    box.addEventListener('touchmove', function (event) {
+      var t = ours(event);
+      if (!t) return;
+      if (!drag.dir) {
+        var dx = Math.abs(t.clientX - drag.x0), dy = Math.abs(t.clientY - drag.y0);
+        // Chỉ nhường cho cuộn trang khi kéo hẳn lên/xuống; ngón cái hơi trượt lên rồi mới sang ngang vẫn tính là vuốt.
+        if (dx < 8 && dy < 12) { if (event.cancelable && (event.touches.length > 1 || dx >= dy)) event.preventDefault(); return; }
+        drag.dir = dy > dx * 2.5 && event.touches.length === 1 ? 'y' : 'x';
+        if (drag.dir === 'y') { finish(false); return; }
+      }
+      if (event.cancelable) event.preventDefault();
+      moveTo(t.clientX);
+    }, { passive: false });
+    box.addEventListener('touchend', function (event) {
+      if (ours(event)) { if (event.cancelable) event.preventDefault(); finish(true); }
+    }, { passive: false });
+    box.addEventListener('touchcancel', function (event) { if (ours(event)) finish(false); });
     button.addEventListener('click', function (event) {
       // detail === 0: bấm bằng bàn phím hoặc trình đọc màn hình.
       if (event.detail === 0 && Date.now() > quietClickUntil && window.confirm(button.textContent.trim() + '?')) {
