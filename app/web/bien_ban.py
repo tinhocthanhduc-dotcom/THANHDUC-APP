@@ -9,7 +9,7 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from ..errors import BusinessError
-from .. import attachments, equipment, service_tickets as svc, service_warranty
+from .. import equipment, service_tickets as svc, service_warranty
 from ..models import Customer, CustomerSite, Equipment, Product, ServiceTicket, User
 
 DONE = ('HOAN_THANH', 'DA_DONG')
@@ -71,18 +71,27 @@ def single_context(session, user, t):
     from ..money_words import money_words
     from .. import sales_receipts
     m = machine(session, user, t)
-    photos = [a for a in attachments.list_for(session, user, 'service_ticket', str(t.id))
-              if a.tag == 'SAU' and a.content_type.startswith('image/')]
     customer = session.get(Customer, t.customer_code)
     return dict(t=t, m=m, customer=customer, company=get_settings(), back=f'/dich-vu/{t.id}',
-                site=session.get(CustomerSite, t.site_id) if t.site_id else None, photos=photos,
+                site=session.get(CustomerSite, t.site_id) if t.site_id else None,
                 balance=sales_receipts.balance(t) if m['ready'] and t.billing == 'THU_TIEN' else None,
                 words=money_words(t.total or 0), watermark=watermark(t, m['ready']))
 
 
+def _trip_day(x):
+    return x.appointment_at.astimezone(svc.service_sla.TZ).date() if x.appointment_at else None
+
+
+def same_trip(x, t):
+    """Cùng chuyến trả máy (TUẤN 23/11/2026): cùng thợ được giao và cùng ngày hẹn."""
+    return (x.id == t.id or (x.assignee_id is not None and x.assignee_id == t.assignee_id
+            and _trip_day(t) is not None and _trip_day(x) == _trip_day(t)))
+
+
 def candidates(session, user, t):
     """Máy có thể gộp vào một biên bản: các phiếu cùng chỗ (tách từ một phiếu gốc) + phiếu khác của cùng khách
-    đã sửa xong trong 30 ngày gần đây. Trả [(phiếu, đã sửa xong, cùng chỗ)] theo số phiếu."""
+    đã sửa xong trong 30 ngày gần đây. Trả [(phiếu, đã sửa xong, chọn sẵn)] theo số phiếu: chọn sẵn máy cùng chỗ
+    và máy cùng chuyến trả (cùng thợ, cùng ngày hẹn)."""
     family = {x.id for x in svc.family(session, t)}
     since = svc._now() - timedelta(days=30)
     others = session.scalars(select(ServiceTicket.id).where(ServiceTicket.customer_code == t.customer_code,
@@ -97,7 +106,7 @@ def candidates(session, user, t):
             continue
         ready = is_ready(x)
         if ident in family or ready:
-            rows.append((x, ready, ident in family))
+            rows.append((x, ready, ident in family or (ready and same_trip(x, t))))
     return rows
 
 

@@ -19,7 +19,6 @@
 <thead><tr><th class="c">STT</th><th>Nội dung · vật tư</th><th class="c">SL</th><th class="m">Đơn giá<small>chưa VAT</small></th><th class="c">VAT</th><th class="m">Thành tiền<small>chưa VAT</small></th><th class="c">Bảo hành</th></tr></thead><tbody>
 {% for line in t.lines %}{{ nt.line_row(line, m, loop.index) }}{% endfor %}
 </tbody></table>{% endif %}
-{% if photos %}<div class="in-photos sm">{% for photo in photos[:4] %}<figure><img src="/attachments/{{ photo.id }}/file" alt="Ảnh sau sửa"><figcaption>{{ photo.filename }}</figcaption></figure>{% endfor %}</div>{% endif %}
 <div class="in-sum"><div class="left">{{ nt.check(1) }}</div>
 {% if t.billing == 'THU_TIEN' and t.total %}{% set extra = [] %}{% if balance %}{% do extra.append(('Đã thanh toán', balance.paid|money ~ ' đồng', 'ok')) %}{% do extra.append(('Còn phải trả', balance.remaining|money ~ ' đồng', 'due' if balance.remaining else 'ok')) %}{% endif %}
 {{ f.totals([('Tiền chưa VAT', t.subtotal|money ~ ' đồng'), ('Thuế GTGT', t.vat_total|money ~ ' đồng')], ('TỔNG THANH TOÁN', t.total|money ~ ' đồng'), extra) }}
