@@ -178,7 +178,7 @@ Thêm dòng (7 giờ sáng thứ 2 – thứ 7, mỗi lần 2 sản phẩm đã 
 | `WEB_OPENAI_MODEL` | `gpt-5.5` | Model ChatGPT |
 | `WEB_AI_MODEL` | `claude-opus-5-5` | Model Claude. `claude-sonnet-5-5` rẻ bằng nửa |
 | `WEB_AI_TRA_WEB` | `true` | Cho AI tra web để lấy đúng máy tương thích |
-| `WEB_TACH_NEN` | `true` | Tách nền ảnh (tắt nếu ảnh đã nền trắng sẵn) |
+| `WEB_TACH_NEN` | `false` | Tách nền ảnh. Tắt từ 25/11/2026 vì hay làm vỡ ảnh: ảnh lên web là ảnh gốc, chỉ đặt vào khung vuông + logo. Đặt `true` để bật lại |
 | `WEB_MO_HINH_TACH_NEN` | `isnet-general-use` | Mô hình tách nền; `u2net` là bản cũ |
 | `WEB_ANH_DINH_DANG` | `webp` | `jpg` nếu hosting không nhận WebP (công cụ cũng tự đổi khi bị từ chối) |
 | `WEB_DANG_GIA` | `true` | Ghi giá bán vào sản phẩm nháp |

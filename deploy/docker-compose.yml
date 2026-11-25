@@ -63,7 +63,8 @@ services:
       WEB_AI_MODEL: ${WEB_AI_MODEL:-claude-opus-5-5}
       WEB_AI_EFFORT: ${WEB_AI_EFFORT:-medium}
       WEB_AI_TRA_WEB: ${WEB_AI_TRA_WEB:-true}
-      WEB_TACH_NEN: ${WEB_TACH_NEN:-true}
+      # Tách nền ảnh: tắt từ 25/11/2026 (làm vỡ ảnh). Đặt true trong .env nếu muốn bật lại.
+      WEB_TACH_NEN: ${WEB_TACH_NEN:-false}
       # Mô hình tách nền: isnet-general-use (mặc định, viền sắc) hoặc u2net (bản cũ).
       WEB_MO_HINH_TACH_NEN: ${WEB_MO_HINH_TACH_NEN:-isnet-general-use}
       WEB_ANH_DINH_DANG: ${WEB_ANH_DINH_DANG:-webp}

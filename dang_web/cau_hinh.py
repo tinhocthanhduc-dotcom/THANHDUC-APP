@@ -32,7 +32,7 @@ class CauHinh:
     ai_model: str = "claude-opus-5-5"
     ai_effort: str = "medium"
     ai_tra_web: bool = True
-    tach_nen: bool = True
+    tach_nen: bool = False  # TUẤN 25/11/2026: tách nền hay làm vỡ ảnh, mặc định dùng ảnh gốc
     anh_kich_thuoc: int = 1200
     anh_dinh_dang: str = "webp"
     dang_gia: bool = True
@@ -63,7 +63,7 @@ class CauHinh:
             ai_model=(e.get("WEB_AI_MODEL") or "claude-opus-5-5").strip(),
             ai_effort=effort,
             ai_tra_web=_bool(e.get("WEB_AI_TRA_WEB"), True),
-            tach_nen=_bool(e.get("WEB_TACH_NEN"), True),
+            tach_nen=_bool(e.get("WEB_TACH_NEN"), False),
             anh_kich_thuoc=max(600, min(2400, _int(e.get("WEB_ANH_KICH_THUOC"), 1200))),
             anh_dinh_dang=dinh_dang,
             dang_gia=_bool(e.get("WEB_DANG_GIA"), True),
