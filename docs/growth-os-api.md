@@ -144,3 +144,18 @@ TUẤN 17/11/2026, phiếu "Cơ hội bán hàng". Cùng khóa `growth-os` (`mar
 - `goi` = đã quá nhịp, chờ gọi; `sap` = sắp tới nhịp trong 7 ngày; `hen` = đang hẹn / tạm ẩn sau cuộc gọi;
   `xong_tuan` = số cuộc gọi đã ghi từ thứ Hai tuần này. Khách đã chuyển nơi khác không tính.
 - Chỉ số đếm: không mã khách, tên, SĐT, số đơn, tên hàng. `list_path` là đường trong app quản lý (cần đăng nhập).
+
+## Gửi ảnh sản phẩm sang Đăng web (khóa `growth-os-dang`, TUẤN chọn phương án A 25/11/2026)
+
+Khóa riêng "Growth OS · Gửi ảnh sản phẩm lên Đăng web" (phạm vi `marketing_post`), tạo ở Quản trị › Trợ lý AI, chỉ dùng
+trong máy chủ Z2. App Dịch vụ SEO dùng khóa này khi anh chụp sản phẩm ở cổng tải và tick "Tạo trang sản phẩm trên web".
+
+- `POST /marketing/v1/dang-web/san-pham` (multipart: `ref` mã phiếu bên DVSEO, `ma` mã TD, `ghi_chu`, `anh` × tối đa 6):
+  tạo việc Đăng web loại sản phẩm, `tu_dang=true`. Gửi lại cùng `ref` trả việc cũ, không tạo trùng. Mã phải đang dùng.
+- `GET /marketing/v1/dang-web/viec/{id}`: trạng thái (`trang_thai`, `nhan`), `tu_dang_luc`, `ly_do_khong_tu_dang`,
+  `so_trung`, `link_xem`, `trang_thai_web`, `da_go`, `dung_tu_dang`. Chỉ đọc được việc khóa này gửi.
+- `POST /marketing/v1/dang-web/viec/{id}/da-bao`: DVSEO đã nhắn Zalo cho anh thì gọi; máy hẹn tự đăng sau 4 giờ.
+  Từ chối (409) khi việc chưa ở Xem trước, có lý do chặn, đã hoãn, hoặc tự đăng đang dừng.
+
+Máy chỉ tự đăng khi đủ: soạn xong không giá, không số tháng bảo hành, AI không còn điểm chưa chắc, có ảnh, không trùng,
+đã báo Zalo đủ 4 giờ, anh không bấm Hoãn, chưa quá 3 sản phẩm hôm đó, tự đăng không bị dừng (lỗi 2 lần liên tiếp tự dừng).

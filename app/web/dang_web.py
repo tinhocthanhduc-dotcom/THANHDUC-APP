@@ -160,7 +160,8 @@ def listing(request: Request, tab: str = "san-pham", loc: str = "", q: str = "",
             for key, label, l in TABS]
     ctx = dict(tab=tab, tabs=tabs, nhip=nhip, loi_thu_muc=loi_thu_muc, da_luu=da_luu, q=q, loc=loc,
                cach_viet=hd.CACH_VIET, cach_mac_dinh=_cach_mac_dinh(nhip), cho_lam_moi=not loi_thu_muc and hd.dang_cho_lam_moi(g),
-               la_giam_doc=has_role(user, "director"), codex_sk=None if loi_thu_muc else hd.suc_khoe_codex(g))
+               la_giam_doc=has_role(user, "director"), codex_sk=None if loi_thu_muc else hd.suc_khoe_codex(g),
+               tu_dang=None if loi_thu_muc else hd.doc_cong_tac(g))
     if tab == "mang-xa-hoi":
         return _tab_mxh(request, viec, ctx, loc, trang, so)
     if tab == "tren-web":
@@ -842,6 +843,7 @@ def _page_viec(request, v, error="", status=200, da_luu=""):
     co_san = _goi_y_co_san(v) if (v.get("loai") == "san_pham" and not v.get("kieu") and not v.get("wp_id")
                                   and v.get("trang_thai") == hd.XEM_TRUOC) else None
     return render(request, "dang_web_viec.jinja", v=_them_nhan(v), anh_mat=anh_mat, co_san=co_san, nhip=hd.doc_nhip(g), error=error, status=status, ve_ai=_ve_json(ve),
+                  go_duoc=hd.go_duoc(v), tu_dang_sw=hd.doc_cong_tac(g), MAY_TU_DANG=hd.MAY_TU_DANG,
                   codex=hd.codex_song(g),
                   danh_muc=hd.doc_json(hd.file_danh_muc(g), []), cach_viet=hd.CACH_VIET, cay_lua=cay_lua, che_do_anh=CHE_DO_ANH)
 
@@ -1079,6 +1081,17 @@ def act(request: Request, viec_id: str, form=Depends(checked_form), user: User =
                     x.pop(k, None)
 
             kq = doi(hd.CHO_DANG, (hd.XEM_TRUOC,), ham)
+        elif hanh_dong == "hoan_tu_dang":
+            # Sản phẩm từ ảnh (app Dịch vụ SEO): anh hoãn thì thành việc thường, chờ anh bấm Duyệt và đăng.
+            ten = (user.full_name or user.username or "").strip()[:80]
+            kq = hd.sua(g, viec_id, lambda x: (x.pop("tu_dang", None), x.pop("tu_dang_luc", None),
+                                               x.update(hoan_boi=ten, hoan_luc=hd.bay_gio().isoformat(timespec="minutes"))),
+                        (hd.CHO_SOAN, hd.DANG_SOAN, hd.CO_THE_TRUNG, hd.CHO_DAN, hd.XEM_TRUOC, hd.LOI))
+        elif hanh_dong == "go_web":
+            if not hd.go_duoc(v):
+                raise BusinessError("BAD_STATE", f"Chỉ gỡ được sản phẩm máy tự đăng, đang hiện, trong {hd.TU_DANG_GO_NGAY} ngày.", status=409)
+            ten = (user.full_name or user.username or "").strip()[:80]
+            kq = doi(hd.CHO_DANG, (hd.DA_DANG,), lambda x: x.update(go=True, go_boi=ten, loi=""))
         elif hanh_dong == "viet_lai":
             kq = doi(hd.CHO_SOAN, (hd.XEM_TRUOC, hd.LOI, hd.CHO_DAN), xoa_tra_loi)
         elif hanh_dong == "van_soan":
@@ -1218,6 +1231,19 @@ def refresh(request: Request, form=Depends(checked_form)):
 @router.post("/dang-web/chu-de")
 def topics(request: Request, form=Depends(checked_form)):
     raise BusinessError("BAI_VIET_DA_CHUYEN", BAI_VIET_DA_CHUYEN, status=410)
+
+
+@router.post("/dang-web/tu-dang/bat-lai")
+def auto_publish_resume(request: Request, form=Depends(checked_form), user: User = Depends(web_user)):
+    """Bật lại tự đăng sản phẩm từ ảnh sau khi máy tự dừng (lỗi liên tiếp) hoặc anh dừng. Chỉ Giám đốc."""
+    if not has_role(user, "director"):
+        raise BusinessError("FORBIDDEN", "Chỉ Giám đốc bật lại tự đăng.", status=403)
+    _can_ghi()
+    if form.get("dung") == "1":
+        hd.dung_tu_dang(goc(), f"{user.full_name or user.username} dừng tự đăng.")
+    else:
+        hd.bat_lai_tu_dang(goc())
+    return RedirectResponse("/dang-web?tab=san-pham&da_luu=tu-dang", status_code=303)
 
 
 @router.post("/dang-web/lich")

@@ -76,6 +76,8 @@
 {% endif %}
 
 {% if tab == 'san-pham' and la_giam_doc %}
+{% if tu_dang and tu_dang.dung %}<div class="dw-pad"><form method="post" action="/dang-web/tu-dang/bat-lai" class="alert warn" role="status">{{ csrf_in() }}<b>Máy tự đăng sản phẩm từ ảnh đang dừng.</b> {{ tu_dang.ly_do or '' }} <button class="btn btn-ok">Bật lại tự đăng</button></form></div>
+{% else %}<div class="dw-pad"><form method="post" action="/dang-web/tu-dang/bat-lai" class="hint">{{ csrf_in() }}{{ an('dung', '1') }}Tự đăng sản phẩm từ ảnh (cổng tải): đang bật, tối đa 3 sản phẩm/ngày, Zalo báo trước 4 giờ. <button class="btn btn-ghost">Dừng tự đăng</button></form></div>{% endif %}
 <details class="dw-pad dw-lich"{% if lich.bat %} open{% endif %}><summary><b>Tự soạn mỗi sáng</b> · {{ 'đang bật, ' ~ lich.gio ~ ' thứ 2 – thứ 7' if lich.bat else 'đang tắt' }}</summary>
 <form method="post" action="/dang-web/lich" class="dw-lich-form">{{ csrf_in() }}{{ an('tab', tab) }}
 <label class="chk"><input type="checkbox" name="bat" value="1" {% if lich.bat %}checked{% endif %}> Bật</label>

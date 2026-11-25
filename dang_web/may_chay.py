@@ -2,14 +2,17 @@
 
 Nhận việc từ màn Đăng web trong app qua thư mục chung (xem hang_doi.py):
 soạn (kiểm trùng → AI viết → xử lý ảnh) rồi chờ anh xem trước. Database app chỉ đọc.
-Sản phẩm: anh bấm "Duyệt và đăng" thì lên web công khai, "Chỉ lưu nháp" thì lên Bản nháp. Máy không bao giờ tự đăng:
+Sản phẩm: anh bấm "Duyệt và đăng" thì lên web công khai, "Chỉ lưu nháp" thì lên Bản nháp. Máy không tự đăng việc thường:
 chỉ việc người đã bấm (app ghi cong_khai + duyet_boi) mới lên công khai. Bài viết luôn là Bản nháp.
+Ngoại lệ duy nhất (TUẤN chọn phương án A 25/11/2026): sản phẩm từ ảnh do app Dịch vụ SEO gửi (tu_dang), không giá,
+không số tháng bảo hành, đã nhắn Zalo cho anh trước 4 giờ mà anh không bấm Hoãn (hang_doi.den_han_tu_dang).
 """
 from __future__ import annotations
 
 import re
 import time
 import traceback
+from dataclasses import replace
 from pathlib import Path
 
 from . import anh as anh_mod
@@ -31,6 +34,15 @@ from .wordpress import (LoiWeb, WordPress, anh_trong_bai, bai_co_the_trung, chen
 SO_ANH_TRONG_BAI = 3  # tối đa số ảnh chèn vào thân mô tả / thân bài
 MOI_NHAP_NGAY = 30  # hàng nhập trong chừng này ngày là "mới nhập" (giống màn Đăng web)
 SO_ANH_BAI_VIET = 4  # bài viết: ảnh đầu làm ảnh đại diện, tối đa 3 ảnh sau chèn vào thân bài
+# Dặn thêm AI khi soạn sản phẩm tự đăng (không người duyệt từng chữ): TUẤN chọn phương án A 25/11/2026.
+DAN_TU_DANG = (
+    "CHẾ ĐỘ TỰ ĐĂNG, không có người duyệt từng chữ:\n"
+    "- Không ghi giá, không ghi số tháng bảo hành. Nhắc bảo hành thì chỉ ghi: Bảo hành tại Thành Đức, liên hệ để biết thời hạn.\n"
+    "- Thông số kỹ thuật, máy tương thích, số trang in: chỉ ghi điều tìm thấy trên trang của hãng sản xuất và khớp đúng model. "
+    "Điểm nào không chắc thì BỎ HẲN khỏi bài, không viết chung chung, không đưa vào can_kiem_tra.\n"
+    "- can_kiem_tra để trống. Chỉ ghi vào đó khi không xác định được đúng sản phẩm (ảnh và tên không khớp, không rõ model).\n"
+    "- Mời khách bấm Yêu cầu báo giá hoặc gọi hotline để biết giá."
+)
 
 
 def in_(s: str = "") -> None:
@@ -169,6 +181,9 @@ class MayDangWeb:
         sp = self.lay_san_pham(v["ma"])
         if not sp:
             raise RuntimeError(f"Không thấy mã {v['ma']} trong Hàng hóa (hoặc đã ngừng dùng).")
+        tu_dang = bool(v.get("tu_dang"))
+        if tu_dang:  # AI không thấy giá, bảo hành nên không viết ra
+            sp = replace(sp, sale_price=0, warranty_months=0)
         if self.co_wp and not v.get("wp_id") and not v.get("van_dang"):
             co_san = self.wp().tim_sp_theo_sku(sp.code)
             if co_san:
@@ -180,8 +195,10 @@ class MayDangWeb:
             return
         files = self._anh_goc(v)  # không có ảnh vẫn soạn được: lên web dạng chữ, bổ sung ảnh sau bằng Sửa bằng AI
         nv = self.nguoi_viet(v)
-        kq = self._goi_ai(v, nv, lambda: nv.viet_san_pham(sp, v.get("ghi_chu") or dang.doc_ghi_chu(self.ch, sp.code),
-                                                          len(files), self.ch.hotline))
+        ghi_chu = v.get("ghi_chu") or dang.doc_ghi_chu(self.ch, sp.code)
+        if tu_dang:
+            ghi_chu = f"{ghi_chu}\n\n{DAN_TU_DANG}".strip()
+        kq = self._goi_ai(v, nv, lambda: nv.viet_san_pham(sp, ghi_chu, len(files), self.ch.hotline))
         if kq is None:
             return
         d = kq.du_lieu
@@ -196,8 +213,9 @@ class MayDangWeb:
             v, hd.XEM_TRUOC,
             ten=sp.name, noi_dung=d, anh_web=[a for a, _ in anh_ds], anh_nguon=[str(f) for f in files],
             chi_phi=kq.mo_ta_chi_phi, model=getattr(nv, "model", ""), ghi_chu_ai=kq.ghi_chu,
-            can_kiem_tra=d.get("can_kiem_tra", []), gia=dang.gia_web(sp, self.ch),
+            can_kiem_tra=d.get("can_kiem_tra", []), gia="" if tu_dang else dang.gia_web(sp, self.ch),
             danh_muc=(dm or {}).get("name") or sp.group_name, loi="",
+            **({"ly_do_khong_tu_dang": ly_do_khong_tu_dang(d, files)} if tu_dang else {}),
         )
 
     def _ung_vien_bai(self, v: dict) -> list[dict]:
@@ -276,6 +294,8 @@ class MayDangWeb:
             return self._dang_xep(v)
         if v.get("kieu") == "ghi_sku":
             return self._dang_ghi_sku(v)
+        if v.get("go"):
+            return self._go_ve_nhap(v)
         wp = self.wp()
         d = v["noi_dung"]
         if v["loai"] == "san_pham":
@@ -287,7 +307,7 @@ class MayDangWeb:
             dm = tim_danh_muc(v.get("danh_muc") or sp.group_name, self.danh_muc(), dang.doc_bang_nhom(self.ch))
             payload = dang.payload_san_pham(sp, d, self.ch, ids, dm)
             payload["description"] = dang.chen_anh(payload["description"], anh[1:1 + SO_ANH_TRONG_BAI])  # TUẤN 02/11: không chèn ảnh đại diện
-            gia = re.sub(r"\D", "", str(v.get("gia") or ""))
+            gia = "" if v.get("tu_dang") else re.sub(r"\D", "", str(v.get("gia") or ""))
             if gia and int(gia) > 0:
                 payload["regular_price"] = gia
             else:
@@ -337,6 +357,14 @@ class MayDangWeb:
             "Sản phẩm" if v["loai"] == "san_pham" else "Bài viết", khoa,
             ("ĐĂNG CÔNG KHAI" if moi.get("status") == "publish" and v.get("cong_khai") else ("VIẾT LẠI" if v.get("wp_id") else "BẢN NHÁP")),
             [f"Duyệt: {v.get('duyet_boi') or '—'} · {sua}", f"Chi phí AI: {v.get('chi_phi', '')}"]))
+
+    def _go_ve_nhap(self, v: dict) -> None:
+        """Anh bấm "Gỡ về nháp" sản phẩm máy tự đăng: chỉ đổi trạng thái trên web sang Nháp, không xóa gì."""
+        moi = self.wp().an_sp(int(v["wp_id"]))
+        self._cap_nhat(v, hd.DA_DANG, go=False, da_go=True, trang_thai_web=moi.get("status", "draft"),
+                       go_luc=hd.bay_gio().isoformat(timespec="minutes"), loi="")
+        dang.ghi_ket_qua(self.ch.ket_qua, dang.dong_ket_qua("Sản phẩm", v.get("ma", ""), "GỠ VỀ NHÁP",
+                                                            [f"Gỡ bởi: {v.get('go_boi') or '—'}"]))
 
     # ---------- làm mới trạng thái trên web ----------
     def lam_moi_web(self) -> None:
@@ -544,7 +572,7 @@ class MayDangWeb:
             if anh:
                 payload["images"] = [{"id": m["id"]} for m in anh]
                 payload["description"] = dang.chen_anh(payload.get("description", d.get("mo_ta_html", "")), anh[1:1 + SO_ANH_TRONG_BAI])
-            gia = re.sub(r"\D", "", str(v.get("gia") or ""))
+            gia = "" if v.get("tu_dang") else re.sub(r"\D", "", str(v.get("gia") or ""))
             if gia and int(gia) > 0:
                 payload["regular_price"] = gia
             if dm_id:
@@ -1038,12 +1066,18 @@ class MayDangWeb:
                 buoc = "soan" if v["trang_thai"] == hd.DANG_SOAN else "dang"
                 in_(f"{'Soạn' if buoc == 'soan' else 'Đăng'} {v['loai']} {v.get('ma') or v.get('chu_de') or v.get('ten', '')}")
                 self.nhip(v["id"])
+                may_dang = buoc == "dang" and v.get("duyet_boi") == hd.MAY_TU_DANG and not v.get("go")
                 try:
                     self.soan(v) if buoc == "soan" else self.dang(v)
                 except Exception as e:
                     in_(f"  LỖI: {e}")
                     traceback.print_exc()
                     self._cap_nhat(v, hd.LOI, loi=str(e)[:600], buoc_loi=buoc)
+                    if may_dang and hd.ghi_loi_tu_dang(self.goc, str(e)):
+                        in_("  Tự đăng lỗi liên tiếp: đã tự dừng tự đăng")
+                else:
+                    if may_dang:
+                        hd.ghi_ok_tu_dang(self.goc)
                 return True
         except RuntimeError as e:
             if "Đang có một lần chạy khác" in str(e):
@@ -1069,6 +1103,8 @@ class MayDangWeb:
                     finally:
                         hd.xong_lam_moi_mot(self.goc, loai, web_id)
                 self.kiem_lich()
+                for viec_id in hd.den_han_tu_dang(self.goc):
+                    in_(f"Tự đăng tới giờ: {viec_id}")
             except Exception as e:
                 in_(f"  LỖI làm mới/lịch: {e}")
             co_viec = self.lam_mot_viec()
@@ -1076,3 +1112,16 @@ class MayDangWeb:
                 return
             if not co_viec:
                 time.sleep(nghi)
+
+
+def ly_do_khong_tu_dang(d: dict, files: list) -> str:
+    """Lý do sản phẩm soạn xong không được tự đăng (phải chờ anh xem ở Đăng web). Trống: tự đăng được."""
+    if not files:
+        return "Chưa có ảnh sản phẩm."
+    can = [str(x).strip() for x in d.get("can_kiem_tra") or [] if str(x).strip()]
+    if can:
+        return f"AI còn {len(can)} điểm chưa chắc: " + "; ".join(can)[:240]
+    chu = f"{d.get('mo_ta_ngan_html', '')} {d.get('mo_ta_html', '')}"
+    if re.search(r"\d[\d.,]*\s*(đ|vnđ|vnd|đồng|k)\b", chu, re.I) or re.search(r"bảo hành\s*\d+\s*(tháng|năm)", chu, re.I):
+        return "Bài có nhắc giá hoặc số tháng bảo hành (tự đăng không được ghi)."
+    return ""

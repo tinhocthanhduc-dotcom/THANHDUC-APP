@@ -233,3 +233,16 @@ thành Đã đăng. App không tự đăng lên mạng.
   cỡ ảnh, chừa trong suốt vùng ảnh và vùng chữ theo `anh_mxh.vung()`: vùng ảnh từ trên 150px tới trên dải chữ 40px,
   lề 64px; dải chữ cao 250px (vuông) hoặc 300px (dọc) ở dưới cùng. Có khung thì máy dùng khung, không có thì dùng khung dựng sẵn.
 - "Đổi chữ hoặc mẫu, ghép lại ảnh" chỉ ghép lại ảnh, không gọi AI. "Viết lại cả 3 bản" gọi AI lại và bỏ đánh dấu kênh.
+
+## Sản phẩm từ ảnh tự đăng (TUẤN chọn phương án A 25/11/2026)
+
+Anh chụp sản phẩm ở cổng tải của app Dịch vụ SEO, tick "Tạo trang sản phẩm trên web". App đó khớp ra mã TD và gửi ảnh
+sang đây qua khóa `growth-os-dang` (xem docs/growth-os-api.md). Việc hiện ở màn Đăng web với khung "Sản phẩm từ ảnh".
+
+- Máy soạn như thường (kiểm trùng, tách nền, Codex viết) nhưng **không giá, không số tháng bảo hành**, thông số chỉ ghi
+  điều có trên trang hãng. Còn điểm chưa chắc, bài nhắc giá/bảo hành, không ảnh hoặc có thể trùng thì không tự đăng: chờ anh.
+- App Dịch vụ SEO nhắn Zalo cho anh, 4 giờ sau máy tự đăng công khai (người duyệt ghi "Máy tự đăng (đã báo Zalo)").
+- **Hoãn tự đăng**: bấm ở trang việc, việc thành việc thường chờ anh Duyệt và đăng.
+- **Gỡ về nháp**: trong 7 ngày sau khi máy tự đăng, chỉ đổi sang Nháp trên web, không xóa.
+- Tối đa 3 sản phẩm/ngày. Đăng lỗi 2 lần liên tiếp thì tự dừng; Giám đốc bấm **Bật lại tự đăng** (hoặc **Dừng tự đăng**)
+  ở tab Sản phẩm.
