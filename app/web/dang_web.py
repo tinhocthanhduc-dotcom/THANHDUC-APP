@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
+from dang_web import giu_anh
 from dang_web import hang_doi as hd
 from dang_web import ve_anh
 from dang_web.anh_mxh import CO_NHAN as MXH_CO, MAU as MXH_MAU
@@ -835,7 +836,12 @@ def _page_viec(request, v, error="", status=200, da_luu=""):
                       error=error, status=status, da_luu=da_luu)
     cay_lua = _cay(v["loai"]).lua_chon() if v.get("kieu") in ("sua_web", "xep_danh_muc") else []
     ve = ve_anh.moi_nhat(g, viec_id=v["id"]) if v.get("ve_anh") else None
-    return render(request, "dang_web_viec.jinja", v=_them_nhan(v), nhip=hd.doc_nhip(g), error=error, status=status, ve_ai=_ve_json(ve),
+    nd = v.get("noi_dung") or {}
+    anh_mat = giu_anh.anh_bi_mat(v.get("anh_giu") or [], nd.get("mo_ta_html" if v.get("loai") == "san_pham" else "noi_dung_html", "")) \
+        if v.get("kieu") == "sua_web" else []
+    co_san = _goi_y_co_san(v) if (v.get("loai") == "san_pham" and not v.get("kieu") and not v.get("wp_id")
+                                  and v.get("trang_thai") == hd.XEM_TRUOC) else None
+    return render(request, "dang_web_viec.jinja", v=_them_nhan(v), anh_mat=anh_mat, co_san=co_san, nhip=hd.doc_nhip(g), error=error, status=status, ve_ai=_ve_json(ve),
                   codex=hd.codex_song(g),
                   danh_muc=hd.doc_json(hd.file_danh_muc(g), []), cach_viet=hd.CACH_VIET, cay_lua=cay_lua, che_do_anh=CHE_DO_ANH)
 
@@ -901,6 +907,10 @@ def _nap_sua(v: dict, form) -> None:
     tieu_de = d.get("ten_web") if v["loai"] == "san_pham" else d.get("tieu_de")
     if not tieu_de:
         raise BusinessError("BAD_FORM", "Tên trên web không được để trống.")
+    if v.get("kieu") == "sua_web" and (v.get("sua") or {}).get("noi_dung"):
+        mat = giu_anh.anh_bi_mat(v.get("anh_giu") or [], d.get("mo_ta_html" if v["loai"] == "san_pham" else "noi_dung_html", ""))
+        if mat:
+            raise BusinessError("BAD_FORM", f"Mô tả mới thiếu {len(mat)} ảnh so với web. Dán lại dòng <img …> đã xóa, hoặc bấm Viết lại.")
     v["noi_dung"] = d
     if v["loai"] == "bai_viet" and v.get("ve_anh") and not v.get("kieu"):
         _nap_anh_ai(v, str(form.get("anh_ai", "")))
@@ -915,6 +925,94 @@ def _nap_sua(v: dict, form) -> None:
         v["gia"] = re.sub(r"\D", "", str(form.get("gia", "")))
         if v.get("kieu") != "sua_web":
             v["danh_muc"] = str(form.get("danh_muc", "")).strip()[:200]
+
+
+# ---------- sản phẩm soạn mới thật ra đã có trên web (TUẤN duyệt mẫu M4me8zdq ngày 25/11/2026) ----------
+_LINK_ID_RE = re.compile(r"(?:[?&](?:post|p)=|^)(\d+)(?:$|&)")
+
+
+def _chuan_link(s: str) -> str:
+    s = (s or "").strip().split("#")[0].split("?")[0].lower()
+    s = re.sub(r"^https?://(www\.)?", "", s)
+    return s.rstrip("/")
+
+
+def _tim_sp_web(ds: list[dict], link: str) -> dict | None:
+    """Link anh dán: link sản phẩm thanhduc.vn, link wp-admin (post=ID), ?p=ID hoặc số ID."""
+    link = (link or "").strip()
+    if not link:
+        return None
+    m = _LINK_ID_RE.search(link.split("#")[0])
+    if m:
+        hit = next((x for x in ds if str(x.get("id")) == m.group(1)), None)
+        if hit:
+            return hit
+    k = _chuan_link(link)
+    if not k:
+        return None
+    hit = next((x for x in ds if _chuan_link(x.get("xem", "")) == k), None)
+    if hit:
+        return hit
+    duoi = k.rsplit("/", 1)[-1]
+    return next((x for x in ds if duoi and _chuan_link(x.get("xem", "")).rsplit("/", 1)[-1] == duoi), None)
+
+
+def _goi_y_co_san(v: dict) -> dict:
+    """Gợi ý sản phẩm trên web có thể chính là mã đang soạn mới: chỉ đọc danh sách đã lấy về (không gọi web)."""
+    from dang_web.so_ten import diem_hang
+
+    web = _doc_web(hd.file_sp_web(goc()))
+    ten = [t for t in (v.get("ten"), (v.get("noi_dung") or {}).get("ten_web")) if t]
+    diem = []
+    for x in web["ds"]:
+        d = max((diem_hang(t, x.get("ten", "")) for t in ten), default=0.0)
+        if d >= 0.5:
+            diem.append((d, x))
+    diem.sort(key=lambda t: -t[0])
+    return {"luc": web["luc"], "da_lay": web["da_lay"], "ds": [x for _, x in diem[:3]]}
+
+
+@router.post("/dang-web/viec/{viec_id}/co-san")
+def already_on_web(request: Request, viec_id: str, form=Depends(checked_form), user: User = Depends(web_user)):
+    """Bỏ bản soạn mới, chuyển sang Sửa bằng AI cho sản phẩm đang có trên web (nội dung + SEO, giữ nguyên ảnh)."""
+    g = goc()
+    v = _viec(viec_id)
+    try:
+        _can_ghi()
+        if v.get("loai") != "san_pham" or v.get("kieu") or v.get("wp_id") or v.get("trang_thai") != hd.XEM_TRUOC:
+            raise BusinessError("BAD_STATE", "Chỉ chuyển được bản soạn sản phẩm mới đang chờ xem trước.", status=409)
+        web = _doc_web(hd.file_sp_web(g))
+        if not web["da_lay"]:
+            raise BusinessError("BAD_FORM", "Chưa có danh sách trên web. Vào tab Trên web bấm “Cập nhật từ web” rồi thử lại.")
+        chon = str(form.get("web_id", "")).strip()
+        it = next((x for x in web["ds"] if str(x.get("id")) == chon), None) if chon else _tim_sp_web(web["ds"], str(form.get("link_web", "")))
+        if not it:
+            raise BusinessError("BAD_FORM", "Không thấy sản phẩm này trong danh sách đã lấy về. Kiểm tra link, hoặc bấm “Cập nhật từ web” rồi thử lại.")
+        wp_id, ma = int(it["id"]), v.get("ma") or ""
+        dang_lam = next((x for x in hd.ds(g) if x.get("kieu") == "sua_web" and x.get("loai") == "san_pham"
+                         and x.get("wp_id") == wp_id and x.get("trang_thai") not in hd.XONG), None)
+        if dang_lam:
+            moi_id = dang_lam["id"]
+        else:
+            cach = v.get("cach_viet") if v.get("cach_viet") in ("codex", "tu_dong", "chatgpt_web") else (
+                "codex" if hd.codex_song(g) else "chatgpt_web")
+            moi_id = hd.tao_viec(g, "san_pham", dict(
+                kieu="sua_web", wp_id=wp_id, ten=it.get("ten", ""), ma=ma, sua={"noi_dung": True, "seo": True, "anh": False},
+                danh_muc_id=None, cach_viet=cach, ghi_chu=v.get("ghi_chu") or "", da_co_logo=bool(v.get("da_co_logo")),
+                tach_nen=v.get("tach_nen", True), van_dang=True, viet_lai=True), [])
+        hd.sua(g, viec_id, lambda x: x.update(trang_thai=hd.BO, loi="", chuyen_sang=moi_id), (hd.XEM_TRUOC,))
+        if ma:
+            xac = hd.doc_xac_nhan(g)
+            cua_ma_khac = any(k != ma and isinstance(x, dict) and x.get("dung") == wp_id for k, x in xac.items())
+            if not cua_ma_khac:
+                hd.xac_nhan(g, ma, wp_id, True)
+                if form.get("ghi_ma") == "1" and not str(it.get("sku") or "").strip() and not _viec_ghi_ma(g):
+                    ghi_id = hd.tao_viec(g, "san_pham", dict(kieu="ghi_sku", ghi=[dict(id=wp_id, ma=ma, ten=it.get("ten", ""))],
+                                                             ten=f"Ghi mã {ma} lên web · {it.get('ten', '')}"[:200], van_dang=True))
+                    hd.sua(g, ghi_id, lambda x: x.update(trang_thai=hd.CHO_DANG))
+    except BusinessError as exc:
+        return _page_viec(request, v, error=exc.message, status=exc.status)
+    return RedirectResponse(f"/dang-web/viec/{moi_id}", status_code=303)
 
 
 @router.post("/dang-web/viec/{viec_id}")
