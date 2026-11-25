@@ -24,7 +24,7 @@
 <div class="dw-ph-list" data-dw-list></div>
 {% set rong = ('Chưa chọn ảnh. Trên Z2 đã có ảnh của mã này, để trống sẽ dùng ảnh đó.' if anh_co_san else ('Không bắt buộc khi viết lại: để trống thì giữ ảnh đang có trên web.' if d.wp_id else 'Chụp hoặc chọn 1 đến ' ~ toi_da_anh ~ ' ảnh. Ảnh đầu tiên làm ảnh chính.')) %}
 <p class="hint" data-dw-note data-empty="{{ rong }}">{{ rong }}</p>
-<p class="hint">App tự tách nền, làm nền trắng, ảnh vuông và đóng logo Thành Đức. Khi đăng, tối đa 3 ảnh được chèn vào mô tả chi tiết.</p>
+<p class="hint">App giữ ảnh gốc (không tách nền), đặt vào khung vuông và đóng logo Thành Đức. Khi đăng, tối đa 3 ảnh được chèn vào mô tả chi tiết.</p>
 <label class="chk"><input type="checkbox" name="da_co_logo" value="1" {% if d.da_co_logo %}checked{% endif %}> Ảnh đã có logo Thành Đức, không đóng thêm</label>
 </section>
 {% else %}
