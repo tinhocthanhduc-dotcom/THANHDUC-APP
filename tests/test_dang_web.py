@@ -547,3 +547,9 @@ def test_san_pham_che_logo_thi_thu_nho_mot_chut():
     khong = Image.open(io.BytesIO(anh.xu_ly(im, tach_nen=False, kich_thuoc=800, logo=None))).convert("RGB")
     trai = lambda o: next(x for x in range(800) if o.getpixel((x, 400))[0] < 100)  # noqa: E731
     assert trai(khong) <= 33 and 33 < trai(co) <= 90  # nhỏ đi nhưng không quá 14%
+
+
+def test_mac_dinh_khong_tach_nen():
+    """TUẤN 25/11/2026: tách nền làm vỡ ảnh, mặc định dùng ảnh gốc (chỉ bật lại khi đặt WEB_TACH_NEN=true)."""
+    assert not CauHinh.tu_moi_truong({}).tach_nen
+    assert CauHinh.tu_moi_truong({"WEB_TACH_NEN": "true"}).tach_nen

@@ -140,7 +140,7 @@
 {% if v.anh_web or v.anh_goc %}<section class="card">
 <p class="group-label"><b>Ảnh trước / sau</b></p>
 <div class="dw-ba">{% if v.anh_goc %}<figure><img src="/dang-web/anh/{{ v.id }}/{{ v.anh_goc[0] }}" alt="Ảnh gốc"><figcaption>Ảnh gốc</figcaption></figure>{% endif %}
-{% for a in v.anh_web %}<figure><img src="/dang-web/anh-web/{{ a }}" alt="Ảnh lên web {{ loop.index }}"><figcaption>{{ 'Lên web (nền trắng + logo)' if loop.first else 'Ảnh ' ~ loop.index }}</figcaption></figure>{% endfor %}</div>
+{% for a in v.anh_web %}<figure><img src="/dang-web/anh-web/{{ a }}" alt="Ảnh lên web {{ loop.index }}"><figcaption>{{ 'Lên web (ảnh gốc + logo)' if loop.first else 'Ảnh ' ~ loop.index }}</figcaption></figure>{% endfor %}</div>
 </section>{% endif %}
 {% set hien_seo = not sua_web or sua.seo %}{% set hien_nd = not sua_web or sua.noi_dung %}
 {% if hien_seo %}<section class="card">
