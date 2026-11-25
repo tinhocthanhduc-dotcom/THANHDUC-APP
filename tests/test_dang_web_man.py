@@ -296,15 +296,15 @@ def test_trung_sku_viet_de_len_san_pham_cu(client, web_login, goc, san_pham):
     assert hd.doc(goc, viec_id)["trung_sku"] is True
     page = client.get(f"/dang-web/viec/{viec_id}")
     assert "Không trùng, vẫn soạn" not in page.text
-    client.post(f"/dang-web/viec/{viec_id}", data=dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="viet_de", wp_id="77"))
-    v = hd.doc(goc, viec_id)
-    assert v["trang_thai"] == hd.CHO_SOAN and v["wp_id"] == 77 and v["viet_lai"]
-    may.lam_mot_viec()
-    hd.sua(goc, viec_id, lambda x: x.update(trang_thai=hd.CHO_DANG))
-    may.lam_mot_viec()
-    assert hd.doc(goc, viec_id)["trang_thai"] == hd.DA_DANG
-    sp_id, payload = wp.sua[0]
-    assert sp_id == 77 and not wp.tao
+    r = client.post(f"/dang-web/viec/{viec_id}", data=dict(csrf=csrf_of(page.text), form_key=str(uuid.uuid4()), hanh_dong="viet_de", wp_id="77"),
+                    follow_redirects=False)
+    # TUẤN 25/11: viết đè sản phẩm đi đường Sửa bằng AI (giữ ảnh, đường dẫn, danh mục), không soạn lại như sản phẩm mới
+    cu = hd.doc(goc, viec_id)
+    assert cu["trang_thai"] == hd.BO and r.headers["location"] == f"/dang-web/viec/{cu['chuyen_sang']}"
+    v = hd.doc(goc, cu["chuyen_sang"])
+    assert v["kieu"] == "sua_web" and v["wp_id"] == 77 and v["ma"] == "TD-0123" and v["sua"] == {"noi_dung": True, "seo": True, "anh": False}
+    assert not any(x.get("kieu") == "ghi_sku" for x in hd.ds(goc))  # web đã đúng mã
+    assert not wp.tao
 
 
 def test_wordpress_sua_sp_giu_trang_thai_va_sku():

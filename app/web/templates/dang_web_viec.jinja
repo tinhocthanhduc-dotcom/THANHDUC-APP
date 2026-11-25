@@ -31,7 +31,7 @@
 <p class="group-label"><b>Trên web</b></p>
 <ul class="dw-list dw-trung">{% for t in v.trung %}<li><div class="dw-row"><span class="dw-main"><b>{{ t.ten }}</b><small>{{ {'draft': 'Bản nháp', 'publish': 'Đang hiện', 'pending': 'Chờ duyệt', 'private': 'Riêng tư'}.get(t.trang_thai, t.trang_thai) }}</small></span>
 <span class="dw-row-acts">{% if t.link_sua %}<a class="btn btn-ghost" href="{{ t.link_sua }}" target="_blank" rel="noopener">Mở ↗</a>{% elif t.link %}<a class="btn btn-ghost" href="{{ t.link }}" target="_blank" rel="noopener">Mở ↗</a>{% endif %}
-{{ mo_form() }}<input type="hidden" name="wp_id" value="{{ t.id }}">{{ nut('viet_de', 'Viết lại đè lên', 'btn-ghost', 'Soạn bản mới rồi ghi đè lên “' ~ t.ten ~ '” sau khi anh xem trước?') }}</form></span></div></li>{% endfor %}</ul>
+{{ mo_form() }}<input type="hidden" name="wp_id" value="{{ t.id }}">{{ nut('viet_de', 'Viết lại đè lên', 'btn-ghost', ('Viết lại chữ và SEO của “' ~ t.ten ~ '”, giữ nguyên ảnh, đường dẫn và danh mục?') if not bai else ('Soạn bản mới rồi ghi đè lên “' ~ t.ten ~ '” sau khi anh xem trước?')) }}</form></span></div></li>{% endfor %}</ul>
 </section>
 {{ mo_form() }}
 <div class="dw-stack">
