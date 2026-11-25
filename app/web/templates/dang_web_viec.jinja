@@ -114,6 +114,17 @@
 {{ mo_form() }}
 <div class="dw-cols dw-2"><div>
 {% if v.trung_sau %}<p class="alert warn" role="status"><b>Tiêu đề AI đặt gần giống bài đã có:</b> {% for t in v.trung_sau %}{% if t.link_sua or t.link %}<a href="{{ t.link_sua or t.link }}" target="_blank" rel="noopener">{{ t.ten }}</a>{% else %}{{ t.ten }}{% endif %} <small>({{ {'draft': 'bản nháp', 'publish': 'đang hiện', 'pending': 'chờ duyệt', 'private': 'riêng tư', 'hang_cho': 'đang chờ trong app'}.get(t.trang_thai, t.trang_thai) }})</small>{{ '; ' if not loop.last }}{% endfor %}. Đúng là trùng thì bấm Bỏ; không trùng thì xem rồi đăng bình thường.</p>{% endif %}
+{% if co_san %}{# TUẤN duyệt mẫu M4me8zdq ngày 25/11/2026: sản phẩm này đã có trên web → viết lại sản phẩm đó, không tạo trùng #}
+<section class="card dw-co-san" aria-label="Sản phẩm này đã có trên web?"><b>Sản phẩm này đã có trên web?</b>
+{% if co_san.ds %}<p class="hint">Gợi ý từ danh sách lấy về lúc {{ co_san.luc|replace('T', ' ') }} (tên gần giống):</p>
+<ul class="dw-list dw-trung">{% for t in co_san.ds %}<li><div class="dw-row">{% if t.anh %}<img class="dw-thumb" src="{{ t.anh }}" alt="" loading="lazy">{% endif %}<span class="dw-main"><b>{{ t.ten }}</b><small>{{ {'draft': 'Bản nháp', 'publish': 'Đang hiện', 'pending': 'Chờ duyệt', 'private': 'Riêng tư'}.get(t.trang_thai, t.trang_thai) }} · Mã web: {{ t.sku or 'trống' }} · {{ t.so_anh or 0 }} ảnh</small></span>
+<span class="dw-row-acts">{% if t.xem %}<a class="btn btn-ghost" href="{{ t.xem }}" target="_blank" rel="noopener">Xem ↗</a>{% endif %}<button class="btn btn-new" formaction="/dang-web/viec/{{ v.id }}/co-san" formnovalidate name="web_id" value="{{ t.id }}">Đúng, viết lại cái này</button></span></div></li>{% endfor %}</ul>
+{% elif not co_san.da_lay %}<p class="hint">Chưa có danh sách trên web: vào tab Trên web bấm “Cập nhật từ web” để app gợi ý.</p>{% endif %}
+<label><b>Hoặc dán link sản phẩm trên thanhduc.vn</b><input name="link_web" inputmode="url" placeholder="https://thanhduc.vn/…" maxlength="500"></label>
+<button class="btn btn-ghost" formaction="/dang-web/viec/{{ v.id }}/co-san" formnovalidate>Dùng link này</button>
+{% if v.ma %}<label class="chk"><input type="checkbox" name="ghi_ma" value="1" checked> Ghi mã {{ v.ma }} vào ô Mã (SKU) của sản phẩm đó để lần sau app tự nhận ra (chỉ khi ô đang trống)</label>{% endif %}
+<p class="hint">Bấm chọn: bỏ bản nháp mới này, mở việc “Sửa bằng AI” cho sản phẩm có sẵn (nội dung + SEO, giữ nguyên ảnh). Không tạo sản phẩm trùng.</p>
+</section>{% endif %}
 {% if bai and v.ve_anh and not v.kieu %}{{ va.khung(ve_ai, codex, 'chon', v.id) }}{% endif %}
 {% if not v.anh_web and not (sua_web and not sua.anh) and not v.ve_anh %}<p class="alert warn" role="status"><b>Chưa có ảnh.</b> {{ 'Bản nháp' if not sua_web else 'Bài' }} lên web chỉ có chữ; khi có ảnh, vào Trên web bấm “Sửa bằng AI”, tick Ảnh để bổ sung.</p>{% endif %}
 {% if sua_web %}{% set phan = [] %}{% if sua.noi_dung %}{% set _ = phan.append('nội dung') %}{% endif %}{% if sua.seo %}{% set _ = phan.append('tiêu đề, mô tả Google') %}{% endif %}{% if sua.anh %}{% set _ = phan.append('ảnh') %}{% endif %}{% if v.danh_muc_id %}{% set _ = phan.append('danh mục') %}{% endif %}<p class="alert info" role="status"><b>Sửa bài đang có trên web.</b> Chỉ ghi đè: {{ phan|join(', ') or 'danh mục' }}. Giữ nguyên trạng thái và đường dẫn trên web.{% if v.link_xem %} <a href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem bản đang hiện ↗</a>{% endif %}</p>{% endif %}

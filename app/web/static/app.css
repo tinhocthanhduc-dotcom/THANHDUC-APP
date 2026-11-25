@@ -5832,3 +5832,10 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .tcc-form .tcc-list label.nt-chon-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:center;font-weight:400}
 .tcc-form .tcc-list label.nt-chon-row input[type=checkbox]{margin:0;width:20px;height:20px}
 .tcc-form .tcc-list label.nt-chon-row small{display:block}
+/* Sản phẩm này đã có trên web? (TUẤN duyệt mẫu 25/11/2026) */
+.dw-co-san .dw-trung .dw-row { grid-template-columns: 44px minmax(0, 1fr); }
+.dw-co-san .dw-trung .dw-row-acts { grid-column: 1 / -1; }
+.dw-co-san .dw-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line, #dde1ea); }
+.dw-co-san > label { display: block; margin-top: 10px; }
+.dw-co-san .chk { margin-top: 10px; }
+@media (min-width: 1024px) { .dw-co-san .dw-trung .dw-row { grid-template-columns: 44px minmax(0, 1fr) auto; } .dw-co-san .dw-trung .dw-row-acts { grid-column: auto; } }

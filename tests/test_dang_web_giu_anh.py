@@ -82,3 +82,59 @@ def test_may_khong_ghi_de_khi_mo_ta_thieu_anh(goc, nhieu_hang):
     except RuntimeError as e:
         assert "thiếu 1 ảnh" in str(e)
     assert wp.sua == []
+
+
+def _viec_moi(goc):
+    vid = hd.tao_viec(goc, "san_pham", dict(ma="TD-0123", ten="Hộp mực Canon 326", cach_viet="chatgpt_web", ghi_chu="Ghi chú cũ"))
+    hd.sua(goc, vid, lambda x: x.update(trang_thai=hd.XEM_TRUOC, noi_dung={"ten_web": "Hộp mực Canon 326", "mo_ta_html": "<p>x</p>",
+                                                                           "mo_ta_ngan_html": ""}))
+    return vid
+
+
+def test_soan_moi_chuyen_sang_san_pham_co_san(client, web_login, goc, nhieu_hang):
+    from app.web.dang_web import _tim_sp_web
+
+    csrf = web_login("giam.doc", "director")
+    wp = _wp_co_hang()
+    wp.tat_ca[0]["sku"] = ""  # web chưa ghi mã TD nên app chưa tự nhận ra
+    vid = _viec_moi(goc)
+    trang = client.get(f"/dang-web/viec/{vid}").text
+    assert "Sản phẩm này đã có trên web?" in trang and "Cập nhật từ web" in trang and "Đúng, viết lại cái này" not in trang
+    _may(goc, wp).lam_moi_web()
+    trang = client.get(f"/dang-web/viec/{vid}").text
+    assert "Đúng, viết lại cái này" in trang and "Hộp mực Canon 326" in trang and "Cụm trống" not in trang
+
+    ds = [{"id": 1, "xem": "https://thanhduc.vn/san-pham/hop-muc-canon-326/"}, {"id": 2, "xem": "https://thanhduc.vn/b"}]
+    assert _tim_sp_web(ds, "http://www.thanhduc.vn/san-pham/hop-muc-canon-326?x=1")["id"] == 1
+    assert _tim_sp_web(ds, "https://thanhduc.vn/wp-admin/post.php?post=2&action=edit")["id"] == 2
+    assert _tim_sp_web(ds, "hop-muc-canon-326")["id"] == 1 and _tim_sp_web(ds, "https://thanhduc.vn/khac") is None
+
+    r = client.post(f"/dang-web/viec/{vid}/co-san", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), link_web="https://thanhduc.vn/khong-co"))
+    assert r.status_code == 400 and "Không thấy sản phẩm này" in r.text and hd.doc(goc, vid)["trang_thai"] == hd.XEM_TRUOC
+    r = client.post(f"/dang-web/viec/{vid}/co-san", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), link_web="https://thanhduc.vn/a",
+                                                             ghi_ma="1"), follow_redirects=False)
+    assert r.status_code == 303
+    cu = hd.doc(goc, vid)
+    assert cu["trang_thai"] == hd.BO
+    moi = hd.doc(goc, cu["chuyen_sang"])
+    assert moi["kieu"] == "sua_web" and moi["wp_id"] == 1 and moi["ma"] == "TD-0123" and moi["ghi_chu"] == "Ghi chú cũ"
+    assert moi["sua"] == {"noi_dung": True, "seo": True, "anh": False} and moi["cach_viet"] == "chatgpt_web"
+    assert r.headers["location"] == f"/dang-web/viec/{moi['id']}"
+    assert hd.doc_xac_nhan(goc)["TD-0123"]["dung"] == 1
+    ghi = next(x for x in hd.ds(goc) if x.get("kieu") == "ghi_sku")
+    assert ghi["ghi"] == [{"id": 1, "ma": "TD-0123", "ten": "Hộp mực Canon 326"}] and ghi["trang_thai"] == hd.CHO_DANG
+    # Bấm lại (bản cũ đã bỏ): không tạo thêm
+    r = client.post(f"/dang-web/viec/{vid}/co-san", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), web_id="1"))
+    assert r.status_code == 409 and len([x for x in hd.ds(goc) if x.get("kieu") == "sua_web"]) == 1
+
+
+def test_chuyen_co_san_khong_ghi_ma_khi_web_da_co_ma_khac(client, web_login, goc, nhieu_hang):
+    csrf = web_login("giam.doc", "director")
+    wp = _wp_co_hang()
+    wp.tat_ca[0]["sku"] = "TD-0999"
+    _may(goc, wp).lam_moi_web()
+    vid = _viec_moi(goc)
+    r = client.post(f"/dang-web/viec/{vid}/co-san", data=dict(csrf=csrf, form_key=str(uuid.uuid4()), web_id="1", ghi_ma="1"),
+                    follow_redirects=False)
+    assert r.status_code == 303
+    assert not any(x.get("kieu") == "ghi_sku" for x in hd.ds(goc))  # ô Mã trên web đang có mã khác thì không đè
