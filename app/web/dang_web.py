@@ -1093,7 +1093,13 @@ def act(request: Request, viec_id: str, form=Depends(checked_form), user: User =
             ten = (user.full_name or user.username or "").strip()[:80]
             kq = doi(hd.CHO_DANG, (hd.DA_DANG,), lambda x: x.update(go=True, go_boi=ten, loi=""))
         elif hanh_dong == "viet_lai":
-            kq = doi(hd.CHO_SOAN, (hd.XEM_TRUOC, hd.LOI, hd.CHO_DAN), xoa_tra_loi)
+            def viet_lai(x):
+                xoa_tra_loi(x)
+                # Sản phẩm từ ảnh: bản mới chưa ai xem, bỏ giờ hẹn cũ; app Dịch vụ SEO nhắn Zalo lại rồi mới hẹn
+                x.pop("tu_dang_luc", None)
+                x.pop("bao_luc", None)
+
+            kq = doi(hd.CHO_SOAN, (hd.XEM_TRUOC, hd.LOI, hd.CHO_DAN), viet_lai)
         elif hanh_dong == "van_soan":
             kq = doi(hd.CHO_SOAN, (hd.CO_THE_TRUNG,), lambda x: x.update(van_dang=True, trung=[]))
         elif hanh_dong == "viet_de":

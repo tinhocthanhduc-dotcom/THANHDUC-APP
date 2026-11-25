@@ -204,3 +204,23 @@ def test_kinh_doanh_khong_bat_lai_duoc(client, web_login, goc):  # noqa: F811
     hd.dung_tu_dang(goc, "x")
     assert client.post("/dang-web/tu-dang/bat-lai", data={"csrf": csrf}, follow_redirects=False).status_code == 403
     assert hd.doc_cong_tac(goc)["dung"]
+
+
+def test_viet_lai_bo_gio_hen_tu_dang_cu(client, web_login, goc, api):  # noqa: F811
+    csrf = web_login("giam.doc", "director")
+    vid = _viec_tu_dang(goc)
+    may = _may(goc, _WP(), _AIChac())
+    may.lam_mot_viec()
+    hd.da_bao(goc, vid)
+    assert hd.doc(goc, vid)["tu_dang_luc"]
+    page = client.get(f"/dang-web/viec/{vid}").text
+    r = client.post(f"/dang-web/viec/{vid}", data=dict(csrf=csrf_of(page), form_key=str(uuid.uuid4()), hanh_dong="viet_lai"),
+                    follow_redirects=False)
+    assert r.status_code == 303
+    v = hd.doc(goc, vid)
+    assert v["trang_thai"] == hd.CHO_SOAN and v["tu_dang"] and not v.get("tu_dang_luc") and not v.get("bao_luc")
+    may.lam_mot_viec()
+    # bản mới soạn xong: chưa báo Zalo lại thì không tự đăng
+    assert hd.den_han_tu_dang(goc, hd.bay_gio() + timedelta(days=3)) == []
+    hd.da_bao(goc, vid)
+    assert hd.doc(goc, vid)["tu_dang_luc"]
