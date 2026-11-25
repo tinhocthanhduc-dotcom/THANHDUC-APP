@@ -169,6 +169,7 @@ def yeu_cau_bai_viet(chu_de: str, ghi_chu: str = "", hotline: str = "") -> str:
         phan += ["Ghi chú thêm của Thành Đức:", ghi_chu.strip()]
     if hotline:
         phan.append(f"Kết bài mời khách gọi hotline {hotline} nếu cần kỹ thuật hỗ trợ.")
+    phan.append(_CAU_ANH)
     return "\n\n".join(phan)
 
 
@@ -272,6 +273,10 @@ def don_vi_trong(html: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+_CAU_ANH = ("Ảnh trên web đã được tách riêng, hệ thống tự đặt lại đúng chỗ cũ sau khi anh/chị viết xong: "
+            "KHÔNG chèn thẻ <img>, không nhắc tới ảnh; giữ các tiêu đề mục <h2> rõ ràng.")
+
+
 def yeu_cau_sua_san_pham(hien_tai: dict, sp: SanPham | None, ghi_chu: str = "", hotline: str = "") -> str:
     phan = [
         "Viết lại trang sản phẩm WooCommerce ĐANG CÓ trên thanhduc.vn cho rõ ràng, đầy đủ và chuẩn SEO hơn.",
@@ -290,6 +295,7 @@ def yeu_cau_sua_san_pham(hien_tai: dict, sp: SanPham | None, ghi_chu: str = "", 
     if hotline:
         phan.append(f"Cuối mô tả mời khách gọi hotline {hotline} để được tư vấn.")
     phan.append("Tên web giữ gần tên hiện tại nếu đã đúng hãng và mã; slug giữ như cũ nếu đã ổn.")
+    phan.append(_CAU_ANH)
     return "\n\n".join(phan)
 
 
@@ -305,6 +311,7 @@ def yeu_cau_sua_bai(hien_tai: dict, ghi_chu: str = "", hotline: str = "") -> str
         phan += ["Ghi chú thêm của Thành Đức:", ghi_chu.strip()]
     if hotline:
         phan.append(f"Kết bài mời khách gọi hotline {hotline} nếu cần kỹ thuật hỗ trợ.")
+    phan.append(_CAU_ANH)
     return "\n\n".join(phan)
 
 

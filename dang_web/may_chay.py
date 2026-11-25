@@ -13,6 +13,7 @@ import traceback
 from pathlib import Path
 
 from . import anh as anh_mod
+from . import giu_anh
 from . import anh_mxh
 from . import dang
 from . import hang_doi as hd
@@ -474,19 +475,25 @@ class MayDangWeb:
         ht = self._hien_tai(loai, it)
         sp = self.lay_san_pham(v["ma"]) if v.get("ma") else None
         d, kq, nv = dict(ht), None, None
+        # TUẤN 25/11: AI chỉ viết lại chữ; ảnh trong mô tả / thân bài tách ra trước, viết xong đặt lại đúng chỗ cũ.
+        khoa_nd = "mo_ta_html" if loai == "san_pham" else "noi_dung_html"
+        gui, nhom_anh = dict(ht), []
+        if sua.get("noi_dung"):
+            gui[khoa_nd], nhom_anh = giu_anh.tach_anh(ht.get(khoa_nd, ""))
         if sua.get("noi_dung") or sua.get("seo"):
             if v.get("cach_viet") == "mau":
                 raise RuntimeError("Sửa bằng AI cần AI tự động hoặc ChatGPT web.")
             nv = self.nguoi_viet(v)
             ghi_chu = v.get("ghi_chu") or ""
-            kq = self._goi_ai(v, nv, (lambda: nv.sua_san_pham(ht, sp, ghi_chu, self.ch.hotline)) if loai == "san_pham"
-                              else (lambda: nv.sua_bai(ht, ghi_chu, self.ch.hotline)))
+            kq = self._goi_ai(v, nv, (lambda: nv.sua_san_pham(gui, sp, ghi_chu, self.ch.hotline)) if loai == "san_pham"
+                              else (lambda: nv.sua_bai(gui, ghi_chu, self.ch.hotline)))
             if kq is None:
                 return
             moi = kq.du_lieu
             noi = ("ten_web", "mo_ta_ngan_html", "mo_ta_html", "alt_anh") if loai == "san_pham" else ("tieu_de", "tom_tat", "noi_dung_html", "alt_anh")
             if sua.get("noi_dung"):
                 d.update({k: moi.get(k, d.get(k, "")) for k in noi})
+                d[khoa_nd] = giu_anh.dat_lai_anh(giu_anh.tach_anh(d.get(khoa_nd, ""))[0], nhom_anh)
             if sua.get("seo"):
                 d.update({k: moi.get(k, "") for k in ("seo_title", "seo_description", "tu_khoa_chinh")})
             d["can_kiem_tra"] = moi.get("can_kiem_tra", [])
@@ -511,6 +518,8 @@ class MayDangWeb:
                 anh_cu = [{"id": int(it["featured_media"]), "src": wp.lay_anh(it["featured_media"]).get("source_url", "")}]
         self._cap_nhat(
             v, hd.XEM_TRUOC, noi_dung=d, anh_cu=anh_cu, anh_web=[a for a, _ in anh_ds], anh_nguon=[str(f) for f in files],
+            anh_giu=giu_anh.nguon_anh(ht.get(khoa_nd, "")) if sua.get("noi_dung") else [],
+            so_anh_bst=len(it.get("images") or []) if loai == "san_pham" else int(bool(it.get("featured_media"))),
             chi_phi=kq.mo_ta_chi_phi if kq else "0đ", model=getattr(nv, "model", "") if nv else "không dùng AI",
             ghi_chu_ai=kq.ghi_chu if kq else [], can_kiem_tra=d.get("can_kiem_tra", []),
             gia=(dang.gia_web(sp, self.ch) if sp else re.sub(r"\D", "", str(it.get("regular_price") or ""))) if loai == "san_pham" else "",
@@ -520,6 +529,10 @@ class MayDangWeb:
 
     def _dang_sua_web(self, v: dict) -> None:
         wp, loai, web_id, sua, d = self.wp(), v["loai"], int(v["wp_id"]), v.get("sua") or {}, v["noi_dung"]
+        if sua.get("noi_dung"):
+            mat = giu_anh.anh_bi_mat(v.get("anh_giu") or [], d.get("mo_ta_html" if loai == "san_pham" else "noi_dung_html", ""))
+            if mat:
+                raise RuntimeError(f"Mô tả mới thiếu {len(mat)} ảnh so với web; chưa ghi đè. Bấm Viết lại hoặc dán lại dòng ảnh.")
         dm_id = v.get("danh_muc_id")
         anh = self._anh_len_web(v, d.get("alt_anh") or d.get("ten_web") or d.get("tieu_de") or "", False) if sua.get("anh") else []
         payload: dict = {}

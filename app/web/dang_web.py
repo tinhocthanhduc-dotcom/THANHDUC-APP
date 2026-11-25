@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
+from dang_web import giu_anh
 from dang_web import hang_doi as hd
 from dang_web import ve_anh
 from dang_web.anh_mxh import CO_NHAN as MXH_CO, MAU as MXH_MAU
@@ -835,7 +836,10 @@ def _page_viec(request, v, error="", status=200, da_luu=""):
                       error=error, status=status, da_luu=da_luu)
     cay_lua = _cay(v["loai"]).lua_chon() if v.get("kieu") in ("sua_web", "xep_danh_muc") else []
     ve = ve_anh.moi_nhat(g, viec_id=v["id"]) if v.get("ve_anh") else None
-    return render(request, "dang_web_viec.jinja", v=_them_nhan(v), nhip=hd.doc_nhip(g), error=error, status=status, ve_ai=_ve_json(ve),
+    nd = v.get("noi_dung") or {}
+    anh_mat = giu_anh.anh_bi_mat(v.get("anh_giu") or [], nd.get("mo_ta_html" if v.get("loai") == "san_pham" else "noi_dung_html", "")) \
+        if v.get("kieu") == "sua_web" else []
+    return render(request, "dang_web_viec.jinja", v=_them_nhan(v), anh_mat=anh_mat, nhip=hd.doc_nhip(g), error=error, status=status, ve_ai=_ve_json(ve),
                   codex=hd.codex_song(g),
                   danh_muc=hd.doc_json(hd.file_danh_muc(g), []), cach_viet=hd.CACH_VIET, cay_lua=cay_lua, che_do_anh=CHE_DO_ANH)
 
@@ -901,6 +905,10 @@ def _nap_sua(v: dict, form) -> None:
     tieu_de = d.get("ten_web") if v["loai"] == "san_pham" else d.get("tieu_de")
     if not tieu_de:
         raise BusinessError("BAD_FORM", "Tên trên web không được để trống.")
+    if v.get("kieu") == "sua_web" and (v.get("sua") or {}).get("noi_dung"):
+        mat = giu_anh.anh_bi_mat(v.get("anh_giu") or [], d.get("mo_ta_html" if v["loai"] == "san_pham" else "noi_dung_html", ""))
+        if mat:
+            raise BusinessError("BAD_FORM", f"Mô tả mới thiếu {len(mat)} ảnh so với web. Dán lại dòng <img …> đã xóa, hoặc bấm Viết lại.")
     v["noi_dung"] = d
     if v["loai"] == "bai_viet" and v.get("ve_anh") and not v.get("kieu"):
         _nap_anh_ai(v, str(form.get("anh_ai", "")))
