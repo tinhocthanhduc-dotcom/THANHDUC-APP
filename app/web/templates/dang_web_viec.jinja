@@ -15,6 +15,14 @@
 {% macro nut(hanh_dong, label, cls='btn-ghost', confirm='') %}<button class="btn {{ cls }}" name="hanh_dong" value="{{ hanh_dong }}" formnovalidate{% if confirm %} onclick='return confirm({{ confirm|tojson }})'{% endif %}>{{ label }}</button>{% endmacro %}
 {% macro mo_form() %}<form method="post" action="/dang-web/viec/{{ v.id }}" class="form dw-form" data-busy><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="form_key" value="{{ form_key() }}">{% endmacro %}
 
+{# Sản phẩm từ ảnh (app Dịch vụ SEO, TUẤN chọn phương án A 25/11/2026): tự đăng không giá, có Hoãn. #}
+{% if v.tu_dang and v.trang_thai not in ('da_dang', 'bo', 'cho_dang', 'dang_dang') %}
+<section class="alert info dw-tu-dang" role="status"><b>Sản phẩm từ ảnh · máy tự đăng, không giá, không ghi số tháng bảo hành.</b>
+<p class="hint">{% if tu_dang_sw.dung %}Tự đăng đang dừng: {{ tu_dang_sw.ly_do }} Việc này chờ anh bấm Duyệt và đăng.{% elif v.ly_do_khong_tu_dang %}Không tự đăng: {{ v.ly_do_khong_tu_dang }} Anh xem rồi bấm Duyệt và đăng.{% elif v.tu_dang_luc %}Đã nhắn Zalo cho anh. Máy tự đăng lúc {{ v.tu_dang_luc[11:16] }} {{ v.tu_dang_luc[8:10] }}/{{ v.tu_dang_luc[5:7] }} nếu anh không hoãn.{% else %}Soạn xong, app Dịch vụ SEO nhắn Zalo cho anh, sau 4 giờ máy mới tự đăng.{% endif %}</p>
+{{ mo_form() }}{{ nut('hoan_tu_dang', 'Hoãn tự đăng, để tôi tự duyệt', 'btn-ghost') }}</form>
+</section>
+{% elif v.hoan_boi and v.trang_thai not in ('da_dang', 'bo') %}<p class="alert info">{{ v.hoan_boi }} đã hoãn tự đăng: việc này chờ duyệt như thường.</p>{% endif %}
+
 {% if v.dang_chay %}
 <section class="card dw-wait" data-dw-reload="5000" role="status">
 <span class="dw-spin" aria-hidden="true"></span>
@@ -220,7 +228,12 @@
 {% if v.link_xem %}<a class="btn btn-new dw-big" href="{{ v.link_xem }}" target="_blank" rel="noopener">Xem trang trên web ↗</a>{% endif %}
 <div class="dw-two">{% if v.link_sua %}<a class="btn btn-ghost" href="{{ v.link_sua }}" target="_blank" rel="noopener">Sửa trên wp-admin ↗</a>{% endif %}<a class="btn btn-ghost" href="/dang-web?tab=tren-web&amp;loai=sp">Danh sách trên web</a></div>
 {% if v.wp_id %}<a class="btn btn-ghost dw-big" href="/dang-web/mxh/soan?nguon=sp-{{ v.wp_id }}">Soạn bài mạng xã hội ›</a>{% endif %}
+{% if go_duoc %}{{ mo_form() }}{{ nut('go_web', 'Gỡ về nháp (khách không thấy nữa)', 'btn-danger', 'Đưa sản phẩm này về Nháp trên web?') }}</form><p class="hint">Sản phẩm máy tự đăng: gỡ được trong 7 ngày, chỉ đổi sang Nháp, không xóa.</p>{% endif %}
 </section>
+
+{% elif v.trang_thai == 'da_dang' and v.da_go %}
+<section class="card dw-ok"><b>Đã gỡ về Nháp.</b><p class="hint">{{ v.go_boi }} gỡ{% if v.go_luc %} lúc {{ v.go_luc[11:16] }} {{ v.go_luc[8:10] }}/{{ v.go_luc[5:7] }}{% endif %}. Khách không thấy sản phẩm này nữa; sửa trên wp-admin rồi đăng lại khi cần.</p>
+{% if v.link_sua %}<a class="btn btn-new dw-big" href="{{ v.link_sua }}" target="_blank" rel="noopener">Sửa trên web ↗</a>{% endif %}</section>
 
 {% elif v.trang_thai == 'da_dang' %}
 <section class="card dw-ok"><b>{{ 'Đã ghi đè lên bài trên web.' if v.viet_lai else 'Đã lên web ở dạng Bản nháp.' }}</b>

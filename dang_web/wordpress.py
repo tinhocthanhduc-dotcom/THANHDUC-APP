@@ -91,6 +91,10 @@ class WordPress:
             payload["status"] = "publish"
         return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload)
 
+    def an_sp(self, sp_id: int) -> dict:
+        """Đưa sản phẩm về Nháp (khách không thấy nữa). Không đổi gì khác."""
+        return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json={"status": "draft"})
+
     def tat_ca_sp(self) -> list[dict]:
         """Mọi sản phẩm trên web (cả nháp), chỉ lấy các trường cần cho tab Trên web."""
         return self._tat_ca("wc/v3/products", {"status": "any", "_fields": "id,name,sku,status,permalink,categories,regular_price,price,images"})

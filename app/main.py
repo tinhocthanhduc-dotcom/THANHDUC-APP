@@ -59,9 +59,10 @@ app.include_router(production.router)
 from .routers import ai as ai_router
 app.include_router(ai_router.router)
 from .routers import zalo as zalo_router
-from . import marketing_api, n8n_api
+from . import marketing_api, marketing_publish, n8n_api
 app.include_router(n8n_api.router)
 app.include_router(marketing_api.router)
+app.include_router(marketing_publish.router)
 app.include_router(zalo_router.router)
 from .routers import recovered_parts
 app.include_router(recovered_parts.router)

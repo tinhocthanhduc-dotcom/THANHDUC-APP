@@ -651,3 +651,125 @@ def co_anh_goc(goc, code: str) -> bool:
         return code.upper() in ma_co_anh(goc)
     except OSError:
         return False
+
+
+# ---------------- tự đăng sản phẩm từ ảnh (app Dịch vụ SEO gửi sang, TUẤN chọn phương án A 25/11/2026) ----------------
+# Việc nguon="dvseo", tu_dang=True: soạn như thường nhưng không giá, không ghi số tháng bảo hành. Soạn xong nằm ở
+# Xem trước; app Dịch vụ SEO nhắn Zalo cho anh xong mới báo "đã báo" (da_bao) → máy chờ thêm TU_DANG_CHO_GIO giờ rồi
+# tự đăng công khai, nếu anh không bấm Hoãn. Không nhắn được Zalo thì không bao giờ tự đăng.
+MAY_TU_DANG = "Máy tự đăng (đã báo Zalo)"
+TU_DANG_CHO_GIO = 4
+TU_DANG_TRAN_NGAY = 3       # tối đa sản phẩm tự đăng mỗi ngày
+TU_DANG_LOI_DUNG = 2        # đăng lỗi liên tiếp chừng này lần thì tự dừng tự đăng
+TU_DANG_GO_NGAY = 7         # trong chừng này ngày anh bấm "Gỡ về nháp" được
+
+
+def file_tu_dang(goc) -> Path:
+    return thu_muc_viec(goc) / "_tu_dang.json"
+
+
+def doc_cong_tac(goc) -> dict:
+    d = doc_json(file_tu_dang(goc), {})
+    d = d if isinstance(d, dict) else {}
+    return {"dung": bool(d.get("dung")), "ly_do": str(d.get("ly_do") or ""), "loi_lien_tiep": int(d.get("loi_lien_tiep") or 0),
+            "luc": str(d.get("luc") or "")}
+
+
+def _sua_cong_tac(goc, ham) -> dict:
+    with khoa(goc):
+        d = doc_cong_tac(goc)
+        ham(d)
+        ghi_json(file_tu_dang(goc), d)
+        return d
+
+
+def ghi_loi_tu_dang(goc, ly_do: str) -> bool:
+    """Một lần tự đăng bị lỗi. Trả True nếu vừa tự dừng."""
+    def ham(d):
+        d["loi_lien_tiep"] += 1
+        if d["loi_lien_tiep"] >= TU_DANG_LOI_DUNG and not d["dung"]:
+            d.update(dung=True, luc=_luc(),
+                     ly_do=f"Tự đăng lỗi {d['loi_lien_tiep']} lần liên tiếp (lần cuối: {str(ly_do)[:160]}). Anh xem lỗi rồi bấm Bật lại.")
+    return _sua_cong_tac(goc, ham)["dung"]
+
+
+def ghi_ok_tu_dang(goc) -> None:
+    if doc_cong_tac(goc)["loi_lien_tiep"]:
+        _sua_cong_tac(goc, lambda d: d.update(loi_lien_tiep=0))
+
+
+def bat_lai_tu_dang(goc) -> None:
+    _sua_cong_tac(goc, lambda d: d.update(dung=False, ly_do="", loi_lien_tiep=0, luc=_luc()))
+
+
+def dung_tu_dang(goc, ly_do: str) -> None:
+    _sua_cong_tac(goc, lambda d: d.update(dung=True, ly_do=ly_do[:300], luc=_luc()))
+
+
+def tim_theo_ref(goc, nguon: str, ref: str) -> dict | None:
+    """Việc app khác đã gửi (cùng nguồn + mã phiếu), chưa bỏ. Gửi lại thì trả việc cũ, không tạo trùng."""
+    for v in ds(goc):
+        if v.get("nguon") == nguon and str(v.get("ref")) == str(ref) and v.get("trang_thai") != BO:
+            return v
+    return None
+
+
+def da_bao(goc, viec_id: str, now: datetime | None = None) -> dict | None:
+    """App Dịch vụ SEO đã nhắn Zalo cho anh: hẹn tự đăng sau TU_DANG_CHO_GIO giờ. Chỉ khi việc còn ở Xem trước,
+    còn bật tự đăng và không có lý do chặn. Gọi lại không dời giờ."""
+    now = now or bay_gio()
+
+    def ham(x):
+        if not x.get("tu_dang_luc"):
+            x["tu_dang_luc"] = (now + timedelta(hours=TU_DANG_CHO_GIO)).isoformat(timespec="minutes")
+            x["bao_luc"] = now.isoformat(timespec="minutes")
+
+    v = doc(goc, viec_id)
+    if not v or not v.get("tu_dang") or v.get("ly_do_khong_tu_dang"):
+        return None
+    return sua(goc, viec_id, ham, (XEM_TRUOC,))
+
+
+def _ngay(s: str) -> str:
+    return (s or "")[:10]
+
+
+def den_han_tu_dang(goc, now: datetime | None = None) -> list[str]:
+    """Máy đăng web gọi mỗi vòng: việc tự đăng đã quá giờ hẹn thì chuyển sang Chờ đăng (công khai).
+    Không làm gì khi đang dừng tự đăng; mỗi ngày tối đa TU_DANG_TRAN_NGAY sản phẩm."""
+    now = now or bay_gio()
+    if doc_cong_tac(goc)["dung"]:
+        return []
+    hom_nay = now.date().isoformat()
+    tat_ca = ds(goc)
+    da = sum(1 for v in tat_ca if v.get("duyet_boi") == MAY_TU_DANG and _ngay(v.get("duyet_luc", "")) == hom_nay)
+    toi = sorted((v for v in tat_ca if v.get("trang_thai") == XEM_TRUOC and v.get("tu_dang") and v.get("tu_dang_luc")
+                  and not v.get("ly_do_khong_tu_dang")), key=lambda v: v["tu_dang_luc"])
+    ra = []
+    for v in toi:
+        if da >= TU_DANG_TRAN_NGAY:
+            break
+        try:
+            if datetime.fromisoformat(v["tu_dang_luc"]) > now:
+                continue
+        except ValueError:
+            continue
+
+        def ham(x):
+            x.update(trang_thai=CHO_DANG, cong_khai=True, duyet_boi=MAY_TU_DANG, duyet_id=None, loi="",
+                     duyet_luc=now.isoformat(timespec="minutes"))
+
+        if sua(goc, v["id"], ham, (XEM_TRUOC,)) is not None:
+            da += 1
+            ra.append(v["id"])
+    return ra
+
+
+def go_duoc(v: dict, now: datetime | None = None) -> bool:
+    """Sản phẩm máy tự đăng, đang hiện, trong TU_DANG_GO_NGAY ngày: anh bấm Gỡ về nháp được."""
+    if v.get("trang_thai") != DA_DANG or v.get("duyet_boi") != MAY_TU_DANG or v.get("trang_thai_web") != "publish":
+        return False
+    try:
+        return (now or bay_gio()) - datetime.fromisoformat(v.get("dang_luc") or "") <= timedelta(days=TU_DANG_GO_NGAY)
+    except ValueError:
+        return False

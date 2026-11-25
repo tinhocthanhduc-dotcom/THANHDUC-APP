@@ -68,6 +68,8 @@ AGENTS = {
                 hint='Chỉ đọc: đếm sản phẩm Đăng web chờ anh xem trước, có thể trùng, bị lỗi, kèm link để nhắn Zalo 8:00 và 16:00. Không duyệt, không đăng, không đụng tiền hay kho.'),
     'growth-os': dict(name='Growth OS · Marketing (chỉ đọc)', scopes=('marketing_read',), ready=True,
                       hint='Chỉ đọc: danh mục hàng + giá bán, tồn khả dụng kho bán, nhóm biên lãi (CAO/VỪA/THẤP/ÂM). Không có giá vốn, khách, SĐT, đơn. Mỗi lần đọc ghi nhật ký.'),
+    'growth-os-dang': dict(name='Growth OS · Gửi ảnh sản phẩm lên Đăng web', scopes=('marketing_post',), ready=True,
+                           hint='Chỉ gửi ảnh + mã hàng anh chụp ở cổng tải thành việc Đăng web tự đăng (không giá, không số tháng bảo hành), đọc trạng thái việc mình gửi. Tự đăng chỉ sau khi app đã nhắn Zalo cho anh 4 giờ. Không đọc khách, tiền, kho.'),
     'growth-os-lai': dict(name='Growth OS · Lãi đóng góp (có giá vốn)', scopes=('marketing_cost',), ready=True,
                           hint='Chỉ tính: với danh sách đơn bán Growth OS gửi, trả doanh thu thuần, giá vốn lúc bán, chi phí phát sinh, lãi đóng góp từng đơn. Không trả giá vốn từng mã, không đọc khách. Chỉ tạo khi anh muốn Growth OS biết lãi.'),
 }
@@ -453,7 +455,7 @@ def listing(session, tab, offset, size):
 
 LOG_LABELS = {'ai.key_create': 'Tạo khóa mới', 'ai.key_revoke': 'Khóa truy cập', 'ai.pause': 'Tạm dừng trợ lý',
               'ai.resume': 'Cho trợ lý chạy tiếp', 'ai_action.approve': 'Duyệt đề xuất', 'ai_action.reject': 'Từ chối đề xuất',
-              'ai_action.failed': 'Duyệt nhưng không chạy được', 'ai.expire': 'Đề xuất hết hạn', 'ai.marketing_read': 'Growth OS đọc dữ liệu'}
+              'ai_action.failed': 'Duyệt nhưng không chạy được', 'ai.expire': 'Đề xuất hết hạn', 'ai.marketing_read': 'Growth OS đọc dữ liệu', 'ai.marketing_publish': 'Growth OS gửi ảnh sản phẩm'}
 
 
 def pending_brief(session, limit=10):
