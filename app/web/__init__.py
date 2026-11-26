@@ -130,6 +130,17 @@ def vn_date(value) -> str:
 templates.env.filters["vn_date"] = vn_date
 
 
+def iso_day(value) -> str:
+    """Ngày giờ có múi giờ -> '2026-11-24' theo giờ Việt Nam, cho ô input type=date."""
+    if getattr(value, 'tzinfo', None) is not None:
+        from zoneinfo import ZoneInfo
+        value = value.astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
+    return value.date().isoformat() if hasattr(value, 'date') else str(value or '')
+
+
+templates.env.filters["iso_day"] = iso_day
+
+
 def vn_long_date(value) -> str:
     """Ngày viết dài trên phiếu in: 'ngày 26 tháng 10 năm 2026' (giờ Việt Nam)."""
     if getattr(value, 'tzinfo', None) is not None:

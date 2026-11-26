@@ -25,6 +25,8 @@ def completion(session, ticket, before=None):
     if before is not None: stmt = stmt.where(ServiceStep.at <= before)
     step = session.scalar(stmt.order_by(ServiceStep.at.desc(), ServiceStep.id.desc()).limit(1))
     stamp = step.at if step else ticket.priced_at
+    if step and getattr(ticket, 'done_at', None) is not None and before is None:
+        stamp = ticket.done_at  # giám đốc đã sửa ngày hoàn thành
     return stamp, step.assignee_id if step else ticket.assignee_id
 
 
