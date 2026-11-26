@@ -48,6 +48,10 @@ DISPATCH_TRACK = ('service_', 'delivery_', 'technician_deliveries', 'orders_wait
 URGENT = ('zalo_inbox', 'zalo_ticket_drafts', 'service_appointment_overdue', 'service_goods_short', 'service_today', 'service_unassigned', 'service_assigned', 'service_return_ready',
           'orders_pickup_late', 'orders_cancel_requested', 'technician_deliveries', 'delivery_handover', 'delivery_unclaimed', 'orders_waiting',
           'parts_pending', 'machines_pending', 'machines_warehouse')
+# Quá tải (TUẤN 26/11/2026): chỉ đếm việc thợ đang phải chạy (phiếu giao mình, đơn giao, hàng sản xuất), chỉ xét người có vai
+# trò kỹ thuật. Việc giấy tờ (báo thu, đơn chưa báo thu, công nợ, nháp...) và người văn phòng không tính quá tải.
+FIELD = ('service_assigned', 'service_accepted', 'service_appointment_overdue', 'service_today', 'service_parts_ready',
+         'service_paused', 'service_goods_short', 'service_ws_repair', 'technician_deliveries', 'production_work')
 GD_NHAC = 'gd_nhac'          # việc giám đốc nhắn "nhắc X làm Y" (không có trong Việc của tôi, người làm tự bấm Xong)
 ZALO_KEYS = ('zalo_inbox', 'zalo_ticket_drafts')
 AI_KEYS = ('zalo_ticket_drafts', 'customer_messages_waiting', 'zalo_inbox')   # AI đã soạn sẵn, chờ người bấm
@@ -351,11 +355,17 @@ def _ticket_id(t: TeamTask):
 
 # ---------- đổi người khi quá tải (Q1) ----------
 
+def _techs(session) -> set[int]:
+    return {u.id for u in _people(session) if 'technician' in (u.roles or [])}
+
+
 def _load(session):
-    out = {}
+    """Số việc thợ đang chạy của từng thợ (chỉ nhóm FIELD + việc giám đốc nhắc), dùng cho quá tải và đổi người."""
+    techs = _techs(session)
+    out = {uid: 0 for uid in techs}
     for t in open_tasks(session):
-        if t.item_key not in NO_DUE:
-            out[t.owner_id] = out.get(t.owner_id, 0) + 1
+        if t.owner_id in techs and (t.item_key in FIELD or t.item_key == GD_NHAC):
+            out[t.owner_id] += 1
     return out
 
 
@@ -540,7 +550,7 @@ def _directors(session):
 
 
 def overload_alert(session, now=None, sender=None) -> int:
-    """Thợ quá tải mà không chuyển được cho ai: báo giám đốc một lần mỗi người mỗi ngày."""
+    """Thợ quá tải mà không chuyển được cho ai: báo giám đốc một tin gộp, mỗi thợ một lần mỗi ngày."""
     row = active(session)
     now = now or _now()
     if row is None or not nva._working(session, now) or not nva._zalo_ready():
@@ -548,24 +558,33 @@ def overload_alert(session, now=None, sender=None) -> int:
     c = nva.cfg(row)
     if not c.get('alert_overload', True):
         return 0
-    over = int(c['overload'])
+    over, gap = int(c['overload']), int(c['gap'])
     load = _load(session)
     names = dict(session.execute(select(User.id, User.full_name)).all())
     day = now.astimezone(TZ).date().isoformat()
+    busy = [(uid, n) for uid, n in sorted(load.items(), key=lambda x: -x[1]) if n >= over and uid in names]
+    if not busy:
+        return 0
+    least = min(n for _, n in busy)
+    free = sorted(((names.get(k, ''), v) for k, v in load.items() if v <= least - gap), key=lambda x: x[1])
     send, base, count = nva._sender(sender), nva._base(), 0
-    for uid, n in sorted(load.items(), key=lambda x: -x[1]):
-        if n < over or uid not in names:
+    for boss, chat in _directors(session):
+        fresh = [(uid, n) for uid, n in busy if session.get(DispatchZaloSent, (f'tn-qt:{day}:{uid}', boss.id)) is None]
+        if not fresh:
             continue
-        free = sorted(((names.get(k, ''), v) for k, v in load.items() if k != uid and v <= n - int(c['gap'])), key=lambda x: x[1])
-        body = (f'Trưởng nhóm AI báo giám đốc: {names[uid]} đang {n} việc (quá tải từ {over}), em không chuyển bớt được '
-                f'(phiếu đã nhận, đang cầm hàng hoặc không có thợ rảnh đã vào ca).'
-                + (f' Người ít việc: {", ".join(f"{a} {b}" for a, b in free[:3])}.' if free else '')
+        who = ', '.join(f'{names[uid]} {n}' for uid, n in fresh)
+        body = (f'Trưởng nhóm AI báo giám đốc: thợ quá tải (từ {over} phiếu/đơn đang chạy): {who}. '
+                f'Em không chuyển bớt được (phiếu đã nhận, đang cầm hàng hoặc không có thợ rảnh đã vào ca).'
+                + (f' Thợ ít việc: {", ".join(f"{a} {b}" for a, b in free[:3])}.' if free else '')
                 + f' Anh nhắn "chuyển phiếu … qua …" là em làm.\nXem: {base}/doi-ai')
-        for boss, chat in _directors(session):
-            if nva._send(session, chat, boss.id, f'tn-qt:{day}:{uid}', body, send):
+        mark = f'tn-qt:{day}:' + '-'.join(str(uid) for uid, _ in fresh)
+        if nva._send(session, chat, boss.id, mark[:120], body, send):
+            for uid, n in fresh:
+                if session.get(DispatchZaloSent, (f'tn-qt:{day}:{uid}', boss.id)) is None:
+                    session.add(DispatchZaloSent(mark=f'tn-qt:{day}:{uid}', user_id=boss.id))
                 session.add(VirtualAgentLog(agent=CODE, action='BAO', target_id=uid, text=f'Báo giám đốc {names[uid]} quá tải {n} việc'))
-                session.commit()
-                count += 1
+            session.commit()
+            count += 1
     return count
 
 
@@ -644,13 +663,17 @@ def board(session, now=None) -> dict:
     people = _people(session)
     c = cfg(session)
     over = int(c['overload'])
+    field = _load(session)
     lanes = []
     for u in people:
         mine = sorted((t for t in tasks if t.owner_id == u.id and t.item_key not in NO_DUE), key=lambda t: _rank(t, now))
         late = sum(1 for t in mine if _past(t, now))
-        pct = min(100, round(len(mine) * 100 / max(over, 1)))
+        # Đo quá tải theo việc thợ đang chạy; người văn phòng không bao giờ đỏ "quá tải" vì việc giấy tờ.
+        busy = field.get(u.id)
+        pct = min(100, round((busy if busy is not None else len(mine)) * 100 / max(over, 1)))
+        tone = 'over' if busy is not None and busy >= over else 'hi' if pct >= 60 else 'ok'
         lanes.append(dict(user=u, roles=' · '.join(ROLE_LABELS.get(r, r) for r in u.roles if r in ROLE_LABELS and r != 'admin'),
-                          count=len(mine), late=late, pct=pct, tone='over' if len(mine) >= over else 'hi' if pct >= 60 else 'ok',
+                          count=len(mine), late=late, pct=pct, tone=tone, field=busy,
                           top=[dict(t=t, when=when(t, now), late=_past(t, now)) for t in mine[:3]],
                           director=_is_director(u)))
     lanes.sort(key=lambda x: (x['director'], -x['count'], x['user'].full_name))

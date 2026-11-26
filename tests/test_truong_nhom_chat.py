@@ -167,15 +167,37 @@ def test_status_lists_people_and_late(db, crew, monkeypatch):
 def test_overload_alert_and_summary(db, crew, zalo_on):
     link_zalo(db, crew['gd'], 'z-gd')
     for i in range(9):
-        db.add(TeamTask(item_key='orders_draft', ref=f'r{i}', number=f'X-{i}', title='x', owner_id=crew['phong'].id,
+        db.add(TeamTask(item_key='service_accepted', ref=f'r{i}', number=f'X-{i}', title='x', owner_id=crew['phong'].id,
                         due_at=MON - timedelta(minutes=5), first_seen_at=MON, last_seen_at=MON))
+    # Việc giấy tờ (báo thu, đơn chưa báo thu) và người văn phòng không tính quá tải (TUẤN 26/11/2026).
+    for i in range(20):
+        db.add(TeamTask(item_key='receipts_pending', ref=f'b{i}', number=f'BT-{i}', title='x', owner_id=crew['thanh'].id,
+                        first_seen_at=MON, last_seen_at=MON))
+        db.add(TeamTask(item_key='orders_unreported', ref=f'o{i}', number=f'DB-{i}', title='x', owner_id=crew['thanh_kt'].id,
+                        first_seen_at=MON, last_seen_at=MON))
+    for i in range(9):
+        db.add(TeamTask(item_key='technician_deliveries', ref=f'g{i}', number=f'G-{i}', title='x', owner_id=crew['thanh_kt'].id,
+                        first_seen_at=MON, last_seen_at=MON))
     db.commit()
     sent = []
-    assert tn.overload_alert(db, MON, lambda *a: sent.append(a)) == 1
-    assert 'Đoàn Cảnh Phong đang 9 việc' in sent[0][2] and sent[0][1].chat_id == 'z-gd'
+    assert tn.overload_alert(db, MON, lambda *a: sent.append(a)) == 1      # một tin gộp cho cả 2 thợ
+    assert len(sent) == 1 and sent[0][1].chat_id == 'z-gd'
+    assert 'Đoàn Cảnh Phong 9' in sent[0][2] and 'Nguyễn Bình Thạnh 9' in sent[0][2] and 'Nguyễn Thị Thanh' not in sent[0][2]
     assert tn.overload_alert(db, MON, lambda *a: sent.append(a)) == 0      # mỗi người mỗi ngày một lần
+    for i in range(9, 12):
+        db.add(TeamTask(item_key='service_assigned', ref=f'n{i}', number=f'N-{i}', title='x', owner_id=crew['phong'].id,
+                        first_seen_at=MON, last_seen_at=MON))
+    db.commit()
+    assert tn.overload_alert(db, MON, lambda *a: sent.append(a)) == 0      # vẫn người cũ trong ngày: không báo lại
+    lanes = {l['user'].id: l for l in tn.board(db, MON)['lanes']}
+    assert lanes[crew['thanh'].id]['tone'] != 'over' and lanes[crew['thanh'].id]['field'] is None
+    assert lanes[crew['phong'].id]['tone'] == 'over' and lanes[crew['phong'].id]['field'] == 12
+    db.query(TeamTask).filter(TeamTask.owner_id.in_((crew['thanh'].id, crew['thanh_kt'].id)), TeamTask.item_key != 'technician_deliveries').delete()
+    db.query(TeamTask).filter(TeamTask.ref.like('n%')).delete()
+    db.query(TeamTask).filter(TeamTask.item_key == 'technician_deliveries').update({'due_at': MON - timedelta(minutes=5)})
+    db.commit()
     text = tn.summary_text(db, MON, 'https://x')
-    assert 'còn 9 việc trễ (Đoàn Cảnh Phong 9)' in text and 'Tin khách chưa trả lời: 0' in text
+    assert 'còn 18 việc trễ (Đoàn Cảnh Phong 9, Nguyễn Bình Thạnh 9)' in text and 'Tin khách chưa trả lời: 0' in text
     evening = MON.replace(hour=17, minute=20)
     assert tn.summary_once(db, evening, lambda *a: sent.append(a)) == 1
     assert tn.summary_once(db, evening, lambda *a: sent.append(a)) == 0
