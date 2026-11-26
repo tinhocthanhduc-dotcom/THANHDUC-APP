@@ -324,11 +324,29 @@ def lenh_bai_viet(ch: CauHinh, args) -> int:
     return 0 if loi == 0 else 1
 
 
+def lenh_sua_slug_anh(ch: CauHinh, args) -> int:
+    """Một lần cho trang đã đăng: ảnh mang đúng slug sản phẩm/bài làm nút Xem trang mở ra file ảnh (TUẤN 26/11)."""
+    wp = _wp(ch)
+    so = 0
+    for loai, ds in (("Sản phẩm", wp.tat_ca_sp()), ("Bài viết", wp.tat_ca_bai())):
+        for it in ds:
+            s = str(it.get("slug") or "")
+            if not s:
+                continue
+            doi = wp.go_slug_anh_trung(s)
+            if doi:
+                so += len(doi)
+                in_(f"  {loai} {it.get('id')} /{s}/: đổi slug ảnh {', '.join(map(str, doi))} thành {s}-anh")
+    in_(f"Xong, đổi {so} ảnh." if so else "Không có ảnh nào trùng slug trang.")
+    return 0
+
+
 def tao_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="dang-web", description="Soạn và đăng nháp sản phẩm, bài viết lên thanhduc.vn")
     sub = ap.add_subparsers(dest="lenh", required=True)
     sub.add_parser("kiem-tra", help="kiểm tra kết nối")
     sub.add_parser("cho-viec", help="chạy nền, nhận việc từ màn Đăng web trong app")
+    sub.add_parser("sua-slug-anh", help="gỡ ảnh trùng slug sản phẩm/bài (link trang mở ra file ảnh)")
 
     sp = sub.add_parser("san-pham", help="đăng nháp sản phẩm")
     sp.add_argument("--ma", help="các mã cách nhau dấu phẩy, ví dụ TD-0001,TD-0002")
@@ -359,6 +377,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.lenh == "kiem-tra":
             return lenh_kiem_tra(ch, args)
+        if args.lenh == "sua-slug-anh":
+            return lenh_sua_slug_anh(ch, args)
         if args.lenh == "cho-viec":
             from .may_chay import MayDangWeb
 

@@ -152,6 +152,33 @@ def test_wordpress_tao_sp_luon_nhap_va_xac_thuc():
     assert seen[0].headers["Authorization"] == "Basic YWRtaW46YWJjZA=="
 
 
+def test_sua_sp_doi_slug_anh_trung_slug_san_pham():
+    """TUẤN 26/11: ảnh mang đúng slug sản phẩm thì /slug/ mở ra file ảnh; sau khi sửa sản phẩm, ảnh đổi sang slug-anh."""
+    seen = []
+
+    def handler(req):
+        seen.append(req)
+        if req.url.path == "/wp-json/wp/v2/media" and req.method == "GET":
+            assert req.url.params["slug"] == "trong-may-in-hp-48a"
+            return httpx.Response(200, json=[{"id": 7, "slug": "trong-may-in-hp-48a"}])
+        if req.url.path == "/wp-json/wp/v2/media/7":
+            return httpx.Response(200, json={"id": 7, "slug": json.loads(req.content)["slug"]})
+        return httpx.Response(200, json={"id": 99, "slug": "trong-may-in-hp-48a", "permalink": "https://web.test/trong-may-in-hp-48a/"})
+
+    moi = _wp(handler).sua_sp(99, {"name": "x"}, cong_khai=True)
+    assert moi["permalink"].endswith("/trong-may-in-hp-48a/")
+    assert json.loads(seen[-1].content) == {"slug": "trong-may-in-hp-48a-anh"}
+
+
+def test_go_slug_anh_loi_khong_hong_viec_dang():
+    def handler(req):
+        if req.url.path == "/wp-json/wp/v2/media":
+            return httpx.Response(500, json={"code": "x", "message": "lỗi"})
+        return httpx.Response(201, json={"id": 5, "slug": "hop-muc"})
+
+    assert _wp(handler).tao_bai({"title": "x"})["id"] == 5
+
+
 def test_wordpress_loi_tra_ve_thong_bao():
     wp = _wp(lambda req: httpx.Response(401, json={"code": "rest_not_logged_in", "message": "Bạn chưa đăng nhập"}))
     with pytest.raises(LoiWeb) as e:
@@ -173,7 +200,7 @@ def test_tai_anh_webp_bi_chan_thi_doi_jpg(tmp_path):
     src = _anh_mau(tmp_path / "TD-0001.jpg")
     ch = CauHinh(thu_muc=tmp_path, anh_kich_thuoc=600)
     ds = dang.xu_ly_anh(ch, "hop-muc", [src], False)
-    assert ds[0][0] == "hop-muc.webp" and (tmp_path / "anh-da-xu-ly" / "hop-muc.webp").exists()
+    assert ds[0][0] == "hop-muc-anh.webp" and (tmp_path / "anh-da-xu-ly" / "hop-muc-anh.webp").exists()
     assert dang.tai_anh_len(_wp(handler), ch, ds, "Hộp mực", [src], False) == [7]
     assert goi == ["image/webp", "image/jpeg"]
 
@@ -300,7 +327,7 @@ def test_chay_thu_san_pham_khong_dang(tmp_path, monkeypatch):
 
     assert dang_main(["san-pham", "--ma", "TD-0001", "--thu"]) == 0
     assert (tmp_path / "xem-truoc" / "TD-0001.html").exists()
-    assert (tmp_path / "anh-da-xu-ly" / "hop-muc-canon-326.webp").exists()
+    assert (tmp_path / "anh-da-xu-ly" / "hop-muc-canon-326-anh.webp").exists()
     assert dang.doc_trang_thai(tmp_path / "da-dang.json")["san_pham"] == {}  # chạy thử không đánh dấu đã đăng
 
 
