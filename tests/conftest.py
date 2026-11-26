@@ -9,6 +9,12 @@ from web_forms import FormClient
 from sqlalchemy import create_engine, text
 
 TEST_URL = os.environ.get("TD_TEST_DATABASE_URL", "postgresql+psycopg://postgres@localhost:5432/thanhduc_test")
+# Bộ test xóa sạch database (drop schema). Chặn cứng nếu tên database không có chữ "test",
+# để không bao giờ chạy nhầm vào database thật dù người hay agent đặt sai biến.
+_DB_NAME = TEST_URL.rsplit("/", 1)[-1].split("?", 1)[0]
+if "test" not in _DB_NAME.lower():
+    raise SystemExit(f"DỪNG: TD_TEST_DATABASE_URL trỏ vào database '{_DB_NAME}' — tên không có chữ 'test'. "
+                     "Bộ test sẽ xóa sạch database này nên không chạy.")
 os.environ["TD_DATABASE_URL"] = TEST_URL
 os.environ["TD_PUSH_LOOP"] = "false"
 os.environ["TD_SECRET_KEY"] = "test-secret-key-at-least-32-bytes-long"
