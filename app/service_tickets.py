@@ -691,6 +691,8 @@ def transition_in_tx(session: Session, user: User, t: ServiceTicket, to_status: 
         t.status_reason = note
     if to_status in CLOSED:
         t.transfer_request = ""
+    if to_status == "HOAN_THANH":
+        t.done_at = None  # hoàn thành lại: bỏ ngày hoàn thành đã sửa tay
     t.due_at = service_sla.due_at(to_status, t.priority, _now(), t.appointment_at, t.appointment_slot)
     action = ("cancel" if to_status == "DA_HUY" else "reschedule" if from_status == to_status
               else "reopen" if reopening else "close" if to_status == "DA_DONG" else "transition")

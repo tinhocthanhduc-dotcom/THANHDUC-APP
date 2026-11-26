@@ -398,6 +398,7 @@ class ServiceTicket(Base):
     total: Mapped[int | None] = mapped_column(BigInteger)
     receivable: Mapped[int | None] = mapped_column(BigInteger)
     priced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # ngày hoàn thành GĐ sửa tay (0111)
     repaired_by: Mapped[int | None] = mapped_column(ForeignKey('users.id', name='fk_service_tickets_repaired_by'))
     quote_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quote_approved_by: Mapped[int | None] = mapped_column(ForeignKey('users.id', name='fk_service_tickets_quote_approved_by'))

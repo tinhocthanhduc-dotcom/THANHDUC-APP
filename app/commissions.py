@@ -133,8 +133,9 @@ def _draft_query(month):
     prior as (select l.source,l.order_id,l.ticket_id,l.production_id,l.delivery_id,sum(l.amount) previous from commission_lines l
          join commission_months m on m.month=l.month where l.month<:month and l.source<>'DIEU_CHINH'
          group by l.source,l.order_id,l.ticket_id,l.production_id,l.delivery_id),
-    finished as (select distinct on (s.ticket_id) s.ticket_id,s.actor_id,s.assignee_id,s.at from service_steps s
-         where s.to_status='HOAN_THANH' and s.at<:hi order by s.ticket_id,s.at,s.id),
+    finished as (select distinct on (s.ticket_id) s.ticket_id,s.actor_id,s.assignee_id,coalesce(tk.done_at,s.at) at from service_steps s
+         join service_tickets tk on tk.id=s.ticket_id
+         where s.to_status='HOAN_THANH' and coalesce(tk.done_at,s.at)<:hi order by s.ticket_id,s.at,s.id),
     fees as (select ticket_id,sum(amount) base from service_lines where kind='PHI' group by ticket_id),
     -- Đợt 3 báo giá sửa (TUẤN duyệt 14/11/2026): phiếu áp giá gói từ kết quả kiểm tra máy tính hoa hồng thợ trên
     -- gói − giá vốn linh kiện nằm trong gói (dòng vật tư giá 0 đã xuất kho). Phiếu khác giữ cách tính cũ.

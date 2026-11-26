@@ -1,7 +1,7 @@
 """Màn hình D3: đọc danh mục để chọn, mọi thay đổi phiếu đi qua lõi D2."""
 import re
 from urllib.parse import quote, urlencode
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
-from .. import attachments, equipment, service_appointments, service_unassign, service_charges, service_repeat, service_self_claim, service_suggest, service_visits, service_warranty, technician_returns, zalo_phieu_nhap
+from .. import attachments, equipment, service_appointments, service_unassign, service_charges, service_dates, service_repeat, service_self_claim, service_suggest, service_visits, service_warranty, technician_returns, zalo_phieu_nhap
 from ..config import get_settings
 from .. import customers as customer_svc
 from .. import service_tickets as svc
@@ -39,7 +39,7 @@ TRANSITIONS = {
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "depart": "Thợ đi tới khách", "late": "Thợ báo trễ", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
-         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","repair_reported":"Thợ báo sửa xong","repair_failed":"Thợ báo không sửa được","repair_extra":"Thợ báo phát sinh, báo lại khách","quote_reschedule":"Đổi ngày hẹn trả","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
+         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "fix_dates": "Sửa ngày phiếu", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","repair_reported":"Thợ báo sửa xong","repair_failed":"Thợ báo không sửa được","repair_extra":"Thợ báo phát sinh, báo lại khách","quote_reschedule":"Đổi ngày hẹn trả","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ", "update_info": "Sửa thông tin phiếu",
          "goods_ok": "Đã nhận đủ hàng", "unassign": "Hủy giao thợ", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
@@ -299,6 +299,7 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     ctx = dict(dispatcher=dispatcher,at_workshop=at_workshop,xg_panel=dispatcher and t.status=='TAM_DUNG' and t.hold_reason in ('CHO_SUA_XUONG','SUA_XONG_CHO_TRA'),workshop_free=warranty_free(t),xg_chips=technician_web.REPORT_CHIPS['MANG_VE'],xg_results=technician_web.REPAIR_RESULTS,workshop_return_days=_return_days(svc._now()),workshop_today=svc._now().astimezone(svc.service_sla.TZ).date().isoformat(),xg_form=xg_form or {},warranty_terms=service_warranty.terms(session,t),can_set_kind=t.status in svc.OPEN and (dispatcher or own) and not (at_workshop and not dispatcher),workshop_form=workshop_form or {},can_schedule_return=dispatcher and t.status=='TAM_DUNG' and t.hold_reason=='SUA_XONG_CHO_TRA',technician_cancel_allowed=own and not dispatcher and t.status in ('DANG_LAM','CHO_LINH_KIEN','TAM_DUNG'),appointment_choices=service_appointments.choices(svc._now()), appointment_return_choices=service_appointments.choices(svc._now(),True),
                   can_reschedule=dispatcher and t.status in ('MOI','DA_GIAO','DA_NHAN','DA_HEN'),
                   can_edit_info=dispatcher and t.status in svc.OPEN,
+                  can_fix_dates=service_dates.can_fix(user,t),ticket_dates=service_dates.current(session,t),today_iso=svc._now().astimezone(svc.service_sla.TZ).date().isoformat(),
                   info_sites=list(session.scalars(select(CustomerSite).where(CustomerSite.customer_code==t.customer_code,CustomerSite.active.is_(True)).order_by(CustomerSite.name))) if dispatcher and t.status in svc.OPEN else [],
                   return_rows=return_rows, return_warehouses=returning['warehouses'],
                   return_names=dict(session.execute(select(Product.code,Product.name).where(Product.code.in_([r['product_code'] for r in return_rows]))).all()),
@@ -856,6 +857,18 @@ def action(request: Request, ticket_id: int, action: str, background: Background
             except ValueError:
                 raise BusinessError('BAD_SITE', 'Địa điểm không hợp lệ.')
             svc.update_info(session, user, ticket_id, version, str(form.get('symptom', '')), str(form.get('priority', '')), site_id)
+        elif action == 'fix-dates':
+            # Sửa ngày phiếu (TUẤN duyệt 26/11/2026): chỉ giám đốc, ô trống = giữ ngày cũ.
+            def _day(key):
+                raw = str(form.get(key, '') or '').strip()
+                if not raw:
+                    return None
+                try:
+                    return date.fromisoformat(raw)
+                except ValueError:
+                    raise BusinessError('BAD_DATE', 'Ngày chưa hợp lệ.')
+            service_dates.fix_dates(session, user, ticket_id, version, _day('ngay_nhan'), _day('ngay_xong'), _day('ngay_chot'),
+                                    str(form.get('reason', '')))
         elif action in ("transfer-request", "transfer-reject"):
             body = ServiceReason(reason=form.get('reason', ''), version=version)
             fn = svc.request_transfer if action == "transfer-request" else svc.reject_transfer

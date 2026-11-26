@@ -110,7 +110,7 @@ def _sources(month, keys=None):
     # Distinct ticket/actor pairs avoid counting reopen/completion cycles twice.
     # G05: người hưởng = thợ sửa ở xưởng, rồi thợ đang được giao lúc hoàn thành, cuối cùng mới tới người bấm.
     completed="""select distinct s.ticket_id,coalesce(t.repaired_by,s.assignee_id,s.actor_id) actor_id from service_steps s join service_tickets t on t.id=s.ticket_id
-        where s.to_status='HOAN_THANH' and s.at>=:lo and s.at<:hi and t.status<>'DA_HUY'"""
+        where s.to_status='HOAN_THANH' and coalesce(t.done_at,s.at)>=:lo and coalesce(t.done_at,s.at)<:hi and t.status<>'DA_HUY'"""
     completion_from=f'from ({completed}) c join service_tickets t on t.id=c.ticket_id'
     add('tho_hoan_thanh','c.actor_id','t.number','t.created_at','1',completion_from)
     add('tho_dung_hen','c.actor_id','t.number','v.first_at',

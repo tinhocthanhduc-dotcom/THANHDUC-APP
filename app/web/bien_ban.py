@@ -54,7 +54,7 @@ def machine(session, user, t, *, users=None):
         t=t, name=equipment.display_name(eq, product) if eq else '', serial=t.serial or '',
         technician=tech.full_name if tech else '', ready=is_ready(t),
         repaired_at=(fixed.at if fixed else done.at if done else None),
-        completed_at=done.at if (done and completed) else None,
+        completed_at=(t.done_at or done.at) if (done and completed) else None,
         received_at=intake.at if intake else None,
         work=t.fix_done or (note_step.note if note_step else '') or '',
         warranty=service_warranty.terms(session, t), warranty_short=warranty_short(t),
