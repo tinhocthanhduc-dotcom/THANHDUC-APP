@@ -164,7 +164,7 @@ def test_rebalance_moves_unaccepted_ticket_and_undo(db, team, monkeypatch, zalo_
     t = service_tickets.create(db, p['thanh3'], ServiceTicketIn(customer_code='KTD-000001', kind='SUA_TAI_CHO', symptom='Kẹt giấy', priority='THUONG'))
     t = service_tickets.assign(db, p['thanh3'], t.id, p['a'].id, t.version)
     for i in range(8):
-        db.add(TeamTask(item_key='orders_draft', ref=f'r{i}', owner_id=p['a'].id, title='x'))
+        db.add(TeamTask(item_key='service_accepted', ref=f'r{i}', owner_id=p['a'].id, title='x'))
     db.commit()
     later = service_tickets._now() + timedelta(minutes=40)
     # Chấm công vào đúng ngày của mốc chạy: chạy test lúc gần nửa đêm giờ VN thì "later" đã sang ngày mới.
@@ -202,7 +202,7 @@ def test_rebalance_off_or_not_overloaded(db, team, monkeypatch, zalo_on):
     row_ = nva.rows(db)['TRUONG_NHOM']
     row_.config = dict(nva.cfg(row_), reassign=False)
     for i in range(9):
-        db.add(TeamTask(item_key='orders_draft', ref=f'r{i}', owner_id=p['a'].id, title='x'))
+        db.add(TeamTask(item_key='service_accepted', ref=f'r{i}', owner_id=p['a'].id, title='x'))
     db.commit()
     assert tn.rebalance(db, later) == 0
 

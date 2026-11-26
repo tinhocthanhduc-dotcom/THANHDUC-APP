@@ -22,14 +22,14 @@
 <div class="doi-grid">
 <div class="doi-lanes">
 {% if tab != 'ai' %}{% for l in b.lanes %}<section class="card doi-lane">
-<div class="doi-lh">{% set w = l.user.full_name.split() %}<span class="doi-av">{{ ((w[-2][:1] if w|length > 1 else '') ~ w[-1][:1])|upper }}</span><div><b>{{ l.user.full_name }}</b><small>{{ l.roles }}</small></div><span class="doi-cnt">{{ l.count }} việc{% if l.late %} · <b class="late">{{ l.late }} trễ</b>{% endif %}</span></div>
+<div class="doi-lh">{% set w = l.user.full_name.split() %}<span class="doi-av">{{ ((w[-2][:1] if w|length > 1 else '') ~ w[-1][:1])|upper }}</span><div><b>{{ l.user.full_name }}</b><small>{{ l.roles }}</small></div><span class="doi-cnt">{{ l.count }} việc{% if l.field is not none %} · {{ l.field }} đang chạy{% endif %}{% if l.late %} · <b class="late">{{ l.late }} trễ</b>{% endif %}</span></div>
 <div class="doi-load" role="img" aria-label="Tải việc {{ l.pct }}%"><i class="ld-{{ l.tone }}" style="width:{{ l.pct }}%"></i></div>
 {% for it in l.top %}<a class="doi-it" href="{{ it.t.link }}"><span class="doi-tx"><b class="doi-no">{{ it.t.number }}</b> {{ it.t.title }}</span><span class="doi-due{{ ' late' if it.late }}">{{ it.when }}</span></a>
 {% else %}<p class="hint">Không có việc đang mở.</p>{% endfor %}
 </section>{% endfor %}{% endif %}
 {% if tab != 'nguoi' %}{% for code, a in agents.items() %}{% set r = rows[code] %}{% set st = b.stats.get(code, {}) %}{% set last = b.last.get(code) %}<section class="card doi-lane doi-ai-lane{{ ' doi-off' if not (r.enabled and master.enabled) }}">
 <div class="doi-lh"><span class="doi-av ai">AI</span><div><b>{{ a.name }}</b><small>{{ a.what }}</small></div><span class="doi-cnt">{% if not (r.enabled and master.enabled) %}Tắt{% else %}{{ (st.get('GIAO', 0) + st.get('NHAC', 0) + st.get('BAO', 0) + st.get('DOI_NGUOI', 0)) }} việc hôm nay{% endif %}</span></div>
-{% if code == 'TRUONG_NHOM' %}<p class="doi-it-p">Đang theo dõi {{ b.tiles.open }} việc{% if b.synced %} · chia lần cuối {{ b.synced|vn_time }}{% endif %} · quá tải từ {{ b.overload }} việc</p>{% endif %}
+{% if code == 'TRUONG_NHOM' %}<p class="doi-it-p">Đang theo dõi {{ b.tiles.open }} việc{% if b.synced %} · chia lần cuối {{ b.synced|vn_time }}{% endif %} · thợ quá tải từ {{ b.overload }} phiếu/đơn đang chạy</p>{% endif %}
 {% if last %}<p class="doi-it-p"><small class="mu">{{ last.at|vn_time }}</small> {{ last.text }}</p>{% else %}<p class="hint">Chưa có việc nào.</p>{% endif %}
 </section>{% endfor %}{% endif %}
 </div>
