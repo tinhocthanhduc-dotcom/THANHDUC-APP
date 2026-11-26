@@ -11,8 +11,9 @@ Bạn là người điều phối. Không tự viết code — giao cho từng a
 
 ## Bước 0 — Chuẩn bị
 1. `git status`: nếu có thay đổi chưa commit → **dừng**, báo người dùng.
-2. Tạo nhánh mới từ nhánh hiện tại: `git checkout -b ship/<ten-ngan-khong-dau>`.
-3. Xóa nội dung cũ và tạo lại thư mục `.bangiao/`, ghi yêu cầu vào `.bangiao/00-yeu-cau.md`.
+2. Kiểm tra database test: `TD_TEST_DATABASE_URL` phải có và tên database có chữ `test` (chạy `scripts/chay-test.sh --migration`). Báo `DỪNG:` → **dừng**, chỉ người dùng xem `docs/day-chuyen-agent.md` mục Chuẩn bị.
+3. Tạo nhánh mới từ nhánh hiện tại: `git checkout -b ship/<ten-ngan-khong-dau>` (nếu môi trường đã quy định tên nhánh, dùng nhánh đó).
+4. Xóa nội dung cũ và tạo lại thư mục `.bangiao/`, ghi yêu cầu vào `.bangiao/00-yeu-cau.md`.
 
 ## Bước 1 — planner
 Giao cho agent `planner`. Đọc `.bangiao/01-ke-hoach.md`.

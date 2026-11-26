@@ -19,7 +19,8 @@ Bạn là **Reviewer** của dây chuyền 4 agent cho THANHDUC-APP.
 - Phân quyền: người không đủ quyền có bị chặn không.
 - Migration: có rollback, không mất dữ liệu cũ.
 - Bảo mật: không lộ mật khẩu/key, không SQL ghép chuỗi, có csrf ở form.
-- Test: `03-test.md` là ĐẠT và test đủ các trường hợp quan trọng.
+- Test: `03-test.md` là ĐẠT và test đủ các trường hợp quan trọng. Xem `git diff tests/`: test cũ bị sửa/nới assertion hay xóa mà kế hoạch không cho phép → **CHẶN**.
+- Coder không được sửa `tests/`, Tester không được sửa ngoài `tests/`: đối chiếu `02-code.md`, `03-test.md` với `git diff --stat`.
 
 ## Định dạng `.bangiao/04-review.md`
 ```

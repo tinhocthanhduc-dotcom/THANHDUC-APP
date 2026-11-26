@@ -48,7 +48,7 @@ Công nghệ: Python, FastAPI, PostgreSQL 16, Alembic, giao diện Jinja. Chạy
 
 ## Quy tắc khi sửa code
 1. Đổi cấu trúc bảng: sửa `app/models.py` → `alembic revision --autogenerate` → **đọc lại file migration** → ghi rõ cách rollback trong mô tả PR.
-2. Chạy test trước khi xong: `TD_TEST_DATABASE_URL=... pytest` (database test riêng, sẽ bị xóa sạch).
+2. Chạy test trước khi xong: `TD_TEST_DATABASE_URL=... scripts/chay-test.sh` (database test riêng, tên phải có chữ `test`, sẽ bị xóa sạch).
 3. Không commit mật khẩu, API key, token, file `.env`. Cấu hình mẫu để ở `deploy/env.example`.
 4. Không đưa dữ liệu thật của khách/nhân viên (SĐT, địa chỉ, lương) vào code, test hay tài liệu.
 5. Giao diện, thông báo lỗi, tài liệu: tiếng Việt, dùng tốt trên điện thoại.
