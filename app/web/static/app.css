@@ -5839,3 +5839,10 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .dw-co-san > label { display: block; margin-top: 10px; }
 .dw-co-san .chk { margin-top: 10px; }
 @media (min-width: 1024px) { .dw-co-san .dw-trung .dw-row { grid-template-columns: 44px minmax(0, 1fr) auto; } .dw-co-san .dw-trung .dw-row-acts { grid-column: auto; } }
+/* Giá riêng phiếu (mẫu G296xR5EspFChNAWzbvvTy 26/11/2026) */
+.rq-custom { display: grid; gap: 6px; margin: 6px 0; padding: 8px 10px; border: 1px dashed var(--line, #cbd5e1); border-radius: 8px; }
+.rq-custom label { display: grid; gap: 2px; }
+.rq-custom small { color: var(--muted); }
+.rq-custom input { font-size: 16px; font-weight: 700; text-align: right; max-width: 220px; }
+.rq-custom textarea { font-size: 16px; }
+.rq-custom .btn { justify-self: start; }

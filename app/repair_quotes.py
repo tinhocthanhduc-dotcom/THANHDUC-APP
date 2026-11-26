@@ -229,6 +229,10 @@ def snapshot(session: Session, t: ServiceTicket, row: RepairInspection, days: in
     lines = []
     if q['ok']:
         for ln in q['lines']:
+            if ln['pick'].get('custom'):
+                # Giá riêng phiếu: khách chỉ thấy một giá đã chốt, không kèm phương án theo bảng giá.
+                lines.append(dict(name=ln['customer_name'], description=ln['description'], PA1=_pa(ln['pick']), PA2=None, pick='PA1'))
+                continue
             pa1, pa2 = _pa(ln['std']), _pa(ln['gen'])
             lines.append(dict(name=ln['customer_name'], description=ln['description'], PA1=pa1, PA2=pa2 if SHOW_BOTH or ln['genuine'] else None,
                               pick='PA2' if ln['genuine'] else 'PA1'))
