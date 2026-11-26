@@ -39,7 +39,7 @@ TRANSITIONS = {
     "TAM_DUNG": "Tạm dừng", "HOAN_THANH": "Hoàn thành", "DA_DONG": "Đóng hồ sơ", "KHONG_LAM_DUOC": "Không làm được", "DA_HUY": "Hủy",
 }
 STEPS = {"create": "Nhận đơn", "depart": "Thợ đi tới khách", "late": "Thợ báo trễ", "assign": "Giao thợ", "reassign": "Giao lại", "set_kind": "Chọn loại dịch vụ", "set_machine": "Chọn máy", "split":"Tách phiếu",
-         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "fix_dates": "Sửa ngày phiếu", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_decline":"Khách không sửa","repair_reported":"Thợ báo sửa xong","repair_failed":"Thợ báo không sửa được","repair_extra":"Thợ báo phát sinh, báo lại khách","quote_reschedule":"Đổi ngày hẹn trả","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
+         "transition": "Chuyển trạng thái", "reschedule": "Dời hẹn", "fix_dates": "Sửa ngày phiếu", "cancel": "Hủy", "workshop_handover":"Bàn giao máy về xưởng","quote_approve":"Khách đồng ý","quote_reopen":"Sửa báo giá","quote_decline":"Khách không sửa","repair_reported":"Thợ báo sửa xong","repair_failed":"Thợ báo không sửa được","repair_extra":"Thợ báo phát sinh, báo lại khách","quote_reschedule":"Đổi ngày hẹn trả","workshop":"Mang máy về xưởng", "repair_done":"Sửa xong, chờ trả máy", "counter_intake":"Nhận máy tại quầy", "counter_return":"Khách lấy máy tại quầy",
          "transfer_request": "Xin chuyển việc", "transfer_reject": "Từ chối chuyển",
          "no_show": "Không gặp khách", "reopen": "Mở lại", "close": "Đóng hồ sơ", "update_info": "Sửa thông tin phiếu",
          "goods_ok": "Đã nhận đủ hàng", "unassign": "Hủy giao thợ", "goods_short": "Báo thiếu hàng", "expense": "Chi phí phát sinh"}
@@ -338,6 +338,14 @@ def _detail(request, session, user, ticket_id, form=None, failed_action="", erro
     ctx['ws_change']=at_workshop and _sw.can_change_repairer(session,user,t)
     ctx['ws_repairers']=[dict(id=u.id,name=u.full_name,load=n) for u,n in _sw.repairers(session) if u.id!=t.assignee_id] if ctx['ws_change'] else []
     ctx['ws_reasons']=_sw.CHANGE_REASONS
+    ctx['can_reopen_quote']=at_workshop and _sw.can_reopen_quote(user,t)
+    # In lại báo giá ở bước sau (TUẤN chọn 26/11/2026): lần khách đồng ý, không có thì lần mới nhất.
+    from .. import repair_quotes as _rqs
+    ctx['rq_print_vid']=None
+    if svc.can_quote(user):
+        _vs=_rqs.versions(session,t.id)
+        _pick=next((v for v in _vs if v.status=='DONG_Y'),None) or (_vs[0] if _vs else None)
+        ctx['rq_print_vid']=_pick.id if _pick is not None else None
     ctx['rq_inspect']=rinsp.can_inspect(user) and rinsp.is_waiting(t) and not t.quote_approved_at
     ctx['rq_done']=request.query_params.get('da_kiem_tra')==str(t.id)
     ctx['rq_applied']=request.query_params.get('da_ap_gia')=='1' and not error
@@ -1042,6 +1050,11 @@ def workshop_dispatch(request:Request,ticket_id:int,action:str,background:Backgr
                 chips,fix,rep=technician_web.report_fields(form);fault=chips or fault
                 shown.update(repair_result=rep['repair_result'],fix_extra=rep['fix_extra'],picked=rep['fault']+rep['work'])
             service_workshop.workshop_repaired(session,user,ticket_id,version,repairer,shown['mode'],shown['reason'],fault,fix,months,shown['warranty_scope'])
+        elif action=='sua-bao-gia':
+            # Sửa báo giá sau khi khách đồng ý (TUẤN chọn 26/11/2026): về bước Báo giá, gửi lần mới.
+            service_workshop.reopen_quote(session,user,ticket_id,version,shown['reason'])
+            background.add_task(service_workshop.notify_quote_reopen,ticket_id)
+            return RedirectResponse(f'/dich-vu/{ticket_id}?sua_bao_gia=1',status_code=303)
         elif action=='doi-tho':
             ident=shown['assignee_id']
             if not ident.isascii() or not ident.isdigit() or len(ident)>18:raise BusinessError('BAD_ASSIGNEE','Chọn thợ sửa.')
@@ -1051,5 +1064,5 @@ def workshop_dispatch(request:Request,ticket_id:int,action:str,background:Backgr
         else:raise BusinessError('NOT_FOUND','Không có thao tác này.',status=404)
     except (BusinessError,ValidationError) as exc:
         message,code,status=_message(exc)
-        return _detail(request,session,user,ticket_id,form=shown,failed_action='doi-tho' if action=='doi-tho' else 'xg1',error=message,error_code=code,status=status,xg_form=shown)
+        return _detail(request,session,user,ticket_id,form=shown,failed_action=action if action in ('doi-tho','sua-bao-gia') else 'xg1',error=message,error_code=code,status=status,xg_form=shown)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_luu=1',status_code=303)
