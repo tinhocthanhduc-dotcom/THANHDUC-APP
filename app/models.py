@@ -2702,6 +2702,7 @@ class RepairInspectionItem(Base):
     __table_args__ = (
         CheckConstraint('level between 1 and 3 and level_auto between 1 and 3', name='ck_repair_inspection_items_level'),
         CheckConstraint("level = level_auto or btrim(level_reason) <> ''", name='ck_repair_inspection_items_reason'),
+        CheckConstraint("custom_price is null or (custom_price > 0 and btrim(custom_reason) <> '')", name='ck_repair_inspection_items_custom'),
         UniqueConstraint('ticket_id', 'service_id', name='uq_repair_inspection_items_service'),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -2715,6 +2716,9 @@ class RepairInspectionItem(Base):
     genuine: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
     customer_note: Mapped[str] = mapped_column(Text, default='', server_default='')  # mô tả kết quả cho khách (đã duyệt)
     sort: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    # 0112 Giá riêng phiếu (GĐ/kinh doanh chốt khi Duyệt giá, chưa VAT); trống = giá bảng.
+    custom_price: Mapped[int | None] = mapped_column(BigInteger)
+    custom_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
 
 
 QUOTE_VERSION_STATUSES = ('CHO', 'DONG_Y', 'CHUA_DONG_Y', 'KHONG_SUA', 'THAY_THE', 'THU_HOI')

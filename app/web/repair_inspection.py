@@ -207,16 +207,18 @@ def apply_quote(request: Request, ticket_id: int, form=Depends(checked_form), se
     row = ri.inspection(session, ticket_id)
     choices = {i.service_id: str(form.get(f'pa_{i.service_id}', '1')) == '2' for i in (row.items if row else [])}
     notes = {i.service_id: str(form.get(f'mo_ta_{i.service_id}', '') or '') for i in (row.items if row else [])}
+    prices = {i.service_id: str(form.get(f'gia_{i.service_id}', '') or '') for i in (row.items if row else []) if f'gia_{i.service_id}' in form}
+    reasons = {i.service_id: str(form.get(f'ly_do_gia_{i.service_id}', '') or '') for i in (row.items if row else [])}
     version = str(form.get('version', '') or '')
     try:
-        ri.apply(session, user, ticket_id, int(version) if version.isdigit() else None, choices, notes)
+        ri.apply(session, user, ticket_id, int(version) if version.isdigit() else None, choices, notes, prices, reasons)
     except BusinessError as exc:
         session.rollback()
         if exc.status in (403, 404):
             session.refresh(user)  # trang lỗi còn đọc quyền người dùng sau khi phiên đóng
             raise
         from .services import _detail
-        return _detail(request, session, user, ticket_id, failed_action='rq-apply', error=exc.message, error_code=exc.code, status=exc.status)
+        return _detail(request, session, user, ticket_id, form={k: str(v) for k, v in form.items() if k not in ('csrf',)}, failed_action='rq-apply', error=exc.message, error_code=exc.code, status=exc.status)
     return RedirectResponse(f'/dich-vu/{ticket_id}?da_ap_gia=1', status_code=303)
 
 

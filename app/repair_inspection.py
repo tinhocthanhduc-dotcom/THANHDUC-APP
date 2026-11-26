@@ -214,11 +214,12 @@ def save(session: Session, user: User, ticket_id: int, form) -> RepairInspection
     row.inspected_by, row.inspected_at = user.id, now
     if needs_recheck(row):  # kho đã kiểm tra lại theo ý khách / phát sinh: sang bước duyệt giá, giữ lý do cho người duyệt
         row.recheck_reason = (RECHECKED + row.recheck_reason)[:1000]
-    old_items = {i.service_id: (_item_snap(i), i.customer_note) for i in row.items}
+    old_items = {i.service_id: (_item_snap(i), i.customer_note, i.custom_price, i.custom_reason) for i in row.items}
     for i in items:
-        snap, note = old_items.get(i.service_id, (None, ''))
+        snap, note, custom, why = old_items.get(i.service_id, (None, '', None, ''))
         if snap == _item_snap(i) and before and before['model'] == row.model_name:
             i.customer_note = note  # dịch vụ không đổi: giữ mô tả điều phối đã duyệt
+            i.custom_price, i.custom_reason = custom, why  # và giá riêng GĐ/kinh doanh đã chốt (đổi gói/cấp thì bỏ)
     row.items[:] = []
     session.flush()
     row.items.extend(items)
@@ -366,6 +367,13 @@ def quote(session: Session, t: ServiceTicket, row: RepairInspection, choices: di
         gen = cq.lookup(session, t.customer_code, i.service_id, row.model_name, i.level, genuine=True)
         genuine = choices.get(i.service_id, i.genuine) and gen['ok']
         pick = gen if genuine else std
+        if i.custom_price is not None:
+            # Giá riêng phiếu (TUẤN duyệt 26/11/2026): GĐ/kinh doanh chốt, thay giá bảng của phương án đang chọn.
+            pick = custom_pick(pick, i.custom_price, i.custom_reason)
+            if genuine:
+                gen = pick
+            else:
+                std = pick
         ok = ok and pick['ok']
         part_rows = [dict(code=p['code'], name=names.get(p['code'], p['code']), qty=p['qty'],
                           cost=costs.get(p['code'], 0) * p['qty'] if with_cost else None) for p in i.parts]
@@ -384,6 +392,41 @@ def quote(session: Session, t: ServiceTicket, row: RepairInspection, choices: di
         out['margin'] = margin(session, t, row, out, hours)
     out['below_floor'] = _below_floor(session, t, row, out, hours)
     return out
+
+
+def custom_pick(table: dict, price: int, reason: str) -> dict:
+    return {**table, 'ok': True, 'price': price, 'price_vat': pb.with_vat(price), 'source': 'rieng', 'reason': '',
+            'custom': True, 'custom_reason': reason, 'table_price': table['price'] if table['ok'] else None}
+
+
+def set_custom_prices(session: Session, t: ServiceTicket, row: RepairInspection, prices: dict, reasons: dict, choices: dict) -> list:
+    """Ghi giá chốt từng gói lúc Duyệt giá. Trống hoặc bằng giá bảng = bỏ giá riêng; khác giá bảng phải có lý do.
+    Trả về danh sách (tên gói, giá bảng, giá riêng, lý do) đã đổi để ghi lịch sử phiếu."""
+    changed = []
+    for i in row.items:
+        if i.service_id not in prices:
+            continue
+        s = session.get(PriceService, i.service_id)
+        label = s.name if s else 'Gói sửa'
+        value = pb.parse_money(prices.get(i.service_id), f'Giá chốt {label}')
+        if value is not None and value <= 0:
+            raise BusinessError('BAD_PRICE', f'Giá chốt {label}: phải lớn hơn 0 (miễn phí thì chọn Miễn phí trên phiếu).')
+        genuine = choices.get(i.service_id, i.genuine)
+        table = cq.lookup(session, t.customer_code, i.service_id, row.model_name, i.level, genuine=bool(genuine))
+        if not table['ok'] and genuine:
+            table = cq.lookup(session, t.customer_code, i.service_id, row.model_name, i.level)
+        if value is not None and table['ok'] and value == table['price']:
+            value = None
+        why = ' '.join(str(reasons.get(i.service_id, '') or '').split())[:500]
+        if value is not None and len(why) < 3:
+            raise BusinessError('REASON_REQUIRED', f'Giá chốt {label} khác giá bảng: ghi lý do giá riêng.')
+        if value is None:
+            why = ''
+        if (value, why) != (i.custom_price, i.custom_reason or ''):
+            changed.append((label, table['price'] if table['ok'] else None, value, why))
+        i.custom_price, i.custom_reason = value, why
+    session.flush()
+    return changed
 
 
 def margin(session: Session, t: ServiceTicket, row: RepairInspection, q: dict, hours) -> dict:
@@ -413,7 +456,8 @@ def _below_floor(session, t, row, q, hours) -> bool:
     return m['below']
 
 
-def apply(session: Session, user: User, ticket_id: int, version, choices: dict, notes: dict | None = None) -> RepairInspection:
+def apply(session: Session, user: User, ticket_id: int, version, choices: dict, notes: dict | None = None,
+          prices: dict | None = None, reasons: dict | None = None) -> RepairInspection:
     """Điều phối áp giá bảng giá vào phiếu: mỗi dịch vụ một dòng PHI trọn gói; dòng khác của phiếu giữ nguyên."""
     from . import service_charges, service_tickets
     from .schemas import ServiceCharges, ServiceLineIn
@@ -428,6 +472,7 @@ def apply(session: Session, user: User, ticket_id: int, version, choices: dict, 
         row = session.get(RepairInspection, t.id, with_for_update=True)
         if row is None or not row.items:
             raise BusinessError('NO_INSPECTION', 'Thợ chưa ghi kết quả kiểm tra máy.', status=409)
+        custom_changes = set_custom_prices(session, t, row, prices or {}, reasons or {}, choices) if prices else []
         for i in row.items:
             if i.service_id in choices:
                 i.genuine = bool(choices[i.service_id])
@@ -451,8 +496,14 @@ def apply(session: Session, user: User, ticket_id: int, version, choices: dict, 
         row.applied_lines = [ln['customer_name'][:500] for ln in q['lines']]
         row.applied_at, row.applied_by, row.warranty_months = _now(), user.id, q['warranty']
         row.recheck_reason = ''
+        if custom_changes:
+            from . import service_tickets as _st
+            dots = lambda n: f'{n:,}'.replace(',', '.')
+            note = '; '.join((f'{name}: giá riêng {dots(new)}' + (f' (bảng {dots(old_p)})' if old_p else '') + f' · {why}')
+                             if new is not None else f'{name}: về giá bảng' for name, old_p, new, why in custom_changes)
+            _st._record(session, user, t, 'quote_custom_price', _st.snapshot(t), t.status, note[:1000])
         audit.record(session, user, 'repair_inspection.apply', 'service_ticket', str(t.id), before,
-                     dict(snapshot(row), lines=[[ln['customer_name'], ln['pick']['price'], ln['item'].level, ln['genuine'], ln['description']] for ln in q['lines']],
+                     dict(snapshot(row), lines=[[ln['customer_name'], ln['pick']['price'], ln['item'].level, ln['genuine'], ln['description'], ln['item'].custom_reason] for ln in q['lines']],
                           pct=q['margin']['pct'], level_changes=[[ln['service'].name, ln['item'].level_auto, ln['item'].level,
                                                                   ln['item'].level_reason] for ln in q['lines']
                                                                  if ln['item'].level != ln['item'].level_auto]))
