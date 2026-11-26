@@ -143,7 +143,8 @@ def xu_ly_anh(ch: CauHinh, ten_goc: str, files: list[Path], tach_nen: bool, logo
     for i, f in enumerate(files, 1):
         data = anh_mod.xu_ly(f, tach_nen=tach_nen, kich_thuoc=ch.anh_kich_thuoc, dinh_dang=ch.anh_dinh_dang,
                              logo=anh_mod.LOGO_MAC_DINH if logo else None)
-        ten = f"{ten_goc}{'' if i == 1 else f'-{i}'}.{duoi}"
+        # Đuôi -anh: ảnh không mang đúng slug sản phẩm/bài, nếu trùng thì link trang mở ra file ảnh (TUẤN 26/11)
+        ten = f"{ten_goc}-anh{'' if i == 1 else f'-{i}'}.{duoi}"
         (ch.anh_da_xu_ly / ten).write_bytes(data)
         ra.append((ten, data))
     return ra

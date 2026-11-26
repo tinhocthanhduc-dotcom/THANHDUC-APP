@@ -3,6 +3,7 @@
 #   scripts/dang-web.sh kiem-tra
 #   scripts/dang-web.sh san-pham --ma TD-0001,TD-0002 --thu
 #   scripts/dang-web.sh san-pham --tu-dong --so 3
+#   scripts/dang-web.sh sua-slug-anh   gỡ ảnh trùng slug sản phẩm/bài (bấm Xem trang trên web lại mở ra ảnh)
 #   scripts/dang-web.sh bat-may     tạo thư mục ~/THANHDUC-WEB đúng quyền và bật máy đăng web ngay (từ 02/11/2026 lệnh cập nhật app cũng tự bật)
 #   scripts/dang-web.sh tat-may     tắt máy đăng web chạy nền
 #   scripts/dang-web.sh nhat-ky     xem 80 dòng nhật ký gần nhất của máy đăng web

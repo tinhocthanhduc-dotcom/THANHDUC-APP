@@ -82,14 +82,14 @@ class WordPress:
     def tao_sp(self, payload: dict, cong_khai: bool = False) -> dict:
         """Tạo sản phẩm. Mặc định Bản nháp; cong_khai=True chỉ khi anh đã bấm "Duyệt và đăng" trong app."""
         payload = {**payload, "status": "publish" if cong_khai else "draft"}
-        return self._json("POST", "wc/v3/products", json=payload)
+        return self._go_trung(self._json("POST", "wc/v3/products", json=payload))
 
     def sua_sp(self, sp_id: int, payload: dict, cong_khai: bool = False) -> dict:
         """Ghi đè nội dung sản phẩm đã có (Viết lại). Giữ nguyên mã SKU; giữ trạng thái trừ khi anh bấm "Duyệt và đăng"."""
         payload = {k: v for k, v in payload.items() if k not in ("status", "sku", "type")}
         if cong_khai:
             payload["status"] = "publish"
-        return self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload)
+        return self._go_trung(self._json("PUT", f"wc/v3/products/{int(sp_id)}", json=payload))
 
     def an_sp(self, sp_id: int) -> dict:
         """Đưa sản phẩm về Nháp (khách không thấy nữa). Không đổi gì khác."""
@@ -97,7 +97,30 @@ class WordPress:
 
     def tat_ca_sp(self) -> list[dict]:
         """Mọi sản phẩm trên web (cả nháp), chỉ lấy các trường cần cho tab Trên web."""
-        return self._tat_ca("wc/v3/products", {"status": "any", "_fields": "id,name,sku,status,permalink,categories,regular_price,price,images"})
+        return self._tat_ca("wc/v3/products", {"status": "any", "_fields": "id,name,sku,status,permalink,slug,categories,regular_price,price,images"})
+
+    # ---- slug ảnh trùng slug trang (TUẤN 26/11: bấm Xem trang trên web lại mở ra file ảnh) ----
+    def go_slug_anh_trung(self, slug_trang: str) -> list[int]:
+        """Ảnh trong thư viện Media mang đúng slug của sản phẩm/bài thì WordPress hiểu /slug/ là trang ảnh và chuyển
+        sang file .webp. Đổi slug ảnh đó thành slug-anh (file ảnh và link ảnh giữ nguyên). Trả id các ảnh đã đổi."""
+        s = (slug_trang or "").strip()
+        if not s:
+            return []
+        doi = []
+        for m in self._json("GET", "wp/v2/media", params={"slug": s, "_fields": "id,slug"}) or []:
+            if isinstance(m, dict) and m.get("id") and m.get("slug") == s:
+                self._json("POST", f"wp/v2/media/{int(m['id'])}", json={"slug": f"{s}-anh"})
+                doi.append(int(m["id"]))
+        return doi
+
+    def _go_trung(self, trang: dict) -> dict:
+        """Gỡ trùng slug ngay sau khi tạo/sửa trang; lỗi ở bước phụ này không làm hỏng việc đăng."""
+        try:
+            if isinstance(trang, dict):
+                self.go_slug_anh_trung(str(trang.get("slug") or ""))
+        except Exception:  # noqa: BLE001
+            pass
+        return trang
 
     def lay_sp(self, sp_id: int) -> dict:
         return self._json("GET", f"wc/v3/products/{int(sp_id)}")
@@ -140,7 +163,7 @@ class WordPress:
     # ---- bài viết ----
     def sua_bai(self, bai_id: int, payload: dict) -> dict:
         payload = {k: v for k, v in payload.items() if k != "status"}
-        return self._json("POST", f"wp/v2/posts/{int(bai_id)}", json=payload)
+        return self._go_trung(self._json("POST", f"wp/v2/posts/{int(bai_id)}", json=payload))
 
     def lay_bai_theo_ids(self, ids: list[int]) -> list[dict]:
         ra = []
@@ -154,7 +177,7 @@ class WordPress:
     def tat_ca_bai(self) -> list[dict]:
         """Mọi bài viết trên web (cả nháp, chờ duyệt, hẹn giờ)."""
         return self._tat_ca("wp/v2/posts", {"status": "publish,draft,pending,future,private", "context": "edit",
-                                            "_fields": "id,title,status,link,categories,date,featured_media,content"})
+                                            "_fields": "id,title,status,link,slug,categories,date,featured_media,content"})
 
     def lay_bai(self, bai_id: int) -> dict:
         return self._json("GET", f"wp/v2/posts/{int(bai_id)}", params={"context": "edit"})
@@ -194,7 +217,7 @@ class WordPress:
 
     def tao_bai(self, payload: dict) -> dict:
         payload = {**payload, "status": "draft"}
-        return self._json("POST", "wp/v2/posts", json=payload)
+        return self._go_trung(self._json("POST", "wp/v2/posts", json=payload))
 
     # ---- ảnh ----
     def xoa_anh(self, media_id: int) -> None:
