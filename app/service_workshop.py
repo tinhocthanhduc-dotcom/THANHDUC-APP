@@ -298,6 +298,55 @@ def report_extra(session,user,ident,version,note):
     return t
 
 
+def can_reopen_quote(user,t):
+    """Sửa báo giá sau khi khách đồng ý (TUẤN chọn 26/11/2026): giám đốc / kinh doanh, máy còn chờ sửa ở xưởng, chưa Sửa xong."""
+    return (tickets.can_quote(user) and t.status=='TAM_DUNG' and t.hold_reason==WAITING and t.quote_approved_at is not None
+            and t.declined_at is None and not service_charges.return_locked(t))
+
+
+def reopen_quote(session,user,ident,version,reason):
+    """Bỏ "Khách đồng ý", máy về bước Báo giá: sửa kiểm tra/gói/giá, Duyệt giá, gửi khách lần mới. Lần cũ giữ trong lịch sử."""
+    from .models import RepairInspection
+    reason=' '.join(str(reason or '').split())[:1000]
+    with _transaction(session):
+        t=_waiting(session,user,ident,version,quote=True)
+        if not can_reopen_quote(user,t):
+            raise BusinessError('BAD_STATUS','Chỉ sửa báo giá khi khách đã đồng ý và máy chưa sửa xong.',status=409)
+        if len(reason)<3:raise BusinessError('REASON_REQUIRED','Ghi lý do sửa báo giá.')
+        row=session.get(RepairInspection,t.id,with_for_update=True)
+        if row is None:raise BusinessError('NO_INSPECTION','Máy chưa có kết quả kiểm tra.',status=409)
+        before=tickets.snapshot(t)
+        t.quote_approved_at=t.quote_approved_by=None
+        t.version+=1
+        row.recheck_reason=('Sửa báo giá: '+reason)[:1000]
+        row.applied_at=row.applied_by=None
+        tickets._record(session,user,t,'quote_reopen',before,t.status,reason)
+    return t
+
+
+def notify_quote_reopen(ticket_id):
+    """Chạy nền: báo thợ đang được giao máy tạm dừng, chờ báo giá lại."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+    from . import zalo_bot
+    from .config import get_settings
+    from .db import engine
+    from .models import ServiceStep, ServiceTicket, User, ZaloChat
+    if not get_settings().zalo_bot_token.strip():
+        return 0
+    with Session(engine()) as session:
+        t=session.get(ServiceTicket,ticket_id)
+        if t is None or t.assignee_id is None:return 0
+        step=session.scalar(select(ServiceStep).where(ServiceStep.ticket_id==t.id,ServiceStep.action=='quote_reopen').order_by(ServiceStep.id.desc()).limit(1))
+        chat=session.scalar(select(ZaloChat).join(User,User.id==ZaloChat.user_id).where(ZaloChat.user_id==t.assignee_id,User.active.is_(True),
+                            ZaloChat.chat_type=='PRIVATE').order_by(ZaloChat.id).limit(1))
+        if chat is None:return 0
+        body='\n'.join(x for x in (f'{t.number}: tạm dừng sửa, văn phòng đang báo giá lại cho khách.',(step.note if step else '')[:300],
+                                     'Chờ khách đồng ý lần mới rồi sửa tiếp.') if x)
+        zalo_bot.send_text(session,chat,body,None,'thong_bao')
+        return 1
+
+
 def report_failed(session,user,ident,version,reason,note=''):
     """Không sửa được: ghi lý do; kinh doanh/giám đốc báo khách rồi bấm Khách không sửa (phí kiểm tra hoặc miễn phí)."""
     note=' '.join(str(note or '').split())[:1000]
