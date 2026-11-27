@@ -1031,13 +1031,15 @@ def workshop_dispatch(request:Request,ticket_id:int,action:str,background:Backgr
     from . import technician as technician_web
     user=request.state.user
     svc._require(user,svc.DISPATCHERS,'Chỉ điều phối được xử lý sửa ở xưởng.')
-    shown={k:str(form.get(k,'')) for k in ('version','promised_return_on','note','repaired_by','mode','reason','fee','fault','fix','warranty_months','warranty_scope','assignee_id')};shown['action']=action
+    shown={k:str(form.get(k,'')) for k in ('version','promised_return_on','note','repaired_by','mode','reason','fee','fault','fix','warranty_months','warranty_scope','assignee_id','repairer')};shown['action']=action
     try:
         version=_version(form)
         if action=='dong-y':
             try:day=date.fromisoformat(shown['promised_return_on'])
             except ValueError:raise BusinessError('BAD_APPOINTMENT','Chọn ngày hẹn trả hợp lệ.')
-            service_workshop.quote_approve(session,user,ticket_id,version,day,shown['note'])
+            try:repairer=int(shown['repairer']) if shown['repairer'] else None
+            except ValueError:raise BusinessError('BAD_ASSIGNEE','Chọn thợ sửa trong danh sách.')
+            service_workshop.quote_approve(session,user,ticket_id,version,day,shown['note'],repairer_id=repairer)
         elif action=='khong-sua':
             service_workshop.quote_decline(session,user,ticket_id,version,shown['mode'],shown['fee'],shown['reason'])
         elif action=='sua-xong':

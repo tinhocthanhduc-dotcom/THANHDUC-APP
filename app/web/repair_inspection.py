@@ -196,7 +196,7 @@ def panel_context(session, user, t, picks=None) -> dict:
                         can_send=_st.can_quote(user) and pv['ready'] and (open_v is None or send['stale']), pv=pv,
                         linked=bool(linked_chat(session, t.customer_code)), via=rqs.VIA, reasons=rqs.REASONS,
                         statuses=rqs.STATUSES, sent_via=rqs.SENT_VIA, valid_days=rqs.VALID_DAYS,
-                        repairers=_repairers(session) if send else [], assignee=t.assignee_id,
+                        repairers=_repairers(session) if _st.can_quote(user) else [], assignee=t.assignee_id,
                         previous=rqs.agreed_before(session, t.id) if send else None),
                 rq_warranty=row.warranty_months if row.applied_at else None)
 
