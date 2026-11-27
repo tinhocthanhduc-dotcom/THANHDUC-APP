@@ -241,6 +241,8 @@ def snapshot(session: Session, t: ServiceTicket, row: RepairInspection, days: in
     pick = 'PA2' if any(ln['pick'] == 'PA2' for ln in lines) else 'PA1'
     picked = [(ln[ln['pick']] or ln['PA1']) for ln in lines + extras if not ln.get('free_if_agree')]
     chosen = dict(subtotal=pv['subtotal'], vat=pv['vat'], total=pv['total'], warranty=max((p['warranty'] or 0 for p in picked), default=0))
+    if q.get('warranty_custom') is not None and q['ok']:
+        chosen['warranty'] = q['warranty_custom']  # bảo hành riêng phiếu (27/11/2026): tin Zalo ghi đúng số đã duyệt
     other = 'PA1' if pick == 'PA2' else 'PA2'
     alt = _totals(lines + extras, other) if any(ln[other] for ln in lines) else None
     if alt and alt['total'] == chosen['total']:

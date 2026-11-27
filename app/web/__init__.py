@@ -112,6 +112,15 @@ def print_note(value):
 
 templates.env.filters['print_note'] = print_note
 templates.env.filters["money"] = money
+
+
+def vat_price(price):
+    """Giá gồm VAT 8% (ô Giá chốt gõ gồm VAT trên báo giá sửa, TUẤN 27/11/2026)."""
+    from ..price_book import with_vat
+    return with_vat(price)
+
+
+templates.env.filters["vat_price"] = vat_price
 templates.env.filters["urlquote"] = lambda value: quote(str(value), safe="")
 
 

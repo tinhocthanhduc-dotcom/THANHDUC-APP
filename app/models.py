@@ -2679,6 +2679,9 @@ class QuickQuote(Base):
 class RepairInspection(Base):
     """0095 Thợ kiểm tra máy (đợt 3 báo giá sửa chữa): một bản cho mỗi phiếu sửa ở xưởng."""
     __tablename__ = 'repair_inspections'
+    __table_args__ = (
+        CheckConstraint('custom_warranty is null or custom_warranty in (0,1,2,3,6,12)', name='ck_repair_inspections_custom_warranty'),
+    )
     ticket_id: Mapped[int] = mapped_column(ForeignKey('service_tickets.id', ondelete='CASCADE'), primary_key=True)
     model_name: Mapped[str] = mapped_column(String(160), default='', server_default='')
     model_id: Mapped[int | None] = mapped_column(ForeignKey('repair_models.id', ondelete='SET NULL'))
@@ -2692,6 +2695,8 @@ class RepairInspection(Base):
     ai_job_id: Mapped[int | None] = mapped_column(ForeignKey('zalo_ai_jobs.id', ondelete='SET NULL'))  # Codex Z2 soạn mô tả cho khách
     recheck_reason: Mapped[str] = mapped_column(Text, default='', server_default='')  # 0096: khách chưa đồng ý, báo lại kỹ thuật
     version: Mapped[int] = mapped_column(Integer, default=1, server_default='1')
+    # 0113 Bảo hành riêng phiếu (GĐ/kinh doanh chọn khi Duyệt giá); trống = theo gói trong bảng giá.
+    custom_warranty: Mapped[int | None] = mapped_column(Integer)
     __mapper_args__ = {'version_id_col': version}
     items: Mapped[list["RepairInspectionItem"]] = relationship(order_by='RepairInspectionItem.sort', cascade='all, delete-orphan')
 
@@ -2703,6 +2708,7 @@ class RepairInspectionItem(Base):
         CheckConstraint('level between 1 and 3 and level_auto between 1 and 3', name='ck_repair_inspection_items_level'),
         CheckConstraint("level = level_auto or btrim(level_reason) <> ''", name='ck_repair_inspection_items_reason'),
         CheckConstraint("custom_price is null or (custom_price > 0 and btrim(custom_reason) <> '')", name='ck_repair_inspection_items_custom'),
+        CheckConstraint('custom_gross is null or (custom_price is not null and abs(custom_gross - custom_price * 1.08) <= 1)', name='ck_repair_inspection_items_custom_gross'),
         UniqueConstraint('ticket_id', 'service_id', name='uq_repair_inspection_items_service'),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -2719,6 +2725,8 @@ class RepairInspectionItem(Base):
     # 0112 Giá riêng phiếu (GĐ/kinh doanh chốt khi Duyệt giá, chưa VAT); trống = giá bảng.
     custom_price: Mapped[int | None] = mapped_column(BigInteger)
     custom_reason: Mapped[str] = mapped_column(Text, default='', server_default='')
+    # 0113 Giá chốt gõ gồm VAT (TUẤN 27/11/2026): giữ đúng số khách trả (790.000 không ra 789.999).
+    custom_gross: Mapped[int | None] = mapped_column(BigInteger)
 
 
 QUOTE_VERSION_STATUSES = ('CHO', 'DONG_Y', 'CHUA_DONG_Y', 'KHONG_SUA', 'THAY_THE', 'THU_HOI')

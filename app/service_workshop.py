@@ -359,6 +359,15 @@ def report_failed(session,user,ident,version,reason,note=''):
     return t
 
 
+def quote_warranty(session,t):
+    """Số tháng bảo hành trên báo giá khách đã đồng ý (đã gồm bảo hành riêng phiếu); None khi phiếu không qua báo giá sửa."""
+    if t.quote_approved_at is None:return None
+    from .models import RepairInspection
+    row=session.get(RepairInspection,t.id)
+    if row is None or row.applied_at is None or row.warranty_months not in WARRANTIES:return None
+    return row.warranty_months
+
+
 def workshop_repaired(session,user,ident,version,repaired_by,mode,reason,fault,fix,warranty_months,warranty_scope=''):
     with _transaction(session):
         t=_waiting(session,user,ident,version)
@@ -369,6 +378,8 @@ def workshop_repaired(session,user,ident,version,repaired_by,mode,reason,fault,f
         held_machine(session,t)
         if repaired_by is None:raise BusinessError('REPAIRER_REQUIRED','Chọn thợ đã sửa máy.')
         tickets._technician(session,repaired_by)
+        quoted=quote_warranty(session,t)
+        if quoted is not None:warranty_months=quoted  # bảo hành theo báo giá đã duyệt, không chọn lại (TUẤN duyệt 27/11/2026)
         if type(warranty_months) is not int or warranty_months not in WARRANTIES:
             raise BusinessError('WARRANTY_REQUIRED','Chọn bảo hành 0, 1, 2, 3, 6 hoặc 12 tháng.')
         scope=(warranty_scope or '').strip() or 'Bảo hành hạng mục và linh kiện đã sửa chữa'

@@ -5846,3 +5846,6 @@ a.bctc-hb:hover .bctc-hb-n, a.bctc-hb:focus-visible .bctc-hb-n { color: var(--ac
 .rq-custom input { font-size: 16px; font-weight: 700; text-align: right; max-width: 220px; }
 .rq-custom textarea { font-size: 16px; }
 .rq-custom .btn { justify-self: start; }
+.rq-warranty, .rq-vatmode { margin: 8px 0; }
+.rq-warranty .seg.xg-months, .rq-vatmode .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.rq-warranty .group-label .btn { margin-left: 6px; padding: 4px 10px; min-height: 0; }

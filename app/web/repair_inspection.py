@@ -211,7 +211,11 @@ def apply_quote(request: Request, ticket_id: int, form=Depends(checked_form), se
     reasons = {i.service_id: str(form.get(f'ly_do_gia_{i.service_id}', '') or '') for i in (row.items if row else [])}
     version = str(form.get('version', '') or '')
     try:
-        ri.apply(session, user, ticket_id, int(version) if version.isdigit() else None, choices, notes, prices, reasons)
+        # Bảo hành riêng + giá chốt gõ gồm VAT (TUẤN duyệt 27/11/2026); form cũ không có ô thì giữ nguyên.
+        warranty = str(form.get('bao_hanh', '') or '') if 'bao_hanh' in form else None
+        gross = str(form.get('gia_gom_vat', '') or '') == '1'
+        ri.apply(session, user, ticket_id, int(version) if version.isdigit() else None, choices, notes, prices, reasons,
+                 warranty, gross)
     except BusinessError as exc:
         session.rollback()
         if exc.status in (403, 404):
